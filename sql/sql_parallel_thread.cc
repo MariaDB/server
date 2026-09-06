@@ -376,6 +376,12 @@ bool pwt_thread::init_worker_thd(THD *parent_thd, int worker_nr)
     Done this strange way so that plugin_thdvar_cleanup() cleans itself
     up and not it's manager.
 
+    The list below is plugin_thdvar_cleanup()'s own: whatever it frees, this
+    has to give back, or the worker frees the manager's buffer and the second
+    THD to go down frees it again. Keep the two in step -- a member added there
+    and not here is a double free, and it shows up a long way from either, in
+    safemalloc's marker check while a worker THD is being destroyed.
+
     Saved field by field because system_variables has no copy constructor,
     only assignment (Sql_path declares one and not the other).
   */
@@ -389,6 +395,7 @@ bool pwt_thread::init_worker_thd(THD *parent_thd, int worker_nr)
   char       *o_track_sysvars=
                 thd->variables.session_track_system_variables;
   char       *o_redirect_url=    thd->variables.redirect_url;
+  char       *o_replay_context=  thd->variables.optimizer_replay_context;
   LEX_CSTRING o_master_conn=     thd->variables.default_master_connection;
   ulonglong   o_option_bits=     thd->variables.option_bits;
   my_bool     o_sql_log_bin=     thd->variables.sql_log_bin;
@@ -406,6 +413,7 @@ bool pwt_thread::init_worker_thd(THD *parent_thd, int worker_nr)
   thd->variables.dynamic_variables_size=    o_dynvar_size;
   thd->variables.session_track_system_variables= o_track_sysvars;
   thd->variables.redirect_url=              o_redirect_url;
+  thd->variables.optimizer_replay_context=  o_replay_context;
   thd->variables.default_master_connection= o_master_conn;
   thd->variables.option_bits=               o_option_bits;
   thd->variables.sql_log_bin=               o_sql_log_bin;
