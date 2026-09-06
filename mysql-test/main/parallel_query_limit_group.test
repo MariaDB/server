@@ -1,0 +1,141 @@
+#
+# MDEV-39492 Parallel Query: a row limit on a plan that pre-aggregates.
+#
+# Who enforces the limit is what decides whether a capped select can run in the
+# workers. For a plan that does not pre-aggregate the drain sends the rows
+# itself, through send_data_with_check(), which skips the offset and counts
+# nothing -- so those stay refused. For a plan that does, this thread sends
+# nothing directly: it hands each drained row to the plan's own terminal, and
+# the chain from there is the serial one, ending in end_send(), which counts
+# the rows out against unit->lim as it always did.
+#
+# So nothing is capped in a worker. A worker ships partials for every group it
+# saw, the manager completes the groups, sorts them, and only then takes the
+# first N -- which is what makes an ORDER BY on an aggregate safe to limit.
+#
+# TPC-H Q3 is the query this is for: grouped, ordered by a SUM, limited.
+#
+--source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+--source include/not_embedded.inc
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+SET SESSION default_storage_engine=InnoDB;
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_trace=1;
+--disable_ps_protocol
+
+--echo #
+--echo # TPC-H Q3, in the workers (expect 1)
+--echo #
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue,
+       o_orderdate, o_shippriority
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 10;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo #
+--echo # the same read serially: the same ten rows
+--echo #
+SET SESSION parallel_worker_threads=0;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue,
+       o_orderdate, o_shippriority
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 10;
+
+--echo #
+--echo # Q3 asks for ten and this dataset has eight groups, so the limit never
+--echo # bites above. Cut it below the group count and it does -- and what it
+--echo # cuts is the ordered list of finished groups, not whatever rows a
+--echo # worker happened to ship.
+--echo #
+SET SESSION parallel_worker_threads=4;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 3;
+SET SESSION parallel_worker_threads=0;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 3;
+
+--echo #
+--echo # and OFFSET, which send_data_with_check() was already skipping: the
+--echo # fourth and fifth of the eight
+--echo #
+SET SESSION parallel_worker_threads=4;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 2 offset 3;
+SET SESSION parallel_worker_threads=0;
+select l_orderkey, sum(l_extendedprice * (1 - l_discount)) as revenue
+from customer, orders, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+  and l_orderkey = o_orderkey
+  and o_orderdate < date '1995-03-15'
+  and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 2 offset 3;
+
+--echo #
+--echo # a limit without pre-aggregation is still refused, and says so
+--echo #
+FLUSH STATUS;
+--disable_result_log
+select l_orderkey from lineitem where l_shipdate > date '1995-03-15' limit 10;
+--enable_result_log
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+  FROM information_schema.optimizer_trace;
+
+drop database  dbt3_s001;
+
+--enable_ps_protocol
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION parallel_worker_threads=default;

@@ -889,17 +889,40 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     Any cap on the rows this select may send: an explicit LIMIT/OFFSET, or the
     session's sql_select_limit, which arrives with explicit_limit still unset
     -- mysql_execute_command() assigns it as the default limit of a top-level
-    SELECT. The serial executor enforces the cap in end_send() against
-    unit->lim; the drain does not, so a capped query run in the workers would
-    send every row. unit->lim is what end_send() would have read, so that is
-    the fact tested rather than the syntax -- which also keeps a derived
-    table's select eligible, its unit carrying no session cap.
+    SELECT. unit->lim is what end_send() would have read, so that is the fact
+    tested rather than the syntax -- which also keeps a derived table's select
+    eligible, its unit carrying no session cap.
+
+    Who enforces it decides whether the plan can run in the workers, and that
+    differs by shape.
+
+    A plan that pre-aggregates is fine as it stands. This thread does not send
+    those rows itself: it hands each drained row to the plan's own terminal and
+    then signals end of records, and everything from there is the serial chain
+    -- sub_select_postjoin_aggr(), AGGR_OP::end_send(), the sorted read of the
+    aggregation table, and end_send(), which counts the rows out against
+    unit->lim exactly as it would without any of this. Nothing is capped in a
+    worker, so there is no question of one deciding which rows survive: a
+    worker ships partials for every group it saw, and the limit is applied
+    after the groups are complete and in order.
+
+    A plan that does not is refused. The drain sends those rows itself, through
+    send_data_with_check(), which skips the offset but counts nothing -- so a
+    capped query would send every row it drained.
   */
-  if (!join->unit->lim.is_unlimited())            // LIMIT / sql_select_limit
+  if (!join->unit->lim.is_unlimited() && !preagg_group)
     DBUG_RETURN(pwt_decline(join, trace,
                  "the select has a row limit -- a LIMIT clause, or the "
                  "session's sql_select_limit -- which the drain does not "
-                 "enforce"));
+                 "enforce for a plan that does not pre-aggregate"));
+  /*
+    WITH TIES keeps sending past the limit while the ORDER BY values are
+    unchanged, which end_send() decides from join->order_fields. Left refused
+    until that is known to hold for a result this thread assembled rather than
+    read.
+  */
+  if (join->unit->lim.is_with_ties())
+    DBUG_RETURN(pwt_decline(join, trace, "the select has FETCH ... WITH TIES"));
   if (join->select_options & OPTION_FOUND_ROWS)  // SQL_CALC_FOUND_ROWS
     DBUG_RETURN(pwt_decline(join, trace, "SQL_CALC_FOUND_ROWS"));
   if (join->procedure)
