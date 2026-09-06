@@ -1,0 +1,106 @@
+#
+# MDEV-39492 Parallel Query: the gate says why it refused.
+#
+# The gate has getting on for forty places that can turn a query away, spread
+# over several functions, and a bare "return false" in any of them leaves the
+# reader to find out which one fired -- from a plan, in a debugger, some way
+# from the query that provoked it. Each refusal now says so instead, and the
+# reasons reach the optimizer trace:
+#
+#   SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because')
+#     FROM information_schema.optimizer_trace;
+#
+# This pins one refusal per shape that can reach it, so a reason cannot quietly
+# become wrong or go missing. The exact wording is not the point -- it is that
+# the shape and the reason stay matched.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, w VARCHAR(4000), n INT, s CHAR(3),
+                 KEY(s)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, CONCAT('v',seq%7), seq%13, CONCAT('s',seq%5)
+  FROM seq_1_to_500;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_trace=1;
+SET SESSION parallel_worker_threads=4;
+--disable_query_log
+
+--echo # a driving table that cannot be scanned in parallel at all
+CREATE TABLE tb (a INT PRIMARY KEY, b BLOB) ENGINE=InnoDB;
+INSERT INTO tb SELECT seq, REPEAT('x',10) FROM seq_1_to_50;
+--disable_result_log
+SELECT a, b FROM tb WHERE a > 3;
+--enable_result_log
+--source include/parallel_query_why.inc
+DROP TABLE tb;
+
+--echo # a GROUP BY column too wide to be a key part
+--disable_result_log
+SELECT w, SUM(n) FROM t1 GROUP BY w ORDER BY NULL;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # an aggregate whose partial cannot be merged
+--disable_result_log
+SELECT s, STDDEV(n) FROM t1 GROUP BY s ORDER BY NULL;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # a DISTINCT aggregate
+--disable_result_log
+SELECT s, COUNT(DISTINCT n) FROM t1 GROUP BY s ORDER BY NULL;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # a select list column that GROUP BY does not name
+--disable_result_log
+SELECT s, n, SUM(n) FROM t1 GROUP BY s ORDER BY NULL;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # an index supplying the ORDER BY
+--disable_result_log
+SELECT a FROM t1 ORDER BY a;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # a sort this thread cannot do over its container
+--disable_result_log
+SELECT a, w FROM t1 WHERE n > 3 ORDER BY a + n;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # LIMIT
+--disable_result_log
+SELECT a, n FROM t1 WHERE n > 3 LIMIT 5;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--echo # a refusal about one table of the join names that table
+CREATE TABLE t2 (k INT, v INT) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq%20, seq FROM seq_1_to_200;
+--disable_result_log
+SELECT t1.a FROM t1 WHERE t1.n > 3
+  AND t1.a IN (SELECT k FROM t2 GROUP BY k HAVING SUM(v) > 10);
+--enable_result_log
+--source include/parallel_query_why.inc
+DROP TABLE t2;
+
+--echo #
+--echo # and nothing is said when the workers were never available: with
+--echo # parallel_worker_threads at 0 every query in the server declines
+--echo #
+SET SESSION parallel_worker_threads=0;
+--disable_result_log
+SELECT s, STDDEV(n) FROM t1 GROUP BY s ORDER BY NULL;
+--enable_result_log
+--source include/parallel_query_why.inc
+
+--enable_query_log
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
