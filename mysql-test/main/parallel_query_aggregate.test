@@ -151,18 +151,49 @@ set global debug_dbug= @save_dbug;
 --enable_query_log
 
 --echo #
+--echo # AVG, whose partial is two numbers rather than one
+--echo #
+# An average does not compose out of averages, so a worker hands over the sum
+# of its rows and how many there were. Nothing had to be added to carry that:
+# Item_sum_avg keeps its count beside its sum in one field already, because
+# that is how the serial grouped plan accumulates it. What the merge needed was
+# for the count to be added along with the sum rather than incremented by one,
+# which is what Item_sum_avg::direct_add() and its field paths now do.
+--echo # ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT col1, AVG(col2), COUNT(col2), SUM(col2) FROM t1
+  GROUP BY col1 ORDER BY col1;
+--echo # ---- parallel: the same averages, over the same counts ----
+SET SESSION parallel_worker_threads=4;
+SELECT col1, AVG(col2), COUNT(col2), SUM(col2) FROM t1
+  GROUP BY col1 ORDER BY col1;
+
+--echo # several at once, which is where the shipped row's shape matters: the
+--echo # container that carries a partial average is a column wider than one
+--echo # carrying a sum (expect 1)
+--disable_ps_protocol
+FLUSH STATUS;
+--sorted_result
+SELECT col1, AVG(col1), AVG(col2), AVG(col2+1) FROM t1
+  GROUP BY col1 ORDER BY NULL;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+SET SESSION parallel_worker_threads=0;
+--sorted_result
+SELECT col1, AVG(col1), AVG(col2), AVG(col2+1) FROM t1
+  GROUP BY col1 ORDER BY NULL;
+--enable_ps_protocol
+SET SESSION parallel_worker_threads=4;
+
+--echo #
 --echo # What is not accepted. Each of these still runs, serially: the gate
 --echo # declines the plan rather than the query.
 --echo #
 SET @st= @@optimizer_trace;
 SET optimizer_trace=1;
 --disable_query_log
---disable_result_log
-SELECT col1, AVG(col2) FROM t1 GROUP BY col1 ORDER BY NULL;
---enable_result_log
---echo # AVG -- a partial average cannot be averaged
-SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
-  FROM information_schema.optimizer_trace;
 --disable_result_log
 SELECT col1, STDDEV(col2) FROM t1 GROUP BY col1 ORDER BY NULL;
 --enable_result_log
