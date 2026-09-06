@@ -119,14 +119,6 @@ insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
                       (3,'{"tags": ["ccc"]}'),(4,'{"tags": ["aaa","bbb"]}'),
                       (5,'{"tags": [123]}'),(6,'{}');
 
---echo # An ORed access has to read every one of its keys, so we only use it
---echo # when the engine can estimate all of them. The estimate is taken from
---echo # the fulltext auxiliary tables, so flush the FTS cache into them.
-set @old_fulltext_only=@@global.innodb_optimize_fulltext_only;
-set global innodb_optimize_fulltext_only=1;
-optimize table t1;
-set global innodb_optimize_fulltext_only=@old_fulltext_only;
-
 explain select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]');
 select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
 --echo # the same rows without the index:
