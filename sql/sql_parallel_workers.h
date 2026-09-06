@@ -512,16 +512,30 @@ extern bool table_can_be_parallel_scanned(TABLE *table);
 extern bool scale_cost_for_parallel_scan(THD *thd, TABLE *table,
                                         ALL_READ_COST *cost);
 
-extern bool table_can_be_parallel_scanned(JOIN_TAB *tab);
-extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab);
-extern ORDER *pwt_preagg_group(JOIN *join);
+extern bool table_can_be_parallel_scanned(JOIN_TAB *tab, bool trace= false);
+extern bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab,
+                                     bool trace= false);
+extern ORDER *pwt_preagg_group(JOIN *join, bool trace= false);
 extern ORDER *pwt_manager_sort_order(JOIN *join);
+/*
+  Refuse the workers this query, saying why: the reason goes to the optimizer
+  trace as parallel_scan_declined_because. Always returns false.
+*/
+/*
+  trace says whether this call is the decision that stands: the gate is asked
+  once while the plan is still being built and again once it is finished, and
+  only the second is worth reporting. The first is asked before
+  make_aggr_tables_info() has built the aggregation table, so its answers
+  describe a plan that no longer exists by the time the query runs.
+*/
+extern bool pwt_decline(JOIN *join, bool trace, const char *why);
 extern bool pwt_scan_only_enabled();
 extern int run_scan_only_workers(JOIN *join, JOIN_TAB *scan_tab);
 extern int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab);
 extern void check_parallel_scan(JOIN *join);
 extern void recheck_parallel_scan(JOIN *join);
 extern ORDER *pwt_plan_group_key(JOIN *join);
-extern bool is_parallel_scan_applicable(JOIN_TAB *join_tab);
+extern bool is_parallel_scan_applicable(JOIN_TAB *join_tab,
+                                        bool trace= false);
 extern void parallel_join_check(JOIN *join);
 #endif
