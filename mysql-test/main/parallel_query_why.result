@@ -1,0 +1,47 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, w VARCHAR(4000), n INT, s CHAR(3),
+KEY(s)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, CONCAT('v',seq%7), seq%13, CONCAT('s',seq%5)
+FROM seq_1_to_500;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET @save_trace= @@optimizer_trace;
+SET SESSION optimizer_trace=1;
+SET SESSION parallel_worker_threads=4;
+# a driving table that cannot be scanned in parallel at all
+why
+["tb cannot be scanned in parallel: a blob-backed column, a fulltext search, a partitioned table, a temporary table, or an engine that does not do this", "no table this plan reads can be divided"]
+# a GROUP BY column too wide to be a key part
+why
+["grouped: the aggregation table is keyed by a unique constraint rather than by the group -- create_tmp_table() does that for a GROUP BY element too wide for a key part, and a hash of the row is not something a group can be looked up in", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
+# an aggregate whose partial cannot be merged
+why
+["grouped: an aggregate whose partial cannot be merged -- only COUNT, SUM, MIN, MAX and AVG can be", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
+# a DISTINCT aggregate
+why
+["grouped: the plan's terminal is not end_update(), so there is no group key a partial can be merged through (see pwt_plan_group_key)", "the select aggregates and the workers cannot pre-aggregate this plan"]
+# a select list column that GROUP BY does not name
+why
+["grouped: a select list item reads a column outside an aggregate that GROUP BY does not name, so its value is whichever row the terminal happened to hold", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
+# an index supplying the ORDER BY
+why
+["an index supplies the ORDER BY order, which rows handed out in chunks do not arrive in", "no table this plan reads can be divided"]
+# a sort this thread cannot do over its container
+why
+["the manager cannot sort what the workers produce (see pwt_manager_sort_order)", "no table this plan reads can be divided"]
+# LIMIT
+why
+["the select has a row limit -- a LIMIT clause, or the session's sql_select_limit -- which the drain does not enforce"]
+# a refusal about one table of the join names that table
+why
+["the select has a HAVING clause", "<subquery2> is a temporary table, which a worker cannot re-open from its share"]
+#
+# and nothing is said when the workers were never available: with
+# parallel_worker_threads at 0 every query in the server declines
+#
+why
+NULL
+SET SESSION optimizer_trace= @save_trace;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
