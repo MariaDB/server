@@ -392,6 +392,67 @@ public:
 
 /*
   @brief
+    Whether every field this select-list item reads *outside* an aggregate is a
+    GROUP BY column.
+
+  @description
+    A select-list item that is not itself an aggregate is evaluated once per
+    group from whatever row the terminal happens to be holding, so a field in it
+    that is not a group column takes an arbitrary row's value -- serially an
+    arbitrary one, and in a worker a differently arbitrary one. That is the
+    thing to refuse.
+
+    Fields *inside* an aggregate are a different matter: aggregating over an
+    ungrouped column is the whole point of an aggregate, and SUM(x)+1 is as
+    determinate as SUM(x). So the aggregates are stepped over rather than walked
+    into. with_sum_func() says which subtrees contain one, and a subtree that
+    contains none is answered wholesale by the walk that was here before.
+
+    Only the node kinds that can hold an aggregate are decomposed. Anything else
+    carrying one is refused rather than guessed at: being wrong in the
+    permissive direction here is wrong results.
+
+  @return  true if some field outside an aggregate is not a group column.
+*/
+
+static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
+{
+  if (!item->with_sum_func())
+  {
+    Pwt_group_checker check(group);
+    item->walk(&Item::enumerate_field_refs_processor, (void *) &check, 0);
+    return !check.all_grouped;
+  }
+
+  switch (item->type()) {
+  case Item::SUM_FUNC_ITEM:
+    return false;                     // its arguments are the aggregate's own
+  case Item::REF_ITEM:
+    return pwt_ungrouped_outside_aggregates(item->real_item(), group);
+  case Item::COND_ITEM:
+  {
+    List_iterator<Item> li(*((Item_cond *) item)->argument_list());
+    Item *arg;
+    while ((arg= li++))
+      if (pwt_ungrouped_outside_aggregates(arg, group))
+        return true;
+    return false;
+  }
+  case Item::FUNC_ITEM:
+  {
+    Item_func *f= (Item_func *) item;
+    for (uint i= 0; i < f->argument_count(); i++)
+      if (pwt_ungrouped_outside_aggregates(f->arguments()[i], group))
+        return true;
+    return false;
+  }
+  default:
+    return true;                   // holds an aggregate, cannot be taken apart
+  }
+}
+
+/*
+  @brief
     Whether this query's aggregates can be computed per group by the workers
     and merged by the manager.
 
@@ -445,6 +506,7 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group)
     case Item_sum::SUM_FUNC:
     case Item_sum::MIN_FUNC:
     case Item_sum::MAX_FUNC:
+    case Item_sum::AVG_FUNC:
       break;
     default:
       return false;
@@ -478,11 +540,9 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group)
   Item *it;
   while ((it= li++))
   {
-    if (it->type() == Item::SUM_FUNC_ITEM || it->const_item())
+    if (it->const_item())
       continue;
-    Pwt_group_checker check(g);
-    it->walk(&Item::enumerate_field_refs_processor, (void *) &check, 0);
-    if (!check.all_grouped)
+    if (pwt_ungrouped_outside_aggregates(it, g))
       return false;
   }
 
