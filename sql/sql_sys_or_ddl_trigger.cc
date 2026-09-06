@@ -2117,15 +2117,7 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
 
     ret= store_sys_trigger(thd, trg_name,
                            tables->table,
-                           /*
-                             Although mysql.event has NOT NULL constraint for
-                             the column mysql.db, use NULL for a database of
-                             system triggers since they don't associate with
-                             any database by its nature.
-                           */
-                           ((trg_kind == Event_parse_data::SYS_TRG_ON_STARTUP ||
-                             trg_kind == Event_parse_data::SYS_TRG_ON_SHUTDOWN)
-                           ? nullptr : &db_name),
+                           &db_name,
                            sql_mode,
                            trg_definer,
                            trg_body,

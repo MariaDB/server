@@ -295,3 +295,16 @@ CREATE TRIGGER trg AFTER STARTUP SET @x = 1;
 # Clean up
 DROP TABLE t1;
 DROP TRIGGER trg;
+#
+# MDEV-40105: Information_schema.triggers doesn't show schema for system triggers
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @x = 1;
+SELECT trigger_schema, event_manipulation FROM information_schema.triggers WHERE trigger_name = 'trg1';
+trigger_schema	event_manipulation
+test	STARTUP
+# Query the same data from the base system table
+SELECT db, kind FROM mysql.event WHERE name = 'trg1';
+db	kind
+test	STARTUP
+# Clean up
+DROP TRIGGER trg1;
