@@ -315,10 +315,9 @@ bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
       intersect the terms. This is the trade-off collect_mvi_keys() already
       makes for the keys it cannot encode - a shorter AND matches a superset
       of the rows, and the JSON predicate does the exact filtering.
-      Keys the engine cannot estimate take no part in the choice. If it could
-      not estimate a single one of them, we know nothing: keep the query as
-      it is and fall back to a guess low enough that the access is still
-      preferred over a table scan.
+      Keys the engine cannot estimate take no part in the choice. If it
+      could not estimate a single one of them we know nothing at all, so the
+      access is priced out just like a disjunctive one.
 
     TODO: read_time only accounts for reading the rows, not for the fulltext
     search that produces their rowids.
@@ -448,26 +447,6 @@ void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
 }
 
 
-static void choose_mvi_access_for_tables(List<Mvi_access> *accesses, Mvi_access **best)
-{
-  List_iterator<Mvi_access> it(*accesses);
-  /* TODO: cost based */
-  /*
-    TODO: merge
-
-    json_contains(j->'$.tags','"a"') and
-    json_contains(j->'$.tags','"b"')
-
-    (+ta +tb)
-  */
-  while (Mvi_access *access= it++)
-  {
-    DBUG_ASSERT(access->index->vcol->table->tablenr < MAX_TABLES);
-    best[access->index->vcol->table->tablenr] = access;
-  }
-}
-
-
 /*
   @brief
     Collect the MVI accesses allowed by the top-level AND-parts of `conds'.
@@ -509,8 +488,8 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
     Analyze the WHERE clause and find the MVI accesses it allows.
 
   @detail
-    The accesses are saved in join->mvi_ctx, where get_best_mvi_access() picks
-    them up during the range analysis of each table.
+    The accesses are saved in join->mvi_ctx, where setup_mvi_access_for_table()
+    picks them up, one table at a time.
 */
 
 bool setup_mvi_quick(JOIN *join)
@@ -531,24 +510,53 @@ bool setup_mvi_quick(JOIN *join)
     return true;
   if (ctx->accesses.is_empty())
     return false;
-  choose_mvi_access_for_tables(&ctx->accesses, ctx->best);
   join->mvi_ctx= ctx;
   return false;
 }
 
 
-Mvi_access *JOIN::get_mvi_access_for_table(TABLE *table)
+/*
+  @brief
+    Pick the MVI access `tab' will use out of the ones the WHERE clause
+    allows, and let the range analysis see it.
+
+  @detail
+    A fulltext key never gets a bit in const_keys or keys, so we set them
+    here. The const_keys bit is what makes the range analysis run for this
+    table, where get_best_mvi_access() turns the access into a quick select;
+    the keys bit puts the index into EXPLAIN's possible_keys.
+*/
+
+void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
 {
-  if (!mvi_ctx)
-    return NULL;
-  DBUG_ASSERT(table->tablenr < MAX_TABLES);
-  return mvi_ctx->best[table->tablenr];
+  if (!join->mvi_ctx)
+    return;
+  List_iterator<Mvi_access> it(join->mvi_ctx->accesses);
+  /* TODO: cost based */
+  /*
+    TODO: merge
+
+    json_contains(j->'$.tags','"a"') and
+    json_contains(j->'$.tags','"b"')
+
+    (+ta +tb)
+  */
+  while (Mvi_access *access= it++)
+  {
+    if (access->index->vcol->table == tab->table)
+      tab->mvi_access= access;
+  }
+  if (tab->mvi_access)
+  {
+    tab->const_keys.set_bit(tab->mvi_access->index->keyno);
+    tab->keys.set_bit(tab->mvi_access->index->keyno);
+  }
 }
 
 
 /*
   @brief
-    Create a quick select for the best MVI access to `table', if there is one.
+    Create a quick select for the MVI access to `tab', if there is one.
 
   @detail
     The range optimizer cannot produce this access (it skips fulltext keys),
@@ -556,14 +564,15 @@ Mvi_access *JOIN::get_mvi_access_for_table(TABLE *table)
     test_quick_select() came up with.
 */
 
-QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table)
+QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
-  Mvi_access *access= join->get_mvi_access_for_table(table);
+  Mvi_access *access= tab->mvi_access;
+  TABLE *table= tab->table;
   if (!access)
     return NULL;
   /*
-    We are called once per table for each of the two range analysis passes.
-    Probe the engine (and drop the keys we don't need) only on the first one.
+    estimate_records() drops element keys from the access, so it must run
+    only once even if we are called again for the same table.
   */
   if (access->records == HA_POS_ERROR)
     access->estimate_records();

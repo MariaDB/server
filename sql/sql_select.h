@@ -566,6 +566,11 @@ typedef struct st_join_table {
   key_map	checked_keys;			/**< Keys checked in find_best */
   key_map	needed_reg;
   key_map       keys;                           /**< all keys with can be used */
+  /*
+    The multi-valued index access to use for this table, or NULL if there is
+    none. Set by setup_mvi_access_for_table().
+  */
+  Mvi_access    *mvi_access;
 
   /* Either #rows in the table or 1 for const table.  */
   ha_rows	records;
@@ -1793,8 +1798,8 @@ public:
   SELECT_LEX *select_lex;
   /*
     The result of the multi-valued index analysis, or NULL if there is no
-    usable MVI access. Produced by setup_mvi_quick(), used by
-    get_best_mvi_access() during range analysis.
+    usable MVI access. Produced by setup_mvi_quick(); the access each table
+    gets out of it is picked by setup_mvi_access_for_table().
   */
   Mvi_context *mvi_ctx;
   /**
@@ -2010,9 +2015,6 @@ public:
 
   void init(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
             select_result *result_arg);
-
-  /* Return the MVI access chosen for `table', or NULL if there is none */
-  Mvi_access *get_mvi_access_for_table(TABLE *table);
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }

@@ -140,8 +140,8 @@ static int sort_keyuse(const void *a, const void *b);
 static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables);
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j, KEYUSE *org_keyuse,
 			       bool allow_full_scan, table_map used_tables);
-static bool get_quick_record_count(THD *thd, JOIN *join, SQL_SELECT *select,
-				      TABLE *table,
+static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
+				      JOIN_TAB *tab,
 				      const key_map *keys,ha_rows limit,
                                       ha_rows *quick_count);
 static void optimize_straight_join(JOIN *join, table_map join_tables);
@@ -5513,9 +5513,8 @@ static void keep_cheaper_quick(TABLE *table, QUICK_SELECT_I **quick_ref,
   select with this key.
 
   @param      thd            Thread handle
-  @param      join           The join the table belongs to
   @param      select         Select to be examined
-  @param      table          The table of interest
+  @param      tab            The table of interest
   @param      keys           The keys of interest
   @param      limit          Maximum number of rows of interest
   @param      quick_count    Pointer to where we want the estimate written
@@ -5525,12 +5524,13 @@ static void keep_cheaper_quick(TABLE *table, QUICK_SELECT_I **quick_ref,
     @retval true   Error
 
 */
-static bool get_quick_record_count(THD *thd, JOIN *join, SQL_SELECT *select,
-				      TABLE *table,
+static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
+				      JOIN_TAB *tab,
 				      const key_map *keys,ha_rows limit,
                                       ha_rows *quick_count)
 {
   quick_select_return error;
+  TABLE *table= tab->table;
   DBUG_ENTER("get_quick_record_count");
   uchar buff[STACK_BUFF_ALLOC];
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
@@ -5547,7 +5547,7 @@ static bool get_quick_record_count(THD *thd, JOIN *join, SQL_SELECT *select,
       here and keep it across the call: test_quick_select() deletes
       select->quick on entry.
     */
-    QUICK_SELECT_I *mvi_quick= get_best_mvi_access(thd, join, table);
+    QUICK_SELECT_I *mvi_quick= get_best_mvi_access(thd, tab);
     /*
       EQ_FUNC and EQUAL_FUNC already sent unusable key notes (if any)
       during update_ref_and_keys(). Have only other functions raise notes
@@ -5925,23 +5925,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       print_keyuse_array_for_trace(thd, keyuse_array);
   }
 
-  /*
-    A fulltext key never gets a bit in const_keys or keys, so mark the MVI key
-    of every table that has an MVI access. The const_keys bit is what makes
-    the range analysis below run for that table, where get_best_mvi_access()
-    picks the access up; the keys bit puts the index into EXPLAIN's
-    possible_keys.
-  */
-  for (JOIN_TAB *s= stat ; s < stat_end ; s++)
-  {
-    Mvi_access *acc= join->get_mvi_access_for_table(s->table);
-    if (acc)
-    {
-      s->const_keys.set_bit(acc->index->keyno);
-      s->keys.set_bit(acc->index->keyno);
-    }
-  }
-
   join->const_table_map= no_rows_const_tables;
   join->const_tables= const_count;
   eliminate_tables(join);
@@ -6275,6 +6258,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       */
       add_group_and_distinct_keys(join, s);
 
+      /*
+        Same for the multi-valued index this table can be read through: a
+        fulltext key never gets a bit of its own.
+      */
+      setup_mvi_access_for_table(join, s);
+
       /* This will be updated in calculate_cond_selectivity_for_table() */
       s->table->set_cond_selectivity(1.0);
       DBUG_ASSERT(s->table->used_stat_records == 0 ||
@@ -6313,7 +6302,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                               (SORT_INFO*) 0, 1, &error);
           if (!select)
             goto error;
-          if (get_quick_record_count(join->thd, join, select, s->table,
+          if (get_quick_record_count(join->thd, select, s,
                                      &s->const_keys, join->row_limit, &records))
           {
             /* There was an error in test_quick_select */

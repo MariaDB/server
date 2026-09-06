@@ -69,13 +69,8 @@ class Mvi_context : public Sql_alloc
   List<Mv_index> indexes;
   /* MVI accesses for all eligible predicates in WHERE */
   List<Mvi_access> accesses;
-  /* The access we've chosen for each table, indexed by table->tablenr */
-  Mvi_access *best[MAX_TABLES];
 
-  Mvi_context(THD *thd_arg) : thd(thd_arg)
-  {
-    bzero(best, sizeof(best));
-  }
+  Mvi_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
 /* Return the compatible json type */
@@ -91,5 +86,8 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 
 bool setup_mvi_quick(JOIN *join);
 
-/* Create a quick select for the best MVI access to `table', if there is one */
-QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table);
+/* Pick the MVI access `tab' will use, and let the range analysis see it */
+void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab);
+
+/* Create a quick select for the MVI access to `tab', if there is one */
+QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab);
