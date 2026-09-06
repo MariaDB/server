@@ -65,6 +65,14 @@ class Mvi_context : public Sql_alloc
 /* Return the compatible json type */
 enum json_value_types mvi_json_class(enum_field_types ftype);
 
+/*
+  Encode one JSON value into the form it has in the index. Returns true if
+  the value cannot be encoded for this index and has to be skipped.
+  Shared with opt_mvi_jsonfuncs.cc.
+*/
+bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
+                    CHARSET_INFO *cs, String *buf);
+
 bool setup_mvi_quick(JOIN *join);
 
 /* Create a quick select for the best MVI access to `table', if there is one */
