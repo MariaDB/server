@@ -32,7 +32,7 @@ why
 ["the manager cannot sort what the workers produce (see pwt_manager_sort_order)", "no table this plan reads can be divided"]
 # LIMIT
 why
-["the select has a row limit -- a LIMIT clause, or the session's sql_select_limit -- which the drain does not enforce"]
+["the select has a row limit -- a LIMIT clause, or the session's sql_select_limit -- which the drain does not enforce for a plan that does not pre-aggregate"]
 # a refusal about one table of the join names that table
 why
 ["the select has a HAVING clause", "<subquery2> is a temporary table, which a worker cannot re-open from its share"]
