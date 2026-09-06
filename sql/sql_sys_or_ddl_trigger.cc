@@ -869,6 +869,11 @@ static LEX_CSTRING events_to_string(const LEX_CSTRING base_event_names[],
   size_t offset= 0;
 
   /*
+    Empty result C-string to get a printable result string
+    in case trg_kind equals 0
+  */
+  set_of_events[offset]= 0;
+  /*
     Shift right by one bit since the bit for "SCHEDULE" is never set in
     the argument trg_kind
   */
@@ -1167,12 +1172,51 @@ static bool load_trigger_metadata(THD *thd, TABLE *event_table,
 
 
 /**
+  events for system triggers stored in the column mysql.event.kind
+  has the following values:
+  SCHEDULE = 0x01
+  STARTUP = 0x02
+  SHUTDOWN = 0x04
+  LOGON = 0x08
+  LOGOFF = 0x10
+  DDL = 0x20
+
+  The following function checks the event kind for validness,
+  meaning that no bits are set except ones listed above.
+  All above bits set is also considered as invalid since
+  the bit SCHEDULE and others ones are mutually exclusive.
+*/
+
+static inline bool is_trg_kind_invalid(longlong trg_event)
+{
+  return
+    /*
+      No bits is set for trigger event that considered
+      as error condition
+    */
+    trg_event == 0 ||
+    /*
+      All bits is set, i.e
+      SCHEDULE | STARTUP | SHUTDOWN | LOGON | LOGOFF | DDL
+      that is invalid case
+    */
+    trg_event == 0x3F ||
+    /*
+      No bits to the left from the most
+      significant DDL bit can be set
+    */
+    ((trg_event) & ~0x3F) != 0;
+}
+
+
+/**
   Check the trigger kind and trigger time of action for validity.
   Form an error message in case values of trigger kind or time is not valid
   and buffer for error message (represented by the parameter err_msg)
   is not null.
 
   @param err_msg[out]  buffer where to write the error message in case error
+  @param cur_msg_len   length of message in the buffer err_msg
   @param err_msg_buf_sz  size of buffer for an error message
   @param trg_kind  value of a trigger kind to check for validity
   @param trg_when  value of a trigger action time to check for validity
@@ -1180,40 +1224,21 @@ static bool load_trigger_metadata(THD *thd, TABLE *event_table,
   @return false on success, true on error
 */
 
-static bool check_valid_trigger_metadata(char *err_msg, size_t err_msg_buf_sz,
+static bool check_valid_trigger_metadata(char *err_msg,
+                                         size_t cur_msg_len,
+                                         size_t err_msg_buf_sz,
                                          int trg_kind, int trg_when)
 {
   bool ret= false;
-  size_t cur_msg_len= strlen(err_msg);
 
-  /*
-    events for system triggers stored in the column mysql.event.kind
-    has the following values:
-    SCHEDULE = 0x01
-    STARTUP = 0x02
-    SHUTDOWN = 0x04
-    LOGON = 0x08
-    LOGOFF = 0x10
-    DDL = 0x20
-
-    Check the event kind for validness, meaning that no bits are set
-    except ones listed above. All above bits set is also considered
-    as invalid since the bit SCHEDULE and others ones are mutually
-    exclusive.
-  */
-  if (trg_kind == 0x3F || (trg_kind & ~0x3F) != 0)
+  if (is_trg_kind_invalid(trg_kind))
   {
     if (err_msg)
     {
-      if (cur_msg_len)
-        cur_msg_len+= snprintf(err_msg + cur_msg_len,
-                               err_msg_buf_sz - cur_msg_len,
-                               ", Invalid event.kinds value %d",
-                               trg_kind);
-      else
-        cur_msg_len+= snprintf(err_msg, err_msg_buf_sz,
-                               "Invalid event.kinds value %d",
-                               trg_kind);
+      DBUG_ASSERT(cur_msg_len == 0);
+      cur_msg_len+= snprintf(err_msg, err_msg_buf_sz,
+                             "Invalid event.kind value %d",
+                             trg_kind);
       ret= true;
     }
     else
@@ -1231,11 +1256,11 @@ static bool check_valid_trigger_metadata(char *err_msg, size_t err_msg_buf_sz,
         if (cur_msg_len)
           snprintf(err_msg + cur_msg_len,
                    err_msg_buf_sz - cur_msg_len,
-                   ", Invalid event.trg_when value %d",
+                   ", Invalid event.when value %d",
                    trg_when);
         else
           snprintf(err_msg, err_msg_buf_sz,
-                   "Invalid event.trg_when value %d",
+                   "Invalid event.when value %d",
                    trg_when);
         ret= true;
       }
@@ -1264,12 +1289,11 @@ static bool check_valid_trigger_metadata(THD *thd, const LEX_STRING &trg_name,
                                          int trg_when)
 {
   bool ret= false;
-  char err_msg[256];
+  char err_msg[MYSQL_ERRMSG_SIZE];
 
   err_msg[0]= 0;
-
-  ret|= check_valid_trigger_metadata(err_msg, sizeof(err_msg),
-                                     trg_kind, trg_when);
+  ret= check_valid_trigger_metadata(err_msg, 0, sizeof(err_msg),
+                                    trg_kind, trg_when);
   if (ret)
     sql_print_warning(ER_THD(thd, ER_SYSTEM_TRG_INVALID_METADATA),
                       trg_name.str, err_msg);
@@ -1297,10 +1321,10 @@ static bool check_valid_trigger_metadata(const LEX_STRING &trg_name,
                                          int trg_kind, int trg_when)
 {
   bool ret;
-  char err_msg[256];
+  char err_msg[MYSQL_ERRMSG_SIZE];
 
   err_msg[0]= 0;
-  ret= check_valid_trigger_metadata(err_msg, sizeof(err_msg),
+  ret= check_valid_trigger_metadata(err_msg, 0, sizeof(err_msg),
                                     trg_kind, trg_when);
   if (ret)
     my_error(ER_SYSTEM_TRG_INVALID_METADATA, MYF(0), trg_name.str, err_msg);
@@ -1985,23 +2009,13 @@ bool fill_schema_triggers_from_mysql_events(THD *thd, TABLE_LIST *tables)
       /* Skip records for regular event */
       continue;
 
-    /*
-      events for system triggers stored in the column mysql.event.kind
-      has the following values:
-      SCHEDULE = 0x01
-      STARTUP = 0x02
-      SHUTDOWN = 0x04
-      LOGON = 0x08
-      LOGOFF = 0x10
-      DDL = 0x20
-
-      Check the event kind for validness, meaning that no bits are set
-      except ones listed above. All above bits set is also considered
-      as invalid since the bit SCHEDULE and others ones are mutually
-      exclusive.
-    */
-    if (val == 0x3F || (val & ~0x3F) != 0)
-      /* Skip records with invalid value for trigger kind */
+    if (is_trg_kind_invalid(val))
+      /*
+        This function is called as part of handling the statement
+        SHOW TRIGGERS or querying the table information_schema.TRIGGERS.
+        Therefore, no reasons to output errors on fetching records
+        with invalid trigger kind. Just skip such records silently.
+      */
       continue;
 
     Event_parse_data::enum_kind trg_kind= (Event_parse_data::enum_kind) val;
