@@ -1770,6 +1770,18 @@ bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
   worker->exec.join->top_join_tab_count= exec.n_tables;
   worker->exec.join->const_tables= 0;
   worker->exec.join->select_lex= exec.join->select_lex;
+  /*
+    And the unit, which the JOIN constructor leaves alone. The executor reads
+    the statement's row limit through it -- join_init_read_record() asks
+    join->unit->lim for one before it opens a scan -- and a JOIN built by hand
+    here would otherwise reach that with whatever the mem_root held.
+
+    The manager's own unit, not a copy: it is read, never written, and the
+    manager holds it until every worker has been joined. What it says is also
+    what the workers need to hear, since the gate refuses a select that carries
+    a limit at all.
+  */
+  worker->exec.join->unit= exec.join->unit;
   return false;
 }
 
