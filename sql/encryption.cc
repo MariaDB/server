@@ -65,8 +65,6 @@ int initialize_encryption_plugin(void *plugin_)
   if (encryption_manager)
     return 1;
 
-  vio_check_ssl_init();
-
   if (plugin->plugin->init && plugin->plugin->init(plugin))
   {
     sql_print_error("Plugin '%s' init function returned error.",
