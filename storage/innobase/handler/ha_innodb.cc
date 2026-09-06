@@ -14855,9 +14855,10 @@ ha_innobase::fulltext_estimate(
 		}
 	}
 
-	/* Never report 0.  The in-memory FTS cache is deliberately not
-	consulted, so "absent from the auxiliary table" does not mean "no
-	matching rows", and callers may treat 0 as provably empty. */
+	/* Never report 0.  The in-memory FTS cache is consulted only on a best
+	effort basis (see fts_estimate_word_docs()), so "found nowhere" does
+	not mean "no matching rows", and callers may treat 0 as provably
+	empty. */
 	if (!n_docs) {
 		n_docs = 1;
 	}

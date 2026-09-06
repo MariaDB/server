@@ -10,16 +10,37 @@ INSERT INTO t1 VALUES
 (4,'gamma'), (5,'gamma'), (6,'gamma'), (7,'gamma'), (8,'gamma');
 #
 # Nothing has been SYNCed yet, so the words live only in the in-memory
-# FTS cache, which the estimate deliberately does not consult.  The
-# auxiliary table is still empty, which means we have no information at
-# all rather than "no matching rows", so the answer is "unknown".
+# FTS cache.  The estimate consults it, and since every cache node
+# carries its own doc_count the answer is exact.
 #
 SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('alpha');
+COUNT(*)
+1
+Warnings:
+Note	1105	fulltext_estimate('alpha')= 1
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('beta');
+COUNT(*)
+3
+Warnings:
+Note	1105	fulltext_estimate('beta')= 3
 SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
 COUNT(*)
 8
 Warnings:
-Note	1105	fulltext_estimate('gamma')= unknown
+Note	1105	fulltext_estimate('gamma')= 8
+#
+# A word that is in neither the cache nor the auxiliary table, while the
+# auxiliary table is still empty: that is no information at all rather
+# than "no matching rows", so the answer is "unknown".  The cache on its
+# own cannot prove a word absent, because it is only complete once
+# fts_init_index() has run, and an estimate must not run it.
+#
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('zzzzz');
+COUNT(*)
+0
+Warnings:
+Note	1105	fulltext_estimate('zzzzz')= unknown
 SET debug_dbug='';
 #
 # Flush the cache into the auxiliary tables.
@@ -78,6 +99,36 @@ alpha	1
 beta	3
 gamma	8
 #
+# Rows inserted after the SYNC are back in the cache, while the older
+# ones are in the auxiliary table.  The two counts are added, and no
+# document is counted twice: gamma is 8 + 2, beta 3 + 1, alpha 1 + 0.
+#
+INSERT INTO t1 VALUES (9,'beta gamma'), (10,'gamma');
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('alpha');
+COUNT(*)
+1
+Warnings:
+Note	1105	fulltext_estimate('alpha')= 1
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('beta');
+COUNT(*)
+4
+Warnings:
+Note	1105	fulltext_estimate('beta')= 4
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
+COUNT(*)
+10
+Warnings:
+Note	1105	fulltext_estimate('gamma')= 10
+SET debug_dbug='';
+#
+# Back to the state the rest of the test expects.
+#
+DELETE FROM t1 WHERE id > 8;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+#
 # Deleted rows are deliberately still counted: their entries survive in
 # the ilists until OPTIMIZE TABLE purges them.  Here that raw count of 8
 # is then clamped to the number of rows left in the table, so 4 is
@@ -106,3 +157,20 @@ Note	1105	fulltext_estimate('gamma')= unknown
 SET debug_dbug='';
 DROP TABLE t1;
 SET GLOBAL innodb_optimize_fulltext_only= @optimize;
+#
+# A restart empties the cache, and the estimate does not repopulate it:
+# fts_init_index() has side effects that an estimate must not have.  A
+# clean shutdown has SYNCed the words, so the auxiliary table answers on
+# its own.
+#
+CREATE TABLE t2 (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,'delta'), (2,'delta'), (3,'delta');
+# restart
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t2 WHERE MATCH(a) AGAINST('delta');
+COUNT(*)
+3
+Warnings:
+Note	1105	fulltext_estimate('delta')= 3
+SET debug_dbug='';
+DROP TABLE t2;

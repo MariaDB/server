@@ -1,0 +1,63 @@
+#
+# handler::fulltext_estimate() while a SYNC is half way through writing the
+# cache out to the auxiliary table.
+#
+# A node that SYNC has already written is flagged fts_node_t::synced but stays
+# in the cache until the SYNC ends.  The estimate reads the auxiliary B-tree
+# without a read view, so it sees the record that was just written; it must
+# skip the node as well, or it counts those documents twice.
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  a  VARCHAR(64),
+  FULLTEXT(a)
+) ENGINE=InnoDB;
+
+# alpha in 40 rows, beta in the other 60.  Neither is in a majority of the
+# table, so a doubled count would still be below the row count and would not
+# be hidden by the clamp in ha_innobase::fulltext_estimate().
+INSERT INTO t1(a) SELECT 'alpha' FROM seq_1_to_40;
+INSERT INTO t1(a) SELECT 'beta'  FROM seq_1_to_60;
+ANALYZE TABLE t1;
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+connection con1;
+# The words are visited in rb tree order, so the first node SYNC writes is
+# alpha's, and that is where it stops.
+SET debug_dbug='+d,fts_instrument_sync_debug';
+SET DEBUG_SYNC='fts_write_node SIGNAL written WAIT_FOR go';
+send INSERT INTO t1(a) VALUES('zeta');
+
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR written';
+--echo #
+--echo # alpha is now in the auxiliary table and still in the cache.  40, not
+--echo # 80.
+--echo #
+SET debug_dbug='+d,fulltext_estimate';
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('alpha');
+--echo #
+--echo # beta has not been written yet, so it is counted from the cache alone.
+--echo #
+SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('beta');
+SET debug_dbug='';
+
+connection default;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con1;
+--reap
+SET DEBUG_SYNC='RESET';
+SET debug_dbug='';
+
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t1;

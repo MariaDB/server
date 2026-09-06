@@ -1263,6 +1263,70 @@ fts_est_probe_aux(
 	return(err);
 }
 
+/** Count the documents that contain a word and are still only in the
+in-memory FTS cache, that is, have not been SYNCed to the auxiliary table yet.
+
+fts_node_t::doc_count already holds the number we want, so this decodes no
+ilist and reads nothing from disk; it is one rb tree lookup.
+
+Nodes flagged as synced are skipped.  An in-flight SYNC has already written
+them to the auxiliary table, and fts_est_probe_aux() reads the B-tree without
+a read view, so it sees those records; counting the node as well would count
+its documents twice.
+
+@param[in]	index	fulltext index
+@param[in]	word	word to look up, folded the same way the caller folds it
+			for the auxiliary table
+@return number of matching documents found in the cache, or 0 if there are
+none, if the cache is not initialized, or if another thread holds the cache
+mutex (an estimate is not worth waiting for a SYNC to finish) */
+static
+uint64_t
+fts_est_cache_docs(
+	const dict_index_t*	index,
+	const fts_string_t*	word) noexcept
+{
+	const fts_t*	fts = index->table->fts;
+
+	if (!fts || !fts->cache) {
+		return(0);
+	}
+
+	fts_cache_t*	cache = fts->cache;
+
+	if (mysql_mutex_trylock(&cache->lock)) {
+		return(0);
+	}
+
+	uint64_t	n_docs = 0;
+
+	if (const fts_index_cache_t* index_cache
+	    = fts_find_index_cache(cache, index)) {
+		/* fts_cache_clear() leaves words NULL until the following
+		fts_cache_init().  The query path never observes that, because
+		it runs after fts_init_index(); we may. */
+		if (index_cache->words) {
+			const ib_vector_t*	nodes
+				= fts_cache_find_word(index_cache, word);
+
+			for (ulint i = 0; nodes && i < ib_vector_size(nodes);
+			     ++i) {
+				const fts_node_t*	node
+					= static_cast<const fts_node_t*>(
+						ib_vector_get_const(nodes, i));
+
+				if (!node->synced) {
+					n_docs += node->doc_count;
+				}
+			}
+		}
+	}
+
+	mysql_mutex_unlock(&cache->lock);
+
+	return(n_docs);
+}
+
 dberr_t
 fts_estimate_word_docs(
 	trx_t*			trx,
@@ -1275,6 +1339,11 @@ fts_estimate_word_docs(
 	ut_ad(word->f_len);
 
 	*n_docs = 0;
+
+	/* Documents that have been inserted but not SYNCed yet are only in the
+	memory cache.  Look there first: it costs no I/O, and on a table that
+	has never been SYNCed it is the only information there is. */
+	const uint64_t	cached = fts_est_cache_docs(index, word);
 
 	/* A word lives in exactly one of INDEX_1..INDEX_6, so only that one
 	auxiliary table is ever opened -- unlike the query path, which opens
@@ -1295,12 +1364,31 @@ fts_estimate_word_docs(
 		aux_name, false, DICT_ERR_IGNORE_TABLESPACE);
 
 	if (!aux) {
+		if (cached) {
+			*n_docs = cached;
+			return(DB_SUCCESS);
+		}
+
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	const dberr_t	err = fts_est_probe_aux(trx, aux, word, n_docs);
+	dberr_t	err = fts_est_probe_aux(trx, aux, word, n_docs);
 
 	aux->release();
+
+	if (err == DB_SUCCESS) {
+		/* The two populations are disjoint: fts_est_cache_docs()
+		skipped every node that the auxiliary table already holds. */
+		*n_docs += cached;
+	} else if (cached && err == DB_RECORD_NOT_FOUND) {
+		/* The auxiliary table is empty, but the cache is not, so we
+		are no longer without information.  The other way round --
+		nothing in either -- stays DB_RECORD_NOT_FOUND: the cache is
+		only complete once fts_init_index() has run, and an estimate
+		must not run it. */
+		*n_docs = cached;
+		err = DB_SUCCESS;
+	}
 
 	return(err);
 }
