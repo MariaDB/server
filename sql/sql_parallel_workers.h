@@ -48,10 +48,25 @@ public:
   bool is_fatal_error() { return fatal_error; }
 
 
-  /* Called by pwt_worker_base only: */
+  /*
+    Called by pwt_worker_base only, from its constructor -- so on the manager's
+    thread, while the workers created before this one are already running and
+    already finishing.
+
+    Under LOCK_data because that is what the matching decrement in
+    report_worker_final_state() holds, and the two do overlap:
+    init_parallel_workers() builds the team one worker at a time and starts
+    each thread as it goes, so a worker over a table small enough to be one
+    chunk can be counting itself out while the next is being counted in.
+    Unsynchronised, a lost update leaves the count one too high, and the
+    manager then waits in claim_next_result() for a worker that has already
+    gone -- forever, since nothing else will ever signal.
+  */
   void register_worker()
   {
+    mysql_mutex_lock(&LOCK_data);
     active_workers++;
+    mysql_mutex_unlock(&LOCK_data);
   }
   void report_fatal_error();
   void report_worker_final_state(killed_state state, bool err);
@@ -71,7 +86,8 @@ private:
 
   bool                     fatal_error;    // a producer hit a real engine error
 
-  uint                     active_workers; // # workers who haven't finished.
+  /* # workers who haven't finished. Guarded by LOCK_data. */
+  uint                     active_workers;
 };
 
 class pwt_worker_base : public pwt_thread_with_stats
