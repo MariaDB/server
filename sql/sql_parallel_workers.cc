@@ -356,10 +356,28 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       Scan-only skips all of it but the container and the sink: no JOIN, no
       JOIN_TABs, no grouping table and no cloned expressions. What it needs
       instead is one Item_field per shipped column, over its own table copy.
+
+      The shipping container has to have the shape both ends of the transport
+      agree on, which for a grouped plan means the shape create_tmp_table()
+      gives a table that has a group key: Item_sum_avg::create_tmp_field() is
+      the one aggregate whose field differs between the two, packing its count
+      beside its sum only for the keyed form. flush_groups() copies a group
+      container record into this one by reclength, and the manager reads it
+      back as its own recv container -- both keyed -- so a container built
+      unkeyed here would be written past and read short, one AVG's worth of
+      bytes at a time. The key itself costs nothing: a worker ships one row per
+      group, so there is nothing for it to collapse.
     */
+    ORDER *ship_group= nullptr;
+    if (layout.grouped && !(ship_group= layout.clone_group_defn(thd)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(ORDER));
+      goto cleanup_workers;
+    }
+
     if (scan_only)
     {
-      if (layout.make_container(thd, &worker->exec.result) ||
+      if (layout.make_container(thd, &worker->exec.result, ship_group) ||
           !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
           setup_scan_only_proj(thd, worker))
       {
@@ -370,7 +388,7 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     }
     else if (setup_worker_join(thd, worker) ||
         setup_worker_jointabs(thd, worker) ||
-        layout.make_container(thd, &worker->exec.result) ||
+        layout.make_container(thd, &worker->exec.result, ship_group) ||
         setup_worker_preagg(thd, worker) ||
         !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
         clone_worker_exprs(thd, worker))

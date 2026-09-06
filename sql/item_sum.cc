@@ -2102,16 +2102,48 @@ void Item_sum_avg::clear()
 {
   Item_sum_sum::clear();
   count=0;
+  direct_count=0;
 }
 
 
 bool Item_sum_avg::add()
 {
+  /*
+    Item_sum_sum::add() consumes direct_added, so what this call is about has
+    to be read before it: a directly added partial brings its own count and
+    stands for that many rows, where an ordinary add() stands for the one row
+    the aggregator is looking at.
+  */
+  const bool merging= direct_added;
+  const ulonglong add_count= direct_count;
+
   if (Item_sum_sum::add())
     return TRUE;
-  if (!aggr->arg_is_null(true))
+
+  if (merging)
+  {
+    count+= add_count;
+    direct_count= 0;
+  }
+  else if (!aggr->arg_is_null(true))
     count++;
   return FALSE;
+}
+
+
+void Item_sum_avg::direct_add(my_decimal *add_sum_decimal,
+                              ulonglong add_count)
+{
+  direct_count= add_count;
+  Item_sum_sum::direct_add(add_sum_decimal);
+}
+
+
+void Item_sum_avg::direct_add(double add_sum_real, bool add_sum_is_null,
+                              ulonglong add_count)
+{
+  direct_count= add_count;
+  Item_sum_sum::direct_add(add_sum_real, add_sum_is_null);
 }
 
 void Item_sum_avg::remove()
@@ -3018,27 +3050,63 @@ void Item_sum_avg::reset_field()
 {
   uchar *res=result_field->ptr;
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
+  /*
+    A directly added partial stands for the rows behind it, not for one row, so
+    it opens the group with its own count. Consumed here in the same way
+    Item_sum_sum::reset_field() consumes its half of it.
+  */
+  const bool merging= direct_added;
+  const longlong add_count= merging ? (longlong) direct_count : 1;
+  if (merging)
+  {
+    direct_added= FALSE;
+    direct_reseted_field= TRUE;
+    direct_count= 0;
+  }
+
   if (result_type() == DECIMAL_RESULT)
   {
     longlong tmp;
-    VDec value(args[0]);
-    tmp= value.is_null() ? 0 : 1;
-    value.to_binary(res, f_precision, f_scale);
+    if (merging)
+    {
+      tmp= direct_sum_is_null ? 0 : add_count;
+      /*
+        direct_add() leaves direct_sum_decimal at zero for a null partial, so
+        the field is opened at zero with a zero count either way.
+      */
+      direct_sum_decimal.to_binary(res, f_precision, f_scale);
+    }
+    else
+    {
+      VDec value(args[0]);
+      tmp= value.is_null() ? 0 : 1;
+      value.to_binary(res, f_precision, f_scale);
+    }
     res+= dec_bin_size;
     int8store(res, tmp);
   }
   else
   {
-    double nr= args[0]->val_real();
+    double nr;
+    bool is_null;
+    if (merging)
+    {
+      nr= direct_sum_real;
+      is_null= direct_sum_is_null;
+    }
+    else
+    {
+      nr= args[0]->val_real();
+      is_null= args[0]->null_value;
+    }
 
-    if (args[0]->null_value)
+    if (is_null)
       bzero(res,sizeof(double)+sizeof(longlong));
     else
     {
-      longlong tmp= 1;
       float8store(res,nr);
       res+=sizeof(double);
-      int8store(res,tmp);
+      int8store(res,add_count);
     }
   }
 }
@@ -3149,6 +3217,23 @@ void Item_sum_count::update_field()
 }
 
 
+/*
+  Fold one decimal value, standing for add_count rows, into the packed
+  {sum, count} the group's field holds.
+*/
+
+void Item_sum_avg::add_decimal_to_field(uchar *res, const my_decimal *add_val,
+                                        longlong add_count)
+{
+  binary2my_decimal(E_DEC_FATAL_ERROR, res,
+                    dec_buffs + 1, f_precision, f_scale);
+  longlong field_count= sint8korr(res + dec_bin_size);
+  my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, add_val, dec_buffs + 1);
+  dec_buffs->to_binary(res, f_precision, f_scale);
+  int8store(res + dec_bin_size, field_count + add_count);
+}
+
+
 void Item_sum_avg::update_field()
 {
   longlong field_count;
@@ -3156,27 +3241,55 @@ void Item_sum_avg::update_field()
 
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
 
+  /*
+    As Item_sum_sum::update_field(), and for the same reason: what is being
+    folded in may be a partial handed over by direct_add() rather than the row
+    the aggregator is looking at. An average is the one aggregate for which
+    that partial is two numbers, so the count travels with the sum and is added
+    to the field's count instead of the 1 an ordinary row contributes.
+  */
+  const bool merging= direct_added || direct_reseted_field;
+  const longlong add_count= merging ? (longlong) direct_count : 1;
+  if (merging)
+  {
+    direct_added= direct_reseted_field= FALSE;
+    direct_count= 0;
+  }
+
   if (result_type() == DECIMAL_RESULT)
   {
-    VDec tmp(args[0]);
-    if (!tmp.is_null())
+    /*
+      The two sources are kept in separate scopes rather than selected into one
+      pointer: VDec reads the Item it is given, so it cannot be constructed at
+      all on the merging side, where there is no argument to read.
+    */
+    if (merging)
     {
-      binary2my_decimal(E_DEC_FATAL_ERROR, res,
-                        dec_buffs + 1, f_precision, f_scale);
-      field_count= sint8korr(res + dec_bin_size);
-      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, tmp.ptr(), dec_buffs + 1);
-      dec_buffs->to_binary(res, f_precision, f_scale);
-      res+= dec_bin_size;
-      field_count++;
-      int8store(res, field_count);
+      if (!direct_sum_is_null)
+        add_decimal_to_field(res, &direct_sum_decimal, add_count);
+    }
+    else
+    {
+      VDec tmp(args[0]);
+      if (!tmp.is_null())
+        add_decimal_to_field(res, tmp.ptr(), add_count);
     }
   }
   else
   {
     double nr;
-
-    nr= args[0]->val_real();
-    if (!args[0]->null_value)
+    bool is_null;
+    if (merging)
+    {
+      nr= direct_sum_real;
+      is_null= direct_sum_is_null;
+    }
+    else
+    {
+      nr= args[0]->val_real();
+      is_null= args[0]->null_value;
+    }
+    if (!is_null)
     {
       double old_nr;
       float8get(old_nr, res);
@@ -3184,7 +3297,7 @@ void Item_sum_avg::update_field()
       old_nr+= nr;
       float8store(res,old_nr);
       res+= sizeof(double);
-      field_count++;
+      field_count+= add_count;
       int8store(res, field_count);
     }
   }

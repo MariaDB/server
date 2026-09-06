@@ -969,13 +969,20 @@ public:
   ulonglong count;
   uint prec_increment;
   uint f_precision, f_scale, dec_bin_size;
+  /*
+    The count that travels with a directly added sum. An average cannot be
+    merged from averages, so whoever computed a partial one has to hand over
+    both halves of it; direct_add() takes them together and add() folds them in
+    instead of counting the one row it was not given.
+  */
+  ulonglong direct_count;
 
   Item_sum_avg(THD *thd, Item *item_par, bool distinct):
-    Item_sum_sum(thd, item_par, distinct), count(0)
+    Item_sum_sum(thd, item_par, distinct), count(0), direct_count(0)
   {}
   Item_sum_avg(THD *thd, Item_sum_avg *item)
     :Item_sum_sum(thd, item), count(item->count),
-    prec_increment(item->prec_increment) {}
+    prec_increment(item->prec_increment), direct_count(0) {}
 
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
@@ -986,6 +993,17 @@ public:
   }
   void clear() override;
   bool add() override;
+  /*
+    Add a partial average: the sum of some rows and how many there were. The
+    sum goes to Item_sum_sum::direct_add and the count is kept for add(), so
+    the two arrive together and are folded in together.
+  */
+  void direct_add(my_decimal *add_sum_decimal, ulonglong add_count);
+  void direct_add(double add_sum_real, bool add_sum_is_null,
+                  ulonglong add_count);
+  /* Fold {value, add_count} into the packed {sum, count} at 'res'. */
+  void add_decimal_to_field(uchar *res, const my_decimal *add_val,
+                            longlong add_count);
   void remove() override;
   double val_real() override;
   // In SPs we might force the "wrong" type with select into a declare variable

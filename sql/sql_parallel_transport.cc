@@ -655,6 +655,37 @@ void pwt_row_layout::direct_add_partials()
     case Item_sum::MAX_FUNC:
       ((Item_sum_min_max *) a)->direct_add(partial_items[i]);
       break;
+    case Item_sum::AVG_FUNC:
+    {
+      /*
+        An average does not merge, so what a worker computed for a group is
+        both halves of one: the sum of its rows and how many there were.
+        Item_sum_avg::create_tmp_field() packs exactly that into one field --
+        the value followed by an 8-byte count -- and update_field() has been
+        maintaining it there all along, so the partial column already holds
+        both and this only has to take them apart again the same way.
+      */
+      Item_sum_avg *avg= (Item_sum_avg *) a;
+      const uchar *res= f->ptr;
+      if (a->result_type() == DECIMAL_RESULT)
+      {
+        my_decimal partial;
+        binary2my_decimal(E_DEC_FATAL_ERROR, res, &partial,
+                          avg->f_precision, avg->f_scale);
+        const longlong cnt= sint8korr(res + avg->dec_bin_size);
+        /* No rows behind it: a null sum, so that it adds nothing. */
+        avg->direct_add(cnt ? &partial : (my_decimal *) NULL,
+                        (ulonglong) cnt);
+      }
+      else
+      {
+        double val;
+        float8get(val, res);
+        const longlong cnt= sint8korr(res + sizeof(double));
+        avg->direct_add(val, cnt == 0, (ulonglong) cnt);
+      }
+      break;
+    }
     default:
       DBUG_ASSERT(0);                     // the gate accepts no others
       break;

@@ -241,14 +241,78 @@ set global debug_dbug= @save_dbug;
 still_ran_in_the_workers	shipped_rows
 1	1
 #
+# AVG, whose partial is two numbers rather than one
+#
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT col1, AVG(col2), COUNT(col2), SUM(col2) FROM t1
+GROUP BY col1 ORDER BY col1;
+col1	AVG(col2)	COUNT(col2)	SUM(col2)
+0	2505.0000	500	1252500
+1	2496.0000	500	1248000
+2	2497.0000	500	1248500
+3	2498.0000	500	1249000
+4	2499.0000	500	1249500
+5	2500.0000	500	1250000
+6	2501.0000	500	1250500
+7	2502.0000	500	1251000
+8	2503.0000	500	1251500
+9	2504.0000	500	1252000
+# ---- parallel: the same averages, over the same counts ----
+SET SESSION parallel_worker_threads=4;
+SELECT col1, AVG(col2), COUNT(col2), SUM(col2) FROM t1
+GROUP BY col1 ORDER BY col1;
+col1	AVG(col2)	COUNT(col2)	SUM(col2)
+0	2505.0000	500	1252500
+1	2496.0000	500	1248000
+2	2497.0000	500	1248500
+3	2498.0000	500	1249000
+4	2499.0000	500	1249500
+5	2500.0000	500	1250000
+6	2501.0000	500	1250500
+7	2502.0000	500	1251000
+8	2503.0000	500	1251500
+9	2504.0000	500	1252000
+# several at once, which is where the shipped row's shape matters: the
+# container that carries a partial average is a column wider than one
+# carrying a sum (expect 1)
+FLUSH STATUS;
+SELECT col1, AVG(col1), AVG(col2), AVG(col2+1) FROM t1
+GROUP BY col1 ORDER BY NULL;
+col1	AVG(col1)	AVG(col2)	AVG(col2+1)
+0	0.0000	2505.0000	2506.0000
+1	1.0000	2496.0000	2497.0000
+2	2.0000	2497.0000	2498.0000
+3	3.0000	2498.0000	2499.0000
+4	4.0000	2499.0000	2500.0000
+5	5.0000	2500.0000	2501.0000
+6	6.0000	2501.0000	2502.0000
+7	7.0000	2502.0000	2503.0000
+8	8.0000	2503.0000	2504.0000
+9	9.0000	2504.0000	2505.0000
+ran_in_the_workers
+1
+SET SESSION parallel_worker_threads=0;
+SELECT col1, AVG(col1), AVG(col2), AVG(col2+1) FROM t1
+GROUP BY col1 ORDER BY NULL;
+col1	AVG(col1)	AVG(col2)	AVG(col2+1)
+0	0.0000	2505.0000	2506.0000
+1	1.0000	2496.0000	2497.0000
+2	2.0000	2497.0000	2498.0000
+3	3.0000	2498.0000	2499.0000
+4	4.0000	2499.0000	2500.0000
+5	5.0000	2500.0000	2501.0000
+6	6.0000	2501.0000	2502.0000
+7	7.0000	2502.0000	2503.0000
+8	8.0000	2503.0000	2504.0000
+9	9.0000	2504.0000	2505.0000
+SET SESSION parallel_worker_threads=4;
+#
 # What is not accepted. Each of these still runs, serially: the gate
 # declines the plan rather than the query.
 #
 SET @st= @@optimizer_trace;
 SET optimizer_trace=1;
-# AVG -- a partial average cannot be averaged
-chosen
-0
 # STDDEV -- same, with more state
 chosen
 0
