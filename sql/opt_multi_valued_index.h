@@ -31,10 +31,26 @@ struct Mvi_access : public Sql_alloc
   Mv_index *index;
   List<String> encoded;         /* encoded element keys */
   bool conjunctive;             /* CONTAINS -> AND, OVERLAPS -> OR */
-  Mvi_access(Mv_index *idx, bool conj) : index(idx), conjunctive(conj) {}
+  /*
+    The estimate for this access, produced by estimate_records().
+    HA_POS_ERROR means we haven't estimated it yet.
+  */
+  ha_rows records;
+  double read_time;
+  Mvi_access(Mv_index *idx, bool conj)
+    : index(idx), conjunctive(conj), records(HA_POS_ERROR), read_time(0.0) {}
 
   /* Build: Add one encoded element key */
   bool add_key(MEM_ROOT *mem_root, const String *key);
+
+  /* Usage: Estimate how many records this access will read */
+  void estimate_records();
+
+  /*
+    Usage: false when estimate_records() could not put a price on the access.
+    Such an access must not be used: we have no idea what it costs.
+  */
+  bool cost_is_known() const { return read_time != DBL_MAX; }
 
   /* Usage: Build the fulltext query searching for the element keys */
   bool build_ft_query(String *out);

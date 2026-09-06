@@ -292,6 +292,99 @@ bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
 
 /*
   @brief
+    Estimate how many records this access will read, and simplify the access
+    if that lets us read fewer.
+
+  @detail
+    The engine gives us an estimate for one element key at a time (the
+    fulltext analogue of records_in_range()). We combine the estimates the
+    way the query combines the keys:
+
+    - Disjunctive access (JSON_OVERLAPS) reads the rows of every key, so the
+      estimates add up. A key the engine cannot estimate leaves us with no
+      idea of what the scan costs, and we cannot leave that key out: dropping
+      it from an OR loses the rows that only have that key. Price the access
+      out of the plan instead.
+
+    - Conjunctive access (JSON_CONTAINS) reads the rows that have all of the
+      keys, so the rarest key alone bounds the result. Use its estimate, and
+      drop the other keys from the query: reading the rarest key and letting
+      the WHERE clause discard the rest is not worse than having the engine
+      intersect the terms. This is the trade-off collect_mvi_keys() already
+      makes for the keys it cannot encode - a shorter AND matches a superset
+      of the rows, and the JSON predicate does the exact filtering.
+      Keys the engine cannot estimate take no part in the choice. If it could
+      not estimate a single one of them, we know nothing: keep the query as
+      it is and fall back to a guess low enough that the access is still
+      preferred over a table scan.
+
+    TODO: read_time only accounts for reading the rows, not for the fulltext
+    search that produces their rowids.
+*/
+
+void Mvi_access::estimate_records()
+{
+  TABLE *table= index->vcol->table;
+  handler *file= table->file;
+  List_iterator<String> it(encoded);
+  String *key, *rarest= NULL;
+  ha_rows sum= 0, min_rows= 0;
+  bool unknown= false;
+
+  while ((key= it++))
+  {
+    ha_rows rows= file->fulltext_estimate(index->keyno, key->ptr(),
+                                          (uint) key->length());
+    if (rows == HA_POS_ERROR)
+    {
+      unknown= true;
+      continue;
+    }
+    sum+= rows;
+    if (!rarest || rows < min_rows)
+    {
+      min_rows= rows;
+      rarest= key;
+    }
+  }
+
+  if (!conjunctive && unknown)
+  {
+    /* We have to read this key and have no idea what that costs */
+    records= table->stat_records();
+    read_time= DBL_MAX;
+    return;
+  }
+  if (conjunctive && !rarest)
+  {
+    /* Nothing was estimated. Keep the old guess and the query as it is */
+    records= 10;
+    read_time= 0.001;
+    return;
+  }
+
+  if (conjunctive)
+  {
+    /* Search for the rarest key only */
+    it.rewind();
+    while ((key= it++))
+    {
+      if (key != rarest)
+        it.remove();
+    }
+    records= min_rows;
+  }
+  else
+    records= sum;
+
+  set_if_smaller(records, table->stat_records());
+  set_if_bigger(records, (ha_rows) 1);
+  read_time= file->cost(file->ha_rnd_pos_call_and_compare_time(records));
+}
+
+
+/*
+  @brief
     Build the boolean-mode fulltext query to find rows of interest.
     For conjunctive access it is
 
@@ -339,6 +432,11 @@ void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
   String *key;
   trace_object->add("index", key_info->name).
                  add("match", conjunctive ? "all" : "any");
+  if (cost_is_known())
+    trace_object->add("rows", records).add("cost", read_time);
+  else
+    trace_object->add("usable", false).
+                  add("cause", "the engine cannot estimate one of the keys");
   Json_writer_array trace_ranges(thd, "ranges");
   while ((key= it++))
     trace_ranges.add(key->ptr(), key->length());
@@ -458,6 +556,12 @@ QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table)
   Mvi_access *access= join->get_mvi_access_for_table(table);
   if (!access)
     return NULL;
+  /*
+    We are called once per table for each of the two range analysis passes.
+    Probe the engine (and drop the keys we don't need) only on the first one.
+  */
+  if (access->records == HA_POS_ERROR)
+    access->estimate_records();
   if (unlikely(thd->trace_started()))
   {
     /*
@@ -470,6 +574,13 @@ QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN *join, TABLE *table)
     trace_mvi.add_table_name(table);
     access->print_json(thd, &trace_mvi);
   }
+  /*
+    best_access_path() takes a quick select to be cheaper than a table scan
+    without checking (the range optimizer only proposes a quick when it is),
+    so an access we could not put a price on has to be dropped here.
+  */
+  if (!access->cost_is_known())
+    return NULL;
   return new QUICK_MVI_SELECT(thd, table, access);
 }
 
@@ -485,13 +596,8 @@ QUICK_MVI_SELECT::QUICK_MVI_SELECT(THD *thd, TABLE *table,
   head= table;
   index= access->index->keyno;
   record= head->record[0];
-  /*
-    TODO: get a real estimate from the engine (see fulltext_estimate()).
-    Until then, use numbers low enough that the MVI scan is preferred over a
-    table scan.
-  */
-  records= 10;
-  read_time= 0.001;
+  records= access->records;
+  read_time= access->read_time;
 }
 
 
