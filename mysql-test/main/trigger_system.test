@@ -340,3 +340,20 @@ SHOW CREATE TRIGGER x1;
 
 DROP TRIGGER x1;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-40952: CREATE TRIGGER fails with ER_EVENT_STORE_FAILED after unrelated failed ALTER
+--echo #
+CREATE TABLE t1 (v ENUM('a','b'));
+
+INSERT INTO t1 VALUES ('a'),('b');
+
+--error WARN_DATA_TRUNCATED
+ALTER TABLE t1 MODIFY COLUMN v ENUM('c','d');
+
+--echo # The following statement should finish successfully
+CREATE TRIGGER trg AFTER STARTUP SET @x = 1;
+
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg;

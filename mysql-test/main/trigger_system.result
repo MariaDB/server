@@ -283,3 +283,15 @@ Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connectio
 x1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER x1 AFTER DDL INSERT INTO test.t VALUES (1)	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 DROP TRIGGER x1;
 DROP TABLE t;
+#
+# MDEV-40952: CREATE TRIGGER fails with ER_EVENT_STORE_FAILED after unrelated failed ALTER
+#
+CREATE TABLE t1 (v ENUM('a','b'));
+INSERT INTO t1 VALUES ('a'),('b');
+ALTER TABLE t1 MODIFY COLUMN v ENUM('c','d');
+ERROR 01000: Data truncated for column 'v' at row 1
+# The following statement should finish successfully
+CREATE TRIGGER trg AFTER STARTUP SET @x = 1;
+# Clean up
+DROP TABLE t1;
+DROP TRIGGER trg;

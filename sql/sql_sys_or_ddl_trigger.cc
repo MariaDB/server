@@ -255,7 +255,7 @@ static bool store_trigger_metadata(THD *thd, LEX *lex, TABLE *event_table,
   }
 
   ret= fields[ET_FIELD_ON_COMPLETION]->store(
-    (longlong)Event_parse_data::ON_COMPLETION_DEFAULT, true);
+    (longlong)Event_parse_data::ON_COMPLETION_PRESERVE, true);
   if (ret)
   {
     my_error(ER_EVENT_STORE_FAILED, MYF(0),
