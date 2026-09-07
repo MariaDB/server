@@ -487,9 +487,10 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
       if (!lex) return true;
 
       /*
-        m_lex != nullptr in case it points to sp_lex_cursor.
+        m_lex != nullptr in case it points to sp_lex_cursor, and also when
+        this instruction shares a LEX owned by a sibling instruction.
       */
-      if (m_lex == nullptr)
+      if (m_lex == nullptr || !m_lex->get_lex_for_cursor())
         set_lex(lex);
 
       m_first_execution= true;
@@ -896,8 +897,10 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   /*
     sp_instr_lex != nullptr for cursor relating SP instructions (sp_instr_cpush,
     sp_instr_cursor_copy_struct) and in some cases for sp_instr_set.
+    Only the cursor ones carry a sp_lex_cursor, which is what the else branch
+    below expects.
   */
-  if (sp_instr_lex == nullptr)
+  if (sp_instr_lex == nullptr || !sp_instr_lex->get_lex_for_cursor())
   {
     lex_local= new (thd->mem_root) st_lex_local;
     thd->lex= lex_local;

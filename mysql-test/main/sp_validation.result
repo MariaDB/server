@@ -2142,3 +2142,24 @@ ERROR HY000: The target table v1 of the DELETE is not updatable
 # Clean up
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-37335: crash on re-parsing an sp_instr_set that does not own its LEX
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p()
+BEGIN
+DECLARE b,c INT DEFAULT (SELECT a FROM t1);
+SELECT b, c;
+END
+$
+CALL p();
+b	c
+1	1
+ALTER TABLE t1 MODIFY a BIGINT;
+CALL p();
+b	c
+1	1
+# Clean up
+DROP PROCEDURE p;
+DROP TABLE t1;
