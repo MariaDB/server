@@ -1,0 +1,56 @@
+# A MEMORY table with a blob column must take back a row it has just
+# deleted, even when it is already over max_heap_table_size.
+#
+# Index leaves are not budgeted: hp_find_free_hash() allocates one
+# without consulting the ceiling, so a table with two hash indexes is
+# over a 32K ceiling from its first row onwards.  That is legal, because
+# the ceiling is only tested when the record cursor lands on a leaf
+# boundary, and the first row tests it before anything is allocated.
+#
+# Deleting a blob row parks its continuation chain; the next mutating
+# call frees the chain and hp_shrink_tail() walks the record cursor back
+# to a leaf boundary.  The leaf stays allocated and data_length keeps
+# counting it, so handing it back again adds no memory and must not be
+# refused.
+#
+# Block sizes are exact byte counts and depend on pointer width.
+
+--source include/have_64bit.inc
+--source include/have_sequence.inc
+
+SET SESSION max_heap_table_size= 32768;
+
+CREATE TABLE t1 (
+  pk INT PRIMARY KEY,
+  b TEXT,
+  c VARCHAR(8),
+  UNIQUE(c)
+) ENGINE=MEMORY;
+
+INSERT INTO t1 VALUES (1,'one','foo'),(2,'two','bar');
+
+--echo #
+--echo # One 16K leaf for the records and one per hash index puts the
+--echo # table over its own 32768-byte ceiling while holding two rows.
+--echo #
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+
+--echo #
+--echo # A targeted DELETE goes row by row, so the chains are parked and
+--echo # then freed.  DELETE with no WHERE would be routed to
+--echo # delete_all_rows(), which resets data_length and would hide this.
+--echo #
+DELETE FROM t1 WHERE pk IN (1,2);
+
+INSERT INTO t1 VALUES (1,'one','foo'),(2,'two','bar');
+SELECT * FROM t1 ORDER BY pk;
+
+--echo #
+--echo # The ceiling still stops a table that genuinely needs more memory.
+--echo #
+--error ER_RECORD_FILE_FULL
+INSERT INTO t1 SELECT seq, REPEAT('x',255), CONCAT('c',seq)
+  FROM seq_3_to_2000;
+
+DROP TABLE t1;
