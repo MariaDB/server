@@ -2507,7 +2507,8 @@ Query_log_event::peek_is_commit_rollback(const uchar *event_start,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
+  if (unlikely(event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN ||
+               event_len < 9))
     return false;
   return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
          !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
@@ -3732,8 +3733,9 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < (uint32)Format_description_log_event::common_header_len +
-      GTID_HEADER_LEN)
+  if (unlikely(event_len <
+               (uint32)Format_description_log_event::common_header_len +
+               GTID_HEADER_LEN))
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
   p= event_start + Format_description_log_event::common_header_len;
@@ -9017,7 +9019,7 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len)
-  :Log_event(buf), ident_len(0), log_ident(NULL)
+  :Log_event(buf, event_len), ident_len(0), log_ident(NULL)
 {
   uint8 header_size= Format_description_log_event::common_header_len;
   uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;

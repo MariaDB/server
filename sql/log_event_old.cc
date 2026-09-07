@@ -1173,9 +1173,9 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 #endif
 
 
-Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
+Old_rows_log_event::Old_rows_log_event(const uchar *buf, size_t event_len,
                                        Log_event_type event_type)
-  : Log_event(buf),
+  : Log_event(buf, event_len),
     m_row_count(0),
 #ifndef MYSQL_CLIENT
     m_table(NULL),
@@ -1190,7 +1190,7 @@ Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
     Format_description_log_event::common_header_len;
   uint8 const post_header_len= 8;
 
-  DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
+  DBUG_PRINT("enter",("event_len: %zu  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
 		      post_header_len));
@@ -2415,7 +2415,7 @@ Write_rows_log_event_old::Write_rows_log_event_old(THD *thd_arg,
  */
 #ifdef HAVE_REPLICATION
 Write_rows_log_event_old::Write_rows_log_event_old(const uchar *buf,
-                                                   uint event_len)
+                                                   size_t event_len)
 : Old_rows_log_event(buf, event_len, PRE_GA_WRITE_ROWS_EVENT)
 {
 }
@@ -2526,7 +2526,7 @@ Delete_rows_log_event_old::Delete_rows_log_event_old(THD *thd_arg,
 #ifdef HAVE_REPLICATION
 Delete_rows_log_event_old::
 Delete_rows_log_event_old(const uchar *buf,
-                          uint event_len)
+                          size_t event_len)
   :Old_rows_log_event(buf, event_len, PRE_GA_DELETE_ROWS_EVENT),
     m_after_image(NULL), m_memory(NULL)
 {
@@ -2629,7 +2629,7 @@ Update_rows_log_event_old::Update_rows_log_event_old(THD *thd_arg,
  */
 #ifdef HAVE_REPLICATION
 Update_rows_log_event_old::Update_rows_log_event_old(const uchar *buf,
-                                                     uint event_len)
+                                                     size_t event_len)
   : Old_rows_log_event(buf, event_len, PRE_GA_UPDATE_ROWS_EVENT),
     m_after_image(NULL), m_memory(NULL)
 {
