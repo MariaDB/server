@@ -524,6 +524,8 @@ public:
   another concurrent thread */
   static fil_space_t *drop(uint32_t id, pfs_os_file_t *detached_handle);
 
+  void remove_file_low();
+
 private:
   MY_ATTRIBUTE((warn_unused_result))
   /** Try to acquire a tablespace reference (increment referenced()).
@@ -1453,6 +1455,26 @@ public:
   mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
+private:
+  pfs_os_file_t ext_bp_file;
+
+public:
+
+  /** Extended buffer pool file path */
+  char  *ext_bp_path;
+
+  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
+  not used. */
+  size_t ext_bp_size;
+
+  /** Create external buffer pool file.
+  @return whether the creation failed */
+  bool create_ext_file();
+  dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
+                    IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
+                    size_t len, void *buf) noexcept;
+  bool ext_buf_pool_enabled() const { return ext_bp_size; }
+  void ext_buf_pool_disable() { ext_bp_size= 0; }
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
@@ -1845,5 +1867,8 @@ ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 @return encryption key found */
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
   noexcept;
+
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode);
 
 #endif /* UNIV_INNOCHECKSUM */

@@ -1378,9 +1378,17 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
+	if (!fil_system.is_initialised()) {
+	  return srv_init_abort(DB_ERROR);
+	}
+
 	if (buf_pool.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
+
+	if (srv_operation == SRV_OPERATION_NORMAL
+	    && fil_system.ext_bp_size && !fil_system.create_ext_file())
+		return(srv_init_abort(DB_ERROR));
 
 	log_sys.create();
 	recv_sys.create();
@@ -2049,6 +2057,7 @@ void innodb_shutdown()
 	ut_ad(!srv_undo_sources);
 	const lsn_t lsn{logs_empty_and_mark_files_at_shutdown()};
         innodb_binlog_close(true);
+
 	os_aio_free();
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */

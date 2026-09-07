@@ -59,6 +59,9 @@ Created 10/25/1995 Heikki Tuuri
 #include "bzlib.h"
 #include "snappy-c.h"
 
+/* External buffer pool file name */
+const char *ext_bp_file_name= "ext_buffer_pool";
+
 ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 {
   if (!is_stopping() && !is_corrupted.test_and_set())
@@ -496,7 +499,8 @@ pfs_os_file_t fil_node_t::detach() noexcept
 void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(space->is_ready_to_close() || srv_operation == SRV_OPERATION_BACKUP ||
+  ut_ad(space->is_ready_to_close() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_a(is_open());
   ut_a(!being_extended);
@@ -1294,6 +1298,14 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
+    if (ext_bp_file != OS_FILE_CLOSED)
+    {
+      int res= mysql_file_close(
+          IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
+          MYF(MY_WME));
+      ut_a(res != -1);
+      ext_bp_file= OS_FILE_CLOSED;
+    }
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -1740,6 +1752,14 @@ fil_space_t *fil_space_t::drop(uint32_t id, pfs_os_file_t *detached_handle)
     os_file_close(handle);
 
   return space;
+}
+
+void fil_space_t::remove_file_low()
+{
+  fil_node_t *node= chain.start;
+  ut_ad(node);
+  ut_ad(!node->is_open());
+  os_file_delete(innodb_data_file_key, node->name);
 }
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
@@ -2896,8 +2916,8 @@ io_error:
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(IORequest{bpage, type.slot, node, type.type},
-			     buf, offset, len);
+		err = os_aio(IORequest{bpage, type.slot, node, type.type}, buf,
+		    offset, len);
 	}
 
 	if (!type.is_async()) {
@@ -2917,18 +2937,72 @@ func_exit:
 	return {err, node};
 }
 
+bool fil_system_t::create_ext_file() {
+  bool ret;
+  ext_bp_file= pfs_create_temp_file(
+      ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
+      "/Extended buffer pool file", "ext_buf_", 0);
+  if (ext_bp_file == OS_FILE_CLOSED)
+  {
+    sql_print_error("Cannot open/create extended buffer pool file");
+    /* Report OS error in error log */
+    (void)os_file_get_last_error(true, false);
+    return false;
+  }
+  ret= os_file_set_size(ext_bp_file_name, ext_bp_file.m_file, ext_bp_size);
+  if (!ret)
+  {
+    os_file_close_func(ext_bp_file.m_file);
+    sql_print_error("Cannot set extended buffer pool file size to %zum",
+                    ext_bp_size);
+    return false;
+  }
+  return true;
+}
+
+dberr_t fil_system_t::ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_page,
+                                IORequest::Type io_request_type,
+                                buf_tmp_buffer_t *slot, size_t len,
+                                void *buf) noexcept
+{
+  ut_ad(len % 512 == 0); /* page_compressed */
+  ut_ad(io_request_type == IORequest::WRITE_ASYNC ||
+        io_request_type == IORequest::READ_SYNC ||
+        io_request_type == IORequest::READ_ASYNC) ;
+  /* Queue the aio request */
+  return os_aio(IORequest{&bpage, slot, &ext_page, io_request_type}, buf,
+                buf_pool.ext_page_offset(ext_page), len, ext_bp_file,
+                ext_bp_file_name);
+}
+
 #include <tpool.h>
 
 void IORequest::write_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
-  ut_ad(node);
-  fil_space_t *space= node->space;
+  ut_ad(node_ptr);
+  buf_page_t *buf_page= bpage();
   ut_ad(is_write());
 
-  if (!bpage)
+  fil_space_t *space;
+  if (ext_buf())
+  {
+    space= fil_space_t::get(buf_page->id().space());
+    if (!space)
+    {
+      buf_page->lock.x_unlock(true);
+      // TODO: should we update the statistics here?
+      //++buf_pool.stat.n_pages_written_to_ebp;
+      return;
+    }
+  }
+  else
+    space= node_ptr->space;
+
+  if (!buf_page)
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!ext_buf());
     if (type == IORequest::DBLWR_BATCH)
     {
       buf_dblwr.flush_buffered_writes_completed(*this);
@@ -2942,30 +3016,61 @@ void IORequest::write_complete(int io_error) const noexcept
   else
     buf_page_write_complete(*this, io_error);
 
-  space->complete_write();
+  if (!ext_buf())
+    space->complete_write();
  func_exit:
   space->release();
 }
 
 void IORequest::read_complete(int io_error) const noexcept
 {
+  buf_page_t *buf_page= bpage();
   ut_ad(fil_validate_skip());
-  ut_ad(node);
+  ut_ad(node_ptr);
   ut_ad(is_read());
-  ut_ad(bpage);
-  ut_d(auto s= bpage->state());
+  ut_ad(bpage());
+  ut_d(auto s= bpage()->state());
   ut_ad(s > buf_page_t::READ_FIX);
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
-  const page_id_t id(bpage->id());
+  fil_space_t *space;
+  if (ext_buf()) {
+    ut_ad(ext_buf_page()->id_ == buf_page->id());
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_pool.free_ext_page(*ext_buf_page());
+    mysql_mutex_unlock(&buf_pool.mutex);
+    /* The space will be released at the end of this function */
+    space= fil_space_t::get(buf_page->id().space());
+    if (!space) {
+      buf_page->lock.x_unlock(true);
+      ++buf_pool.stat.n_pages_read_from_ebp;
+      return;
+    }
+    ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
+      auto space_name= space->name();
+      if (fil_page_get_type(buf_page->frame) == FIL_PAGE_INDEX &&
+          space_name.data() &&
+          !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
+      {
+        ++buf_pool.stat.n_pages_read_from_ebp;
+      }
+    } else)
+      ++buf_pool.stat.n_pages_read_from_ebp;
+  }
+  else
+    space= node_ptr->space;
+
+  const page_id_t id(buf_page->id());
   const bool in_recovery{recv_sys.recovery_on};
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(), node->name);
-    recv_sys.free_corrupted_page(id, *node);
-    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
+                    io_error, id.page_no(),
+                    ext_buf() ? "of external buffer pool" : node_ptr->name);
+    if (!ext_buf())
+      recv_sys.free_corrupted_page(id, *node_ptr);
+    buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
     {
@@ -2974,12 +3079,14 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node, in_recovery))
+  else if (bpage()->read_complete(ext_buf() ? *UT_LIST_GET_FIRST(space->chain)
+                                          : *node_ptr,
+                                in_recovery))
     goto corrupted;
   else
-    bpage->unfix();
+    bpage()->unfix();
 
-  node->space->release();
+  space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type
@@ -3347,3 +3454,52 @@ fil_space_t *fil_space_t::prev_in_unflushed_spaces() noexcept
 }
 
 #endif
+
+/** Create a temporary file in the given parameter path, and if
+UNIV_PFS_IO is defined, register the file descriptor with Performance Schema.
+@param[in]	path	location for creating the temporary file, or NULL
+@param[in]	label	Performance Schema label of the file
+@param[in]	prefix	file name prefix
+@param[in]	mode	flags for create_temp_file()
+@return File descriptor */
+pfs_os_file_t pfs_create_temp_file(const char *path,
+                                   const char *label, const char *prefix,
+                                   int mode)
+{
+  if (!path)
+  {
+    path= mysql_tmpdir;
+  }
+#ifdef UNIV_PFS_IO
+  /* This temp file open does not go through normal
+  file APIs, add instrumentation to register with
+  performance schema */
+  struct PSI_file_locker *locker;
+  PSI_file_locker_state state;
+  char *name=
+      static_cast<char *>(ut_malloc_nokey(strlen(path) + strlen(label) + 1));
+  strcpy(name, path);
+  strcat(name, label);
+
+  register_pfs_file_open_begin(&state, locker, innodb_temp_file_key,
+                               PSI_FILE_CREATE, path ? name : label, __FILE__,
+                               __LINE__);
+
+#endif
+  DBUG_ASSERT(strlen(path) + 2 <= FN_REFLEN);
+  char filename[FN_REFLEN];
+  File f= create_temp_file(filename, path, prefix, O_BINARY | O_SEQUENTIAL,
+                           MYF(MY_WME | MY_TEMPORARY));
+  pfs_os_file_t fd= IF_WIN((os_file_t) my_get_osfhandle(f), f);
+
+#ifdef UNIV_PFS_IO
+  register_pfs_file_open_end(locker, fd, (fd == OS_FILE_CLOSED) ? NULL : &fd);
+  ut_free(name);
+#endif
+
+  if (fd == OS_FILE_CLOSED)
+  {
+    ib::error() << "Cannot create temporary merge file";
+  }
+  return (fd);
+}

@@ -1468,9 +1468,11 @@ wait_suspend_loop:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 		while (buf_page_cleaner_is_active) {
+			++buf_pool.done_flush_list_waiters_count;
 			pthread_cond_signal(&buf_pool.do_flush_list);
 			my_cond_wait(&buf_pool.done_flush_list,
 				     &buf_pool.flush_list_mutex.m_mutex);
+			--buf_pool.done_flush_list_waiters_count;
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
