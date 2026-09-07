@@ -536,7 +536,22 @@ protected:
 	Parallel_worker_ctx*
 		parallel_get_worker_context(size_t worker_idx) override;
 
-	int parallel_init_worker(Parallel_worker_ctx *wctx) override;
+	int parallel_init_worker(Parallel_worker_ctx *wctx,
+				 handler *coordinator) override;
+
+	/** Take the scan parameters recorded by parallel_init_coordinator()
+	on the master's handler. m_pscan_keynr says which index the chunk
+	boundaries were computed on, so it decides which index this handler
+	must open; m_pscan_ranges is what re-arms an interval's lower bound
+	when a worker moves between intervals. Both are left at their
+	"nothing to scan" defaults on a worker's own handler, which for
+	m_pscan_keynr is MAX_KEY -- the clustered index -- so without this a
+	worker searches the wrong tree with the right boundaries.
+	The ranges are borrowed, not copied: they live in the master
+	handler's m_pscan_range_heap, which parallel_end_coordinator() frees
+	only after every worker has been joined.
+	@param coordinator  the handler parallel_init_coordinator() ran on */
+	void pscan_adopt_scan_params(const ha_innobase *coordinator);
 
 	int parallel_get_next_row(Parallel_worker_ctx *wctx) override;
 
