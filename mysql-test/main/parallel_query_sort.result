@@ -73,7 +73,7 @@ Parallel_queries_executed	0
 SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
 FROM information_schema.optimizer_trace;
 why
-["an index supplies the ORDER BY order, which rows handed out in chunks do not arrive in", "no table this plan reads can be divided"]
+["an index supplies the ORDER BY order, so we can't split rows", "no table this plan reads can be divided"]
 SET SESSION optimizer_trace= @save_trace;
 SET SESSION parallel_worker_threads=default;
 DROP TABLE t1;

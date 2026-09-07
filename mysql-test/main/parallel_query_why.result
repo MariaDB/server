@@ -26,7 +26,7 @@ why
 ["grouped: a select list item reads a column outside an aggregate that GROUP BY does not name, so its value is whichever row the terminal happened to hold", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
 # an index supplying the ORDER BY
 why
-["an index supplies the ORDER BY order, which rows handed out in chunks do not arrive in", "no table this plan reads can be divided"]
+["an index supplies the ORDER BY order, so we can't split rows", "no table this plan reads can be divided"]
 # a sort this thread cannot do over its container
 why
 ["the manager cannot sort what the workers produce (see pwt_manager_sort_order)", "no table this plan reads can be divided"]
