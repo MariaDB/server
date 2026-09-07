@@ -41,23 +41,8 @@
   pwt_row_layout -- the shape both ends agree on
 *****************************************************************************/
 
-/*
-  @brief
-    Work out what travels, define the columns, and build the manager's
-    receiving container.
 
-  @description
-    What travels is every base-table column the query reads, in table order.
-    See the class comment for why that rather than the projected select list.
-
-    The definition is a list of clones, so the query's own items are never
-    bound to a container field, and the manager and every worker build the
-    identical layout from it.
-
-  @return  true on error (my_error() has been called).
-*/
-
-/*
+/**
   @brief
     result_defn := one clone per shipped column.
 
@@ -89,7 +74,8 @@ bool pwt_row_layout::clone_base_defn(THD *thd)
 }
 
 
-/*
+/**
+  @description
   Forget that the workers were going to pre-aggregate. Everything downstream
   reads 'grouped' -- the worker's terminal, its setup, and the manager's drain
   -- so clearing it here is the whole of the decision. The allocations stay on
@@ -112,7 +98,7 @@ void pwt_row_layout::forget_aggregates()
 }
 
 
-/*
+/**
   @brief
     Which shipped column holds the field 'want'.
 
@@ -134,7 +120,7 @@ int pwt_row_layout::ship_pos_of(Field *want) const
 }
 
 
-/*
+/**
   @brief
     Remember which shipped column each ORDER element sorts on.
 
@@ -214,6 +200,22 @@ ORDER *pwt_row_layout::build_sort_order(THD *thd, TABLE *container)
   return so;
 }
 
+
+/**
+  @brief
+    Work out what travels, define the columns, and build the manager's
+    receiving container.
+
+  @description
+    What travels is every base-table column the query reads, in table order.
+    See the class comment for why that rather than the projected select list.
+
+    The definition is a list of clones, so the query's own items are never
+    bound to a container field, and the manager and every worker build the
+    identical layout from it.
+
+  @return  true on error (my_error() has been called).
+*/
 
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
                            uint n_tables, ORDER *plan_group, ORDER *plan_sort)
@@ -365,7 +367,7 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
 }
 
 
-/*
+/**
   @brief
     Define the partial columns and the group accumulation key
 
@@ -608,16 +610,7 @@ void pwt_row_layout::cleanup(THD *thd)
 }
 
 
-/*
-  @brief
-    Put the row now in recv_record() back where the query expects to read it.
-
-    One copy per shipped column, container field to the base-table field it was
-    projected from. After this the manager's records hold what a serial scan
-    would have left there.
-*/
-
-/*
+/**
   @brief
     Hand each of the query's aggregates the partial now in recv.
 
@@ -701,6 +694,15 @@ void pwt_row_layout::direct_add_partials()
 }
 
 
+/**
+  @brief
+    Put the row now in recv_record() back where the query expects to read it.
+
+    One copy per shipped column, container field to the base-table field it was
+    projected from. After this the manager's records hold what a serial scan
+    would have left there.
+*/
+
 void pwt_row_layout::copy_back_row()
 {
   for (uint i= 0; i < n_copy_back; i++)
@@ -708,7 +710,7 @@ void pwt_row_layout::copy_back_row()
 }
 
 
-/*
+/**
   @brief
     Make the manager's own records fit to receive rows.
 
@@ -751,25 +753,11 @@ void pwt_row_layout::end_receive(TABLE **tables, uint n_tables)
 }
 
 
-/*****************************************************************************
-  pwt_tmp_table_sink -- the producing end of the temporary-table transport
-*****************************************************************************/
-
-bool pwt_tmp_table_sink::init(pwt_manager *mgr, pwt_tmp_table_source *peer_arg,
-                              pwt_row_container *container_arg)
-{
-  manager=   mgr;
-  peer=      peer_arg;
-  container= container_arg;
-  return false;
-}
-
-
 /*
-  Runs on the worker's thread, before its first row. Take the container: the
+  @description
+  Runs in the worker's thread, before its first row. Take the container: the
   engine accounts a write to TABLE::in_use's status counters, and a projection
-  into a field asks in_use for the session's time zone and sql_mode. Until now
-  it named the manager, which built the container.
+  into a field asks in_use for the session's time zone and sql_mode. 
 */
 
 bool pwt_tmp_table_sink::begin()
@@ -876,10 +864,9 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
 }
 
 
-/*
-  This result set is complete. Publishing 'done' is the whole hand-off: from
-  here the container is the manager's to read, and this thread does not touch
-  it again.
+/**
+  @brief
+    For the tmp table transport, this only signals the manager that we are done
 */
 
 bool pwt_tmp_table_sink::flush()
@@ -892,7 +879,8 @@ bool pwt_tmp_table_sink::flush()
 }
 
 
-/*
+/**
+  @description
   Give the container back to the manager before it frees it. Called on the
   manager's thread with every worker joined, so a container this worker took
   and never returned -- it failed, or was killed -- would otherwise be freed
@@ -923,9 +911,11 @@ void pwt_tmp_table_sink::cleanup()
 }
 
 
-/*****************************************************************************
-  pwt_tmp_table_source -- the consuming end of the temporary-table transport
-*****************************************************************************/
+/**
+  @description
+    pwt_tmp_table_source -- the consuming end of the temporary-table transport
+    allocate our per worker sink pointers
+*/
 
 bool pwt_tmp_table_source::init(THD *thd, pwt_manager *mgr, uint n_workers,
                                 uint reclength_arg)
@@ -940,6 +930,11 @@ bool pwt_tmp_table_source::init(THD *thd, pwt_manager *mgr, uint n_workers,
   return false;
 }
 
+
+/**
+  @brief
+    allocate our per worker sinks
+*/
 
 pwt_row_sink *pwt_tmp_table_source::make_sink(THD *thd, uint worker_nr,
                                               pwt_row_container *container)
@@ -968,7 +963,7 @@ pwt_row_sink *pwt_tmp_table_source::make_sink(THD *thd, uint worker_nr,
 }
 
 
-/*
+/**
   @brief
     Claim the next complete result set, waiting for one if need be.
 
@@ -1013,9 +1008,11 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
       mysql_mutex_unlock(&manager->LOCK_data);
       return res;
     }
-    // wait for a result set, a finishing worker, or a 1s tick to re-check
-    // killed. ENTER_COND/EXIT_COND publish the "Reading data from parallel
-    // workers" stage and register the cond so a KILL of the manager wakes it.
+    /*
+      wait for a result set, a finishing worker, or a 1s tick to re-check
+      killed. ENTER_COND/EXIT_COND publish the "Reading data from parallel
+      workers" stage and register the cond so a KILL of the manager wakes it.
+    */
     wait.tv_sec= time(0) + 1;
     thd->ENTER_COND(&manager->COND_data_avail, &manager->LOCK_data,
                     &stage_reading_data_from_parallel_worker, &old_stage);
@@ -1026,7 +1023,7 @@ int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
 }
 
 
-/*
+/**
   @brief
     Copy the next result row's record image into dst.
 
@@ -1087,7 +1084,8 @@ int pwt_tmp_table_source::next_row(uchar *dst)
 }
 
 
-/*
+/**
+  @brief
   End the open scan. The containers are freed just after the workers are
   reaped, and a scan left open would be one the manager still holds on a table
   about to go.
@@ -1101,10 +1099,6 @@ void pwt_tmp_table_source::release_position()
   scan_open= false;
 }
 
-
-/*****************************************************************************
-  Choosing a transport
-*****************************************************************************/
 
 /*
   @brief
@@ -1122,3 +1116,4 @@ pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
   }
   return src;
 }
+
