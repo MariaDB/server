@@ -1,0 +1,28 @@
+INSTALL SONAME 'ha_rocksdb';
+CREATE TABLE t (c INT) ENGINE=MEMORY;
+SET GLOBAL default_storage_engine=RocksDB;
+UNINSTALL SONAME 'ha_rocksdb';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+INSTALL SONAME 'ha_mroonga';
+INSERT DELAYED INTO t VALUES (1);
+SET GLOBAL default_storage_engine=Mroonga;
+FLUSH TABLES;
+RESET MASTER;
+DROP TABLE t;
+SET GLOBAL default_storage_engine=MyISAM;
+UNINSTALL SONAME 'ha_mroonga';
+# restart
