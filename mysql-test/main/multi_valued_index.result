@@ -1,15 +1,14 @@
 # basic test
-SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
 create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	invisible1	1	invisible1	A	0	NULL	NULL	YES	BTREE			NO
 t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
@@ -297,6 +296,96 @@ a	c	j
 2	NULL	NULL
 3	3	{"tags": ["aaa","bbb"]}
 drop table t0, t1;
+# SHOW CREATE TABLE prints the expression the index was declared with.
+# The column that holds the index keys is internal and is not printed.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+# That output is all it takes to re-create the index: feed it back in
+create table t2 (
+`c` int(11) DEFAULT NULL,
+`j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+CHECK (json_valid(`j`)),
+KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t2;
+# An ALTER TABLE that rebuilds the table keeps the index
+alter table t1 add column x int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	x
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+# ... and it can be dropped and added by name like any other index
+alter table t1 drop key idx;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx2` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx2	idx2	0	NULL	2	Using where
+drop table t1;
+# A fulltext key over several arrays has no single expression to show,
+# so it stays hidden.
+create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+(CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+drop table t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

@@ -1,4 +1,3 @@
-SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
 create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb","ccc"]}');

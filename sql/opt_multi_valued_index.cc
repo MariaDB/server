@@ -21,14 +21,10 @@
 
 static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access);
 
-void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
+void Item_func_mvi_encode::append_cast_type(String *str)
 {
   char buf[32];
   size_t length;
-  str->append(func_name_cstring());
-  str->append('(');
-  args[0]->print(str, query_type);
-  str->append(',');
   const Name name= m_cast_type.type_handler()->name();
   switch (m_cast_type.type_handler()->field_type())
   {
@@ -51,8 +47,42 @@ void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
     str->append(buf, length);
     str->append(')');
   }
+}
+
+
+void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name_cstring());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(',');
+  append_cast_type(str);
   str->append(')');
 }
+
+
+/*
+  @brief
+    Print the index expression the way it was written:
+
+      CAST(<expr> AS <type> ARRAY)
+
+  @detail
+    print() cannot do this. Its output is what pack_expression() writes into
+    the FRM, and that is read back as a call of mvi_encode(), which is the
+    only form the parser accepts outside an index definition.
+*/
+
+void Item_func_mvi_encode::print_as_array_cast(String *str)
+{
+  str->append(STRING_WITH_LEN("cast("));
+  /* The same flags the other parts of a table definition are printed with */
+  args[0]->print_for_table_def(str);
+  str->append(STRING_WITH_LEN(" as "));
+  append_cast_type(str);
+  str->append(STRING_WITH_LEN(" array)"));
+}
+
 
 /* TODO: this duplicates logic in Item_func_json_extract::val_int */
 static longlong json_value_to_longlong(enum json_value_types type,
@@ -233,6 +263,81 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
   return false;
 }
 
+
+/*
+  @brief
+    If `field' is the internal column that holds the keys of a multi-valued
+    index, return the mvi_encode() call that computes them.
+
+  @detail
+    Only the multi-valued index DDL creates a hidden column computed by
+    MVI_ENCODE(), so this identifies one for certain.
+*/
+
+static Item_func_mvi_encode *mvi_vcol_expr(const Field *field)
+{
+  Item *expr;
+  if (field->invisible != INVISIBLE_FULL || !field->vcol_info ||
+      !(expr= field->vcol_info->expr) ||
+      expr->type() != Item::FUNC_ITEM ||
+      ((Item_func *) expr)->functype() != Item_func::MVI_ENCODE_FUNC)
+    return NULL;
+  return (Item_func_mvi_encode *) expr;
+}
+
+
+bool is_mvi_vcol(const Field *field)
+{
+  return mvi_vcol_expr(field) != NULL;
+}
+
+
+/*
+  @brief
+    Is key #keyno of `table' a multi-valued index, that is, a fulltext key
+    over one internal MVI column?
+
+  @detail
+    A fulltext key can be declared over several of them:
+
+      KEY idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+               (CAST(j->'$.b' AS CHAR(6) ARRAY)))
+
+    Such a key has no single defining expression to show and no syntax of
+    its own to be read back in, so it does not count as one here. The
+    optimizer still uses each of its parts, see
+    collect_mvi_indexes_for_table().
+*/
+
+static Item_func_mvi_encode *mvi_key_expr(const TABLE *table, uint keyno)
+{
+  KEY *key= table->s->key_info + keyno;
+  /* TODO: "legacy" */
+  if (!(key->flags & HA_FULLTEXT_legacy) || key->user_defined_key_parts != 1)
+    return NULL;
+  /*
+    Take the field from the TABLE and not from the key part: the share's
+    Field objects have no expression, parse_vcol_defs() builds one for each
+    TABLE of the share.
+  */
+  return mvi_vcol_expr(table->field[key->key_part[0].fieldnr - 1]);
+}
+
+
+bool is_mvi_key(const TABLE *table, uint keyno)
+{
+  return mvi_key_expr(table, keyno) != NULL;
+}
+
+
+void print_mvi_key_expr(String *str, const TABLE *table, uint keyno)
+{
+  Item_func_mvi_encode *mvi= mvi_key_expr(table, keyno);
+  DBUG_ASSERT(mvi);
+  mvi->print_as_array_cast(str);
+}
+
+
 /* Collect all the MVI indexes of `table' */
 static
 bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
@@ -244,21 +349,17 @@ bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
       continue;
 
     KEY *key= &table->key_info[i];
+    /* TODO: "legacy" */
+    if (!(key->flags & HA_FULLTEXT_legacy))
+      continue;
     for (uint kp=0; kp < key->user_defined_key_parts; kp++)
     {
-      /* TODO: "legacy" */
-      if (!(key->flags & HA_FULLTEXT_legacy)) continue;
       Field *field= key->key_part[kp].field;
-      if (field->invisible == INVISIBLE_FULL &&
-          field->vcol_info &&
-          field->vcol_info->expr->type() == Item::FUNC_ITEM &&
-          ((Item_func *) field->vcol_info->expr)->functype() ==
-          Item_func::MVI_ENCODE_FUNC)
-      {
-        Mv_index *index= new (thd->mem_root) Mv_index(field, i);
-        if (indexes->push_back(index))
-          return TRUE; // Out of memory
-      }
+      if (!is_mvi_vcol(field))
+        continue;
+      Mv_index *index= new (thd->mem_root) Mv_index(field, i);
+      if (indexes->push_back(index))
+        return TRUE; // Out of memory
     }
   }
   return FALSE; // Ok

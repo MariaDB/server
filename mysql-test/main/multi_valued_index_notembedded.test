@@ -1,9 +1,7 @@
---source include/have_debug.inc
 --source include/have_innodb.inc
 # The test uses the optimizer trace:
 --source include/not_embedded.inc
 
-SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
 
 create table t1 (c int, j json,
                  key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;

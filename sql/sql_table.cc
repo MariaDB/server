@@ -2778,13 +2778,19 @@ Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
 {
   char buf[INTERNAL_FIELD_NAME_LENGTH]= {0};
   LEX_CSTRING name= { buf, 0 };
-  bool dup_found= true;
-  for (uint num= 1; dup_found; num++)
+  for (uint num= 1; ; num++)
   {
+    /*
+      Note this has to start at false: `create_list' can be empty, and then
+      the loop below does not run at all.
+    */
+    bool dup_found= false;
     name.length= my_snprintf(buf, sizeof(buf), "%s%u", prefix, num);
     for (auto &dup_field : *create_list)
       if ((dup_found= dup_field.field_name.streq(name)))
         break;
+    if (!dup_found)
+      break;
   }
   return Lex_ident_column(thd->strmake_lex_cstring(name));
 }
@@ -8544,6 +8550,41 @@ void rename_field_in_list(Create_field *field, List<const char> *field_list)
 #endif
 
 
+/*
+  @brief
+    Should `field', the internal column of a multi-valued index, survive this
+    ALTER TABLE?
+
+  @detail
+    It only exists to hold the entries of one key, so it lives exactly as
+    long as that key does: a column whose key is being dropped goes with it,
+    and so does one that has no key left at all.
+*/
+
+static bool mvi_vcol_kept_by_alter(TABLE *table, Field *field,
+                                   Alter_info *alter_info)
+{
+  KEY *key_info= table->key_info;
+  if (!is_mvi_vcol(field))
+    return false;
+  for (uint i= 0; i < table->s->total_keys; i++, key_info++)
+  {
+    if (!is_mvi_key(table, i) || key_info->key_part[0].field != field)
+      continue;
+    /* This is its key. Keep the column unless the key is going away */
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    while (Alter_drop *drop= drop_it++)
+    {
+      if (drop->type == Alter_drop::KEY &&
+          Lex_ident_column(key_info->name).streq(drop->name))
+        return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -8710,7 +8751,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
-    if (field->invisible == INVISIBLE_FULL)
+    /*
+      Internal columns are re-created from scratch by the new table's DDL,
+      except the one that holds the keys of a multi-valued index: there is no
+      syntax that would re-create that one, so carry it over as it is, for as
+      long as its key is (see the key loop below).
+    */
+    if (field->invisible == INVISIBLE_FULL &&
+        !mvi_vcol_kept_by_alter(table, field, alter_info))
         continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
@@ -8894,7 +8942,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     else
     {
-      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
+      /* The internal column of a multi-valued index also goes last */
+      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM || is_mvi_vcol(field));
       def= new (root) Create_field(thd, field, field);
       new_create_tail.push_back(def, root);
     }
@@ -9112,6 +9161,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   for (uint i= 0; i < table->s->total_keys; i++, key_info++)
   {
     bool long_hash_key= false;
+    /* A multi-valued index. Its only key part is an internal column */
+    const bool mvi_key= is_mvi_key(table, i);
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
     Lex_ident_column key_name(key_info->name);
@@ -9402,6 +9453,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
       key->old= true;
+      /* Let the key keep its internal key part, see init_key_part_spec() */
+      key->invisible= mvi_key;
       new_key_list.push_back(key, root);
     }
     if (long_hash_key)

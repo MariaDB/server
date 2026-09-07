@@ -1,8 +1,6 @@
---source include/have_debug.inc
 --source include/have_innodb.inc
 
 --echo # basic test
-SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
 
 create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 SHOW CREATE TABLE t1;
@@ -190,6 +188,52 @@ select * from t0 left join t1 ignore index(idx)
 order by t0.a;
 
 drop table t0, t1;
+
+--echo # SHOW CREATE TABLE prints the expression the index was declared with.
+--echo # The column that holds the index keys is internal and is not printed.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+show create table t1;
+show index from t1;
+
+--echo # That output is all it takes to re-create the index: feed it back in
+create table t2 (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+      CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB;
+show create table t2;
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+drop table t2;
+
+--echo # An ALTER TABLE that rebuilds the table keeps the index
+alter table t1 add column x int;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo # ... and it can be dropped and added by name like any other index
+alter table t1 drop key idx;
+show create table t1;
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+
+drop table t1;
+
+--echo # A fulltext key over several arrays has no single expression to show,
+--echo # so it stays hidden.
+create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+                                  (CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+show index from t1;
+drop table t1;
 
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);

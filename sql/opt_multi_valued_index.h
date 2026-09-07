@@ -89,6 +89,20 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf);
 
 /*
+  Is `field' the internal column that holds the keys of a multi-valued index?
+*/
+bool is_mvi_vcol(const Field *field);
+
+/* Is key #keyno of `table' a multi-valued index? */
+bool is_mvi_key(const TABLE *table, uint keyno);
+
+/*
+  Print the expression key #keyno was declared with, in the CAST(... ARRAY)
+  form, for SHOW CREATE TABLE
+*/
+void print_mvi_key_expr(String *str, const TABLE *table, uint keyno);
+
+/*
   Analyze `cond' and pick the MVI access `tab' will use, if any, and let the
   range analysis see it
 */
