@@ -1229,7 +1229,7 @@ static inline bool is_trg_kind_invalid(longlong trg_event)
 static bool check_valid_trigger_metadata(char *err_msg,
                                          size_t cur_msg_len,
                                          size_t err_msg_buf_sz,
-                                         int trg_kind, int trg_when)
+                                         longlong trg_kind, longlong trg_when)
 {
   bool ret= false;
 
@@ -1239,7 +1239,7 @@ static bool check_valid_trigger_metadata(char *err_msg,
     {
       DBUG_ASSERT(cur_msg_len == 0);
       cur_msg_len+= snprintf(err_msg, err_msg_buf_sz,
-                             "Invalid event.kind value %d",
+                             "Invalid event.kind value %lld",
                              trg_kind);
       ret= true;
     }
@@ -1258,11 +1258,11 @@ static bool check_valid_trigger_metadata(char *err_msg,
         if (cur_msg_len)
           snprintf(err_msg + cur_msg_len,
                    err_msg_buf_sz - cur_msg_len,
-                   ", Invalid event.when value %d",
+                   ", Invalid event.when value %lld",
                    trg_when);
         else
           snprintf(err_msg, err_msg_buf_sz,
-                   "Invalid event.when value %d",
+                   "Invalid event.when value %lld",
                    trg_when);
         ret= true;
       }
@@ -1287,8 +1287,8 @@ static bool check_valid_trigger_metadata(char *err_msg,
 */
 
 static bool check_valid_trigger_metadata(THD *thd, const LEX_STRING &trg_name,
-                                         int trg_kind,
-                                         int trg_when)
+                                         longlong trg_kind,
+                                         longlong trg_when)
 {
   bool ret= false;
   char err_msg[MYSQL_ERRMSG_SIZE];
@@ -1320,7 +1320,7 @@ static bool check_valid_trigger_metadata(THD *thd, const LEX_STRING &trg_name,
 */
 
 static bool check_valid_trigger_metadata(const LEX_STRING &trg_name,
-                                         int trg_kind, int trg_when)
+                                         longlong trg_kind, longlong trg_when)
 {
   bool ret;
   char err_msg[MYSQL_ERRMSG_SIZE];
