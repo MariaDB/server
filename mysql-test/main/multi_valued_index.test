@@ -159,6 +159,38 @@ where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
 
 drop table t1;
 
+--echo # The predicate does not have to be in the WHERE clause: for a table on
+--echo # the inner side of an outer join we look at the ON expression, which is
+--echo # what has to be true for the rows we read.
+
+create table t0 (a int);
+insert into t0 values (1),(2),(3);
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+
+explain select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"');
+select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+--echo # the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+                  on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+
+--echo # The outer rows that find no match are still NULL-complemented
+explain select * from t0 left join t1
+                  on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a;
+select * from t0 left join t1
+            on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+--echo # the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+                  on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+
+drop table t0, t1;
+
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);

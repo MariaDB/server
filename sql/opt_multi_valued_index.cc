@@ -233,39 +233,31 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
   return false;
 }
 
-/* Collect all the MVI indexes in `join' */
+/* Collect all the MVI indexes of `table' */
 static
-bool collect_mvi_vcols_for_join(JOIN *join, List<Mv_index> *indexes)
+bool collect_mvi_vcols_for_table(THD *thd, TABLE *table,
+                                 List<Mv_index> *indexes)
 {
-  List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
-  TABLE_LIST *tl;
-  TABLE *table;
-  THD *thd= join->thd;
-  while ((tl= ti++))
+  for (uint i=0; i < table->s->keys; i++)
   {
-    if (!(table= tl->table)) // non-merged semi-join or something like that
+    if (!table->keys_in_use_for_query.is_set(i))
       continue;
-    for (uint i=0; i < table->s->keys; i++)
-    {
-      if (!table->keys_in_use_for_query.is_set(i))
-        continue;
 
-      KEY *key= &table->key_info[i];
-      for (uint kp=0; kp < key->user_defined_key_parts; kp++)
+    KEY *key= &table->key_info[i];
+    for (uint kp=0; kp < key->user_defined_key_parts; kp++)
+    {
+      /* TODO: "legacy" */
+      if (!(key->flags & HA_FULLTEXT_legacy)) continue;
+      Field *field= key->key_part[kp].field;
+      if (field->invisible == INVISIBLE_FULL &&
+          field->vcol_info &&
+          field->vcol_info->expr->type() == Item::FUNC_ITEM &&
+          ((Item_func *) field->vcol_info->expr)->functype() ==
+          Item_func::MVI_ENCODE_FUNC)
       {
-        /* TODO: "legacy" */
-        if (!(key->flags & HA_FULLTEXT_legacy)) continue;
-        Field *field= key->key_part[kp].field;
-        if (field->invisible == INVISIBLE_FULL &&
-            field->vcol_info &&
-            field->vcol_info->expr->type() == Item::FUNC_ITEM &&
-            ((Item_func *) field->vcol_info->expr)->functype() ==
-            Item_func::MVI_ENCODE_FUNC)
-        {
-          Mv_index *index= new (thd->mem_root) Mv_index(field, i);
-          if (indexes->push_back(index))
-            return TRUE; // Out of memory
-        }
+        Mv_index *index= new (thd->mem_root) Mv_index(field, i);
+        if (indexes->push_back(index))
+          return TRUE; // Out of memory
       }
     }
   }
@@ -485,53 +477,45 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
 
 /*
   @brief
-    Analyze the WHERE clause and find the MVI accesses it allows.
+    Analyze `cond' and pick the MVI access `tab' will use, if any, and let
+    the range analysis see it.
+
+  @param cond  The condition the rows of this table have to satisfy: the
+               WHERE clause, or the ON expression when the table is on the
+               inner side of an outer join. That is what the range analysis
+               of this table uses, too.
 
   @detail
-    The accesses are saved in join->mvi_ctx, where setup_mvi_access_for_table()
-    picks them up, one table at a time.
-*/
+    The analysis is what tab->mvi_ctx ends up holding: the MV indexes of the
+    table, the accesses the condition allows on them, and the one of those we
+    are going to use.
 
-bool setup_mvi_quick(JOIN *join)
-{
-  THD *thd= join->thd;
-  Mvi_context *ctx;
-  /* mvi_ctx must describe this analysis only, including on the early exits */
-  join->mvi_ctx= NULL;
-  if (!join->conds)
-    return false;
-  if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
-    return true;
-  if (collect_mvi_vcols_for_join(join, &ctx->indexes))
-    return true;
-  if (ctx->indexes.is_empty())
-    return false;
-  if (collect_mvi_accesses(ctx, join->conds))
-    return true;
-  if (ctx->accesses.is_empty())
-    return false;
-  join->mvi_ctx= ctx;
-  return false;
-}
-
-
-/*
-  @brief
-    Pick the MVI access `tab' will use out of the ones the WHERE clause
-    allows, and let the range analysis see it.
-
-  @detail
     A fulltext key never gets a bit in const_keys or keys, so we set them
     here. The const_keys bit is what makes the range analysis run for this
     table, where get_best_mvi_access() turns the access into a quick select;
     the keys bit puts the index into EXPLAIN's possible_keys.
+
+  @return
+    true   Out of memory
+    false  Ok, tab->mvi_ctx is set if the table has an MVI access
 */
 
-void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
+bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
 {
-  if (!join->mvi_ctx)
-    return;
-  List_iterator<Mvi_access> it(join->mvi_ctx->accesses);
+  Mvi_context *ctx;
+  if (!cond)
+    return false;
+  if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
+    return true;
+  if (collect_mvi_vcols_for_table(thd, tab->table, &ctx->indexes))
+    return true;
+  /* Most tables have no MVI. Leave before we walk the condition */
+  if (ctx->indexes.is_empty())
+    return false;
+  if (collect_mvi_accesses(ctx, cond))
+    return true;
+
+  List_iterator<Mvi_access> it(ctx->accesses);
   /* TODO: cost based */
   /*
     TODO: merge
@@ -543,14 +527,20 @@ void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
   */
   while (Mvi_access *access= it++)
   {
-    if (access->index->vcol->table == tab->table)
-      tab->mvi_access= access;
+    /*
+      An access can only be on this table: ctx->indexes holds this table's
+      indexes and get_mvi_index() matches the predicate against those.
+    */
+    DBUG_ASSERT(access->index->vcol->table == tab->table);
+    ctx->best= access;
   }
-  if (tab->mvi_access)
-  {
-    tab->const_keys.set_bit(tab->mvi_access->index->keyno);
-    tab->keys.set_bit(tab->mvi_access->index->keyno);
-  }
+  if (!ctx->best)
+    return false;
+
+  tab->mvi_ctx= ctx;
+  tab->const_keys.set_bit(ctx->best->index->keyno);
+  tab->keys.set_bit(ctx->best->index->keyno);
+  return false;
 }
 
 
@@ -566,10 +556,13 @@ void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
 
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
-  Mvi_access *access= tab->mvi_access;
   TABLE *table= tab->table;
-  if (!access)
+  Mvi_access *access;
+  if (!tab->mvi_ctx)
     return NULL;
+  /* We only keep the context when it has an access for us to use */
+  access= tab->mvi_ctx->best;
+  DBUG_ASSERT(access);
   /*
     estimate_records() drops element keys from the access, so it must run
     only once even if we are called again for the same table.

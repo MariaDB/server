@@ -60,17 +60,19 @@ struct Mvi_access : public Sql_alloc
 };
 
 
-/* The result of the MVI analysis of one JOIN */
+/* The result of the MVI analysis of one table */
 class Mvi_context : public Sql_alloc
 {
  public:
   THD *thd;
-  /* All MV indexes in the JOIN */
+  /* The MV indexes of the table */
   List<Mv_index> indexes;
-  /* MVI accesses for all eligible predicates in WHERE */
+  /* MVI accesses for all eligible predicates on the table */
   List<Mvi_access> accesses;
+  /* The access we've chosen out of the above */
+  Mvi_access *best;
 
-  Mvi_context(THD *thd_arg) : thd(thd_arg) {}
+  Mvi_context(THD *thd_arg) : thd(thd_arg), best(NULL) {}
 };
 
 /* Return the compatible json type */
@@ -84,10 +86,11 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
 bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf);
 
-bool setup_mvi_quick(JOIN *join);
-
-/* Pick the MVI access `tab' will use, and let the range analysis see it */
-void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab);
+/*
+  Analyze `cond' and pick the MVI access `tab' will use, if any, and let the
+  range analysis see it
+*/
+bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond);
 
 /* Create a quick select for the MVI access to `tab', if there is one */
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab);

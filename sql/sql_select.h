@@ -35,6 +35,8 @@
 #include "cset_narrowing.h"
 
 typedef struct st_join_table JOIN_TAB;
+class Mvi_context;
+struct Mvi_access;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
 #define KEY_OPTIMIZE_REF_OR_NULL	2U
@@ -567,10 +569,10 @@ typedef struct st_join_table {
   key_map	needed_reg;
   key_map       keys;                           /**< all keys with can be used */
   /*
-    The multi-valued index access to use for this table, or NULL if there is
-    none. Set by setup_mvi_access_for_table().
+    The multi-valued index analysis of this table, or NULL if the table has
+    no MVI access. Produced by setup_mvi_access_for_table().
   */
-  Mvi_access    *mvi_access;
+  Mvi_context   *mvi_ctx;
 
   /* Either #rows in the table or 1 for const table.  */
   ha_rows	records;
@@ -1458,9 +1460,6 @@ private:
 };
 
 
-class Mvi_context;
-struct Mvi_access;
-
 class JOIN :public Sql_alloc
 {
 private:
@@ -1796,12 +1795,6 @@ public:
   SELECT_LEX_UNIT *unit;
   /// select that processed
   SELECT_LEX *select_lex;
-  /*
-    The result of the multi-valued index analysis, or NULL if there is no
-    usable MVI access. Produced by setup_mvi_quick(); the access each table
-    gets out of it is picked by setup_mvi_access_for_table().
-  */
-  Mvi_context *mvi_ctx;
   /**
     TRUE <=> optimizer must not mark any table as a constant table.
     This is needed for subqueries in form "a IN (SELECT .. UNION SELECT ..):
