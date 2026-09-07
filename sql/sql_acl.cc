@@ -14459,6 +14459,76 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
   mpvio_info(mpvio->auth_info.thd->net.vio, info);
 }
 
+#ifdef HAVE_OPENSSL
+/*
+  Whether the linked library's X509_NAME_oneline() backslash-escapes a
+  literal '/' or '+' inside an RDN value. True for OpenSSL >= 3.0.0.
+  False for OpenSSL < 3.0 and WolfSSL, which never escapes (reported
+  upstream: wolfSSL/wolfssl#11392).
+*/
+#if !defined(HAVE_WOLFSSL) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+#define X509_LIB_ESCAPES_SEPARATORS 1
+#else
+#define X509_LIB_ESCAPES_SEPARATORS 0
+#endif
+
+/**
+  Compare two X509_NAME_oneline() strings where only one side may carry
+  a backslash-escape before a literal '/' or '+'.
+
+  @param escaped  name that may contain a backslash before '/' or '+'
+  @param raw      name that never does
+
+  @return same sign convention as strcmp()
+*/
+static int x509_cmp_escaped_raw(const char *escaped, const char *raw)
+{
+  for (;;)
+  {
+    if (*escaped == '\\' && (escaped[1] == '/' || escaped[1] == '+'))
+      escaped++;
+    if (*escaped != *raw)
+      return (unsigned char) *escaped - (unsigned char) *raw;
+    if (*escaped == '\0')
+      return 0;
+    escaped++;
+    raw++;
+  }
+}
+
+/**
+  Compare a REQUIRE ISSUER/SUBJECT value against a certificate's
+  X509_NAME_oneline() rendering.
+
+  strcmp(), unless that fails and lenient is set: then fall back to
+  x509_cmp_escaped_raw(), applied to whichever side the currently-linked
+  library's own escaping puts the backslash on. lenient is opt-in
+  (old_mode=X509_LENIENT_COMPARE), since it reintroduces ambiguity
+  between an escaped literal '/' or '+' and a real separator.
+
+  @param stored   the REQUIRE ISSUER/SUBJECT value from ACL_USER
+  @param cert     X509_NAME_oneline() of the connecting certificate
+  @param lenient  @@old_mode & OLD_MODE_X509_LENIENT_COMPARE
+
+  @return 0 if they match, non-zero otherwise
+*/
+static int my_x509_oneline_cmp(const char *stored, const char *cert,
+                                bool lenient)
+{
+  int c;
+  if (!stored || !cert)
+    return stored != cert;
+  c= strcmp(stored, cert);
+  if (!c || !lenient)
+    return c;
+#if X509_LIB_ESCAPES_SEPARATORS
+  return x509_cmp_escaped_raw(cert, stored);   /* cert is canonically escaped */
+#else
+  return x509_cmp_escaped_raw(stored, cert);   /* cert never escapes */
+#endif
+}
+#endif /* HAVE_OPENSSL */
+
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
   Vio *vio= thd->net.vio;
@@ -14538,13 +14608,15 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
+    bool x509_lenient_compare=
+      (thd->variables.old_behavior & OLD_MODE_X509_LENIENT_COMPARE) != 0;
     /* If X509 issuer is specified, we check it... */
     if (acl_user->x509_issuer[0])
     {
       char *ptr= X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing issuers: '%s' and '%s'",
                          acl_user->x509_issuer, ptr));
-      if (strcmp(acl_user->x509_issuer, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_issuer, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
@@ -14561,7 +14633,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       char *ptr= X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing subjects: '%s' and '%s'",
                          acl_user->x509_subject, ptr));
-      if (strcmp(acl_user->x509_subject, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_subject, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
