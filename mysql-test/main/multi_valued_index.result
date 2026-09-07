@@ -1,15 +1,14 @@
 # basic test
-SET SESSION debug_dbug = '+d,test_invisible_index,test_completely_invisible';
 create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL,
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	invisible1	1	invisible1	A	0	NULL	NULL	YES	BTREE			NO
 t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
@@ -241,6 +240,189 @@ where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
 c	j	c	j
 1	{"tags": ["aaa"]}	1	{"tags": ["aaa"]}
 1	{"tags": ["aaa"]}	4	{"tags": ["aaa","bbb"]}
+drop table t1;
+# The predicate does not have to be in the WHERE clause: for a table on
+# the inner side of an outer join we look at the ON expression, which is
+# what has to be true for the rows we read.
+create table t0 (a int);
+insert into t0 values (1),(2),(3);
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+explain select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using join buffer (flat, BNL join)
+select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+1	3	{"tags": ["aaa","bbb"]}
+2	1	{"tags": ["aaa"]}
+2	3	{"tags": ["aaa","bbb"]}
+3	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+1	3	{"tags": ["aaa","bbb"]}
+2	1	{"tags": ["aaa"]}
+2	3	{"tags": ["aaa","bbb"]}
+3	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+# The outer rows that find no match are still NULL-complemented
+explain select * from t0 left join t1
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using join buffer (flat, BNL join)
+select * from t0 left join t1
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+a	c	j
+1	1	{"tags": ["aaa"]}
+2	NULL	NULL
+3	3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+a	c	j
+1	1	{"tags": ["aaa"]}
+2	NULL	NULL
+3	3	{"tags": ["aaa","bbb"]}
+drop table t0, t1;
+# SHOW CREATE TABLE prints the expression the index was declared with.
+# The column that holds the index keys is internal and is not printed.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+# That output is all it takes to re-create the index: feed it back in
+create table t2 (
+`c` int(11) DEFAULT NULL,
+`j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+CHECK (json_valid(`j`)),
+KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t2;
+# An ALTER TABLE that rebuilds the table keeps the index
+alter table t1 add column x int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	x
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+# ... and it can be dropped and added by name like any other index
+alter table t1 drop key idx;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx2` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx2	idx2	0	NULL	2	Using where
+drop table t1;
+# An index over an ARRAY has exactly one key part. A key with several
+# would have no defining expression to show and no way to be read back.
+create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+(CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),c))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+create table t1 (c int, j json,
+key idx (c,(CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+# ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+(CAST(j->'$.b' AS CHAR(6) ARRAY)));
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+drop table t1;
+# A plain KEY is the only thing an index over an ARRAY can be. The
+# index is a fulltext index over the encoded elements underneath, which
+# would not enforce UNIQUE or PRIMARY KEY, and which MATCH() would find
+# nothing in.
+create table t1 (j json,
+unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+create table t1 (j json,
+constraint u unique ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+create table t1 (j json,
+primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of PRIMARY KEY and ARRAY
+create table t1 (j json,
+fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of FULLTEXT and ARRAY
+# ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+alter table t1 add unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+alter table t1 add primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of PRIMARY KEY and ARRAY
+alter table t1 add fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of FULLTEXT and ARRAY
+# the plain form is accepted
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.a') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);

@@ -21,14 +21,10 @@
 
 static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access);
 
-void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
+void Item_func_mvi_encode::append_cast_type(String *str)
 {
   char buf[32];
   size_t length;
-  str->append(func_name_cstring());
-  str->append('(');
-  args[0]->print(str, query_type);
-  str->append(',');
   const Name name= m_cast_type.type_handler()->name();
   switch (m_cast_type.type_handler()->field_type())
   {
@@ -51,8 +47,42 @@ void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
     str->append(buf, length);
     str->append(')');
   }
+}
+
+
+void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name_cstring());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(',');
+  append_cast_type(str);
   str->append(')');
 }
+
+
+/*
+  @brief
+    Print the index expression the way it was written:
+
+      CAST(<expr> AS <type> ARRAY)
+
+  @detail
+    print() cannot do this. Its output is what pack_expression() writes into
+    the FRM, and that is read back as a call of mvi_encode(), which is the
+    only form the parser accepts outside an index definition.
+*/
+
+void Item_func_mvi_encode::print_as_array_cast(String *str)
+{
+  str->append(STRING_WITH_LEN("cast("));
+  /* The same flags the other parts of a table definition are printed with */
+  args[0]->print_for_table_def(str);
+  str->append(STRING_WITH_LEN(" as "));
+  append_cast_type(str);
+  str->append(STRING_WITH_LEN(" array)"));
+}
+
 
 /* TODO: this duplicates logic in Item_func_json_extract::val_int */
 static longlong json_value_to_longlong(enum json_value_types type,
@@ -233,40 +263,108 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
   return false;
 }
 
-/* Collect all the MVI indexes in `join' */
-static
-bool collect_mvi_vcols_for_join(JOIN *join, List<Mv_index> *indexes)
-{
-  List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
-  TABLE_LIST *tl;
-  TABLE *table;
-  THD *thd= join->thd;
-  while ((tl= ti++))
-  {
-    if (!(table= tl->table)) // non-merged semi-join or something like that
-      continue;
-    for (uint i=0; i < table->s->keys; i++)
-    {
-      if (!table->keys_in_use_for_query.is_set(i))
-        continue;
 
-      KEY *key= &table->key_info[i];
-      for (uint kp=0; kp < key->user_defined_key_parts; kp++)
-      {
-        /* TODO: "legacy" */
-        if (!(key->flags & HA_FULLTEXT_legacy)) continue;
-        Field *field= key->key_part[kp].field;
-        if (field->invisible == INVISIBLE_FULL &&
-            field->vcol_info &&
-            field->vcol_info->expr->type() == Item::FUNC_ITEM &&
-            ((Item_func *) field->vcol_info->expr)->functype() ==
-            Item_func::MVI_ENCODE_FUNC)
-        {
-          Mv_index *index= new (thd->mem_root) Mv_index(field, i);
-          if (indexes->push_back(index))
-            return TRUE; // Out of memory
-        }
-      }
+/*
+  @brief
+    If `field' is the internal column that holds the keys of a multi-valued
+    index, return the mvi_encode() call that computes them.
+
+  @detail
+    Only the multi-valued index DDL creates a hidden column computed by
+    MVI_ENCODE(), so this identifies one for certain.
+*/
+
+static Item_func_mvi_encode *mvi_expr(field_visibility_t invisible,
+                                      const Virtual_column_info *vcol_info)
+{
+  Item *expr;
+  if (invisible != INVISIBLE_FULL || !vcol_info ||
+      !(expr= vcol_info->expr) ||
+      expr->type() != Item::FUNC_ITEM ||
+      ((Item_func *) expr)->functype() != Item_func::MVI_ENCODE_FUNC)
+    return NULL;
+  return (Item_func_mvi_encode *) expr;
+}
+
+
+bool is_mvi_vcol(const Field *field)
+{
+  return mvi_expr(field->invisible, field->vcol_info) != NULL;
+}
+
+
+/* The same, on the way in: for a column that is being created */
+bool is_mvi_vcol(const Create_field *field)
+{
+  return mvi_expr(field->invisible, field->vcol_info) != NULL;
+}
+
+
+/*
+  @brief
+    Is key #keyno of `table' a multi-valued index, that is, a fulltext key
+    over one internal MVI column?
+
+  @detail
+    init_key_part_spec() does not allow such a key to have more than one key
+    part. The check is here as well because a table created before it was
+    added may still have one, and there is no single expression to show for
+    it. The optimizer does use each of its parts, see
+    collect_mvi_indexes_for_table().
+*/
+
+static Item_func_mvi_encode *mvi_key_expr(const TABLE *table, uint keyno)
+{
+  KEY *key= table->s->key_info + keyno;
+  /* TODO: "legacy" */
+  if (!(key->flags & HA_FULLTEXT_legacy) || key->user_defined_key_parts != 1)
+    return NULL;
+  /*
+    Take the field from the TABLE and not from the key part: the share's
+    Field objects have no expression, parse_vcol_defs() builds one for each
+    TABLE of the share.
+  */
+  Field *field= table->field[key->key_part[0].fieldnr - 1];
+  return mvi_expr(field->invisible, field->vcol_info);
+}
+
+
+bool is_mvi_key(const TABLE *table, uint keyno)
+{
+  return mvi_key_expr(table, keyno) != NULL;
+}
+
+
+void print_mvi_key_expr(String *str, const TABLE *table, uint keyno)
+{
+  Item_func_mvi_encode *mvi= mvi_key_expr(table, keyno);
+  DBUG_ASSERT(mvi);
+  mvi->print_as_array_cast(str);
+}
+
+
+/* Collect all the MVI indexes of `table' */
+static
+bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
+                                   List<Mv_index> *indexes)
+{
+  for (uint i=0; i < table->s->keys; i++)
+  {
+    if (!table->keys_in_use_for_query.is_set(i))
+      continue;
+
+    KEY *key= &table->key_info[i];
+    /* TODO: "legacy" */
+    if (!(key->flags & HA_FULLTEXT_legacy))
+      continue;
+    for (uint kp=0; kp < key->user_defined_key_parts; kp++)
+    {
+      Field *field= key->key_part[kp].field;
+      if (!is_mvi_vcol(field))
+        continue;
+      Mv_index *index= new (thd->mem_root) Mv_index(field, i);
+      if (indexes->push_back(index))
+        return TRUE; // Out of memory
     }
   }
   return FALSE; // Ok
@@ -485,53 +583,44 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
 
 /*
   @brief
-    Analyze the WHERE clause and find the MVI accesses it allows.
+    Analyze `cond' and pick the MVI access `tab' will use, if any, and let
+    the range analysis see it.
+
+  @param cond  The condition the rows of this table have to satisfy: the
+               WHERE clause, or the ON expression when the table is on the
+               inner side of an outer join. That is what the range analysis
+               of this table uses, too.
 
   @detail
-    The accesses are saved in join->mvi_ctx, where setup_mvi_access_for_table()
-    picks them up, one table at a time.
-*/
+    The analysis itself is scratch state: what we leave behind is the one
+    access we've settled on, in tab->mvi_access. It and the Mv_index it
+    refers to live on the MEM_ROOT, so they outlive `ctx'.
 
-bool setup_mvi_quick(JOIN *join)
-{
-  THD *thd= join->thd;
-  Mvi_context *ctx;
-  /* mvi_ctx must describe this analysis only, including on the early exits */
-  join->mvi_ctx= NULL;
-  if (!join->conds)
-    return false;
-  if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
-    return true;
-  if (collect_mvi_vcols_for_join(join, &ctx->indexes))
-    return true;
-  if (ctx->indexes.is_empty())
-    return false;
-  if (collect_mvi_accesses(ctx, join->conds))
-    return true;
-  if (ctx->accesses.is_empty())
-    return false;
-  join->mvi_ctx= ctx;
-  return false;
-}
-
-
-/*
-  @brief
-    Pick the MVI access `tab' will use out of the ones the WHERE clause
-    allows, and let the range analysis see it.
-
-  @detail
     A fulltext key never gets a bit in const_keys or keys, so we set them
     here. The const_keys bit is what makes the range analysis run for this
     table, where get_best_mvi_access() turns the access into a quick select;
     the keys bit puts the index into EXPLAIN's possible_keys.
+
+  @return
+    true   Out of memory
+    false  Ok, tab->mvi_access is set if the table has an MVI access
 */
 
-void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
+bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
 {
-  if (!join->mvi_ctx)
-    return;
-  List_iterator<Mvi_access> it(join->mvi_ctx->accesses);
+  Mvi_context ctx(thd);
+  Mvi_access *best= NULL;
+  if (!cond)
+    return false;
+  if (collect_mvi_indexes_for_table(thd, tab->table, &ctx.indexes))
+    return true;
+  /* Most tables have no MVI. Leave before we walk the condition */
+  if (ctx.indexes.is_empty())
+    return false;
+  if (collect_mvi_accesses(&ctx, cond))
+    return true;
+
+  List_iterator<Mvi_access> it(ctx.accesses);
   /* TODO: cost based */
   /*
     TODO: merge
@@ -543,14 +632,20 @@ void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
   */
   while (Mvi_access *access= it++)
   {
-    if (access->index->vcol->table == tab->table)
-      tab->mvi_access= access;
+    /*
+      An access can only be on this table: ctx.indexes holds this table's
+      indexes and get_mvi_index() matches the predicate against those.
+    */
+    DBUG_ASSERT(access->index->vcol->table == tab->table);
+    best= access;
   }
-  if (tab->mvi_access)
-  {
-    tab->const_keys.set_bit(tab->mvi_access->index->keyno);
-    tab->keys.set_bit(tab->mvi_access->index->keyno);
-  }
+  if (!best)
+    return false;
+
+  tab->mvi_access= best;
+  tab->const_keys.set_bit(best->index->keyno);
+  tab->keys.set_bit(best->index->keyno);
+  return false;
 }
 
 
@@ -566,8 +661,8 @@ void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab)
 
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
-  Mvi_access *access= tab->mvi_access;
   TABLE *table= tab->table;
+  Mvi_access *access= tab->mvi_access;
   if (!access)
     return NULL;
   /*

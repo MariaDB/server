@@ -60,14 +60,18 @@ struct Mvi_access : public Sql_alloc
 };
 
 
-/* The result of the MVI analysis of one JOIN */
+/*
+  The state of the MVI analysis of one table. It only lives for the duration
+  of setup_mvi_access_for_table(): the access that analysis settles on is
+  what outlives it.
+*/
 class Mvi_context : public Sql_alloc
 {
  public:
   THD *thd;
-  /* All MV indexes in the JOIN */
+  /* The MV indexes of the table */
   List<Mv_index> indexes;
-  /* MVI accesses for all eligible predicates in WHERE */
+  /* MVI accesses for all eligible predicates on the table */
   List<Mvi_access> accesses;
 
   Mvi_context(THD *thd_arg) : thd(thd_arg) {}
@@ -84,10 +88,26 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
 bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf);
 
-bool setup_mvi_quick(JOIN *join);
+/*
+  Is `field' the internal column that holds the keys of a multi-valued index?
+*/
+bool is_mvi_vcol(const Field *field);
+bool is_mvi_vcol(const Create_field *field);
 
-/* Pick the MVI access `tab' will use, and let the range analysis see it */
-void setup_mvi_access_for_table(JOIN *join, JOIN_TAB *tab);
+/* Is key #keyno of `table' a multi-valued index? */
+bool is_mvi_key(const TABLE *table, uint keyno);
+
+/*
+  Print the expression key #keyno was declared with, in the CAST(... ARRAY)
+  form, for SHOW CREATE TABLE
+*/
+void print_mvi_key_expr(String *str, const TABLE *table, uint keyno);
+
+/*
+  Analyze `cond' and pick the MVI access `tab' will use, if any, and let the
+  range analysis see it
+*/
+bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond);
 
 /* Create a quick select for the MVI access to `tab', if there is one */
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab);

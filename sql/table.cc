@@ -3215,9 +3215,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           share->incompatible_version|= HA_CREATE_USED_CHARSET;
         key_part->type= field->key_type();
 
-        if (field->invisible > INVISIBLE_USER && !field->vers_sys_field())
-          if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
-            keyinfo->flags |= HA_INVISIBLE_KEY;
+        /*
+          A key part the user cannot name normally hides the whole key. Two
+          kinds of key are built that way on purpose and are not hidden:
+          a long unique, and a multi-valued index - a fulltext key over one
+          internal column holding the index keys. We cannot use is_mvi_key()
+          to recognize the latter: the vcol expressions are not parsed until
+          parse_vcol_defs(), long after this.
+        */
+        if (field->invisible > INVISIBLE_USER && !field->vers_sys_field() &&
+            keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
+            !(keyinfo->algorithm == HA_KEY_ALG_FULLTEXT &&
+              keyinfo->user_defined_key_parts == 1))
+          keyinfo->flags |= HA_INVISIBLE_KEY;
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -

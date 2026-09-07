@@ -135,6 +135,11 @@ test.t1	optimize	status	OK
 # reported -- the clamp, not the deletions, is what moved the number.
 #
 DELETE FROM t1 WHERE id > 4;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'a'
+test.t1	analyze	status	OK
 SET debug_dbug='+d,fulltext_estimate';
 SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
 COUNT(*)

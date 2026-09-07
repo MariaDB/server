@@ -228,4 +228,11 @@ bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
 Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,
                                           List<Create_field> *create_list);
+
+class Key;
+/*
+  Check that an index over an ARRAY may be of the type `key' was declared
+  with. Raises an error if it may not.
+*/
+bool check_mvi_key_type(const Key *key);
 #endif /* SQL_TABLE_INCLUDED */

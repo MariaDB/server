@@ -2672,8 +2672,16 @@ class Item_func_mvi_encode : public Item_str_ascii_func
   Lex_cast_type_st m_cast_type;
   String tmp_js;
   json_engine_t je;
+  /* Print the type the values are cast to, as CAST() spells it */
+  void append_cast_type(String *str);
 public:
   void print(String *str, enum_query_type query_type) override;
+  /*
+    Print as the CAST(... AS ... ARRAY) the index was declared with, for
+    SHOW CREATE TABLE. print() cannot do this: what it produces goes into
+    the FRM, and that is parsed back as a call of this function.
+  */
+  void print_as_array_cast(String *str);
   Item_func_mvi_encode(THD* thd, Item *expr, const Lex_cast_type_st &cast_type):
     Item_str_ascii_func(thd, expr), m_cast_type(cast_type) {}
   String *val_str_ascii(String *buf) override;

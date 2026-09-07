@@ -2476,6 +2476,20 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
   {
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
+    if (is_mvi_key(table, i))
+    {
+      /*
+        A multi-valued index. The column that holds its keys is internal and
+        is not printed, so print the expression the index was declared with
+        instead - that is also the only form that can be read back.
+      */
+      packet->append(STRING_WITH_LEN(",\n  KEY "));
+      append_identifier(thd, packet, &key_info->name);
+      packet->append(STRING_WITH_LEN(" (("));
+      print_mvi_key_expr(packet, table, i);
+      packet->append(STRING_WITH_LEN("))"));
+      continue;
+    }
     KEY_PART_INFO *key_part= key_info->key_part;
     bool found_primary=0;
     packet->append(STRING_WITH_LEN(",\n  "));
@@ -7480,6 +7494,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
         if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            !is_mvi_key(show_table, i) &&
             !DBUG_IF("test_completely_invisible"))
         {
           /*

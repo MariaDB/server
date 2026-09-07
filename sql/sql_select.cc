@@ -510,7 +510,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   result= result_arg;
   lock= thd_arg->lock;
   select_lex= 0; //for safety
-  mvi_ctx= 0;
   select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
   no_order= 0;
   simple_order= 0;
@@ -2309,12 +2308,6 @@ JOIN::optimize_inner()
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
       optimize_schema_tables_memory_usage(select_lex->leaf_tables))
     DBUG_RETURN(1);
-
-  if (setup_mvi_quick(this))
-  {
-    error= 1;
-    DBUG_RETURN(1);
-  }
 
   if (setup_ftfuncs(select_lex)) /* should be after having->fix_fields */
     DBUG_RETURN(-1);
@@ -6260,9 +6253,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
       /*
         Same for the multi-valued index this table can be read through: a
-        fulltext key never gets a bit of its own.
+        fulltext key never gets a bit of its own. Use the same condition the
+        range analysis below will use.
       */
-      setup_mvi_access_for_table(join, s);
+      if (setup_mvi_access_for_table(thd, s, *get_sargable_cond(join, s->table)))
+        goto error;
 
       /* This will be updated in calculate_cond_selectivity_for_table() */
       s->table->set_cond_selectivity(1.0);
