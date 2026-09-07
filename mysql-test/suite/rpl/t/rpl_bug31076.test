@@ -82,6 +82,11 @@ AAAAAAAAAAAAAAAAAAA7VlVHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #  9c90bf7 79 73 71 6c 2d 34 2e  |ysql.4.|
 # 	Write_rows: table id 35084185 flags: STMT_END_F
 
+# This is a test with a binlog event from early MySQL 5.1 that is
+# missing the extra metadata in the table map event. This data has
+# been included in the table map event since 2007, so we fail when
+# reading such events now.
+--error ER_SYNTAX_ERROR
 BINLOG '
 Bk3vRhO0AQAAOAAAALcLyQkAAJlXFwIAAAAABXRyYWNrAA12aXNpdHNfZXZlbnRzAAYJAwcPDwM=
 Bk3vRhe0AQAAWgAAABEMyQkQAJlXFwIAAAEABv/AIE4AvvVDAQZN70YAK0Rvd25sb2Fkcy9NeVNR
