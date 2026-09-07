@@ -486,9 +486,9 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
                of this table uses, too.
 
   @detail
-    The analysis is what tab->mvi_ctx ends up holding: the MV indexes of the
-    table, the accesses the condition allows on them, and the one of those we
-    are going to use.
+    The analysis itself is scratch state: what we leave behind is the one
+    access we've settled on, in tab->mvi_access. It and the Mv_index it
+    refers to live on the MEM_ROOT, so they outlive `ctx'.
 
     A fulltext key never gets a bit in const_keys or keys, so we set them
     here. The const_keys bit is what makes the range analysis run for this
@@ -497,25 +497,24 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
 
   @return
     true   Out of memory
-    false  Ok, tab->mvi_ctx is set if the table has an MVI access
+    false  Ok, tab->mvi_access is set if the table has an MVI access
 */
 
 bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
 {
-  Mvi_context *ctx;
+  Mvi_context ctx(thd);
+  Mvi_access *best= NULL;
   if (!cond)
     return false;
-  if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
-    return true;
-  if (collect_mvi_indexes_for_table(thd, tab->table, &ctx->indexes))
+  if (collect_mvi_indexes_for_table(thd, tab->table, &ctx.indexes))
     return true;
   /* Most tables have no MVI. Leave before we walk the condition */
-  if (ctx->indexes.is_empty())
+  if (ctx.indexes.is_empty())
     return false;
-  if (collect_mvi_accesses(ctx, cond))
+  if (collect_mvi_accesses(&ctx, cond))
     return true;
 
-  List_iterator<Mvi_access> it(ctx->accesses);
+  List_iterator<Mvi_access> it(ctx.accesses);
   /* TODO: cost based */
   /*
     TODO: merge
@@ -528,18 +527,18 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
   while (Mvi_access *access= it++)
   {
     /*
-      An access can only be on this table: ctx->indexes holds this table's
+      An access can only be on this table: ctx.indexes holds this table's
       indexes and get_mvi_index() matches the predicate against those.
     */
     DBUG_ASSERT(access->index->vcol->table == tab->table);
-    ctx->best= access;
+    best= access;
   }
-  if (!ctx->best)
+  if (!best)
     return false;
 
-  tab->mvi_ctx= ctx;
-  tab->const_keys.set_bit(ctx->best->index->keyno);
-  tab->keys.set_bit(ctx->best->index->keyno);
+  tab->mvi_access= best;
+  tab->const_keys.set_bit(best->index->keyno);
+  tab->keys.set_bit(best->index->keyno);
   return false;
 }
 
@@ -557,12 +556,9 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
   TABLE *table= tab->table;
-  Mvi_access *access;
-  if (!tab->mvi_ctx)
+  Mvi_access *access= tab->mvi_access;
+  if (!access)
     return NULL;
-  /* We only keep the context when it has an access for us to use */
-  access= tab->mvi_ctx->best;
-  DBUG_ASSERT(access);
   /*
     estimate_records() drops element keys from the access, so it must run
     only once even if we are called again for the same table.

@@ -60,7 +60,11 @@ struct Mvi_access : public Sql_alloc
 };
 
 
-/* The result of the MVI analysis of one table */
+/*
+  The state of the MVI analysis of one table. It only lives for the duration
+  of setup_mvi_access_for_table(): the access that analysis settles on is
+  what outlives it.
+*/
 class Mvi_context : public Sql_alloc
 {
  public:
@@ -69,10 +73,8 @@ class Mvi_context : public Sql_alloc
   List<Mv_index> indexes;
   /* MVI accesses for all eligible predicates on the table */
   List<Mvi_access> accesses;
-  /* The access we've chosen out of the above */
-  Mvi_access *best;
 
-  Mvi_context(THD *thd_arg) : thd(thd_arg), best(NULL) {}
+  Mvi_context(THD *thd_arg) : thd(thd_arg) {}
 };
 
 /* Return the compatible json type */

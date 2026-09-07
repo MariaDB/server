@@ -35,7 +35,6 @@
 #include "cset_narrowing.h"
 
 typedef struct st_join_table JOIN_TAB;
-class Mvi_context;
 struct Mvi_access;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
@@ -569,10 +568,10 @@ typedef struct st_join_table {
   key_map	needed_reg;
   key_map       keys;                           /**< all keys with can be used */
   /*
-    The multi-valued index analysis of this table, or NULL if the table has
-    no MVI access. Produced by setup_mvi_access_for_table().
+    The multi-valued index access to use for this table, or NULL if there is
+    none. Set by setup_mvi_access_for_table().
   */
-  Mvi_context   *mvi_ctx;
+  Mvi_access    *mvi_access;
 
   /* Either #rows in the table or 1 for const table.  */
   ha_rows	records;
