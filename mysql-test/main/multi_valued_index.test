@@ -235,8 +235,7 @@ create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
 --error ER_TOO_MANY_KEY_PARTS
 create table t1 (c int, j json,
                  key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),c))engine=innodb;
---echo # The other order is rejected by the FULLTEXT check on `c' itself
---error ER_BAD_FT_COLUMN
+--error ER_TOO_MANY_KEY_PARTS
 create table t1 (c int, j json,
                  key idx (c,(CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
 --echo # ... and the same through ALTER TABLE
@@ -244,6 +243,36 @@ create table t1 (j json)engine=innodb;
 --error ER_TOO_MANY_KEY_PARTS
 alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
                             (CAST(j->'$.b' AS CHAR(6) ARRAY)));
+drop table t1;
+
+--echo # A plain KEY is the only thing an index over an ARRAY can be. The
+--echo # index is a fulltext index over the encoded elements underneath, which
+--echo # would not enforce UNIQUE or PRIMARY KEY, and which MATCH() would find
+--echo # nothing in.
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 constraint u unique ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+
+--echo # ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+--error ER_WRONG_USAGE
+alter table t1 add unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--echo # the plain form is accepted
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+show create table t1;
 drop table t1;
 
 --echo # direct call of mvi_encode

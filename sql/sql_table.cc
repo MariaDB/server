@@ -2771,6 +2771,42 @@ static int mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
 }
 #endif
 
+/*
+  @brief
+    Can an index over an ARRAY be of the type `key' was declared with?
+
+  @detail
+    Only a plain KEY can. What the server builds is a fulltext index over
+    the encoded elements of the array, which does not implement what any of
+    the other types would promise: UNIQUE and PRIMARY KEY would not be
+    enforced, and MATCH() against a FULLTEXT one would find nothing. They
+    used to be accepted and quietly turned into a plain index.
+
+  @return
+    true   No, and an error is raised
+*/
+
+bool check_mvi_key_type(const Key *key)
+{
+  const char *type= NULL;
+  switch (key->type) {
+  case Key::PRIMARY:     type= "PRIMARY KEY"; break;
+  case Key::UNIQUE:      type= "UNIQUE";      break;
+  case Key::FULLTEXT:    type= "FULLTEXT";    break;
+  case Key::SPATIAL:     type= "SPATIAL";     break;
+  case Key::VECTOR:      type= "VECTOR";      break;
+  case Key::MULTIPLE:    /* A plain KEY: the only type an ARRAY can have */
+  case Key::FOREIGN_KEY: /* Both of these are built with Key::MULTIPLE, so */
+  case Key::IGNORE_KEY:  /* they never reach us under their own name */
+    break;
+  }
+  if (!type)
+    return false;
+  my_error(ER_WRONG_USAGE, MYF(0), type, "ARRAY");
+  return true;
+}
+
+
 #define INTERNAL_FIELD_NAME_LENGTH  30
 
 Lex_ident_column make_internal_field_name(THD *thd, const char *prefix,

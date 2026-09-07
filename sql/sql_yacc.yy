@@ -7652,6 +7652,20 @@ key_part:
 multi_valued_key_part:
           '(' CAST_SYM '(' expr AS cast_type ARRAY_SYM ')' ')'
           {
+            /*
+              An index over an ARRAY has exactly one key part. Catch a second
+              one here, before the type of the key is overwritten below and
+              check_mvi_key_type() starts seeing FULLTEXT instead of what the
+              user wrote. A part that comes *after* the ARRAY one is caught
+              in init_key_part_spec().
+            */
+            if (unlikely(Lex->last_key->columns.elements))
+            {
+              my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
+              MYSQL_YYABORT;
+            }
+            if (unlikely(check_mvi_key_type(Lex->last_key)))
+              MYSQL_YYABORT;
             /* TODO: check fts_min_token_size is 4, warn if not */
             /* Create a Create_field */
             Create_field *f= new (thd->mem_root) Create_field();
