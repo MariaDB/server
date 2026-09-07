@@ -609,7 +609,13 @@ public:
   {}
 
   bool init(pwt_manager *mgr, pwt_tmp_table_source *peer_arg,
-            pwt_row_container *container_arg);
+            pwt_row_container *container_arg)
+  {
+    manager=   mgr;
+    peer=      peer_arg;
+    container= container_arg;
+    return false;
+  }
 
   bool begin() override;
   int  emit_row(const uchar *rec) override;
