@@ -101,6 +101,10 @@ OPTIMIZE TABLE t1;
 --echo # reported -- the clamp, not the deletions, is what moved the number.
 --echo #
 DELETE FROM t1 WHERE id > 4;
+# The clamp uses the table statistics, which a background recalculation may
+# still be about to redo after that DELETE.  Recalculate them here instead,
+# so the number below does not depend on when that happens.
+ANALYZE TABLE t1;
 SET debug_dbug='+d,fulltext_estimate';
 SELECT COUNT(*) FROM t1 WHERE MATCH(a) AGAINST('gamma');
 SET debug_dbug='';
