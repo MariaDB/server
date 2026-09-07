@@ -500,7 +500,7 @@ row_log_event_uncompress(bool contain_checksum, const uchar *src, ulong src_len,
   if (end <= tmp)
     return 1;                                   //bad event
 
-  ulong m_width= safe_net_field_length_ll((uchar **)&tmp, end - tmp);
+  ulong m_width= (ulong)safe_net_field_length_ll((uchar **)&tmp, end - tmp);
   if (unlikely(!tmp))
     return 1;
   size_t bm_size= (m_width + 7) / 8;
@@ -1877,7 +1877,7 @@ Query_log_event::Query_log_event(const uchar *buf, size_t event_len,
   start[data_len]= '\0';              // End query with \0 (For safetly)
   db= (char *)start;
   query= (char *)(start + db_len + 1);
-  q_len= data_len - db_len -1;
+  q_len= (uint32_t)(data_len - db_len -1);
 
   if (unlikely(data_len < db_len + 1))
   {
@@ -2283,8 +2283,14 @@ Format_description_log_event(const uchar *buf, size_t event_len)
 
   if (server_version[0] == 0)
     DBUG_VOID_RETURN; /* sanity check */
-  number_of_event_types=
+  size_t remain=
     event_len - (LOG_EVENT_MINIMAL_HEADER_LEN + ST_COMMON_HEADER_LEN_OFFSET + 1);
+  if (unlikely(remain > 255))
+  {
+    server_version[0]= 0;
+    DBUG_VOID_RETURN;
+  }
+  number_of_event_types= (uint8)remain;
   DBUG_PRINT("info", ("common_header_len=%d number_of_event_types=%d",
                       common_header_len, number_of_event_types));
 
@@ -3024,7 +3030,7 @@ Append_block_log_event(const uchar *buf, size_t len)
     DBUG_VOID_RETURN;
   file_id= uint4korr(buf + common_header_len + AB_FILE_ID_OFFSET);
   block= const_cast<uchar*>(buf) + total_header_len;
-  block_len= len - total_header_len;
+  block_len= (uint)(len - total_header_len);
   DBUG_VOID_RETURN;
 }
 
@@ -3479,7 +3485,7 @@ Annotate_rows_log_event(const uchar *buf, size_t event_len)
   /* Zero size query string is not valid. */
   if (unlikely(event_len <= Format_description_log_event::common_header_len))
     return;
-  m_query_len= event_len - Format_description_log_event::common_header_len;
+  m_query_len= (uint)(event_len - Format_description_log_event::common_header_len);
   m_query_txt= (char*) buf + Format_description_log_event::common_header_len;
 }
 
@@ -3613,8 +3619,9 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, size_t event_len)
   /* Length of table name + counter + terminating null */
   uchar const *const ptr_colcnt= ptr_tbllen + m_tbllen + 2;
   uchar *ptr_after_colcnt= (uchar*) ptr_colcnt;
-  m_colcnt= safe_net_field_length_ll(&ptr_after_colcnt,
-                                     event_len - (ptr_after_colcnt - buf));
+  m_colcnt= (ulong)
+    safe_net_field_length_ll(&ptr_after_colcnt,
+                             event_len - (ptr_after_colcnt - buf));
   if (unlikely(!ptr_after_colcnt))
     DBUG_VOID_RETURN;
   VALIDATE_BYTES_READ(ptr_after_colcnt, m_colcnt, buf, event_len);
@@ -3647,7 +3654,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, size_t event_len)
     memcpy(m_coltype, ptr_after_colcnt, m_colcnt);
 
     ptr_after_colcnt= ptr_after_colcnt + m_colcnt;
-    m_field_metadata_size=
+    m_field_metadata_size= (ulong)
       safe_net_field_length_ll(&ptr_after_colcnt,
                                event_len - (ptr_after_colcnt - buf ));
     if (unlikely(!ptr_after_colcnt))
@@ -3700,7 +3707,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, size_t event_len)
     /* After null_bits field, there are some new fields for extra metadata. */
     if (bytes_read < event_len)
     {
-      m_optional_metadata_len= event_len - bytes_read;
+      m_optional_metadata_len= (unsigned int)(event_len - bytes_read);
       m_optional_metadata=
         static_cast<unsigned char*>(my_malloc(PSI_INSTRUMENT_ME, m_optional_metadata_len, MYF(MY_WME)));
       memcpy(m_optional_metadata, ptr_after_colcnt, m_optional_metadata_len);
