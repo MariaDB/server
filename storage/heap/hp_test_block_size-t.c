@@ -529,10 +529,10 @@ static void test_min_records_above_max_records_keyed(void)
 
   Block sizing needs a concrete row count, so heap_create() derives one
   when the caller passes max_records=0.  That derived value must not
-  reach share->max_records: hp_alloc_from_tail() only skips the row
-  limit check while max_records is 0, so storing the derived default
-  would turn an unlimited table into one that reports
-  HA_ERR_RECORD_FILE_FULL a few blocks in.
+  reach share->max_records, which holds a ceiling rather than the
+  caller's argument: storing the derived default would turn an
+  unlimited table into one that reports HA_ERR_RECORD_FILE_FULL a few
+  blocks in.  "No limit" is NO_LIMIT_RECORDS.
 */
 
 static void test_no_max_records_is_unlimited(void)
@@ -552,9 +552,9 @@ static void test_no_max_records_is_unlimited(void)
   }
   ok(1, "created keyless table with max_records=0");
 
-  ok(share->max_records == 0,
-     "max_records stays 0, meaning no row limit (got %lu)",
-     share->max_records);
+  ok(share->max_records == NO_LIMIT_RECORDS,
+     "max_records becomes NO_LIMIT_RECORDS, meaning no row limit "
+     "(got %lu)", share->max_records);
 
   ok(share->block.alloc_size == 16352,
      "block sized from the derived default (got %zu, expected 16352)",
