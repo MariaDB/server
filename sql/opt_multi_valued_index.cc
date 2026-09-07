@@ -235,8 +235,8 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
 
 /* Collect all the MVI indexes of `table' */
 static
-bool collect_mvi_vcols_for_table(THD *thd, TABLE *table,
-                                 List<Mv_index> *indexes)
+bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
+                                   List<Mv_index> *indexes)
 {
   for (uint i=0; i < table->s->keys; i++)
   {
@@ -507,7 +507,7 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
     return false;
   if (!(ctx= new (thd->mem_root) Mvi_context(thd)))
     return true;
-  if (collect_mvi_vcols_for_table(thd, tab->table, &ctx->indexes))
+  if (collect_mvi_indexes_for_table(thd, tab->table, &ctx->indexes))
     return true;
   /* Most tables have no MVI. Leave before we walk the condition */
   if (ctx->indexes.is_empty())
