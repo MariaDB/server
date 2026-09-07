@@ -227,12 +227,23 @@ explain select * from t1 where json_contains(j->'$.tags','"aaa"');
 
 drop table t1;
 
---echo # A fulltext key over several arrays has no single expression to show,
---echo # so it stays hidden.
+--echo # An index over an ARRAY has exactly one key part. A key with several
+--echo # would have no defining expression to show and no way to be read back.
+--error ER_TOO_MANY_KEY_PARTS
 create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
                                   (CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
-show create table t1;
-show index from t1;
+--error ER_TOO_MANY_KEY_PARTS
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),c))engine=innodb;
+--echo # The other order is rejected by the FULLTEXT check on `c' itself
+--error ER_BAD_FT_COLUMN
+create table t1 (c int, j json,
+                 key idx (c,(CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--echo # ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+--error ER_TOO_MANY_KEY_PARTS
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+                            (CAST(j->'$.b' AS CHAR(6) ARRAY)));
 drop table t1;
 
 --echo # direct call of mvi_encode

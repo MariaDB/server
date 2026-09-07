@@ -2974,6 +2974,17 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     DBUG_RETURN(TRUE);
   }
 
+  /*
+    An index over an ARRAY has exactly one key part. A key with several of
+    them has no defining expression to show in SHOW CREATE TABLE, and no
+    syntax of its own that would read it back in.
+  */
+  if (is_mvi_vcol(column) && key.columns.elements != 1)
+  {
+    my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
+    DBUG_RETURN(TRUE);
+  }
+
   const Type_handler *type_handler= column->type_handler();
   switch(key.type)
   {

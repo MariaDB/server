@@ -274,11 +274,12 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
     MVI_ENCODE(), so this identifies one for certain.
 */
 
-static Item_func_mvi_encode *mvi_vcol_expr(const Field *field)
+static Item_func_mvi_encode *mvi_expr(field_visibility_t invisible,
+                                      const Virtual_column_info *vcol_info)
 {
   Item *expr;
-  if (field->invisible != INVISIBLE_FULL || !field->vcol_info ||
-      !(expr= field->vcol_info->expr) ||
+  if (invisible != INVISIBLE_FULL || !vcol_info ||
+      !(expr= vcol_info->expr) ||
       expr->type() != Item::FUNC_ITEM ||
       ((Item_func *) expr)->functype() != Item_func::MVI_ENCODE_FUNC)
     return NULL;
@@ -288,7 +289,14 @@ static Item_func_mvi_encode *mvi_vcol_expr(const Field *field)
 
 bool is_mvi_vcol(const Field *field)
 {
-  return mvi_vcol_expr(field) != NULL;
+  return mvi_expr(field->invisible, field->vcol_info) != NULL;
+}
+
+
+/* The same, on the way in: for a column that is being created */
+bool is_mvi_vcol(const Create_field *field)
+{
+  return mvi_expr(field->invisible, field->vcol_info) != NULL;
 }
 
 
@@ -298,14 +306,10 @@ bool is_mvi_vcol(const Field *field)
     over one internal MVI column?
 
   @detail
-    A fulltext key can be declared over several of them:
-
-      KEY idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
-               (CAST(j->'$.b' AS CHAR(6) ARRAY)))
-
-    Such a key has no single defining expression to show and no syntax of
-    its own to be read back in, so it does not count as one here. The
-    optimizer still uses each of its parts, see
+    init_key_part_spec() does not allow such a key to have more than one key
+    part. The check is here as well because a table created before it was
+    added may still have one, and there is no single expression to show for
+    it. The optimizer does use each of its parts, see
     collect_mvi_indexes_for_table().
 */
 
@@ -320,7 +324,8 @@ static Item_func_mvi_encode *mvi_key_expr(const TABLE *table, uint keyno)
     Field objects have no expression, parse_vcol_defs() builds one for each
     TABLE of the share.
   */
-  return mvi_vcol_expr(table->field[key->key_part[0].fieldnr - 1]);
+  Field *field= table->field[key->key_part[0].fieldnr - 1];
+  return mvi_expr(field->invisible, field->vcol_info);
 }
 
 

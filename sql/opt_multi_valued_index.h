@@ -92,6 +92,7 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
   Is `field' the internal column that holds the keys of a multi-valued index?
 */
 bool is_mvi_vcol(const Field *field);
+bool is_mvi_vcol(const Create_field *field);
 
 /* Is key #keyno of `table' a multi-valued index? */
 bool is_mvi_key(const TABLE *table, uint keyno);
