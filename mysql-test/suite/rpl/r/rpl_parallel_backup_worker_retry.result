@@ -35,6 +35,8 @@ connection aux_slave;
 ROLLBACK;
 connection aux_slave;
 connection backup_slave;
+connection aux_slave;
+connection backup_slave;
 BACKUP STAGE END;
 connection slave;
 include/diff_tables.inc [master:t1,slave:t1]

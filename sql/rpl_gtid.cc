@@ -700,6 +700,11 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL, TL_WRITE);
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+  {
+    tlist.table_options|= TL_OPTION_GTID_TABLE_SLAVE;
+  }
+
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;
