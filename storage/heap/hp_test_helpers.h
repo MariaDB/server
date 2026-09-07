@@ -41,7 +41,9 @@ static void build_record(uchar *rec, int32 int_val,
 }
 
 
-static int create_and_open(const char *name, HP_SHARE **share, HP_INFO **info)
+static int create_and_open_ceiling(const char *name,
+                                   ulonglong max_table_size,
+                                   HP_SHARE **share, HP_INFO **info)
 {
   HP_KEYDEF keydef;
   HA_KEYSEG keyseg;
@@ -71,7 +73,7 @@ static int create_and_open(const char *name, HP_SHARE **share, HP_INFO **info)
   ci.reclength=      REC_LENGTH;
   ci.max_records=    1000;
   ci.min_records=    10;
-  ci.max_table_size= 1024 * 1024;
+  ci.max_table_size= max_table_size;
   ci.blob_descs=     &blob_desc;
   ci.blob_count=     1;
 
@@ -82,6 +84,12 @@ static int create_and_open(const char *name, HP_SHARE **share, HP_INFO **info)
     return 1;
   heap_extra(*info, HA_EXTRA_NO_READCHECK);
   return 0;
+}
+
+
+static int create_and_open(const char *name, HP_SHARE **share, HP_INFO **info)
+{
+  return create_and_open_ceiling(name, 1024 * 1024, share, info);
 }
 
 #endif /* HP_TEST_HELPERS_H */

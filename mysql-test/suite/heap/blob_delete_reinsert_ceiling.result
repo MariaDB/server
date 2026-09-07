@@ -1,0 +1,34 @@
+SET SESSION max_heap_table_size= 32768;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1,'one','foo'),(2,'two','bar');
+#
+# One 16K leaf for the records and one per hash index puts the
+# table over its own 32768-byte ceiling while holding two rows.
+#
+SELECT DATA_LENGTH, INDEX_LENGTH FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH	INDEX_LENGTH
+16352	32704
+#
+# A targeted DELETE goes row by row, so the chains are parked and
+# then freed.  DELETE with no WHERE would be routed to
+# delete_all_rows(), which resets data_length and would hide this.
+#
+DELETE FROM t1 WHERE pk IN (1,2);
+INSERT INTO t1 VALUES (1,'one','foo'),(2,'two','bar');
+SELECT * FROM t1 ORDER BY pk;
+pk	b	c
+1	one	foo
+2	two	bar
+#
+# The ceiling still stops a table that genuinely needs more memory.
+#
+INSERT INTO t1 SELECT seq, REPEAT('x',255), CONCAT('c',seq)
+FROM seq_3_to_2000;
+ERROR HY000: The table 't1' is full
+DROP TABLE t1;

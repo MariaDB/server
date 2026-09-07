@@ -64,11 +64,12 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   ulong max_records= create_info->max_records;
   uint visible_offset;
   /*
-    max_records is the table's row limit and 0 means "no limit"; it is
-    stored as such in share->max_records, where hp_alloc_from_tail()
-    relies on 0 disabling the check.  Block sizing needs a concrete row
-    count instead, so derive that ceiling here and leave max_records
-    itself untouched.
+    max_records is this function's row limit and 0 means "no limit".
+    The share stores an explicit ceiling instead, writing "no limit" as
+    NO_LIMIT_RECORDS, so hp_alloc_from_tail() tests one value with no
+    special case.  That leaves 0 free to mean what it says on the
+    share, a table that accepts no rows.  Block sizing needs a concrete
+    row count rather than the ceiling, so derive one here.
   */
   ulong block_max_records= (max_records ? max_records :
                             MY_MAX(min_records, 1000));
@@ -290,7 +291,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         share->auto_key= i + 1;
     }
     share->min_records= min_records;
-    share->max_records= max_records;
+    share->max_records= max_records ? max_records : NO_LIMIT_RECORDS;
     share->max_table_size= create_info->max_table_size;
     share->data_length= share->index_length= 0;
     share->reclength= reclength;
