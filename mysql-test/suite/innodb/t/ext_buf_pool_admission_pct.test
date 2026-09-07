@@ -1,0 +1,97 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # innodb_extended_buffer_pool_admission_pct controls which share of
+--echo # the clean pages evicted from the buffer pool is admitted to
+--echo # (written to) the extended buffer pool.
+--echo #
+
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+
+SET @old_admission_pct = @@GLOBAL.innodb_extended_buffer_pool_admission_pct;
+--disable_query_log
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+SET @old_debug_dbug = @@debug_dbug;
+--enable_query_log
+
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+# Only pages of test/t are subject to the admit-or-free decision;
+# all other evicted pages are simply freed.
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+
+# With innodb_limit_optimistic_insert_debug=3, inserting 15 rows makes
+# test/t occupy 10 pages, so each run below offers exactly 10 candidate
+# pages to the admission selector (14 to 16 rows all give 10 pages).
+#
+# Over N candidates at pct, the selector admits
+#   (acc_start + N * pct - acc_end) / 100
+# pages, where acc_start and acc_end are its accumulator values before and
+# after, both in [0, 100). When N * pct is a multiple of 100, this is
+# exactly N * pct / 100, whatever accumulator state earlier evictions left
+# behind. With N = 10, every multiple of 10% gives an exact count.
+--let $i = 1
+while ($i <= 5)
+{
+  --let $pct = `SELECT ELT($i, 100, 80, 50, 30, 0)`
+  --inc $i
+
+  --echo # innodb_extended_buffer_pool_admission_pct = $pct
+  --eval SET GLOBAL innodb_extended_buffer_pool_admission_pct = $pct
+
+  SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+  CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+
+  SELECT variable_value INTO @prev_flushed
+    FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT variable_value INTO @prev_reads
+    FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+
+  INSERT INTO t SELECT seq FROM seq_1_to_15;
+
+  SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+  # Returns after two page cleaner batches have completed.
+  SET GLOBAL innodb_force_LRU_eviction = TRUE;
+
+  SELECT variable_value - @prev_flushed AS admitted
+    FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+
+  SELECT COUNT(*), SUM(a) FROM t;
+
+  # Which pages are admitted at intermediate rates depends on the
+  # accumulator state, and so does whether any of them are read back;
+  # only the two extremes have a fixed outcome.
+  if ($pct == 100)
+  {
+    SELECT variable_value - @prev_reads > 0 AS read_from_ebp
+      FROM information_schema.global_status
+      WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+  }
+  if ($pct == 0)
+  {
+    SELECT variable_value - @prev_reads AS read_from_ebp
+      FROM information_schema.global_status
+      WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+  }
+
+  DROP TABLE t;
+}
+
+--disable_query_log
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+--error 0,ER_UNKNOWN_SYSTEM_VARIABLE
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+--enable_query_log
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = @old_admission_pct;
+
+--disconnect prevent_purge
+--source include/wait_until_count_sessions.inc

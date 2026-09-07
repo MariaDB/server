@@ -1,0 +1,133 @@
+#
+# innodb_extended_buffer_pool_admission_pct controls which share of
+# the clean pages evicted from the buffer pool is admitted to
+# (written to) the extended buffer pool.
+#
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_admission_pct = @@GLOBAL.innodb_extended_buffer_pool_admission_pct;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+# innodb_extended_buffer_pool_admission_pct = 100
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 100;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @prev_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+INSERT INTO t SELECT seq FROM seq_1_to_15;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @prev_flushed AS admitted
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+admitted
+10
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+15	120
+SELECT variable_value - @prev_reads > 0 AS read_from_ebp
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+read_from_ebp
+1
+DROP TABLE t;
+# innodb_extended_buffer_pool_admission_pct = 80
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 80;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @prev_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+INSERT INTO t SELECT seq FROM seq_1_to_15;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @prev_flushed AS admitted
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+admitted
+8
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+15	120
+DROP TABLE t;
+# innodb_extended_buffer_pool_admission_pct = 50
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 50;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @prev_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+INSERT INTO t SELECT seq FROM seq_1_to_15;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @prev_flushed AS admitted
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+admitted
+5
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+15	120
+DROP TABLE t;
+# innodb_extended_buffer_pool_admission_pct = 30
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 30;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @prev_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+INSERT INTO t SELECT seq FROM seq_1_to_15;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @prev_flushed AS admitted
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+admitted
+3
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+15	120
+DROP TABLE t;
+# innodb_extended_buffer_pool_admission_pct = 0
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 0;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SELECT variable_value INTO @prev_flushed
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @prev_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+INSERT INTO t SELECT seq FROM seq_1_to_15;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @prev_flushed AS admitted
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+admitted
+0
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+15	120
+SELECT variable_value - @prev_reads AS read_from_ebp
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+read_from_ebp
+0
+DROP TABLE t;
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = @old_admission_pct;
+disconnect prevent_purge;
