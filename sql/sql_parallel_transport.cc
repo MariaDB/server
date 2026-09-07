@@ -55,23 +55,8 @@ void pwt_transport_init_psi_keys(void)
   pwt_row_layout -- the shape both ends agree on
 *****************************************************************************/
 
-/*
-  @brief
-    Work out what travels, define the columns, and build the manager's
-    receiving container.
 
-  @description
-    What travels is every base-table column the query reads, in table order.
-    See the class comment for why that rather than the projected select list.
-
-    The definition is a list of clones, so the query's own items are never
-    bound to a container field, and the manager and every worker build the
-    identical layout from it.
-
-  @return  true on error (my_error() has been called).
-*/
-
-/*
+/**
   @brief
     result_defn := one clone per shipped column.
 
@@ -103,7 +88,8 @@ bool pwt_row_layout::clone_base_defn(THD *thd)
 }
 
 
-/*
+/**
+  @description
   Forget that the workers were going to pre-aggregate. Everything downstream
   reads 'grouped' -- the worker's terminal, its setup, and the manager's drain
   -- so clearing it here is the whole of the decision. The allocations stay on
@@ -126,7 +112,7 @@ void pwt_row_layout::forget_aggregates()
 }
 
 
-/*
+/**
   @brief
     Which shipped column holds the field 'want'.
 
@@ -148,7 +134,7 @@ int pwt_row_layout::ship_pos_of(Field *want) const
 }
 
 
-/*
+/**
   @brief
     Remember which shipped column each ORDER element sorts on.
 
@@ -228,6 +214,22 @@ ORDER *pwt_row_layout::build_sort_order(THD *thd, TABLE *container)
   return so;
 }
 
+
+/**
+  @brief
+    Work out what travels, define the columns, and build the manager's
+    receiving container.
+
+  @description
+    What travels is every base-table column the query reads, in table order.
+    See the class comment for why that rather than the projected select list.
+
+    The definition is a list of clones, so the query's own items are never
+    bound to a container field, and the manager and every worker build the
+    identical layout from it.
+
+  @return  true on error (my_error() has been called).
+*/
 
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
                            uint n_tables, ORDER *plan_group, ORDER *plan_sort)
@@ -379,7 +381,7 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
 }
 
 
-/*
+/**
   @brief
     Define the partial columns and the group accumulation key
 
@@ -601,16 +603,7 @@ void pwt_row_layout::cleanup(THD *thd)
 }
 
 
-/*
-  @brief
-    Put the row now in recv_record() back where the query expects to read it.
-
-    One copy per shipped column, container field to the base-table field it was
-    projected from. After this the manager's records hold what a serial scan
-    would have left there.
-*/
-
-/*
+/**
   @brief
     Hand each of the query's aggregates the partial now in recv.
 
@@ -694,6 +687,15 @@ void pwt_row_layout::direct_add_partials()
 }
 
 
+/**
+  @brief
+    Put the row now in recv_record() back where the query expects to read it.
+
+    One copy per shipped column, container field to the base-table field it was
+    projected from. After this the manager's records hold what a serial scan
+    would have left there.
+*/
+
 void pwt_row_layout::copy_back_row()
 {
   for (uint i= 0; i < n_copy_back; i++)
@@ -701,7 +703,7 @@ void pwt_row_layout::copy_back_row()
 }
 
 
-/*
+/**
   @brief
     Make the manager's own records fit to receive rows.
 
@@ -745,10 +747,390 @@ void pwt_row_layout::end_receive(TABLE **tables, uint n_tables)
 
 
 /*
+  @description
+  Runs in the worker's thread, before its first row. Take the container: the
+  engine accounts a write to TABLE::in_use's status counters, and a projection
+  into a field asks in_use for the session's time zone and sql_mode. 
+*/
 
+bool pwt_tmp_table_sink::begin()
+{
+  container->table->in_use= current_thd;
+  container->table->file->rebind_to_thread();
+  return false;
+}
+
+
+/*
+  @brief  Has the consumer asked us to stop?
+
+  @description
+    Read under the lock rather than peeked at, and only once every so many rows
+    -- the answer only ever changes once, and reading it costs the same mutex
+    the batch transport takes to hand a buffer over. Stopping is not required
+    for correctness here: the manager cannot ask before it has drained
+    everything it wants, so this only saves a worker from finishing work
+    nobody will read.
+*/
+
+bool pwt_tmp_table_sink::stop_requested()
+{
+  mysql_mutex_lock(&manager->LOCK_data);
+  bool stop= manager->workers_must_stop;
+  mysql_mutex_unlock(&manager->LOCK_data);
+  return stop;
+}
+
+
+/*
+  @brief  Keep one finished row.
+
+  @description
+    The row is already in the container's record buffer -- the projection put
+    it there -- so storing it is one engine write and no copy.
+*/
+
+int pwt_tmp_table_sink::emit_row(const uchar *rec)
+{
+  TABLE *table= container->table;
+  DBUG_ASSERT(rec == table->record[0]);
+  (void) rec;
+
+  int err= table->file->ha_write_tmp_row(table->record[0]);
+  if (unlikely(err))
+  {
+    if (err == HA_ERR_RECORD_FILE_FULL)
+    {
+      /*
+        The heap container is full: rebuild it on disk and carry on there. The
+        column descriptions it is driven from are this container's own, which
+        is what pairing each container with its own TMP_TABLE_PARAM was for --
+        a shared one would describe some other container, in a mem_root that
+        may already be gone.
+
+        The row that did not fit is written by the conversion itself, from
+        record[0], so there is nothing to re-emit here.
+
+        Run on this worker's thread and with this worker's THD, which is what
+        makes the thread questions live: the conversion re-opens the table, and
+        Aria binds an open handle to the opening thread's my_thread_var, freed
+        when this worker's THD is destroyed. The manager reads this container
+        afterwards. Being worked through.
+      */
+      THD *worker_thd= current_thd;
+      const int64 before= worker_thd->status_var.local_memory_used;
+
+      if (create_internal_tmp_table_from_heap(worker_thd, table,
+                                              container->param->start_recinfo,
+                                              &container->param->recinfo,
+                                              err, 0, NULL,
+                                              /*cross_thread=*/ true))
+        return PWT_EMIT_ERROR;              // already reported
+
+      /*
+        What the rebuild allocated into the container is thread-specific memory
+        charged to this thread, and the manager is the thread that will free it.
+        Move the charge with the thing it accounts for: take it off our books,
+        so ~THD finds them square, and hand it to the manager in cleanup(),
+        which runs with every worker joined and before free_containers().
+        Adding to the manager's counter from here would race with the manager,
+        which is draining at the same time.
+      */
+      spilled_memory+= worker_thd->status_var.local_memory_used - before;
+      worker_thd->status_var.local_memory_used= before;
+    }
+    else
+    {
+      table->file->print_error(err, MYF(0));
+      return PWT_EMIT_ERROR;
+    }
+  }
+
+  if (++since_check == PWT_ROW_GANULARITY)
+  {
+    since_check= 0;
+    if (stop_requested())
+      return PWT_EMIT_STOP;
+  }
+  return PWT_EMIT_OK;
+}
+
+
+/**
+  @brief
+    For the tmp table transport, this only signals the manager that we are done
+*/
+
+bool pwt_tmp_table_sink::flush()
+{
+  mysql_mutex_lock(&manager->LOCK_data);
+  done= true;
+  mysql_cond_signal(&manager->COND_data_avail);
+  mysql_mutex_unlock(&manager->LOCK_data);
+  return false;
+}
+
+
+/**
+  @description
+  Give the container back to the manager before it frees it. Called on the
+  manager's thread with every worker joined, so a container this worker took
+  and never returned -- it failed, or was killed -- would otherwise be freed
+  naming a THD that no longer exists.
+*/
+
+void pwt_tmp_table_sink::cleanup()
+{
+  if (container)
+  {
+    if (container->table)
+    {
+      container->table->in_use= manager->thd;
+      container->table->file->rebind_to_thread();
+    }
+    container= nullptr;
+  }
+  /*
+    The memory the worker allocated into the container and the manager is about
+    to free. Safe to touch the manager's counter here: every worker has been
+    joined, so this runs on the manager's own thread.
+  */
+  if (spilled_memory && manager->thd)
+  {
+    manager->thd->status_var.local_memory_used+= spilled_memory;
+    spilled_memory= 0;
+  }
+}
+
+
+/**
+  @description
+    pwt_tmp_table_source -- the consuming end of the temporary-table transport
+    allocate our per worker sink pointers
+*/
+
+bool pwt_tmp_table_source::init(THD *thd, pwt_manager *mgr, uint n_workers,
+                                uint reclength_arg)
+{
+  manager=   mgr;
+  n_sinks=   n_workers;
+  reclength= reclength_arg;
+  if (!(sinks= thd->alloc<pwt_tmp_table_sink*>(n_workers)))
+    return true;
+  for (uint i= 0; i < n_workers; i++)
+    sinks[i]= nullptr;
+  return false;
+}
+
+
+/**
+  @brief
+    allocate our per worker sinks
+*/
+
+pwt_row_sink *pwt_tmp_table_source::make_sink(THD *thd, uint worker_nr,
+                                              pwt_row_container *container)
+{
+  DBUG_ASSERT(worker_nr < n_sinks);
+#ifndef DBUG_OFF
+  /*
+    No two containers may share their column descriptions. Rebuilding a full
+    container on disk is driven from them, and they are allocated out of the
+    table's own mem_root, so one param between containers describes only the
+    last one built and points into memory freed with it. Every container is the
+    same shape, so nothing about the values would give that away -- this is the
+    check that fails on the code this replaced.
+  */
+  for (uint j= 0; j < n_sinks; j++)
+    DBUG_ASSERT(!sinks[j] || sinks[j]->container->param != container->param);
+#endif
+  pwt_tmp_table_sink *s= new (thd->mem_root) pwt_tmp_table_sink;
+  if (!s || s->init(manager, this, container))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_tmp_table_sink));
+    return nullptr;
+  }
+  sinks[worker_nr]= s;
+  return s;
+}
+
+
+/**
+  @brief
+    Claim the next complete result set, waiting for one if need be.
+
+  @description
+    Claimed rather than merely found: the sink is marked taken under the same
+    lock that made it visible, so it cannot be scanned twice.
+
+    This is the manager's only wait, so it is also where the team's own state
+    is noticed -- a worker killed, a worker failed, and "nothing left to read
+    and nobody still running" as end of data. Waiting on active_workers rather
+    than on every sink being done is what covers a worker that exits without
+    flushing at all.
+
+  @return  0 = *out claimed,  -1 = end of data,  1 = error (reported).
+*/
+
+int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
+{
+  THD *thd= manager->thd;
+  PSI_stage_info old_stage;
+  struct timespec wait;
+  wait.tv_nsec= 0;
+
+  mysql_mutex_lock(&manager->LOCK_data);
+  for (;;)
+  {
+    for (uint i= 0; i < n_sinks; i++)
+    {
+      if (sinks[i] && sinks[i]->done && !sinks[i]->taken)
+      {
+        sinks[i]->taken= true;
+        mysql_mutex_unlock(&manager->LOCK_data);
+        *out= sinks[i];
+        return 0;
+      }
+    }
+
+    int res;
+    if ((res= manager->locked__process_manager_wakeup()) ||
+        (res=(thd->killed != NOT_KILLED)))
+    {
+      mysql_mutex_unlock(&manager->LOCK_data);
+      return res;
+    }
+    /*
+      wait for a result set, a finishing worker, or a 1s tick to re-check
+      killed. ENTER_COND/EXIT_COND publish the "Reading data from parallel
+      workers" stage and register the cond so a KILL of the manager wakes it.
+    */
+    wait.tv_sec= time(0) + 1;
+    thd->ENTER_COND(&manager->COND_data_avail, &manager->LOCK_data,
+                    &stage_reading_data_from_parallel_worker, &old_stage);
+    mysql_cond_timedwait(&manager->COND_data_avail, &manager->LOCK_data, &wait);
+    thd->EXIT_COND(&old_stage);                     // unlocks LOCK_data
+    mysql_mutex_lock(&manager->LOCK_data);          // re-lock for the next pass
+  }
+}
+
+
+/**
+  @brief
+    Copy the next result row's record image into dst.
+
+  @description
+    Scans one finished worker's container to its end, then claims the next.
+    Rows therefore arrive in whole-worker runs; the interface promises no
+    order and the manager's drain loop assumes none.
+
+  @return
+    0 = row copied into dst,  -1 = end of data,  1 = error.
+*/
+
+int pwt_tmp_table_source::next_row(uchar *dst)
+{
+  DBUG_ENTER("pwt_tmp_table_source::next_row");
+
+  for (;;)
+  {
+    if (cur)
+    {
+      TABLE *t= cur->container->table;
+      int err= t->file->ha_rnd_next(t->record[0]);
+      if (likely(!err))
+      {
+        memcpy(dst, t->record[0], reclength);
+        DBUG_RETURN(0);
+      }
+      if (err != HA_ERR_END_OF_FILE)
+      {
+        t->file->print_error(err, MYF(0));
+        DBUG_RETURN(1);
+      }
+      release_position();                    // this result set is exhausted
+    }
+
+    pwt_tmp_table_sink *next;
+    int rc= claim_next_result(&next);
+    if (rc)
+      DBUG_RETURN(rc);                       // -1 end of data, 1 error
+
+    /*
+      Take the container back from the worker that filled it before reading:
+      the engine accounts what we read to TABLE::in_use. Safe without further
+      locking -- claim_next_result() saw 'done', which that worker published
+      under LOCK_data as the last thing it did to this container.
+    */
+    TABLE *t= next->container->table;
+    t->in_use= manager->thd;
+    t->file->rebind_to_thread();
+    if (int err= t->file->ha_rnd_init(true))
+    {
+      t->file->print_error(err, MYF(0));
+      DBUG_RETURN(1);
+    }
+    cur= next;
+    scan_open= true;
+  }
+}
+
+
+/**
+  @brief
+  End the open scan. The containers are freed just after the workers are
+  reaped, and a scan left open would be one the manager still holds on a table
+  about to go.
+*/
+
+void pwt_tmp_table_source::release_position()
+{
+  if (cur && scan_open)
+    cur->container->table->file->ha_rnd_end();
+  cur= nullptr;
+  scan_open= false;
+}
+
+
+/*
+  @brief
+  Create our transport, which will be the temporary-table transport,
+  except where a test asks for the batch one.
+*/
+
+pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
+                                     uint n_workers, uint reclength)
+{
+  bool use_batch= false;
+  DBUG_EXECUTE_IF("pwt_batch_transport", use_batch= true;);
+
+  pwt_row_source *src;
+  if (use_batch)
+  {
+    pwt_batch_source *b= new (thd->mem_root) pwt_batch_source;
+    src= b;
+    if (b && b->init(thd, mgr, n_workers, reclength))
+      src= nullptr;
+  }
+  else
+  {
+    pwt_tmp_table_source *t= new (thd->mem_root) pwt_tmp_table_source;
+    src= t;
+    if (t && t->init(thd, mgr, n_workers, reclength))
+      src= nullptr;
+  }
+  if (!src)
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_tmp_table_source));
+    return nullptr;
+  }
+  return src;
+}
+
+
+/*
   pwt_batch* classes implement streaming from workers to the manager
-  they may be useful in the future, so a left here.
-
+  they may be useful in the future, so left here.
 */
 
 bool pwt_batch_sink::init(pwt_manager *mgr, pwt_batch_source *peer_arg,
@@ -772,7 +1154,7 @@ void pwt_batch_sink::cleanup()
 }
 
 
-/*
+/**
   @brief
     Hand this worker's filled buffer to the manager.
 
@@ -991,397 +1373,4 @@ int pwt_batch_source::next_row(uchar *dst)
     mysql_mutex_unlock(&manager->LOCK_data);
     // loop back and drain cur
   }
-}
-
-
-/*****************************************************************************
-  pwt_tmp_table_sink -- the producing end of the temporary-table transport
-*****************************************************************************/
-
-bool pwt_tmp_table_sink::init(pwt_manager *mgr, pwt_tmp_table_source *peer_arg,
-                              pwt_row_container *container_arg)
-{
-  manager=   mgr;
-  peer=      peer_arg;
-  container= container_arg;
-  return false;
-}
-
-
-/*
-  Runs on the worker's thread, before its first row. Take the container: the
-  engine accounts a write to TABLE::in_use's status counters, and a projection
-  into a field asks in_use for the session's time zone and sql_mode. Until now
-  it named the manager, which built the container.
-*/
-
-bool pwt_tmp_table_sink::begin()
-{
-  container->table->in_use= current_thd;
-  container->table->file->rebind_to_thread();
-  return false;
-}
-
-
-/*
-  @brief  Has the consumer asked us to stop?
-
-  @description
-    Read under the lock rather than peeked at, and only once every so many rows
-    -- the answer only ever changes once, and reading it costs the same mutex
-    the batch transport takes to hand a buffer over. Stopping is not required
-    for correctness here: the manager cannot ask before it has drained
-    everything it wants, so this only saves a worker from finishing work
-    nobody will read.
-*/
-
-bool pwt_tmp_table_sink::stop_requested()
-{
-  mysql_mutex_lock(&manager->LOCK_data);
-  bool stop= manager->workers_must_stop;
-  mysql_mutex_unlock(&manager->LOCK_data);
-  return stop;
-}
-
-
-/*
-  @brief  Keep one finished row.
-
-  @description
-    The row is already in the container's record buffer -- the projection put
-    it there -- so storing it is one engine write and no copy.
-*/
-
-int pwt_tmp_table_sink::emit_row(const uchar *rec)
-{
-  TABLE *table= container->table;
-  DBUG_ASSERT(rec == table->record[0]);
-  (void) rec;
-
-  int err= table->file->ha_write_tmp_row(table->record[0]);
-  if (unlikely(err))
-  {
-    if (err == HA_ERR_RECORD_FILE_FULL)
-    {
-      /*
-        The heap container is full: rebuild it on disk and carry on there. The
-        column descriptions it is driven from are this container's own, which
-        is what pairing each container with its own TMP_TABLE_PARAM was for --
-        a shared one would describe some other container, in a mem_root that
-        may already be gone.
-
-        The row that did not fit is written by the conversion itself, from
-        record[0], so there is nothing to re-emit here.
-
-        Run on this worker's thread and with this worker's THD, which is what
-        makes the thread questions live: the conversion re-opens the table, and
-        Aria binds an open handle to the opening thread's my_thread_var, freed
-        when this worker's THD is destroyed. The manager reads this container
-        afterwards. Being worked through.
-      */
-      THD *worker_thd= current_thd;
-      const int64 before= worker_thd->status_var.local_memory_used;
-
-      if (create_internal_tmp_table_from_heap(worker_thd, table,
-                                              container->param->start_recinfo,
-                                              &container->param->recinfo,
-                                              err, 0, NULL,
-                                              /*cross_thread=*/ true))
-        return PWT_EMIT_ERROR;              // already reported
-
-      /*
-        What the rebuild allocated into the container is thread-specific memory
-        charged to this thread, and the manager is the thread that will free it.
-        Move the charge with the thing it accounts for: take it off our books,
-        so ~THD finds them square, and hand it to the manager in cleanup(),
-        which runs with every worker joined and before free_containers().
-        Adding to the manager's counter from here would race with the manager,
-        which is draining at the same time.
-      */
-      spilled_memory+= worker_thd->status_var.local_memory_used - before;
-      worker_thd->status_var.local_memory_used= before;
-    }
-    else
-    {
-      table->file->print_error(err, MYF(0));
-      return PWT_EMIT_ERROR;
-    }
-  }
-
-  if (++since_check == PWT_ROW_GANULARITY)
-  {
-    since_check= 0;
-    if (stop_requested())
-      return PWT_EMIT_STOP;
-  }
-  return PWT_EMIT_OK;
-}
-
-
-/*
-  This result set is complete. Publishing 'done' is the whole hand-off: from
-  here the container is the manager's to read, and this thread does not touch
-  it again.
-*/
-
-bool pwt_tmp_table_sink::flush()
-{
-  mysql_mutex_lock(&manager->LOCK_data);
-  done= true;
-  mysql_cond_signal(&manager->COND_data_avail);
-  mysql_mutex_unlock(&manager->LOCK_data);
-  return false;
-}
-
-
-/*
-  Give the container back to the manager before it frees it. Called on the
-  manager's thread with every worker joined, so a container this worker took
-  and never returned -- it failed, or was killed -- would otherwise be freed
-  naming a THD that no longer exists.
-*/
-
-void pwt_tmp_table_sink::cleanup()
-{
-  if (container)
-  {
-    if (container->table)
-    {
-      container->table->in_use= manager->thd;
-      container->table->file->rebind_to_thread();
-    }
-    container= nullptr;
-  }
-  /*
-    The memory the worker allocated into the container and the manager is about
-    to free. Safe to touch the manager's counter here: every worker has been
-    joined, so this runs on the manager's own thread.
-  */
-  if (spilled_memory && manager->thd)
-  {
-    manager->thd->status_var.local_memory_used+= spilled_memory;
-    spilled_memory= 0;
-  }
-}
-
-
-/*****************************************************************************
-  pwt_tmp_table_source -- the consuming end of the temporary-table transport
-*****************************************************************************/
-
-bool pwt_tmp_table_source::init(THD *thd, pwt_manager *mgr, uint n_workers,
-                                uint reclength_arg)
-{
-  manager=   mgr;
-  n_sinks=   n_workers;
-  reclength= reclength_arg;
-  if (!(sinks= thd->alloc<pwt_tmp_table_sink*>(n_workers)))
-    return true;
-  for (uint i= 0; i < n_workers; i++)
-    sinks[i]= nullptr;
-  return false;
-}
-
-
-pwt_row_sink *pwt_tmp_table_source::make_sink(THD *thd, uint worker_nr,
-                                              pwt_row_container *container)
-{
-  DBUG_ASSERT(worker_nr < n_sinks);
-#ifndef DBUG_OFF
-  /*
-    No two containers may share their column descriptions. Rebuilding a full
-    container on disk is driven from them, and they are allocated out of the
-    table's own mem_root, so one param between containers describes only the
-    last one built and points into memory freed with it. Every container is the
-    same shape, so nothing about the values would give that away -- this is the
-    check that fails on the code this replaced.
-  */
-  for (uint j= 0; j < n_sinks; j++)
-    DBUG_ASSERT(!sinks[j] || sinks[j]->container->param != container->param);
-#endif
-  pwt_tmp_table_sink *s= new (thd->mem_root) pwt_tmp_table_sink;
-  if (!s || s->init(manager, this, container))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_tmp_table_sink));
-    return nullptr;
-  }
-  sinks[worker_nr]= s;
-  return s;
-}
-
-
-/*
-  @brief
-    Claim the next complete result set, waiting for one if need be.
-
-  @description
-    Claimed rather than merely found: the sink is marked taken under the same
-    lock that made it visible, so it cannot be scanned twice.
-
-    This is the manager's only wait, so it is also where the team's own state
-    is noticed -- a worker killed, a worker failed, and "nothing left to read
-    and nobody still running" as end of data. Waiting on active_workers rather
-    than on every sink being done is what covers a worker that exits without
-    flushing at all.
-
-  @return  0 = *out claimed,  -1 = end of data,  1 = error (reported).
-*/
-
-int pwt_tmp_table_source::claim_next_result(pwt_tmp_table_sink **out)
-{
-  THD *thd= manager->thd;
-  PSI_stage_info old_stage;
-  struct timespec wait;
-  wait.tv_nsec= 0;
-
-  mysql_mutex_lock(&manager->LOCK_data);
-  for (;;)
-  {
-    for (uint i= 0; i < n_sinks; i++)
-    {
-      if (sinks[i] && sinks[i]->done && !sinks[i]->taken)
-      {
-        sinks[i]->taken= true;
-        mysql_mutex_unlock(&manager->LOCK_data);
-        *out= sinks[i];
-        return 0;
-      }
-    }
-
-    int res;
-    if ((res= manager->locked__process_manager_wakeup()) ||
-        (res=(thd->killed != NOT_KILLED)))
-    {
-      mysql_mutex_unlock(&manager->LOCK_data);
-      return res;
-    }
-    // wait for a result set, a finishing worker, or a 1s tick to re-check
-    // killed. ENTER_COND/EXIT_COND publish the "Reading data from parallel
-    // workers" stage and register the cond so a KILL of the manager wakes it.
-    wait.tv_sec= time(0) + 1;
-    thd->ENTER_COND(&manager->COND_data_avail, &manager->LOCK_data,
-                    &stage_reading_data_from_parallel_worker, &old_stage);
-    mysql_cond_timedwait(&manager->COND_data_avail, &manager->LOCK_data, &wait);
-    thd->EXIT_COND(&old_stage);                     // unlocks LOCK_data
-    mysql_mutex_lock(&manager->LOCK_data);          // re-lock for the next pass
-  }
-}
-
-
-/*
-  @brief
-    Copy the next result row's record image into dst.
-
-  @description
-    Scans one finished worker's container to its end, then claims the next.
-    Rows therefore arrive in whole-worker runs; the interface promises no
-    order and the manager's drain loop assumes none.
-
-  @return
-    0 = row copied into dst,  -1 = end of data,  1 = error.
-*/
-
-int pwt_tmp_table_source::next_row(uchar *dst)
-{
-  DBUG_ENTER("pwt_tmp_table_source::next_row");
-
-  for (;;)
-  {
-    if (cur)
-    {
-      TABLE *t= cur->container->table;
-      int err= t->file->ha_rnd_next(t->record[0]);
-      if (likely(!err))
-      {
-        memcpy(dst, t->record[0], reclength);
-        DBUG_RETURN(0);
-      }
-      if (err != HA_ERR_END_OF_FILE)
-      {
-        t->file->print_error(err, MYF(0));
-        DBUG_RETURN(1);
-      }
-      release_position();                    // this result set is exhausted
-    }
-
-    pwt_tmp_table_sink *next;
-    int rc= claim_next_result(&next);
-    if (rc)
-      DBUG_RETURN(rc);                       // -1 end of data, 1 error
-
-    /*
-      Take the container back from the worker that filled it before reading:
-      the engine accounts what we read to TABLE::in_use. Safe without further
-      locking -- claim_next_result() saw 'done', which that worker published
-      under LOCK_data as the last thing it did to this container.
-    */
-    TABLE *t= next->container->table;
-    t->in_use= manager->thd;
-    t->file->rebind_to_thread();
-    if (int err= t->file->ha_rnd_init(true))
-    {
-      t->file->print_error(err, MYF(0));
-      DBUG_RETURN(1);
-    }
-    cur= next;
-    scan_open= true;
-  }
-}
-
-
-/*
-  End the open scan. The containers are freed just after the workers are
-  reaped, and a scan left open would be one the manager still holds on a table
-  about to go.
-*/
-
-void pwt_tmp_table_source::release_position()
-{
-  if (cur && scan_open)
-    cur->container->table->file->ha_rnd_end();
-  cur= nullptr;
-  scan_open= false;
-}
-
-
-/*****************************************************************************
-  Choosing a transport
-*****************************************************************************/
-
-/*
-  The temporary-table transport, except where a test asks for the batch one.
-
-  pwt_batch_* is kept while the two are being compared, and the switch is what
-  keeps it honest: dead code that cannot be run is code that stops working
-  without anyone finding out. Delete the DBUG_EXECUTE_IF and the batch classes
-  together when the comparison is over.
-*/
-
-pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
-                                     uint n_workers, uint reclength)
-{
-  bool use_batch= false;
-  DBUG_EXECUTE_IF("pwt_batch_transport", use_batch= true;);
-
-  pwt_row_source *src;
-  if (use_batch)
-  {
-    pwt_batch_source *b= new (thd->mem_root) pwt_batch_source;
-    src= b;
-    if (b && b->init(thd, mgr, n_workers, reclength))
-      src= nullptr;
-  }
-  else
-  {
-    pwt_tmp_table_source *t= new (thd->mem_root) pwt_tmp_table_source;
-    src= t;
-    if (t && t->init(thd, mgr, n_workers, reclength))
-      src= nullptr;
-  }
-  if (!src)
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_tmp_table_source));
-    return nullptr;
-  }
-  return src;
 }

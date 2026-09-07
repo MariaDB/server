@@ -2,13 +2,6 @@
 # MDEV-39492 Parallel Query: what the optimizer trace says became of the
 # parallel scan.
 #
-# The gate in make_join_readinfo() records the table it picks as
-# "parallel_scan_candidate", and JOIN::optimize_stage2() reports what became of
-# it once the plan has stopped changing: "chosen_for_parallel_scan" if the
-# access path can still be handed out in chunks, "parallel_scan_abandoned" and
-# "parallel_scan_abandoned_because" if the plan took it away. So
-# chosen_for_parallel_scan names only tables that really are scanned in
-# parallel, and a query that is never a candidate says neither.
 #
 --source include/have_innodb.inc
 --source include/not_embedded.inc
@@ -23,21 +16,7 @@ SET SESSION parallel_worker_threads=4;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_2000;
 
---echo #
---echo # A plan that keeps its parallel scan reports both keys and abandons
---echo # nothing (expect 1 1 0)
---echo #
---replace_column 9 #
-EXPLAIN SELECT a, b FROM t1 WHERE b > 19980;
---disable_result_log
-SELECT a, b FROM t1 WHERE b > 19980;
---enable_result_log
-SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
-       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
-       JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
-  FROM information_schema.optimizer_trace;
-
---echo # and it is a table that really is scanned in the workers (expect 1)
+--echo # a table that really is scanned in the workers (expect 1)
 FLUSH STATUS;
 --disable_result_log
 SELECT a, b FROM t1 WHERE b > 19980;
@@ -47,8 +26,6 @@ SELECT a, b FROM t1 WHERE b > 19980;
 --eval SELECT $pq > 0 AS ran_in_the_workers
 --enable_query_log
 
-# The gate examines the driving table, so a query it declines is not a
-# candidate in the first place and names no table at all (expect 0 0 0).
 # LIMIT is declined by the query-shape half of the gate, and EXPLAIN says so:
 # the driving table is a plain full scan, not ALL_parallel. ORDER BY used to be
 # the example here; it is not declined any more, because the manager sorts what
@@ -59,8 +36,7 @@ EXPLAIN SELECT a, b FROM t1 WHERE b > 19980 LIMIT 5;
 --disable_result_log
 SELECT a, b FROM t1 WHERE b > 19980 LIMIT 5;
 --enable_result_log
-SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
-       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
        JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
   FROM information_schema.optimizer_trace;
 
@@ -74,8 +50,7 @@ EXPLAIN SELECT a FROM t2;
 --disable_result_log
 SELECT a FROM t2;
 --enable_result_log
-SELECT JSON_EXTRACT(trace,'$**.parallel_scan_candidate')  IS NOT NULL AS candidate,
-       JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
+SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen,
        JSON_EXTRACT(trace,'$**.parallel_scan_abandoned')  IS NOT NULL AS abandoned
   FROM information_schema.optimizer_trace;
 

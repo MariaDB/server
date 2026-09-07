@@ -3547,7 +3547,7 @@ int JOIN::optimize_stage2()
   }
 
   if (worker_side_parallel)
-    recheck_parallel_scan(this);
+    trace_parallel_scan_options(this);
 
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
@@ -16722,8 +16722,6 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       break;
     }
   }
-
-  check_parallel_scan(join);
   DBUG_RETURN(FALSE);
 }
 
@@ -24314,49 +24312,8 @@ do_select(JOIN *join, Procedure *procedure)
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
-    bool run_serial= true;
 
-    /*
-      The parallel workers run this whole select-project query over their
-      disjoint chunks and ship the final result rows, the manager only
-      collects them and sends them to the client. If the engine declines the
-      parallel scan, run_worker_side_join() returns < 0 and we fall through
-      to ordinary serial execution.
-    */
-    /*
-      PROTOTYPE, behind debug_dbug='+d,pwt_scan_only'. The workers are a
-      parallel reader for the driving table and nothing more: no join runs in
-      them, so nothing here is diverted. The plan below is the one a serial
-      execution would run, and the only difference is where join_tab's first
-      table gets its rows. See pwt_scan_only_enabled().
-    */
-    if (join->worker_side_parallel && pwt_scan_only_enabled())
-    {
-      JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                           WITHOUT_CONST_TABLES);
-      if (run_scan_only_workers(join, scan_tab) > 0)
-        error= NESTED_LOOP_ERROR;
-      join->worker_side_parallel= false;         // this thread runs the plan
-    }
-    else if (join->worker_side_parallel)
-    {
-      JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                           WITHOUT_CONST_TABLES);
-      /*
-        Instantiate the parallel worker thread manager and
-        Initialize our workers (test for engine support)
-        Run the join on the workers
-      */
-      int wr= run_worker_side_join(join, scan_tab);
-      if (wr >= 0)
-      {
-        error= wr ? NESTED_LOOP_ERROR : NESTED_LOOP_OK;
-        run_serial= false;
-      }
-      else
-        join->worker_side_parallel= false;  // declined, run serially
-    }
-    if (run_serial)                         // parallel execution didn't happen
+    if ((error= do_select_parallel(join)) == NESTED_LOOP_DECLINED)
     {
       if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
         error= NESTED_LOOP_NO_MORE_ROWS;

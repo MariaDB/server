@@ -124,7 +124,6 @@ static bool pwt_item_reads_a_foreign_table(JOIN *join, Item *item)
 }
 
 
-/* Both of the above: an item the gate may hand to a worker. */
 static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 {
   return pwt_item_is_clonable(join->thd, item) &&
@@ -134,12 +133,24 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 
 /**
   @brief
-    Can the workers be handed disjoint pieces of the way this table is read?
+  decline to parallel scan a table because...
+*/
+
+bool pwt_decline_tab(JOIN *join, bool trace, JOIN_TAB *tab, const char *why)
+{
+  char buf[256];
+  my_snprintf(buf, sizeof(buf), "%s %s",
+              tab->table ? tab->table->alias.c_ptr() : "?", why);
+  return pwt_decline(join, trace, buf);
+}
+
+
+/**
+  @brief
+    Can this setup jointab be parallel scanned?
 
   @description
-    Four things have to hold of the driving table, and each of them can be
-    taken away by a plan decision made after the gate has run, so there is one
-    place that says what they are and both askers come here:
+    Four things
 
     - the access is a full scan or a range scan (JT_ALL / JT_RANGE). Those are
       the two the engine partitions: the whole clustered index, or the key
@@ -152,7 +163,7 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
       key order, and rows handed out in chunks do not arrive in key order;
 
     - the quick select, if there is one, is one the partitioner can map onto
-      chunk boundaries (is_parallel_scan_applicable);
+      chunk boundaries (can_parallel_scan_jointab_access);
 
     - the table itself is one the workers can read and ship
       (table_can_be_parallel_scanned).
@@ -163,19 +174,11 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
   @return  true if this table's access path can be divided among the workers.
 */
 
-bool pwt_decline_tab(JOIN *join, bool trace, JOIN_TAB *tab,
-                     const char *why);
-
-bool table_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
+bool jointab_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
 {
   if (!tab)
     return false;                     // every table of the plan is constant
-  /*
-    The access method is is_parallel_scan_applicable()'s question, asked there
-    and not here as well: it can tell the several ways of failing it apart, and
-    a check in both places would answer one of them twice.
-  */
-  if (!is_parallel_scan_applicable(tab, trace))
+  if (!can_parallel_scan_jointab_access(tab, trace))
     return false;                     // said why itself
   /*
     The table-level question, which the optimizer's cost hook asks too and so
@@ -195,116 +198,32 @@ bool table_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
 
 /**
   @brief
-    Recheck whether we can still run our query in parallel.
-    trace it.
-
-  @description
-    Run this query with parallel workers if possible.
-
-    1) Parallel worker threads available
-    2) the driving table is read a way the workers can be given disjoint
-         pieces of, and the query is one they can run themselves over those
-         pieces (can_run_query_in_workers, which examines both -- it starts
-         with table_can_be_parallel_scanned on the table passed to it)
-
-    Engine-intrinsic constraints (consistent-read only, record format,
-    discarded tablespace, ...) are enforced later inside
-    parallel_init_coordinator(), which declines with HA_ERR_UNSUPPORTED so
-    run_worker_side_join() falls back to serial execution. We leave the table's
-    read_first_record as the serial reader: the manager never scans it (it only
-    collects the workers' result rows), and the serial reader is what the
-    fall-back path needs. do_select() dispatches on worker_side_parallel.
+    Trace our parallel scan table option.
 */
 
-void check_parallel_scan(JOIN *join)
+void trace_parallel_scan_options(JOIN *join)
 {
-  JOIN_TAB *first= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                    WITHOUT_CONST_TABLES);
-  if (join->thd->variables.parallel_worker_threads > 0 &&       //1
-      can_run_query_in_workers(join, first, /*trace=*/ false))  //2
+  if (unlikely(join->thd->trace_started()))
   {
-    first->use_parallel_scan= join->worker_side_parallel= true;
-    if (unlikely(join->thd->trace_started()))
-    {
-      Json_writer_object trace_pscan(join->thd);
-      /*
-        A candidate and not yet a conclusion: the plan can still change after
-        this and take the parallel scan away again. JOIN::optimize_stage2()
-        re-checks once it has stopped changing and says what became of it.
-      */
-      trace_pscan.add("parallel_scan_candidate", first->table->alias.c_ptr());
-      /*
-        What the workers will divide: the whole clustered index, or the key
-        intervals of the range scan. The two are partitioned the same way, but
-        which one it is decides whether the chunk boundaries are bounded by
-        the range, so say so rather than leaving it to be inferred from the
-        access method shown elsewhere in the trace.
-      */
-      trace_pscan.add("range_scan",
-                      first->select && first->select->quick != NULL);
-    }
-  }
+    JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                      WITHOUT_CONST_TABLES);
+    JOIN_TAB *sorted= NULL;
+    for (uint t= join->const_tables; t < join->table_count; t++)
+      if (join->join_tab[t].filesort)
+      {
+        sorted= join->join_tab + t;
+        break;
+      }
 
-}
-
-/**
-  @brief
-    Recheck whether we can still run our query in parallel.
-    trace it.
-
-  @description
-    make_join_readinfo() decided whether the driving table would be scanned in
-    parallel, and the plan has been able to change since: the
-    test_if_skip_sort_order() calls above may have given that table an ordered
-    index scan so that it supplies the GROUP BY or the ORDER BY order for free,
-    and an ordered scan is not one that can be handed out in chunks.
-
-    So re-check, and clear the decision if it no longer holds. Leaving it set
-    is not a small matter either way: JOIN::worker_side_parallel is what
-    do_select() dispatches on, so a manager would be built and the engine asked
-    to partition the B-tree before something further down declined, and the
-    trace would go on naming a table as chosen for a query that then ran
-    serially -- which sends a reader looking in the wrong place.
-
-    Nothing reaches the abandoned branch as the gate stands today, since it
-    declines GROUP BY and ORDER BY outright and those are the only plans
-    test_if_skip_sort_order() runs for. It goes in with the trace keys that
-    describe it, so that when those plans are let through the decision is
-    already being re-checked rather than being trusted from before the plan
-    settled.
-*/
-
-void recheck_parallel_scan(JOIN *join)
-{
-  THD *thd= join->thd;
-  JOIN_TAB *par= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                    WITHOUT_CONST_TABLES);
-  JOIN_TAB *sorted= NULL;
-  for (uint t= join->const_tables; t < join->table_count; t++)
-    if (join->join_tab[t].filesort)
-    {
-      sorted= join->join_tab + t;
-      break;
-    }
-
-  const bool still_divisible=
-    table_can_be_parallel_scanned(par, /*trace=*/ false) && !sorted;
-
-  if (!still_divisible)
-  {
-    if (par)
-      par->use_parallel_scan= false;
-    join->worker_side_parallel= false;
-  }
-  if (unlikely(thd->trace_started()))
-  {
-    Json_writer_object trace_pscan(thd);
-    if (still_divisible)
-      trace_pscan.add("chosen_for_parallel_scan", par->table->alias.c_ptr());
+    const bool divisible= jointab_can_be_parallel_scanned(scan_tab, false) &&
+                          !sorted;
+    Json_writer_object trace_pscan(join->thd);
+    if (divisible)
+      trace_pscan.add("chosen_for_parallel_scan", scan_tab->table->alias.c_ptr());
     else
     {
       trace_pscan.add("parallel_scan_abandoned",
-                      par ? par->table->alias.c_ptr() : "");
+                      scan_tab ? scan_tab->table->alias.c_ptr() : "");
       /* Named so it can be grepped for: "cause" is a common trace key. */
       trace_pscan.add("parallel_scan_abandoned_because",
                   sorted ?
@@ -316,7 +235,6 @@ void recheck_parallel_scan(JOIN *join)
                   "the access path can no longer be divided in chunks");
     }
   }
-
 }
 
 
@@ -384,7 +302,8 @@ static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
 }
 
 
-/*
+/**
+  @brief
   Whether every base-table column an expression reads is one of the GROUP BY
   columns, and so has one value per group.
 */
@@ -413,8 +332,7 @@ public:
 
 /*
   @brief
-    Whether every field this select-list item reads *outside* an aggregate is a
-    GROUP BY column.
+    Check the non aggregate select items for presence in the group by list.
 
   @description
     A select-list item that is not itself an aggregate is evaluated once per
@@ -489,10 +407,7 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
 
     What is refused, and why:
 
-      - AVG, STD and VARIANCE. A partial average cannot be averaged. Their
-        state would have to travel -- (sum, count), and (n, sum, sum-of-squares)
-        -- which their temp-table field already holds, so this is a shape
-        question rather than an impossibility.
+      - STD and VARIANCE. TODO...
       - BIT_AND, BIT_OR and BIT_XOR, which have no direct_add. They do not need
         one, being self-composing, but folding them in means redirecting
         args[0] and that is a second mechanism for a rare case.
@@ -516,26 +431,19 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   if (!join->sum_funcs || !*join->sum_funcs)
     return false;                     // not the grouped path; nothing refused
   if (join->rollup.state != ROLLUP::STATE_NONE)
-    return pwt_decline(join, trace, "grouped: WITH ROLLUP needs the groups in order");
+    return pwt_decline(join, trace,
+                       "grouped: WITH ROLLUP needs the groups in order");
 
   ORDER *g= pwt_plan_group_key(join);
   if (!g)
   {
     /*
-      Say which of the two it is. A partial is merged by looking its group up
-      in the aggregation table, so the table has to be keyed by the group --
-      and create_tmp_table() keys it by a unique constraint instead, a hash of
-      the whole row with nothing to look a group up in, whenever a GROUP BY
-      element is too wide to be a key part (Create_tmp_table::start(), via
-      Item::too_big_for_varchar) or the key as a whole is too long. That is a
-      different fact about the query from "this plan does not group at all",
-      and it is the one a reader is most likely to be hunting, so it is worth
-      the cost of asking the finished table rather than guessing.
-
-      The condition is make_aggr_tables_info()'s own, the one it uses to choose
-      between end_update() and end_unique_update(), asked of the same table it
-      asked it of -- so the two cannot come to different conclusions about
-      which terminal this plan got.
+      A partial is merged by looking its group up in the aggregation table,
+      so the table has to be keyed by the group and create_tmp_table() keys
+      it by a unique constraint instead, a hash of the whole row with nothing
+      to look a group up in, whenever a GROUP BY element is too wide to be
+      a key part (Create_tmp_table::start(), via Item::too_big_for_varchar)
+      or the key as a whole is too long.
     */
     JOIN_TAB *aggr= join->aggr_tables
                     ? join->join_tab + join->top_join_tab_count : nullptr;
@@ -562,18 +470,22 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
     case Item_sum::AVG_FUNC:
       break;
     default:
-      return pwt_decline(join, trace, "grouped: an aggregate whose partial cannot be "
-                               "merged -- only COUNT, SUM, MIN, MAX and AVG "
-                               "can be");
+      return pwt_decline(join, trace,
+                         "grouped: an aggregate whose partial cannot be "
+                         "merged -- only COUNT, SUM, MIN, MAX and AVG "
+                         "can be");
     }
     if ((*s)->has_with_distinct())
-      return pwt_decline(join, trace, "grouped: a DISTINCT aggregate, whose partial is "
-                               "the set of values and not a running total");
+      return pwt_decline(join, trace,
+                         "grouped: a DISTINCT aggregate, whose partial is "
+                         "the set of values and not a running total");
     if ((*s)->argument_count() != 1)
-      return pwt_decline(join, trace, "grouped: an aggregate of more than one argument");
+      return pwt_decline(join, trace,
+                         "grouped: an aggregate of more than one argument");
     if (!pwt_item_is_worker_safe(join, (*s)->get_arg(0)))
-      return pwt_decline(join, trace, "grouped: an aggregate's argument is not one a "
-                               "worker can evaluate");
+      return pwt_decline(join, trace,
+                         "grouped: an aggregate's argument is not one a "
+                         "worker can evaluate");
   }
 
   uint key_length= 0;
@@ -581,8 +493,9 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   {
     Item *item= (*k->item)->real_item();
     if (item->type() != Item::FIELD_ITEM || item->const_item())
-      return pwt_decline(join, trace, "grouped: a GROUP BY element that is not a plain "
-                               "column");
+      return pwt_decline(join, trace,
+                         "grouped: a GROUP BY element that is not a plain "
+                         "column");
     /*
       Create_tmp_table::start() answers the same question with
       m_using_unique_constraint: a key part this wide cannot be a group key, so
@@ -603,10 +516,11 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
       key_length++;
   }
   if (key_length >= MAX_BLOB_WIDTH)
-    return pwt_decline(join, trace, "grouped: the GROUP BY key is too long for a key "
-                             "part, so create_tmp_table() would key the "
-                             "container by a unique constraint rather than by "
-                             "the group");
+    return pwt_decline(join, trace,
+                       "grouped: the GROUP BY key is too long for a key "
+                       "part, so create_tmp_table() would key the "
+                       "container by a unique constraint rather than by "
+                       "the group");
 
   List_iterator_fast<Item> li(join->fields_list);
   Item *it;
@@ -615,10 +529,11 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
     if (it->const_item())
       continue;
     if (pwt_ungrouped_outside_aggregates(it, g))
-      return pwt_decline(join, trace, "grouped: a select list item reads a column "
-                               "outside an aggregate that GROUP BY does not "
-                               "name, so its value is whichever row the "
-                               "terminal happened to hold");
+      return pwt_decline(join, trace,
+                         "grouped: a select list item reads a column "
+                         "outside an aggregate that GROUP BY does not "
+                         "name, so its value is whichever row the "
+                         "terminal happened to hold");
   }
 
   *group= g;
@@ -626,14 +541,7 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
 }
 
 
-/*
-  The GROUP BY key this plan will pre-aggregate on, or nullptr if it will not.
-  Asked by the gate and again when the workers are built, rather than carried
-  between them: it is derived from the finished plan, which does not change in
-  between.
-*/
-
-/*
+/**
   @brief
     The ORDER BY this thread has to apply itself, if there is one.
 
@@ -706,6 +614,14 @@ ORDER *pwt_manager_sort_order(JOIN *join)
 }
 
 
+/**
+  @description
+  The GROUP BY key this plan will pre-aggregate on, or nullptr if it will not.
+  Asked by the gate and again when the workers are built, rather than carried
+  between them: it is derived from the finished plan, which does not change in
+  between.
+*/
+
 ORDER *pwt_preagg_group(JOIN *join, bool trace)
 {
   ORDER *g= nullptr;
@@ -716,38 +632,25 @@ ORDER *pwt_preagg_group(JOIN *join, bool trace)
 }
 
 
-/*
+/**
   @brief
-    Determine if the parallel workers run this whole query themselves and ship
-      final result rows.
-      (Called from make_join_readinfo, see JOIN::worker_side_parallel.)
-
-  @description
-  True for a streaming select-project[-join] query whose driving table
-  'scan_tab' is parallel-scannable and whose remaining tables the workers can
-  join themselves:
-    - 'scan_tab' is read a way the workers can be given disjoint pieces of
-      (tab_can_be_parallel_scanned), which also rules out a plan whose tables
-      are all constant and so has no driving table at all;
-    - all joins are inner (no outer-join null-complementation, no semijoin),
-      and every non-driving table is reached by an index ref/eq_ref lookup or a
-      plain full scan -- nothing that needs a join buffer, range/quick, rowid
-      filter, loose scan, or a subquery trigger guard on the ref;
-    - no temporary table (rules out GROUP BY, DISTINCT, ORDER BY, window
-      functions, SQL_BUFFER_RESULT, ...): the result is the plain concatenation
-      of the per-chunk join results;
-    - no LIMIT/OFFSET, SQL_CALC_FOUND_ROWS, aggregate, or PROCEDURE -- these
-      need a global post-pass the workers cannot do independently;
-    - every condition, ref value and select-list item can be deep-cloned (so
-      each worker gets private, thread-safe copies bound to its own tables).
-
-  Anything else simply runs serially.
-
-  @return
-        true  if we can run this query in parallel
-        false otherwise
+  decline to parallel scan join because...
 */
-/*
+
+bool pwt_decline(JOIN *join, bool trace, const char *why)
+{
+  DBUG_PRINT("info", ("parallel scan declined: %s", why));
+  if (trace && unlikely(join->thd->trace_started()) &&
+      join->thd->variables.parallel_worker_threads > 0)
+  {
+    Json_writer_object trace_pscan(join->thd);
+    trace_pscan.add("parallel_scan_declined_because", why);
+  }
+  return false;
+}
+
+
+/**
   @brief
     PROTOTYPE. Whether to run the workers as a bare parallel scan.
 
@@ -785,60 +688,6 @@ ORDER *pwt_preagg_group(JOIN *join, bool trace)
   @return  true if this statement should run scan-only.
 */
 
-/*
-  @brief
-    Say why the workers are not being given this query, and refuse.
-
-  @description
-    Every refusal in the gate goes through here, so that "why did this not run
-    in parallel" is a question the server answers rather than one the reader
-    has to find the answer to. The reasons land in the optimizer trace in the
-    order they were reached:
-
-      SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because')
-        FROM information_schema.optimizer_trace;
-
-    More than one can appear. The gate is asked more than once about the same
-    plan -- once while it is being built and again once it is finished -- and
-    the checks are spread over several functions, so the array is a sequence of
-    everything that objected rather than a single verdict. The first entry is
-    the one that mattered first.
-
-    Nothing is said when the workers were never available: with
-    parallel_worker_threads at 0 every query in the server declines, and saying
-    so in every trace would tell the reader nothing they did not set
-    themselves.
-
-  @return  false, always -- so a refusal reads "return pwt_decline(...)".
-*/
-
-/*
-  The same, for a refusal that is about one table of the join rather than the
-  query as a whole: the reason reads "<alias> <why>".
-*/
-
-bool pwt_decline_tab(JOIN *join, bool trace, JOIN_TAB *tab, const char *why)
-{
-  char buf[256];
-  my_snprintf(buf, sizeof(buf), "%s %s",
-              tab->table ? tab->table->alias.c_ptr() : "?", why);
-  return pwt_decline(join, trace, buf);
-}
-
-
-bool pwt_decline(JOIN *join, bool trace, const char *why)
-{
-  DBUG_PRINT("info", ("parallel scan declined: %s", why));
-  if (trace && unlikely(join->thd->trace_started()) &&
-      join->thd->variables.parallel_worker_threads > 0)
-  {
-    Json_writer_object trace_pscan(join->thd);
-    trace_pscan.add("parallel_scan_declined_because", why);
-  }
-  return false;
-}
-
-
 bool pwt_scan_only_enabled()
 {
   bool on= false;
@@ -852,7 +701,7 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
   DBUG_ENTER("can_run_query_in_workers");
   SELECT_LEX *sl= join->select_lex;
 
-  if (!table_can_be_parallel_scanned(scan_tab, trace))
+  if (!jointab_can_be_parallel_scanned(scan_tab, trace))
     DBUG_RETURN(pwt_decline(join, trace,
                  "no table this plan reads can be divided"));
   /* The loop below reads the driving table as join_tab[const_tables]. */
@@ -937,8 +786,8 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
 
   if ((join->group_list || join->group) && !preagg_group)
     DBUG_RETURN(pwt_decline(join, trace,
-                 "the select groups and the workers cannot pre-aggregate this "
-                 "plan"));
+                            "the select groups and the workers cannot "
+                            "pre-aggregate this plan"));
   if (join->select_distinct)
     DBUG_RETURN(pwt_decline(join, trace,
                  "SELECT DISTINCT, which no worker can decide alone"));
@@ -956,7 +805,7 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     if (tab->bush_children)                       // semijoin materialization
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                   "is a semijoin materialization"));
+                                  "is a semijoin materialization"));
     }
     /*
       Every table the worker joins is re-opened from its share --
@@ -977,8 +826,8 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     if (j > join->const_tables && tab->table->s->tmp_table != NO_TMP_TABLE)
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                   "is a temporary table, which a worker cannot re-open from "
-                   "its share"));
+                                  "is a temporary table, which a worker cannot "
+                                  "re-open from its share"));
     }
     /*
       The worker runs a plain nested loop, so it implements none of the semijoin
@@ -998,7 +847,7 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     if (tab->rowid_filter)                        // rowid filter
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                   "is read through a rowid filter"));
+                                  "is read through a rowid filter"));
     }
     /*
       The driving table may be read through a quick select -- checked above,
@@ -1044,8 +893,8 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
           if (!pwt_item_is_worker_safe(join, tab->ref.items[p]))
           {
             DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                         "is looked up through a ref a worker cannot "
-                         "evaluate"));
+                                        "is looked up through a ref a worker "
+                                        "cannot evaluate"));
           }
         }
     }
@@ -1072,27 +921,13 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
 }
 
 
-/*
-  @brief
-    Drive worker-side execution from do_select()
-    spin up the workers, collect and send their result rows.
-
-  @return
-    0 = handled (result sent)
-    1 = error
-   -1 = the engine declined the parallel scan
-          (caller should run the query serially instead).
-*/
-
-/*
-  Scan-only PROTOTYPE. The manager's half: the driving table's JOIN_TAB is
-  pointed at these, so the plan reads that table from the workers.
-  ------------------------------------------------------------------------- */
+//  _scan_ functions are for the PROTOTYPE test, no worker side join
 
 bool pwt_manager::begin_scan_receive(THD *thd)
 {
   return layout.begin_receive(thd, exec.tables, exec.n_tables);
 }
+
 
 void pwt_manager::end_scan_receive()
 {
@@ -1215,6 +1050,18 @@ int run_scan_only_workers(JOIN *join, JOIN_TAB *scan_tab)
 }
 
 
+/**
+  @brief
+    Drive worker-side execution from do_select_parallel()
+    spin up the workers, collect and send their result rows.
+
+  @return
+    0 = handled (result sent)
+    1 = error
+   -1 = the engine declined the parallel scan
+          (caller should run the query serially instead).
+*/
+
 int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
 {
   DBUG_ENTER("run_worker_side_join");
@@ -1231,9 +1078,6 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
   int err= mgr->init_parallel_workers(thd, join, scan_tab);
   if (err == HA_ERR_UNSUPPORTED)
   {
-    // TODO: This should not be done (at this stage)
-    //  We don't do silent fallback when a part of query plan fails.
-    //
     /*
       The engine declined the parallel scan -- e.g. this is a locking read, so
       not a consistent read (see parallel_init_coordinator). Nothing was set up
@@ -1254,7 +1098,7 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
 }
 
 
-/*
+/**
   @brief
     Visitor that rebinds an Item_field from a manager join table to the
     worker's private copy of that table.
@@ -1272,6 +1116,7 @@ int run_worker_side_join(JOIN *join, JOIN_TAB *scan_tab)
     expression that reaches one, so the case cannot arise here -- see
     pwt_item_reads_a_foreign_table().
 */
+
 class Pwt_field_rebinder : public Field_enumerator
 {
   TABLE **from_tables, **to_tables;
@@ -1303,7 +1148,7 @@ public:
 };
 
 
-/*
+/**
   @brief
     Deep-clone an Item tree and rebind its join-table field references to the
     worker's private table copies.
@@ -1352,7 +1197,7 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
 }
 
 
-/*
+/**
   @brief
     Clone both halves of one table's condition and rebind them to the worker's
     tables, ANDed together when there are two.
@@ -1398,7 +1243,7 @@ static bool pwt_clone_table_conds(THD *thd, JOIN_TAB *tab,
 }
 
 
-/*
+/**
   @brief
     Build a worker-bound clone of a ref-access descriptor (mirrors the store_key
     setup in create_ref_for_key). The cloned ref has its own key buffer and a
@@ -1471,12 +1316,6 @@ static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
 }
 
 
-/*
-  A worker's private copy of the plan: its tables, its result container, its
-  JOIN and its join tabs. Built on the manager's thread, before the worker
-  threads start.
-*/
-
 static void close_one_worker_table(TABLE **t)
 {
   if (*t)
@@ -1513,6 +1352,7 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
       !(worker->exec.tab_stats= thd->calloc<Table_access_tracker>(exec.n_tables)) ||
       !(worker->exec.tab_hstats= thd->calloc<ha_handler_stats>(exec.n_tables)))
     return true;
+
   for (uint t= 0; t < exec.n_tables; t++)
     worker->exec.tables[t]= nullptr;
 
@@ -1523,6 +1363,7 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
                                   MYF(MY_WME | MY_ZEROFILL));
     if (!st)
       goto err;
+
     if (open_table_from_share(thd, src->s, &src->s->table_name,
                               HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                               EXTRA_RECORD, thd->open_options, st,
@@ -1686,6 +1527,7 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
 #endif
 
 
+#ifndef DBUG_OFF
 /*
   Every JOIN field the worker's executor could reach that the gate is supposed to
   have made inert. Same purpose as pwt_assert_tab_inert(), one level up: relaxing
@@ -1694,7 +1536,6 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
 */
 static void pwt_assert_join_inert(JOIN *join, bool grouped)
 {
-#ifndef DBUG_OFF
   DBUG_ASSERT(!join->outer_join);
   DBUG_ASSERT(!join->select_distinct);
 //  DBUG_ASSERT(!join->order);
@@ -1715,11 +1556,8 @@ static void pwt_assert_join_inert(JOIN *join, bool grouped)
   DBUG_ASSERT(!join->procedure);
   DBUG_ASSERT(!join->group_optimized_away);
   DBUG_ASSERT(!(join->select_options & OPTION_FOUND_ROWS));
-#else
-  (void) join;
-  (void) grouped;
-#endif
 }
+#endif
 
 
 /*
@@ -1754,26 +1592,9 @@ static void pwt_assert_join_inert(JOIN *join, bool grouped)
 */
 bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
 {
-  /*
-    Adding a field to JOIN does not break this, it just stops the build until
-    someone has decided whether a worker needs to carry it. Update the size once
-    that decision is made.
-
-    Debug builds only: JOIN carries dbug_join_tab_array_size under
-    #ifndef DBUG_OFF, so its size is not the same in the two build types, and
-    pinning both would mean two magic numbers of which only one is ever
-    checked by whoever changes the class. mtr builds debug, so this is where
-    the prompt lands.
-
-    TODO: turn this off, doesn't work on windoze, not portable
-  */
 #ifndef DBUG_OFF
-  static_assert(sizeof(JOIN) == 1552,
-                "JOIN has changed shape: review what setup_worker_join() "
-                "carries over to a worker");
-#endif
-
   pwt_assert_join_inert(exec.join, layout.plan_aggregates);
+#endif
 
   if (!(worker->exec.join= new (thd->mem_root)
           JOIN(worker->thd, exec.join->fields_list, exec.join->select_options,
@@ -1984,17 +1805,6 @@ bool pwt_manager::clone_worker_exprs(THD *thd, pwt_worker *worker)
 }
 
 
-/**
-  @brief
-    Project the current full row and add its image to the worker's batch,
-    handing the batch to the manager when it fills.
-
-  @return  
-    -1 = continue with inner join
-     0 = row emitted
-     1 = stop (manager asked us to stop, or a fatal error).
-*/
-
 /*
   The worker whose thread we are on. sub_select() drives the join through
   function pointers whose signatures are fixed -- READ_RECORD::Read_func takes a
@@ -2014,7 +1824,7 @@ int pwt_worker::pscan_next_row()
 }
 
 
-/*
+/**
   @brief
     Give this worker its own grouping table, aggregates and group key.
 
@@ -2134,29 +1944,6 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
     }
   }
 
-  /*
-    In memory, and it has to be, which is also why a grouping table that fills
-    is a hazard this does not yet handle.
-
-    end_update() answers a full heap table by calling
-    create_internal_tmp_table_from_heap(). A worker must not: that re-opens the
-    table on this thread, and Aria binds an open handle to the opening thread's
-    my_thread_var, which is freed the moment the worker's THD is destroyed.
-
-    Building the container on disk from the start would make that branch
-    unreachable -- for a table that is already on disk it reports an error and
-    returns -- but it moves the problem rather than solving it, because
-    tmp_space_used is charged to whichever thread writes an on-disk temp table
-    and released by whichever frees it, and those are the worker and the
-    manager. Doing so trips THD::free_connection()'s assertion, which is what
-    the 13.0 tree's comment on this predicted.
-
-    TODO: a worker's groups must currently fit its heap container. Neither
-    answer to a full one is available to a worker as things stand, so the fix
-    is to give AGGR_OP a hook for what to do when the table fills -- convert,
-    as now, or ship what is there and start again empty, which is available to
-    a worker because a partial aggregate is mergeable.
-  */
   if (layout.make_container_from(thd, defn, &worker->exec.group_container,
                                  group))
     return true;
@@ -2196,7 +1983,7 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
 }
 
 
-/*
+/**
   @brief
     Ship one row per group, once this worker's chunk is done with.
 
@@ -2266,7 +2053,7 @@ int pwt_worker::emit_joined_row()
 }
 
 
-/*
+/**
   @brief
     Read the next row of this worker's chunk of the driving table.
 
@@ -2292,7 +2079,7 @@ static int pwt_pscan_read_record(READ_RECORD *info)
 }
 
 
-/*
+/**
   @brief
     Point the driving table's JOIN_TAB at the chunk reader.
 
@@ -2319,7 +2106,7 @@ static int pwt_pscan_init_read_record(JOIN_TAB *tab)
 }
 
 
-/*
+/**
   @brief
     What the worker does with a fully joined row: the end of its nested loop.
 
@@ -2357,27 +2144,6 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
 
 /**
   @brief
-    Run the query over the worker's private chunk of the driving table, joining
-    the other tables, and hand the *result* rows to the manager through this
-    worker's end of the transport.
-
-  The worker scans its own copy of the driving table (exec.scan_table, opened
-  with in_use == this worker's thd) so the workers scan concurrently with no
-  shared-scan lock. The join itself is the server's own nested loop:
-  sub_select() is driven over this worker's JOIN_TABs, reading the driving
-  table through the engine's chunk reader and every other table through this
-  worker's handler, and each fully joined row leaves the last table through
-  pwt_end_send(), which projects the shipped columns into exec.result and
-  hands that record to exec's sink. The manager (drain_and_send) only
-  concatenates these final rows.
-
-  @return
-  0 on success, or a handler error code. A clean stop requested by the manager
-  (PWT_EMIT_STOP) also returns success: the manager is done, not in error.
-*/
-
-/*
-  @brief
     Scan-only PROTOTYPE: project the row now in this worker's copy of the
     driving table into the result container and ship it.
 
@@ -2401,7 +2167,7 @@ int pwt_worker::emit_scanned_row()
 }
 
 
-/*
+/**
   @brief
     Scan-only PROTOTYPE: read this worker's chunks and ship every row.
 
@@ -2488,6 +2254,27 @@ scan_exit:
   DBUG_RETURN(err);
 }
 
+
+/**
+  @brief
+    Run the query over the worker's private chunk of the driving table, joining
+    the other tables, and hand the *result* rows to the manager through this
+    worker's end of the transport.
+
+  The worker scans its own copy of the driving table (exec.scan_table, opened
+  with in_use == this worker's thd) so the workers scan concurrently with no
+  shared-scan lock. The join itself is the server's own nested loop:
+  sub_select() is driven over this worker's JOIN_TABs, reading the driving
+  table through the engine's chunk reader and every other table through this
+  worker's handler, and each fully joined row leaves the last table through
+  pwt_end_send(), which projects the shipped columns into exec.result and
+  hands that record to exec's sink. The manager (drain_and_send) only
+  concatenates these final rows.
+
+  @return
+  0 on success, or a handler error code. A clean stop requested by the manager
+  (PWT_EMIT_STOP) also returns success: the manager is done, not in error.
+*/
 
 int pwt_worker::execute_and_handoff()
 {
@@ -2662,35 +2449,6 @@ void pwt_worker::execute_and_signal_manager()
 
 /*
   @brief
-    Drain the workers' result rows and send them to the client.
-
-  @description
-  The workers ran the whole select-project query over their disjoint chunks
-  and produced the final result rows; the manager just takes them from the
-  transport, in whatever order it delivers them, and sends each to the client. The select-list metadata was
-  already sent (from the query's own field list) before do_select() ran, so we
-  only supply the row values here -- the select list is evaluated against the
-  manager's own records, which the drain has filled from the shipped columns.
-  send_records is advanced so do_select() can set limit_found_rows.
-
-  @return
-    0 success (all rows sent)
-    1 error.
-*/
-/*
-  @brief
-    The container the drain collects into when the plan's sort is ours.
-
-  @description
-    One more container of the transport's own layout, so a drained record can
-    be written into it as it stands. It is this thread's alone -- written,
-    sorted and read here -- unlike the workers', which cross a thread boundary.
-
-  @return  true on error (my_error() called).
-*/
-
-/*
-  @brief
     Scan-only PROTOTYPE: the worker's projection.
 
   @description
@@ -2738,6 +2496,18 @@ bool pwt_manager::setup_scan_only_proj(THD *thd, pwt_worker *worker)
 }
 
 
+/**
+  @brief
+    The container the drain collects into when the plan's sort is ours.
+
+  @description
+    One more container of the transport's own layout, so a drained record can
+    be written into it as it stands. It is this thread's alone -- written,
+    sorted and read here -- unlike the workers', which cross a thread boundary.
+
+  @return  true on error (my_error() called).
+*/
+
 bool pwt_manager::setup_sort_stage(THD *thd)
 {
   if (layout.make_container(thd, &sort_container, nullptr))
@@ -2750,7 +2520,7 @@ bool pwt_manager::setup_sort_stage(THD *thd)
 }
 
 
-/*
+/**
   @brief
     Collect the record just drained.
 
@@ -2787,7 +2557,7 @@ int pwt_manager::sort_collect(THD *thd)
 }
 
 
-/*
+/**
   @brief
     Sort what was collected and send it to the client.
 
@@ -2882,6 +2652,24 @@ int pwt_manager::sort_and_send(JOIN *join)
   DBUG_RETURN(ret);
 }
 
+
+/**
+  @brief
+    Drain the workers' result rows and send them to the client.
+
+  @description
+  The workers ran the whole select-project query over their disjoint chunks
+  and produced the final result rows; the manager just takes them from the
+  transport, in whatever order it delivers them, and sends each to the client. The select-list metadata was
+  already sent (from the query's own field list) before do_select() ran, so we
+  only supply the row values here -- the select list is evaluated against the
+  manager's own records, which the drain has filled from the shipped columns.
+  send_records is advanced so do_select() can set limit_found_rows.
+
+  @return
+    0 success (all rows sent)
+    1 error.
+*/
 
 int pwt_manager::drain_and_send(JOIN *join)
 {
@@ -3007,8 +2795,7 @@ int pwt_manager::drain_and_send(JOIN *join)
 
 /**
   @brief
-    Whether the access method the plan settled on is one the engine will hand
-    out in pieces.
+    Can we scan this table in parallel, extensive check.
 
   @description
     Asked of the driving table only, and asked about the *access method*: the
@@ -3020,7 +2807,7 @@ int pwt_manager::drain_and_send(JOIN *join)
     here would be free to drift from it.
 */
 
-bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
+bool can_parallel_scan_jointab_access(JOIN_TAB *join_tab, bool trace)
 {
   /*
     Two access methods are eligible: a table scan (EXPLAIN type=ALL) and a
@@ -3042,15 +2829,14 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
   if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
     return pwt_decline(join_tab->join, trace,
              join_tab->join->ordered_index_usage == JOIN::ordered_index_group_by
-             ? "an index supplies the GROUP BY order, which rows handed out in "
-               "chunks do not arrive in"
-             : "an index supplies the ORDER BY order, which rows handed out in "
-               "chunks do not arrive in");
+             ? "an index supplies the GROUP BY order, so we can't split rows"
+             : "an index supplies the ORDER BY order, so we can't split rows");
   if (!((join_tab->type == JT_ALL || join_tab->type == JT_RANGE) &&
         join_tab->read_first_record == join_init_read_record))
-    return pwt_decline(join_tab->join, trace, "the driving table's access method is not one the "
-                           "engine divides (not a full or range scan read "
-                           "through join_init_read_record)");
+    return pwt_decline(join_tab->join, trace,
+                       "the driving table's access method is not one the "
+                       "engine divides (not a full or range scan read "
+                       "through join_init_read_record)");
 
   /*
     The plan may be relying on this table's rows arriving in index order to
@@ -3059,11 +2845,14 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
   */
 
   if (join_tab->filesort_result)
-    return pwt_decline(join_tab->join, trace, "the driving table's rows have already been sorted");
+    return pwt_decline(join_tab->join, trace,
+                       "the driving table's rows have already been sorted");
   if (join_tab->need_to_build_rowid_filter || join_tab->rowid_filter)
-    return pwt_decline(join_tab->join, trace, "the driving table is read through a rowid filter");
+    return pwt_decline(join_tab->join, trace,
+                       "the driving table is read through a rowid filter");
   if (join_tab->distinct)
-    return pwt_decline(join_tab->join, trace, "the driving table's read eliminates duplicates");
+    return pwt_decline(join_tab->join, trace,
+                       "the driving table's read eliminates duplicates");
 
   /*
     A sort of this table's own read, added by make_aggr_tables_info() after the
@@ -3081,8 +2870,9 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
     tab keeps its condition, so the worker half is in place.
   */
   if (join_tab->filesort && !pwt_manager_sort_order(join_tab->join))
-    return pwt_decline(join_tab->join, trace, "the manager cannot sort what the workers produce "
-                           "(see pwt_manager_sort_order)");
+    return pwt_decline(join_tab->join, trace,
+                       "the manager cannot sort what the workers produce "
+                       "(see pwt_manager_sort_order)");
 
   const uint32 pscan_support= join_tab->table->file->parallel_scan_support();
   SQL_SELECT *sql_select= join_tab->select;
@@ -3123,8 +2913,9 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
       */
       if (((QUICK_RANGE_SELECT*) sql_select->quick)->mrr_flags &
           DSMRR_IMPL_SORT_ROWIDS)
-        return pwt_decline(join_tab->join, trace, "the range is a rowid-ordered scan, whose sorted "
-                               "sweep chunking would throw away");
+        return pwt_decline(join_tab->join, trace,
+                           "the range is a rowid-ordered scan, whose sorted "
+                           "sweep chunking would throw away");
 
       const bool clustered=
         sql_select->quick->index == join_tab->table->s->primary_key;
@@ -3137,7 +2928,8 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
     }
     else
     {
-      return pwt_decline(join_tab->join, trace, "the quick select is not one plain range the "
+      return pwt_decline(join_tab->join, trace,
+                             "the quick select is not one plain range the "
                              "partitioner can map onto chunk boundaries "
                              "(index merge, ROR intersect, GROUP BY min/max, a "
                              "descending read, a dynamic range, or too many "
@@ -3147,13 +2939,14 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
   else
   {
     if (!(pscan_support & handler::PSCAN_TABLE_FULL))
-      return pwt_decline(join_tab->join, trace, "the engine does not divide a full table scan");
+      return pwt_decline(join_tab->join, trace,
+                         "the engine does not divide a full table scan");
     return true;
   }
 }
 
 
-/*
+/**
   @brief
     The GROUP BY key the plan's own aggregation table is built on, if the
     terminal that reads it is the one that looks a group up by that key.
@@ -3174,9 +2967,6 @@ bool is_parallel_scan_applicable(JOIN_TAB *join_tab, bool trace)
     Lives here because end_update() is static to this file.
 
   @return the key, or nullptr if this plan's terminal is not that one.
-
-    TODO: shift this out by whatever means is reqd.
-      rewrite the above into something less convoluted
 */
 
 ORDER *pwt_plan_group_key(JOIN *join)
@@ -3202,17 +2992,17 @@ ORDER *pwt_plan_group_key(JOIN *join)
   Test if
   1) worker threads are available;
   2) the table itself is one a worker can read and ship
-     (table_can_be_parallel_scanned);
+     (jointab_can_be_parallel_scanned);
   3) the access method the plan settled on is one the engine will divide
-     (is_parallel_scan_applicable), which is also where the engine's
+     (can_parallel_scan_jointab_access), which is also where the engine's
      parallel_scan_support() bitmap is matched against it;
   4) the query itself is one the workers can run end to end
      (can_run_query_in_workers) -- a streaming select-project[-join] whose
      every expression can be cloned onto a worker's own table copies.
 
-  Called late in optimize_stage2(), everything earlier can change the
-  first table's access method. A table given an ordered
-  index scan after the fact is not one that can be handed out in chunks.
+  Called late in optimize_stage2() when we know the table's access method.
+  A table given an ordered index scan after the fact is not one that can
+  be handed out in chunks.
 
   Engine-intrinsic constraints (consistent-read only, record format,
   discarded tablespace, ...) are not known here. They are enforced later
@@ -3231,8 +3021,8 @@ void parallel_join_check(JOIN *join)
                                     WITHOUT_CONST_TABLES);
   /*
     Only two questions, because can_run_query_in_workers() opens by asking
-    table_can_be_parallel_scanned() of the driving tab, which in turn asks
-    is_parallel_scan_applicable(). Asking those here as well would answer them
+    jointab_can_be_parallel_scanned() of the driving tab, which in turn asks
+    can_parallel_scan_jointab_access(). Asking those here as well would answer them
     twice and report each refusal twice.
   */
   if (join->thd->variables.parallel_worker_threads > 0 &&             //1
@@ -3258,28 +3048,14 @@ void parallel_join_check(JOIN *join)
   else
   {
     join->worker_side_parallel= false;
-    /*
-      And take back what check_parallel_scan() marked in make_join_readinfo(),
-      which is what EXPLAIN reads to print ALL_parallel / range_parallel. It
-      runs before the plan is finished and this is the decision that stands, so
-      leaving the mark would have EXPLAIN name a parallel scan for a query that
-      then runs serially. recheck_parallel_scan() clears both for the same
-      reason.
-    */
     if (first)
       first->use_parallel_scan= false;
-    /*
-      Only when the workers were available to begin with. With
-      parallel_worker_threads at 0 every query in the server declines, and
-      saying so in every trace would tell the reader nothing they did not set
-      themselves.
-    */
     if (unlikely(join->thd->trace_started()) &&
         join->thd->variables.parallel_worker_threads > 0)
     {
       Json_writer_object trace_pscan(join->thd);
-      trace_pscan.add("parallel_scan_declined", first ? first->table->alias.c_ptr()
-                                                      : "");
+      trace_pscan.add("parallel_scan_declined",
+                      first ? first->table->alias.c_ptr() : "");
       /*
         Which check objected is not decided here: each one says so itself,
         through pwt_decline(), at the point it fires. This only names the table
@@ -3292,3 +3068,52 @@ void parallel_join_check(JOIN *join)
     }
   }
 }
+
+
+/**
+  @brief
+
+  Called from do_select() in sql_select.cc, run either the worker side
+  join, the scan only in the workers, or return NESTED_LOOP_DECLINED
+*/
+
+enum_nested_loop_state do_select_parallel(JOIN *join)
+{
+  if (!join->worker_side_parallel)
+    return NESTED_LOOP_DECLINED;
+
+  /*
+    PROTOTYPE, behind debug_dbug='+d,pwt_scan_only'. The workers are a
+    parallel reader for the driving table and nothing more: no join runs in
+    them, so nothing here is diverted. The plan below is the one a serial
+    execution would run, and the only difference is where join_tab's first
+    table gets its rows. See pwt_scan_only_enabled().
+  */
+  if (pwt_scan_only_enabled())
+  {
+    JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                         WITHOUT_CONST_TABLES);
+    join->worker_side_parallel= false;
+    if (run_scan_only_workers(join, scan_tab) > 0)
+      return NESTED_LOOP_ERROR;
+    return NESTED_LOOP_DECLINED;
+  }
+  else
+  {
+    JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
+                                         WITHOUT_CONST_TABLES);
+    /*
+      Instantiate the parallel worker thread manager and
+      Initialize our workers (test for engine support)
+      Run the join on the workers, -1 if init_parallel_workers failed
+    */
+    int wr= run_worker_side_join(join, scan_tab);
+    if (wr >= 0)
+      return wr ? NESTED_LOOP_ERROR : NESTED_LOOP_OK;
+    else
+      join->worker_side_parallel= false;  // declined, run serially
+  }
+
+  return NESTED_LOOP_DECLINED;
+}
+
