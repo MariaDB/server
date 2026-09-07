@@ -493,7 +493,9 @@ int ha_heap::info(uint flag)
   stats.mean_rec_length=      hp_info.reclength;
   stats.data_file_length=     hp_info.data_length;
   stats.index_file_length=    hp_info.index_length;
-  stats.max_data_file_length= hp_info.max_records * hp_info.reclength;
+  stats.max_data_file_length= (hp_info.max_records == NO_LIMIT_RECORDS ?
+                               ~(my_off_t) 0 :
+                               hp_info.max_records * hp_info.reclength);
   stats.delete_length=        hp_info.deleted * hp_info.reclength;
   stats.create_time=          (ulong) hp_info.create_time;
   if (flag & HA_STATUS_AUTO)

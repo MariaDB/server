@@ -43,6 +43,13 @@ extern "C" {
 #define HP_MAX_LEVELS	4		/* 128^5 records is enough */
 #define HP_PTRS_IN_NOD	128
 
+/*
+  Value of HP_SHARE::max_records for a table with no row limit.  0 is a
+  limit of zero rows, which is how a table that is never written to is
+  created; only heap_create()'s argument uses 0 for "no limit".
+*/
+#define NO_LIMIT_RECORDS ULONG_MAX
+
 	/* struct used with heap_functions */
 
 typedef struct st_heapinfo		/* Struct from heap_info */
