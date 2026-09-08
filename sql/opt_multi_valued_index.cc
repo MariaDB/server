@@ -130,6 +130,7 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 {
   enum_field_types cast_ftype= cast_th->field_type();
   bool is_unsigned= cast_th->is_unsigned();
+  /* TODO: 42 hardcoded */
   StringBuffer<42> sorted;
   /* Skip encoding on type incompatibility */
   if (mvi_json_class(cast_ftype) != je->value_type)
@@ -188,41 +189,46 @@ String *Item_func_mvi_encode::val_str_ascii(String *buf)
     return nullptr;
   CHARSET_INFO *cs= value->charset();
   const Type_handler *cast_th= m_cast_type.type_handler();
-  bool end_ok= false, at_least_one= false;
+  bool at_least_one= false;
   const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
   const uchar *end= start + value->length();
+  int depth= 0;
   DBUG_ASSERT(fixed());
   buf->length(0);
   buf->set_charset(&my_charset_latin1_bin);
 
-  if (json_scan_start(&je, cs, start, end) ||
-      json_read_value(&je))
+  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
     goto json_error;
 
   if (je.value_type != JSON_VALUE_ARRAY)
     goto error_format;
 
-  /* TODO: deduplicate, so that ["34567", 34567] yield only one token */
+  /* TODO: deduplicate, so that ["34567", "34567"] yield only one token */
   do {
     switch (je.state)
     {
       case JST_ARRAY_START:
+        depth++;
         continue;
       case JST_ARRAY_END:
-        /*
-          TODO: do something different when an empty string is
-          returned, i.e. at_least_one == false to avoid wasting index
-          space?
-        */
-        if (at_least_one)
-          buf->length(buf->length() - 1);
-        end_ok = true;
+        if (--depth == 0)
+          goto array_done;
         break;
       case JST_VALUE:
       {
         if (json_read_value(&je))
           goto json_error;
-
+        if (je.value_type == JSON_VALUE_ARRAY)
+        {
+          depth++;
+          break;
+        }
+        if (je.value_type == JSON_VALUE_OBJECT)
+        {
+          if (json_skip_level(&je))
+            goto json_error;
+          break;
+        }
         if (!encode_mvi_key(&je, cast_th, cs, buf))
         {
           buf->append(' ');
@@ -234,9 +240,17 @@ String *Item_func_mvi_encode::val_str_ascii(String *buf)
         goto error_format;
     }
   } while (json_scan_next(&je) == 0);
+  goto json_error;
 
-  if (end_ok)
-    return buf;
+array_done:
+  /*
+    TODO: do something different when an empty string is
+    returned, i.e. at_least_one == false to avoid wasting index
+    space?
+  */
+  if (at_least_one)
+    buf->length(buf->length() - 1);
+  return buf;
 
 error_format:
   {

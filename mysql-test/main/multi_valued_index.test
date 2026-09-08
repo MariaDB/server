@@ -16,6 +16,8 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 insert into t1 values (3, '{"tags": ["1.0", "34567", "", 34567]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 insert into t1 values (4, '{}');
+insert into t1 values (5, '{"tags": [[["1"], "34567"]]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 
 explain
 select * from t1 where json_contains(j->'$.tags', '"abcde"');
@@ -30,6 +32,13 @@ explain
 select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
 select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
 select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
+explain
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+
+# Invalid JSONs, errors not raised during optimization
+select * from t1 where json_contains(j->'$.tags', '[[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1", {}}]');
 
 DROP TABLE t1;
 
@@ -302,3 +311,9 @@ select mvi_encode('[1, 42, "3   "]', char(6));
 select mvi_encode('[1, 42, "   "]', char(6));
 select mvi_encode('[1, 42, "3   "]', binary(6));
 select mvi_encode('[1, 42]', char(6));
+select mvi_encode('[1, 42, {}}]', char(6));
+select mvi_encode('[[1], 42]', int);
+# trailing junk after outer array is accepted, consistent with normal
+# JSON_CONTAINS behaviour. NOTE that mysql would fail `select
+# JSON_CONTAINS('[1]]', '1');` but not mariadb
+select mvi_encode('[1]]', int);
