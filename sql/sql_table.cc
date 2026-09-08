@@ -9208,8 +9208,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   for (uint i= 0; i < table->s->total_keys; i++, key_info++)
   {
     bool long_hash_key= false;
-    /* A multi-valued index. Its only key part is an internal column */
-    const bool mvi_key= is_mvi_key(table, i);
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
     Lex_ident_column key_name(key_info->name);
@@ -9500,8 +9498,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
       key->old= true;
-      /* Let the key keep its internal key part, see init_key_part_spec() */
-      key->invisible= mvi_key;
+      /*
+        A multi-valued index: its only key part is an internal column. Let
+        the key keep it, see init_key_part_spec().
+      */
+      key->invisible= is_mvi_key(table, i);
       new_key_list.push_back(key, root);
     }
     if (long_hash_key)
