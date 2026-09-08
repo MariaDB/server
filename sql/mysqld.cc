@@ -1524,6 +1524,12 @@ my_bool opt_use_ssl  = 1;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
   *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
   *opt_ssl_crlpath= NULL, *opt_tls_version= NULL;
+#if !defined(EMBEDDED_LIBRARY)
+#define SSL_MAX_CERTS 3
+static const char *ssl_cert_files[SSL_MAX_CERTS];
+static const char *ssl_key_files[SSL_MAX_CERTS];
+static uint ssl_cert_count= 0, ssl_key_count= 0;
+#endif
 ulonglong tls_version= 0;
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
@@ -4726,6 +4732,25 @@ static void openssl_lock(int mode, openssl_lock_t *lock, const char *file,
 #endif /* HAVE_OPENSSL10 */
 
 
+#ifndef EVP_PKEY_get_base_id
+#define EVP_PKEY_get_base_id EVP_PKEY_base_id
+#endif
+
+static const char *evp_pkey_type_name(int type)
+{
+  switch (type) {
+  case EVP_PKEY_RSA: return "RSA";
+  case EVP_PKEY_EC:  return "ECDSA";
+#ifdef EVP_PKEY_ED25519
+  case EVP_PKEY_ED25519: return "EdDSA";
+#endif
+#ifdef EVP_PKEY_ED448
+  case EVP_PKEY_ED448: return "EdDSA";
+#endif
+  default: return "unknown";
+  }
+}
+
 struct SSL_ACCEPTOR_STATS
 {
   long accept;
@@ -4735,6 +4760,8 @@ struct SSL_ACCEPTOR_STATS
   long verify_depth;
   long zero;
   const char *session_cache_mode;
+  char cert_types[sizeof("RSA") + sizeof("ECDSA") + sizeof("EdDSA") +
+                  2 * sizeof(", ")];
   uchar fprint[256/8];
 
   SSL_ACCEPTOR_STATS():
@@ -4773,6 +4800,45 @@ struct SSL_ACCEPTOR_STATS
     X509 *cert= SSL_CTX_get0_certificate(ctx);
     uint fplen= sizeof(fprint);
     X509_digest(cert, EVP_sha256(), fprint, &fplen);
+
+    /* Build list of loaded certificate types */
+    cert_types[0]= 0;
+    {
+#ifdef HAVE_WOLFSSL
+      X509 *c= SSL_CTX_get0_certificate(ctx);
+      if (c)
+      {
+        EVP_PKEY *pk= X509_get0_pubkey(c);
+        if (pk)
+          strmake(cert_types,
+                  evp_pkey_type_name(EVP_PKEY_get_base_id(pk)),
+                  sizeof(cert_types) - 1);
+      }
+#else
+      {
+        size_t pos= 0;
+        SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_FIRST);
+        do {
+          X509 *c= SSL_CTX_get0_certificate(ctx);
+          if (c)
+          {
+            EVP_PKEY *pk= X509_get0_pubkey(c);
+            if (pk)
+            {
+              const char *name= evp_pkey_type_name(EVP_PKEY_get_base_id(pk));
+              if (pos > 0 && pos + 2 < sizeof(cert_types))
+              {
+                cert_types[pos++]= ',';
+                cert_types[pos++]= ' ';
+              }
+              pos= strmake(cert_types + pos, name,
+                           sizeof(cert_types) - pos - 1) - cert_types;
+            }
+          }
+        } while (SSL_CTX_set_current_cert(ctx, SSL_CERT_SET_NEXT));
+      }
+#endif
+    }
   }
 };
 
@@ -4810,10 +4876,19 @@ static void init_ssl()
 #if defined(HAVE_OPENSSL)
   if (opt_use_ssl)
   {
+    if (ssl_cert_count != ssl_key_count)
+    {
+      sql_print_error("Mismatched --ssl-cert-add/--ssl-key-add: %u certs, %u keys",
+                      ssl_cert_count, ssl_key_count);
+      if (!opt_bootstrap)
+        unireg_abort(1);
+    }
+
     enum enum_ssl_init_error error= SSL_INITERR_NOERROR;
 
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
-    ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
+    ssl_acceptor_fd= new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
+                                          ssl_cert_count,
                                           opt_ssl_ca, opt_ssl_capath,
                                           opt_ssl_cipher, &error,
                                           opt_ssl_crl, opt_ssl_crlpath,
@@ -4860,7 +4935,9 @@ int reinit_ssl()
     return 0;
 
   enum enum_ssl_init_error error = SSL_INITERR_NOERROR;
-  st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
+
+  st_VioSSLFd *new_fd = new_VioSSLAcceptorFd(ssl_key_files, ssl_cert_files,
+    ssl_cert_count,
     opt_ssl_ca, opt_ssl_capath, opt_ssl_cipher, &error, opt_ssl_crl,
     opt_ssl_crlpath, tls_version, get_ssl_passphrase());
 
@@ -7313,6 +7390,20 @@ struct my_option my_long_options[]=
    "It can be specified many times, adding more plugins every time",
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) && !defined(HAVE_WOLFSSL)
+  {"ssl-cert-add", OPT_SSL_CERT_ADD,
+   "Additional X509 cert in PEM format for multi-certificate support."
+   " Each --ssl-cert-add must be positionally matched with a"
+   " corresponding --ssl-key-add (implies --ssl)",
+   0, 0, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ssl-key-add", OPT_SSL_KEY_ADD,
+   "Additional X509 key in PEM format for multi-certificate support."
+   " Each --ssl-key-add must be positionally matched with a"
+   " corresponding --ssl-cert-add (implies --ssl)",
+   0, 0, 0,
+   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#endif
   {"table_cache", 0, "Sets table_open_cache",
    &tc_size, &tc_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, "table_open_cache", 1, 0},
@@ -7564,6 +7655,26 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, void *buff,
     var->value= const_cast<char*>(SSL_get_cipher((SSL*) thd->net.vio->ssl_arg));
   else
     var->value= const_cast<char*>("");
+  return 0;
+}
+
+
+static int show_ssl_get_server_cert_type(THD *thd, SHOW_VAR *var, void *buff,
+                                         system_status_var *, enum_var_type)
+{
+  var->type= SHOW_CHAR;
+  var->value= const_cast<char*>("");
+  if (thd->vio_ok() && thd->net.vio->ssl_arg)
+  {
+    SSL *ssl= (SSL *) thd->net.vio->ssl_arg;
+    X509 *cert= SSL_get_certificate(ssl);
+    if (cert)
+    {
+      EVP_PKEY *pkey= X509_get0_pubkey(cert);
+      if (pkey)
+        var->value= const_cast<char*>(evp_pkey_type_name(EVP_PKEY_get_base_id(pkey)));
+    }
+  }
   return 0;
 }
 
@@ -8082,6 +8193,8 @@ SHOW_VAR status_vars[]= {
   {"Ssl_finished_connects",    (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},
   {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before, SHOW_SIMPLE_FUNC},
+  {"Ssl_server_cert_type",    (char*) &show_ssl_get_server_cert_type, SHOW_SIMPLE_FUNC},
+  {"Ssl_server_cert_types",   (char*) &ssl_acceptor_stats.cert_types, SHOW_CHAR},
   {"Ssl_session_cache_hits",   (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_session_cache_misses", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_session_cache_mode",   (char*) &ssl_acceptor_stats.session_cache_mode, SHOW_CHAR_PTR},
@@ -8513,6 +8626,20 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   if (argument == autoset_my_option)
     my_getopt_init_one_value(opt, opt->value, opt->def_value);
 
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  /* --ssl-cert/--ssl-key reset and re-add primary (like --plugin-load) */
+  if (opt->id == OPT_SSL_CERT)
+  {
+    ssl_cert_count= 0;
+    ssl_cert_files[ssl_cert_count++]= opt_ssl_cert;
+  }
+  else if (opt->id == OPT_SSL_KEY)
+  {
+    ssl_key_count= 0;
+    ssl_key_files[ssl_key_count++]= opt_ssl_key;
+  }
+#endif
+
   switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
@@ -8576,6 +8703,30 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     binlog_format_used= true;
     break;
 #include <sslopt-case.h>
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  case OPT_SSL_CERT_ADD:
+    if (!opt_ssl_cert || !opt_ssl_cert[0])
+      opt_ssl_cert= (char *) argument;
+    if (ssl_cert_count >= SSL_MAX_CERTS)
+    {
+      sql_print_error("Too many --ssl-cert-add options (max %u)",
+                      (uint) (SSL_MAX_CERTS - 1));
+      return 1;
+    }
+    ssl_cert_files[ssl_cert_count++]= argument;
+    break;
+  case OPT_SSL_KEY_ADD:
+    if (!opt_ssl_key || !opt_ssl_key[0])
+      opt_ssl_key= (char *) argument;
+    if (ssl_key_count >= SSL_MAX_CERTS)
+    {
+      sql_print_error("Too many --ssl-key-add options (max %u)",
+                      (uint) (SSL_MAX_CERTS - 1));
+      return 1;
+    }
+    ssl_key_files[ssl_key_count++]= argument;
+    break;
+#endif
   case 'V':
     if (argument)
     {

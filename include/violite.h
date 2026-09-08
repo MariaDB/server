@@ -182,7 +182,8 @@ struct st_VioSSLFd
 		       const char *cipher, enum enum_ssl_init_error *error,
                        const char *crl_file, const char *crl_path);
 struct st_VioSSLFd
-*new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
+*new_VioSSLAcceptorFd(const char **key_files, const char **cert_files,
+		      uint cert_count,
 		      const char *ca_file,const char *ca_path,
 		      const char *cipher, enum enum_ssl_init_error *error,
 		      const char *crl_file, const char *crl_path,

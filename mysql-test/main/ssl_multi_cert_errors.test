@@ -1,0 +1,216 @@
+#
+# Test error handling for --ssl-cert-add / --ssl-key-add options
+#
+# --ssl-cert-add / --ssl-key-add append additional certificates to the SSL
+# context. Tests cover invalid files, count mismatches, overflow, and
+# interaction with --ssl-cert override.
+#
+--source include/not_embedded.inc
+--source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+--source include/big_test.inc
+
+--source include/shutdown_mysqld.inc
+
+--let errorlog=$MYSQL_TMP_DIR/ssl_multi_cert_errors.err
+--let SEARCH_FILE=$errorlog
+
+# Use pre-generated certs from std_data
+--let $ecdsa_cert=$MYSQL_TEST_DIR/std_data/server-ecdsa-cert.pem
+--let $ecdsa_key=$MYSQL_TEST_DIR/std_data/server-ecdsa-key.pem
+--let $rsa_cert=$MYSQL_TEST_DIR/std_data/server-cert.pem
+--let $rsa_key=$MYSQL_TEST_DIR/std_data/server-key.pem
+
+--echo #
+--echo # Test 1: --ssl-cert-add with invalid file
+--echo #
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=root --ssl-cert-add=/nonexistent/bad.pem --ssl-key-add=$ecdsa_key --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get certificate
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 2: --ssl-key-add with invalid file
+--echo #
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=root --ssl-cert-add=$ecdsa_cert --ssl-key-add=/nonexistent/bad.pem --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get private key
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 3: --ssl-cert-add without --ssl-key-add (count mismatch)
+--echo #
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=root --ssl-cert-add=$ecdsa_cert --log-error=$errorlog
+--let SEARCH_PATTERN=Mismatched --ssl-cert-add/--ssl-key-add
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 4: --ssl-key-add without --ssl-cert-add (count mismatch)
+--echo #
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=root --ssl-key-add=$ecdsa_key --log-error=$errorlog
+--let SEARCH_PATTERN=Mismatched --ssl-cert-add/--ssl-key-add
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 5: same cert type added twice (OpenSSL replaces, last wins)
+--echo #
+--let $restart_parameters=--ssl-cert-add=$rsa_cert --ssl-key-add=$rsa_key
+--source include/start_mysqld.inc
+SELECT 1;
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 6: one valid cert-add + one invalid cert-add (invalid /etc/hosts)
+--echo #
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=root --ssl-cert-add=/etc/hosts --ssl-key-add=$ecdsa_key --log-error=$errorlog
+--let SEARCH_PATTERN=\[ERROR\] SSL error: Unable to get certificate
+--source include/search_pattern_in_file.inc
+--remove_file $SEARCH_FILE
+
+--echo #
+--echo # Test 7: add second pair (RSA + ECDSA), verify Ssl_server_cert_types
+--echo #
+--let $restart_parameters=--ssl-cert-add=$ecdsa_cert --ssl-key-add=$ecdsa_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected both RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain both RSA and ECDSA
+}
+--echo Ssl_server_cert_types contains RSA and ECDSA: OK
+
+--echo #
+--echo # Test 8: FLUSH SSL reloads alt certs correctly
+--echo #
+FLUSH SSL;
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: After FLUSH SSL, expected both RSA and ECDSA, got: $cert_types
+  --die Ssl_server_cert_types after FLUSH SSL does not contain both RSA and ECDSA
+}
+--echo After FLUSH SSL, Ssl_server_cert_types still contains RSA and ECDSA: OK
+
+--echo #
+--echo # Test 9: --ssl-cert override + --ssl-cert-add (no interference)
+--echo #
+--source include/kill_mysqld.inc
+--let $restart_parameters=--ssl-cert=$rsa_cert --ssl-key=$rsa_key --ssl-cert-add=$ecdsa_cert --ssl-key-add=$ecdsa_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected both RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain both RSA and ECDSA
+}
+--echo --ssl-cert override + --ssl-cert-add: OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 10: --ssl-cert-add then --ssl-cert resets alt certs
+--echo # (like --plugin-load resets --plugin-load-add)
+--echo #
+--let $restart_parameters=--ssl-cert-add=$ecdsa_cert --ssl-key-add=$ecdsa_key --ssl-cert=$rsa_cert --ssl-key=$rsa_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' LIKE '%ECDSA%'`) {
+  --echo # ERROR: ECDSA should have been reset by --ssl-cert, got: $cert_types
+  --die --ssl-cert did not reset alt certs
+}
+--echo --ssl-cert-add then --ssl-cert resets alt certs: OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 11: --ssl-cert-add alongside my.cnf default (appends to existing)
+--echo #
+--let $restart_parameters=--ssl-cert-add=$ecdsa_cert --ssl-key-add=$ecdsa_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected both RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain both RSA and ECDSA
+}
+--echo --ssl-cert-add alongside my.cnf default: OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 12: --ssl-cert-add as sole cert (--ssl-cert= clears, first add becomes primary)
+--echo #
+--let $restart_parameters=--ssl-cert= --ssl-key= --ssl-cert-add=$ecdsa_cert --ssl-key-add=$ecdsa_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain ECDSA
+}
+--echo --ssl-cert-add as sole cert (first add becomes primary): OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 13: cert-adds before key-adds (order independent)
+--echo # --ssl-cert-add --ssl-cert-add --ssl-key-add --ssl-key-add
+--echo #
+# Use ECDSA + second RSA to avoid EdDSA OpenSSL version dependency
+--let $rsa2_cert=$MYSQL_TEST_DIR/std_data/server-new-cert.pem
+--let $rsa2_key=$MYSQL_TEST_DIR/std_data/server-new-key.pem
+--let $restart_parameters=--ssl-cert-add=$ecdsa_cert --ssl-cert-add=$rsa2_cert --ssl-key-add=$ecdsa_key --ssl-key-add=$rsa2_key
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain RSA and ECDSA
+}
+--echo cert-adds before key-adds (order independent): OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 14: key-adds before cert-adds (order independent)
+--echo # --ssl-key-add --ssl-key-add --ssl-cert-add --ssl-cert-add
+--echo #
+--let $restart_parameters=--ssl-key-add=$ecdsa_key --ssl-key-add=$rsa2_key --ssl-cert-add=$ecdsa_cert --ssl-cert-add=$rsa2_cert
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%RSA%' OR '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected RSA and ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain RSA and ECDSA
+}
+--echo key-adds before cert-adds (order independent): OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 15: --ssl-key override resets alt keys independently
+--echo #
+--let $restart_parameters=--ssl-key-add=$ecdsa_key --ssl-cert-add=$ecdsa_cert --ssl-key=$rsa_key --ssl-cert=$rsa_cert
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' LIKE '%ECDSA%'`) {
+  --echo # ERROR: ECDSA should have been reset by --ssl-key, got: $cert_types
+  --die --ssl-key did not reset alt keys
+}
+--echo --ssl-key override resets alt keys: OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Test 16: --ssl-key-add as sole key (--ssl-key= clears, first add becomes primary)
+--echo #
+--let $restart_parameters=--ssl-cert= --ssl-key= --ssl-key-add=$ecdsa_key --ssl-cert-add=$ecdsa_cert
+--source include/start_mysqld.inc
+--let $cert_types= query_get_value(SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types', Value, 1)
+if (`SELECT '$cert_types' NOT LIKE '%ECDSA%'`) {
+  --echo # ERROR: Expected ECDSA in Ssl_server_cert_types, got: $cert_types
+  --die Ssl_server_cert_types does not contain ECDSA
+}
+--echo --ssl-key-add as sole key (first add becomes primary): OK
+--source include/kill_mysqld.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+
+--let $restart_parameters=
+--source include/start_mysqld.inc

@@ -1,0 +1,30 @@
+#
+# Verify Ssl_server_cert_types global status shows all three types
+#
+SHOW GLOBAL STATUS LIKE 'Ssl_server_cert_types';
+Variable_name	Value
+Ssl_server_cert_types	RSA, ECDSA, EdDSA
+#
+# Test 1: Connect with RSA cipher - should get RSA cert
+#
+connect  rsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-RSA-AES128-GCM-SHA256;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	ECDHE-RSA-AES128-GCM-SHA256
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+Variable_name	Value
+Ssl_server_cert_type	RSA
+disconnect rsa_con;
+#
+# Test 2: Connect with ECDSA cipher - should get ECDSA cert
+#
+connection default;
+connect  ecdsa_con,localhost,root,,,,,SSL-CIPHER=ECDHE-ECDSA-AES128-GCM-SHA256;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	ECDHE-ECDSA-AES128-GCM-SHA256
+SHOW STATUS LIKE 'Ssl_server_cert_type';
+Variable_name	Value
+Ssl_server_cert_type	ECDSA
+disconnect ecdsa_con;
+connection default;
