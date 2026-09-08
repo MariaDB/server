@@ -16,6 +16,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "sql_table.h"                        /* make_internal_field_name */
 #include "item_func.h"
 #include "my_json_writer.h"
 
@@ -360,6 +361,111 @@ void print_mvi_key_expr(String *str, const TABLE *table, uint keyno)
   Item_func_mvi_encode *mvi= mvi_key_expr(table, keyno);
   DBUG_ASSERT(mvi);
   mvi->print_as_array_cast(str);
+}
+
+
+/*
+  @brief
+    Can an index over an ARRAY be of the type `key' was declared with?
+
+  @detail
+    Only a plain KEY can. What the server builds is a fulltext index over
+    the encoded elements of the array, which does not implement what any of
+    the other types would promise: UNIQUE and PRIMARY KEY would not be
+    enforced, and MATCH() against a FULLTEXT one would find nothing. They
+    used to be accepted and quietly turned into a plain index.
+
+  @return
+    true   No, and an error is raised
+*/
+
+static bool check_mvi_key_type(const Key *key)
+{
+  const char *type= NULL;
+  switch (key->type) {
+  case Key::PRIMARY:     type= "PRIMARY KEY"; break;
+  case Key::UNIQUE:      type= "UNIQUE";      break;
+  case Key::FULLTEXT:    type= "FULLTEXT";    break;
+  case Key::SPATIAL:     type= "SPATIAL";     break;
+  case Key::VECTOR:      type= "VECTOR";      break;
+  case Key::MULTIPLE:    /* A plain KEY: the only type an ARRAY can have */
+  case Key::FOREIGN_KEY: /* Both of these are built with Key::MULTIPLE, so */
+  case Key::IGNORE_KEY:  /* they never reach us under their own name */
+    break;
+  }
+  if (!type)
+    return false;
+  my_error(ER_WRONG_USAGE, MYF(0), type, "ARRAY");
+  return true;
+}
+
+
+/*
+  @brief
+    Handle a `(CAST(expr AS type ARRAY))' key part: turn the key being
+    defined into a multi-valued index over a new internal column.
+
+  @detail
+    There is no field to index directly, so the DDL builds one: a hidden
+    stored column computed by MVI_ENCODE(), holding the encoded elements of
+    the array, and a fulltext index over it. That pairing is what a
+    multi-valued index is, see is_mvi_key().
+
+    Both the column and the key are invisible: there is no syntax that would
+    name the column, and SHOW CREATE TABLE prints the key with the expression
+    it was declared with instead, see print_mvi_key_expr().
+
+  @return
+    The key part naming the new column, or NULL if an error was raised
+*/
+
+Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
+                                const Lex_cast_type_st &cast_type)
+{
+  LEX *lex= thd->lex;
+  Key *key= lex->last_key;
+
+  /*
+    An index over an ARRAY has exactly one key part. Catch a second one here,
+    before the type of the key is overwritten below and check_mvi_key_type()
+    starts seeing FULLTEXT instead of what the user wrote. A part that comes
+    *after* the ARRAY one is caught in init_key_part_spec().
+  */
+  if (unlikely(key->columns.elements))
+  {
+    my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
+    return NULL;
+  }
+  if (unlikely(check_mvi_key_type(key)))
+    return NULL;
+
+  /* TODO: check fts_min_token_size is 4, warn if not */
+  Create_field *f= new (thd->mem_root) Create_field();
+  Item *vcol_expr=
+    new (thd->mem_root) Item_func_mvi_encode(thd, expr, cast_type);
+  if (unlikely(!f || !vcol_expr))
+    return NULL;
+
+  /* Has to run before `f' joins the list it looks for a free name in */
+  const Lex_ident_column fname=
+    make_internal_field_name(thd, "DB_MVI_", &lex->alter_info.create_list);
+
+  Virtual_column_info *v= add_virtual_expression(thd, vcol_expr);
+  if (unlikely(!v))
+    return NULL;
+  v->set_vcol_type(VCOL_GENERATED_STORED);
+
+  f->invisible= INVISIBLE_FULL;
+  f->set_handler(&type_handler_blob);
+  f->charset= &my_charset_latin1_bin;
+  f->vcol_info= v;
+  lex->init_last_field(f, &fname);
+  lex->alter_info.create_list.push_back(f, thd->mem_root);
+
+  key->type= Key::FULLTEXT;
+  key->invisible= true;
+
+  return new (thd->mem_root) Key_part_spec(&fname, 0, /*gen=*/true);
 }
 
 
