@@ -590,6 +590,8 @@ CHECK_C_SOURCE_COMPILES("
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+/* macOS declares select() here and nowhere else that this test includes */
+#include <sys/select.h>
 #endif
 int main()
 {
