@@ -91,6 +91,7 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
   Item_func_mvi_encode *mvitem=
     (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
+  int depth= 0;
 
   buf.length(0);
   buf.set_charset(&my_charset_latin1_bin);
@@ -115,20 +116,36 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
   // JSON_VALUE_ARRAY
 
   /* TODO: deduplicate? */
+  /*
+    TODO: the logic here parallels
+    Item_func_mvi_encode::val_str_ascii. A refactoring is called for
+  */
   do {
     buf.length(0);
     switch (je->state)
     {
-      /* TODO: nested array? */
       case JST_ARRAY_START:
-        continue;
+        depth++;
+        break;
       case JST_ARRAY_END:
+        if (--depth == 0)
+          return access;
         break;
       case JST_VALUE:
       {
         if (json_read_value(je))
           return NULL;
-
+        if (je->state == JST_ARRAY_START)
+        {
+          depth++;
+          break;
+        }
+        if (je->value_type == JSON_VALUE_OBJECT)
+        {
+          if (json_skip_level(je) || !conjunctive)
+            return NULL;
+          break;
+        }
         if (encode_mvi_key(je, cast_th, cs, &buf))
         {
           /* See above: only an AND of the keys tolerates a missing one */
@@ -148,7 +165,7 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
     }
   } while (json_scan_next(je) == 0);
 
-  return access;
+  return depth > 0 ? NULL : access;
 }
 
 
