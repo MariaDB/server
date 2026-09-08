@@ -1,0 +1,47 @@
+#
+# Tests that require lower_case_table_names to be 2
+# (the default when the data directory is on a case insensitive file system)
+#
+--source include/have_lowercase2.inc
+
+--echo #
+--echo # MDEV-33616 Routines of a mixed case database are not listed when
+--echo # lower_case_table_names is 2
+--echo #
+
+CREATE DATABASE Db1;
+USE Db1;
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(b INT) BEGIN END;
+
+# The database keeps the case it was created with, mysql.proc does not.
+SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='Db1';
+--sorted_result
+SELECT db, name FROM mysql.proc WHERE name IN ('f1','p1');
+
+# The name from the WHERE clause becomes the key of an index read on
+# mysql.proc.  mysql.proc.db is utf8mb3_bin and holds the folded name, so
+# an unfolded key finds nothing.
+--sorted_result
+SELECT ROUTINE_NAME FROM information_schema.ROUTINES
+ WHERE ROUTINE_SCHEMA='Db1';
+--sorted_result
+SELECT SPECIFIC_NAME, ORDINAL_POSITION, PARAMETER_NAME
+ FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='Db1';
+--replace_column 5 # 6 #
+SHOW FUNCTION STATUS WHERE Db='Db1';
+--replace_column 5 # 6 #
+SHOW PROCEDURE STATUS WHERE Db='Db1';
+
+# ORDER BY keeps the condition from reaching the routine that fills the
+# table, so mysql.proc is read in full and the WHERE is applied afterwards
+# over a utf8mb3_general_ci column.  That shape returned the rows even
+# while the queries above returned none.
+SELECT ROUTINE_NAME FROM information_schema.ROUTINES
+ WHERE ROUTINE_SCHEMA='Db1' ORDER BY ROUTINE_NAME;
+SELECT SPECIFIC_NAME, ORDINAL_POSITION, PARAMETER_NAME
+ FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='Db1'
+ ORDER BY SPECIFIC_NAME, ORDINAL_POSITION;
+
+USE test;
+DROP DATABASE Db1;
