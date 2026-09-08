@@ -8681,13 +8681,11 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
   The function checks whether a possible key satisfies the constraints
   imposed on the keys of any temporary table.
 
-  We need to filter out BLOB columns here, because ref access optimizer creates
-  KEYUSE objects for equalities for non-key columns for two purposes:
-  1. To discover possible keys for derived_with_keys optimization
-  2. To do hash joins
-  For the purpose of #1, KEYUSE objects are not created for "blob_column=..." .
-  However, they might be created for #2. In order to catch that case, we filter
-  them out here.
+  A BLOB column is allowed as a key part of such a key only if it has a
+  key image of its own, which is what a Field_blob_key provides: the
+  fixed-size [4 byte length][pointer to data] pair that HEAP temporary
+  tables key on.  A native Field_blob has no key image, reports
+  key_length() == 0, and is rejected here.
 
   @return TRUE if the key is valid
   @return FALSE otherwise
@@ -8704,13 +8702,24 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
   {
     uint fld_idx= next_field_no(arg);
     reg_field= field + fld_idx;
-    if ((*reg_field)->type() == MYSQL_TYPE_BLOB)
+    /*
+      A Field_blob_key reports the fixed size of its
+      [4 byte length][pointer to data] key image.  A native Field_blob
+      reports 0 and would produce a zero-length key segment, which the
+      on-disk engines reject: maria_create() asserts on
+      keyseg->length > 0.  Only the semijoin materialization key
+      builder can key on such a field, and it does so through
+      record[0] rather than through a key segment.
+    */
+    if ((*reg_field)->type() == MYSQL_TYPE_BLOB &&
+        !(*reg_field)->key_length())
       return FALSE;
     uint fld_store_len= (uint16) (*reg_field)->key_length();
     if ((*reg_field)->real_maybe_null())
       fld_store_len+= HA_KEY_NULL_LENGTH;
     if ((*reg_field)->real_type() == MYSQL_TYPE_VARCHAR ||
-        (*reg_field)->type() == MYSQL_TYPE_GEOMETRY)
+        (*reg_field)->type() == MYSQL_TYPE_GEOMETRY ||
+        (*reg_field)->type() == MYSQL_TYPE_BLOB)
       fld_store_len+= HA_KEY_BLOB_LENGTH;
     key_len+= fld_store_len;
   }
@@ -8797,6 +8806,15 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
       (*reg_field)->key_start.set_bit(key);
     (*reg_field)->part_of_key.set_bit(key);
     create_key_part_by_field(key_part_info, *reg_field, fld_idx+1);
+    /*
+      For BLOB key parts, key_part->length stays at 0 (from
+      key_length()) and store_length has only metadata bytes
+      (HA_KEY_BLOB_LENGTH + HA_KEY_NULL_LENGTH).  The key buffer
+      has no space for BLOB data - heap_store_key_blob_ref writes
+      lookup values directly into record[0]'s Field_blob.
+      hp_make_key() then builds the HEAP key from record[0]
+      at index/write time.
+    */
     keyinfo->key_length += key_part_info->store_length;
     (*reg_field)->flags|= PART_KEY_FLAG;
     key_start= FALSE;

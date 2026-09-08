@@ -9645,25 +9645,39 @@ void Field_blob_key::set_key_image(const uchar *data, uint length)
 
 int Field_blob_key::key_cmp(const uchar *key_ptr, uint max_key_length) const
 {
-/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
-#ifdef NOT_YET_USED
+  uchar *blob1;
   uint32 blob_length= get_length(ptr);
   memcpy(&blob1, ptr + packlength, sizeof(char*));
-  return Field_blob_key::cmp(blob1, (uint32) blob_length,
-                             key_ptr + 4, uint4korr(key_ptr));
-#else
-  abort();
-#endif /* NOT_YET_USED */
+  /*
+    Key format: [4B length][8B pointer_to_data].  The key always points
+    at the whole value, so unlike Field_blob::key_cmp() there is no
+    stored prefix that max_key_length could cut short.  It can only ever
+    be the full length of the key part.
+  */
+  DBUG_ASSERT(max_key_length >= key_length());
+  const uchar *key_data;
+  memcpy(&key_data, key_ptr + 4, sizeof(char*));
+  return Field_blob_key::cmp(blob1, blob_length,
+                             key_data, uint4korr(key_ptr));
 }
 
-int Field_blob_key::key_cmp(const uchar *a, const uchar *b) const
+int Field_blob_key::key_cmp(const uchar *, const uchar *) const
 {
-/* HEAP uses hp_hash.c for key ops; Aria converts to VARTEXT2 on overflow */
-#ifdef NOT_YET_USED
-  return Field_blob_key::cmp(a + 4, uint4korr(a), b+ 4, uint4korr(b));
-#else
-  abort();
-#endif /* NOT_YET_USED */
+  /*
+    No caller of this overload supplies key buffers in the
+    [4 byte length][pointer to data] form a Field_blob_key uses.  Rowid
+    comparison, DS-MRR key sorting, SEL_ARG trees and histogram lookup
+    all build a blob key part as [HA_KEY_BLOB_LENGTH length][data], the
+    format the key tuple description at the top of opt_range.cc
+    documents and the one ha_innobase::cmp_ref() handles blobs
+    separately in order to honour.  Reading such a buffer here would
+    take inline data as a pointer and dereference it, so refuse rather
+    than write a body to a format nobody produces.  A Field_blob_key
+    exists only in an internal temporary table, which none of those
+    paths reads.
+  */
+  DBUG_ASSERT(0);
+  return 0;
 }
 
 

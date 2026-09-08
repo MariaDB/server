@@ -4940,7 +4940,7 @@ public:
   /* Field blob keys have always a 4 byte length and HA_KEYTYPE_XXX4 */
   uint32 key_pack_length() const override
   { return (uint32) (4 + portable_sizeof_char_ptr); }
-  uint16 key_part_length_bytes() const override { return 4; }
+  uint16 key_part_length_bytes() const override { return 0; }
   int key_cmp(const uchar *,const uchar*) const override;
   int key_cmp(const uchar *str, uint length) const override;
   uint get_key_image(uchar *buff, uint length,
