@@ -2035,6 +2035,19 @@ static my_bool is_local_connection(const char *hostname, enum enum_vio_type viot
   return FALSE;
 }
 
+static my_bool server_supports_ssl_over_named_pipe(MYSQL *mysql)
+{
+  /*
+    130100 is the version this landed in at the time of writing (MDEV-22991);
+    bump this if the fix ends up shipping in a later series instead (e.g.
+    130200 for 13.2).
+  */
+  return mysql->server_version &&
+         (strstr(mysql->server_version, "MariaDB") ||
+          strstr(mysql->server_version, "-maria-")) &&
+         mysql_get_server_version(mysql) >= 130100;
+}
+
 #define MAX_CONNECTION_ATTR_STORAGE_LENGTH 65536
 
 /**
@@ -2107,7 +2120,8 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
-  if (transport_type == VIO_TYPE_NAMEDPIPE)
+  if (transport_type == VIO_TYPE_NAMEDPIPE &&
+      !server_supports_ssl_over_named_pipe(mysql))
   {
     mysql->server_capabilities&= ~CLIENT_SSL;
     mysql->options.use_ssl= 0;
