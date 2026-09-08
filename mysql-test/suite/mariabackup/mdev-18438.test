@@ -1,8 +1,14 @@
+--source include/have_mariabackup_combination.inc
 let $basedir=$MYSQLTEST_VARDIR/tmp/mdev-18438;
 mkdir $basedir;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extra-lsndir=$basedir/extra_lsndir --stream=xbstream > $basedir/stream.xb;
 mkdir $basedir/backup;
+# The BACKUP SERVER wrapper ignores --extra-lsndir, so it never creates
+# extra_lsndir; only the native tool does.
+if (!$MTR_COMBINATION_SERVER)
+{
 rmdir $basedir/extra_lsndir;
+}
 --disable_result_log
 exec $XBSTREAM -x -C $basedir/backup  < $basedir/stream.xb;
 --enable_result_log

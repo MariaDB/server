@@ -1,6 +1,7 @@
 --source include/have_file_key_management.inc
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/have_mariabackup_combination.inc
 
 --echo #
 --echo # MDEV-38246 aria_read index failed on encrypted database during backup
@@ -16,3 +17,4 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir;
 drop table if exists t1,t2;
+rmdir $targetdir;
