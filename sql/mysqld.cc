@@ -1232,7 +1232,7 @@ void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: coun
     Disable the socket instrumentation, to avoid recording a SOCKET event.
     Instead, start explicitly an IDLE event.
   */
-  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
+  MYSQL_SOCKET_SET_STATE(*vio_mysql_socket_ptr(net->vio), PSI_SOCKET_STATE_IDLE);
   MYSQL_START_IDLE_WAIT(static_cast<THD*>(thd)->m_idle_psi,
                         &static_cast<THD*>(thd)->m_idle_state);
 }
@@ -1271,7 +1271,7 @@ void net_after_header_psi(struct st_net *net, void *user_data,
     TODO: consider recording a SOCKET event for the bytes just read,
     by also passing count here.
   */
-  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
+  MYSQL_SOCKET_SET_STATE(*vio_mysql_socket_ptr(net->vio), PSI_SOCKET_STATE_ACTIVE);
 }
 
 
@@ -4747,7 +4747,7 @@ struct SSL_ACCEPTOR_STATS
   {
     DBUG_ASSERT(ssl_acceptor_fd !=0);
     DBUG_ASSERT(ssl_acceptor_fd->ssl_context != 0);
-    SSL_CTX *ctx= ssl_acceptor_fd->ssl_context;
+    SSL_CTX *ctx= static_cast<SSL_CTX *>(ssl_acceptor_fd->ssl_context);
     accept= 0;
     accept_good= 0;
     verify_mode= SSL_CTX_get_verify_mode(ctx);
@@ -6670,7 +6670,6 @@ static void set_non_blocking_if_supported(MYSQL_SOCKET sock)
 #endif
 }
 
-
 void handle_connections_sockets()
 {
   MYSQL_SOCKET sock= mysql_socket_invalid();
@@ -7508,8 +7507,10 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, void *,
                                 system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
-  if( thd->vio_ok() && thd->net.vio->ssl_arg )
-    var->value= const_cast<char*>(SSL_get_version((SSL*) thd->net.vio->ssl_arg));
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
+    var->value= const_cast<char *>(SSL_get_version(ssl));
   else
     var->value= const_cast<char*>("");
   return 0;
@@ -7520,8 +7521,10 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, void *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
-  if( thd->vio_ok() && thd->net.vio->ssl_arg )
-    *((long *)buff)= (long)SSL_get_default_timeout((SSL*)thd->net.vio->ssl_arg);
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
+    *((long *)buff)= (long) SSL_get_default_timeout(ssl);
   else
     *((long *)buff)= 0;
   return 0;
@@ -7533,10 +7536,14 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, void *buff,
   var->type= SHOW_LONG;
   var->value= buff;
 #ifndef HAVE_WOLFSSL
-  if( thd->net.vio && thd->net.vio->ssl_arg )
-    *((long *)buff)= (long)SSL_get_verify_mode((SSL*)thd->net.vio->ssl_arg);
-  else
-    *((long *)buff)= 0;
+  {
+    SSL *ssl= thd->net.vio ?
+      static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+    if (ssl)
+      *((long *)buff)= (long) SSL_get_verify_mode(ssl);
+    else
+      *((long *)buff)= 0;
+  }
 #else
   *((long *)buff)= 0;
 #endif
@@ -7548,8 +7555,10 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, void *buff,
 {
   var->type= SHOW_LONG;
   var->value= buff;
-  if( thd->vio_ok() && thd->net.vio->ssl_arg )
-    *((long *)buff)= (long)SSL_get_verify_depth((SSL*)thd->net.vio->ssl_arg);
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
+    *((long *)buff)= (long) SSL_get_verify_depth(ssl);
   else
     *((long *)buff)= 0;
 
@@ -7560,8 +7569,10 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, void *buff,
                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
-  if( thd->vio_ok() && thd->net.vio->ssl_arg )
-    var->value= const_cast<char*>(SSL_get_cipher((SSL*) thd->net.vio->ssl_arg));
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
+    var->value= const_cast<char *>(SSL_get_cipher(ssl));
   else
     var->value= const_cast<char*>("");
   return 0;
@@ -7573,12 +7584,14 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, void *buf,
   char *buff= static_cast<char*>(buf);
   var->type= SHOW_CHAR;
   var->value= buff;
-  if (thd->vio_ok() && thd->net.vio->ssl_arg)
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
   {
     int i;
     const char *p;
     char *end= buff + SHOW_VAR_FUNC_BUFF_SIZE;
-    for (i=0; (p= SSL_get_cipher_list((SSL*) thd->net.vio->ssl_arg,i)) &&
+    for (i=0; (p= SSL_get_cipher_list(ssl, i)) &&
                buff < end; i++)
     {
       buff= strnmov(buff, p, end-buff-1);
@@ -7659,9 +7672,10 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, void *buff,
                                system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
-  if(thd->vio_ok() && thd->net.vio->ssl_arg)
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
   {
-    SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_before= X509_get0_notBefore(cert);
 
@@ -7693,9 +7707,10 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, void *buff,
                               system_status_var *, enum_var_type)
 {
   var->type= SHOW_CHAR;
-  if(thd->vio_ok() && thd->net.vio->ssl_arg)
+  SSL *ssl= thd->vio_ok() ?
+    static_cast<SSL *>(vio_ssl_handle(thd->net.vio)) : nullptr;
+  if (ssl)
   {
-    SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
     X509 *cert= SSL_get_certificate(ssl);
     const ASN1_TIME *not_after= X509_get0_notAfter(cert);
 

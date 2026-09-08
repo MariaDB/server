@@ -177,7 +177,7 @@ char mysql_server_last_error[MYSQL_ERRMSG_SIZE];
 
 /**
   Convert the connect timeout option to a timeout value for VIO
-  functions (vio_socket_connect() and vio_io_wait()).
+  functions (vio_socket_connect()).
 
   @param mysql  Connection handle (client side).
 
@@ -203,6 +203,19 @@ static int get_vio_connect_timeout(MYSQL *mysql)
     timeout_ms= (int) (timeout_sec * 1000);
 
   return timeout_ms;
+}
+
+
+/* Same as cli_safe_read(), with explicit read timeout */
+static ulong cli_safe_read_with_timeout(MYSQL *mysql, uint timeout)
+{
+  ulong result;
+  uint save_timeout= mysql->net.read_timeout;
+
+  my_net_set_read_timeout(&mysql->net, timeout);
+  result= cli_safe_read(mysql);
+  my_net_set_read_timeout(&mysql->net, save_timeout);
+  return result;
 }
 
 
@@ -1559,8 +1572,12 @@ mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 {
   DBUG_ENTER("mysql_get_ssl_cipher");
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
-  if (mysql->net.vio && mysql->net.vio->ssl_arg)
-    DBUG_RETURN(SSL_get_cipher_name((SSL*)mysql->net.vio->ssl_arg));
+  if (mysql->net.vio)
+  {
+    SSL *ssl= (SSL *) vio_ssl_handle(mysql->net.vio);
+    if (ssl)
+      DBUG_RETURN(SSL_get_cipher_name(ssl));
+  }
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
   DBUG_RETURN(NULL);
 }
@@ -1595,7 +1612,7 @@ static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_loca
   DBUG_ENTER("ssl_verify_server_cert");
   DBUG_PRINT("enter", ("server_hostname: %s", mysql->host));
 
-  if (!(ssl= (SSL*)mysql->net.vio->ssl_arg))
+  if (!(ssl= (SSL *) vio_ssl_handle(mysql->net.vio)))
   {
     *errptr= "No SSL pointer found";
     goto error;
@@ -2055,7 +2072,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
 {
   MYSQL *mysql= mpvio->mysql;
   NET *net= &mysql->net;
-  enum enum_vio_type vio_type= net->vio->type;
+  enum enum_vio_type transport_type= vio_type(net->vio);
   char *buff, *end;
   size_t buff_size;
   size_t connect_attrs_len=
@@ -2090,7 +2107,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
 
-  if (vio_type == VIO_TYPE_NAMEDPIPE)
+  if (transport_type == VIO_TYPE_NAMEDPIPE)
   {
     mysql->server_capabilities&= ~CLIENT_SSL;
     mysql->options.use_ssl= 0;
@@ -2181,7 +2198,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
 
     /* Connect to the server */
     DBUG_PRINT("info", ("IO layer change in progress..."));
-    if (sslconnect(ssl_fd, net->vio,
+    if (sslconnect(ssl_fd, &net->vio,
                    (long) (mysql->options.connect_timeout), &ssl_error))
     {    
       char buf[512];
@@ -2194,7 +2211,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     }
     DBUG_PRINT("info", ("IO layer change done!"));
 
-    is_local= is_local_connection(mysql->host, vio_type);
+    is_local= is_local_connection(mysql->host, transport_type);
     /* Verify server cert */
     if ((!mysql->options.extension ||
          !mysql->options.extension->tls_allow_invalid_server_cert) &&
@@ -2403,7 +2420,8 @@ static int client_mpvio_write_packet(struct st_plugin_vio *mpv,
 void mpvio_info(Vio *vio, MYSQL_PLUGIN_VIO_INFO *info)
 {
   bzero(info, sizeof(*info));
-  switch (vio->type) {
+  info->tls= vio_ssl_handle(vio) != NULL;
+  switch (vio_transport_type(vio)) {
   case VIO_TYPE_TCPIP:
     info->protocol= MYSQL_VIO_TCP;
     info->socket= (int)vio_fd(vio);
@@ -2412,22 +2430,10 @@ void mpvio_info(Vio *vio, MYSQL_PLUGIN_VIO_INFO *info)
     info->protocol= MYSQL_VIO_SOCKET;
     info->socket= (int)vio_fd(vio);
     return;
-  case VIO_TYPE_SSL:
-    {
-      struct sockaddr addr;
-      SOCKET_SIZE_TYPE addrlen= sizeof(addr);
-      if (getsockname(vio_fd(vio), &addr, &addrlen))
-        return;
-      info->protocol= addr.sa_family == AF_UNIX ?
-        MYSQL_VIO_SOCKET : MYSQL_VIO_TCP;
-      info->socket= (int)vio_fd(vio);
-      info->tls= 1;
-      return;
-    }
 #ifdef _WIN32
   case VIO_TYPE_NAMEDPIPE:
     info->protocol= MYSQL_VIO_PIPE;
-    info->handle= vio->hPipe;
+    info->handle= vio_handle(vio);
     return;
 #endif
   default: DBUG_ASSERT(0);
@@ -2629,7 +2635,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
   /* Last attempt to validate the cert: compare cert info packet */
   DBUG_ASSERT(mysql->options.use_ssl);
-  DBUG_ASSERT(mysql->net.vio->ssl_arg);
+  DBUG_ASSERT(vio_ssl_handle(mysql->net.vio));
   DBUG_ASSERT(!mysql->options.extension ||
               !mysql->options.extension->tls_allow_invalid_server_cert);
   DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
@@ -2644,7 +2650,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     size_t buflen= sizeof(buf);
     uint fplen= sizeof(fp);
     char *hexsig= mysql->info + 1, hexdigest[sizeof(digest)*2+1];
-    X509 *cert= SSL_get_peer_certificate((SSL*)mysql->net.vio->ssl_arg);
+    X509 *cert= SSL_get_peer_certificate((SSL*)vio_ssl_handle(mysql->net.vio));
     X509_digest(cert, EVP_sha256(), fp, &fplen);
     X509_free(cert);
     auth_plugin->hash_password_bin(mysql, buf, &buflen);
@@ -3023,23 +3029,14 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
   /* Get version info */
   mysql->protocol_version= PROTOCOL_VERSION;	/* Assume this */
-  if (mysql->options.connect_timeout &&
-      (vio_io_wait(net->vio, VIO_IO_EVENT_READ,
-                   get_vio_connect_timeout(mysql)) < 1))
-  {
-    set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,
-                             ER(CR_SERVER_LOST_EXTENDED),
-                             "waiting for initial communication packet",
-                             errno);
-    goto error;
-  }
-
   /*
     Part 1: Connection established, read and parse first packet
   */
   DBUG_PRINT("info", ("Read first packet."));
 
-  if ((pkt_length=cli_safe_read(mysql)) == packet_error)
+  if ((pkt_length= mysql->options.connect_timeout ?
+       cli_safe_read_with_timeout(mysql, mysql->options.connect_timeout) :
+       cli_safe_read(mysql)) == packet_error)
   {
     if (mysql->net.last_errno == CR_SERVER_LOST)
       set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,

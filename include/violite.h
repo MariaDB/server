@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, 2026, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,8 +24,7 @@
 
 #include "my_net.h"   /* needed because of struct in_addr */
 #include <mysql/psi/mysql_socket.h>
-
-/* Simple vio interface in C;  The functions are implemented in violite.c */
+/* C entry points implemented as thin wrappers over the C++ VIO hierarchy. */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -37,18 +36,17 @@ typedef struct st_vio Vio;
 
 enum enum_vio_type
 {
-  VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
+  VIO_TYPE_INVALID, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
   VIO_TYPE_SSL
   /* see also vio_type_names[] */
 };
 
 enum enum_vio_state
 {
-  VIO_STATE_NOT_INITIALIZED, VIO_STATE_ACTIVE, VIO_STATE_SHUTDOWN,
-  VIO_STATE_CLOSED
+  VIO_STATE_NOT_INITIALIZED, VIO_STATE_ACTIVE, VIO_STATE_SHUTDOWN
 };
 
-#define FIRST_VIO_TYPE VIO_CLOSED
+#define FIRST_VIO_TYPE VIO_TYPE_TCPIP
 #define LAST_VIO_TYPE VIO_TYPE_SSL
 
 /**
@@ -88,40 +86,49 @@ Vio* vio_new_win32pipe(HANDLE hPipe);
 #endif /* _WIN32 */
 
 void	vio_delete(Vio* vio);
-int	vio_close(Vio* vio);
-my_bool vio_reset(Vio* vio, enum enum_vio_type type,
-                  my_socket sd, void *ssl, uint flags);
 size_t	vio_read(Vio *vio, uchar *	buf, size_t size);
-size_t  vio_read_buff(Vio *vio, uchar * buf, size_t size);
 size_t	vio_write(Vio *vio, const uchar * buf, size_t size);
-int	vio_blocking(Vio *vio, my_bool onoff, my_bool *old_mode);
-my_bool	vio_is_blocking(Vio *vio);
 /* setsockopt TCP_NODELAY at IPPROTO_TCP level, when possible */
 int vio_nodelay(Vio *vio, my_bool on);
-int	vio_fastsend(Vio *vio);
 /* setsockopt SO_KEEPALIVE at SOL_SOCKET level, when possible */
 int	vio_keepalive(Vio *vio, my_bool	onoff);
 int	vio_set_keepalive_options(Vio * vio, const struct vio_keepalive_opts *opts);
-/* Whenever we should retry the last read/write operation. */
+/*
+  Whether the last read/write failure (SOCKET_EINTR) is worth retrying.
+  Always FALSE on Windows: there, SOCKET_EINTR only means an intentional
+  cross-thread cancellation, never a transient signal interruption.
+*/
 my_bool	vio_should_retry(Vio *vio);
-/* Check that operation was timed out */
+/*
+  Return whether the most recent failed VIO I/O operation in the current
+  thread failed because of a timeout. Meaningful only immediately after an
+  operation reports failure.
+*/
 my_bool vio_was_timeout(Vio *vio);
 /* Short text description of the socket for those, who are curious.. */
 const char* vio_description(Vio *vio);
 /* Return the type of the connection */
 enum enum_vio_type vio_type(Vio* vio);
+/*
+  Return the transport type of the connection.
+  Will differ from vio_type for SSL connections.
+*/
+enum enum_vio_type vio_transport_type(Vio *vio);
+
 /* Return last error number */
 int	vio_errno(Vio*vio);
 /* Get socket number */
 my_socket vio_fd(Vio*vio);
 /* Remote peer's address and name in text form */
 my_bool vio_peer_addr(Vio *vio, char *buf, uint16 *port, size_t buflen);
-/* Wait for an I/O event notification. */
-int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout);
 my_bool vio_is_connected(Vio *vio);
+my_bool vio_has_data(Vio *vio);
+int vio_shutdown(Vio *vio, int how);
 ssize_t vio_pending(Vio *vio);
 /* Set timeout for a network operation. */
 extern int vio_timeout(Vio *vio, uint which, int timeout_sec);
+extern int vio_timeout_ms(Vio *vio, uint which, int timeout_ms);
+extern int vio_get_timeout_ms(Vio *vio, uint which);
 extern void vio_set_wait_callback(void (*before_wait)(void),
                                 void (*after_wait)(void));
 /* Connect to a peer. */
@@ -141,22 +148,6 @@ int vio_getnameinfo(const struct sockaddr *sa,
                     int flags);
 
 #ifdef HAVE_OPENSSL
-#define HEADER_DES_LOCL_H dummy_something
-#define YASSL_MYSQL_COMPATIBLE
-#ifndef YASSL_PREFIX
-#define YASSL_PREFIX
-#endif
-/* Set yaSSL to use same type as MySQL do for socket handles */
-typedef my_socket YASSL_SOCKET_T;
-#define YASSL_SOCKET_T_DEFINED
-#define template _template /* bug in WolfSSL 4.4.0, see also my_crypt.cc */
-#include <openssl/ssl.h>
-#undef template
-#include <openssl/err.h>
-#ifdef DEPRECATED
-#undef DEPRECATED
-#endif
-
 enum enum_ssl_init_error
 {
   SSL_INITERR_NOERROR= 0, SSL_INITERR_CERT, SSL_INITERR_KEY,
@@ -168,11 +159,14 @@ const char* sslGetErrString(enum enum_ssl_init_error err);
 
 struct st_VioSSLFd
 {
-  SSL_CTX *ssl_context;
+  /* Opaque SSL context; implementation files may cast it to SSL_CTX*. */
+  void *ssl_context;
 };
 
-int sslaccept(struct st_VioSSLFd*, Vio *, long timeout, unsigned long *errptr);
-int sslconnect(struct st_VioSSLFd*, Vio *, long timeout, unsigned long *errptr);
+int sslaccept(struct st_VioSSLFd*, Vio **, long timeout, unsigned long *errptr);
+int sslconnect(struct st_VioSSLFd*, Vio **, long timeout, unsigned long *errptr);
+/* Opaque SSL state (castable to SSL*), or nullptr if SSL isn't active. */
+void *vio_ssl_handle(Vio *vio);
 
 void vio_check_ssl_init();
 
@@ -192,30 +186,32 @@ void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 
 void vio_end(void);
 
+enum enum_vio_state vio_state(Vio *vio);
+my_bool vio_is_local(Vio *vio);
+struct sockaddr_storage *vio_remote_addr(Vio *vio);
+
+/*
+  The returned pointer is owned by the VIO transport. For socket transports
+  it points to the real MYSQL_SOCKET; for non-socket transports (e.g.
+  Windows named pipe) it points to an invalid, uninstrumented dummy
+  MYSQL_SOCKET.
+*/
+MYSQL_SOCKET *vio_mysql_socket_ptr(Vio *vio);
+
+#ifdef _WIN32
+/*
+  Get the underlying HANDLE for a Vio
+  For socket transport, this is the underlying SOCKET handle.
+  For named pipe, this is the underlying HANDLE to the pipe.
+*/
+HANDLE vio_handle(Vio *vio);
+#endif
+
 const char *vio_type_name(enum enum_vio_type vio_type, size_t *len);
 
 #ifdef	__cplusplus
 }
 #endif
-
-#if !defined(DONT_MAP_VIO)
-#define vio_delete(vio) 			(vio)->viodelete(vio)
-#define vio_errno(vio)	 			(vio)->vioerrno(vio)
-#define vio_read(vio, buf, size)                ((vio)->read)(vio,buf,size)
-#define vio_write(vio, buf, size)               ((vio)->write)(vio, buf, size)
-#define vio_blocking(vio, set_blocking_mode, old_mode)\
- 	(vio)->vioblocking(vio, set_blocking_mode, old_mode)
-#define vio_is_blocking(vio) 			(vio)->is_blocking(vio)
-#define vio_fastsend(vio)			(vio)->fastsend(vio)
-#define vio_keepalive(vio, set_keep_alive)	(vio)->viokeepalive(vio, set_keep_alive)
-#define vio_should_retry(vio) 			(vio)->should_retry(vio)
-#define vio_was_timeout(vio)                    (vio)->was_timeout(vio)
-#define vio_close(vio)				((vio)->vioclose)(vio)
-#define vio_shutdown(vio,how)			((vio)->shutdown)(vio,how)
-#define vio_peer_addr(vio, buf, prt, buflen)	(vio)->peer_addr(vio, buf, prt, buflen)
-#define vio_io_wait(vio, event, timeout)        (vio)->io_wait(vio, event, timeout)
-#define vio_is_connected(vio)                   (vio)->is_connected(vio)
-#endif /* !defined(DONT_MAP_VIO) */
 
 #ifdef _WIN32
 
@@ -236,52 +232,4 @@ enum SSL_type
   SSL_TYPE_SPECIFIED
 };
 
-/* HFTODO - hide this if we don't want client in embedded server */
-/* This structure is for every connection on both sides */
-struct st_vio
-{
-  MYSQL_SOCKET  mysql_socket;     /* Instrumented socket */
-  my_bool		localhost;	/* Are we from localhost? */
-  int			fcntl_mode;	/* Buffered fcntl(sd,F_GETFL) */
-  struct sockaddr_storage local;	/* Local internet address */
-  struct sockaddr_storage remote;	/* Remote internet address */
-  enum enum_vio_type	type;		/* Type of connection */
-  enum enum_vio_state	state;		/* State of the connection */
-  const char		*desc;		/* String description */
-  char                  *read_buffer;   /* buffer for vio_read_buff */
-  char                  *read_pos;      /* start of unfetched data in the
-                                           read buffer */
-  char                  *read_end;      /* end of unfetched data */
-  int                   read_timeout;   /* Timeout value (ms) for read ops. */
-  int                   write_timeout;  /* Timeout value (ms) for write ops. */
-  /* function pointers. They are similar for socket/SSL/whatever */
-  void    (*viodelete)(Vio*);
-  int     (*vioerrno)(Vio*);
-  size_t  (*read)(Vio*, uchar *, size_t);
-  size_t  (*write)(Vio*, const uchar *, size_t);
-  int     (*timeout)(Vio*, uint, my_bool);
-  int     (*vioblocking)(Vio*, my_bool, my_bool *);
-  my_bool (*is_blocking)(Vio*);
-  int     (*viokeepalive)(Vio*, my_bool);
-  int     (*fastsend)(Vio*);
-  my_bool (*peer_addr)(Vio*, char *, uint16*, size_t);
-  void    (*in_addr)(Vio*, struct sockaddr_storage*);
-  my_bool (*should_retry)(Vio*);
-  my_bool (*was_timeout)(Vio*);
-  int     (*vioclose)(Vio*);
-  my_bool (*is_connected)(Vio*);
-  int (*shutdown)(Vio *, int);
-  my_bool (*has_data) (Vio*);
-  int (*io_wait)(Vio*, enum enum_vio_io_event, int);
-  my_bool (*connect)(Vio*, struct sockaddr *, socklen_t, int);
-#ifdef HAVE_OPENSSL
-  void	  *ssl_arg;
-#endif
-#ifdef _WIN32
-  HANDLE hPipe;
-  OVERLAPPED overlapped;
-  int shutdown_flag;
-  void *tp_ctx; /* threadpool context */
-#endif
-};
 #endif /* vio_violite_h_ */

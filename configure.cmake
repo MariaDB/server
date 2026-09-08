@@ -817,15 +817,6 @@ CHECK_CXX_SOURCE_COMPILES("
   "
   HAVE_SOLARIS_STYLE_GETHOST)
 
-
-# As a consequence of ALARMs no longer being used, thread
-# notification for KILL must close the socket to wake up
-# other threads.
-SET(SIGNAL_WITH_VIO_CLOSE 1)
-
-MARK_AS_ADVANCED(NO_ALARM)
-
-
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {

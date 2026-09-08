@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2026, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -257,17 +257,16 @@ static int wolfssl_recv(WOLFSSL* ssl, char* buf, int sz, void* vio)
 {
   size_t ret;
   (void)ssl;
-  ret = vio_read((Vio *)vio, (uchar *)buf, sz);
+  ret= vio_read(vio_get_underlying((Vio *)vio), (uchar *) buf, sz);
   /* check if connection was closed */
   if (ret == 0)
     return WOLFSSL_CBIO_ERR_CONN_CLOSE;
-
   return (int)ret;
 }
 
 static int wolfssl_send(WOLFSSL* ssl, char* buf, int sz, void* vio)
 {
-  return (int)vio_write((Vio *)vio, (unsigned char*)buf, sz);
+  return (int)vio_write(vio_get_underlying((Vio *) vio), (uchar *) buf, sz);
 }
 #endif /* HAVE_WOLFSSL */
 

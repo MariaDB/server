@@ -18,6 +18,21 @@
 #include "mysqld.h"
 #include "sql_audit.h"
 
+#include <ssl_compat.h>
+
+void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
+{
+  event->tls_version= "";
+  event->tls_version_length= 0;
+  Vio *vio= thd->net.vio;
+  SSL *ssl= vio ? static_cast<SSL *>(vio_ssl_handle(vio)) : nullptr;
+  if (ssl)
+  {
+    event->tls_version= SSL_get_version(ssl);
+    event->tls_version_length= safe_strlen_uint(event->tls_version);
+  }
+}
+
 extern int initialize_audit_plugin(void *plugin);
 extern int finalize_audit_plugin(void *plugin);
 

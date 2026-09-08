@@ -320,7 +320,7 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 
   /* Login. */
   thread_attach(thd);
-  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
+  mysql_socket_set_thread_owner(*vio_mysql_socket_ptr(thd->net.vio));
   re_init_net_server_extension(thd);
   ulonglong now= microsecond_interval_timer();
   thd->prior_thr_create_utime= now;
@@ -332,7 +332,7 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
   if (thd_prepare_connection(thd))
     goto end;
 
-  c->init_vio(thd->net.vio);
+  c->init_vio(&thd->net.vio);
 
   /*
     Check if THD is ok, as prepare_new_connection_state()
@@ -390,7 +390,7 @@ static bool has_unread_data(THD* thd)
 {
   NET *net= &thd->net;
   Vio *vio= net->vio;
-  return vio->has_data(vio) || has_unread_compressed_data(net);
+  return vio_has_data(vio) || has_unread_compressed_data(net);
 }
 
 
@@ -547,7 +547,7 @@ void tp_timeout_handler(TP_connection *c)
   THD *thd= c->thd;
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   Vio *vio= thd->net.vio;
-  if (vio && (vio_pending(vio) > 0 || vio->has_data(vio)) &&
+  if (vio && (vio_pending(vio) > 0 || vio_has_data(vio)) &&
       c->state == TP_STATE_IDLE)
   {
     /*

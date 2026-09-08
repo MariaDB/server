@@ -83,20 +83,7 @@ static inline uint make_user_name(THD *thd, char *buf)
   return (uint)(end-buf);
 }
 
-static inline
-void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
-{
-    event->tls_version = "";
-    event->tls_version_length = 0;
-#ifdef HAVE_OPENSSL
-    if (Vio *vio= thd->net.vio)
-      if (SSL *ssl= (SSL *) vio->ssl_arg)
-      {
-          event->tls_version = SSL_get_version(ssl);
-          event->tls_version_length = safe_strlen_uint(event->tls_version);
-      }
-#endif
-}
+void set_tls_version_of_event(THD *thd, mysql_event_connection *event);
 
 /**
   Call audit plugins of GENERAL audit class, MYSQL_AUDIT_GENERAL_LOG subtype.
