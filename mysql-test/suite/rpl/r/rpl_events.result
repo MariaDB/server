@@ -26,7 +26,7 @@ ZERO
 "Checking event is inactive on slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'justonce';
 db	name	status	originator
-test	justonce	SLAVESIDE_DISABLED	1
+test	justonce	DISABLED	1
 "Dropping event test.slave_once on the slave"
 DROP EVENT IF EXISTS test.slave_once;
 CREATE EVENT test.slave_once ON SCHEDULE EVERY 5 MINUTE STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
@@ -53,7 +53,7 @@ connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
-test	er	SLAVESIDE_DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er')
+test	er	DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er')
 connection master;
 "Altering event test.er on the master"
 ALTER EVENT test.er ON SCHEDULE EVERY 5 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
@@ -66,7 +66,7 @@ connection slave;
 "Checking event status on the slave"
 SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
 db	name	status	originator	body
-test	er	SLAVESIDE_DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er')
+test	er	DISABLED	1	INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er')
 connection master;
 "Dropping event test.er on the master"
 DROP EVENT test.er;
@@ -96,7 +96,7 @@ Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON 
 "Checking event status on the slave"
 SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_terminate';
 db	name	status	originator
-test	slave_terminate	SLAVESIDE_DISABLED	2
+test	slave_terminate	DISABLED	2
 "Dropping event test.slave_terminate on the slave"
 DROP EVENT test.slave_terminate;
 "Cleanup"

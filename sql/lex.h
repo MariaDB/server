@@ -742,6 +742,7 @@ SYMBOL symbols[] = {
   { "WORK",		SYM(WORK_SYM)},
   { "WRAPPER",		SYM(WRAPPER_SYM)},
   { "WRITE",		SYM(WRITE_SYM)},
+  { "WRITE_TO_BINLOG_ENABLE", SYM(WRITE_TO_BINLOG_ENABLE)},
   { "X509",		SYM(X509_SYM)},
   { "XOR",		SYM(XOR)},
   { "XA",               SYM(XA_SYM)},
