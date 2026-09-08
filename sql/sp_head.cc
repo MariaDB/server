@@ -604,7 +604,8 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
                         sizeof(sp_instr *), 16, 8, MYF(0));
   my_hash_init(key_memory_sp_head_main_root, &m_sptabs, table_alias_charset, 0,
                0, 0, sp_table_key, 0, 0);
-  my_hash_init(key_memory_sp_head_main_root, &m_sroutines, system_charset_info,
+  /* Keys are compared byte for byte, the database name is case sensitive. */
+  my_hash_init(key_memory_sp_head_main_root, &m_sroutines, &my_charset_bin,
                0, 0, 0, sp_sroutine_key, 0, 0);
 
   DBUG_VOID_RETURN;
