@@ -58,8 +58,10 @@ while ($e < $engine_count)
       while ($t < $max_tables)
       {
         inc $t;
-        let $name=`select concat("t",char(floor(65+$t/26)),repeat(char(65+mod($t,26)),60))`;
-        let $view=`select concat("t",char(floor(65+$t/26)),repeat(char(65+mod($t,26)),30),'v')`;
+        # Generate the names in lower case so that they are unchanged by a
+        # lower_case_table_names setting of 1 or 2.
+        let $name=`select concat("t",char(floor(97+$t/26)),repeat(char(97+mod($t,26)),60))`;
+        let $view=`select concat("t",char(floor(97+$t/26)),repeat(char(97+mod($t,26)),30),'v')`;
         --eval create table $name (a int not null) $extra_option
         --eval create view $view as select * from $name
       }
