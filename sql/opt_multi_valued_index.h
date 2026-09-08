@@ -104,6 +104,13 @@ bool is_mvi_key(const TABLE *table, uint keyno);
 void print_mvi_key_expr(String *str, const TABLE *table, uint keyno);
 
 /*
+  DDL: handle a `(CAST(expr AS type ARRAY))' key part of the key being
+  defined. Returns NULL if an error was raised.
+*/
+Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
+                                const Lex_cast_type_st &cast_type);
+
+/*
   Analyze `cond' and pick the MVI access `tab' will use, if any, and let the
   range analysis see it
 */

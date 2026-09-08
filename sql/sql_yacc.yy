@@ -7652,46 +7652,8 @@ key_part:
 multi_valued_key_part:
           '(' CAST_SYM '(' expr AS cast_type ARRAY_SYM ')' ')'
           {
-            /*
-              An index over an ARRAY has exactly one key part. Catch a second
-              one here, before the type of the key is overwritten below and
-              check_mvi_key_type() starts seeing FULLTEXT instead of what the
-              user wrote. A part that comes *after* the ARRAY one is caught
-              in init_key_part_spec().
-            */
-            if (unlikely(Lex->last_key->columns.elements))
-            {
-              my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
+            if (unlikely(!($$= add_mvi_key_part(thd, $4, $6))))
               MYSQL_YYABORT;
-            }
-            if (unlikely(check_mvi_key_type(Lex->last_key)))
-              MYSQL_YYABORT;
-            /* TODO: check fts_min_token_size is 4, warn if not */
-            /* Create a Create_field */
-            Create_field *f= new (thd->mem_root) Create_field();
-            LEX_CSTRING fname= make_internal_field_name(thd, "DB_MVI_", &Lex->alter_info.create_list);
-            Item *vcol_expr=
-              new (thd->mem_root) Item_func_mvi_encode(thd, $4, $6);
-
-            if (unlikely(!f))
-              MYSQL_YYABORT;
-
-            f->invisible= INVISIBLE_FULL;
-            Lex->last_key->invisible= true;
-            f->set_handler(&type_handler_blob);
-            f->charset= &my_charset_latin1_bin;
-            Lex->last_key->type= Key::FULLTEXT;
-            Lex->init_last_field(f, &fname);
-            Lex->alter_info.create_list.push_back(f, thd->mem_root);
-
-            /* Create a vcol */
-            Virtual_column_info *v= add_virtual_expression(thd, vcol_expr);
-            if (unlikely(!v))
-              MYSQL_YYABORT;
-            Lex->last_field->vcol_info= v;
-            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_STORED);
-
-            $$= new (thd->mem_root) Key_part_spec(&fname, 0, /*gen=*/true);
           }
         ;
 
