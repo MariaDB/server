@@ -26,7 +26,27 @@ xa start 'x';
 xa end 'x';
 xa prepare 'x';
 
+# Affects of MDEV-36025 to the user XA and backup.
+# In the following master logs two trx:s the 1st is Leader which will be
+# delayed into the group commmit and the 2nd is XA PREPAREd Follower that will
+# acquire BACKUP MDL share lock before a backup thread will make a stronger
+# request it. It will wait.
+# Here we prove that the delayed arrival of the Leader to the group commit
+# will pass throuh the wating backup X.
+# The gtid 100,101 group will complete and the backup thread will be unhang
+# upon that.
+# HOWEVER, the XAP completion in the slave group commit can't be full.
+# Becose of MDEV-21469 specific slave's sub-case that incorporates
+# gtid_slave_pos to the user XA prepared replicated trx the XAP might not
+# be able to acquire an S BACKUP MDL on this extra statement. That's why
+# we prove the group commit with showing data affects
+# by Leader and XAP state rather than syncing with master.
+#
+# Despite of the necessary workaround, we prove the delayed Leader leapfrogs
+# a stronger waiting request, the same as it happens in the normal trx case.
+
 --connection slave
+# Leader is delayed, Follower awaits it.
 SET @@global.debug_dbug="+d,hold_worker_on_schedule";
 start slave;
 SET debug_sync = 'now WAIT_FOR reached_pause';
@@ -35,15 +55,33 @@ SET debug_sync = 'now WAIT_FOR reached_pause';
 
 --connection slave1
 backup stage start;
-backup stage block_commit;
+--send backup stage block_commit
 
 --connection slave
+
+# Backup is waiting which means the MDL query: S(g101); X(backup)
 --let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state LIKE "Waiting for backup lock"
-SET debug_sync = 'now SIGNAL continue_worker';
 --source include/wait_condition.inc
+
+# Leader is released to group commit with g101
+SET debug_sync = 'now SIGNAL continue_worker';
+
+#--connection slave
+# This is a workaround MDEV-21469 relate issue.
+let $show_statement = xa recover;
+let $field = data;
+let $condition = = 'x';
+let $wait_timeout = 30;
+--source include/wait_show_condition.inc
+select * from t where a=1;
+--eval $show_statement
+# :sweat-smile:
 SET debug_sync = RESET;
 
+#--sync_slave_with_master
+
 --connection slave1
+--reap
 backup stage end;
 
 --connection master
