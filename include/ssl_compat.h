@@ -24,12 +24,9 @@
 #define HAVE_OPENSSL11 1
 #define SSL_LIBRARY OpenSSL_version(OPENSSL_VERSION)
 #define ERR_remove_state(X) ERR_clear_error()
-#define EVP_CIPHER_CTX_SIZE 200
 #define EVP_MD_CTX_SIZE 80
 #undef EVP_MD_CTX_init
 #define EVP_MD_CTX_init(X) do { memset((X), 0, EVP_MD_CTX_SIZE); EVP_MD_CTX_reset(X); } while(0)
-#undef EVP_CIPHER_CTX_init
-#define EVP_CIPHER_CTX_init(X) do { memset((X), 0, EVP_CIPHER_CTX_SIZE); EVP_CIPHER_CTX_reset(X); } while(0)
 
 /*
   Macros below are deprecated. OpenSSL 1.1 may define them or not,
@@ -83,7 +80,6 @@
 #endif
 
 #define EVP_CIPHER_CTX_encrypting(ctx)  ((ctx)->encrypt)
-#define EVP_CIPHER_CTX_SIZE             sizeof(EVP_CIPHER_CTX)
 
 #ifndef HAVE_WOLFSSL
 #define OPENSSL_init_ssl(X,Y)           SSL_library_init()
@@ -96,14 +92,4 @@
 
 #ifndef TLS1_3_VERSION
 #define SSL_CTX_set_ciphersuites(X,Y) 0
-#endif
-
-#ifdef	__cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-int check_openssl_compatibility();
-
-#ifdef	__cplusplus
-}
 #endif
