@@ -2763,12 +2763,26 @@ wsrep_rec_get_foreign_key(
 			}
 			case DATA_VARCHAR:
 			case DATA_VARMYSQL:
-			case DATA_CHAR:
-			case DATA_MYSQL:
-				len = wsrep_normalize_string(
+				len = wsrep_store_string_key_val(
 					(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 					dtype_get_charset_coll(col_f->prtype),
-					data, buf, len, *buf_len);
+					0, data, len, buf,
+					*buf_len - key_len, false);
+				break;
+			case DATA_CHAR:
+			case DATA_MYSQL:
+				/* A CHAR is stored with the space padding
+				InnoDB happened to leave on it, which is not
+				what the MySQL record holds. Pass the number
+				of characters the column has so that both
+				forms end up as the same key. */
+				len = wsrep_store_string_key_val(
+					(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+					dtype_get_charset_coll(col_f->prtype),
+					col_f->mbmaxlen
+					  ? col_f->len / col_f->mbmaxlen : 0,
+					data, len, buf,
+					*buf_len - key_len, false);
 				break;
 			case DATA_BLOB:
 			case DATA_BINARY:

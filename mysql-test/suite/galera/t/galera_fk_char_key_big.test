@@ -1,0 +1,130 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+ 
+--connection node_2
+SET GLOBAL wsrep_slave_threads = 2;
+ 
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+SET SESSION wsrep_sync_wait = 0;
+ 
+--let $shape = 0
+while ($shape < 10)
+{
+  --inc $shape
+  --let $opt = ENGINE=InnoDB
+ 
+  if ($shape == 1)
+  {
+    --let $name = CHAR(36) utf8mb4
+    --let $col = CHAR(36) CHARACTER SET utf8mb4
+    --let $val = _utf8mb4 0xC3A9C3A9C3A9C3A9C3A9
+  }
+  if ($shape == 2)
+  {
+    --let $name = CHAR(36) utf8mb3
+    --let $col = CHAR(36) CHARACTER SET utf8mb3
+    --let $val = _utf8mb3 0xC3A9C3A9C3A9C3A9C3A9
+  }
+  if ($shape == 3)
+  {
+    --let $name = CHAR(36) utf8mb4, four byte characters
+    --let $col = CHAR(36) CHARACTER SET utf8mb4
+    --let $val = _utf8mb4 0xF09F9880F09F9880F09F9880F09F9880F09F9880
+  }
+  if ($shape == 4)
+  {
+    --let $name = CHAR(36) utf8mb4_bin
+    --let $col = CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+    --let $val = _utf8mb4 0xC3A9C3A9C3A9C3A9C3A9
+  }
+  if ($shape == 5)
+  {
+    --let $name = CHAR(36) utf8mb4, ROW_FORMAT=REDUNDANT
+    --let $col = CHAR(36) CHARACTER SET utf8mb4
+    --let $val = _utf8mb4 0xC3A9C3A9C3A9C3A9C3A9
+    --let $opt = ENGINE=InnoDB ROW_FORMAT=REDUNDANT
+  }
+  if ($shape == 6)
+  {
+    --let $name = CHAR(36) utf16
+    --let $col = CHAR(36) CHARACTER SET utf16
+    --let $val = _utf16 0x00E900E900E900E900E9
+  }
+  if ($shape == 7)
+  {
+    --let $name = CHAR(36) ucs2
+    --let $col = CHAR(36) CHARACTER SET ucs2
+    --let $val = _ucs2 0x00E900E900E900E900E9
+  }
+  if ($shape == 8)
+  {
+    --let $name = CHAR(36) latin1
+    --let $col = CHAR(36) CHARACTER SET latin1
+    --let $val = _latin1 0xE9E9E9E9E9
+  }
+  if ($shape == 9)
+  {
+    --let $name = CHAR(36) utf8mb4, ASCII value
+    --let $col = CHAR(36) CHARACTER SET utf8mb4
+    --let $val = _utf8mb4 0x6162636465
+  }
+  if ($shape == 10)
+  {
+    --let $name = VARCHAR(36) utf8mb4
+    --let $col = VARCHAR(36) CHARACTER SET utf8mb4
+    --let $val = _utf8mb4 0xC3A9C3A9C3A9C3A9C3A9
+  }
+ 
+  --echo # Shape $shape: $name
+  --disable_connect_log
+  --connection node_1
+  --disable_query_log
+  --eval CREATE TABLE p (id $col PRIMARY KEY, v INT) $opt
+  --eval CREATE TABLE c (id INT AUTO_INCREMENT PRIMARY KEY, p_id $col NOT NULL, KEY k (p_id), FOREIGN KEY (p_id) REFERENCES p (id)) $opt
+  --eval CREATE TABLE f (id INT AUTO_INCREMENT PRIMARY KEY, pad CHAR(255)) $opt
+  --eval INSERT INTO p VALUES ($val, 0)
+  --enable_query_log
+  --enable_connect_log
+
+  --let $i = 0
+  --let $round = 10
+  while ($round)
+  {
+    --inc $i
+    --disable_connect_log
+    --connection node_1
+    --disable_query_log
+    BEGIN;
+    INSERT INTO f (pad) SELECT REPEAT('x',255) FROM seq_1_to_2000;
+    --eval INSERT INTO c (p_id) VALUES ($val)
+    COMMIT;
+    --eval UPDATE p SET v = v + 1 WHERE id = $val
+    --enable_query_log
+
+    --connection node_2a
+    --let $wait_timeout = 30
+    --let $wait_condition = SELECT COUNT(*) = $i FROM c
+    --source include/wait_condition.inc
+    --enable_connect_log
+
+    if (!$success)
+    {
+      SELECT ID, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+      SELECT trx_id, trx_state, trx_mysql_thread_id, trx_query FROM INFORMATION_SCHEMA.INNODB_TRX;
+      --die Node 2 stopped applying. The two appliers are deadlocked on the foreign key parent row.
+    }
+    --dec $round
+  }
+
+  --disable_connect_log
+  --connection node_1
+  --disable_query_log
+  DROP TABLE c, p, f;
+  --enable_query_log
+  --enable_connect_log
+}
+ 
+--connection node_2
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+--disconnect node_2a
