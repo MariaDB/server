@@ -1,0 +1,195 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # A procedure with a plain SELECT needs CLIENT_MULTI_RESULTS
+--echo #
+
+CREATE PROCEDURE p1() SELECT 1 AS c;
+CALL p1;
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+--error ER_SP_BADSELECT
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A CALL of a procedure with EXECUTE requires the client
+--echo # to support CLIENT_MULTI_RESULTS: the executed statement
+--echo # can return a result set.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  PREPARE stmt FROM 'SELECT 1 AS c';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1;
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+--error ER_SP_BADSELECT
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # The same for EXECUTE IMMEDIATE
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c';
+END;
+$$
+DELIMITER ;$$
+
+CALL p1;
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+--error ER_SP_BADSELECT
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A procedure without EXECUTE does not need CLIENT_MULTI_RESULTS,
+--echo # even if it uses PREPARE and DEALLOCATE PREPARE.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  PREPARE stmt FROM 'SELECT 1 AS c';
+  DEALLOCATE PREPARE stmt;
+END;
+$$
+DELIMITER ;$$
+
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A procedure calling a function with a prepared statement
+--echo # in the assignment right hand does not return a result set,
+--echo # so it does not need CLIENT_MULTI_RESULTS.
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f1();
+END;
+$$
+DELIMITER ;$$
+
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A procedure with EXECUTE 'INSERT..' called from a function
+--echo # used in a safe context.
+--echo # The client capability is not relevant here.
+--echo # The CALL works with and without the client capability.
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3();
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+CALL p1;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+CALL p1;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A procedure with EXECUTE 'SELECT..' called from a function
+--echo # used in a safe context.
+--echo # The client capability is not relevant here: a dynamic statement
+--echo # returning a result set inside a function is rejected at run time,
+--echo # with and without the client capability.
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3_select()
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c';
+END;
+$$
+CREATE FUNCTION f2_select() RETURNS INT
+BEGIN
+  CALL p3_select();
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  DECLARE v INT DEFAULT f2_select();
+END;
+$$
+DELIMITER ;$$
+
+SET @@session.debug_dbug='+d,sp_no_client_multi_results';
+--error ER_SP_NO_RETSET
+CALL p1_select;
+SET @@session.debug_dbug='-d,sp_no_client_multi_results';
+--error ER_SP_NO_RETSET
+CALL p1_select;
+SELECT * FROM t1;
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2_select;
+DROP PROCEDURE p3_select;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests

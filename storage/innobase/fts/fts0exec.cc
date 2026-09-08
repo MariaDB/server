@@ -652,44 +652,39 @@ bool CommonTableReader::extract_common_fields(
   return true;
 }
 
+/** WHERE predicate for the common tables: every row qualifies. */
+static RecordCompareAction common_accept_all(
+  const dtuple_t *search_tuple, const rec_t *rec,
+  const dict_index_t *index, const rec_offs *offsets)
+{
+  return RecordCompareAction::PROCESS;
+}
+
+RecordProcessor CommonTableReader::make_processor()
+{
+  return [this](const rec_t *rec, const dict_index_t *index,
+                const rec_offs *offsets) -> dberr_t
+  {
+    doc_id_t doc_id;
+    if (!extract_common_fields(rec, index, &doc_id))
+      return DB_CORRUPTION;
+    *static_cast<doc_id_t*>(ib_vector_push(m_doc_ids, nullptr))= doc_id;
+    return DB_SUCCESS;
+  };
+}
+
 /* Both constructors share the same callbacks: extract each
 doc_id and append it to m_doc_ids; the WHERE predicate accepts
 every row.  They differ only in whether m_doc_ids is owned
 or borrowed from the caller */
 CommonTableReader::CommonTableReader()
-  : RecordCallback(
-      [this](const rec_t *rec, const dict_index_t *index,
-             const rec_offs *offsets) -> dberr_t
-      {
-        doc_id_t doc_id;
-        if (!extract_common_fields(rec, index, &doc_id))
-          return DB_CORRUPTION;
-        *static_cast<doc_id_t*>(ib_vector_push(m_doc_ids, nullptr))= doc_id;
-        return DB_SUCCESS;
-      },
-      [](const dtuple_t *search_tuple, const rec_t *rec,
-         const dict_index_t *index, const rec_offs *offsets)
-           -> RecordCompareAction
-      { return RecordCompareAction::PROCESS; }),
+  : RecordCallback(make_processor(), common_accept_all),
     m_heap(mem_heap_create(512)),
     m_doc_ids(ib_vector_create(ib_heap_allocator_create(m_heap),
                                sizeof(doc_id_t), 32)) {}
 
 CommonTableReader::CommonTableReader(ib_vector_t *dest)
-  : RecordCallback(
-      [this](const rec_t *rec, const dict_index_t *index,
-             const rec_offs *offsets) -> dberr_t
-      {
-        doc_id_t doc_id;
-        if (!extract_common_fields(rec, index, &doc_id))
-          return DB_CORRUPTION;
-        *static_cast<doc_id_t*>(ib_vector_push(m_doc_ids, nullptr))= doc_id;
-        return DB_SUCCESS;
-      },
-      [](const dtuple_t *search_tuple, const rec_t *rec,
-         const dict_index_t *index, const rec_offs *offsets)
-           -> RecordCompareAction
-      { return RecordCompareAction::PROCESS; }),
+  : RecordCallback(make_processor(), common_accept_all),
     m_heap(nullptr), m_doc_ids(dest) {}
 
 CommonTableReader::~CommonTableReader()
@@ -712,11 +707,7 @@ ConfigReader::ConfigReader() : RecordCallback(
 
     return DB_SUCCESS;
   },
-  [](const dtuple_t *search_tuple, const rec_t *rec,
-     const dict_index_t *index, const rec_offs *offsets) -> RecordCompareAction
-  {
-    return compare_config_key(search_tuple, rec, index, offsets);
-  }) {}
+  compare_config_key) {}
 
 /** Initial size of nodes in fts_word_t. */
 static const ulint FTS_WORD_NODES_INIT_SIZE= 64;

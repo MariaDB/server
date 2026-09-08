@@ -1,0 +1,45 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE PROCEDURE p2()
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+END;
+$$
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+CALL p2();
+RETURN 1;
+END;
+$$
+SELECT f1() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1 WHERE a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2 (a INT);
+CREATE PROCEDURE p2()
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (2)';
+END;
+$$
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+CALL p2();
+RETURN 1;
+END;
+$$
+SELECT f1() FROM t1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT * FROM t1 WHERE a=f1();
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+DROP FUNCTION f1;
+DROP PROCEDURE p2;
+DROP TABLE t1, t2;
+# End of 13.1 tests

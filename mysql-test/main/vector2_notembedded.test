@@ -64,3 +64,41 @@ repair table t extended;
 check table t extended;
 select v from t order by vec_distance_euclidean(0x32323232,v) limit 1;
 drop table t;
+
+--echo #
+--echo # MDEV-40793 User has access to vector info in VECTOR_INDEXES without access to column
+--echo #
+
+create database db;
+create table db.t(a int, u int, v vector(1) not null, unique(u), vector(v));
+create user u@localhost;
+grant select(a) on db.t to u@localhost;
+
+--connect u,localhost,u
+select a from db.t;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select u from db.t;
+--error ER_COLUMNACCESS_DENIED_ERROR
+select v from db.t;
+select table_name, index_name from information_schema.statistics where table_schema = 'db';
+select table_name, constraint_name from information_schema.table_constraints where table_schema = 'db';
+select table_name, index_name from information_schema.vector_indexes where table_schema = 'db';
+
+--connection default
+grant update(a) on db.t to u@localhost;
+--connection u
+select table_name, index_name from information_schema.statistics where table_schema = 'db';
+select table_name, constraint_name from information_schema.table_constraints where table_schema = 'db';
+select table_name, index_name from information_schema.vector_indexes where table_schema = 'db';
+
+--connection default
+grant select(v) on db.t to u@localhost;
+--connection u
+select table_name, index_name from information_schema.vector_indexes where table_schema = 'db';
+
+--disconnect u
+--connection default
+drop database db;
+drop user u@localhost;
+
+--echo # End of 13.1 tests

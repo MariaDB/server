@@ -1,0 +1,160 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # SUB_STMT_PS_SAFE_CONTEXT is established per call, it is not
+--echo # inherited down the call stack, so every level has to be entered
+--echo # from a safe context of its own.
+--echo #
+
+SET @save_max_sp_recursion_depth= @@max_sp_recursion_depth;
+SET @@max_sp_recursion_depth= 5;
+CREATE TABLE t1 (a INT);
+
+--echo # A function cannot call itself, with or without PS
+DELIMITER $$;
+CREATE FUNCTION f1(n INT) RETURNS INT
+BEGIN
+  DECLARE v INT DEFAULT 0;
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (1)';
+  IF n > 0 THEN
+    SET v= f1(n - 1);
+  END IF;
+  RETURN v + 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1(2);
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_NO_RECURSION
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DELETE FROM t1;
+
+--echo # Re-entering the function through its own dynamic statement
+--echo # is rejected by the same check
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT f1() INTO @x';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_NO_RECURSION
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+--echo # The dynamic statement can also re-enter the function from an
+--echo # anonymous block, where the call is in an assignment right hand
+--echo # side and would therefore be a safe context of its own. The
+--echo # recursion check rejects it just the same.
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE v INT; SET v= f1(); END';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_NO_RECURSION
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+--echo # The same with the assignment written as a DEFAULT clause
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE v INT DEFAULT f1(); END';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_NO_RECURSION
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+--echo # A recursive PROCEDURE can call a function with PS at every level:
+--echo # each level enters the function from an assignment right hand side
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (3)';
+  RETURN 3;
+END;
+$$
+CREATE PROCEDURE p1(n INT)
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+  IF n > 0 THEN
+    CALL p1(n - 1);
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL p1(3);
+SELECT COUNT(*) FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DELETE FROM t1;
+
+--echo # The safe context is not inherited: f1() is entered safely, but it
+--echo # calls f2() in RETURN, which is not an assignment right hand side
+DELIMITER $$;
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (5)';
+  RETURN 5;
+END;
+$$
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  RETURN f2();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1;
+SELECT COUNT(*) FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+DROP TABLE t1;
+SET @@max_sp_recursion_depth= @save_max_sp_recursion_depth;
+
+--echo # End of 13.1 tests

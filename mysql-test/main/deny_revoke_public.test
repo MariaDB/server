@@ -1,0 +1,227 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-40656 REVOKE DENY FROM PUBLIC can lock itself out
+--echo #
+--echo # DENY TO PUBLIC denies everyone, including whoever tries to revoke
+--echo # it. Allowed anyway when the revoker can UPDATE mysql.global_priv,
+--echo # same as hand-editing it. Checked at every scope: global, db, table,
+--echo # column, routine.
+--echo #
+
+CREATE TABLE test.t1 (id INT, data INT);
+INSERT INTO test.t1 VALUES (1, 100);
+DELIMITER |;
+CREATE PROCEDURE test.p1() BEGIN SELECT 1; END|
+DELIMITER ;|
+
+--echo #
+--echo # Same session: no bypass needed, privileges aren't re-read yet
+--echo #
+DENY SELECT ON test.t1 TO PUBLIC;
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+
+--echo #
+--echo # Table level
+--echo #
+CREATE USER u_table@localhost;
+GRANT SELECT ON test.t1 TO u_table@localhost;
+DENY SELECT ON test.t1 TO PUBLIC;
+
+connect (con_table1, localhost, u_table,,test);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+disconnect con_table1;
+connection default;
+
+GRANT UPDATE ON mysql.global_priv TO u_table@localhost;
+
+connect (con_table2, localhost, u_table,,test);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+SELECT * FROM t1;
+disconnect con_table2;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_table@localhost;
+DROP USER u_table@localhost;
+
+--echo #
+--echo # Column level
+--echo #
+CREATE USER u_col@localhost;
+GRANT SELECT ON test.t1 TO u_col@localhost;
+DENY SELECT (data) ON test.t1 TO PUBLIC;
+
+connect (con_col1, localhost, u_col,,test);
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT data FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+REVOKE DENY SELECT (data) ON test.t1 FROM PUBLIC;
+disconnect con_col1;
+connection default;
+
+GRANT UPDATE ON mysql.global_priv TO u_col@localhost;
+
+connect (con_col2, localhost, u_col,,test);
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT data FROM t1;
+REVOKE DENY SELECT (data) ON test.t1 FROM PUBLIC;
+SELECT data FROM t1;
+disconnect con_col2;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_col@localhost;
+DROP USER u_col@localhost;
+
+--echo #
+--echo # DB level
+--echo #
+CREATE USER u_db@localhost;
+GRANT SELECT ON test.* TO u_db@localhost;
+DENY SELECT ON test.* TO PUBLIC;
+
+connect (con_db1, localhost, u_db,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+--error ER_DBACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON test.* FROM PUBLIC;
+disconnect con_db1;
+connection default;
+
+GRANT UPDATE ON mysql.global_priv TO u_db@localhost;
+
+connect (con_db2, localhost, u_db,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+REVOKE DENY SELECT ON test.* FROM PUBLIC;
+SELECT * FROM test.t1;
+disconnect con_db2;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_db@localhost;
+DROP USER u_db@localhost;
+
+--echo #
+--echo # Global level
+--echo #
+CREATE USER u_global@localhost;
+GRANT SELECT ON *.* TO u_global@localhost;
+DENY SELECT ON *.* TO PUBLIC;
+
+connect (con_global1, localhost, u_global,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+--error ER_ACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON *.* FROM PUBLIC;
+disconnect con_global1;
+connection default;
+
+GRANT UPDATE ON mysql.global_priv TO u_global@localhost;
+
+connect (con_global2, localhost, u_global,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+REVOKE DENY SELECT ON *.* FROM PUBLIC;
+disconnect con_global2;
+connection default;
+
+--echo # master_access is cached at connect; needs a reconnect to take effect
+connect (con_global3, localhost, u_global,,);
+SELECT * FROM test.t1;
+disconnect con_global3;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_global@localhost;
+DROP USER u_global@localhost;
+
+--echo #
+--echo # Routine level
+--echo #
+CREATE USER u_proc@localhost;
+GRANT EXECUTE ON PROCEDURE test.p1 TO u_proc@localhost;
+DENY EXECUTE ON PROCEDURE test.p1 TO PUBLIC;
+
+connect (con_proc1, localhost, u_proc,,test);
+--error ER_PROCACCESS_DENIED_ERROR
+CALL p1();
+--error ER_PROCACCESS_DENIED_ERROR
+REVOKE DENY EXECUTE ON PROCEDURE test.p1 FROM PUBLIC;
+disconnect con_proc1;
+connection default;
+
+GRANT UPDATE ON mysql.global_priv TO u_proc@localhost;
+
+connect (con_proc2, localhost, u_proc,,test);
+--error ER_PROCACCESS_DENIED_ERROR
+CALL p1();
+REVOKE DENY EXECUTE ON PROCEDURE test.p1 FROM PUBLIC;
+CALL p1();
+disconnect con_proc2;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_proc@localhost;
+DROP USER u_proc@localhost;
+
+--echo #
+--echo # A role is not PUBLIC: no bypass, even with UPDATE on mysql.global_priv
+--echo #
+CREATE ROLE r1;
+CREATE USER u_role@localhost;
+GRANT r1 TO u_role@localhost;
+GRANT SELECT ON test.t1 TO r1;
+DENY SELECT ON test.t1 TO r1;
+GRANT UPDATE ON mysql.global_priv TO u_role@localhost;
+
+connect (con_role, localhost, u_role,,);
+SET ROLE r1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON test.t1 FROM r1;
+disconnect con_role;
+connection default;
+
+REVOKE UPDATE ON mysql.global_priv FROM u_role@localhost;
+REVOKE DENY SELECT ON test.t1 FROM r1;
+DROP USER u_role@localhost;
+DROP ROLE r1;
+
+--echo #
+--echo # Known limitation: denying the bypass's own privilege is unrecoverable
+--echo #
+DENY UPDATE ON *.* TO PUBLIC;
+
+disconnect default;
+connect (default, localhost, root,,);
+
+--echo # Should FAIL - root can't UPDATE anywhere either, including this table
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE mysql.global_priv SET Priv=Priv WHERE User='PUBLIC';
+
+--echo # Should FAIL - no recovery via REVOKE DENY once UPDATE itself is denied
+--error ER_ACCESS_DENIED_ERROR
+REVOKE DENY UPDATE ON *.* FROM PUBLIC;
+
+--echo # Recovery: DELETE was never denied
+DELETE FROM mysql.global_priv WHERE User='PUBLIC';
+FLUSH PRIVILEGES;
+
+disconnect default;
+connect (default, localhost, root,,);
+
+--echo # UPDATE works again after reconnecting
+UPDATE mysql.global_priv SET Priv=Priv WHERE User='root' AND Host='localhost';
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP PROCEDURE test.p1;
+DROP TABLE test.t1;
+DELETE FROM mysql.global_priv WHERE User='PUBLIC';
+FLUSH PRIVILEGES;
+
+--echo # End of 13.1 tests

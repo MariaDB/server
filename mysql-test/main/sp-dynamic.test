@@ -307,12 +307,14 @@ drop procedure p1|
 # PS execution if another thread drops other SP in between") is fixed.
 #
 # b) attempt to deallocate a prepared statement that is being executed
---error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG 
 create function f1() returns int
 begin
   deallocate prepare stmt;
   return 1;
 end|
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG 
+select f1()|
+drop function f1|
 
 # b)-2 a crash (#1) spotted by Sergey Petrunia during code review
 create procedure p1()

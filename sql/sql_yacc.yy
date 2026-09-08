@@ -3562,7 +3562,8 @@ sp_param_name:
 sp_param_name_and_mode_init_vars:
           sp_param_name_and_mode
           {
-            Lex->sp_variable_declarations_init(thd, 1);
+            if (Lex->sp_variable_declarations_init(thd, 1))
+              MYSQL_YYABORT;
             $$= $1;
           }
         ;
@@ -3724,7 +3725,8 @@ rec_type_body:
 sp_decl_idents_init_vars:
           sp_decl_idents
           {
-            Lex->sp_variable_declarations_init(thd, $1);
+            if (Lex->sp_variable_declarations_init(thd, $1))
+              MYSQL_YYABORT;
           }
         ;
 

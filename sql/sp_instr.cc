@@ -429,7 +429,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   {
     m_lex->unit.cleanup();
     /* Here we also commit or rollback the current statement. */
-    if (! thd->in_sub_stmt)
+    if (!thd->in_sub_stmt_ps_unsafe())
     {
       thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
@@ -438,12 +438,37 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     close_thread_tables(thd);
     thd_proc_info(thd, 0);
 
-    if (! thd->in_sub_stmt)
+    /*
+      The same condition as for the statement transaction above: a statement
+      inside a stored function entered in a safe PS context ends like a
+      statement inside a stored procedure does. Testing !in_sub_stmt here
+      would end the statement only half way: its statement transaction would
+      be committed, yet its metadata locks would not be released but
+      accumulate for the rest of the function.
+    */
+    if (!thd->in_sub_stmt_ps_unsafe())
     {
-      if (thd->transaction_rollback_request)
+      if (thd->transaction_rollback_request && !thd->in_sub_stmt)
       {
         trans_rollback_implicit(thd);
         thd->release_transactional_locks();
+      }
+      else if (thd->transaction_rollback_request)
+      {
+        /*
+          A rollback was requested by an engine (e.g. on a deadlock) while
+          we are inside a stored function. Leave the request set: the
+          rollback is done by the statement which called the function, in
+          the finish: block of mysql_execute_command().
+
+          It cannot be done here. THD::reset_sub_statement_state() saved
+          THD::variables::option_bits and restore_sub_statement_state()
+          restores them, so clearing OPTION_BEGIN in trans_rollback_implicit()
+          would be undone on the way out of the function. The caller would
+          continue with OPTION_BEGIN set and no transaction, and from then on
+          it would keep the metadata locks of every statement it runs.
+        */
+        thd->mdl_context.release_statement_locks();
       }
       else if (! thd->in_multi_stmt_transaction_mode())
         thd->release_transactional_locks();

@@ -336,6 +336,7 @@ protected:
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
   bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
   void grant_stage0(THD *thd);
+  bool should_bypass_revoke_deny(THD *thd);
 #endif
 public:
   Sql_cmd_grant(enum_sql_command command)

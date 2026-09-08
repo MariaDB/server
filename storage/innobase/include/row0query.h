@@ -27,6 +27,7 @@ Created 2025/10/30
 
 #include "btr0pcur.h"
 #include <functional>
+#include <utility>
 #include "dict0types.h"
 #include "data0types.h"
 #include "db0err.h"
@@ -77,7 +78,8 @@ public:
   RecordCallback(
     RecordProcessor processor,
     RecordComparator comparator= nullptr)
-    : process_record(processor), compare_record(comparator) {}
+    : process_record(std::move(processor)),
+      compare_record(std::move(comparator)) {}
 
   virtual ~RecordCallback()= default;
 

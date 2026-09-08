@@ -1,0 +1,304 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo # Testing various stack combinations
+
+--echo # p1, f2, p3_direct_immediate
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate()
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (9)';
+  INSERT INTO t1 VALUES (10);
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3_direct_immediate();
+  RETURN 0;
+END;
+$$
+# Top-level procedures
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2();
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2;
+DROP PROCEDURE p3_direct_immediate;
+DROP TABLE t1;
+
+
+--echo # p1, f2, p3_immediate_direct
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate()
+BEGIN
+  INSERT INTO t1 VALUES (9);
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3_direct_immediate();
+  RETURN 0;
+END;
+$$
+# Top-level procedures
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2();
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2();
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP PROCEDURE p1_select;
+DROP FUNCTION f2;
+DROP PROCEDURE p3_direct_immediate;
+DROP TABLE t1;
+
+
+--echo # p1, f2(direct+immediate+direct), p3(direct+immediate+direct)
+
+CREATE TABLE t1 (a INT);
+
+DELIMITER $$;
+CREATE PROCEDURE p3_direct_immediate_direct(OUT nrows INT)
+BEGIN
+  SET nrows= 0;
+  INSERT INTO t1 VALUES(11);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (21)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(31);
+  SET nrows= nrows + ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2_direct_immediate_direct() RETURNS INT
+BEGIN
+  DECLARE nrows INT DEFAULT 0;
+  DECLARE nrows1 INT DEFAULT 0;
+  INSERT INTO t1 VALUES(10);
+  SET nrows= nrows + ROW_COUNT();
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (20)';
+  SET nrows= nrows + ROW_COUNT();
+  INSERT INTO t1 VALUES(30);
+  SET nrows= nrows + ROW_COUNT();
+  CALL p3_direct_immediate_direct(nrows1);
+  RETURN nrows+nrows1;
+END;
+$$
+CREATE PROCEDURE p1_select()
+BEGIN
+  SELECT f2_direct_immediate_direct();
+END;
+$$
+CREATE PROCEDURE p1_default()
+BEGIN
+  DECLARE nrows INT DEFAULT f2_direct_immediate_direct();
+  SELECT nrows;
+END;
+$$
+CREATE PROCEDURE p1_set()
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f2_direct_immediate_direct();
+  SELECT nrows;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1_select();
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_default;
+SELECT * FROM t1;
+CALL p1_default;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CALL p1_set;
+SELECT * FROM t1;
+CALL p1_set;
+SELECT * FROM t1;
+DROP PROCEDURE p3_direct_immediate_direct;
+DROP FUNCTION f2_direct_immediate_direct;
+DROP PROCEDURE p1_select;
+DROP PROCEDURE p1_default;
+DROP PROCEDURE p1_set;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-40900 Procedure with dynamic SQL crashes on an InnoDB table
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (9)';
+  INSERT INTO t1 VALUES (10);
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3();
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT;
+  SET n= f2();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-40901 Unexpected Table does not exist error in procedure with PS
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p3()
+BEGIN
+   EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (9)';
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p3();
+  RETURN 0;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT;
+  SET n= f2();
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP PROCEDURE p3;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Various combinations
+--echo #
+
+
+let $i1= 0;
+while ($i1 < 4)
+{
+  let $part1=;
+  if ($i1 == 0) { let $part1=none; }
+  if ($i1 == 1) { let $part1=direct; }
+  if ($i1 == 2) { let $part1=immediate; }
+  if ($i1 == 3) { let $part1=direct_immediate; }
+  inc $i1;
+
+  echo #;
+  echo # $part1|*|*;
+  echo #;
+
+    let $i2= 0;
+    while ($i2 < 4)
+    {
+      let $part2=;
+      if ($i2 == 0) { let $part2=none; }
+      if ($i2 == 1) { let $part2=direct; }
+      if ($i2 == 2) { let $part2=immediate; }
+      if ($i2 == 3) { let $part2=direct_immediate; }
+      inc $i2;
+
+      let $param='$part1|$part2|none';
+      source ps_in_func-stack3-pfp-01.inc;
+
+      let $param='$part1|$part2|direct';
+      source ps_in_func-stack3-pfp-01.inc;
+
+      let $param='$part1|$part2|immediate';
+      source ps_in_func-stack3-pfp-01.inc;
+
+      let $param='$part1|$part2|direct_immediate';
+      source ps_in_func-stack3-pfp-01.inc;
+    }
+}
+
+
+--echo # End of 13.1 tests

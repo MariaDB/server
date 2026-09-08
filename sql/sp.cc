@@ -2976,8 +2976,13 @@ int Sroutine_hash_entry::sp_cache_routine(THD *thd, sp_head **sp) const
     CALL. The assert below should be unambiguous: the first element
     in sroutines_list has an MDL lock unless it's a top-level call, or a
     trigger, but triggers can't occur here.
+    A statement which reaches a routine containing dynamic SQL is not
+    pre-locked and takes no MDL on any of its routines at all, so none of
+    the elements has a ticket in that case, see open_and_process_routine().
   */
-  DBUG_ASSERT(mdl_request.ticket || this == thd->lex->sroutines_list.first);
+  DBUG_ASSERT(mdl_request.ticket ||
+              this == thd->lex->sroutines_list.first ||
+              thd->lex->contains_dynamic_sql());
 
   return m_handler->sp_cache_routine(thd, &name, sp);
 }

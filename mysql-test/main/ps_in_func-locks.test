@@ -1,0 +1,134 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # Statements inside a function with PS end like statements inside a
+--echo # stored procedure do: they commit their statement transaction and
+--echo # they release their metadata locks. Releasing the locks is the part
+--echo # which is easy to get half right - the statement transaction would
+--echo # be committed while the locks stayed until the function returns,
+--echo # blocking DDL on every table the function has touched so far.
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+
+--echo #
+--echo # Control: a plain stored procedure
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  DECLARE lk INT;
+  INSERT INTO t2 VALUES (1);
+  SET v= (SELECT COUNT(*) FROM t1);
+  SET lk= GET_LOCK('l1', 120);
+END;
+$$
+DELIMITER ;$$
+--let $routine= p1
+--let $comment= altered_by_control
+--source ps_in_func-locks-01.inc
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Subject: a function with PS, called in an assignment right hand side
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT;
+  DECLARE lk INT;
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (1)';
+  SET v= (SELECT COUNT(*) FROM t1);
+  SET lk= GET_LOCK('l1', 120);
+  RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  SET v= f1();
+END;
+$$
+DELIMITER ;$$
+--let $routine= p1
+--let $comment= altered_by_subject
+--source ps_in_func-locks-01.inc
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # The same for the table touched by the dynamic statement itself.
+--echo # Such a statement does not go through
+--echo # sp_lex_keeper::reset_lex_and_exec_core(), it ends in the finish:
+--echo # block of mysql_execute_command(), so it needs the metadata locks
+--echo # to be released there as well.
+--echo #
+
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE lk INT;
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (1)';
+  SET lk= GET_LOCK('l1', 120);
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  SET v= f1();
+END;
+$$
+DELIMITER ;$$
+
+connect (c2,localhost,root,,);
+connect (c3,localhost,root,,);
+
+connection c2;
+--disable_ps2_protocol
+SELECT GET_LOCK('l1', 0);
+--enable_ps2_protocol
+
+connection default;
+--send CALL p1()
+
+connection c3;
+--let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state='User lock'
+--source include/wait_condition.inc
+--send ALTER TABLE t2 COMMENT 'altered_while_f1_runs'
+
+connection c2;
+--let $wait_condition= SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='test' AND table_name='t2' AND table_comment='altered_while_f1_runs'
+--source include/wait_condition.inc
+--echo # ALTER TABLE t2 completed while f1 is still parked on the user lock
+SELECT table_comment FROM information_schema.tables
+  WHERE table_schema='test' AND table_name='t2';
+--disable_ps2_protocol
+SELECT RELEASE_LOCK('l1');
+--enable_ps2_protocol
+
+connection default;
+--reap
+--disable_ps2_protocol
+SELECT RELEASE_LOCK('l1');
+--enable_ps2_protocol
+connection c3;
+--reap
+
+connection default;
+disconnect c2;
+disconnect c3;
+connection default;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t2;
+
+--echo # End of 13.1 tests

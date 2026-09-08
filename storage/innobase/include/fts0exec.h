@@ -284,6 +284,10 @@ private:
   /** Destination for extracted doc_ids */
   ib_vector_t *m_doc_ids;
 
+  /** Build the row consumer shared by both constructors.
+  @return processor appending each extracted doc_id to m_doc_ids */
+  RecordProcessor make_processor();
+
 public:
   /** Accumulate doc_ids into the vector */
   CommonTableReader();
