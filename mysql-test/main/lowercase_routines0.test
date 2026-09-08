@@ -1,0 +1,65 @@
+#
+# Tests that require lower_case_table_names to be 0
+# (the default when the data directory is on a case sensitive file system)
+#
+--source include/have_lowercase0.inc
+--source include/have_case_sensitive_file_system.inc
+
+--echo #
+--echo # MDEV-33616 A statement cannot reference two routines whose databases
+--echo # differ only in case
+--echo #
+
+CREATE DATABASE Db1;
+CREATE DATABASE db1;
+CREATE FUNCTION Db1.f1() RETURNS INT RETURN 1;
+CREATE FUNCTION db1.f1() RETURNS INT RETURN 2;
+CREATE PROCEDURE test.p1() SELECT Db1.f1(), db1.f1();
+
+SELECT Db1.f1();
+SELECT db1.f1();
+
+# Every routine a statement names joins one set, keyed by the database and
+# the routine name.  The database name is case sensitive here, so the two
+# routines have to stay apart and each reference has to reach its own.  A
+# connection that already holds one of them in its routine cache resolves
+# both either way, so every check below starts from a connection that holds
+# neither.
+connect (con1,localhost,root,,test);
+# A view compares its column names without regard to case, so under the
+# view protocol the second column of a query like this one is given a
+# generated name.
+--disable_view_protocol
+SELECT Db1.f1(), db1.f1();
+--enable_view_protocol
+disconnect con1;
+
+connect (con2,localhost,root,,test);
+--disable_view_protocol
+SELECT db1.f1(), Db1.f1();
+--enable_view_protocol
+disconnect con2;
+
+# A statement inside a routine body builds the same set.
+connect (con3,localhost,root,,test);
+CALL test.p1();
+disconnect con3;
+
+# A routine missing from the set is neither locked nor checked against the
+# version of the routine cache, so it could execute a definition that
+# another connection had already replaced.
+connect (con4,localhost,root,,test);
+SELECT db1.f1();
+connection default;
+DROP FUNCTION db1.f1;
+CREATE FUNCTION db1.f1() RETURNS INT RETURN 99;
+connection con4;
+--disable_view_protocol
+SELECT Db1.f1(), db1.f1();
+--enable_view_protocol
+disconnect con4;
+connection default;
+
+DROP PROCEDURE test.p1;
+DROP DATABASE Db1;
+DROP DATABASE db1;
