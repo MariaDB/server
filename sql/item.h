@@ -2864,7 +2864,6 @@ public:
     return false;
   }
 
-
 protected:
   /*
     Service function for public method shallow_copy_with_checks().

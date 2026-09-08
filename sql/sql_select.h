@@ -1794,7 +1794,7 @@ public:
   SELECT_LEX_UNIT *unit;
   /// select that processed
   SELECT_LEX *select_lex;
-  /**
+  /** 
     TRUE <=> optimizer must not mark any table as a constant table.
     This is needed for subqueries in form "a IN (SELECT .. UNION SELECT ..):
     when we optimize the select that reads the results of the union from a
