@@ -27,9 +27,24 @@
 #include "sql_select.h"
 #include "item_func.h"
 
+static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
+                                    CHARSET_INFO *cs, const String *json,
+                                    bool conjunctive, json_engine_t *je);
+
+
 /*
-  Find Multi-Value Index created over array_indexed_expr.
+  @brief
+    Find Multi-Value Index created over array_indexed_expr.
+
+  @detail
+    Search the table for an index declared as
+
+     INDEX idx ((CAST(array_indexed_expr AS <DATATYPE> ARRAY));
+
+    NOTE: we currently we only locate one such index. What if there are
+          multiple?
 */
+
 static Mv_index *get_mvi_index(List<Mv_index> *indexes,
                                Item *array_indexed_expr)
 {
@@ -49,6 +64,97 @@ static Mv_index *get_mvi_index(List<Mv_index> *indexes,
     }
   }
   return NULL;
+}
+
+
+/*
+  @brief
+    Check if we can use Multi-Value Index access to read rows for this
+    predicate, if yes create an access descriptor.
+
+  @detail
+    Check if this item is a
+
+      JSON_CONTAINS(array_indexed_expr, '[foo, bar, ... ]')
+
+    which is true when ALL of the elements have a match, so the keys are
+    ANDed.
+
+  @return
+    The access descriptor, or NULL if the predicate cannot use an MVI.
+*/
+
+Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
+                                                    List<Mv_index> *indexes)
+{
+  Mv_index *index;
+  DBUG_ASSERT(fixed());
+
+  if (arg_count > 2 || !a2_constant)
+    return NULL;
+  /* Find the MVI that matches the first argument */
+  if (!(index= get_mvi_index(indexes, args[0])))
+    return NULL;
+
+  if (!a2_parsed)
+  {
+    val= args[1]->val_json(&tmp_val);
+    a2_parsed= true;
+  }
+  if (!val)
+    return NULL;
+
+  return collect_mvi_keys(thd, index, args[0]->collation.collation, val,
+                          true, &je);
+}
+
+/*
+  @brief
+    Check if we can use Multi-Value Index access to read rows for this
+    predicate, if yes create an access descriptor.
+  
+  @detail
+    We can use MVI index when the predicate has either of the forms:
+
+      JSON_OVERLAPS(array_indexed_expr, '[foo, bar, ... ]')
+      JSON_OVERLAPS('[foo, bar, ... ]', array_indexed_expr)
+
+    JSON_OVERLAPS is true when ANY of the elements has a match, so the keys
+    are ORed. 
+
+  @return
+    The access descriptor, or NULL if the predicate cannot use an MVI.
+*/
+
+Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
+                                                    List<Mv_index> *indexes)
+{
+  Mv_index *index;
+  uint literal_arg;
+  String *json;
+  StringBuffer<256> tmp;
+  DBUG_ASSERT(fixed());
+
+  if ((index= get_mvi_index(indexes, args[0])))
+    literal_arg= 1;
+  else if ((index= get_mvi_index(indexes, args[1])))
+    literal_arg= 0;
+  else
+    return NULL;
+
+  if (!args[literal_arg]->const_item())
+    return NULL;
+  if (!(json= args[literal_arg]->val_json(&tmp)))
+    return NULL;
+
+  /*
+    TODO: is this really so:
+    encode_mvi_key() must see the collation of the indexed expression: that
+    is what decides how MVI_ENCODE built the keys that are in the index.
+  */
+  return collect_mvi_keys(thd, index,
+                          args[1 - literal_arg]->collation.collation, json,
+                          false, &je);
 }
 
 
@@ -81,7 +187,7 @@ static Mv_index *get_mvi_index(List<Mv_index> *indexes,
 */
 
 static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
-                                    CHARSET_INFO *cs, String *json,
+                                    CHARSET_INFO *cs, const String *json,
                                     bool conjunctive, json_engine_t *je)
 {
   Mvi_access *access= NULL;
@@ -166,98 +272,6 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
   } while (json_scan_next(je) == 0);
 
   return depth > 0 ? NULL : access;
-}
-
-
-/*
-  @brief
-    Check if we can use Multi-Value Index access to read rows for this
-    predicate, if yes create an access descriptor.
-
-  @detail
-    Check if this item is a
-
-      JSON_CONTAINS(array_indexed_expr, '[foo, bar, ... ]')
-
-    which is true when ALL of the elements have a match, so the keys are
-    ANDed.
-
-  @return
-    The access descriptor, or NULL if the predicate cannot use an MVI.
-*/
-
-Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
-                                                    List<Mv_index> *indexes)
-{
-  Mv_index *index;
-  DBUG_ASSERT(fixed());
-
-  if (arg_count > 2 || !a2_constant)
-    return NULL;
-  /* Find the MVI that matches the first argument */
-  if (!(index= get_mvi_index(indexes, args[0])))
-    return NULL;
-
-  if (!a2_parsed)
-  {
-    val= args[1]->val_json(&tmp_val);
-    a2_parsed= true;
-  }
-  if (!val)
-    return NULL;
-
-  return collect_mvi_keys(thd, index, args[0]->collation.collation, val,
-                          true, &je);
-}
-
-
-/*
-  @brief
-    Check if we can use Multi-Value Index access to read rows for this
-    predicate, if yes create an access descriptor.
-  
-  @detail
-    We can use MVI index when the predicate has either of the forms:
-
-      JSON_OVERLAPS(array_indexed_expr, '[foo, bar, ... ]')
-      JSON_OVERLAPS('[foo, bar, ... ]', array_indexed_expr)
-
-    JSON_OVERLAPS is true when ANY of the elements has a match, so the keys
-    are ORed. 
-
-  @return
-    The access descriptor, or NULL if the predicate cannot use an MVI.
-*/
-
-Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
-                                                    List<Mv_index> *indexes)
-{
-  Mv_index *index;
-  uint literal_arg;
-  String *json;
-  StringBuffer<256> tmp;
-  DBUG_ASSERT(fixed());
-
-  if ((index= get_mvi_index(indexes, args[0])))
-    literal_arg= 1;
-  else if ((index= get_mvi_index(indexes, args[1])))
-    literal_arg= 0;
-  else
-    return NULL;
-
-  if (!args[literal_arg]->const_item())
-    return NULL;
-  if (!(json= args[literal_arg]->val_json(&tmp)))
-    return NULL;
-
-  /*
-    TODO: is this really so:
-    encode_mvi_key() must see the collation of the indexed expression: that
-    is what decides how MVI_ENCODE built the keys that are in the index.
-  */
-  return collect_mvi_keys(thd, index,
-                          args[1 - literal_arg]->collation.collation, json,
-                          false, &je);
 }
 
 
