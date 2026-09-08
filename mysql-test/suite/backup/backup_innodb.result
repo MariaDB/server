@@ -18,6 +18,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 BACKUP SERVER TO '$target_directory' WITH 4 CONCURRENT '/bin/false';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH 4 CONCURRENT '/bin/false'' at line 1
 BACKUP SERVER WITH '/bin/false';
+ERROR HY000: Incorrect arguments to BACKUP SERVER WITH
+BACKUP SERVER WITH 'no-such-command';
 ERROR HY000: IO Write error: (...) BACKUP SERVER
 BEGIN;
 DELETE FROM t;
