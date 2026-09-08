@@ -1,0 +1,94 @@
+#
+# A foreign key on a CHAR column of a variable length character set.
+#
+# The key of the child row is built from the MySQL record by
+# wsrep_store_key_val_for_row() and the key of the parent row from the InnoDB
+# record by wsrep_rec_get_foreign_key(). A CHAR is not space padded the same
+# way in the two formats: the MySQL record pads it to n_chars * mbmaxlen
+# bytes, while InnoDB strips that padding down to, but not below, n_chars
+# bytes. As that compares a byte count with a character count, a value that
+# holds a multi byte character and is shorter than the column ended up with a
+# different number of characters on the two paths, the two keys differed, the
+# child INSERT got no dependency on the parent row and the appliers were free
+# to run it in parallel with a change of that very row.
+#
+# The value used below is one two byte character in a five character column,
+# so it is padded, which is what used to make the two encodings diverge. It
+# is written as a hex literal so that the test does not depend on the
+# character set of the client connection.
+#
+# The test parks the applier of the child INSERT and replicates an UPDATE of
+# the parent row after it, then verifies that the UPDATE had to wait.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE p (id CHAR(5) CHARACTER SET utf8mb4 PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (id INT AUTO_INCREMENT PRIMARY KEY,
+                p_id CHAR(5) CHARACTER SET utf8mb4 NOT NULL,
+                KEY k (p_id),
+                FOREIGN KEY (p_id) REFERENCES p (id)) ENGINE=InnoDB;
+INSERT INTO p VALUES (_utf8mb4 0xC3A9, 0);
+
+--connection node_2
+# Catch up with node_1 with a causal read before causal reads are turned off.
+SET SESSION wsrep_sync_wait = 1;
+--disable_query_log
+--disable_result_log
+SELECT COUNT(*) FROM p;
+--enable_result_log
+--enable_query_log
+SET SESSION wsrep_sync_wait = 0;
+
+# Two appliers, so that the two writesets below *can* be applied in parallel
+# if certification does not make them depend on each other.
+SET GLOBAL wsrep_slave_threads = 2;
+
+# Park the first applier on entry to the apply monitor, i.e. before the child
+# INSERT is applied and before its FK check locks the parent row.
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+INSERT INTO c (p_id) VALUES (_utf8mb4 0xC3A9);
+
+--connection node_2
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Clear the sync point, the second applier must run into the real dependency.
+--source include/galera_clear_sync_point.inc
+
+--let $apply_waits = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_apply_waits'`
+
+--connection node_1
+UPDATE p SET v = v + 1 WHERE id = _utf8mb4 0xC3A9;
+
+--connection node_2
+# Wait until the second applier has blocked in the apply monitor because
+--let $wait_condition = SELECT (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_apply_waits') > $apply_waits
+--source include/wait_condition.inc
+
+# the second applier waited instead of applying it in parallel.
+SELECT COUNT(*) = 0 AS no_row_modified_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+
+# Release the child INSERT
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM c;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT v = 1 FROM p;
+--source include/wait_condition.inc
+
+SELECT v FROM p;
+SELECT COUNT(*) FROM c;
+
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_1
+DROP TABLE c, p;
