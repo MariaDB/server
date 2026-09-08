@@ -150,10 +150,48 @@ test
 Phase 7/8: uninstalling plugins
 Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
-Run it again - should say already completed
+Run it again - should only check system tables
 This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
-There is no need to run mysql_upgrade again.
-You can use --force if you still want to run mysql_upgrade
+Checking system tables only. Use --force to check all tables.
+Phase 1/8: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views... Skipped
+Phase 5/8: Fixing table and database names ... Skipped
+Phase 6/8: Checking and upgrading tables... Skipped
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
+OK
 Force should run it regardless of whether it has been run before
 Phase 1/8: Checking and upgrading mysql database
 Processing databases
@@ -1929,8 +1967,47 @@ Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
 There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
 This installation of MariaDB is already upgraded to X.Y.0-MariaDB.
-There is no need to run mysql_upgrade again for X.Y.Z-MariaDB, because they're both X.Y.
-You can use --force if you still want to run mysql_upgrade
+Checking system tables only. Use --force to check all tables.
+Phase 1/8: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views... Skipped
+Phase 5/8: Fixing table and database names ... Skipped
+Phase 6/8: Checking and upgrading tables... Skipped
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
+OK
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
 #
@@ -2575,4 +2652,14 @@ mysql.user has data
 # Checking that mysql.user is accessible and returns some data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
+1
+#
+# MDEV-39343 Restoring from a mysqldump from older version makes
+# mysql_upgrade version test fail
+#
+ALTER TABLE mysql.db DROP COLUMN Delete_history_priv;
+SELECT count(*) AS 'must be 1' FROM information_schema.columns
+WHERE table_schema='mysql' AND table_name='db'
+  AND column_name='Delete_history_priv';
+must be 1
 1

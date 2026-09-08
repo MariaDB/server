@@ -22,7 +22,7 @@ call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 let $MYSQLD_DATADIR= `select @@datadir`;
 file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
 
---echo Run it again - should say already completed
+--echo Run it again - should only check system tables
 --replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
 --exec $MYSQL_UPGRADE 2>&1
 
@@ -545,8 +545,26 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 --let $old_version= 10.2
 --source include/load_dump_and_upgrade.inc
 
+--let $with_mysql_upgrade_info= 1
 --let $old_version= 10.3
 --source include/load_dump_and_upgrade.inc
 
 --let $old_version= 10.4
 --source include/load_dump_and_upgrade.inc
+
+--echo #
+--echo # MDEV-39343 Restoring from a mysqldump from older version makes
+--echo # mysql_upgrade version test fail
+--echo #
+
+# Create mysql_upgrade_info with the current version
+--exec $MYSQL_UPGRADE --silent 2>&1
+file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+# Simulate restoring a dump from an older version
+ALTER TABLE mysql.db DROP COLUMN Delete_history_priv;
+# Without --force, system tables must still be checked and fixed
+--exec $MYSQL_UPGRADE --silent 2>&1
+SELECT count(*) AS 'must be 1' FROM information_schema.columns
+  WHERE table_schema='mysql' AND table_name='db'
+  AND column_name='Delete_history_priv';
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
