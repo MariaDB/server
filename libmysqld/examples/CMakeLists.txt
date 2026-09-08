@@ -33,7 +33,7 @@ IF(UNIX)
 ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mariadb-test-embedded ../../client/mysqltest.cc
-  COMPONENT Test)
+  COMPONENT Test DESTINATION ${INSTALL_LIBEXECDIR})
 TARGET_LINK_LIBRARIES(mariadb-test-embedded mysqlserver pcre2-posix pcre2-8)
 SET_SOURCE_FILES_PROPERTIES(../../client/mysqltest.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
 
@@ -51,7 +51,7 @@ IF(CMAKE_GENERATOR MATCHES "Xcode")
     ../../tests/mysql_client_test.c)
 ELSE()
   MYSQL_ADD_EXECUTABLE(mariadb-client-test-embedded ../../tests/mysql_client_test.c
-    COMPONENT Test)
+    COMPONENT Test DESTINATION ${INSTALL_LIBEXECDIR})
   SET_TARGET_PROPERTIES(mariadb-client-test-embedded  PROPERTIES HAS_CXX TRUE)
 ENDIF()
 TARGET_LINK_LIBRARIES(mariadb-client-test-embedded mysqlserver)
