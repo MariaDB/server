@@ -35,6 +35,12 @@ void Item_func_mvi_encode::append_cast_type(String *str)
       str->append(buf, length);
       str->append(')');
       break;
+    case MYSQL_TYPE_LONGLONG:
+      if (m_cast_type.type_handler()->is_unsigned())
+        str->append(STRING_WITH_LEN("unsigned"));
+      else
+        str->append(STRING_WITH_LEN("int"));
+      break;
     default:
       str->append(name.ptr(), name.length());
       break;
