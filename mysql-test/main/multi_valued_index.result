@@ -1,4 +1,4 @@
-# basic test
+# basic tests
 create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -65,6 +65,42 @@ c	j
 2	{"tags": ["1", "abcde", "", 34567]}
 DROP TABLE t1;
 set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as int array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS SIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as int array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as unsigned array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as unsigned array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
 # top level or
 create table t1 (c int, j1 json, j2 json, key idx1 ((CAST(j1->'$.tags' AS CHAR(6) ARRAY))), key idx2 ((CAST(j2->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 explain
