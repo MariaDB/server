@@ -1,5 +1,5 @@
---- ./main/innodb_ext_key.result
-+++ ./main/innodb_ext_key.reject
+--- innodb_ext_key.result
++++ innodb_ext_key,ON,UNOPTIMIZED.rdiff
 @@ -244,7 +244,7 @@
  Variable_name	Value
  Handler_read_first	0

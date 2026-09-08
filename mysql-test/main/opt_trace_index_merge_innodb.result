@@ -118,7 +118,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1000,
-                        "cost": 204.27,
+                        "cost": 201.6536043,
                         "chosen": true
                       },
                       {
@@ -138,8 +138,8 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                           "index": "key1",
                           "index_scan_cost": 1.000146475,
                           "cumulated_index_scan_cost": 1.000146475,
-                          "disk_sweep_cost": 1.004153686,
-                          "cumulative_total_cost": 2.004300162,
+                          "disk_sweep_cost": 1.001383604,
+                          "cumulative_total_cost": 2.00153008,
                           "usable": true,
                           "matching_rows_now": 1,
                           "intersect_covering_with_this_index": false,

@@ -70,6 +70,19 @@ enum {
 #define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
 #define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
 
+/** The structure of a BLOB part header */
+/* @{ */
+/*--------------------------------------*/
+#define BTR_BLOB_HDR_PART_LEN		0	/*!< BLOB part len on this
+						page */
+#define BTR_BLOB_HDR_NEXT_PAGE_NO	4	/*!< next BLOB part page no,
+						FIL_NULL if none */
+/*--------------------------------------*/
+#define BTR_BLOB_HDR_SIZE		8	/*!< Size of a BLOB
+						part header, in bytes */
+
+/* @} */
+
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
 @return pointer to compressed page, or NULL if the page is not compressed */
@@ -468,14 +481,19 @@ ha_rows btr_estimate_n_rows_in_range(dict_index_t *index,
                                      btr_pos_t *range_start,
                                      btr_pos_t *range_end);
 
-/** Gets the externally stored size of a record, in units of a database page.
-@param[in]	rec	record
-@param[in]	offsets	array returned by rec_get_offsets()
-@return externally stored part, in units of a database page */
-ulint
-btr_rec_get_externally_stored_len(
-	const rec_t*	rec,
-	const rec_offs*	offsets);
+/** Gets the offset of the pointer to the externally stored part of a field.
+@param offsets offsets of record
+@param n index of the external field
+@return offset of the pointer to the externally stored part */
+size_t btr_rec_get_field_ref_offs(const rec_offs *offsets, size_t n) noexcept;
+
+/** Gets a pointer to the externally stored part of a field.
+@param rec record
+@param offsets rec_get_offsets(rec)
+@param n index of the externally stored field
+@return pointer to the externally stored part */
+#define btr_rec_get_field_ref(rec, offsets, n)			\
+	((rec) + btr_rec_get_field_ref_offs(offsets, n))
 
 /*******************************************************************//**
 Marks non-updated off-page fields as disowned by this record. The ownership

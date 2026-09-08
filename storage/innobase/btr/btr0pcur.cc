@@ -490,17 +490,11 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	return ret_val;
 }
 
-/*********************************************************//**
-Moves the persistent cursor to the first record on the next page. Releases the
-latch on the current page, and bufferunfixes it. Note that there must not be
-modifications on the current page, as then the x-latch can be released only in
-mtr_commit. */
 dberr_t
 btr_pcur_move_to_next_page(
-/*=======================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
-				last record of the current page */
-	mtr_t*		mtr)	/*!< in: mtr */
+	btr_pcur_t*	cursor,
+	mtr_t*		mtr,
+	bool		retain_latch)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -545,8 +539,11 @@ btr_pcur_move_to_next_page(
 
 	ut_d(page_check_dir(next_page));
 
-	const auto s = mtr->get_savepoint();
-	mtr->rollback_to_savepoint(s - 2, s - 1);
+	if (!retain_latch) {
+		const auto s = mtr->get_savepoint();
+		mtr->rollback_to_savepoint(s - 2, s - 1);
+	}
+
 	if (first_access) {
 		buf_read_ahead_linear(next_block->page.id(), ibuf_inside(mtr));
 	}
