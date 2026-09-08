@@ -2673,7 +2673,7 @@ class Item_func_mvi_encode : public Item_str_ascii_func
   String tmp_js;
   json_engine_t je;
   /* Print the type the values are cast to, as CAST() spells it */
-  void append_cast_type(String *str);
+  void append_cast_type(String *str) const;
 public:
   void print(String *str, enum_query_type query_type) override;
   /*

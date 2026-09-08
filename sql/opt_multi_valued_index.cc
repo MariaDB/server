@@ -20,9 +20,13 @@
 #include "item_func.h"
 #include "my_json_writer.h"
 
-static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table, Mvi_access *access);
+static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table,
+                                               Mvi_access *access);
 
-void Item_func_mvi_encode::append_cast_type(String *str)
+/*
+  Append to *str string representation of m_cast_type.
+*/
+void Item_func_mvi_encode::append_cast_type(String *str) const
 {
   char buf[32];
   size_t length;
@@ -112,7 +116,7 @@ static longlong json_value_to_longlong(enum json_value_types type,
   };
 }
 
-/* Lifted from Type_handler method of the same name */
+/* Copied from Type_handler::store_sort_key_longlong */
 static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
                                     longlong value)
 {
@@ -182,6 +186,13 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 
   return false;
 }
+
+
+/*
+  @brief
+    Parse the JSON array argument and return a string that will be fed to the
+    fulltext index.
+*/
 
 String *Item_func_mvi_encode::val_str_ascii(String *buf)
 {
