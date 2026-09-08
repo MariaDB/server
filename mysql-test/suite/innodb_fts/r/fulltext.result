@@ -835,5 +835,18 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE t1, t2;
 #
+# MDEV-41022 Wildcard term returns no rows when combined with a
+#		phrase in boolean search
+#
+CREATE TABLE t1(f1 TEXT, FULLTEXT(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('auth code out');
+SELECT * FROM t1 WHERE MATCH(f1) AGAINST('"zzzz" aut*' IN BOOLEAN MODE);
+f1
+auth code out
+SELECT * FROM t1 WHERE MATCH(f1) AGAINST('"zzzz yyyy" @3 aut*' IN BOOLEAN MODE);
+f1
+auth code out
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
