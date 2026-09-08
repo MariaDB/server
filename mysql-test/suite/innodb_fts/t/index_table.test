@@ -17,6 +17,9 @@ CREATE TABLE articles (
 	content TEXT
 	) ENGINE= InnoDB;
 
+# The error number is reported through my_strerror(), whose text for 11
+# differs between systems, so normalize it
+--replace_regex /".*" from/"Resource temporarily unavailable" from/
 --error ER_GET_ERRNO
 SET STATEMENT debug_dbug='+d,innodb_report_deadlock' FOR
 CREATE FULLTEXT INDEX idx ON articles (title, content);
