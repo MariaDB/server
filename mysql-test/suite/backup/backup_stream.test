@@ -11,21 +11,9 @@ INSERT INTO at1 VALUES (1);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (0);
 
---remove_files_wildcard $MYSQL_TMP_DIR/. stream.bat
---write_file $MYSQL_TMP_DIR/stream.bat
-#!/bin/sh
-exec cat > $MYSQL_TMP_DIR/$1.tar
-EOF
-
---let $script=$MYSQL_TMP_DIR/stream.bat
-if (!$MARIADB_UPGRADE_EXE) {
-# Because we may run on Linux /dev/shm which may be mounted as noexec,
-# we cannot rely on chmod +x, but must explicitly invoke a shell on the script.
---let $script=/bin/sh $script
-}
 if ($MARIADB_UPGRADE_EXE)
 {
---exec echo "@cat > %MYSQL_TMP_DIR%\%1.tar" > $MYSQL_TMP_DIR/stream.bat
+--exec echo "@cat > %MYSQL_TMP_DIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
 
 BEGIN;
@@ -35,8 +23,7 @@ DELETE FROM t;
 if ($have_debug) {
 SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
 }
---replace_result $script stream.bat
-send_eval BACKUP SERVER WITH 2 CONCURRENT '$script';
+send_eval BACKUP SERVER WITH 2 CONCURRENT 'cat';
 --connection default
 if ($have_debug) {
 SET DEBUG_SYNC='now WAIT_FOR start';
@@ -47,7 +34,6 @@ SET DEBUG_SYNC='now SIGNAL resume';
 }
 --connection backup
 --reap
---remove_file $MYSQL_TMP_DIR/stream.bat
 --disconnect backup
 --connection default
 ROLLBACK;
@@ -60,9 +46,16 @@ DROP TABLE at0, at1;
 --error 0,1
 --rmdir $target_directory
 --mkdir $target_directory
+if ($MARIADB_UPGRADE_EXE)
+{
 --exec tar xf $MYSQL_TMP_DIR/1.tar -C $target_directory
 --exec tar xf $MYSQL_TMP_DIR/2.tar -C $target_directory
-
+}
+if (!$MARIADB_UPGRADE_EXE)
+{
+--exec tar xf $MARIADB_DATADIR/1.tar -C $target_directory
+--exec tar xf $MARIADB_DATADIR/2.tar -C $target_directory
+}
 --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
 
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
@@ -73,8 +66,17 @@ SELECT * FROM t;
 --error ER_OPEN_AS_READONLY
 DELETE FROM t;
 
+if ($MARIADB_UPGRADE_EXE)
+{
 --remove_file $MYSQL_TMP_DIR/1.tar
 --remove_file $MYSQL_TMP_DIR/2.tar
+--remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+if (!$MARIADB_UPGRADE_EXE)
+{
+--remove_file $MARIADB_DATADIR/1.tar
+--remove_file $MARIADB_DATADIR/2.tar
+}
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc

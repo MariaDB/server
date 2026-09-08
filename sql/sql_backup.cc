@@ -635,7 +635,24 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       check_global_access(thd, SELECT_ACL))
     return true;
 
-  if (!target);
+  if (!target)
+  {
+    /*
+      Disallow path separators and the quote character.
+    */
+    if (false ||
+#ifndef _WIN32
+        strchr(command, '\'') /* quote */ ||
+#else
+        strchr(command, '"') /* quote */ ||
+        strchr(command, '\\') /* special inside quotes */ ||
+#endif
+        strchr(command, '/') /* disallow path separator */)
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), "BACKUP SERVER WITH");
+      return true;
+    }
+  }
   else if (error_if_data_home_dir(target, "BACKUP SERVER TO"))
     return true;
   else if (!is_secure_file_path(target))
@@ -688,7 +705,20 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     char cmd[1024];
     for (int t{threads}; t; )
     {
-      if (snprintf(cmd, sizeof cmd, "%s %d", command, t) >= int(sizeof cmd))
+#ifndef _WIN32
+      /*
+        popen(3) will prepend "/bin/sh -c" which preserves the literal
+        meaning of all characters enclosed in single quotes.
+      */
+      constexpr const char cmd_fmt[]= "'mariadb-backup-%s' %d";
+#else
+      /*
+        my_win_popen() will prepend "cmd.exe /c ";
+        add double quotes around its first argument
+      */
+      constexpr const char cmd_fmt[]= "\"mariadb-backup-%s\" %d";
+#endif
+      if (size_t(snprintf(cmd, sizeof cmd, cmd_fmt, command, t)) >= sizeof cmd)
         goto oor;
       FILE *f= my_popen(cmd, "w");
       if (!f)

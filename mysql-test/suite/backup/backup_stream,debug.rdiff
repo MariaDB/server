@@ -5,7 +5,7 @@
  DELETE FROM t;
  connect backup,localhost,root;
 +SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
- BACKUP SERVER WITH 2 CONCURRENT 'stream.bat';
+ BACKUP SERVER WITH 2 CONCURRENT 'cat';
  connection default;
 +SET DEBUG_SYNC='now WAIT_FOR start';
  INSERT INTO t(a) SELECT * FROM seq_1_to_30000;

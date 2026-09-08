@@ -1,6 +1,6 @@
 --- backup_innodb.result
 +++ backup_innodb,debug.result
-@@ -20,10 +20,13 @@
+@@ -22,10 +22,13 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
