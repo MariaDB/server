@@ -1087,6 +1087,27 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 
 #endif /* UNIV_PFS_MEMORY */
 
+/** Allocate memory that is excluded from core dumps, reporting back the
+size that was actually allocated.
+
+my_large_malloc() rounds the request up to a multiple of the large page
+size and charges the rounded figure to the memory accounting, so a caller
+whose request is not already such a multiple must release the rounded
+figure rather than the one it asked for.
+
+@param[in,out]	n_bytes	bytes to allocate on entry, bytes allocated on exit
+@return the allocated memory, or NULL */
+static inline void *ut_malloc_dontdump_size(size_t *n_bytes)
+{
+	void *ptr = my_large_malloc(n_bytes, MYF(0));
+
+	if (ptr) {
+		ut_dontdump(ptr, *n_bytes, true);
+		os_total_large_mem_allocated += *n_bytes;
+	}
+	return ptr;
+}
+
 static inline void ut_free_dodump(void *ptr, size_t size)
 {
 	ut_dodump(ptr, size);
