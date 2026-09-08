@@ -796,7 +796,7 @@ END;
 $$
 ERROR 42000: OPEN..FOR does not support subqueries or stored functions
 DROP FUNCTION f1;
-# Dynamic SQL is not allowed in stored functions
+# Declaring a cursor variable is OK inside a function
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
 DECLARE v INT;
@@ -804,7 +804,12 @@ DECLARE c CURSOR FOR stmt;
 RETURN 10;
 END;
 $$
-ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT f1();
+f1()
+10
+DROP FUNCTION f1;
+# Dynamic SQL is allowed in stored functions with restrictions:
+# OK when the function is used as an assignment right hand
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
 DECLARE v INT;
@@ -815,7 +820,20 @@ CLOSE c;
 RETURN v;
 END;
 $$
+SELECT f1();
 ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v INT;
+SET v= f1();
+SELECT v;
+END;
+$$
+CALL p1;
+v
+10
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
 # Static OPEN is OK in SF, both for Standard cursors and SYS_REFCURSORs
 CREATE PROCEDURE p1()
 BEGIN

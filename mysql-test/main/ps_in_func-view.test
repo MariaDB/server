@@ -1,0 +1,87 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # MDEV-41019 Crash on PS with CREATE VIEW with function calling another PS
+--echo #
+
+--echo #
+--echo # A VIEW with a stored function containing PS (on its own, or through
+--echo # another function can be created using direct or prepared execution.
+--echo # But SELECT queries to such VIEWs are not allowed.
+--echo #
+
+--echo #
+--echo # VIEW -> f1_with_ps()
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+  UPDATE t1 SET a=11;
+  RETURN ROW_COUNT();
+END;
+$$
+DELIMITER ;$$
+
+CREATE VIEW v1 AS SELECT f1() AS c1;
+SHOW CREATE VIEW v1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM v1;
+DROP VIEW v1;
+
+EXECUTE IMMEDIATE 'CREATE VIEW v1 AS SELECT f1() AS c1';
+SHOW CREATE VIEW v1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM v1;
+DROP VIEW v1;
+
+SELECT * FROM t1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # VEIW -> f1_without_ps() -> f2_with_ps()
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'UPDATE t1 SET a=11';
+  UPDATE t1 SET a=11;
+  RETURN ROW_COUNT();
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  DECLARE nrows INT;
+  SET nrows= f1();
+  RETURN nrows;
+END;
+$$
+DELIMITER ;$$
+
+CREATE VIEW v1 AS SELECT f2() AS c1;
+SHOW CREATE VIEW v1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM v1;
+DROP VIEW v1;
+
+EXECUTE IMMEDIATE 'CREATE VIEW v1 AS SELECT f2() AS c1';
+SHOW CREATE VIEW v1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM v1;
+DROP VIEW v1;
+
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # End of 13.1 tests

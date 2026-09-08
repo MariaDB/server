@@ -1,0 +1,142 @@
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# SUB_STMT_PS_SAFE_CONTEXT is established per call, it is not
+# inherited down the call stack, so every level has to be entered
+# from a safe context of its own.
+#
+SET @save_max_sp_recursion_depth= @@max_sp_recursion_depth;
+SET @@max_sp_recursion_depth= 5;
+CREATE TABLE t1 (a INT);
+# A function cannot call itself, with or without PS
+CREATE FUNCTION f1(n INT) RETURNS INT
+BEGIN
+DECLARE v INT DEFAULT 0;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (1)';
+IF n > 0 THEN
+SET v= f1(n - 1);
+END IF;
+RETURN v + 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r INT;
+SET r= f1(2);
+END;
+$$
+CALL p1;
+ERROR HY000: Recursive stored functions and triggers are not allowed
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DELETE FROM t1;
+# Re-entering the function through its own dynamic statement
+# is rejected by the same check
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'SELECT f1() INTO @x';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r INT;
+SET r= f1();
+END;
+$$
+CALL p1;
+ERROR HY000: Recursive stored functions and triggers are not allowed
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+# The dynamic statement can also re-enter the function from an
+# anonymous block, where the call is in an assignment right hand
+# side and would therefore be a safe context of its own. The
+# recursion check rejects it just the same.
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE v INT; SET v= f1(); END';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r INT;
+SET r= f1();
+END;
+$$
+CALL p1;
+ERROR HY000: Recursive stored functions and triggers are not allowed
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+# The same with the assignment written as a DEFAULT clause
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'BEGIN NOT ATOMIC DECLARE v INT DEFAULT f1(); END';
+RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r INT;
+SET r= f1();
+END;
+$$
+CALL p1;
+ERROR HY000: Recursive stored functions and triggers are not allowed
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+# A recursive PROCEDURE can call a function with PS at every level:
+# each level enters the function from an assignment right hand side
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (3)';
+RETURN 3;
+END;
+$$
+CREATE PROCEDURE p1(n INT)
+BEGIN
+DECLARE r INT;
+SET r= f1();
+IF n > 0 THEN
+CALL p1(n - 1);
+END IF;
+END;
+$$
+CALL p1(3);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+4
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DELETE FROM t1;
+# The safe context is not inherited: f1() is entered safely, but it
+# calls f2() in RETURN, which is not an assignment right hand side
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (5)';
+RETURN 5;
+END;
+$$
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+RETURN f2();
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r INT;
+SET r= f1();
+END;
+$$
+CALL p1;
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+SET @@max_sp_recursion_depth= @save_max_sp_recursion_depth;
+# End of 13.1 tests

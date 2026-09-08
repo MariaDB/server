@@ -1,0 +1,52 @@
+--- ps_in_func-condition-handler.result	2026-08-28 12:14:17.026330090 +0400
++++ ps_in_func-condition-handler,innodb.reject	2026-08-28 12:14:37.257080495 +0400
+@@ -37,12 +37,8 @@
+ START TRANSACTION;
+ CALL p1;
+ ROLLBACK;
+-Warnings:
+-Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ SELECT * FROM t1;
+ a
+-10
+-20
+ SELECT @error;
+ @error
+ Error caught
+@@ -86,12 +82,8 @@
+ START TRANSACTION;
+ CALL p1;
+ ROLLBACK;
+-Warnings:
+-Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ SELECT * FROM t1;
+ a
+-10
+-20
+ SELECT @error;
+ @error
+ Error caught
+@@ -137,11 +129,8 @@
+ CALL p1;
+ ERROR 22003: Out of range value for column 'a' at row 1
+ ROLLBACK;
+-Warnings:
+-Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ SELECT * FROM t1;
+ a
+-10
+ SELECT @error;
+ @error
+ Error caught
+@@ -187,11 +176,8 @@
+ CALL p1;
+ ERROR 22003: Out of range value for column 'a' at row 1
+ ROLLBACK;
+-Warnings:
+-Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ SELECT * FROM t1;
+ a
+-10
+ SELECT @error;
+ @error
+ Error caught

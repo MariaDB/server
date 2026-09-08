@@ -3090,11 +3090,75 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   }
 
   /*
+    If the stored function is in a safe PS context, such as in the right
+    hand of an assignment:
+      SET spvar= f1();
+    then pass SUB_STMT_PS_SAFE_CONTEXT into reset_sub_statement_state(),
+    to allow execution of prepared statements inside the function.
+
+    Note, SUB_STMT_PS_SAFE_CONTEXT does more than just allowing PS.
+    It also switches the statements inside the function to the
+    procedure-alike execution mode: they are not pre-locked by the caller,
+    they open and lock their tables themselves and they commit the statement
+    transaction at the end.
+    This is only correct when the current statement really did not pre-lock
+    anything, that is when some routine reachable from the current statement
+    contains dynamic SQL, so LEX::contains_dynamic_sql() is set and
+    Query_tables_list::requires_prelocking() returned false.
+
+    If the current statement is pre-locked (the usual case: no dynamic SQL
+    anywhere in the call stack), then the tables used by the function were
+    opened and locked by the caller, and the caller is in the middle of its
+    own statement. We don't pass SUB_STMT_PS_SAFE_CONTEXT in this case.
+    See the test covering MDEV-40914 in main/ps_in_func*.test.
+  */
+  uint sub_stmt_safe_context=
+      !thd->in_sub_stmt_ps_unsafe() &&
+      thd->lex->contains_dynamic_sql() /*PS reachable: no prelocking*/ &&
+      is_in_ps_safe_context() ?
+      SUB_STMT_PS_SAFE_CONTEXT : 0;
+
+  /*
+    A function with dynamic SQL (directly, or in the callees) is not pre-locked,
+    see Query_tables_list::requires_prelocking(). So the calling statement did
+    not enter prelocked mode and thd->lock belongs to the caller alone.
+
+    Outside of a safe PS context a dynamic statement inside the function is
+    rejected by THD::error_if_in_sub_stmt_ps_unsafe(), but the rejected
+    statement still goes through the usual end-of-statement cleanup:
+    close_thread_tables() does not see thd->locked_tables_mode, takes the top
+    level unlock path and releases the caller's lock while the caller is
+    still reading from its tables:
+      SELECT * FROM t1 WHERE a=f1();  -- f1() contains EXECUTE IMMEDIATE
+    Raise the same error the inner statement would raise, but before the
+    function is entered and any table state is touched.
+
+    Note, the condition tests the statement, not this particular function,
+    so a function called next to a dynamic one is rejected as well:
+      SELECT * FROM t1 WHERE a=f1() AND b=f2(); -- only f1() has a PS, yet
+                                                -- f2() is rejected too
+
+    Callers without tables of their own (SELECT f1(), or an assignment right
+    hand side) have no lock to lose and are not affected. Under LOCK TABLES
+    the caller does hold a lock, but locked_tables_mode is set, so
+    close_thread_tables() leaves it alone. Note, thd->lock is non-NULL even
+    for a statement without tables, hence the table_count check.
+  */
+  if (!sub_stmt_safe_context && !thd->locked_tables_mode &&
+      thd->lock && thd->lock->table_count &&
+      thd->lex->error_if_contains_dynamic_sql())
+  {
+    thd->security_ctx= save_security_ctx;
+    DBUG_RETURN(TRUE);
+  }
+
+  /*
     Disable the binlogging if this is not a SELECT statement. If this is a
     SELECT, leave binlogging on, so execute_function() code writes the
     function call into binlog.
   */
-  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
+  thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION |
+                                                   sub_stmt_safe_context);
 
   /*
      If this function is an aggregate function, we want to initialise the
@@ -10889,10 +10953,16 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   int err_code= item->save_in_field(field, 0);
 
+  /*
+    A routine with dynamic SQL is rejected before the trigger is invoked
+    (open_and_process_routine(), Item_sp::execute_impl()), so the evaluation
+    above cannot have closed the caller's tables: field->table is still valid.
+  */
+  DBUG_ASSERT(thd->open_tables != nullptr);
   field->table->copy_blobs= copy_blobs_saved;
   field->set_has_explicit_value();
 
-  return err_code < 0;
+  return err_code < 0 || thd->is_error()/*e.g. PS command failed*/;
 }
 
 

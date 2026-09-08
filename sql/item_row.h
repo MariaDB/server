@@ -96,6 +96,12 @@ public:
   bool null_inside() override { return with_null; };
   void bring_value() override;
 
+  void set_in_ps_safe_context() override
+  {
+    Item::set_in_ps_safe_context();
+    Item_args::set_in_ps_safe_context_args();
+  }
+
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
     override
   {

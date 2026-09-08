@@ -1,0 +1,73 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+--echo #
+--echo # A statement inside a function with PS ends the way a statement inside
+--echo # a stored procedure does, so it also honours a rollback requested by
+--echo # the engine, at the end of that statement.
+--echo #
+--echo # The server is started with --innodb-rollback-on-timeout, so the lock
+--echo # wait timeout in f1() below makes InnoDB request a rollback of the
+--echo # whole transaction while the function is running. This is the only
+--echo # way into the transaction_rollback_request branch of
+--echo # sp_lex_keeper::reset_lex_and_exec_core().
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE v INT DEFAULT 0;
+  EXECUTE IMMEDIATE 'SELECT 1 INTO @x';
+  SET v= (SELECT a FROM t1 WHERE id=1 FOR UPDATE);
+  RETURN v;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r INT;
+  SET r= f1();
+END;
+$$
+DELIMITER ;$$
+
+connect (c2,localhost,root,,);
+BEGIN;
+SELECT a FROM t1 WHERE id=1 FOR UPDATE;
+
+connection default;
+BEGIN;
+INSERT INTO t2 VALUES (1);
+--error ER_LOCK_WAIT_TIMEOUT
+CALL p1;
+
+--echo # The caller's transaction was rolled back, its row is gone.
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t2;
+
+--echo # The caller also released its metadata locks. If the rollback had
+--echo # been done inside the function, restore_sub_statement_state() would
+--echo # have brought OPTION_BEGIN back and the connection would hold the
+--echo # locks of every statement it runs from now on.
+connect (c3,localhost,root,,);
+SET SESSION lock_wait_timeout=5;
+ALTER TABLE t2 COMMENT 'altered';
+disconnect c3;
+connection default;
+
+connection c2;
+COMMIT;
+disconnect c2;
+
+connection default;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+--echo # End of 13.1 tests

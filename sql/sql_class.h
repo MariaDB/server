@@ -2429,6 +2429,7 @@ public:
 #define SUB_STMT_FUNCTION 2
 #define SUB_STMT_STAT_TABLES 4
 #define SUB_STMT_BEFORE_TRIGGER 8
+#define SUB_STMT_PS_SAFE_CONTEXT 16 // e.g. func used in assignment right hand
 
 class Sub_statement_state
 {
@@ -3626,6 +3627,67 @@ public:
 
   /* <> 0 if we are inside of trigger or stored function. */
   uint in_sub_stmt;
+
+  /*
+    Check if THD::in_sub_stmt indicates that we're in a "real" substatement.
+    A PS-safe function call is not considered as a real substatement - it
+    behaves more like a procedure call in terms of table locking and
+    transaction handling.
+
+    - Case 1a: in_sub_stmt==0
+      The current evaluation is at the top level.
+      We're not in a substatement. Return false.
+
+    - Case 1b: in_sub_stmt==0
+      The current evaluation is inside a stored procedure
+      and there are no stored functions or triggers in the call stack.
+      I.e. the call stack consists only of stored procedure calls.
+      We're not in a substatement. Return false.
+
+    - Case 2: in_sub_stmt==(SUB_STMT_FUNCTION | SUB_STMT_PS_SAFE_CONTEXT)
+      The current evaluation is inside a stored function f1() and the function
+      f1() is used in a safe context (e.g. in an assignment right hand).
+      We're not in a "real" substatement. Return false.
+
+    - Case 3: in_sub_stmt is something else
+      We're in a "real" substatement. Return true.
+  */
+  bool in_sub_stmt_ps_unsafe() const
+  {
+    return in_sub_stmt &&
+           (in_sub_stmt != (SUB_STMT_FUNCTION | SUB_STMT_PS_SAFE_CONTEXT));
+  }
+
+  /*
+    Reject a dynamic SQL statement (PREPARE, EXECUTE, DEALLOCATE PREPARE,
+    EXECUTE IMMEDIATE) which is executed in a "real" substatement, i.e. in
+    a trigger, or in a stored function called outside of a safe PS context.
+    See in_sub_stmt_ps_unsafe() above.
+
+    Note, the error message argument is hardcoded to "Dynamic SQL", so this
+    is not a general purpose substatement test. Call it only from the
+    dynamic SQL statements; use in_sub_stmt_ps_unsafe() elsewhere.
+
+    @retval true   the statement was rejected, an error was raised
+    @retval false  the statement can continue
+  */
+  bool error_if_in_sub_stmt_ps_unsafe() const
+  {
+    if (!in_sub_stmt_ps_unsafe())
+      return false;
+    raise_error_dynamic_sql_not_allowed();
+    return true;
+  }
+
+  /*
+    Check if the current statement is in the middle of something that a
+    nested prepared statement would destroy: a non-empty LEX::query_tables
+    (the whole list, not only the own tables), whose tables
+    Prepared_statement::prepare() would close, or a statement transaction,
+    which it assumes to be empty.
+  */
+  bool stmt_state_conflicts_with_ps() const;
+
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
   /*
@@ -5464,7 +5526,8 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
+    if ((wsrep_binlog_format(variables.binlog_format) == BINLOG_FORMAT_MIXED) &&
+        !in_sub_stmt_ps_unsafe())
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;

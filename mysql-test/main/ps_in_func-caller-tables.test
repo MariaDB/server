@@ -1,0 +1,315 @@
+--echo #
+--echo # MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+--echo #
+
+# Outside of an assignment right hand side, a dynamic statement inside a
+# stored function is rejected. The function must be rejected before it is
+# entered: it is not pre-locked, so the calling statement did not enter
+# prelocked mode, and the cleanup of the rejected inner statement would
+# release the caller's lock while the caller is still reading its tables.
+
+
+--echo #
+--echo # Called from the select list or the WHERE clause,
+--echo # function modifies the scanned table
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE a=f1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1() FROM t1;
+SELECT * FROM t1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Called from the select list of the WHERE clause,
+--echo # function modifies another table
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (2)';
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE a=f1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1() FROM t1;
+SELECT * FROM t2;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # A caller without tables of its own
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (1)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT DEFAULT f1();
+  SELECT n;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT 1 FROM DUAL WHERE f1();
+CALL p1();
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # An assignment right hand side is safe even with an open cursor
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE n INT;
+  DECLARE v INT;
+  DECLARE c CURSOR FOR SELECT a FROM t1 ORDER BY a;
+  OPEN c;
+  FETCH c INTO v;
+  SELECT v;
+  SET n= f1();
+  SELECT n;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1 ORDER BY a;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # The check is conservative: it is based on the static
+--echo # CONTAINS_DYNAMIC_SQL flag, so a function which only mentions a
+--echo # prepared statement without ever executing one is rejected as well
+--echo # when the caller holds table locks
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+PREPARE stmt FROM 'SELECT a FROM t1';
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE c CURSOR FOR stmt;
+  RETURN 10;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT f1() FROM t1;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE a=f1();
+DROP FUNCTION f1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A function without dynamic SQL keeps pre-MDEV-39518 behavior
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (2);
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+SELECT * FROM t1 WHERE a=f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # PS is not allowed if a function has subquery arguments:
+--echo # An assignment right hand side is safe only when the assignment
+--echo # statement has no tables of its own. A subquery in the function
+--echo # argument list opens and locks tables, and the calling statement is
+--echo # still using them while the function body runs.
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (2)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f1((SELECT MAX(a) FROM t1));
+  SELECT v;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE v INT;
+  SET v= f1((SELECT MAX(a) FROM t1));
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p2();
+--echo # Under LOCK TABLES as well
+LOCK TABLES t1 WRITE;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p2();
+UNLOCK TABLES;
+SELECT * FROM t1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # The same for a CALL of a procedure with dynamic SQL:
+--echo # a subquery in the procedure argument list opens and locks tables,
+--echo # and they stay open and locked for the entire duration of the
+--echo # procedure body.
+--echo # PS in p2() is not allowed here, as it would destroy the state
+--echo # of the caller.
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PROCEDURE p2(x INT)
+BEGIN
+  EXECUTE IMMEDIATE 'DO 1';
+END;
+$$
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  CALL p2((SELECT MAX(a) FROM t1));
+  RETURN 1;
+END;
+$$
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  CALL p2(1);
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f1();
+  SELECT v;
+END;
+$$
+CREATE PROCEDURE p1b()
+BEGIN
+  DECLARE v INT DEFAULT f2();
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+--echo # Under LOCK TABLES as well
+LOCK TABLES t1 WRITE;
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+UNLOCK TABLES;
+--echo # A CALL without tables of its own is still allowed
+CALL p1b();
+SELECT * FROM t1;
+DROP PROCEDURE p1b;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # The table can be used by a statement which does not touch
+--echo # the tables of the function itself.
+--echo # PS is not allowed anyway.
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t2 VALUES (2)';
+  RETURN 1;
+END;
+$$
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT DEFAULT f1((SELECT MAX(a) FROM t1));
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+CALL p1();
+SELECT * FROM t2;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+
+
+
+--echo # End of 13.1 tests

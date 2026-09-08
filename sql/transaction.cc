@@ -435,7 +435,8 @@ bool trans_rollback_implicit(THD *thd)
     Don't perform rollback in the middle of sub-statement, wait till
     its end.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty() && !thd->in_sub_stmt);
+  DBUG_ASSERT(thd->transaction->stmt.is_empty() &&
+              !thd->in_sub_stmt_ps_unsafe());
 
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -485,7 +486,7 @@ bool trans_commit_stmt(THD *thd)
     a savepoint for each nested statement, and release the
     savepoint when statement has succeeded.
   */
-  DBUG_ASSERT(!(thd->in_sub_stmt));
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
 
   thd->merge_unsafe_rollback_flags();
 
@@ -554,7 +555,7 @@ bool trans_rollback_stmt(THD *thd)
     a savepoint for each nested statement, and release the
     savepoint when statement has succeeded.
   */
-  DBUG_ASSERT(! thd->in_sub_stmt);
+  DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
 
   thd->merge_unsafe_rollback_flags();
 

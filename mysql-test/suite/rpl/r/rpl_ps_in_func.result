@@ -1,0 +1,196 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-39518 Allow prepared statements in stored functions in assignment right hand
+#
+#
+# p3(set) - f2(set,immediate) - f1(immediate)
+#
+connection master;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1_immediate() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (10)';
+RETURN 10;
+END;
+$$
+CREATE FUNCTION f2_set_immediate() RETURNS INT
+BEGIN
+DECLARE nrows INT;
+SET nrows= f1_immediate();
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+RETURN nrows;
+END;
+$$
+CREATE PROCEDURE p3_set()
+BEGIN
+DECLARE nrows INT;
+SET nrows= f2_set_immediate();
+END;
+$$
+CALL p3_set;
+SELECT * FROM t1;
+a
+10
+11
+connection slave;
+SELECT * FROM t1;
+a
+10
+11
+connection master;
+DROP PROCEDURE p3_set;
+DROP FUNCTION f2_set_immediate;
+DROP FUNCTION f1_immediate;
+DROP TABLE t1;
+connection slave;
+#
+# Package
+#
+connection master;
+CREATE TABLE t1 (a INT);
+CREATE PACKAGE pkg1
+PROCEDURE parse(query TEXT);
+FUNCTION exec() RETURNS INT;
+PROCEDURE close();
+END;
+$$
+CREATE PACKAGE BODY pkg1
+PROCEDURE parse(query TEXT)
+BEGIN
+PREPARE stmt FROM query;
+END;
+FUNCTION exec() RETURNS INT
+BEGIN
+EXECUTE stmt;
+RETURN ROW_COUNT();
+END;
+PROCEDURE close()
+BEGIN
+DEALLOCATE PREPARE stmt;
+END;
+END;
+$$
+CALL pkg1.parse('INSERT INTO t1 VALUES (10)');
+BEGIN NOT ATOMIC
+DECLARE nrows INT;
+SET nrows= pkg1.exec();
+SELECT nrows;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (11)';
+END;
+$$
+nrows
+1
+CALL pkg1.close();
+SELECT * FROM t1;
+a
+10
+11
+connection slave;
+SELECT * FROM t1;
+a
+10
+11
+connection master;
+DROP PACKAGE pkg1;
+SELECT * FROM t1;
+a
+10
+11
+DROP TABLE t1;
+connection slave;
+#
+# A mixture of function calls with and without PS
+#
+connection master;
+#
+# A function without PS called differently:
+# - from a procedure through a function with PS
+# - from a procedure directly
+#
+CREATE TABLE t1 (val VARCHAR(30), caller VARCHAR(128));
+CREATE FUNCTION f_without_ps(ofs INT, caller VARCHAR(128)) RETURNS INT
+BEGIN
+DECLARE caller2 VARCHAR(128) DEFAULT CONCAT(caller,'/f_without_ps');
+INSERT INTO t1 (val, caller) VALUES (ofs+1, caller2);
+INSERT INTO t1 (val, caller) VALUES (ofs+2, caller2);
+RETURN 1;
+END
+$$
+CREATE FUNCTION f_with_ps(ofs INT, caller VARCHAR(128)) RETURNS INT
+BEGIN
+DECLARE query TEXT DEFAULT 'INSERT INTO t1 (val,caller) VALUES (?,?)';
+DECLARE caller2 VARCHAR(128) DEFAULT CONCAT(caller,'/f_with_ps');
+DECLARE a INT DEFAULT f_without_ps(ofs, caller2);
+EXECUTE IMMEDIATE query USING ofs+3, caller2;
+EXECUTE IMMEDIATE query USING ofs+4, caller2;
+RETURN 1;
+END
+$$
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE query TEXT DEFAULT 'INSERT INTO t1 (val,caller) VALUES (?,?)';
+DECLARE v1 INT DEFAULT f_with_ps(100, 'p1');
+DECLARE v2 INT DEFAULT f_without_ps(200, 'p1');
+EXECUTE IMMEDIATE query USING 301, 'p1';
+EXECUTE IMMEDIATE query USING 302, 'p1';
+END $$
+CALL p1();
+SELECT * FROM t1 ORDER BY val, caller;
+val	caller
+101	p1/f_with_ps/f_without_ps
+102	p1/f_with_ps/f_without_ps
+103	p1/f_with_ps
+104	p1/f_with_ps
+201	p1/f_without_ps
+202	p1/f_without_ps
+301	p1
+302	p1
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY val, caller;
+val	caller
+101	p1/f_with_ps/f_without_ps
+102	p1/f_with_ps/f_without_ps
+103	p1/f_with_ps
+104	p1/f_with_ps
+201	p1/f_without_ps
+202	p1/f_without_ps
+301	p1
+302	p1
+connection master;
+DROP PROCEDURE p1;
+DROP FUNCTION f_with_ps;
+DROP FUNCTION f_without_ps;
+DROP TABLE t1;
+connection slave;
+#
+# MDEV-40227 Replication breaks when a function performs multiple INSERT statements with binlog_format=MIXED or STATEMENT
+#
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, v INT);
+CREATE FUNCTION f() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'INSERT INTO t1(v) VALUES (100)';
+EXECUTE IMMEDIATE 'INSERT INTO t1(v) VALUES (200)';
+RETURN 0;
+END$$
+CREATE PROCEDURE p() BEGIN DECLARE n INT DEFAULT f(); END$$
+CALL p();
+SELECT id, v FROM t1 ORDER BY id;
+id	v
+1	100
+2	200
+connection slave;
+connection slave;
+SELECT id, v FROM t1 ORDER BY id;
+id	v
+1	100
+2	200
+connection master;
+DROP PROCEDURE p;
+DROP FUNCTION f;
+DROP TABLE t1;
+connection slave;
+# End of 13.1 tests
+include/rpl_end.inc

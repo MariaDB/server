@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed_or_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-40318 MIXED binlog format does not switch an unsafe-for-SBR dynamic SQL (via PS) to ROW logging, causing replica divergence
+--echo #
+
+--connection master
+CREATE TABLE td (id INT PRIMARY KEY AUTO_INCREMENT,
+                 ts_now DATETIME(6), rnd DOUBLE, uu CHAR(36), usr_var INT) ENGINE=InnoDB;
+
+DELIMITER $$;
+CREATE FUNCTION f_nd(seed INT) RETURNS INT
+BEGIN
+  SET @uv = seed * 7;
+  EXECUTE IMMEDIATE 'INSERT INTO td (ts_now, rnd, uu, usr_var) '
+                     'VALUES (NOW(6), RAND(?), UUID(), @uv)'
+    USING seed;
+  RETURN seed;
+END $$
+CREATE PROCEDURE p_nd(seed INT)
+BEGIN
+  DECLARE r INT DEFAULT f_nd(seed);
+END $$
+DELIMITER ;$$
+
+CALL p_nd(1);
+CALL p_nd(2);
+CALL p_nd(3);
+CALL p_nd(4);
+CALL p_nd(5);
+
+EXECUTE IMMEDIATE 'INSERT INTO td (ts_now, rnd, uu, usr_var) '
+                  'VALUES (NOW(6), RAND(?), UUID(), @uv)'
+                  USING 10;
+
+SELECT COUNT(*) FROM td;
+--sync_slave_with_master
+SELECT COUNT(*) FROM td;
+
+# Compare records on the master and the slave
+--exec $MYSQL_DUMP       --compact --order-by-primary --skip-extended-insert --no-create-info test >$MYSQLTEST_VARDIR/tmp/MDEV-40318-master.sql
+--exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test >$MYSQLTEST_VARDIR/tmp/MDEV-40318-slave.sql
+--diff_files  $MYSQLTEST_VARDIR/tmp/MDEV-40318-master.sql $MYSQLTEST_VARDIR/tmp/MDEV-40318-slave.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-40318-master.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-40318-slave.sql
+
+--connection master
+DROP PROCEDURE p_nd;
+DROP FUNCTION f_nd;
+DROP TABLE td;
+--sync_slave_with_master
+--connection master
+
+
+--echo # End of 13.1 tests
+
+--source include/rpl_end.inc
