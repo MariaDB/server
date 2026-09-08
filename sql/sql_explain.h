@@ -705,7 +705,7 @@ public:
 
   const int quick_type;
 
-  bool is_basic()
+  bool is_basic() 
   {
     return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE ||
             quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
