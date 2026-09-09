@@ -3,6 +3,7 @@ call mtr.add_suppression('Event Scheduler: An error occurred when initializing s
 call mtr.add_suppression('An error occurred when loading data from the table mysql.event. System triggers not loaded');
 call mtr.add_suppression('Aborting');
 call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
+call mtr.add_suppression('Cannot open mysql.event');
 #
 # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
 #
@@ -156,9 +157,8 @@ INSERT INTO event_copy SELECT * FROM mysql.event;
 ALTER TABLE mysql.event DROP COLUMN kind;
 # Shutdown server and restart it to see how it handle broken
 # table mysql.event
-# Restart server. Expect start up failure
-# Force server start up even on broken data dictionary.
-# restart: --skip-grant-tables
+# Restart server. Expect start up success
+# restart
 # Restore original mysql.event from backup
 DROP TABLE mysql.event;
 RENAME TABLE event_copy TO mysql.event;
@@ -210,7 +210,7 @@ UPDATE mysql.event SET `when`=0 WHERE name='trg1';
 Warnings:
 Warning	1265	Data truncated for column 'when' at row 1
 SHOW CREATE TRIGGER trg1;
-ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.when value -1'
+ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.when value 0xFFFFFFFF'
 # No triggers be output since triggers having invalid metadata are skipped
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
@@ -221,13 +221,13 @@ UPDATE mysql.event SET `kind`=255 WHERE name='trg1';
 Warnings:
 Warning	1265	Data truncated for column 'kind' at row 1
 SHOW CREATE TRIGGER trg1;
-ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.kind value 63'
+ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.kind value 0x3F'
 # No triggers be output since triggers having invalid metadata are skipped
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 UPDATE mysql.event SET `kind`=0 WHERE name='trg1';
 SHOW CREATE TRIGGER trg1;
-ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.kind value 0'
+ERROR HY000: Wrong metadata for trigger 'trg1': 'Invalid event.kind value 0x0'
 SET @@sql_mode= @save_sql_mode;
 DROP TRIGGER trg1;
 #
@@ -308,3 +308,14 @@ db	kind
 test	STARTUP
 # Clean up
 DROP TRIGGER trg1;
+#
+# MDEV-40095: Server doesn't start if system triggers not loaded (if cannot open mysql.event)
+#
+RENAME TABLE mysql.event TO mysql.ev_bk;
+# restart
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+ERROR HY000: The table mysql.event doesn't contain all mandatory columns required for support of system triggers. Operations with system triggers is disabled.
+RENAME TABLE mysql.ev_bk TO mysql.event;
+# Restart server in order to reload a defintion of
+# the table mysql.event in memory
+# restart

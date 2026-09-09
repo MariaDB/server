@@ -7,6 +7,7 @@ call mtr.add_suppression('Event Scheduler: An error occurred when initializing s
 call mtr.add_suppression('An error occurred when loading data from the table mysql.event. System triggers not loaded');
 call mtr.add_suppression('Aborting');
 call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
+call mtr.add_suppression('Cannot open mysql.event');
 
 --echo #
 --echo # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
@@ -171,15 +172,10 @@ ALTER TABLE mysql.event DROP COLUMN kind;
 
 --echo # Shutdown server and restart it to see how it handle broken
 --echo # table mysql.event
---source include/shutdown_mysqld.inc
 
---echo # Restart server. Expect start up failure
---error 1
---exec $MYSQLD_LAST_CMD
-
---echo # Force server start up even on broken data dictionary.
---let $restart_parameters=--skip-grant-tables
---source include/start_mysqld.inc
+--echo # Restart server. Expect start up success
+--let $restart_parameters=
+--source include/restart_mysqld.inc
 
 --echo # Restore original mysql.event from backup
 DROP TABLE mysql.event;
@@ -369,3 +365,20 @@ SELECT db, kind FROM mysql.event WHERE name = 'trg1';
 
 --echo # Clean up
 DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40095: Server doesn't start if system triggers not loaded (if cannot open mysql.event)
+--echo #
+RENAME TABLE mysql.event TO mysql.ev_bk;
+
+--source include/restart_mysqld.inc
+
+--error ER_SYSTEM_TRG_DISABLED
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+
+# back to mariadb default
+RENAME TABLE mysql.ev_bk TO mysql.event;
+
+--echo # Restart server in order to reload a defintion of
+--echo # the table mysql.event in memory
+--source include/restart_mysqld.inc

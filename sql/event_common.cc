@@ -295,7 +295,12 @@ Event_db_repository_common::open_event_table(THD *thd,
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, lock_type);
 
   if (open_and_lock_tables(thd, &tables, false, MYSQL_LOCK_IGNORE_TIMEOUT))
+  {
+    if (enable_sys_trg != nullptr)
+      *enable_sys_trg= false;
+
     DBUG_RETURN(true);
+  }
 
   *table= tables.table;
   tables.table->use_all_columns();
@@ -323,7 +328,6 @@ Event_db_repository_common::open_event_table(THD *thd,
       mysql.event misses mandatory columns
     */
     *enable_sys_trg= false;
-    my_error(ER_SYSTEM_TRG_DISABLED, MYF(ME_WARNING));
   }
 
   /*
@@ -344,7 +348,6 @@ Event_db_repository_common::open_event_table(THD *thd,
 
   thd->commit_whole_transaction_and_close_tables();
   *table= 0;                                  // Table is now closed
-  my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
   DBUG_RETURN(true);
 }
 

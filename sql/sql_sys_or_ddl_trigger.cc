@@ -403,7 +403,6 @@ public:
 };
 
 static THD_PROCESS_WIDE *thd_for_sys_triggers= nullptr;
-static THD *original_thd= nullptr;
 
 static Sys_trigger*
 sys_triggers[TRG_ACTION_MAX][TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP]= {{nullptr}};
@@ -1239,7 +1238,7 @@ static bool check_valid_trigger_metadata(char *err_msg,
     {
       DBUG_ASSERT(cur_msg_len == 0);
       cur_msg_len+= snprintf(err_msg, err_msg_buf_sz,
-                             "Invalid event.kind value %lld",
+                             "Invalid event.kind value 0x%llX",
                              trg_kind);
       ret= true;
     }
@@ -1258,11 +1257,11 @@ static bool check_valid_trigger_metadata(char *err_msg,
         if (cur_msg_len)
           snprintf(err_msg + cur_msg_len,
                    err_msg_buf_sz - cur_msg_len,
-                   ", Invalid event.when value %lld",
+                   ", Invalid event.when value 0x%llX",
                    trg_when);
         else
           snprintf(err_msg, err_msg_buf_sz,
-                   "Invalid event.when value %lld",
+                   "Invalid event.when value 0x%llX",
                    trg_when);
         ret= true;
       }
@@ -1367,7 +1366,7 @@ static bool load_system_triggers(THD *thd,
                  "the table mysql.event. System triggers not loaded",
                  MYF(ME_ERROR_LOG));
 
-    return true;
+    return false;
   }
 
   if (!sys_triggers_enabled)
@@ -1477,8 +1476,6 @@ static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
 {
   if (thd_for_sys_triggers == nullptr)
   {
-    original_thd= current_thd;
-
     /*
       operator new() for the class THD_PROCESS_WIDE invokes my_malloc
       for memory allocaiton and passes it the flag MY_FAE that forces
@@ -1501,6 +1498,18 @@ static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
     thd_for_sys_triggers->variables.tx_read_only= false;
     lex_start(thd_for_sys_triggers);
   }
+  else
+    /*
+      In case init_thd_for_on_startup_shutdown_triggers() is called
+      the second time, the global variable thd_for_sys_triggers has been
+      already set on loading trigger on server starting up, therefore
+      thd_for_sys_triggers to current_thd in order to have not null value,
+      so that any assert checking for condition
+        table->in_use == _current_thd()
+      be satisfied
+     */
+    set_current_thd(thd_for_sys_triggers);
+
   thd_for_sys_triggers->thread_stack= stack_top;
 }
 
@@ -1520,6 +1529,7 @@ bool run_after_startup_triggers(bool bootstrap_or_noacl)
 
   bool stack_top;
 
+  THD *original_thd= current_thd;
   init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
   /*
@@ -1593,7 +1603,7 @@ static void destroy_sys_triggers()
   Release any resource allocated in runtime for support of system triggers.
 */
 
-static void release_resources()
+static void release_resources(THD *original_thd)
 {
   close_thread_tables(thd_for_sys_triggers);
   destroy_sys_triggers();
@@ -1627,15 +1637,14 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
   run_on_shutdown_triggers= true;
 
   bool stack_top;
-  init_thd_for_on_startup_shutdown_triggers(&stack_top);
+  THD *original_thd= current_thd;
 
-  original_thd= current_thd;
-  set_current_thd(thd_for_sys_triggers);
+  init_thd_for_on_startup_shutdown_triggers(&stack_top);
 
   if (load_system_triggers(thd_for_sys_triggers,
                            Event_parse_data::SYS_TRG_ON_SHUTDOWN))
   {
-    release_resources();
+    release_resources(original_thd);
     return;
   }
 
@@ -1647,7 +1656,7 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
     trg= trg->next;
   }
 
-  release_resources();
+  release_resources(original_thd);
 }
 
 
