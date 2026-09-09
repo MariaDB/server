@@ -199,7 +199,7 @@ SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mariadb")
 #
 SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 
-SET(INSTALL_RUNDATADIR_DEB              "/run/mysqld")
+SET(INSTALL_RUNDATADIR_DEB              "/run/mariadbd")
 SET(INSTALL_UNIX_ADDRDIR_DEB            "${INSTALL_RUNDATADIR_DEB}/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
