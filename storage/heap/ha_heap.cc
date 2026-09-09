@@ -849,7 +849,7 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
           seg->type= HA_KEYTYPE_VARTEXT4;       // Safe, see heap_create()
           seg->length= 4 + portable_sizeof_char_ptr;
           /* One cannot use this key for index_read() anymore */
-          seg->flag|= HA_NO_KEY_READ;
+          keydef[key].flag|= HA_NO_KEY_READ;
         }
         else
         {
