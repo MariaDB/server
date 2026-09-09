@@ -1,0 +1,87 @@
+#
+# mysqld must reject a shell-unsafe datadir on the mysqldump SST donor path
+# too: sst_donate_mysqldump() has its own copy of the check
+# sst_donate_other() and sst_prepare_other() apply.
+#
+# Both nodes bootstrap as independent single-member clusters (see
+# galera_sst_donor_datadir_injection.test for why). node_2 is then
+# explicitly joined to node_1 with wsrep_sst_method=mysqldump, so node_1
+# is selected as donor and sst_donate_mysqldump() runs.
+#
+# Steps:
+#  1. Pre-create the malicious directory (must exist before node_1 boots).
+#  2. Bring up node_1 and node_2 as independent single-member clusters.
+#  3. Create the SST user mysqldump needs on node_1.
+#  4. Join node_2 to node_1 via mysqldump, forcing node_1 to donate.
+#  5. Assert node_1 refuses to serve as donor and the payload did not run.
+#  6. Restart node_2 standalone again, leaving both nodes up for cleanup.
+#
+
+perl;
+    use File::Path;
+    my $tmp = $ENV{MYSQL_TMP_DIR};
+    unlink "$tmp/donor_dd_inj_md_marker";
+    mkpath("$tmp/donor_dd_inj_md'&touch $tmp/donor_dd_inj_md_marker&'x");
+EOF
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST failed');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('unsafe for shell interpolation');
+call mtr.add_suppression('Illegal character in variable');
+CREATE USER 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+--let $node_1_address = `SELECT @@wsrep_node_address`
+
+# join node_2 to node_1 via mysqldump, forcing node_1 to donate. node_2
+# aborts once its only donor candidate refuses, so this blocks for exit
+# rather than using start_mysqld.inc, which expects the restart to succeed.
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--error 1,134
+--exec $MYSQLD_LAST_CMD --wsrep_cluster_address=gcomm://$node_1_address --wsrep_sst_method=mysqldump --wsrep_sst_auth=sst: --wsrep-sst-receive-address=127.0.0.1:$NODE_MYPORT_2
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = unsafe for shell interpolation
+--source include/search_pattern_in_file.inc
+
+perl;
+    die "FAIL: marker created - donor-side datadir injection was NOT prevented\n"
+        if -e "$ENV{MYSQL_TMP_DIR}/donor_dd_inj_md_marker";
+    print "donor-side datadir injection prevented\n";
+EOF
+
+# unlike rsync/mariabackup, sst_prepare_mysqldump() runs no external SST
+# script on the joiner, so there is no orphaned-script log line to wait
+# for here.
+
+# undo the SST user/auth so MTR's end-of-test state check is happy.
+--connection node_1
+SET GLOBAL wsrep_sst_auth = '';
+DROP USER 'sst';
+
+# node_1's datadir stays permanently unsafe, so bring node_2 back up
+# standalone rather than retrying the join.
+--connection node_2
+perl;
+    unlink "$ENV{MYSQLTEST_VARDIR}/mysqld.2/data/grastate.dat";
+EOF
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://
+--source $MYSQL_TEST_DIR/include/start_mysqld.inc
+--let $start_mysqld_params =
+
+# suppressions are per-server and the restart above wiped node_2's, so
+# add them again now, against the freshly restarted process.
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');

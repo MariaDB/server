@@ -207,8 +207,22 @@ void wsrep_set_data_home_dir(const char *data_dir)
   data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
 }
 
-static void make_wsrep_defaults_file()
+/* Returns false if a defaults file path or the group suffix is unsafe
+   for the single-quoted interpolation below. */
+static bool make_wsrep_defaults_file()
 {
+  if ((my_defaults_file &&
+       wsrep_check_request_str(my_defaults_file, wsrep_path_char, true)) ||
+      (my_defaults_extra_file &&
+       wsrep_check_request_str(my_defaults_extra_file, wsrep_path_char, true)) ||
+      (my_defaults_group_suffix &&
+       wsrep_check_request_str(my_defaults_group_suffix, wsrep_path_char, true)))
+  {
+    WSREP_ERROR("Refusing SST: defaults file/suffix has characters unsafe "
+                "for shell interpolation.");
+    return false;
+  }
+
   if (!wsrep_defaults_file[0])
   {
     char *ptr= wsrep_defaults_file;
@@ -225,6 +239,7 @@ static void make_wsrep_defaults_file()
       ptr= strxnmov(ptr, end - ptr,
                     WSREP_SST_OPT_CONF_SUFFIX, " '", my_defaults_group_suffix, "' ", NULL);
   }
+  return true;
 }
 
 
@@ -938,24 +953,24 @@ static int sst_append_env_var(wsp::env&   env,
 #define IS_REQ_ESCAPING(c) (c == '""' || c == '%')
 #else
 /*
-  Space, single quote, ampersand, backquote, and I/O redirection
+  Space, single quote, ampersand, semicolon and I/O redirection
   characters require text to be enclosed in double quotes. The
-  semicolon is used to separate shell commands, so it must be
-  enclosed in double quotes as well:
+  backquote is escaped instead (see IS_REQ_ESCAPING), since double
+  quotes do not stop command substitution:
 */
 #define IS_SPECIAL(c) \
-  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+  (isspace(c) || c == '\'' || c == '&' || c == '|' || \
                  c ==  '>' || c == '<' || c == ';')
 /*
   Inside values, characters are interpreted as in parameter names:
 */
 #define IS_SPECIAL_V(c) IS_SPECIAL(c)
 /*
-  Double quotation mark and backslash characters require
-  backslash prefixing, the dollar symbol is used to substitute
-  a variable value, therefore it also requires escaping:
+  Double quotation mark and backslash require backslash prefixing.
+  The dollar symbol and the backquote substitute a value or a
+  command, so they require escaping as well:
 */
-#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$')
+#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$' || c == '`')
 #endif
 
 static size_t estimate_cmd_len (bool* extra_args)
@@ -1245,7 +1260,24 @@ static ssize_t sst_prepare_other (const char*  method,
     return ret;
   }
 
-  make_wsrep_defaults_file();
+  /* datadir is interpolated single-quoted into the command line below.
+     innodb-data-home-dir goes through the environment instead, so it does
+     not need this check. */
+  if (wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true))
+  {
+    WSREP_ERROR("Refusing SST: datadir has characters unsafe for shell "
+                "interpolation.");
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
+
+  if (!make_wsrep_defaults_file())
+  {
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
@@ -1626,14 +1658,28 @@ static int sst_donate_mysqldump (const char*         addr,
     return -ENOMEM;
   }
 
+  /* Checked before queries are rejected below, so that a refused SST does
+     not leave the donor rejecting queries with no way back. */
+  if ((mysqld_unix_port &&
+       wsrep_check_request_str(mysqld_unix_port, wsrep_path_char, true)) ||
+      wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true))
+  {
+    WSREP_ERROR("Refusing SST: socket or datadir has characters unsafe for "
+                "shell interpolation.");
+    return -EINVAL;
+  }
+
+  if (!make_wsrep_defaults_file())
+  {
+    return -EINVAL;
+  }
+
   /*
     we enable new client connections so that mysqldump donation can connect in,
     but we reject local connections from modifyingcdata during SST, to keep
     data intact
   */
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
-
-  make_wsrep_defaults_file();
 
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
@@ -2071,7 +2117,25 @@ static int sst_donate_other (const char*        method,
     return ret;
   }
 
-  make_wsrep_defaults_file();
+  /* socket path and datadir are interpolated single-quoted into the
+     command line below. */
+  if ((mysqld_unix_port &&
+       wsrep_check_request_str(mysqld_unix_port, wsrep_path_char, true)) ||
+      wsrep_check_request_str(mysql_real_data_home, wsrep_path_char, true))
+  {
+    WSREP_ERROR("Refusing SST: socket or datadir has characters unsafe for "
+                "shell interpolation.");
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
+
+  if (!make_wsrep_defaults_file())
+  {
+    my_free(binlog_opt_val);
+    my_free(binlog_index_opt_val);
+    return -EINVAL;
+  }
 
   std::ostringstream uuid_oss;
   uuid_oss << gtid.id();
