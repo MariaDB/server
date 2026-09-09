@@ -2285,6 +2285,49 @@ public:
 	or ONLINE_INDEX_ABORTED_DROPPED. */
 	unsigned				drop_aborted:1;
 
+	/** Values of the loading field: the table is fully loaded and
+	visible to all threads */
+	static constexpr byte NOT_LOADING= 0;
+	/** the definition (columns, indexes) is being loaded by
+	dict_load_table_one(); the object may only be accessed by the
+	loading thread */
+	static constexpr byte LOADING_DEF= 1;
+	/** the definition is complete, but the set of tables related by
+	FOREIGN KEY constraints is still being loaded by
+	dict_sys_t::load_table(); the object is still hidden from
+	dict_sys_t::find_table(), but FOREIGN KEY constraints may be
+	linked into it via dict_sys_t::find_table_fk() while holding
+	the exclusive dict_sys.latch */
+	static constexpr byte LOADING_FK= 2;
+
+	/** Progress of loading the table definition from the SYS_
+	tables; one of NOT_LOADING, LOADING_DEF, LOADING_FK.
+	Set to LOADING_DEF (under exclusive dict_sys.latch) before the
+	incomplete table object ("stub") is made visible in dict_sys,
+	advanced to LOADING_FK (under exclusive dict_sys.latch) when the
+	definition is complete, and reset to NOT_LOADING by
+	dict_sys_t::load_table() once all tables related by FOREIGN KEY
+	constraints have been loaded as well. While this is nonzero, any
+	thread other than the loader that finds this table in dict_sys
+	may only read the name, id and hash pointers, and must wait for
+	the load to finish via dict_sys.load_wait(); while this is
+	LOADING_FK, the foreign_set and referenced_set may additionally
+	be modified under the exclusive dict_sys.latch.
+	This is a separate atomic (not part of the bit-field words above)
+	because it is checked by cache lookups while the loading thread
+	is modifying the bit-fields without holding any latch.
+	Zero-initialized (NOT_LOADING) by dict_table_t::create(). */
+	Atomic_relaxed<byte>			loading;
+
+#ifdef UNIV_DEBUG
+	/** The thread that set the loading flag */
+	pthread_t				load_thread;
+
+	/** @return whether the current thread is loading this table */
+	bool is_loader() const
+	{ return loading && pthread_equal(pthread_self(), load_thread); }
+#endif
+
 	/** Array of column descriptions. */
 	dict_col_t*				cols;
 

@@ -1,0 +1,83 @@
+#
+# MDEV-35154 dict_sys_t::load_table() is holding exclusive dict_sys.latch for unnecessarily long time
+#
+CREATE TABLE t1(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(2);
+SET @save_evict= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+SET GLOBAL innodb_evict_tables_on_commit_debug=ON;
+XA START 'x';
+INSERT INTO t1 VALUES(2);
+INSERT INTO t2 VALUES(3);
+XA END 'x';
+XA PREPARE 'x';
+connect con1,localhost,root,,;
+FLUSH TABLES;
+connection default;
+XA COMMIT 'x';
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_evict;
+connection con1;
+SET DEBUG_SYNC = 'dict_load_table_one_no_latch SIGNAL loading WAIT_FOR go TIMEOUT 30';
+SELECT * FROM t1;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR loading TIMEOUT 30';
+SELECT * FROM t2;
+a
+2
+3
+connect con2,localhost,root,,;
+SELECT * FROM t1;
+connection default;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+a
+1
+2
+connection con2;
+a
+1
+2
+connection default;
+SET DEBUG_SYNC = RESET;
+DROP TABLE t1, t2;
+CREATE TABLE parent(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+FOREIGN KEY(a) REFERENCES parent(a))
+STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO parent VALUES(1);
+INSERT INTO child VALUES(1);
+SET GLOBAL innodb_evict_tables_on_commit_debug=ON;
+XA START 'y';
+INSERT INTO parent VALUES(2);
+INSERT INTO child VALUES(2);
+XA END 'y';
+XA PREPARE 'y';
+connection con1;
+FLUSH TABLES;
+connection default;
+XA COMMIT 'y';
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_evict;
+connection con1;
+SET DEBUG_SYNC = 'dict_load_table_one_no_latch SIGNAL child_loading WAIT_FOR child_go TIMEOUT 30';
+SELECT * FROM child;
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR child_loading TIMEOUT 30';
+SELECT * FROM parent;
+connection default;
+SET DEBUG_SYNC = 'now SIGNAL child_go';
+connection con1;
+a
+1
+2
+connection con2;
+a
+1
+2
+connection default;
+DELETE FROM parent WHERE a=1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`a`) REFERENCES `parent` (`a`))
+disconnect con1;
+disconnect con2;
+SET DEBUG_SYNC = RESET;
+DROP TABLE child, parent;

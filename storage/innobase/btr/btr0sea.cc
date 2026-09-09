@@ -244,6 +244,14 @@ ATTRIBUTE_COLD bool btr_search_disable()
 	for (table = UT_LIST_GET_FIRST(dict_sys.table_non_LRU); table;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
 
+		if (table->loading) {
+			/* The table definition is being loaded by another
+			thread without dict_sys.latch; walking its indexes
+			would race with that thread. Its indexes cannot have
+			any adaptive hash index references. */
+			continue;
+		}
+
 		btr_search_disable_ref_count(table);
 	}
 
