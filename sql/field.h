@@ -1227,6 +1227,25 @@ public:
     table, which is located on disk).
   */
   virtual uint32 pack_length_in_rec() const { return pack_length(); }
+  /*
+    Can this column's data be stored outside the record?
+
+    A column always takes its full declared length in the record, even
+    when the value is shorter.  Stored outside the record it keeps only
+    a length and a pointer there, and the table pays for the bytes a
+    row really uses.
+
+    So this is worth doing only for a column whose values can be
+    shorter than its declared length.  VARCHAR says yes.  Numeric types
+    and VECTOR always fill the column and say no; a BLOB is stored that
+    way already.
+
+    VECTOR has to answer for itself because it reports
+    MYSQL_TYPE_VARCHAR: Type_handler_vector is derived from
+    Type_handler_varchar and does not change field_type().  The column
+    is asked, not its type.
+  */
+  virtual bool can_store_data_out_of_line() const { return false; }
   virtual bool compatible_field_size(uint metadata, const Relay_log_info *rli,
                                      uint16 mflags, int *order) const;
   virtual uint pack_length_from_metadata(uint field_metadata) const
@@ -4348,6 +4367,7 @@ public:
   uint row_pack_length() const override { return field_length; }
   bool zero_pack() const override { return false; }
   int  reset() override { bzero(ptr,field_length+length_bytes); return 0; }
+  bool can_store_data_out_of_line() const override { return true; }
   uint32 max_data_length() const override
   {
     return field_length + (field_length > 255 ? 2 : 1);
