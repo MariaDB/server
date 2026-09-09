@@ -222,5 +222,158 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t;
 #
+# MDEV-36356 Server crash in Item::save_int_in_field and UBSAN null-pointer-use
+#
+(SELECT 1 FROM dual LIMIT 5) ORDER BY ROW_NUMBER() OVER (PARTITION BY 1);
+1
+1
+(SELECT 1 FROM dual LIMIT 5) ORDER BY ROW_NUMBER() OVER ();
+1
+1
+(SELECT 5 a FROM dual LIMIT 1) ORDER BY AVG(a) OVER (ORDER BY 1);
+a
+5
+(SELECT CAST('1973' AS DATETIME) a FROM dual LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+a
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1973'
+(SELECT CAST('1973' AS CHAR) a FROM dual LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+a
+1973
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+(SELECT CAST('' AS CHAR) a LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+a
+
+SET sql_mode= @save_sql_mode;
+((SELECT 1) FOR UPDATE WAIT + 1) ORDER BY PERCENTILE_DISC(COUNT(*)) WITHIN GROUP(ORDER BY 1) OVER();
+1
+1
+((SELECT 1) FOR UPDATE WAIT + 1) ORDER BY PERCENTILE_DISC(COUNT(*)) WITHIN GROUP(ORDER BY CURRENT_TIMESTAMP) OVER();
+1
+1
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(1),(2);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (3,1),(1,2),(2,1);
+SELECT * FROM ((SELECT a FROM t1 UNION SELECT 9 LIMIT 5) ORDER BY ROW_NUMBER() OVER ()) x ORDER BY x.a;
+a
+1
+2
+3
+9
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY (SELECT MAX(a) FROM t1))) x ORDER BY x.a;
+a
+1
+2
+3
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER () + (SELECT MAX(a) FROM t1)) x ORDER BY x.a;
+a
+1
+2
+3
+# This query used to crash, now it correctly fails with a bad field reference error
+(SELECT a FROM t1 LIMIT 5) ORDER BY (SELECT a FROM t2 WHERE t2.a = t1.a LIMIT 1);
+ERROR 42S22: Unknown column 't1.a' in 'WHERE'
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER ()) x, ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a)) y ORDER BY x.a, y.a;
+a	a
+1	1
+1	2
+1	3
+2	1
+2	2
+2	3
+3	1
+3	2
+3	3
+# The value of the window function must be the one of the derived table form
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (PARTITION BY a)) x ORDER BY x.a;
+a
+1
+2
+3
+SELECT * FROM (SELECT * FROM (SELECT a FROM t1 LIMIT 5) dt ORDER BY ROW_NUMBER() OVER (PARTITION BY a)) x ORDER BY x.a;
+a
+1
+2
+3
+# A query expression nested in the ORDER BY must not hide the window
+# function that precedes it: all of these must sort descending
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 LIMIT 1) DESC;
+a
+3
+2
+1
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 ORDER BY a LIMIT 1) DESC;
+a
+3
+2
+1
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT MAX(d.a)*0 FROM (SELECT a FROM t1 ORDER BY a) d) DESC;
+a
+3
+2
+1
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 ORDER BY a LIMIT 1) + RANK() OVER (ORDER BY a) DESC;
+a
+3
+2
+1
+# A window function referring to a window defined inside the parentheses
+# is not visible from the ORDER BY that follows them
+(SELECT a FROM t1 WINDOW w AS (ORDER BY a) LIMIT 5) ORDER BY ROW_NUMBER() OVER w;
+ERROR HY000: Window specification with name 'w' is not defined
+# A window function of a subquery of the ORDER BY stays in that subquery
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY (SELECT ROW_NUMBER() OVER () FROM t1 LIMIT 1)) x ORDER BY x.a;
+a
+1
+2
+3
+# Correlated subqueries of the ORDER BY are re-registered in the wrapper
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY EXISTS (SELECT 1 FROM t2 WHERE t2.a=a AND t2.b=a)) x ORDER BY x.a;
+a
+1
+2
+3
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY a IN (SELECT b FROM t2 WHERE t2.a=a)) x ORDER BY x.a;
+a
+1
+2
+3
+DROP TABLE t1, t2;
+CREATE TABLE t1 (c1 INT, c2 TEXT);
+INSERT INTO t1 (c1, c2) VALUES (0, 'a');
+SELECT * FROM
+{
+ta1 t1 AS ta2 NATURAL RIGHT OUTER JOIN
+(
+(
+SELECT * FROM
+{
+ta3 t1 AS ta4 NATURAL STRAIGHT_JOIN t1 AS ta5
+}
+LIMIT 1234567890 ROWS EXAMINED 1234567890 LOCK IN SHARE MODE SKIP LOCKED
+)
+ORDER BY FALSE <=> + INTERVAL NOT FALSE=FALSE IN
+(
+SELECT FALSE <=> FALSE IN (SELECT 'string')
+)
+SECOND_MICROSECOND + TRUE <=> TRUE IN (SELECT 'string') << ROW_NUMBER () OVER
+(
+PARTITION BY NOT TRUE <=> FALSE IN (SELECT 'string') DESC
+)
+IN (SELECT 'string')
+)=ta6
+NATURAL JOIN t1 AS ta7
+};
+c1	c2
+0	a
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'string'
+Warning	1292	Truncated incorrect DECIMAL value: 'string'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #

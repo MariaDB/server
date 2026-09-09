@@ -4826,7 +4826,8 @@ public:
 						     Lex_order_limit_lock *l);
   SELECT_LEX_UNIT *
   add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-					       Lex_order_limit_lock *l);
+					       Lex_order_limit_lock *l,
+					       SELECT_LEX_UNIT *first_unit);
   SELECT_LEX_UNIT *parsed_body_ext_parens_primary(SELECT_LEX_UNIT *unit,
                                                   SELECT_LEX *primary,
                                               enum sub_select_type unit_type,
