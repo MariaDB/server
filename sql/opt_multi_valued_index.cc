@@ -517,6 +517,20 @@ bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
 
 bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
 {
+  List_iterator<String> it(encoded);
+  String *have;
+  /*
+    A key we already search for adds nothing: '+ka +ka' matches what '+ka'
+    matches, and so does 'ka ka'. The lists are a handful of elements, so
+    the scan is cheaper than the extra fulltext term would be.
+  */
+  while ((have= it++))
+  {
+    if (have->length() == key->length() &&
+        !memcmp(have->ptr(), key->ptr(), key->length()))
+      return false;
+  }
+
   String *s= new (mem_root) String;
   const char *copy= (const char *) memdup_root(mem_root, key->ptr(),
                                                key->length());
@@ -529,8 +543,40 @@ bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
 
 /*
   @brief
-    Estimate how many records this access will read, and simplify the access
-    if that lets us read fewer.
+    Fold another access on the same index into this one.
+
+  @detail
+    collect_mvi_accesses() only takes the top-level AND-parts of the
+    condition, so every access it produces has to be true for every row of
+    the result. Two conjunctive accesses on one index therefore require the
+    union of their keys, and one search for '+ka +kb' finds what two separate
+    searches would - more selectively than either, at the price of one.
+
+    Only conjunctive accesses merge. Two disjunctive ones would need
+    '(ka kb) (kc kd)' to mean (a OR b) AND (c OR d), which the boolean-mode
+    query build_ft_query() puts together has no syntax for. They stay
+    separate candidates and get_best_mvi_access() picks between them.
+*/
+
+bool Mvi_access::merge(MEM_ROOT *mem_root, Mvi_access *other)
+{
+  List_iterator<String> it(other->encoded);
+  String *key;
+  DBUG_ASSERT(can_merge(other));
+  /* Merging changes the key set, so it has to happen before we cost it */
+  DBUG_ASSERT(records == HA_POS_ERROR);
+  while ((key= it++))
+  {
+    if (add_key(mem_root, key))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Estimate how many records this access will read.
 
   @detail
     The engine gives us an estimate for one element key at a time (the
@@ -544,15 +590,23 @@ bool Mvi_access::add_key(MEM_ROOT *mem_root, const String *key)
       out of the plan instead.
 
     - Conjunctive access (JSON_CONTAINS) reads the rows that have all of the
-      keys, so the rarest key alone bounds the result. Use its estimate, and
-      drop the other keys from the query: reading the rarest key and letting
-      the WHERE clause discard the rest is not worse than having the engine
-      intersect the terms. This is the trade-off collect_mvi_keys() already
-      makes for the keys it cannot encode - a shorter AND matches a superset
-      of the rows, and the JSON predicate does the exact filtering.
-      Keys the engine cannot estimate take no part in the choice. If it
-      could not estimate a single one of them we know nothing at all, so the
-      access is priced out just like a disjunctive one.
+      keys. The engine estimates one key at a time and cannot intersect them
+      for us, so assume the keys are independent:
+
+        rows ~ N * PROD(r_i / N)
+
+      clamped to the rarest key, which is a hard upper bound. The assumption
+      under-estimates correlated keys - the elements of a tag array often
+      are - but the rarest key alone over-estimates by orders of magnitude
+      as soon as the keys are at all selective, and every term we keep in
+      the query is a term the engine intersects instead of us fetching the
+      row and having the WHERE clause discard it.
+
+      Keys the engine cannot estimate take no part in the estimate but stay
+      in the query: a longer AND only narrows the scan, and the JSON
+      predicate does the exact filtering either way. If it could not
+      estimate a single one of them we know nothing at all, so the access is
+      priced out just like a disjunctive one.
 
     TODO: read_time only accounts for reading the rows, not for the fulltext
     search that produces their rowids.
@@ -563,8 +617,11 @@ void Mvi_access::estimate_records()
   TABLE *table= index->vcol->table;
   handler *file= table->file;
   List_iterator<String> it(encoded);
-  String *key, *rarest= NULL;
-  ha_rows sum= 0, min_rows= 0;
+  String *key;
+  const double n_rows= rows2double(table->stat_records());
+  double sum= 0.0, isect= n_rows;
+  ha_rows min_rows= HA_POS_ERROR;
+  uint n_estimated= 0;
   bool have_unknown_estimate= false;
 
   while ((key= it++))
@@ -576,17 +633,16 @@ void Mvi_access::estimate_records()
       have_unknown_estimate= true;
       continue;
     }
-    sum+= rows;
-    if (!rarest || rows < min_rows)
-    {
-      min_rows= rows;
-      rarest= key;
-    }
+    n_estimated++;
+    sum+= rows2double(rows);
+    set_if_smaller(min_rows, rows);
+    if (n_rows >= 1.0)
+      isect*= rows2double(rows) / n_rows;
   }
 
   if (!conjunctive && have_unknown_estimate)
   {
-    /* 
+    /*
       Disjunctive means we have to read all keys. For at least one, we have no idea
       how many matches it has.  Fall back to full scan.
     */
@@ -594,7 +650,7 @@ void Mvi_access::estimate_records()
     read_time= DBL_MAX;
     return;
   }
-  if (conjunctive && !rarest)
+  if (conjunctive && !n_estimated)
   {
     /* Nothing was estimated. Fall back to full table scan */
     records= table->stat_records();
@@ -604,17 +660,12 @@ void Mvi_access::estimate_records()
 
   if (conjunctive)
   {
-    /* Search for the rarest key only */
-    it.rewind();
-    while ((key= it++))
-    {
-      if (key != rarest)
-        it.remove();
-    }
-    records= min_rows;
+    /* The rows that have all of the keys, see above */
+    records= n_rows >= 1.0 ? (ha_rows) isect : (ha_rows) 1;
+    set_if_smaller(records, min_rows);
   }
   else
-    records= sum;
+    records= (ha_rows) sum;
 
   set_if_smaller(records, table->stat_records());
   set_if_bigger(records, (ha_rows) 1);
@@ -729,9 +780,15 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
                of this table uses, too.
 
   @detail
-    The analysis itself is scratch state: what we leave behind is the one
-    access we've settled on, in tab->mvi_access. It and the Mv_index it
-    refers to live on the MEM_ROOT, so they outlive `ctx'.
+    The analysis itself is scratch state: what we leave behind is the list of
+    accesses in tab->mvi_accesses. They and the Mv_index objects they refer
+    to live on the MEM_ROOT, so they outlive `ctx'.
+
+    Accesses on one index that both require all of their keys are merged
+    here, see Mvi_access::merge(). What is left is one candidate per index
+    and kind, and get_best_mvi_access() prices those and picks one. We put
+    no price on anything here: the estimate probes the engine's fulltext
+    index, and this runs for every table of the join.
 
     A fulltext key never gets a bit in const_keys or keys, so we set them
     here. The const_keys bit is what makes the range analysis run for this
@@ -740,13 +797,15 @@ static bool collect_mvi_accesses(Mvi_context *ctx, Item *conds)
 
   @return
     true   Out of memory
-    false  Ok, tab->mvi_access is set if the table has an MVI access
+    false  Ok, tab->mvi_accesses is set if the table has any MVI access
 */
 
 bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
 {
   Mvi_context ctx(thd);
-  Mvi_access *best= NULL;
+  MEM_ROOT *mem_root= thd->mem_root;
+  List<Mvi_access> *kept;
+
   if (!cond)
     return false;
   if (collect_mvi_indexes_for_table(thd, tab->table, &ctx.indexes))
@@ -756,32 +815,43 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
     return false;
   if (collect_mvi_accesses(&ctx, cond))
     return true;
+  if (ctx.accesses.is_empty())
+    return false;
+
+  if (!(kept= new (mem_root) List<Mvi_access>))
+    return true;
 
   List_iterator<Mvi_access> it(ctx.accesses);
-  /* TODO: cost based */
-  /*
-    TODO: merge
-
-    json_contains(j->'$.tags','"a"') and
-    json_contains(j->'$.tags','"b"')
-
-    (+ta +tb)
-  */
   while (Mvi_access *access= it++)
   {
+    Mvi_access *into;
     /*
       An access can only be on this table: ctx.indexes holds this table's
       indexes and get_mvi_index() matches the predicate against those.
     */
     DBUG_ASSERT(access->index->vcol->table == tab->table);
-    best= access;
-  }
-  if (!best)
-    return false;
 
-  tab->mvi_access= best;
-  tab->const_keys.set_bit(best->index->keyno);
-  tab->keys.set_bit(best->index->keyno);
+    /* Fold it into an access we already keep, if the two are compatible */
+    List_iterator<Mvi_access> kit(*kept);
+    while ((into= kit++))
+    {
+      if (into->can_merge(access))
+        break;
+    }
+    if (into)
+    {
+      if (into->merge(mem_root, access))
+        return true;
+      continue;
+    }
+
+    if (kept->push_back(access, mem_root))
+      return true;
+    tab->const_keys.set_bit(access->index->keyno);
+    tab->keys.set_bit(access->index->keyno);
+  }
+
+  tab->mvi_accesses= kept;
   return false;
 }
 
@@ -794,20 +864,38 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
     The range optimizer cannot produce this access (it skips fulltext keys),
     so the caller creates it here and compares its cost with whatever
     test_quick_select() came up with.
+
+    This is the only place an MVI access is priced. Where a table has more
+    than one - accesses on different indexes, which cannot be merged into a
+    single fulltext search - the cheapest one wins, on the same read_time
+    scale keep_cheaper_quick() then uses against the range access.
 */
 
 QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
 {
   TABLE *table= tab->table;
-  Mvi_access *access= tab->mvi_access;
-  if (!access)
+  Mvi_access *access, *best= NULL;
+
+  if (!tab->mvi_accesses)
     return NULL;
-  /*
-    estimate_records() drops element keys from the access, so it must run
-    only once even if we are called again for the same table.
-  */
-  if (access->records == HA_POS_ERROR)
-    access->estimate_records();
+
+  List_iterator<Mvi_access> it(*tab->mvi_accesses);
+  while ((access= it++))
+  {
+    /* estimate_records() probes the engine, so do it at most once */
+    if (access->records == HA_POS_ERROR)
+      access->estimate_records();
+    /*
+      best_access_path() takes a quick select to be cheaper than a table
+      scan without checking (the range optimizer only proposes a quick when
+      it is), so an access we could not put a price on is no use to us.
+    */
+    if (!access->cost_is_known())
+      continue;
+    if (!best || access->read_time < best->read_time)
+      best= access;
+  }
+
   if (unlikely(thd->trace_started()))
   {
     /*
@@ -818,16 +906,20 @@ QUICK_SELECT_I *get_best_mvi_access(THD *thd, JOIN_TAB *tab)
     Json_writer_object trace_wrapper(thd);
     Json_writer_object trace_mvi(thd, "multi_value_index_use");
     trace_mvi.add_table_name(table);
-    access->print_json(thd, &trace_mvi);
+    Json_writer_array trace_candidates(thd, "candidates");
+    it.rewind();
+    while ((access= it++))
+    {
+      Json_writer_object trace_one(thd);
+      access->print_json(thd, &trace_one);
+      if (access == best)
+        trace_one.add("chosen", true);
+    }
   }
-  /*
-    best_access_path() takes a quick select to be cheaper than a table scan
-    without checking (the range optimizer only proposes a quick when it is),
-    so an access we could not put a price on has to be dropped here.
-  */
-  if (!access->cost_is_known())
+
+  if (!best)
     return NULL;
-  return create_quick_mvi_select(thd, table, access);
+  return create_quick_mvi_select(thd, table, best);
 }
 
 

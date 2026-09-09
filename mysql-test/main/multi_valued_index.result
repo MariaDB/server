@@ -78,7 +78,7 @@ c	j
 explain
 select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
 select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
 c	j
 5	{"tags": [[["1"], "34567"]]}
@@ -735,6 +735,104 @@ c	txt	j
 3	alpha	{"tags": ["aaa","bbb"]}
 drop table t3;
 drop table t1, t2;
+#
+# Merging the accesses of several predicates on one index
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),
+(4,'{"tags": ["aaa","ccc"]}');
+# Two JSON_CONTAINS on the same path are one index search for both
+# keys, not a search for one of them with the other left to the
+# WHERE clause.
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"bbb"') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"bbb"') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+# a key we already search for is not searched for twice
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+select * from t1 where json_contains(j->'$.tags','["aaa","aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# JSON_OVERLAPS does not merge: (a OR b) AND (c OR d) is not a
+# boolean-mode query we can build, so the two stay separate
+# candidates and the cheaper one is used.
+select * from t1
+where json_overlaps(j->'$.tags','["aaa","bbb"]')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# ... and a conjunctive and a disjunctive access on one index do not
+# merge either
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+drop table t1;
+# Accesses on two different indexes cannot be merged into one
+# fulltext search, so the cheaper one is chosen and the other
+# predicate is left to the WHERE clause.
+create table t1 (c int, j json,
+key idx_t ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+key idx_n ((CAST(j->'$.nums' AS UNSIGNED ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"], "nums": [1,2]}'),
+(2,'{"tags": ["bbb"], "nums": [2,3]}'),
+(3,'{"tags": ["aaa"], "nums": [3,4]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx_t` ((cast(json_extract(`j`,'$.tags') as char(6) array))),
+  KEY `idx_n` ((cast(json_extract(`j`,'$.nums') as unsigned array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.nums','3') order by c;
+c	j
+3	{"tags": ["aaa"], "nums": [3,4]}
+# the same rows without the indexes:
+select * from t1 ignore index(idx_t,idx_n)
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.nums','3') order by c;
+c	j
+3	{"tags": ["aaa"], "nums": [3,4]}
+drop table t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

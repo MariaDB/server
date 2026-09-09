@@ -568,10 +568,11 @@ typedef struct st_join_table {
   key_map	needed_reg;
   key_map       keys;                           /**< all keys with can be used */
   /*
-    The multi-valued index access to use for this table, or NULL if there is
-    none. Set by setup_mvi_access_for_table().
+    The multi-valued index accesses this table's predicates allow, or NULL if
+    there are none. Set by setup_mvi_access_for_table(); get_best_mvi_access()
+    prices them and picks one.
   */
-  Mvi_access    *mvi_access;
+  List<Mvi_access> *mvi_accesses;
 
   /* Either #rows in the table or 1 for const table.  */
   ha_rows	records;
