@@ -40,6 +40,10 @@ Created 4/20/1996 Heikki Tuuri
 #include "log0log.h"
 #include "eval0eval.h"
 #include "data0data.h"
+#include "log0recv.h"
+#include "handler.h"
+#include "table.h"
+#include "ha_innodb.h"
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -47,11 +51,49 @@ Created 4/20/1996 Heikki Tuuri
 # include "btr0sea.h"
 #endif
 #include "sql_class.h" // THD
+#include <mysql/plugin.h>
+#include <mysql/service_thd_binlog.h>
+#include <mysql/service_thd_fk_cascade.h>
 #ifdef WITH_WSREP
 #include <wsrep.h>
 #include <mysql/service_wsrep.h>
 #include "ha_prototypes.h"
 #endif /* WITH_WSREP */
+
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+			  const char *table, size_t table_len);
+
+/** Find the MySQL TABLE of a cascade child table, if the statement has it
+open. Only the engine can map its own dict_table_t to a name, which is why
+this much stays here; whether the server wants anything done with the table
+is answered by thd_fk_cascade_wanted(). */
+static TABLE*
+row_ins_find_open_table_for_cascade(
+	trx_t*			trx,
+	dict_table_t*		child)
+{
+	THD*	thd;
+	TABLE*	mysql_table;
+	char	db_buf[NAME_LEN + 1];
+	char	tbl_buf[NAME_LEN + 1];
+	ulint	db_buf_len;
+	ulint	tbl_buf_len;
+
+	thd = trx->mysql_thd;
+	if (thd == NULL) {
+		return NULL;
+	}
+
+	if (!child->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+		return NULL;
+	}
+
+	mysql_table = find_fk_open_table(thd,
+					db_buf, db_buf_len,
+					tbl_buf, tbl_buf_len);
+
+	return mysql_table;
+}
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -269,7 +311,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_ins_clust_index_entry_by_modify(
 /*================================*/
-	btr_pcur_t*	pcur,	/*!< in/out: a persistent cursor pointing
+	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor pointing
 				to the clust_rec that is being modified. */
 	ulint		flags,	/*!< in: undo logging and locking flags */
 	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
@@ -299,7 +341,6 @@ row_ins_clust_index_entry_by_modify(
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing undo log record. */
 	ut_ad(rec_get_trx_id(rec, cursor->index()));
-
 	/* Build an update vector containing all the fields to be modified;
 	NOTE that this vector may NOT contain system columns trx_id or
 	roll_ptr */
@@ -1012,6 +1053,11 @@ row_ins_foreign_check_on_constraint(
 	mem_heap_t*	tmp_heap	= NULL;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 
+	TABLE*		child_mysql_table = NULL;
+	bool		need_cascade_binlog = false;
+	bool		can_cascade_binlog = false;
+	bool		have_after_image = false;
+
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
 
 	trx = thr_get_trx(thr);
@@ -1346,15 +1392,95 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
+	/*
+	  Ask the server whether it wants to be told about this cascade action,
+	  and if so let it capture the child row's before-image. Everything the
+	  server does with it -- binary logging, and in future triggers, CHECK
+	  constraints and so on -- is decided there, not here; see
+	  include/mysql/service_thd_fk_cascade.h.
+
+	  If the master has binlogged the cascaded rows, the events carry
+	  FK_CASCADE_EVENTS_F, causing the applier to run with foreign key
+	  checks disabled, and this cascade function is never reached.
+	*/
+	child_mysql_table = row_ins_find_open_table_for_cascade(trx, table);
+
+	if (child_mysql_table
+	    && thd_fk_cascade_wanted(trx->mysql_thd, child_mysql_table)) {
+		ha_innobase* ib = static_cast<ha_innobase*>(
+			child_mysql_table->file);
+		mtr_start(mtr);
+		if (cascade->pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+		    == btr_pcur_t::SAME_ALL) {
+			ib->fk_cascade_set_cursor(
+				btr_pcur_get_rec(cascade->pcur), clust_index);
+			need_cascade_binlog = !thd_fk_cascade_capture(
+				trx->mysql_thd, child_mysql_table,
+				FK_CASCADE_IMAGE_BEFORE);
+			ib->fk_cascade_set_cursor(NULL, NULL);
+		}
+		mtr_commit(mtr);
+	}
+
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
 	mtr_start(mtr);
 
+	can_cascade_binlog = (err == DB_SUCCESS && need_cascade_binlog);
+	have_after_image = false;
+
+	if (can_cascade_binlog && cascade->is_delete != PLAIN_DELETE) {
+		if (cascade->pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+		    == btr_pcur_t::SAME_ALL) {
+			const rec_t* after_rec = btr_pcur_get_rec(cascade->pcur);
+			if (page_rec_is_user_rec(after_rec)
+			    && !rec_get_deleted_flag(after_rec,
+					       dict_table_is_comp(table))) {
+				ha_innobase* ib = static_cast<ha_innobase*>(
+					child_mysql_table->file);
+				ib->fk_cascade_set_cursor(after_rec, clust_index);
+				have_after_image = !thd_fk_cascade_capture(
+					trx->mysql_thd, child_mysql_table,
+					FK_CASCADE_IMAGE_AFTER);
+				ib->fk_cascade_set_cursor(NULL, NULL);
+			}
+		}
+	}
+
 	/* Restore pcur position */
 
 	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
-	    != btr_pcur_t::SAME_ALL) {
+	    != btr_pcur_t::SAME_ALL && err == DB_SUCCESS) {
+		err = DB_CORRUPTION;
+	}
+
+	mtr_commit(mtr);
+
+	if (need_cascade_binlog) {
+		if (can_cascade_binlog
+		    && (cascade->is_delete == PLAIN_DELETE
+			|| have_after_image)) {
+			/*
+			  Report the completed action. What happens to it is
+			  the server's business; ordering of the resulting
+			  binlog events relative to the originating statement,
+			  in particular, is handled there.
+			*/
+			thd_fk_cascade_row(
+				trx->mysql_thd, child_mysql_table,
+				cascade->is_delete == PLAIN_DELETE
+				? FK_CASCADE_ACTION_DELETE
+				: FK_CASCADE_ACTION_UPDATE);
+		} else {
+			/* Captured a before-image we are not going to use. */
+			thd_fk_cascade_abort(trx->mysql_thd);
+		}
+	}
+
+	mtr_start(mtr);
+	if (pcur->restore_position(BTR_SEARCH_LEAF, mtr)
+	    != btr_pcur_t::SAME_ALL && err == DB_SUCCESS) {
 		err = DB_CORRUPTION;
 	}
 
@@ -2564,7 +2690,7 @@ statement
 @return true if it is insert statement */
 static bool thd_sql_is_insert(const THD *thd) noexcept
 {
-  switch (thd->lex->sql_command) {
+  switch (thd_sql_command(thd)) {
   case SQLCOM_INSERT:
   case SQLCOM_INSERT_SELECT:
     return true;

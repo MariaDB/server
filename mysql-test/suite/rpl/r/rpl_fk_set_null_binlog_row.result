@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_default_storage_engine := @@session.default_storage_engine;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=0;
+CREATE TABLE p (
+id INT PRIMARY KEY,
+v INT
+) ENGINE=InnoDB;
+CREATE TABLE c (
+id INT PRIMARY KEY,
+pid INT NULL,
+v INT,
+KEY(pid),
+CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE SET NULL
+ON UPDATE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+UPDATE p SET id=2 WHERE id=1;
+connection slave;
+SELECT pid FROM c ORDER BY id;
+pid
+NULL
+connection master;
+FLUSH BINARY LOGS;
+NOT FOUND /### UPDATE `test`.`c`/ in fk_set_null_binlog_row_off.sql
+DROP TABLE c, p;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+CREATE TABLE p (
+id INT PRIMARY KEY,
+v INT
+) ENGINE=InnoDB;
+CREATE TABLE c (
+id INT PRIMARY KEY,
+pid INT NULL,
+v INT,
+KEY(pid),
+CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE SET NULL
+ON UPDATE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+UPDATE p SET id=2 WHERE id=1;
+connection slave;
+SELECT pid FROM c ORDER BY id;
+pid
+NULL
+connection master;
+FLUSH BINARY LOGS;
+FOUND 1 /### UPDATE `test`.`c`/ in fk_set_null_binlog_row_on.sql
+DROP TABLE c, p;
+SET SESSION default_storage_engine=@old_default_storage_engine;
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+include/rpl_end.inc

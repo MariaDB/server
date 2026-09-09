@@ -1,0 +1,69 @@
+#
+# MDEV-38243
+#
+# When rpl_use_binlog_events_for_fk_cascade is enabled, all cascade row events
+# (both DELETE and UPDATE/SET NULL) must be written to the binary log in the
+# same order the cascade operations were executed. Earlier the DELETE cascade
+# events were logged immediately while UPDATE/SET NULL events were deferred to
+# statement end, so every cascade delete was emitted ahead of every cascade
+# update. When a single statement both SET NULLs and deletes the *same* child
+# row (a child with two foreign keys to the same parent, one ON DELETE SET NULL
+# and one ON DELETE CASCADE), the executed order is UPDATE-then-DELETE but the
+# binlog order became DELETE-then-UPDATE. On the replica (which applies these
+# events with foreign_key_checks disabled) the UPDATE event then could not find
+# its row, because the DELETE had already removed it -> the SQL thread stops or
+# the data diverges.
+#
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--source include/master-slave.inc
+
+SET @old_binlog_format := @@session.binlog_format;
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+
+CREATE TABLE p (
+  id INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+# Child with two FKs to p: fk_a (SET NULL -> cascade UPDATE) is declared before
+# fk_b (CASCADE -> cascade DELETE) so that on DELETE FROM p the same child row
+# is first SET NULL and then deleted.
+CREATE TABLE c (
+  id INT PRIMARY KEY,
+  a INT,
+  b INT,
+  KEY(a),
+  KEY(b),
+  CONSTRAINT fk_a FOREIGN KEY (a) REFERENCES p(id) ON DELETE SET NULL,
+  CONSTRAINT fk_b FOREIGN KEY (b) REFERENCES p(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1);
+INSERT INTO c VALUES (10, 1, 1);
+
+sync_slave_with_master;
+connection master;
+
+DELETE FROM p WHERE id=1;
+
+--echo # master: child row cascade-deleted
+SELECT * FROM c;
+
+sync_slave_with_master;
+connection slave;
+--echo # slave must match master (row deleted); a wrong DELETE-before-UPDATE
+--echo # ordering would have stopped the SQL thread on the UPDATE event
+SELECT * FROM c;
+
+connection master;
+DROP TABLE c, p;
+
+SET SESSION binlog_format=@old_binlog_format;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+
+--source include/rpl_end.inc

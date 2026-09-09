@@ -1,0 +1,109 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--source include/master-slave.inc
+
+#
+# MDEV-38243: rpl_use_binlog_events_for_fk_cascade enabled only on the slave.
+#
+# The master runs with the feature OFF (default), so it binlogs only the
+# parent-table row events, not the cascaded child row events. The slave has
+# the feature ON. Because the row-based applier does not prelock the FK-child
+# tables, find_fk_open_table() finds no open child table on the applier, so no
+# cascade row events are captured there. The slave applies the cascade the
+# traditional way (InnoDB re-executes it) and its own binary log contains only
+# the parent events.
+#
+# This test pins that behaviour: enabling the option on the slave is currently
+# a no-op for the applier path, while replication stays correct. It exists so
+# that a future change which makes the option effective on the applier (by
+# opening the child table there) will visibly change this recorded result.
+#
+
+connection master;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+
+# The master keeps the feature OFF (the default).
+SELECT @@session.rpl_use_binlog_events_for_fk_cascade;
+
+CREATE TABLE p (
+  id INT PRIMARY KEY,
+  v INT
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  id INT PRIMARY KEY,
+  pid INT,
+  v INT,
+  KEY(pid),
+  CONSTRAINT fk FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1, 10);
+INSERT INTO c VALUES (100, 1, 20);
+
+sync_slave_with_master;
+
+# Turn the feature ON only on the slave, and restart the SQL thread so the
+# applier THD picks up the new global value.
+connection slave;
+--source include/stop_slave.inc
+SET GLOBAL rpl_use_binlog_events_for_fk_cascade=1;
+--source include/start_slave.inc
+
+connection master;
+UPDATE p SET id=2 WHERE id=1;
+DELETE FROM p WHERE id=2;
+
+sync_slave_with_master;
+
+connection slave;
+SELECT COUNT(*) FROM p;
+SELECT COUNT(*) FROM c;
+
+# Inspect the slave's own binary log. It must contain the parent events but
+# NOT explicit cascade row events for the child table, because the applier
+# does not capture cascades (the child table is not prelocked on the applier).
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir = `SELECT @@datadir`
+
+FLUSH BINARY LOGS;
+
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/fk_cascade_slave_option.sql
+
+# Parent DELETE is present in the slave's binary log.
+--let SEARCH_PATTERN= ### DELETE FROM `test`.`p`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_slave_option.sql
+--let SEARCH_ABORT= NOT FOUND
+--source include/search_pattern_in_file.inc
+
+# No explicit cascade child row events: the option is a no-op on the applier.
+--let SEARCH_PATTERN= ### DELETE FROM `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_slave_option.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= ### UPDATE `test`.`c`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/fk_cascade_slave_option.sql
+--let SEARCH_ABORT= FOUND
+--source include/search_pattern_in_file.inc
+
+# Cleanup: restore the slave option and drop the tables.
+connection slave;
+--source include/stop_slave.inc
+SET GLOBAL rpl_use_binlog_events_for_fk_cascade=0;
+--source include/start_slave.inc
+
+connection master;
+DROP TABLE c, p;
+
+sync_slave_with_master;
+
+connection master;
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_cascade_slave_option.sql
+
+--source include/rpl_end.inc
