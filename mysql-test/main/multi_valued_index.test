@@ -304,6 +304,29 @@ alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
 show create table t1;
 drop table t1;
 
+--echo # MATCH() and a multi-valued index on the same table
+create table t1 (c int, txt text, j json,
+                 fulltext key ft (txt),
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'alpha beta','{"tags": ["aaa"]}'),
+                      (2,'gamma','{"tags": ["bbb"]}'),
+                      (3,'alpha','{"tags": ["aaa","bbb"]}');
+
+--echo ## mvi chosen
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+--echo ## ft chosen
+explain select * from t1
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"');
+select * from t1
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+--echo # the same rows without the index
+select * from t1 ignore index(idx)
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+
+drop table t1;
+
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);
