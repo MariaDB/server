@@ -1,0 +1,19 @@
+include/reset_master.inc
+CREATE TABLE t1 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+# restart
+INSERT INTO t1 VALUES (1, REPEAT('a', 48 * 1024));
+INSERT INTO t1 VALUES (2, REPEAT('b', 48 * 1024));
+INSERT INTO t1 VALUES (3, REPEAT('c', 48 * 1024));
+FLUSH BINARY LOGS;
+*** Convert with a 32K maximum output binlog size
+*** Only the restart FDE is marked as created at startup
+FOUND 1 /Start: binlog v 4.*at startup/ in max_size_restart_fde.txt
+NOT FOUND /Start: binlog v 4.*at startup/ in max_size_normal_fdes.txt
+*** Rotated files form a replayable binlog sequence
+DROP TABLE t1;
+SELECT a, LENGTH(b) FROM t1 ORDER BY a;
+a	LENGTH(b)
+1	49152
+2	49152
+3	49152
+DROP TABLE t1;

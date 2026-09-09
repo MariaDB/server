@@ -2392,6 +2392,23 @@ bool Binlog_checkpoint_log_event::print(FILE *file,
   return cache.flush_data();
 }
 
+/*
+  Constructor for Gtid_list_log_event.
+  Used in mysqlbinlog to generate GTID_LIST_EVENT while converting the engine
+  binlog to legacy binlog.
+*/
+Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state_base *gtid_set)
+  : count(gtid_set->count_nolock()), gl_flags(0), list(0), sub_id_list(0)
+{
+  cache_type= EVENT_NO_CACHE;
+  /* Failure to allocate memory will be caught by is_valid() returning false. */
+  if (count < (1<<28) &&
+      (list = (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
+                          count * sizeof(*list) + (count == 0), MYF(MY_WME))))
+  {
+    gtid_set->get_gtid_list_nolock(list, count);
+  }
+}
 
 bool
 Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)

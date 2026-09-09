@@ -25,6 +25,8 @@
 #include "mysqlbinlog-engine.h"
 #include "my_compr_int.h"
 #include "my_dir.h"
+#include "rpl_gtid_base.h"
+
 
 
 const char *INNODB_BINLOG_MAGIC= "\xfe\xfe\x0d\x01";
@@ -308,6 +310,7 @@ class binlog_reader_innodb : public handler_binlog_reader {
   uchar rd_buf[5*COMPR_INT_MAX64];
 private:
   int read_data(uchar *buf, uint32_t len);
+  int read_gtid_state(rpl_binlog_state_base *state);
 
 public:
   binlog_reader_innodb();
@@ -322,6 +325,7 @@ public:
   virtual void enable_single_file() override;
   bool is_valid() { return page_buf != nullptr; }
   bool init_from_fd_pos(File fd, ulonglong start_position);
+  bool get_initial_gtid_state(rpl_binlog_state_base *state);
 };
 
 
@@ -851,6 +855,100 @@ binlog_reader_innodb::init_from_fd_pos(File fd, ulonglong start_position)
   return false;
 }
 
+bool binlog_reader_innodb::get_initial_gtid_state(
+    rpl_binlog_state_base *gtid_state)
+{
+  chunk_reader_mysqlbinlog::saved_position saved_pos;
+  
+  chunk_rd.save_pos(&saved_pos);
+  chunk_rd.seek(start_file_no, binlog_page_size);
+
+  int res= read_gtid_state(gtid_state);
+
+  chunk_rd.restore_pos(&saved_pos);
+  return res != 1;
+}
+
+int binlog_reader_innodb::read_gtid_state(rpl_binlog_state_base *state) {
+  uchar buf[256];
+  static_assert(sizeof(buf) >= 2*COMPR_INT_MAX64 + 6*COMPR_INT_MAX64,
+                "buf must hold at least 2 GTIDs");
+  int res= chunk_rd.read_data(buf, sizeof(buf), true);
+  if (res < 0)
+    return -1;
+  if (res == 0 || chunk_rd.cur_type() != FSP_BINLOG_TYPE_GTID_STATE)
+    return 0;
+
+  const uchar *p= buf;
+  const uchar *p_end= buf + res;
+  std::pair<uint64_t, const uchar *> v_and_p= compr_int_read(p);
+  p= v_and_p.second;
+  if (p > p_end)
+    return -1;
+  uint64_t num_gtid= v_and_p.first;
+
+  /*
+    The XA reference is part of the serialized GTID-state format and must be
+    consumed before decoding the GTID entries. mysqlbinlog does not use it,
+    since it is only needed by the server for XA recovery and binlog purging.
+  */
+  v_and_p= compr_int_read(p);
+  p= v_and_p.second;
+  if (p > p_end)
+    return -1;
+
+  /* Read each GTID one by one and add into the state. */
+  for (uint64_t count= num_gtid; count > 0; --count)
+  {
+    ptrdiff_t remain= p_end - p;
+    /* Read more data as needed to ensure we have read a full GTID. */
+    if (!chunk_rd.end_of_record() &&
+        remain < 3*COMPR_INT_MAX64)
+    {
+      memmove(buf, p, remain);
+      res= chunk_rd.read_data(buf + remain, (int)(sizeof(buf) - remain),
+                                   true);
+      if (res < 0)
+        return -1;
+      p= buf;
+      p_end= p + remain + res;
+      remain+= res;
+    }
+    rpl_gtid gtid;
+    if (p >= p_end)
+      return -1;
+    v_and_p= compr_int_read(p);
+    if (v_and_p.first > UINT32_MAX)
+      return -1;
+    gtid.domain_id= (uint32_t)v_and_p.first;
+    p= v_and_p.second;
+    if (p >= p_end)
+      return -1;
+    v_and_p= compr_int_read(p);
+    if (v_and_p.first > UINT32_MAX)
+      return -1;
+    gtid.server_id= (uint32_t)v_and_p.first;
+    p= v_and_p.second;
+    if (p >= p_end)
+      return -1;
+    v_and_p= compr_int_read(p);
+    gtid.seq_no= v_and_p.first;
+    p= v_and_p.second;
+    if (p > p_end)
+      return -1;
+    if (state->update_nolock(&gtid))
+      return -1;
+  }
+
+  /*
+    For now, we expect no more data.
+    Later it could be extended, as we store (and read) the count of GTIDs.
+  */
+  DBUG_ASSERT(p == p_end);
+
+  return 1;
+}
+
 
 int binlog_reader_innodb::read_data(uchar *buf, uint32_t len)
 {
@@ -1188,6 +1286,12 @@ open_engine_binlog(handler_binlog_reader *generic_reader,
   return reader->init_from_fd_pos(dup(opened_cache->file), start_position);
 }
 
+bool read_initial_gtid_state(handler_binlog_reader *generic_reader,
+                             rpl_binlog_state_base *gtid_state)
+{
+  binlog_reader_innodb *reader= (binlog_reader_innodb *) generic_reader;
+  return reader->get_initial_gtid_state(gtid_state);
+}
 
 handler_binlog_reader *
 get_binlog_reader_innodb()

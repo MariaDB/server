@@ -1,0 +1,100 @@
+# MDEV-37605
+#
+# Verify that a legacy binlog generated from an InnoDB-format binlog can be
+# installed on a master and replayed by a slave. Also verify that replication
+# continues with events appended by the master after installing the converted
+# binlog.
+
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+--source include/reset_master.inc
+
+--echo *** Generate an InnoDB-format binlog
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+UPDATE t1 SET b=1 WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+REPLACE INTO t1 VALUES (3, 3);
+
+FLUSH BINARY LOGS;
+# Waiting for the next preallocated file guarantees that binlog-000000.ibb is
+# available on disk.
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+
+--echo *** Convert the InnoDB-format binlog to legacy format
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/master-bin $datadir/binlog-000000.ibb
+
+# The converted binlog contains the history that creates t1. Remove the
+# existing table before installing that history on the master.
+DROP TABLE t1;
+
+--echo *** Install the converted binlog on the master
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--remove_files_wildcard $datadir master-bin.*
+--copy_file $MYSQL_TMP_DIR/master-bin.000001 $datadir/master-bin.000001
+--append_file $datadir/master-bin.index
+./master-bin.000001
+EOF
+
+# Switch the master from InnoDB-format binlogging to the legacy binlog
+--let $rpl_server_parameters= --log-bin=master-bin --binlog-storage-engine= --binlog-legacy-event-pos
+--source include/rpl_start_server.inc
+
+# Ensure end_log_pos is populated correctly
+--echo *** Installed converted events have contiguous end_log_pos values
+--let $event_number= 1
+--let $end_log_pos= query_get_value(SHOW BINLOG EVENTS IN 'master-bin.000001', End_log_pos, $event_number)
+--inc $event_number
+--let $next_pos= query_get_value(SHOW BINLOG EVENTS IN 'master-bin.000001', Pos, $event_number)
+while ($next_pos != No such row)
+{
+  if ($end_log_pos != $next_pos)
+  {
+    --die Event end_log_pos $end_log_pos does not match next event position $next_pos
+  }
+  --let $end_log_pos= query_get_value(SHOW BINLOG EVENTS IN 'master-bin.000001', End_log_pos, $event_number)
+  --inc $event_number
+  --let $next_pos= query_get_value(SHOW BINLOG EVENTS IN 'master-bin.000001', Pos, $event_number)
+}
+
+--connection slave
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads= 10;
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
+--source include/start_slave.inc
+
+--echo *** Append new events after the converted history
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo *** Verify converted and newly appended events on the slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2;
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+DROP TABLE t1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t2;
+--remove_file $MYSQL_TMP_DIR/master-bin.000001
+--source include/rpl_end.inc

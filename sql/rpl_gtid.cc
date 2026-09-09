@@ -1517,6 +1517,7 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
   return p;
 }
 
+#endif
 
 void
 rpl_binlog_state_base::init()
@@ -1694,6 +1695,50 @@ rpl_binlog_state_base::find_nolock(uint32 domain_id, uint32 server_id)
                                     sizeof(server_id));
 }
 
+
+/* Helper functions for update. */
+int
+rpl_binlog_state_base::element::update_element(const rpl_gtid *gtid)
+{
+  rpl_gtid *lookup_gtid;
+
+  /*
+    By far the most common case is that successive events within same
+    replication domain have the same server id (it changes only when
+    switching to a new master). So save a hash lookup in this case.
+  */
+  if (likely(last_gtid && last_gtid->server_id == gtid->server_id))
+  {
+    last_gtid->seq_no= gtid->seq_no;
+    return 0;
+  }
+
+  lookup_gtid= (rpl_gtid *)
+    my_hash_search(&hash, (const uchar *)&gtid->server_id,
+                           sizeof(gtid->server_id));
+  if (lookup_gtid)
+  {
+    lookup_gtid->seq_no= gtid->seq_no;
+    last_gtid= lookup_gtid;
+    return 0;
+  }
+
+  /* Allocate a new GTID and insert it. */
+  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
+                                     MYF(MY_WME));
+  if (!lookup_gtid)
+    return 1;
+  memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
+  if (my_hash_insert(&hash, (const uchar *)lookup_gtid))
+  {
+    my_free(lookup_gtid);
+    return 1;
+  }
+  last_gtid= lookup_gtid;
+  return 0;
+}
+
+#ifndef MYSQL_CLIENT
 
 /*
   Return true if this binlog state is before the position specified by the
@@ -1893,49 +1938,6 @@ rpl_binlog_state::update_with_next_gtid(uint32 domain_id, uint32 server_id,
 end:
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
-}
-
-
-/* Helper functions for update. */
-int
-rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
-{
-  rpl_gtid *lookup_gtid;
-
-  /*
-    By far the most common case is that successive events within same
-    replication domain have the same server id (it changes only when
-    switching to a new master). So save a hash lookup in this case.
-  */
-  if (likely(last_gtid && last_gtid->server_id == gtid->server_id))
-  {
-    last_gtid->seq_no= gtid->seq_no;
-    return 0;
-  }
-
-  lookup_gtid= (rpl_gtid *)
-    my_hash_search(&hash, (const uchar *)&gtid->server_id,
-                           sizeof(gtid->server_id));
-  if (lookup_gtid)
-  {
-    lookup_gtid->seq_no= gtid->seq_no;
-    last_gtid= lookup_gtid;
-    return 0;
-  }
-
-  /* Allocate a new GTID and insert it. */
-  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
-                                     MYF(MY_WME));
-  if (!lookup_gtid)
-    return 1;
-  memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
-  if (my_hash_insert(&hash, (const uchar *)lookup_gtid))
-  {
-    my_free(lookup_gtid);
-    return 1;
-  }
-  last_gtid= lookup_gtid;
-  return 0;
 }
 
 
