@@ -21,11 +21,24 @@
 
 int hp_rectest(register HP_INFO *info, register const uchar *old)
 {
+  HP_SHARE *share= info->s;
+  const HP_COPY_SPAN *span, *span_end;
   DBUG_ENTER("hp_rectest");
 
-  if (memcmp(info->current_ptr,old,(size_t) info->s->reclength))
+  /*
+    Compare the ranges the stored record and the record buffer share.
+    A promoted column's payload is not in the stored record at all, so
+    there is nothing to compare it against.  Everything else, native blob
+    descriptors included, is covered exactly as before.
+  */
+  for (span= share->copy_spans, span_end= span + share->copy_span_count;
+       span < span_end; span++)
   {
-    DBUG_RETURN((my_errno=HA_ERR_RECORD_CHANGED)); /* Record have changed */
+    if (memcmp(info->current_ptr + span->store_offset, old + span->offset,
+               (size_t) span->length))
+    {
+      DBUG_RETURN((my_errno=HA_ERR_RECORD_CHANGED)); /* Record have changed */
+    }
   }
   DBUG_RETURN(0);
 } /* _heap_rectest */
