@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -50,7 +51,7 @@
 //#include "template_utils.h"
 #include "pfs_prepared_stmt.h"
 
-PFS_global_param pfs_param;
+READ_ONLY_SYSVAR PFS_global_param pfs_param;
 
 PFS_table_stat PFS_table_stat::g_reset_template;
 

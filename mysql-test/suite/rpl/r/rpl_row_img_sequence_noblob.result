@@ -53,6 +53,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -90,6 +93,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -123,6 +129,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -144,6 +153,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -181,6 +193,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -214,6 +229,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -235,6 +253,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -272,6 +293,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -305,6 +329,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -326,6 +353,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -363,6 +393,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -396,6 +429,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -417,6 +453,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -454,6 +493,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -487,6 +529,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -508,6 +553,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -545,6 +593,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -578,6 +629,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -599,6 +653,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -636,6 +693,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -669,6 +729,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -690,6 +753,9 @@ SETVAL(s1, 10)
 10
 include/save_master_gtid.inc
 # Validate SETVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -727,6 +793,9 @@ NEXTVAL(s1)
 11
 include/save_master_gtid.inc
 # Validate NEXTVAL replicated correctly to other servers
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 include/diff_tables.inc [server_1:test.s1,server_2:test.s1,server_3:test.s1]
@@ -760,6 +829,9 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Cleanup
 connection server_1;
 DROP TABLE s1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc

@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 --echo #
 --echo # Cross-engine join: DuckDB + InnoDB via _mdb_scan replacement scan
 --echo #

@@ -169,7 +169,7 @@ search:
 
   lf_hash_search_unpin(pins);
 
-  pfs= global_host_container.allocate(& dirty_state);
+  pfs= global_host_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     pfs->m_key= key;

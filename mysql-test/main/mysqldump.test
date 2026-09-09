@@ -3221,7 +3221,7 @@ drop table db2.t1;
 --exec $MYSQL db1 < $MYSQLTEST_VARDIR/tmp/dump/db1/t1.sql
 --exec $MYSQL db2 < $MYSQLTEST_VARDIR/tmp/dump/db2/t1.sql
 --exec $MYSQL_IMPORT --silent db1 $MYSQLTEST_VARDIR/tmp/dump/db1/t1.txt
---exec $MYSQL_IMPORT --silent db2 $MYSQLTEST_VARDIR/tmp/dump/db2/t1.txt
+--exec $MYSQL_IMPORT --lock-tables --silent db2 $MYSQLTEST_VARDIR/tmp/dump/db2/t1.txt
 select * from db1.t1;
 select * from db2.t1;
 drop database db1;

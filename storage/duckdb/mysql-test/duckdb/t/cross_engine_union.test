@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 --echo #
 --echo # Cross-engine UNION: DuckDB + InnoDB via select_handler unit pushdown
 --echo #

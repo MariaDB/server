@@ -1,0 +1,82 @@
+#
+# MDEV-40645 Slave crash on malformed User_var_log_event
+#
+# A User_var_log_event of type DECIMAL_RESULT carries the precision and the
+# scale of the value in the first two bytes of the packed value. Nothing ties
+# them to the length of the event, so a crafted event makes bin2decimal()
+# alloca() and copy a size taken entirely from those two bytes.
+#
+--source include/have_debug.inc
+# A User_var_log_event is only written when the statement itself is binlogged,
+# i.e. never for row based replication.
+--source include/have_binlog_format_mixed_or_statement.inc
+--source include/master-slave.inc
+
+# The master intentionally writes a corrupted event, the slave has to reject it
+--connection slave
+call mtr.add_suppression("Slave SQL: Invalid variable length at User var event");
+
+--connection master
+create table t1 (a decimal(10,5));
+insert into t1 values (0.5);
+--sync_slave_with_master
+
+--echo #
+--echo # Write a User_var_log_event whose DECIMAL precision and scale do not
+--echo # match the length of the packed value
+--echo #
+--connection master
+set @@session.debug_dbug= "+d,corrupt_user_var_decimal_precision";
+set @a= 1.5;
+insert into t1 values (@a);
+set @@session.debug_dbug= "";
+--let $corrupt_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--echo #
+--echo # SHOW BINLOG EVENTS must not crash in User_var_log_event::pack_info()
+--echo #
+set @@session.debug_dbug= "+d,corrupt_user_var_decimal_precision";
+--source include/show_binlog_events.inc
+set @@session.debug_dbug= "";
+
+--echo #
+--echo # mysqlbinlog must not crash in User_var_log_event::print()
+--echo #
+--let $datadir= `select @@datadir`
+# The corrupted event is rejected, only the exit code matters here
+--error 1
+--exec $MYSQL_BINLOG $datadir/$corrupt_file >/dev/null 2>&1
+
+--echo #
+--echo # The slave rejects the event instead of crashing on it
+--echo #
+--connection slave
+--let $slave_sql_errno= 1593
+--source include/wait_for_slave_sql_error.inc
+
+--echo #
+--echo # Replication continues once the corrupted event group is skipped
+--echo #
+set global sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+
+--connection master
+insert into t1 values (3.5);
+--sync_slave_with_master
+
+--echo # Only the skipped row (1.50000) is missing on the slave, every later
+--echo # event is applied normally
+--connection master
+select * from t1 order by a;
+--connection slave
+select * from t1 order by a;
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1;
+--sync_slave_with_master
+
+--source include/rpl_end.inc
+--echo # End of rpl_corrupted_decimal_precision.test

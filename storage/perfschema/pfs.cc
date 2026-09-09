@@ -3303,7 +3303,7 @@ pfs_get_thread_file_name_locker_v1(PSI_file_locker_state *state,
     wait->m_class= klass;
     wait->m_timer_start= 0;
     wait->m_timer_end= 0;
-    wait->m_object_instance_addr= NULL;
+    wait->m_object_instance_addr= 0;
     wait->m_weak_file= NULL;
     wait->m_weak_version= 0;
     wait->m_event_id= pfs_thread->m_event_id++;
@@ -3383,7 +3383,7 @@ pfs_get_thread_file_stream_locker_v1(PSI_file_locker_state *state,
       wait->m_class= klass;
       wait->m_timer_start= 0;
       wait->m_timer_end= 0;
-      wait->m_object_instance_addr= pfs_file;
+      wait->m_object_instance_addr= pfs_file->m_identity;
       wait->m_weak_file= pfs_file;
       wait->m_weak_version= pfs_file->get_version();
       wait->m_event_id= pfs_thread->m_event_id++;
@@ -3492,7 +3492,7 @@ pfs_get_thread_file_descriptor_locker_v1(PSI_file_locker_state *state,
       wait->m_class= klass;
       wait->m_timer_start= 0;
       wait->m_timer_end= 0;
-      wait->m_object_instance_addr= pfs_file;
+      wait->m_object_instance_addr= pfs_file->m_identity;
       wait->m_weak_file= pfs_file;
       wait->m_weak_version= pfs_file->get_version();
       wait->m_event_id= pfs_thread->m_event_id++;
@@ -4672,7 +4672,7 @@ void pfs_end_file_wait_v1(PSI_file_locker *locker,
       wait->m_timer_end= timer_end;
       wait->m_number_of_bytes= bytes;
       wait->m_end_event_id= thread->m_event_id;
-      wait->m_object_instance_addr= file;
+      wait->m_object_instance_addr= (file ? file->m_identity : 0);
       wait->m_weak_file= file;
       wait->m_weak_version= (file ? file->get_version() : 0);
 

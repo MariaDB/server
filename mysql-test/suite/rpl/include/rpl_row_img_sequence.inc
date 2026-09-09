@@ -28,6 +28,9 @@ SELECT SETVAL(s1, 10);
 --source include/save_master_gtid.inc
 
 --echo # Validate SETVAL replicated correctly to other servers
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
 --connection server_3
 --source include/sync_with_master_gtid.inc
 --let $diff_tables= server_1:test.s1,server_2:test.s1,server_3:test.s1
@@ -60,6 +63,9 @@ SELECT NEXTVAL(s1);
 --source include/save_master_gtid.inc
 
 --echo # Validate NEXTVAL replicated correctly to other servers
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
 --connection server_3
 --source include/sync_with_master_gtid.inc
 --let $diff_tables= server_1:test.s1,server_2:test.s1,server_3:test.s1
@@ -87,6 +93,9 @@ FLUSH LOGS;
 --echo # Cleanup
 --connection server_1
 DROP TABLE s1;
+--source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
 --source include/save_master_gtid.inc
 --connection server_3
 --source include/sync_with_master_gtid.inc

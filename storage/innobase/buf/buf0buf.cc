@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2023, MariaDB Corporation.
+Copyright (c) 2013, 2026, MariaDB plc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1371,14 +1371,9 @@ bool buf_pool_t::create() noexcept
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
-#ifdef _WIN32
     memory_unaligned= my_virtual_mem_reserve(&size);
-    if (!memory_unaligned)
-      goto oom;
-#else
-    memory_unaligned= my_large_virtual_alloc(&size);
     if (memory_unaligned);
-# if defined __aarch64__ || defined __riscv || defined __mips__ || defined __loongarch64
+#if defined __aarch64__ || defined __riscv || defined __mips__ || defined __loongarch64
     else if (size_in_bytes_max_default != 0 &&
              size_in_bytes_max == size_in_bytes_max_default)
     {
@@ -1399,10 +1394,9 @@ bool buf_pool_t::create() noexcept
       size_in_bytes_max= std::max(size_t(1ULL << 37), size_in_bytes_requested);
       goto init;
     }
-# endif
+#endif
     else
       goto oom;
-#endif
   }
 
   const size_t alignment_waste=

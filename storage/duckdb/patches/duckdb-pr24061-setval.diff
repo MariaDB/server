@@ -1,0 +1,179 @@
+diff --git a/src/catalog/catalog_entry/sequence_catalog_entry.cpp b/src/catalog/catalog_entry/sequence_catalog_entry.cpp
+index d6a548a267..dbec7a91ac 100644
+--- a/src/catalog/catalog_entry/sequence_catalog_entry.cpp
++++ b/src/catalog/catalog_entry/sequence_catalog_entry.cpp
+@@ -81,6 +81,28 @@ int64_t SequenceCatalogEntry::NextValue(DuckTransaction &transaction) {
+ 	return result;
+ }
+ 
++int64_t SequenceCatalogEntry::SetValue(DuckTransaction &transaction, int64_t value, bool is_called) {
++	{
++		lock_guard<mutex> seqlock(lock);
++		if (value < data.min_value || value > data.max_value) {
++			throw SequenceException("setval: value %lld is out of bounds for sequence \"%s\" (%lld..%lld)", value, name,
++			                        data.min_value, data.max_value);
++		}
++
++		data.counter = value;
++		if (!is_called) {
++			data.usage_count++;
++			if (!temporary) {
++				transaction.PushSequenceUsage(*this, data);
++			}
++			return value;
++		}
++	}
++
++	// is_called: behave as if nextval() was just invoked and returned `value`.
++	return NextValue(transaction);
++}
++
+ void SequenceCatalogEntry::ReplayValue(uint64_t v_usage_count, int64_t v_counter) {
+ 	if (v_usage_count > data.usage_count) {
+ 		data.usage_count = v_usage_count;
+diff --git a/src/function/function_list.cpp b/src/function/function_list.cpp
+index 4e269f0604..58bf369e01 100644
+--- a/src/function/function_list.cpp
++++ b/src/function/function_list.cpp
+@@ -153,6 +153,7 @@ static const StaticFunctionDefinition function[] = {
+ 	DUCKDB_SCALAR_FUNCTION_SET_ALIAS(RegexpSplitToArrayFun),
+ 	DUCKDB_SCALAR_FUNCTION(RemapStructFun),
+ 	DUCKDB_SCALAR_FUNCTION(RowFun),
++	DUCKDB_SCALAR_FUNCTION_SET(SetvalFun),
+ 	DUCKDB_SCALAR_FUNCTION_SET(SHA1Fun),
+ 	DUCKDB_SCALAR_FUNCTION_SET(SHA256Fun),
+ 	DUCKDB_SCALAR_FUNCTION_ALIAS(SplitFun),
+diff --git a/src/function/scalar/sequence/nextval.cpp b/src/function/scalar/sequence/nextval.cpp
+index 8a53af7bbb..366afcbc3d 100644
+--- a/src/function/scalar/sequence/nextval.cpp
++++ b/src/function/scalar/sequence/nextval.cpp
+@@ -20,17 +20,24 @@ namespace duckdb {
+ namespace {
+ 
+ struct CurrentSequenceValueOperator {
+-	static int64_t Operation(DuckTransaction &, SequenceCatalogEntry &seq) {
++	static int64_t Operation(DuckTransaction &, SequenceCatalogEntry &seq, const int64_t, const bool) {
+ 		return seq.CurrentValue();
+ 	}
+ };
+ 
+ struct NextSequenceValueOperator {
+-	static int64_t Operation(DuckTransaction &transaction, SequenceCatalogEntry &seq) {
++	static int64_t Operation(DuckTransaction &transaction, SequenceCatalogEntry &seq, const int64_t, const bool) {
+ 		return seq.NextValue(transaction);
+ 	}
+ };
+ 
++struct SetValValueOperator {
++	static int64_t Operation(DuckTransaction &transaction, SequenceCatalogEntry &seq, const int64_t value,
++	                         const bool is_called) {
++		return seq.SetValue(transaction, value, is_called);
++	}
++};
++
+ SequenceCatalogEntry &BindSequence(Binder &binder, string &catalog, string &schema, const string &name) {
+ 	// fetch the sequence from the catalog
+ 	Binder::BindSchemaOrCatalog(binder.context, catalog, schema);
+@@ -83,10 +90,44 @@ void NextValFunction(DataChunk &args, ExpressionState &state, Vector &result) {
+ 	// sequence to use is hard coded
+ 	// increment the sequence
+ 	result.SetVectorType(VectorType::FLAT_VECTOR);
++
++	// setval takes the new value (and optionally is_called) as extra arguments
++	UnifiedVectorFormat new_val_data;
++	UnifiedVectorFormat is_called_data;
++	bool has_new_val = false;
++	bool has_is_called = false;
++	if (std::is_same<OP, SetValValueOperator>::value) {
++		args.data[1].ToUnifiedFormat(args.size(), new_val_data);
++		has_new_val = true;
++		if (args.ColumnCount() == 3) {
++			args.data[2].ToUnifiedFormat(args.size(), is_called_data);
++			has_is_called = true;
++		}
++	}
++
+ 	auto result_data = FlatVector::GetData<int64_t>(result);
++	auto &result_validity = FlatVector::Validity(result);
+ 	for (idx_t i = 0; i < args.size(); i++) {
++		int64_t value = 0;
++		bool is_called = true;
++		if (has_new_val) {
++			auto idx = new_val_data.sel->get_index(i);
++			if (!new_val_data.validity.RowIsValid(idx)) {
++				result_validity.SetInvalid(i);
++				continue;
++			}
++			value = UnifiedVectorFormat::GetData<int64_t>(new_val_data)[idx];
++		}
++		if (has_is_called) {
++			auto idx = is_called_data.sel->get_index(i);
++			if (!is_called_data.validity.RowIsValid(idx)) {
++				result_validity.SetInvalid(i);
++				continue;
++			}
++			is_called = UnifiedVectorFormat::GetData<bool>(is_called_data)[idx];
++		}
+ 		// get the next value from the sequence
+-		result_data[i] = OP::Operation(lstate.transaction, lstate.sequence);
++		result_data[i] = OP::Operation(lstate.transaction, lstate.sequence, value, is_called);
+ 	}
+ }
+ 
+@@ -162,4 +203,25 @@ ScalarFunction CurrvalFun::GetFunction() {
+ 	return curr_val;
+ }
+ 
++ScalarFunctionSet SetvalFun::GetFunctions() {
++	ScalarFunction set_val("setval", {LogicalType::VARCHAR, LogicalType::BIGINT}, LogicalType::BIGINT,
++	                       NextValFunction<SetValValueOperator>, nullptr, nullptr);
++	set_val.SetBindExtendedCallback(NextValBind);
++	set_val.SetSerializeCallback(Serialize);
++	set_val.SetDeserializeCallback(Deserialize);
++	set_val.SetModifiedDatabasesCallback(NextValModifiedDatabases);
++	set_val.SetInitStateCallback(NextValLocalFunction);
++	set_val.SetVolatile();
++	set_val.SetFallible();
++
++	ScalarFunctionSet set_val_set;
++	set_val_set.AddFunction(set_val);
++
++	// Add an overload that takes an additional boolean parameter
++	set_val.arguments.push_back(LogicalType::BOOLEAN);
++	set_val_set.AddFunction(set_val);
++
++	return set_val_set;
++}
++
+ } // namespace duckdb
+diff --git a/src/include/duckdb/catalog/catalog_entry/sequence_catalog_entry.hpp b/src/include/duckdb/catalog/catalog_entry/sequence_catalog_entry.hpp
+index ed12b77a1c..19d3737fb8 100644
+--- a/src/include/duckdb/catalog/catalog_entry/sequence_catalog_entry.hpp
++++ b/src/include/duckdb/catalog/catalog_entry/sequence_catalog_entry.hpp
+@@ -61,6 +61,7 @@ public:
+ 	SequenceData GetData() const;
+ 	int64_t CurrentValue();
+ 	int64_t NextValue(DuckTransaction &transaction);
++	int64_t SetValue(DuckTransaction &transaction, int64_t value, bool is_called);
+ 	void ReplayValue(uint64_t usage_count, int64_t counter);
+ 
+ 	string ToSQL() const override;
+diff --git a/src/include/duckdb/function/scalar/sequence_functions.hpp b/src/include/duckdb/function/scalar/sequence_functions.hpp
+index 99766a3326..44b8224006 100644
+--- a/src/include/duckdb/function/scalar/sequence_functions.hpp
++++ b/src/include/duckdb/function/scalar/sequence_functions.hpp
+@@ -35,4 +35,14 @@ struct NextvalFun {
+ 	static ScalarFunction GetFunction();
+ };
+ 
++struct SetvalFun {
++	static constexpr const char *Name = "setval";
++	static constexpr const char *Parameters = "sequence_name,value[,is_called]";
++	static constexpr const char *Description = "Set the value of the sequence to the specified value. If is_called is true, the sequence is called. If is_called is false, the sequence is not called.";
++	static constexpr const char *Example = "setval('my_sequence_name', 100, true)";
++	static constexpr const char *Categories = "";
++
++	static ScalarFunctionSet GetFunctions();
++};
++
+ } // namespace duckdb

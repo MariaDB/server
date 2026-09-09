@@ -1,0 +1,114 @@
+#
+#   This test verifies that a replica rejects a Table_map event whose field
+# metadata is shorter than the metadata the column types it declares require.
+# The replica must stop the SQL thread with an error rather than decode the
+# metadata past the end of what the event carries, and replication must resume
+# once a well formed copy of the event arrives.
+#
+#   MDEV-40646 reported that such an event read past the metadata buffer. A
+# build with AddressSanitizer is the reliable witness of that read, aborting
+# at the first byte past the allocation. A regular debug build does not fault
+# on the read: it decodes adjacent heap and stops the SQL thread with a
+# conversion error whose reported type is rendered from those bytes. This test
+# asserts the rejection the fix adds ahead of the read, which holds on every
+# build.
+#
+# References:
+#   * MDEV-40646: Slave Crashes in table_def::table_def() on Malformed
+#     Table_map
+#
+
+--source include/have_debug.inc
+# A Table_map event is only written under row based binary logging.
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Found invalid event in binary log");
+call mtr.add_suppression("Relay log read failure: Could not parse relay log event entry");
+
+--echo #
+--echo # Initialize test data
+--echo #
+
+--connection slave
+# Use slave_pos so we can easily reset the relay log after it receives a
+# corrupted event
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+# With 24 columns, the metadata reads run well past the end of the replica's
+# allocation once the event declares a single metadata byte.
+create table t1 (c1 int,c2 int,c3 int,c4 int,c5 int,c6 int,c7 int,c8 int,c9 int,c10 int,c11 int,c12 int,c13 int,c14 int,c15 int,c16 int,c17 int,c18 int,c19 int,c20 int,c21 int,c22 int,c23 int,c24 int);
+insert into t1 (c1) values (0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--connection master
+set @saved_dbug= @@global.debug_dbug;
+
+--echo #
+--echo # Test Case: a Table_map declaring more metadata than it carries
+--echo #
+
+# The reconnect below starts a dump thread that inherits the injection.
+--connection master
+set @@global.debug_dbug= "+d,binlog_sender_undersized_table_map_metadata";
+
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+insert into t1 (c1) values (1);
+
+--connection slave
+--echo # Waiting for the SQL thread to reject the malformed Table_map
+--let $slave_sql_errno= 1594
+--source include/wait_for_slave_sql_error.inc
+
+--echo # Ensure the event was rejected before its metadata was decoded
+--let $assert_text= The SQL thread reported an invalid event
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Found invalid event in binary log
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--echo #
+--echo # Recover: discard the poisoned relay log and re-fetch a clean copy
+--echo #
+--connection master
+set @@global.debug_dbug= @saved_dbug;
+
+--connection slave
+--source include/stop_slave_io.inc
+--source include/start_slave.inc
+
+--echo #
+--echo # Ensure replication works after the invalid event
+--echo #
+--connection master
+insert into t1 (c1) values (2);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables=master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_table_map_metadata_underflow.test

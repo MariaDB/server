@@ -1,0 +1,27 @@
+--source include/have_debug.inc
+--source include/not_asan.inc
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+
+--echo #
+--echo # MDEV-40341 store read-only sysvars in a read-only root and a read-only segment
+--echo #
+call mtr.add_suppression('mariadbd(.exe)? got (exception 0xc0000005|signal 11)');
+
+select @@global.skip_name_resolve;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@global.skip_name_resolve=0;
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013,2026
+set @@debug_dbug='d,set_skip_name_resolve';
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+select @@global.version;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@global.version=0;
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013,2026
+set @@debug_dbug='d,set_version_buf';
+--enable_reconnect
+--source include/wait_until_connected_again.inc

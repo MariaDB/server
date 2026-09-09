@@ -799,7 +799,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_wait(wait_lsn, false);
+        buf_flush_wait(wait_lsn, circular_recovery_from_sequence_bit_0);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();
@@ -811,33 +811,52 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
-      wait_lsn-= (wait_lsn - first_lsn) % capacity();
-      /* We are in innodb_log_archive=OFF. If the file has wrapped
-      around between the checkpoint and the current position, we must
-      wait for a log checkpoint not before the desired first_lsn of
-      our innodb_log_archive=ON log file, because that format does not
-      allow any wrap-around. */
-      if (checkpoint < wait_lsn)
+      const lsn_t limit{wait_lsn - (wait_lsn - first_lsn) % capacity()};
+      ut_ad(get_sequence_bit(limit) == get_sequence_bit(wait_lsn));
+      if (checkpoint < limit)
+        /*
+          The circular ib_logfile0 is currently wrapped around between
+          the checkpoint and the current position. Wait for a checkpoint,
+          because innodb_log_archive=ON does not allow any wrap-around.
+        */
         goto retry_after_checkpoint;
+      ut_ad(get_sequence_bit(checkpoint) == get_sequence_bit(wait_lsn));
+      wait_lsn= limit;
+      /*
+        The innodb_log_archive=ON recovery ignores the sequence bit,
+        so this transition is clear.
+
+        However, a future set_archive(false) must ensure that recovery
+        will not observe any get_sequence_bit() == 0 residue from the
+        previous time this log file was in innodb_log_archive=OFF
+        format.
+
+        The following assignment controls the condition in the "else if"
+        below, in a subsequent invocation of set_archive(false).
+      */
+      circular_recovery_from_sequence_bit_0= !get_sequence_bit(wait_lsn);
     }
-    else if (circular_recovery_from_sequence_bit_0)
+    else if (circular_recovery_from_sequence_bit_0 ||
+             checkpoint < first_lsn ||
+             get_sequence_bit(checkpoint) != get_sequence_bit(wait_lsn))
     {
-      /* When switching innodb_log_archive back and forth, it could be
-      the case that some records since the latest checkpoint were
-      written with get_sequence_bit() == 0. Let us wait for another
-      checkpoint. This guarantees that if the server crashes between
-      the completion of set_archive(false) and the next
-      write_checkpoint(), recovery will only encounter
-      get_sequence_bit() == 1, consistent with our first_lsn. */
-      circular_recovery_from_sequence_bit_0= false;
-      goto retry_after_checkpoint;
-    }
-    else if (checkpoint < first_lsn)
-    {
-      /* write_checkpoint() switched files, but the latest FILE_CHECKPOINT
-      record points to a previous log file. In the innodb_log_archive=OFF
-      format the checkpoint must be within the only log file. */
-      wait_lsn= first_lsn;
+      /*
+        Some records after the latest checkpoint may have been written
+        with get_sequence_bit() == 0 in innodb_log_archive=OFF
+        mode. Since then we may have switched to innodb_log_archive=ON
+        without advancing the checkpoint (see the above "if" body),
+        and now back to innodb_log_archive=OFF again.
+
+        Wait for write_checkpoint() to ensure that recovery will only
+        find get_sequence_bit() == 1, consistent with our first_lsn.
+
+        Alternatively, before we can switch to innodb_log_archive=OFF,
+        we must ensure that the checkpoint resides within the last file.
+
+        Progress is guaranteed by setting a checkpoint target right
+        after the latest written FILE_CHECKPOINT record.
+      */
+      wait_lsn= end_lsn;
       goto retry_after_checkpoint;
     }
 
@@ -878,8 +897,17 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     if (!archive)
     {
       std::swap(old_name, new_name);
-      header_rewrite(archive);
       std::string spare{get_archive_path(first_lsn + capacity())};
+      if (!get_sequence_bit(checkpoint))
+        /*
+          In the innodb_log_archive=ON format, mtr_t::finish_writer()
+          always writes the sequence bit as 1. Ensure that the
+          innodb_log_archive=OFF recovery will expect this value.
+        */
+        first_lsn-= capacity();
+      ut_ad(get_sequence_bit(checkpoint));
+      ut_ad(get_sequence_bit(get_lsn()));
+      header_rewrite(false);
       IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
     }
 #if defined HAVE_PMEM && !defined _WIN32
@@ -924,7 +952,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
-      header_rewrite(archive);
+      header_rewrite(true);
       archive_set_size();
       wait_lsn= 0;
     }
@@ -932,7 +960,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     {
       ut_ad(wait_lsn == get_lsn());
       /* apply similar logic as log_close() */
-      const lsn_t checkpoint_age{wait_lsn - log_sys.last_checkpoint_lsn};
+      const lsn_t checkpoint_age{wait_lsn - checkpoint};
       if (checkpoint_age < max_modified_age_async)
         wait_lsn= 0;
       else
@@ -1512,14 +1540,16 @@ void log_t::archived_mmap_switch_prepare(bool late, bool ex) noexcept
       (l & (WRITE_BACKOFF - 1));
     waits++;
     ut_ad(archive);
-    ut_ad(!resize_buf);
     ut_ad(!resize_in_progress());
     ut_ad(resize_target >= 4U << 20);
     ut_ad(is_latest());
     ut_ad(log.is_opened());
-    ut_ad(!!checkpoint_buf == resize_log.is_opened());
+    ut_ad((checkpoint_buf || resize_buf) == resize_log.is_opened());
 
-    if (UNIV_LIKELY_NULL(checkpoint_buf))
+    if (resize_buf)
+      /* archive_create(..., false) had recently succeeded in another thread */
+      ut_ad(!checkpoint_buf);
+    else if (UNIV_LIKELY_NULL(checkpoint_buf))
       /* Both archived_mmap_switch_prepare() and
       archived_mmap_switch_complete() were invoked by another thread,
       but write_checkpoint() did not clean up yet. */

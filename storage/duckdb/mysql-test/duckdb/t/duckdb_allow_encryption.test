@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 
 --disable_warnings
 DROP DATABASE IF EXISTS encryption_test;

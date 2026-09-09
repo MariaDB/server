@@ -1,0 +1,32 @@
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-40009 SIGSEGV in Sql_path::from_text
+--echo #
+
+# Conversion from latin1
+SET NAMES utf8mb4;
+SET PATH _latin1 0xE5;
+SELECT @@path;
+
+
+# Conversion from a tricky character set swe7
+SET NAMES swe7;
+SET PATH '`';
+SET NAMES utf8mb4;
+SELECT @@path;
+
+
+# Conversion from a tricky character set utf32
+SET PATH CONVERT(_latin1 0xE4 USING utf32);
+SELECT @@path;
+
+
+# Supplementary characters are not allowed
+--error ER_WRONG_VALUE_FOR_VAR
+SET PATH '😎';
+
+
+# Binary input: 0xE5 does represent well-formed utf8mb3
+--error ER_WRONG_VALUE_FOR_VAR
+SET PATH 0xE5;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
    Copyright (C) 2013 Sergey Vojtovich and MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
@@ -56,7 +56,7 @@
 /** Configuration. */
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
-uint32 tc_instances;
+READ_ONLY_SYSVAR uint32 tc_instances;
 static size_t tc_allocated_size;
 static std::atomic<uint32_t> tc_active_instances(1);
 static std::atomic<bool> tc_contention_warning_reported;

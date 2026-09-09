@@ -505,4 +505,11 @@ mysqltest: At line 1: Evaluation error: Modulo by zero
 # Test case: Overflow
 mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
 mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
+#
+# MDEV-37865: IF() function is returning incorrect error
+#
+# Test case: unknown function name that is a prefix of a known one
+mysqltest: At line 1: Syntax error: Unknown function 'if'
+mysqltest: At line 1: Syntax error: Unknown function 'l'
 # Expression evaluation tests completed successfully
+# End of 10.6 tests

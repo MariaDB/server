@@ -32,7 +32,7 @@ static inline void _ma_set_trn_for_table(MARIA_HA *tbl, TRN *newtrn)
   /* check that we are not calling this twice in a row */
   DBUG_ASSERT(newtrn->used_instances != (void*) tbl);
   DBUG_ASSERT(newtrn != &dummy_transaction_object);
-  DBUG_ASSERT(tbl->trn == 0);
+  DBUG_ASSERT(tbl->trn == 0 || tbl->trn == &dummy_transaction_object);
   DBUG_ASSERT(tbl->trn_next == 0);
   DBUG_ASSERT(tbl->trn_prev == 0);
 

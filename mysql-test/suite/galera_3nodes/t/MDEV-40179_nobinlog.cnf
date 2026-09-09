@@ -1,0 +1,27 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+# No log_bin: Galera uses its emulated binlog (wsrep_emulate_bin_log), so the
+# wsrep XID continuity check is what resolves prepared transactions on a joiner.
+# Parallel apply so that prepared transactions can be committed out of order,
+# producing a non-contiguous prepared set on the donor.
+wsrep_slave_threads=8
+# Slow, durable commits widen the window during which transactions sit in the
+# prepared state, so the backup's BLOCK_COMMIT snapshot is more likely to
+# capture in-doubt transactions.
+innodb_flush_log_at_trx_commit=1
+
+[mysqld.1]
+server_id=11
+
+[mysqld.2]
+server_id=12
+
+[mysqld.3]
+server_id=13
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream

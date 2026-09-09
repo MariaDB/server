@@ -1,4 +1,4 @@
-/* Copyright (C) 2012, 2020, MariaDB
+/* Copyright (C) 2012, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ uint threadpool_max_size;
 uint threadpool_stall_limit;
 uint threadpool_max_threads;
 uint threadpool_oversubscribe;
-uint threadpool_mode;
+READ_ONLY_SYSVAR uint threadpool_mode;
 uint threadpool_prio_kickup_timer;
 my_bool threadpool_exact_stats;
 my_bool threadpool_dedicated_listener;

@@ -44,13 +44,13 @@ DEFAULT CHARSET=latin1;
 connection master;
 drop server if exists 'server_one';
 create server 'server_one' foreign data wrapper 'mysql' options
-(HOST '127.0.0.1',
-DATABASE 'first_db',
-USER 'root',
-PASSWORD '',
-PORT SLAVE_PORT,
-SOCKET '',
-OWNER 'root');
+(`HOST` '127.0.0.1',
+`DATABASE` 'first_db',
+`USER` 'root',
+`PASSWORD` '',
+`PORT` 'SLAVE_PORT',
+`SOCKET` '',
+`OWNER` 'root');
 drop server if exists 'server_two';
 create server 'server_two' foreign data wrapper 'mysql' options
 (HOST '127.0.0.1',

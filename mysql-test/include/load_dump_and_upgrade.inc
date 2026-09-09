@@ -31,7 +31,7 @@
 --exec $MYSQL -e "DROP TABLE IF EXISTS mysql.global_priv; DROP VIEW IF EXISTS mysql.user"
 
 --echo # Loading dump of $old_version mysql schema
---exec $MYSQL mysql < $MYSQLTEST_VARDIR/std_data/mysql_database_$old_version.dump
+--exec $MYSQL --init-command="SET old_mode=UTF8_IS_UTF8MB3" mysql < $MYSQLTEST_VARDIR/std_data/mysql_database_$old_version.dump
 
 --echo # Running mysql_upgrade
 --exec $MYSQL_UPGRADE --verbose > $MYSQL_TMP_DIR/upgrade.log

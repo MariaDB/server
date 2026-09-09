@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,15 +21,13 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_bit.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
+#include <my_virtual_mem.h>
 
 #undef EXTRA_DEBUG
 #define EXTRA_DEBUG
 
 #define ROOT_FLAG_THREAD_SPECIFIC 1
-#define ROOT_FLAG_MPROTECT        2
+#define ROOT_FLAG_VMEM            2
 #define ROOT_FLAG_READ_ONLY       4
 
 /* data packed in MEM_ROOT -> min_malloc */
@@ -45,37 +43,35 @@
 #define ALIGN_SIZE(X) MY_ALIGN(X, 16)
 
 /*
-  Alloc memory through either my_malloc or mmap()
+  Alloc memory through either my_malloc() or my_virtual_mem_commit()
 */
 
 static void *root_alloc(MEM_ROOT *root, size_t size, size_t *alloced_size,
 			myf my_flags)
 {
   *alloced_size= size;
-#if defined(HAVE_MMAP) && defined(HAVE_MPROTECT) && defined(MAP_ANONYMOUS)
-  if (root->flags & ROOT_FLAG_MPROTECT)
+  if (root->flags & ROOT_FLAG_VMEM)
   {
-    void *res;
+    void *ptr;
     *alloced_size= MY_ALIGN(size, my_system_page_size);
-    res= my_mmap(0, *alloced_size, PROT_READ | PROT_WRITE,
-                 MAP_NORESERVE | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (res == MAP_FAILED)
-      res= 0;
-    return res;
+    if ((ptr= my_virtual_mem_commit(NULL, *alloced_size)))
+      update_malloc_size(*alloced_size,
+                         MY_TEST(root->flags & ROOT_FLAG_THREAD_SPECIFIC));
+    return ptr;
   }
-#endif /* HAVE_MMAP */
 
-  return my_malloc(root->psi_key, size,
-		   my_flags | MALLOC_FLAG(root));
+  return my_malloc(root->psi_key, size, my_flags | MALLOC_FLAG(root));
 }
 
 static void root_free(MEM_ROOT *root, void *ptr, size_t size)
 {
-#if defined(HAVE_MMAP) && defined(HAVE_MPROTECT) && defined(MAP_ANONYMOUS)
-  if (root->flags & ROOT_FLAG_MPROTECT)
-    my_munmap(ptr, size);
+  if (root->flags & ROOT_FLAG_VMEM)
+  {
+    update_malloc_size(-(longlong) size,
+                        MY_TEST(root->flags & ROOT_FLAG_THREAD_SPECIFIC));
+    my_virtual_mem_release(ptr, size);
+  }
   else
-#endif
     my_free(ptr);
 }
 
@@ -95,7 +91,7 @@ static void calculate_block_sizes(MEM_ROOT *mem_root, size_t block_size,
 {
   size_t pre_alloc= *pre_alloc_size;
 
-  if (mem_root->flags & ROOT_FLAG_MPROTECT)
+  if (mem_root->flags & ROOT_FLAG_VMEM)
   {
     mem_root->block_size= MY_ALIGN(block_size, my_system_page_size);
     if (pre_alloc)
@@ -134,7 +130,7 @@ static void calculate_block_sizes(MEM_ROOT *mem_root, size_t block_size,
       pre_alloc_size - if non-0, then size of block that should be
                        pre-allocated during memory root initialization.
       my_flags	       MY_THREAD_SPECIFIC flag for my_malloc
-                       MY_RROOT_USE_MPROTECT for read only protected memory
+                       MY_ROOT_USE_VMEM to use anonymos mmap instead of malloc
 
   DESCRIPTION
     This function prepares memory root for further use, sets initial size of
@@ -159,11 +155,11 @@ void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
 
   mem_root->flags= 0;
   DBUG_ASSERT(!test_all_bits(mem_root->flags,
-                             (MY_THREAD_SPECIFIC | MY_ROOT_USE_MPROTECT)));
+                             (MY_THREAD_SPECIFIC | MY_ROOT_USE_VMEM)));
   if (my_flags & MY_THREAD_SPECIFIC)
     mem_root->flags|= ROOT_FLAG_THREAD_SPECIFIC;
-  if (my_flags & MY_ROOT_USE_MPROTECT)
-    mem_root->flags|= ROOT_FLAG_MPROTECT;
+  if (my_flags & MY_ROOT_USE_VMEM)
+    mem_root->flags|= ROOT_FLAG_VMEM;
 
   calculate_block_sizes(mem_root, block_size, &pre_alloc_size);
 
@@ -288,7 +284,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 		  });
 
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
-  if (!(mem_root->flags & ROOT_FLAG_MPROTECT))
+  if (!(mem_root->flags & ROOT_FLAG_VMEM))
   {
     length+= ALIGN_SIZE(sizeof(USED_MEM));
     if (!(next = (USED_MEM*) my_malloc(mem_root->psi_key, length,
@@ -639,32 +635,20 @@ void root_free_to_savepoint(const MEM_ROOT_SAVEPOINT *sv)
    Change protection for all blocks in the mem root
 */
 
-#if defined(HAVE_MMAP) && defined(HAVE_MPROTECT) && defined(MAP_ANONYMOUS)
 void protect_root(MEM_ROOT *root, int prot)
 {
-  USED_MEM *next,*old;
+  USED_MEM *next;
   DBUG_ENTER("protect_root");
   DBUG_PRINT("enter",("root: %p  prot: %d", root, prot));
 
-  DBUG_ASSERT(root->flags & ROOT_FLAG_MPROTECT);
+  DBUG_ASSERT(root->flags & ROOT_FLAG_VMEM);
 
-  for (next= root->used; next ;)
-  {
-    old= next; next= next->next ;
-    mprotect(old, old->size, prot);
-  }
-  for (next= root->free; next ;)
-  {
-    old= next; next= next->next ;
-    mprotect(old, old->size, prot);
-  }
+  for (next= root->used; next; next= next->next)
+    my_virtual_mem_protect(next, next->size, prot);
+  for (next= root->free; next; next= next->next)
+    my_virtual_mem_protect(next, next->size, prot);
   DBUG_VOID_RETURN;
 }
-#else
-void protect_root(MEM_ROOT *root, int prot)
-{
-}
-#endif /* defined(HAVE_MMAP) && ... */
 
 
 char *strdup_root(MEM_ROOT *root, const char *str)

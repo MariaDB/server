@@ -209,6 +209,9 @@ public:
   int set_variable(THD *thd, uint var_idx, Item **value);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
+  int set_variable_row_field_by_name(THD *thd, uint var_idx,
+                                     const Lex_ident_sys_st &field_name,
+                                     Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
 
   int set_variable_composite_field_by_key(THD *thd,

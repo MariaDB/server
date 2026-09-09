@@ -1,0 +1,10 @@
+--source include/have_archive.inc
+CREATE TABLE  t1(
+  t TEXT NULL DEFAULT NULL
+) COLLATE='utf8_general_ci' ENGINE=archive;
+INSERT INTO t1(t) VALUES ('Testtext');
+REPAIR TABLE t1;
+SELECT t = 'Testtext' as Expect_1 from t1;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

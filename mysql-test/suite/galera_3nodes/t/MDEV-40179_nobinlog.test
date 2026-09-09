@@ -1,0 +1,16 @@
+#
+# MDEV-40179 - prepared transactions left behind by a mariabackup SST.
+#
+# log_bin=OFF variant: coverage only. With a single InnoDB read-write engine
+# and no binary log, commits use one-phase commit, so transactions never enter
+# the XA-prepared state and a mariabackup snapshot has nothing in doubt - the
+# bug cannot occur here. This variant just exercises the same load and repeated
+# mariabackup SST with log_bin=OFF and checks the cluster reconverges.
+#
+# See MDEV-40179.inc for the shared test body.
+#
+
+--let $restarts = 8
+--let $writers = 4
+--let $check_gtid = 0
+--source MDEV-40179.inc

@@ -459,12 +459,7 @@ select sformat('{:f}', @a);
 sformat('{:f}', @a)
 3.140000
 set names latin1;
-#
 # End of 10.7 tests
-#
-#
-# Start of 10.8 tests
-#
 #
 # MDEV-29646 sformat('Num [{:20}]', 42) gives incorrect result in view
 #
@@ -498,4 +493,36 @@ bar	2
 foo	1
 drop view v;
 drop table t;
+#
+# MDEV-40411 SFORMAT ignores max_allowed_packet
+#
+set @old_max_allowed_packet=@@global.max_allowed_packet;
+set @@global.max_allowed_packet=512*1024;
+connect u,localhost,root;
+select length(sformat('{:2147483647}', 1));
+length(sformat('{:2147483647}', 1))
+NULL
+select length(sformat('{:524288}', 1));
+length(sformat('{:524288}', 1))
+524288
+select length(sformat('{:524289}', 1));
+length(sformat('{:524289}', 1))
+NULL
+select length(sformat('{:524287}.', 1));
+length(sformat('{:524287}.', 1))
+524288
+select length(sformat('{:524287}..', 1));
+length(sformat('{:524287}..', 1))
+NULL
+disconnect u;
+connection default;
+set @@global.max_allowed_packet= @old_max_allowed_packet;
+set max_session_mem_used=512*1024;
+select length(sformat('{:524288}', 1));
+length(sformat('{:524288}', 1))
+524288
+select length(sformat('{:524289}', 1));
+length(sformat('{:524289}', 1))
+NULL
+set max_session_mem_used=default;
 # End of 10.11 tests

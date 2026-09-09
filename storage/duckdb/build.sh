@@ -11,7 +11,7 @@ BUILD_PATH=$(realpath "$MDB_SOURCE_PATH"/../DuckdbBuildOf_$(basename "$MDB_SOURC
 CPUS=$(getconf _NPROCESSORS_ONLN)
 BUILD_TYPE_OPTIONS=("Debug" "RelWithDebInfo")
 BUILD_TYPE="${BUILD_TYPE:-}"
-DISTRO_OPTIONS=("ubuntu:22.04" "ubuntu:24.04" "debian:12" "rockylinux:8" "rockylinux:9")
+DISTRO_OPTIONS=("ubuntu:22.04" "ubuntu:24.04" "debian:12" "debian:13" "rockylinux:8" "rockylinux:9")
 DEFAULT_MDB_DATADIR="/var/lib/mysql"
 USER="mysql"
 GROUP="mysql"
@@ -30,6 +30,7 @@ usage() {
     echo "  -D          Install build prerequisites (requires root/sudo)"
     echo "  -u          Build unit tests"
     echo "  -a          Enable ASAN/UBSAN (WITH_ASAN, WITH_ASAN_SCOPE, WITH_UBSAN)"
+    echo "  -m          Enable MSAN (WITH_MSAN)"
     echo "  -R          Use gcc-toolset-\${GCC_VERSION} on Rocky 8"
     echo "  -h          Show this help"
     exit 0
@@ -43,9 +44,10 @@ INSTALL_DEPS=false
 GCC_TOOLSET=false
 UNIT_TESTS=false
 WITH_ASAN=false
+WITH_MSAN=false
 OS=""
 
-while getopts "t:d:j:cpSnDRuah" opt; do
+while getopts "t:d:j:cpSnDRuamh" opt; do
     case $opt in
         t) BUILD_TYPE="$OPTARG" ;;
         d) OS="$OPTARG" ;;
@@ -58,6 +60,7 @@ while getopts "t:d:j:cpSnDRuah" opt; do
         R) GCC_TOOLSET=true ;;
         u) UNIT_TESTS=true ;;
         a) WITH_ASAN=true ;;
+        m) WITH_MSAN=true ;;
         h) usage ;;
         *) usage ;;
     esac
@@ -110,6 +113,7 @@ info "Build dir:  ${_CLR_YELLOW}$BUILD_PATH"
 info "Build type: ${_CLR_YELLOW}$BUILD_TYPE"
 info "Jobs:       ${_CLR_YELLOW}$CPUS"
 info "ASAN/UBSAN: ${_CLR_YELLOW}$WITH_ASAN"
+info "MSAN:       ${_CLR_YELLOW}$WITH_MSAN"
 info "Unit tests: ${_CLR_YELLOW}$UNIT_TESTS"
 if [[ $BUILD_PACKAGES = true ]]; then
     info "Packages:   ${_CLR_YELLOW}$PKG_FORMAT ($OS)"
@@ -234,6 +238,13 @@ construct_cmake_flags() {
         )
     fi
 
+    if [[ $WITH_MSAN = true ]]; then
+        MDB_CMAKE_FLAGS+=(
+            -DWITH_MSAN=ON
+            -DWITH_UNIT_TESTS=OFF
+        )
+    fi
+
     if [[ $BUILD_PACKAGES = true ]]; then
         if [[ "$PKG_FORMAT" == "rpm" ]]; then
             local os_version=${OS//[^0-9]/}
@@ -244,6 +255,7 @@ construct_cmake_flags() {
             local codename=""
             case "$OS" in
                 debian:12*)   codename="bookworm" ;;
+                debian:13*)   codename="trixie" ;;
                 ubuntu:22.04) codename="jammy" ;;
                 ubuntu:24.04) codename="noble" ;;
                 *)            fail "Unknown DEB codename for $OS" ;;
@@ -274,13 +286,24 @@ install_deps() {
         ncurses-devel readline-devel openssl-devel zlib-devel bzip2-devel \
         libzstd-devel libcurl-devel libaio-devel libxml2-devel pcre2-devel \
         libxcrypt-devel xz-devel pam-devel perl-DBI python3 python3-devel \
-        ccache rpm-build"
+        libatomic ccache"
+
+    # rpm-build is only needed to build RPM packages; on some bases (e.g. UBI 9)
+    # installing it forces an rpm upgrade that conflicts with pinned @System rpm.
+    if [[ $BUILD_PACKAGES = true ]]; then
+        RPM_DEPS="$RPM_DEPS rpm-build"
+    fi
 
     local DEB_DEPS="build-essential git cmake ninja-build bison flex \
         libncurses-dev libreadline-dev libssl-dev zlib1g-dev libbz2-dev \
         libzstd-dev libcurl4-openssl-dev libaio-dev libxml2-dev libpcre2-dev \
-        libxcrypt-dev liblzma-dev libpam0g-dev libperl-dev python3 python3-dev \
+        liblz4-dev liblzma-dev liblzo2-dev libsnappy-dev libpam0g-dev libperl-dev python3 python3-dev \
         ccache devscripts equivs debhelper libdistro-info-perl"
+
+    # libxcrypt-dev is not available on Debian 13 (Trixie)
+    if [[ "$OS" != debian:13* ]]; then
+        DEB_DEPS="$DEB_DEPS libxcrypt-dev"
+    fi
 
     local command=""
     case "$OS" in
@@ -296,9 +319,16 @@ install_deps() {
                 warn "Rocky 8 default gcc 8 lacks C++20 -- consider re-running with -R"
             fi
             ;;
-        rockylinux:9|rocky:9|rocky:10)
+        rockylinux:9|rocky:9|rocky:10|rhel:9*|redhat:9*|red:9*)
+            # Enable EPEL and the CodeReady Builder / PowerTools-equivalent repo.
+            # Rocky/Alma expose it as the 'crb' alias; genuine RHEL enables it via
+            # subscription-manager. Enabling is best-effort: if neither mechanism
+            # is available we warn and continue so the dnf install below still runs.
             command="$SUDO dnf install -y 'dnf-command(config-manager)' epel-release && \
-                     $SUDO dnf config-manager --set-enabled crb && \
+                     { $SUDO dnf config-manager --set-enabled crb 2>/dev/null || \
+                       $SUDO dnf config-manager --set-enabled ubi-9-codeready-builder-rpms 2>/dev/null || \
+                       $SUDO subscription-manager repos --enable codeready-builder-for-rhel-9-\$(uname -m)-rpms 2>/dev/null || \
+                       warn 'Could not enable CRB/CodeReady Builder repo; continuing without it'; } && \
                      $SUDO dnf install -y gcc gcc-c++ ${RPM_DEPS}"
             ;;
         ubuntu:*|debian:*)

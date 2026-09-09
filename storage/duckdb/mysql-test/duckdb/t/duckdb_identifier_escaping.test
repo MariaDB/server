@@ -1,0 +1,88 @@
+# MDEV-40653: identifiers (schema/table/column names) must be escaped when
+# building DuckDB SQL. DuckDB delimits identifiers with double quotes and
+# escapes an embedded double quote by doubling it. A MariaDB identifier may
+# contain a literal double quote, so without escaping a crafted name breaks
+# out of the quoted identifier (parser error / SQL injection).
+
+--disable_query_log
+SET @saved_duckdb_require_primary_key = @@GLOBAL.duckdb_require_primary_key;
+SET @saved_sql_mode = @@SESSION.sql_mode;
+SET GLOBAL duckdb_require_primary_key = OFF;
+SET SESSION sql_mode = '';
+--enable_query_log
+
+CREATE DATABASE db_ident_esc;
+USE db_ident_esc;
+
+--echo #
+--echo # 1) Column names containing a double quote (CREATE/INSERT/SELECT)
+--echo #
+CREATE TABLE t1 (`a"b` INT PRIMARY KEY, `c"d` INT) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1, 10), (2, 20);
+SELECT * FROM t1 ORDER BY `a"b`;
+SELECT /* user's ' column */ * FROM t1 ORDER BY `a"b`;
+SELECT * -- user's ' columns
+FROM t1 ORDER BY `a"b`;
+
+--echo #
+--echo # 2) UPDATE/DELETE route the quoted names through the WHERE/SET builders
+--echo #
+UPDATE t1 SET `c"d` = 99 WHERE `a"b` = 1;
+SELECT * FROM t1 ORDER BY `a"b`;
+DELETE FROM t1 WHERE `a"b` = 2;
+SELECT * FROM t1 ORDER BY `a"b`;
+
+--echo #
+--echo # 3) ALTER RENAME/ADD/DROP COLUMN with quoted names
+--echo #
+ALTER TABLE t1 RENAME COLUMN `c"d` TO `e""f`;
+SHOW CREATE TABLE t1;
+SELECT `e""f` FROM t1;
+ALTER TABLE t1 ADD COLUMN `g"h` INT;
+SELECT * FROM t1;
+ALTER TABLE t1 DROP COLUMN `g"h`;
+
+--echo #
+--echo # 4) Table name containing a double quote
+--echo #
+CREATE TABLE `x"y` (`id` INT PRIMARY KEY) ENGINE=DuckDB;
+INSERT INTO `x"y` VALUES (1), (2);
+SELECT * FROM `x"y` ORDER BY `id`;
+TRUNCATE TABLE `x"y`;
+SELECT COUNT(*) FROM `x"y`;
+DROP TABLE `x"y`;
+
+--echo #
+--echo # 5) Backslash quote-boundary mismatches disable raw SQL forwarding
+--echo #
+CREATE TABLE lexical_guard (id INT PRIMARY KEY, v VARCHAR(100)) ENGINE=DuckDB;
+INSERT INTO lexical_guard VALUES (1, 'safe');
+SELECT COUNT(*) FROM lexical_guard
+WHERE v = 'missing\' OR true -- ';
+--error ER_GET_ERRMSG
+UPDATE lexical_guard SET v = 'changed\' WHERE true -- ' WHERE id = 999;
+SELECT * FROM lexical_guard;
+--error ER_GET_ERRMSG
+DELETE FROM lexical_guard WHERE v = 'missing\' OR true -- ';
+SELECT COUNT(*) FROM lexical_guard;
+--error ER_GET_ERRMSG
+UPDATE lexical_guard SET v = 'safe\'';
+SELECT * FROM lexical_guard;
+UPDATE /* user's \' comment */ lexical_guard SET v = 'unchanged' WHERE id = 999;
+UPDATE lexical_guard SET v = 'unchanged\n' WHERE id = 999;
+--error ER_GET_ERRMSG
+UPDATE lexical_guard SET v = "changed\" WHERE true -- " WHERE id = 999;
+SELECT * FROM lexical_guard;
+DROP TABLE lexical_guard;
+
+--echo #
+--echo # 6) Cleanup
+--echo #
+DROP TABLE t1;
+DROP DATABASE db_ident_esc;
+
+--disable_query_log
+SET GLOBAL duckdb_require_primary_key = @saved_duckdb_require_primary_key;
+SET SESSION sql_mode = @saved_sql_mode;
+--enable_query_log
+--source ../include/cleanup_duckdb.inc

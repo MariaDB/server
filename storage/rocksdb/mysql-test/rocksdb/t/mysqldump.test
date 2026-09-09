@@ -33,10 +33,10 @@ insert into r1 values (5,5,5,5,5,5,5,5);
 update r1 set value1=value1+100 where id1=1 and id2=1 and id3='1';
 
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
---exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load test
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load test
 
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
---exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load --rocksdb_bulk_load_allow_sk test
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load --rocksdb_bulk_load_allow_sk test
 
 rollback;
 
@@ -49,17 +49,17 @@ source include/search_pattern_in_file.inc;
 set @save_default_storage_engine=@@global.default_storage_engine;
 SET GLOBAL default_storage_engine=rocksdb;
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
---exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test
 source include/search_pattern_in_file.inc;
 
 # Sanity test mysqldump when the --innodb-stats-on-metadata is specified (no effect)
 --echo ==== mysqldump with --innodb-stats-on-metadata ====
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
---exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --innodb-stats-on-metadata test
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --innodb-stats-on-metadata test
 
 # testing mysqldump work with statement based binary logging
 SET GLOBAL binlog_format=statement;
---exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test > /dev/null
+--exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test > /dev/null
 SET GLOBAL binlog_format=row;
 
 drop table r1;

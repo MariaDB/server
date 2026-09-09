@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 # WITH ROLLUP
 CREATE TABLE t1 (id INT PRIMARY KEY, col1 INT, col2 INT);
 SELECT id, col1, col2 FROM t1 GROUP BY id, col1, col2 WITH ROLLUP;

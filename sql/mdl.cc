@@ -164,7 +164,7 @@ void MDL_key::init_psi_keys()
 #endif
 
 static bool mdl_initialized= 0;
-uint mdl_instances;
+READ_ONLY_SYSVAR uint mdl_instances;
 
 enum tal_status { TAL_ERROR, TAL_ACQUIRED, TAL_WAIT, TAL_NOWAIT };
 

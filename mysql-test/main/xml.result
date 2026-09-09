@@ -1414,13 +1414,6 @@ ExtractValue(@xml, '/employee/dt3')
 NULL
 Warnings:
 Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
-#
-# MDEV-39750 ExtractValue does not control recursion depth.
-#
-SELECT ExtractValue('<a/>', REPEAT('(', 100000));
-ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
-SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
-ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 10.6 tests
 # Start of 11.4 tests
 #

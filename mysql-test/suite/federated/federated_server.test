@@ -46,13 +46,13 @@ connection master;
 drop server if exists 'server_one';
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval create server 'server_one' foreign data wrapper 'mysql' options
-  (HOST '127.0.0.1',
-  DATABASE 'first_db',
-  USER 'root',
-  PASSWORD '',
-  PORT $SLAVE_MYPORT,
-  SOCKET '',
-  OWNER 'root');
+  (`HOST` '127.0.0.1',
+  `DATABASE` 'first_db',
+  `USER` 'root',
+  `PASSWORD` '',
+  `PORT` '$SLAVE_MYPORT',
+  `SOCKET` '',
+  `OWNER` 'root');
 
 drop server if exists 'server_two';
 --replace_result $SLAVE_MYPORT SLAVE_PORT
