@@ -14447,6 +14447,36 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
   mpvio_info(mpvio->auth_info.thd->net.vio, info);
 }
 
+#ifdef HAVE_OPENSSL
+/*
+  strcmp(), unless old_mode=X509_LENIENT_COMPARE: then ignore a backslash
+  before '/' or '+' on either side, so a name escaped by OpenSSL 3 still
+  matches the unescaped rendering from OpenSSL 1.1 or WolfSSL. Opt-in:
+  it reintroduces ambiguity between an escaped literal '/' or '+' and a
+  real RDN separator.
+*/
+static int my_x509_oneline_cmp(THD *thd, const char *a, const char *b)
+{
+  if (!a || !b)
+    return a != b;
+  if (!(thd->variables.old_behavior & OLD_MODE_X509_LENIENT_COMPARE))
+    return strcmp(a, b);
+  for (;;)
+  {
+    if (*a == '\\' && (a[1] == '/' || a[1] == '+'))
+      a++;
+    if (*b == '\\' && (b[1] == '/' || b[1] == '+'))
+      b++;
+    if (*a != *b)
+      return (unsigned char) *a - (unsigned char) *b;
+    if (*a == '\0')
+      return 0;
+    a++;
+    b++;
+  }
+}
+#endif /* HAVE_OPENSSL */
+
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
   Vio *vio= thd->net.vio;
@@ -14532,7 +14562,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       char *ptr= X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing issuers: '%s' and '%s'",
                          acl_user->x509_issuer, ptr));
-      if (strcmp(acl_user->x509_issuer, ptr))
+      if (my_x509_oneline_cmp(thd, acl_user->x509_issuer, ptr))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
@@ -14549,7 +14579,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       char *ptr= X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing subjects: '%s' and '%s'",
                          acl_user->x509_subject, ptr));
-      if (strcmp(acl_user->x509_subject, ptr))
+      if (my_x509_oneline_cmp(thd, acl_user->x509_subject, ptr))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
