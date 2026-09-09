@@ -16,7 +16,7 @@
 # node 3 is a native MariaDB server operating as async replication master
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
-RESET MASTER;
+--source include/reset_master.inc
 
 # nodes 1 and 2 form a Galera cluster, node 2 operates as a slave for the
 # native MariaDB master in node 3
@@ -48,7 +48,6 @@ RESET SLAVE;
 --source include/restart_mysqld.inc
 
 --connection node_3
---source include/kill_binlog_dump_threads.inc
 --source include/reset_master.inc
 --disconnect node_3
 

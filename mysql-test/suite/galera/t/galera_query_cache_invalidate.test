@@ -114,8 +114,7 @@ RESET SLAVE ALL;
 
 --connection node_1
 SET SESSION WSREP_ON=OFF;
---source include/kill_binlog_dump_threads.inc
-RESET MASTER;
+--source include/reset_master.inc
 SET SESSION WSREP_ON=ON;
 
 --source include/galera_end.inc

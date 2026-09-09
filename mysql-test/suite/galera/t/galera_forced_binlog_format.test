@@ -8,7 +8,7 @@
 
 --connection node_1
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+--source include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
 FLUSH BINARY LOGS;
 

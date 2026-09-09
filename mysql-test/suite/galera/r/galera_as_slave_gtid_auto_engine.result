@@ -29,20 +29,17 @@ SET GLOBAL gtid_slave_pos = "";
 #cleanup
 connection node_1;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_2;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_3;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 connection node_2;
 CALL mtr.add_suppression("The automatically created table");
 DROP TABLE mysql.gtid_slave_pos_InnoDB;
 set global wsrep_on=OFF;
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
