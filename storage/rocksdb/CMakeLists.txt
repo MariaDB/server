@@ -99,6 +99,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_sst_info.h
   rdb_converter.cc
   rdb_converter.h
+  rdb_backup_server.cc
+  rdb_backup_server.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
