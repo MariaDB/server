@@ -3,7 +3,8 @@
 
   Verifies blob segment normalization (seg->length, seg->bit_start,
   seg->flag, seg->type) and correct key setup for non-blob types
-  (varchar, int, enum, mixed keys, geometry GROUP BY).
+  (varchar, int, enum, mixed keys, geometry GROUP BY), and the
+  HA_NO_KEY_READ marking of a key whose blob segment was converted.
 */
 
 #include <my_global.h>
@@ -179,6 +180,9 @@ static void test_distinct_key_truncation()
   ok(kd->seg[0].flag & HA_BLOB_PART,
      "distinct_key_truncation: seg->flag (0x%x) has HA_BLOB_PART",
      (uint) kd->seg[0].flag);
+  ok(kd->flag & HA_NO_KEY_READ,
+     "distinct_key_truncation: keydef->flag (0x%x) has HA_NO_KEY_READ",
+     (uint) kd->flag);
   ok(kd->seg[0].type == HA_KEYTYPE_VARBINARY4 ||
      kd->seg[0].type == HA_KEYTYPE_VARTEXT4,
      "distinct_key_truncation: seg->type = %u (expected VARTEXT4/VARBINARY4)",
@@ -504,6 +508,9 @@ static void test_mixed_int_varchar_key()
      "int_varchar: seg[1] has NO HA_BLOB_PART");
   ok((seg1->flag & HA_VAR_LENGTH_PART),
      "int_varchar: seg[1] has HA_VAR_LENGTH_PART");
+  ok(!(kd->flag & HA_NO_KEY_READ),
+     "int_varchar: keydef->flag (0x%x) has NO HA_NO_KEY_READ",
+     (uint) kd->flag);
 
   my_free(hp_ci.keydef);
   vs->~Field_varstring();
@@ -644,13 +651,184 @@ static void test_geometry_group_by_no_widening()
 }
 
 
+#if !defined(DBUG_OFF) && !defined(_WIN32)
+#include <unistd.h>
+
+/*
+  Call heap_rkey() with the guard's DBUG_ASSERT made non-fatal, and
+  report whether the guard spoke up.
+
+  DBUG_ASSERT() does not abort on its own: it calls _db_my_assert(),
+  which aborts only when the global my_assert is set.  With my_assert
+  cleared the assertion prints "<file>:<line>: assert: <expression>"
+  to stderr and execution continues, which is what the server's
+  --debug-assert=0 does.  Matching on the assertion's own expression
+  text keeps an unrelated assertion from passing this off as a hit.
+
+  Continuing past the guard is safe here because the table holds no
+  rows: hp_search() skips the lookup entirely when share->records is
+  0, so it never reads the key buffer.
+*/
+static my_bool rkey_reports_guard(HP_INFO *info, uchar *rec, int inx,
+                                  const uchar *key)
+{
+  char buf[512];
+  size_t len;
+  int saved_fd;
+  FILE *captured= tmpfile();
+
+  if (!captured)
+    return FALSE;
+
+  fflush(stderr);
+  saved_fd= dup(fileno(stderr));
+  dup2(fileno(captured), fileno(stderr));
+
+  my_assert= 0;
+  (void) heap_rkey(info, rec, inx, key, (key_part_map) 1, HA_READ_KEY_EXACT);
+  my_assert= 1;
+
+  fflush(stderr);
+  dup2(saved_fd, fileno(stderr));
+  close(saved_fd);
+
+  rewind(captured);
+  len= fread(buf, 1, sizeof(buf) - 1, captured);
+  buf[len]= '\0';
+  fclose(captured);
+
+  return strstr(buf, "keyinfo->flag & HA_NO_KEY_READ") != NULL;
+}
+#endif
+
+
+/*
+  no_key_read_guard: the key is marked, and heap_rkey() refuses it.
+
+  heap_prepare_hp_create_info() marks the key whose blob segment it
+  rewrote from the VARTEXT2 form, and heap_rkey() reads that mark off
+  share->keydef.  heap_create() copies the key definitions in between
+  and folds its own bits into keydef->flag, so it must not lose the
+  mark.  Two keys are built: a two-part key carrying the mark, and a
+  plain int key that must not acquire it.  The second key is also the
+  control for the guard itself, which has to stay silent on it.
+
+  Record layout (same as the other HEAP blob tests):
+    byte 0:     null bitmap
+    bytes 1-4:  int4
+    bytes 5-6:  blob length (packlength 2)
+    bytes 7-14: blob data pointer
+*/
+static void test_no_key_read_guard()
+{
+  const uint rec_length=  15;
+  const uint int_offset=   1;
+  const uint blob_offset=  5;
+  const uint blob_packlen= 2;
+
+  HA_KEYSEG segs[3];
+  HP_KEYDEF keydefs[2];
+  HP_BLOB_DESC blob_desc;
+  HP_CREATE_INFO ci;
+  HP_SHARE *share= NULL;
+  my_bool created_new_share;
+
+  memset(segs, 0, sizeof(segs));
+
+  /* key 0, part 0: plain int, carries no flag of its own */
+  segs[0].type=    HA_KEYTYPE_BINARY;
+  segs[0].start=   int_offset;
+  segs[0].length=  4;
+  segs[0].charset= &my_charset_bin;
+
+  /* key 0, part 1: the blob segment heap_prepare_hp_create_info() marked */
+  segs[1].type=      HA_KEYTYPE_VARBINARY4;
+  segs[1].start=     blob_offset;
+  segs[1].length=    4 + portable_sizeof_char_ptr;
+  segs[1].flag=      HA_BLOB_PART;
+  segs[1].bit_start= blob_packlen;
+  segs[1].charset=   &my_charset_bin;
+
+  /* key 1: int only */
+  segs[2].type=    HA_KEYTYPE_BINARY;
+  segs[2].start=   int_offset;
+  segs[2].length=  4;
+  segs[2].charset= &my_charset_bin;
+
+  memset(keydefs, 0, sizeof(keydefs));
+  keydefs[0].keysegs=   2;
+  keydefs[0].seg=       &segs[0];
+  keydefs[0].algorithm= HA_KEY_ALG_HASH;
+  keydefs[0].flag=      HA_NO_KEY_READ;
+  keydefs[1].keysegs=   1;
+  keydefs[1].seg=       &segs[2];
+  keydefs[1].algorithm= HA_KEY_ALG_HASH;
+
+  blob_desc.offset=     blob_offset;
+  blob_desc.packlength= blob_packlen;
+
+  memset(&ci, 0, sizeof(ci));
+  ci.keys=            2;
+  ci.keydef=          keydefs;
+  ci.reclength=       rec_length;
+  ci.max_records=     1000;
+  ci.min_records=     10;
+  ci.max_table_size=  1024*1024;
+  ci.blob_descs=      &blob_desc;
+  ci.blob_count=      1;
+  ci.internal_table=  1;
+
+  int err= heap_create("no_key_read_guard", &ci, &share,
+                       &created_new_share);
+  ok(err == 0 && share != NULL,
+     "no_key_read_guard: heap_create succeeded (err=%d)", err);
+  if (!share)
+    return;
+
+  ok((share->keydef[0].flag & HA_NO_KEY_READ) != 0,
+     "no_key_read_guard: keydef[0].flag (0x%x) has HA_NO_KEY_READ",
+     (uint) share->keydef[0].flag);
+  ok((share->keydef[1].flag & HA_NO_KEY_READ) == 0,
+     "no_key_read_guard: keydef[1].flag (0x%x) has NO HA_NO_KEY_READ",
+     (uint) share->keydef[1].flag);
+
+  HP_INFO *info= heap_open_from_share(share, 2);
+  ok(info != NULL, "no_key_read_guard: heap_open_from_share succeeded");
+  if (!info)
+  {
+    heap_release_share(share, TRUE);
+    return;
+  }
+
+#if !defined(DBUG_OFF) && !defined(_WIN32)
+  {
+    uchar rec[15];
+    uchar key[4 + portable_sizeof_char_ptr];
+
+    memset(rec, 0, sizeof(rec));
+    memset(key, 0, sizeof(key));
+
+    ok(rkey_reports_guard(info, rec, 0, key),
+       "no_key_read_guard: heap_rkey refused key 0 (HA_NO_KEY_READ)");
+    ok(!rkey_reports_guard(info, rec, 1, key),
+       "no_key_read_guard: heap_rkey accepted key 1 (no HA_NO_KEY_READ)");
+  }
+#else
+  skip(2, "guard needs a DBUG build and stderr redirection");
+#endif
+
+  /* The share is internal, so hp_close() frees it with the last open */
+  hp_close(info);
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_key_setup");
   /* Field constructors reference system_charset_info via DTCollation */
   system_charset_info= &my_charset_latin1;
-  plan(34);
+  plan(42);
 
   diag("distinct_key_truncation: blob segment normalization");
   test_distinct_key_truncation();
@@ -669,6 +847,9 @@ int main(int argc __attribute__((unused)),
 
   diag("geom_group_by: geometry GROUP BY key must not trigger blob key widening");
   test_geometry_group_by_no_widening();
+
+  diag("no_key_read_guard: the key is marked and heap_rkey refuses it");
+  test_no_key_read_guard();
 
   my_end(0);
   return exit_status();
