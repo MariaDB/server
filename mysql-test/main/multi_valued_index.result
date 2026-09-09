@@ -513,6 +513,228 @@ c	txt	j
 1	alpha beta	{"tags": ["aaa"]}
 3	alpha	{"tags": ["aaa","bbb"]}
 drop table t1;
+#
+# CREATE TABLE ... LIKE
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+create table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# one internal column, named from scratch in the new table
+show index from t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t2 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t2, t1;
+#
+# Renaming the base column
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+alter table t1 rename column j to jj;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `jj` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`jj`)),
+  KEY `idx` ((cast(json_extract(`jj`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(jj->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(jj->'$.tags','"aaa"') order by c;
+c	jj
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(jj->'$.tags','"aaa"') order by c;
+c	jj
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# ... and through CHANGE COLUMN, which renames and retypes at once
+alter table t1 change jj j json;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t1;
+#
+# Dropping the base column
+#
+# The hidden column is computed from it, so the drop has to be refused
+# while the index exists. It must not leave an index over a column
+# that is gone.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
+alter table t1 drop column j;
+ERROR 42S22: Unknown column 'j' in 'GENERATED ALWAYS AS'
+# the table is unchanged and still usable
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+# dropping the index first makes it possible
+alter table t1 drop key idx, drop column j;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# ALGORITHM=INSTANT / COPY / INPLACE
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+## adding a multi-valued index costs the table instant ADD COLUMN
+alter table t1 add column x int, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+alter table t1 add column y int, algorithm=inplace;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `y` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+## the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+alter table t1 add column z int, algorithm=copy;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `y` int(11) DEFAULT NULL,
+  `z` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using filesort
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y	z
+1	{"tags": ["aaa"]}	NULL	NULL
+3	{"tags": ["aaa","bbb"]}	NULL	NULL
+## adding the index in place to a table that already has rows
+create table t2 (c int, j json) engine=innodb;
+insert into t2 select c, j from t1;
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+## ... it needs a rebuild, which ALGORITHM=COPY does
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=copy;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+## the same rows without the index:
+select * from t2 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+## ... rebuild still needed needed even when a table already has a fulltext index
+create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
+insert into t3 select c, 'alpha', j from t1;
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=copy;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `c` int(11) DEFAULT NULL,
+  `txt` text DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  FULLTEXT KEY `ft` (`txt`),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
+c	txt	j
+1	alpha	{"tags": ["aaa"]}
+3	alpha	{"tags": ["aaa","bbb"]}
+drop table t3;
+drop table t1, t2;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

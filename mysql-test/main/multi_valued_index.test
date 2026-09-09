@@ -327,6 +327,135 @@ order by c;
 
 drop table t1;
 
+--echo #
+--echo # CREATE TABLE ... LIKE
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+create table t2 like t1;
+show create table t2;
+--echo # one internal column, named from scratch in the new table
+show index from t2;
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo # the same rows without the index:
+select * from t2 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+drop table t2, t1;
+
+--echo #
+--echo # Renaming the base column
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+alter table t1 rename column j to jj;
+show create table t1;
+explain select * from t1 where json_contains(jj->'$.tags','"aaa"');
+select * from t1 where json_contains(jj->'$.tags','"aaa"') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(jj->'$.tags','"aaa"') order by c;
+
+--echo # ... and through CHANGE COLUMN, which renames and retypes at once
+alter table t1 change jj j json;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+drop table t1;
+
+--echo #
+--echo # Dropping the base column
+--echo #
+--echo # The hidden column is computed from it, so the drop has to be refused
+--echo # while the index exists. It must not leave an index over a column
+--echo # that is gone.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
+
+--error ER_BAD_FIELD_ERROR
+alter table t1 drop column j;
+--echo # the table is unchanged and still usable
+show create table t1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo # dropping the index first makes it possible
+alter table t1 drop key idx, drop column j;
+show create table t1;
+
+drop table t1;
+
+--echo #
+--echo # ALGORITHM=INSTANT / COPY / INPLACE
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+--echo ## adding a multi-valued index costs the table instant ADD COLUMN
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add column x int, algorithm=instant;
+show create table t1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+alter table t1 add column y int, algorithm=inplace;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo ## the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+alter table t1 add column z int, algorithm=copy;
+show create table t1;
+explain
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo ## adding the index in place to a table that already has rows
+create table t2 (c int, j json) engine=innodb;
+insert into t2 select c, j from t1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=inplace;
+
+--echo ## ... it needs a rebuild, which ALGORITHM=COPY does
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=copy;
+show create table t2;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo ## the same rows without the index:
+select * from t2 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo ## ... rebuild still needed needed even when a table already has a fulltext index
+create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
+insert into t3 select c, 'alpha', j from t1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=inplace;
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=copy;
+show create table t3;
+select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
+drop table t3;
+drop table t1, t2;
+
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);
