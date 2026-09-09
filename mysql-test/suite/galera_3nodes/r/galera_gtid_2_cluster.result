@@ -235,37 +235,31 @@ cluster 1 node 1
 connection node_1;
 change master to master_use_gtid=no, ignore_server_ids=();
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 set global GTID_SLAVE_POS="";
 cluster 2 node 1
 connection node_4;
 change master to master_use_gtid=no, ignore_server_ids=();
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 set global GTID_SLAVE_POS="";
 connection node_2;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_3;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_5;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_6;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_1;
 --- ignore_server_ids=(12,13)
@@ -454,8 +448,7 @@ drop table t1;
 stop slave;
 change master to master_use_gtid=no, ignore_server_ids=();
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 set global GTID_SLAVE_POS="";
 cluster 2 node 1
@@ -463,27 +456,22 @@ connection node_4;
 stop slave;
 change master to master_use_gtid=no, ignore_server_ids=();
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 set global GTID_SLAVE_POS="";
 connection node_2;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_3;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_5;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_6;
 set global wsrep_on=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;

@@ -8,11 +8,11 @@
 
 --connection node_2
 set global wsrep_on=OFF;
-reset master;
+--source include/reset_master.inc
 set global wsrep_on=ON;
 --connection node_1
 set global wsrep_on=OFF;
-reset master;
+--source include/reset_master.inc
 set global wsrep_on=ON;
 
 #
@@ -88,7 +88,7 @@ DROP TABLE t2;
 --echo #cleanup
 --connection node_1
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+--source include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
 
 # Restore original auto_increment_offset values.

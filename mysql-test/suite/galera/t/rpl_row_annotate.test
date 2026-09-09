@@ -4,13 +4,13 @@
 --echo # On node_2
 --connection node_2
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+--source include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
 
 --echo # On node_1
 --connection node_1
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+--source include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
 CREATE TABLE t1(i INT)ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
