@@ -26,6 +26,27 @@
   This design amortizes the per-run header overhead across many records,
   giving near-100% space efficiency for typical blob sizes (150 KB and
   above), even when recbuffer is very small (e.g. 16 bytes).
+
+  This file also owns the translation between the SQL record buffer and
+  the stored record, because the two are halves of one operation: a row
+  is moved with hp_pack_record() or hp_unpack_record() and then its
+  out-of-line columns are settled by hp_write_blobs() or hp_read_blobs().
+
+  The two layouts differ when the table has promoted columns -- VARCHARs
+  the engine stores as blobs.  Such a column occupies a length prefix
+  followed by its declared payload in record[0], where the SQL layer
+  reaches the data at a fixed offset, but only a length prefix and a
+  chain pointer in the stored record.  That shortens the stored record
+  and shifts every column after the first promoted one, so the layouts
+  need an explicit map rather than a single memcpy.
+
+  The map is share->copy_spans, the list of byte ranges identical in both
+  layouts.  Everything that is not a promoted column's reserved payload
+  belongs to a span: the null bytes, the fixed-width columns, native blob
+  descriptors, and the promoted columns' own length prefixes.  The gaps
+  between spans are exactly the promoted payloads.  A table with no
+  promoted column has one span covering the whole record, so it costs the
+  single memcpy it cost before promotion existed.
 */
 
 #include "heapdef.h"
@@ -106,6 +127,8 @@ void hp_shrink_tail(HP_SHARE *share)
     tail_pos-= reclaim_count * recbuffer;
     block_pos-= reclaim_count;
     share->deleted-= reclaim_count;
+    /* One whole entry leaves the list per iteration, block or single */
+    share->deleted_entries--;
 
     /*
       When the current leaf block becomes empty (block_pos has reached 0),
@@ -190,6 +213,19 @@ void hp_flush_unaliased_blob_free(HP_INFO *info, const uchar *record)
 
     if (!*chain_pos)
       continue;
+
+    if (desc->promoted)
+    {
+      /*
+        A promoted column holds its value inline in the record buffer, so
+        it can never be sourcing the parked chain and there is no pointer
+        to test.  hp_write_blobs() reaches the same conclusion for the
+        same reason and will not adopt this chain.
+      */
+      hp_free_run_chain(share, *chain_pos);
+      *chain_pos= NULL;
+      continue;
+    }
 
     data_len= hp_blob_length(desc, record);
     memcpy(&data_ptr, record + desc->offset + desc->packlength,
@@ -662,13 +698,24 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
 
     if (data_len == 0)
     {
-      bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+      hp_blob_clear_chain(desc, pos);
       continue;
     }
 
     has_blob_data= TRUE;
-    memcpy(&data_ptr, record + desc->offset + desc->packlength,
-           sizeof(data_ptr));
+    if (desc->promoted)
+    {
+      /*
+        A promoted column carries its value inline, so the bytes to write
+        are in the record buffer itself rather than behind a pointer.
+        They can never alias heap memory, which is why the parked chain
+        below is never adopted for one.
+      */
+      data_ptr= record + desc->offset + desc->packlength;
+    }
+    else
+      memcpy(&data_ptr, record + desc->offset + desc->packlength,
+             sizeof(data_ptr));
 
     if (parked && parked[desc - share->blob_descs] &&
         hp_blob_sources_chain(share, data_ptr,
@@ -691,19 +738,17 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
       HP_BLOB_DESC *rd;
       for (rd= share->blob_descs; rd < desc; rd++)
       {
-        uchar *chain;
-        memcpy(&chain, pos + rd->offset + rd->packlength, sizeof(chain));
+        uchar *chain= hp_blob_get_chain(rd, pos);
         if (chain && (!parked || chain != parked[rd - share->blob_descs]))
           hp_free_run_chain(share, chain);
-        bzero(pos + rd->offset + rd->packlength, sizeof(char*));
+        hp_blob_clear_chain(rd, pos);
       }
       hp_shrink_tail(share);
-      bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+      hp_blob_clear_chain(desc, pos);
       DBUG_RETURN(my_errno);
     }
 
-    memcpy(pos + desc->offset + desc->packlength, &first_run,
-           sizeof(first_run));
+    hp_blob_set_chain(desc, pos, first_run);
   }
 
   /* Adopted chains belong to this row now, not to the deferred free */
@@ -717,7 +762,7 @@ int hp_write_blobs(HP_INFO *info, const uchar *record, uchar *pos)
       uchar *chain;
       if (!*chain_pos)
         continue;
-      memcpy(&chain, pos + desc->offset + desc->packlength, sizeof(chain));
+      chain= hp_blob_get_chain(desc, pos);
       if (chain == *chain_pos)
         *chain_pos= NULL;
       else
@@ -786,9 +831,27 @@ static void hp_reassemble_chain(const uchar *chain, uint32 data_len,
 
 
 /*
+  Copy a chain's data into a caller-supplied buffer, whichever of the
+  three run layouts it uses.  hp_reassemble_chain() handles the multi-run
+  case; this wraps the two contiguous ones around it.
+*/
+
+static void hp_copy_chain_data(const uchar *chain, uint32 data_len,
+                               uchar *dest, uint visible, uint recbuffer)
+{
+  if (hp_is_single_rec(chain, visible))
+    memcpy(dest, chain, data_len);              /* Case A: data at offset 0 */
+  else if (hp_is_zerocopy(chain, visible))
+    memcpy(dest, chain + recbuffer, data_len);  /* Case B: past the header */
+  else
+    hp_reassemble_chain(chain, data_len, dest, visible, recbuffer);
+}
+
+
+/*
   Read blob data from continuation runs into the reassembly buffer.
 
-  After memcpy(record, pos, reclength), blob descriptor pointers in
+  After hp_unpack_record(), blob descriptor pointers in
   record[] point into HP_BLOCK continuation run chains.  This function
   walks each chain, reassembles blob data into info->blob_buff, and
   rewrites the pointers in record[] to point into blob_buff.
@@ -829,11 +892,18 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
     uint32 data_len;
     const uchar *chain;
 
-    data_len= hp_blob_length(desc, record);
+    /*
+      A promoted column goes straight into the record buffer, where the
+      SQL layer expects its value inline, so it never occupies blob_buff.
+    */
+    if (desc->promoted)
+      continue;
+
+    data_len= hp_blob_stored_length(desc, pos);
     if (data_len == 0)
       continue;
 
-    memcpy(&chain, record + desc->offset + desc->packlength, sizeof(chain));
+    chain= hp_blob_get_chain(desc, pos);
 
     if (!force_copy && !hp_is_multi_run(chain, visible))
     {
@@ -866,11 +936,25 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
     uint32 data_len;
     const uchar *chain, *blob_data= buff_ptr;
 
-    data_len= hp_blob_length(desc, record);
+    data_len= hp_blob_stored_length(desc, pos);
     if (data_len == 0)
       continue;
 
-    memcpy(&chain, record + desc->offset + desc->packlength, sizeof(chain));
+    chain= hp_blob_get_chain(desc, pos);
+
+    if (desc->promoted)
+    {
+      /*
+        Materialize inline.  The SQL layer reaches a VARCHAR's data at a
+        fixed offset from its length prefix, so unlike a native blob
+        there is no pointer slot to aim at heap memory, and therefore no
+        zero-copy form of this read.
+      */
+      hp_copy_chain_data(chain, data_len,
+                         record + desc->offset + desc->packlength,
+                         visible, recbuffer);
+      continue;
+    }
 
     if (hp_is_single_rec(chain, visible))
     {
@@ -984,9 +1068,9 @@ void hp_free_blobs(HP_SHARE *share, uchar *pos)
   {
     uchar *chain;
 
-    if (hp_blob_length(desc, pos) == 0)
+    if (hp_blob_stored_length(desc, pos) == 0)
       continue;
-    memcpy(&chain, pos + desc->offset + desc->packlength, sizeof(chain));
+    chain= hp_blob_get_chain(desc, pos);
     hp_free_run_chain(share, chain);
   }
 

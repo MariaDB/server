@@ -136,6 +136,16 @@ public:
   { return &type_handler_vector; }
   void sql_type(String &str) const override;
   int reset() override;
+  /*
+    A VECTOR has one possible length: store() below rejects anything that
+    is not exactly field_length bytes.  Moving a payload out of the
+    record pays where a declared width overestimates the stored one, so
+    there is nothing to gain here, and a length prefix, a chain pointer
+    and a continuation record to lose.  reset() writes that width into
+    the length prefix of a row that stored nothing, so every row would
+    ship its whole declared width into the chain regardless.
+  */
+  bool worth_storing_out_of_line() const override { return false; }
   Copy_func *get_copy_func(const Field *from) const override;
   int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
   int  store(double nr) override;

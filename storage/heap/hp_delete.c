@@ -47,6 +47,7 @@ void hp_push_free_block(HP_SHARE *share, uchar *first, uint16 count)
 
   share->del_link= last;
   share->deleted+= count;
+  share->deleted_entries++;
   share->total_records-= count;
 }
 
@@ -57,6 +58,10 @@ void hp_push_free_block(HP_SHARE *share, uchar *first, uint16 count)
   Normalizes the head by treating a single record as a block of count 1,
   then checks adjacency in two directions (above/below).
   Falls back to hp_push_free_block/hp_push_free_record when no adjacency.
+
+  Both merge branches leave share->deleted_entries alone: the head entry
+  grows to cover the new range instead of a second entry appearing.  Only
+  the two fall-back calls add one, and they maintain it themselves.
 */
 
 void hp_push_free_block_coalesce(HP_SHARE *share, uchar *first,
@@ -197,13 +202,12 @@ int heap_delete(HP_INFO *info, const uchar *record)
       uint i;
       for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
       {
-        if (hp_blob_length(desc, pos) == 0)
+        if (hp_blob_stored_length(desc, pos) == 0)
         {
           info->pending_blob_chains[i]= NULL;
           continue;
         }
-        memcpy(&info->pending_blob_chains[i],
-               pos + desc->offset + desc->packlength, sizeof(uchar*));
+        info->pending_blob_chains[i]= hp_blob_get_chain(desc, pos);
       }
       info->has_pending_blob_free= TRUE;
     }

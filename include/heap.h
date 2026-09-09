@@ -44,11 +44,11 @@ extern "C" {
 #define HP_PTRS_IN_NOD	128
 
 /*
-  Value of HP_SHARE::max_records for a table with no row limit.  0 is a
+  Value of HP_SHARE::max_rows for a table with no row limit.  0 is a
   limit of zero rows, which is how a table that is never written to is
   created; only heap_create()'s argument uses 0 for "no limit".
 */
-#define NO_LIMIT_RECORDS ULONG_MAX
+#define NO_LIMIT_ROWS ULONG_MAX
 
 	/* struct used with heap_functions */
 
@@ -56,8 +56,10 @@ typedef struct st_heapinfo		/* Struct from heap_info */
 {
   ulong records;			/* Records in database */
   ulong deleted;			/* Deleted records in database */
-  ulong max_records;
+  ulong deleted_entries;                /* Free list entries; see heap_info() */
   ulonglong data_length;
+  /* Ceiling data_length counts toward; see heap_info() */
+  ulonglong max_data_length;
   ulonglong index_length;
   uint reclength;			/* Length of one record */
   int errkey;
@@ -130,6 +132,15 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint length;				/* Length of key (automatic) */
   uint8 algorithm;			/* HASH / BTREE */
   HA_KEYSEG *seg;
+  /*
+    Key segments addressing a stored record rather than the SQL record
+    buffer.  Equal to 'seg' unless the table has promoted columns, in
+    which case compaction has moved every segment that follows the first
+    promoted column.  Only the HASH index needs this: it recomputes keys
+    from stored records, while BTREE materializes its keys into the tree
+    from the SQL record.
+  */
+  HA_KEYSEG *seg_stored;
   HP_BLOCK block;			/* Where keys are saved */
   /*
     Number of buckets used in hash table. Used only to provide
@@ -144,11 +155,45 @@ typedef struct st_hp_keydef		/* Key definition with open */
   uint (*get_key_length)(struct st_hp_keydef *keydef, const uchar *key);
 } HP_KEYDEF;
 
+/*
+  Description of one out-of-line column.
+
+  A native blob has the same {length}{pointer} shape in the SQL record
+  buffer and in the stored record, so 'offset' and 'store_offset' differ
+  only by the compaction that promoted columns cause.
+
+  A promoted column is a VARCHAR that the engine stores as a blob.  Its
+  shape differs between the two layouts: {length}{data inline} in the SQL
+  record buffer, {length}{continuation chain pointer} in the stored
+  record.  'length' is the declared payload size the SQL buffer reserves,
+  which is what the inline form occupies and the stored form does not.
+*/
+
 typedef struct st_hp_blob_desc
 {
   uint offset;       /* Byte offset of blob descriptor within record buffer */
   uint packlength;   /* 1, 2, 3, or 4: length prefix size */
+  uint store_offset; /* Byte offset of the descriptor in a stored record */
+  uint length;       /* Promoted only: declared payload bytes in record[0] */
+  my_bool promoted;  /* VARCHAR represented internally as a blob */
 } HP_BLOB_DESC;
+
+/*
+  A range of bytes that is identical in the SQL record buffer and in the
+  stored record, and can therefore be moved with a single memcpy.
+
+  The spans are the gaps between promoted columns' payloads.  A table
+  with no promoted column has exactly one span covering the whole
+  record, which is why packing and unpacking such a table costs the same
+  single memcpy it did before promotion existed.
+*/
+
+typedef struct st_hp_copy_span
+{
+  uint offset;                          /* Start in the SQL record buffer */
+  uint store_offset;                    /* Start in the stored record */
+  uint length;                          /* Bytes copied verbatim */
+} HP_COPY_SPAN;
 
 /*
   Bits for HP_SHARE::state_changed, modeled on the state.changed bitmaps
@@ -168,15 +213,52 @@ typedef struct st_heap_share
   HP_KEYDEF  *keydef;
   ulonglong data_length,index_length,max_table_size;
   ulonglong auto_increment;
-  ulong min_records,max_records;	/* Params to open */
+  /* Expected record count, from open.  It sizes the HP_BLOCKs only. */
+  ulong min_records;
+  /*
+    Row limit.  Counts logical rows, which is what MAX_ROWS names: a row
+    whose blob data lives in continuation records still counts once.
+    NO_LIMIT_ROWS means unlimited.
+
+    Memory is bounded separately, by max_table_size.  That is the only
+    ceiling that can be correct for a table whose rows occupy a
+    data-dependent number of records, because it reads the bytes the
+    table actually holds instead of predicting them from a row count.
+  */
+  ulong max_rows;
   ulong records;			/* Logical (primary) record count */
   ulong total_records;   /* All active records (primary + blob continuation) */
   ulong blength;			/* records rounded up to 2^n */
   ulong deleted;			/* Deleted records in database */
+  /*
+    Entries on the free list, where a coalesced block of any length
+    counts once.  This is what a scan pays for the free records rather
+    than 'deleted': heap_scan() steps over a whole block in one go, so a
+    row whose blob data freed a run of a thousand records costs it the
+    same single step as a row that freed one.
+  */
+  ulong deleted_entries;
   uint key_stat_version;                /* version to indicate insert/delete */
   uint key_version;                     /* Updated on key change */
   uint file_version;                    /* Update on clear */
   uint reclength;			/* Length of one record */
+  /*
+    Length of a record as it is held in HP_BLOCK.  Equal to reclength
+    unless columns were promoted, in which case each promoted column
+    contributes a chain pointer instead of its declared payload and the
+    stored record is correspondingly shorter.  This, not reclength, is
+    what the block geometry is built from.
+  */
+  uint stored_reclength;
+  /*
+    The widest a row can be, in the bytes data_length counts, or 0 where
+    a row has no such width.  A blob keeps a length prefix and a pointer
+    in the record while its payload lives in continuation records, so
+    reclength counts the pointer rather than the value and says nothing
+    about how wide a row can grow.  A table holding a blob therefore has
+    no row width at all, and only max_table_size bounds it.
+  */
+  uint declared_reclength;
   uint visible;     /* Offset to the flags byte (active/deleted/continuation) */
   uint changed;
   uint state_changed;                   /* Bitmap of HEAP_STATE_* flags */
@@ -184,10 +266,13 @@ typedef struct st_heap_share
   uint currently_disabled_keys;    /* saved value from "keys" when disabled */
   uint open_count;
   uint blob_count;                      /* Number of blob columns */
+  uint promoted_count;                  /* Blob columns that are VARCHARs */
+  uint copy_span_count;                  /* Verbatim ranges, >= 1 */
   uint auto_key;
   uint auto_key_type;			/* real type of the auto key segment */
   uchar *del_link;			/* Link to next block with del. rec */
   HP_BLOB_DESC *blob_descs;             /* Array of blob column descriptors */
+  HP_COPY_SPAN *copy_spans;               /* Ranges shared by both layouts */
   char * name;			        /* Name of "memory-file" */
   time_t create_time;
   THR_LOCK lock;
@@ -239,12 +324,20 @@ typedef struct st_heap_create_info
   HP_BLOB_DESC *blob_descs;
   ulonglong max_table_size;
   ulonglong auto_increment;
+  /*
+    Expected number of records, used only to size the HP_BLOCK
+    allocations.  It is an estimate, not a limit: nothing is refused for
+    exceeding it.
+  */
   ulong max_records;
+  ulong max_rows;                       /* Row limit, 0 means "no limit" */
   ulong min_records;
   uint auto_key;                        /* keynr [1 - maxkey] for auto key */
   uint auto_key_type;
   uint keys;
   uint reclength;
+  uint stored_reclength;                /* 0 means "same as reclength" */
+  uint declared_reclength;              /* See HP_SHARE::declared_reclength */
   uint blob_count;
   my_bool with_auto_increment;
   my_bool internal_table;
@@ -296,7 +389,7 @@ int hp_panic(enum ha_panic_function flag);
 int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
               key_part_map keypart_map, enum ha_rkey_function find_flag);
 extern uchar * heap_find(HP_INFO *info,int inx,const uchar *key);
-extern int heap_check_heap(const HP_INFO *info, my_bool print_status);
+extern int heap_check_heap(HP_INFO *info, my_bool print_status);
 extern uchar *heap_position(HP_INFO *info);
 
 /* The following is for programs that uses the old HEAP interface where

@@ -1,0 +1,213 @@
+DROP TABLE IF EXISTS t_narrow, t_wide, t_plain, t1, t_dense, t_noise;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+#
+# What leaves the record is the compressed image.
+#
+# Both tables below take rows of the same length, one made of
+# compressible bytes and one of bytes that do not compress.  With
+# the payload in the record a row reserves the declared width
+# either way, so the two tables were the same size and held the
+# same number of rows.
+#
+SET max_heap_table_size= 256*1024;
+CREATE TABLE t_dense (a VARBINARY(20000) COMPRESSED) ENGINE=MEMORY;
+CREATE TABLE t_noise (a VARBINARY(20000) COMPRESSED) ENGINE=MEMORY;
+SELECT LENGTH(@noise) = LENGTH(@dense) AS same_length, LENGTH(@noise);
+same_length	LENGTH(@noise)
+1	1920
+INSERT INTO t_dense SELECT @dense FROM seq_1_to_50;
+INSERT INTO t_noise SELECT @noise FROM seq_1_to_50;
+SELECT TABLE_NAME, DATA_LENGTH < 50*LENGTH(@dense) AS smaller_than_payload
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_dense','t_noise')
+ORDER BY TABLE_NAME;
+TABLE_NAME	smaller_than_payload
+t_dense	1
+t_noise	0
+#
+# And so the compressible table holds more rows before the memory
+# ceiling refuses one.
+#
+INSERT INTO t_dense SELECT @dense FROM seq_1_to_20000;
+ERROR HY000: The table 't_dense' is full
+INSERT INTO t_noise SELECT @noise FROM seq_1_to_20000;
+ERROR HY000: The table 't_noise' is full
+SELECT (SELECT COUNT(*) FROM t_dense) >
+(SELECT COUNT(*) FROM t_noise) * 10 AS at_least_ten_times_the_rows;
+at_least_ten_times_the_rows
+1
+#
+# Both still read back whole.
+#
+SELECT COUNT(*) = (SELECT COUNT(*) FROM t_dense) AS all_rows_intact
+FROM t_dense WHERE a = @dense;
+all_rows_intact
+1
+SELECT COUNT(*) = (SELECT COUNT(*) FROM t_noise) AS all_rows_intact
+FROM t_noise WHERE a = @noise;
+all_rows_intact
+1
+DROP TABLE t_dense, t_noise;
+SET max_heap_table_size= @save_max_heap_table_size;
+#
+# Values of every shape come back whole, beside columns that must
+# not move with them.  column_compression_threshold is 100 by
+# default, so the short values here are stored uncompressed behind
+# the same header.
+#
+CREATE TABLE t1 (
+id INT,
+a VARCHAR(2000) COMPRESSED,
+b INT,
+c VARCHAR(3000) COMPRESSED,
+d CHAR(10)
+) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t1 VALUES (1, '',              10, '',                'tail');
+INSERT INTO t1 VALUES (2, 'x',             20, REPEAT('y', 99),   'tail');
+INSERT INTO t1 VALUES (3, REPEAT('p',100), 30, REPEAT('q', 3000), 'tail');
+INSERT INTO t1 VALUES (4, NULL,            40, NULL,              'tail');
+INSERT INTO t1 VALUES (5, REPEAT('r',2000), 50, REPEAT('s', 1500), 'tail');
+SELECT id, LENGTH(a), LEFT(a,1), b, LENGTH(c), LEFT(c,1), d
+FROM t1 ORDER BY id;
+id	LENGTH(a)	LEFT(a,1)	b	LENGTH(c)	LEFT(c,1)	d
+1	0		10	0		tail
+2	1	x	20	99	y	tail
+3	100	p	30	3000	q	tail
+4	NULL	NULL	40	NULL	NULL	tail
+5	2000	r	50	1500	s	tail
+#
+# A statement that stores what it read from the same column.
+#
+UPDATE t1 SET a = a, c = CONCAT(c, c) WHERE id = 5;
+SELECT id, LENGTH(a), LEFT(a,1), LENGTH(c), LEFT(c,1) FROM t1 WHERE id = 5;
+id	LENGTH(a)	LEFT(a,1)	LENGTH(c)	LEFT(c,1)
+5	2000	r	3000	s
+#
+# Two rows alive at once: reading the second must not take the
+# first row's value with it.
+#
+SELECT x.id, LENGTH(x.c), y.id, LENGTH(y.c)
+FROM t1 AS x, t1 AS y WHERE x.id < y.id AND y.id < 4 ORDER BY x.id, y.id;
+id	LENGTH(x.c)	id	LENGTH(y.c)
+1	0	2	99
+1	0	3	3000
+2	99	3	3000
+#
+# Ordering and grouping are on the values rather than on the
+# stored image.  GROUP_CONCAT with ORDER BY compares two stored
+# images directly, which is the one place that reads the image
+# from a record it was handed rather than from the field.
+#
+SELECT id, LENGTH(c) FROM t1 ORDER BY c, id;
+id	LENGTH(c)
+4	NULL
+1	0
+3	3000
+5	3000
+2	99
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+SELECT LENGTH(c) AS len, COUNT(*) FROM t1 GROUP BY c ORDER BY len;
+len	COUNT(*)
+NULL	1
+0	1
+99	1
+3000	1
+3000	1
+SELECT COUNT(DISTINCT a) AS distinct_a FROM t1;
+distinct_a
+4
+SELECT GROUP_CONCAT(LEFT(c,1) ORDER BY c, id) AS heads FROM t1;
+heads
+,q,s,y
+SELECT id FROM t1 WHERE c = REPEAT('q', 3000);
+id
+3
+#
+# The bytes really are compressed, wherever they are kept.
+#
+FLUSH STATUS;
+INSERT INTO t1 VALUES (6, REPEAT('z',2000), 60, REPEAT('z',3000), 'tail');
+SHOW STATUS LIKE 'Column_compressions';
+Variable_name	Value
+Column_compressions	2
+FLUSH STATUS;
+SELECT LENGTH(a) + LENGTH(c) AS total FROM t1 WHERE id = 6;
+total
+5000
+SHOW STATUS LIKE 'Column_decompressions';
+Variable_name	Value
+Column_decompressions	2
+#
+# Copying between a compressed column and a plain one, in both
+# directions.
+#
+ALTER TABLE t1 MODIFY c VARCHAR(3000);
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+id	LENGTH(c)	LEFT(c,1)
+1	0	
+2	99	y
+3	3000	q
+4	NULL	NULL
+5	3000	s
+6	3000	z
+ALTER TABLE t1 MODIFY c VARCHAR(3000) COMPRESSED;
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+id	LENGTH(c)	LEFT(c,1)
+1	0	
+2	99	y
+3	3000	q
+4	NULL	NULL
+5	3000	s
+6	3000	z
+#
+# The same copies where the value does not fit, which is the case
+# that chooses between the two copiers.  A strict mode refuses the
+# cut rather than reporting it.
+#
+ALTER TABLE t1 MODIFY c VARCHAR(1000) COMPRESSED;
+ERROR 22001: Data too long for column 'c' at row 3
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+ALTER TABLE t1 MODIFY c VARCHAR(1000) COMPRESSED;
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 3
+Warning	1265	Data truncated for column 'c' at row 5
+Warning	1265	Data truncated for column 'c' at row 6
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+id	LENGTH(c)	LEFT(c,1)
+1	0	
+2	99	y
+3	1000	q
+4	NULL	NULL
+5	1000	s
+6	1000	z
+ALTER TABLE t1 MODIFY c VARCHAR(500);
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 3
+Warning	1265	Data truncated for column 'c' at row 5
+Warning	1265	Data truncated for column 'c' at row 6
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+id	LENGTH(c)	LEFT(c,1)
+1	0	
+2	99	y
+3	500	q
+4	NULL	NULL
+5	500	s
+6	500	z
+ALTER TABLE t1 MODIFY c VARCHAR(200) COMPRESSED;
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 3
+Warning	1265	Data truncated for column 'c' at row 5
+Warning	1265	Data truncated for column 'c' at row 6
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+id	LENGTH(c)	LEFT(c,1)
+1	0	
+2	99	y
+3	200	q
+4	NULL	NULL
+5	200	s
+6	200	z
+SET sql_mode= @save_sql_mode;
+DROP TABLE t1;
+SET max_heap_table_size= @save_max_heap_table_size;

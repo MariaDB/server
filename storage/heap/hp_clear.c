@@ -40,6 +40,7 @@ void hp_clear(HP_SHARE *info)
   info->block.high_water_allocated=0;
   hp_clear_keys(info);
   info->records= info->deleted= info->total_records= 0;
+  info->deleted_entries= 0;
   info->data_length= 0;
   info->blength=1;
   info->changed=0;

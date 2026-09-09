@@ -1,0 +1,174 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # A VARCHAR wide enough for the engine to store out of line must be
+--echo # indistinguishable from a narrow one at the SQL layer.  Every table
+--echo # below is declared CHARACTER SET latin1 so that the declared width
+--echo # in characters equals the width in bytes, and the threshold is
+--echo # reached exactly where the declaration says it is.
+--echo #
+--echo # t_narrow stays inline.  t_wide is stored as a blob by the engine.
+--echo #
+
+CREATE TABLE t_narrow (a VARCHAR(8)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_wide (a VARCHAR(200)) ENGINE=MEMORY CHARACTER SET latin1;
+
+--echo #
+--echo # 0. Promotion is in effect.
+--echo #
+--echo # Everything after this point is a check that promotion changes
+--echo # nothing, and would pass just as well if the engine never promoted
+--echo # anything.  This is the check that it does.
+--echo #
+--echo # An inline VARCHAR(60000) reserves its declared width in every row,
+--echo # so at a 1MB ceiling the table holds about 17 rows whatever the
+--echo # values are.  Stored out of line it holds the 200 short rows below
+--echo # with room to spare.  Without promotion this INSERT is refused.
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+CREATE TABLE t_proof (a VARCHAR(60000)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_proof SELECT CONCAT('row', seq) FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_proof;
+SELECT COUNT(*) AS intact FROM t_proof WHERE a = CONCAT('row', SUBSTR(a, 4));
+DROP TABLE t_proof;
+SET max_heap_table_size= @save_max_heap_table_size;
+
+--echo #
+--echo # 1. Declared type is unchanged
+--echo #
+SHOW CREATE TABLE t_narrow;
+SHOW CREATE TABLE t_wide;
+
+SELECT column_name, data_type, column_type,
+       character_maximum_length, character_octet_length
+FROM information_schema.columns
+WHERE table_schema='test' AND table_name IN ('t_narrow','t_wide')
+ORDER BY table_name, column_name;
+
+--echo #
+--echo # 2. Type reported to the client is unchanged
+--echo #
+INSERT INTO t_narrow VALUES ('abc');
+INSERT INTO t_wide VALUES ('abc');
+--disable_ps_protocol
+--enable_metadata
+SELECT a FROM t_narrow;
+SELECT a FROM t_wide;
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
+--echo # 3. A table built from the column keeps the type
+--echo #
+CREATE TABLE t_ctas ENGINE=MEMORY AS SELECT a FROM t_wide;
+SHOW CREATE TABLE t_ctas;
+DROP TABLE t_ctas;
+
+--echo #
+--echo # 4. Width is the only difference across the threshold.  At
+--echo #    CHARACTER SET latin1 the promotion threshold is 32 bytes, so
+--echo #    these two straddle it and must still agree on everything but
+--echo #    the declared width.
+--echo #
+CREATE TABLE t_below (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_above (a VARCHAR(33)) ENGINE=MEMORY CHARACTER SET latin1;
+SELECT table_name, data_type, character_maximum_length
+FROM information_schema.columns
+WHERE table_schema='test' AND table_name IN ('t_below','t_above')
+ORDER BY table_name;
+DROP TABLE t_below, t_above;
+
+--echo #
+--echo # 5. VARCHAR comparison semantics, which differ from a blob's.
+--echo #    latin1_swedish_ci pads, so trailing spaces must not make a
+--echo #    value distinct, and comparison must stay case insensitive.
+--echo #
+DELETE FROM t_narrow;
+DELETE FROM t_wide;
+INSERT INTO t_narrow VALUES ('ab'), ('AB   '), ('cd');
+INSERT INTO t_wide   VALUES ('ab'), ('AB   '), ('cd');
+
+SELECT 'narrow' AS which, COUNT(DISTINCT a) AS distinct_vals FROM t_narrow
+UNION ALL
+SELECT 'wide', COUNT(DISTINCT a) FROM t_wide;
+
+SELECT 'narrow' AS which, COUNT(*) AS eq_padded FROM t_narrow WHERE a='ab'
+UNION ALL
+SELECT 'wide', COUNT(*) FROM t_wide WHERE a='ab';
+
+SELECT 'narrow' AS which, LENGTH(a) AS len, CHAR_LENGTH(a) AS clen
+FROM t_narrow WHERE a='cd'
+UNION ALL
+SELECT 'wide', LENGTH(a), CHAR_LENGTH(a) FROM t_wide WHERE a='cd';
+
+--echo #
+--echo # 6. Ordering and grouping agree.
+--echo #
+--echo #    'ab' and 'AB   ' collate equal, so their order relative to each
+--echo #    other is a tie that neither table is obliged to break the same
+--echo #    way.  BINARY breaks it deterministically without displacing the
+--echo #    collation from the primary sort.  For grouping, the same tie
+--echo #    makes the representative value arbitrary, so count the groups
+--echo #    rather than name them.
+--echo #
+SELECT a FROM t_narrow ORDER BY a, BINARY a;
+SELECT a FROM t_wide ORDER BY a, BINARY a;
+
+SELECT 'narrow' AS which, COUNT(*) AS groups
+FROM (SELECT a FROM t_narrow GROUP BY a) g
+UNION ALL
+SELECT 'wide', COUNT(*) FROM (SELECT a FROM t_wide GROUP BY a) g;
+
+SELECT 'narrow' AS which, COUNT(*) AS rows_in_group FROM t_narrow
+  GROUP BY a HAVING COUNT(*) > 1
+UNION ALL
+SELECT 'wide', COUNT(*) FROM t_wide GROUP BY a HAVING COUNT(*) > 1;
+
+--echo #
+--echo # 7. A UNION of the two is a VARCHAR of the wider declaration
+--echo #
+CREATE TABLE t_union ENGINE=MEMORY AS
+  SELECT a FROM t_narrow UNION ALL SELECT a FROM t_wide;
+SHOW CREATE TABLE t_union;
+DROP TABLE t_union;
+
+--echo #
+--echo # 8. Indexes on a promoted column keep VARCHAR key semantics: the
+--echo #    padded duplicate is rejected, and NULL is still distinct.
+--echo #
+CREATE TABLE t_uniq (a VARCHAR(200), UNIQUE KEY (a)) ENGINE=MEMORY
+  CHARACTER SET latin1;
+INSERT INTO t_uniq VALUES ('ab');
+--error ER_DUP_ENTRY
+INSERT INTO t_uniq VALUES ('ab   ');
+--error ER_DUP_ENTRY
+INSERT INTO t_uniq VALUES ('AB');
+INSERT INTO t_uniq VALUES (NULL), (NULL);
+SELECT COUNT(*) AS rows_held FROM t_uniq;
+SELECT a FROM t_uniq WHERE a='ab';
+DROP TABLE t_uniq;
+
+--echo #
+--echo # 9. A BTREE index over a promoted column ranges correctly
+--echo #
+CREATE TABLE t_btree (a VARCHAR(200), KEY USING BTREE (a)) ENGINE=MEMORY
+  CHARACTER SET latin1;
+INSERT INTO t_btree SELECT CONCAT('v', LPAD(seq, 6, '0')) FROM seq_1_to_50;
+SELECT COUNT(*) AS in_range FROM t_btree
+  WHERE a BETWEEN 'v000010' AND 'v000019';
+SELECT a FROM t_btree WHERE a='v000042';
+DROP TABLE t_btree;
+
+--echo #
+--echo # 10. NULL and the empty string stay distinct from each other
+--echo #
+CREATE TABLE t_null (a VARCHAR(200)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_null VALUES (NULL), (''), ('  ');
+SELECT COUNT(*) AS n_null FROM t_null WHERE a IS NULL;
+SELECT COUNT(*) AS n_empty FROM t_null WHERE a='';
+SELECT a IS NULL AS is_null, LENGTH(a) AS len FROM t_null ORDER BY is_null, len;
+DROP TABLE t_null;
+
+DROP TABLE t_narrow, t_wide;

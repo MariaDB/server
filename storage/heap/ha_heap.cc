@@ -92,7 +92,8 @@ static handler *heap_create_handler(handlerton *hton,
 
 ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), int_table_flags2(0),
-   records_changed(0), key_stat_version(0), internal_table(0)
+   records_changed(0), deleted_entries(0), key_stat_version(0),
+   internal_table(0)
 {
 }
 
@@ -288,9 +289,21 @@ IO_AND_CPU_COST ha_heap::keyread_time(uint index, ulong ranges, ha_rows rows,
 
 IO_AND_CPU_COST ha_heap::scan_time()
 {
-  /* The caller ha_scan_time() handles stats.records */
+  /*
+    The caller ha_scan_time() handles stats.records; what is left to
+    charge for is the free records a scan steps over on its way past
+    them.
 
-  return {0, (double) stats.deleted * HEAP_ROW_NEXT_FIND_COST };
+    That is one step per free list entry, not one per free record.
+    heap_scan() reads a coalesced block's length from its first record
+    and skips the whole block in a single step, so a row whose
+    out-of-line data freed a run of a thousand records costs a later
+    scan exactly what a row that freed one record costs it.  Charging
+    per record would price a table with out-of-line columns at its
+    promotion ratio above what it is worth, and it is stored records,
+    not rows, that a chain multiplies.
+  */
+  return {0, (double) deleted_entries * HEAP_ROW_NEXT_FIND_COST };
 }
 
 
@@ -490,12 +503,11 @@ int ha_heap::info(uint flag)
   errkey=                     hp_info.errkey;
   stats.records=              hp_info.records;
   stats.deleted=              hp_info.deleted;
+  deleted_entries=            hp_info.deleted_entries;
   stats.mean_rec_length=      hp_info.reclength;
   stats.data_file_length=     hp_info.data_length;
   stats.index_file_length=    hp_info.index_length;
-  stats.max_data_file_length= (hp_info.max_records == NO_LIMIT_RECORDS ?
-                               ~(my_off_t) 0 :
-                               hp_info.max_records * hp_info.reclength);
+  stats.max_data_file_length= hp_info.max_data_length;
   stats.delete_length=        hp_info.deleted * hp_info.reclength;
   stats.create_time=          (ulong) hp_info.create_time;
   if (flag & HA_STATUS_AUTO)
@@ -750,11 +762,67 @@ ha_rows ha_heap::records_in_range(uint inx, const key_range *min_key,
 }
 
 
+/*
+  Should this column be stored as a blob rather than inline?
+
+  Only a VARCHAR is a candidate, and the field says so rather than its
+  type: a VECTOR reports MYSQL_TYPE_VARCHAR as well, and holds one length
+  and no other.  Heap rows are fixed width, so an inline
+  VARCHAR(N) reserves its full declared width in every row whether or not
+  the row uses it, while a blob costs a length prefix and a chain pointer
+  in the row plus the bytes actually present in a continuation run.
+
+  N counts characters, so the declared width is between N and 4N bytes
+  depending on the character set: the same VARCHAR(100) reserves 100 of
+  them in latin1 and 400 in utf8mb4.  The threshold is compared against
+  field_length, which is that width already in bytes, because the waste
+  is in bytes.
+
+  This is invisible to the SQL layer.  The Field stays a VARCHAR, the
+  record buffer keeps its shape, and nothing about the column's type,
+  metadata or comparison semantics changes -- only where the engine puts
+  the bytes.
+*/
+
+static bool hp_promote_to_blob(const Field *field)
+{
+  /*
+    The threshold is what keeps a column narrower than a chain pointer
+    from ever being offered, so the record arithmetic below can give back
+    a declared width and spend a pointer without checking for a wrap.
+  */
+  static_assert(HEAP_CONVERT_IF_BIGGER_TO_BLOB >= portable_sizeof_char_ptr,
+                "a promoted column must not be narrower than a pointer");
+  return (field->can_store_data_out_of_line() &&
+          field->worth_storing_out_of_line() &&
+          field->field_length > HEAP_CONVERT_IF_BIGGER_TO_BLOB);
+}
+
+
+static int hp_cmp_blob_desc(const void *a, const void *b)
+{
+  uint oa= ((const HP_BLOB_DESC*) a)->offset;
+  uint ob= ((const HP_BLOB_DESC*) b)->offset;
+  return oa < ob ? -1 : (oa > ob ? 1 : 0);
+}
+
+
 int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
                                HP_CREATE_INFO *hp_create_info)
 {
   TABLE_SHARE *share= table_arg->s;
   uint key, parts, mem_per_row= 0, keys= share->keys;
+  /*
+    A promoted column gives back its declared payload and spends a chain
+    pointer instead, which is what shortens the stored record.
+  */
+  uint stored_reclength= share->reclength;
+  /*
+    What bounds a row where reclength no longer does -- see
+    HP_SHARE::declared_reclength.  It starts as reclength and is given up
+    entirely by a blob, whose payload the record does not measure.
+  */
+  uint declared_reclength= share->reclength;
   uint auto_key= 0, auto_key_type= 0;
   ha_rows max_rows;
   HP_KEYDEF *keydef;
@@ -905,33 +973,88 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
     found_real_auto_increment= share->next_number_key_offset == 0;
   }
 
-  /* Populate blob column descriptors */
-  if (share->blob_fields)
+  /*
+    Populate the out-of-line column descriptors: the native blobs, and
+    the VARCHARs wide enough to be worth storing as blobs.
+
+    Both kinds share one array because they share one mechanism -- a
+    length prefix and a continuation chain pointer in the stored record.
+    They differ only in what the SQL record buffer holds at that column:
+    a pointer for a blob, the value itself for a promoted VARCHAR.
+  */
   {
-    HP_BLOB_DESC *blob_descs;
-    blob_descs= (HP_BLOB_DESC*) my_malloc(hp_key_memory_HP_BLOB,
-                                          share->blob_fields *
-                                          sizeof(HP_BLOB_DESC),
-                                          MYF(MY_WME | MY_THREAD_SPECIFIC));
-    if (!blob_descs)
-    {
-      my_free(keydef);
-      return my_errno;
-    }
-    for (uint blob_index= 0; blob_index < share->blob_fields; blob_index++)
-    {
-      Field *field= table_arg->field[share->blob_field[blob_index]];
-      Field_blob *blob= (Field_blob*) field;
+    uint promoted= 0, desc_count;
 
-      DBUG_ASSERT(field->type() == MYSQL_TYPE_BLOB ||
-                  field->type() == MYSQL_TYPE_GEOMETRY);
-
-      blob_descs[blob_index].offset=
-        (uint) blob->offset(table_arg->record[0]);
-      blob_descs[blob_index].packlength= blob->length_size();
+    for (uint i= 0; i < share->fields; i++)
+    {
+      Field *field= table_arg->field[i];
+      if (hp_promote_to_blob(field))
+      {
+        promoted++;
+        stored_reclength-= field->field_length;
+        stored_reclength+= (uint) sizeof(uchar*);
+      }
+      else if (field->flags & BLOB_FLAG)
+        declared_reclength= 0;                  /* No declared width */
     }
-    hp_create_info->blob_descs= blob_descs;
-    hp_create_info->blob_count= share->blob_fields;
+    desc_count= share->blob_fields + promoted;
+
+    if (desc_count)
+    {
+      HP_BLOB_DESC *blob_descs;
+      uint n= 0;
+
+      blob_descs= (HP_BLOB_DESC*) my_malloc(hp_key_memory_HP_BLOB,
+                                            desc_count *
+                                            sizeof(HP_BLOB_DESC),
+                                            MYF(MY_WME | MY_ZEROFILL |
+                                                MY_THREAD_SPECIFIC));
+      if (!blob_descs)
+      {
+        my_free(keydef);
+        return my_errno;
+      }
+
+      for (uint i= 0; i < share->fields; i++)
+      {
+        Field *field= table_arg->field[i];
+
+        if (field->flags & BLOB_FLAG)
+        {
+          Field_blob *blob= (Field_blob*) field;
+
+          DBUG_ASSERT(field->type() == MYSQL_TYPE_BLOB ||
+                      field->type() == MYSQL_TYPE_GEOMETRY);
+
+          blob_descs[n].offset= (uint) blob->offset(table_arg->record[0]);
+          blob_descs[n].packlength= blob->length_size();
+          blob_descs[n].promoted= FALSE;
+          n++;
+        }
+        else if (hp_promote_to_blob(field))
+        {
+          blob_descs[n].offset= (uint) field->offset(table_arg->record[0]);
+          /* A VARCHAR's length prefix is one byte up to 255, else two */
+          blob_descs[n].packlength= (field->pack_length() -
+                                     field->field_length);
+          blob_descs[n].length= field->field_length;
+          blob_descs[n].promoted= TRUE;
+          n++;
+        }
+      }
+      DBUG_ASSERT(n == desc_count);
+
+      /*
+        The record layout is built by walking the descriptors in record
+        order, and nothing guarantees the field array is in that order.
+      */
+      my_qsort(blob_descs, desc_count, sizeof(HP_BLOB_DESC),
+               hp_cmp_blob_desc);
+
+      hp_create_info->blob_descs= blob_descs;
+      hp_create_info->blob_count= desc_count;
+      hp_create_info->stored_reclength= stored_reclength;
+    }
   }
 
   hp_create_info->auto_key= auto_key;
@@ -945,7 +1068,7 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   hp_create_info->with_auto_increment= found_real_auto_increment;
   hp_create_info->internal_table= internal_table;
 
-  max_rows= hp_rows_in_memory(share->reclength, mem_per_row,
+  max_rows= hp_rows_in_memory(stored_reclength, mem_per_row,
                               hp_create_info->max_table_size);
 #ifdef GIVE_ERROR_IF_NOT_MEMORY_TO_INSERT_ONE_ROW
   /* We do not give the error now but instead give an error on first insert */
@@ -956,10 +1079,18 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   if (share->max_rows && share->max_rows < max_rows)
     max_rows= share->max_rows;
 
+  /*
+    max_records only sizes the blocks.  share->max_rows is the row limit
+    proper and travels separately, because the engine enforces it by
+    counting rows: a row with out-of-line columns occupies several
+    records, so the two cannot share a field.
+  */
   hp_create_info->max_records= (ulong) MY_MIN(max_rows, ULONG_MAX);
+  hp_create_info->max_rows= (ulong) MY_MIN(share->max_rows, ULONG_MAX);
   hp_create_info->min_records= (ulong) MY_MIN(share->min_rows, ULONG_MAX);
   hp_create_info->keys= share->keys;
   hp_create_info->reclength= share->reclength;
+  hp_create_info->declared_reclength= declared_reclength;
   hp_create_info->keydef= keydef;
   return 0;
 }
@@ -1058,7 +1189,7 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
         file->current_hash_ptr= pos;
         file->current_ptr= pos->ptr_to_rec;
         file->update= HA_STATE_AKTIV;
-        memcpy(record, file->current_ptr, (size_t) share->reclength);
+        hp_unpack_record(share, record, file->current_ptr);
         DBUG_RETURN(0);
       }
     } while ((pos= pos->next_key));
@@ -1084,7 +1215,7 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
     if (pos->hash_of_key != rec_hash)
       continue;
 
-    memcpy(record, pos->ptr_to_rec, (size_t) share->reclength);
+    hp_unpack_record(share, record, pos->ptr_to_rec);
     if (hp_read_blobs(file, record, pos->ptr_to_rec))
     {
       result= -1;	/* my_errno is set to HA_ERR_OUT_OF_MEM */

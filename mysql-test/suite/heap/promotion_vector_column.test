@@ -1,0 +1,78 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # A VECTOR column is a VARCHAR to type() but is not stored out of line
+--echo #
+--echo # Field_vector derives from Field_varstring, and Type_handler_vector
+--echo # derives from Type_handler_varchar without overriding field_type(), so
+--echo # a VECTOR column answers MYSQL_TYPE_VARCHAR and a decision taken on
+--echo # type and width alone would move one.  Its declared width is the only
+--echo # width it can hold, store() rejecting anything else, so there is no
+--echo # reserved width to reclaim by moving it.
+--echo #
+--echo # Both widths below are over the threshold, and w is wide enough that
+--echo # its bytes would not fit in one continuation record had it been moved.
+--echo #
+
+CREATE TABLE t1 (id INT, v VECTOR(10), w VECTOR(64)) ENGINE=MEMORY;
+INSERT INTO t1 (id, v, w) VALUES
+  (1, vec_fromtext('[1,2,3,4,5,6,7,8,9,10]'),
+      vec_fromtext(CONCAT('[1', REPEAT(',1', 63), ']'))),
+  (2, vec_fromtext('[10,9,8,7,6,5,4,3,2,1]'),
+      vec_fromtext(CONCAT('[2', REPEAT(',2', 63), ']')));
+--echo # A row with no value stored reads its whole declared width back, which
+--echo # is what the length prefix claims whether a value was stored or not.
+INSERT INTO t1 (id) VALUES (3);
+
+SELECT id, vec_totext(v) AS v,
+       vec_totext(w) = CONCAT('[1', REPEAT(',1', 63), ']') AS w_is_1
+FROM t1 ORDER BY id;
+
+--echo # Growing a value from NULL and shrinking one back to NULL both rewrite
+--echo # the stored record, which is where a moved payload would be answered.
+UPDATE t1 SET w = vec_fromtext(CONCAT('[3', REPEAT(',3', 63), ']')) WHERE id = 3;
+UPDATE t1 SET w = NULL WHERE id = 1;
+SELECT id, vec_totext(w) = CONCAT('[3', REPEAT(',3', 63), ']') AS w_is_3,
+       w IS NULL AS w_is_null
+FROM t1 ORDER BY id;
+
+CHECK TABLE t1;
+
+DELETE FROM t1 WHERE id = 2;
+SELECT COUNT(*), COUNT(v), COUNT(w) FROM t1;
+CHECK TABLE t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # That the column stayed inline, read as capacity
+--echo #
+--echo # Everything above would pass just as well if the engine had stored the
+--echo # payload out of line, since doing so is meant to be invisible.  This
+--echo # is the check that it did not, and it is also what the decision rests
+--echo # on.  A VECTOR claims its whole declared width in the length prefix
+--echo # whether a value was stored or not, so storing the payload out of line
+--echo # copies all of it into continuation records and pays their per-record
+--echo # overhead on top of bytes it was already paying inline.  At a 1MB
+--echo # ceiling the column below holds 30 rows inline and 17 out of line.
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+
+CREATE TABLE t_vec (v VECTOR(16383)) ENGINE=MEMORY;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t_vec (v) SELECT NULL FROM seq_1_to_200;
+SELECT COUNT(*) > 20 AS stayed_inline FROM t_vec;
+
+--echo # The control, which is what makes the count above mean anything: a
+--echo # VARBINARY of the same declared width is stored out of line, and there
+--echo # a row storing nothing costs a length prefix and a chain pointer
+--echo # rather than the declared width, so all 200 rows fit.  Capacity does
+--echo # detect the move where there is one.
+CREATE TABLE t_bin (v VARBINARY(65532)) ENGINE=MEMORY;
+INSERT INTO t_bin (v) SELECT NULL FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_bin;
+
+DROP TABLE t_vec, t_bin;
+SET max_heap_table_size= @save_max_heap_table_size;

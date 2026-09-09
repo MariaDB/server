@@ -28,6 +28,13 @@ class ha_heap final : public handler
   ulonglong int_table_flags2;
   /* number of records changed since last statistics update */
   ulong   records_changed;
+  /*
+    Free list entries as of the last info() call, refreshed alongside
+    stats.  Held here rather than read from the share because
+    estimate_scan_time() reaches scan_time() while 'file' can still be
+    NULL, which is why the rest of the cost model reads stats too.
+  */
+  ulong   deleted_entries;
   ulong   saved_current_record;  /* for remember_rnd_pos() / restart_rnd_next() */
   uint    key_stat_version;
   my_bool internal_table;

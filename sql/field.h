@@ -1227,6 +1227,35 @@ public:
     table, which is located on disk).
   */
   virtual uint32 pack_length_in_rec() const { return pack_length(); }
+  /*
+    Whether this column's payload can be kept outside the record at all.
+
+    This is the CAPABILITY and nothing else: whether the column's type
+    permits its payload to be held anywhere but the record.
+
+    Whether moving a column that could be moved is worth doing is a
+    separate question, asked by worth_storing_out_of_line() below.
+    Keeping the two apart matters because a column that would only lose
+    by moving must be able to say so without claiming it cannot move.
+  */
+  virtual bool can_store_data_out_of_line() const { return false; }
+  /*
+    Whether moving this column's payload out of the record would reclaim
+    anything, asked only of columns that can_store_data_out_of_line()
+    above says could be moved.
+
+    A record is as wide as the column was declared whatever a row puts
+    in it, so what moving reclaims is the difference between the two,
+    and a column whose values are all the declared width has no such
+    difference to reclaim.
+
+    Deliberately not answered from type().  Field_vector reports
+    MYSQL_TYPE_VARCHAR, because Type_handler_vector derives from
+    Type_handler_varchar and does not override field_type(), and it is
+    the one column reporting that type which answers no here.  The
+    column is asked rather than its type.
+  */
+  virtual bool worth_storing_out_of_line() const { return true; }
   virtual bool compatible_field_size(uint metadata, const Relay_log_info *rli,
                                      uint16 mflags, int *order) const;
   virtual uint pack_length_from_metadata(uint field_metadata) const
@@ -4348,6 +4377,7 @@ public:
   uint row_pack_length() const override { return field_length; }
   bool zero_pack() const override { return false; }
   int  reset() override { bzero(ptr,field_length+length_bytes); return 0; }
+  bool can_store_data_out_of_line() const override { return true; }
   uint32 max_data_length() const override
   {
     return field_length + (field_length > 255 ? 2 : 1);
