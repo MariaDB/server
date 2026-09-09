@@ -293,8 +293,11 @@ int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
     new (ctx) MyCTX_nopad();
   else
     new (ctx) MyCTX();
-  return ((MyCTX*)ctx)->init(ciphers[mode](klen), flags & 1,
-                             key, klen, iv, ivlen);
+  int res= ((MyCTX*)ctx)->init(ciphers[mode](klen), flags & 1,
+                               key, klen, iv, ivlen);
+  if (res)
+    ((MyCTX*)ctx)->~MyCTX();
+  return res;
 }
 
 int my_aes_crypt_update(void *ctx, const uchar *src, uint slen,
