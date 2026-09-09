@@ -1812,7 +1812,6 @@ public:
   bool subq_exit_fl;
   
   ROLLUP rollup;				///< Used with rollup
-  
   bool mixed_implicit_grouping;
   bool select_distinct;				///< Set if SELECT DISTINCT
   /**
@@ -2087,6 +2086,8 @@ public:
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
   int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
+  bool rollup_setup_grouping_funcs();
+  void rollup_set_level(uint level);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
@@ -2094,10 +2095,16 @@ public:
   void inline clear_sum_funcs();
   bool send_row_on_empty_set()
   {
-    return (do_send_rows && implicit_grouping && !group_optimized_away &&
+    return (do_send_rows &&
+            (select_lex->olap == ROLLUP_TYPE ||
+             (implicit_grouping && !group_optimized_away)) &&
             having_value != Item::COND_FALSE);
   }
-  bool empty_result() { return (zero_result_cause && !implicit_grouping); }
+  bool empty_result()
+  {
+    return (zero_result_cause && !implicit_grouping &&
+            select_lex->olap != ROLLUP_TYPE);
+  }
   bool change_result(select_result *new_result, select_result *old_result);
   bool is_top_level_join() const
   {
