@@ -2733,7 +2733,12 @@ row_ins_clust_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 	pcur.btr_cur.page_cur.index = index;
-	err = btr_pcur_open(entry, PAGE_CUR_LE, mode, &pcur, &mtr);
+	btr_latch_mode search_mode= mode;
+	if (mode == BTR_MODIFY_TREE && use_blink_path(index)) {
+		mtr_x_lock_index(index, &mtr);
+		search_mode= BTR_MODIFY_TREE_ALREADY_LATCHED;
+	}
+	err = btr_pcur_open(entry, PAGE_CUR_LE, search_mode, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		index->table->file_unreadable = true;
 err_exit:

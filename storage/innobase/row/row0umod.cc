@@ -31,6 +31,7 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0roll.h"
 #include "trx0purge.h"
+#include "btr0blink.h"
 #include "btr0btr.h"
 #include "mach0data.h"
 #include "row0undo.h"
@@ -92,7 +93,12 @@ row_undo_mod_clust_low(
 	pcur = &node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
-	if (pcur->restore_position(mode, mtr) != btr_pcur_t::SAME_ALL) {
+	btr_latch_mode restore_mode= mode;
+	if (mode == BTR_MODIFY_TREE && use_blink_path(btr_cur->index())) {
+		mtr_x_lock_index(btr_cur->index(), mtr);
+		restore_mode= BTR_MODIFY_TREE_ALREADY_LATCHED;
+	}
+	if (pcur->restore_position(restore_mode, mtr) != btr_pcur_t::SAME_ALL) {
 		return DB_CORRUPTION;
 	}
 
@@ -813,6 +819,11 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 
 try_again:
 	row_mtr_start(&mtr, index);
+	btr_latch_mode search_mode= mode;
+	if (mode == BTR_MODIFY_TREE && use_blink_path(index)) {
+		mtr_x_lock_index(index, &mtr);
+		search_mode= BTR_MODIFY_TREE_ALREADY_LATCHED;
+	}
 
 	mem_heap_t* offsets_heap = nullptr;
 	rec_offs* offsets = nullptr;
@@ -832,7 +843,7 @@ try_again:
 		goto not_found;
 	}
 
-	if (!row_search_index_entry(entry, mode, &pcur, &mtr)) {
+	if (!row_search_index_entry(entry, search_mode, &pcur, &mtr)) {
 not_found:
 		if (btr_cur->up_match >= dict_index_get_n_unique(index)
 		    || btr_cur->low_match >= dict_index_get_n_unique(index)) {

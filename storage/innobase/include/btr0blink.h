@@ -23,6 +23,7 @@ extern Atomic_counter<uint64_t> blink_incomplete_retries;
 extern Atomic_counter<uint64_t> blink_pool_empty_retries;
 extern Atomic_counter<uint64_t> blink_pool_refills;
 extern Atomic_counter<uint64_t> blink_normal_x_index;
+extern Atomic_counter<uint64_t> blink_sync_x_splits;
 
 inline bool blink_table_shape_ok(const dict_table_t *table) noexcept
 {
@@ -55,7 +56,8 @@ bool blink_stamp_empty_tree(dict_index_t *index);
 dberr_t blink_search_to_level(dict_index_t *index, uint16_t target_level,
                               const dtuple_t *tuple, page_cur_mode_t mode,
                               rw_lock_type_t target_latch, bool index_latched,
-                              btr_cur_t *cursor, mtr_t *mtr);
+                              btr_cur_t *cursor, mtr_t *mtr,
+                              bool index_x_latched= false);
 inline dberr_t blink_search_leaf(dict_index_t *index, const dtuple_t *tuple,
                                  page_cur_mode_t mode,
                                  rw_lock_type_t target_latch,
@@ -84,6 +86,9 @@ rec_t *blink_root_raise_and_insert(ulint flags, btr_cur_t *cursor,
                                    dtuple_t *tuple, ulint n_ext,
                                    buf_block_t *old_root,
                                    buf_block_t *sibling, mtr_t *mtr);
+rec_t *blink_x_split_and_insert(ulint flags, btr_cur_t *cursor,
+                                    rec_offs **offsets, mem_heap_t **heap,
+                                    dtuple_t *entry, ulint n_ext, mtr_t *mtr);
 dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
                                   rec_offs **offsets, mem_heap_t **heap,
                                   dtuple_t *entry, rec_t **insert_rec,

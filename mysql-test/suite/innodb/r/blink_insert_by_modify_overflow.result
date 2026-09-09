@@ -1,0 +1,37 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+a INT NOT NULL PRIMARY KEY,
+payload VARBINARY(6000) NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT COUNT(*),SUM(LENGTH(payload)) FROM t;
+COUNT(*)	SUM(LENGTH(payload))
+7	14000
+BEGIN;
+DELETE FROM t WHERE a=4;
+INSERT INTO t VALUES (4,LPAD('4',6000,'y'));
+COMMIT;
+SELECT a,LENGTH(payload) FROM t WHERE a=4;
+a	LENGTH(payload)
+4	6000
+SELECT COUNT(*),SUM(LENGTH(payload)) FROM t;
+COUNT(*)	SUM(LENGTH(payload))
+7	18000
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+BEGIN;
+DELETE FROM t WHERE a=6;
+INSERT INTO t VALUES (6,LPAD('6',6000,'z'));
+COMMIT;
+SELECT a,LENGTH(payload) FROM t WHERE a=6;
+a	LENGTH(payload)
+6	6000
+SELECT COUNT(*),SUM(LENGTH(payload)) FROM t;
+COUNT(*)	SUM(LENGTH(payload))
+7	22000
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

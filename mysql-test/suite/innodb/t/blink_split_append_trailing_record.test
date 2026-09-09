@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id BIGINT NOT NULL PRIMARY KEY,
+  payload VARBINARY(2500) NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=1;
+while ($i <= 23) {
+  eval INSERT INTO t VALUES ($i,REPEAT('x',2500));
+  inc $i;
+}
+--enable_query_log
+INSERT INTO t VALUES (24,REPEAT('x',2500));
+INSERT INTO t VALUES (25,REPEAT('x',2500));
+INSERT INTO t VALUES (26,REPEAT('x',2500));
+INSERT INTO t VALUES (29,REPEAT('x',2500));
+INSERT INTO t VALUES (27,REPEAT('x',2500));
+INSERT INTO t VALUES (28,REPEAT('x',2500));
+CHECK TABLE t;
+SELECT COUNT(*),COUNT(DISTINCT id),MIN(id),MAX(id) FROM t;
+SELECT id FROM t ORDER BY id LIMIT 3;
+SELECT id FROM t ORDER BY id DESC LIMIT 3;
+SELECT id FROM t WHERE id BETWEEN 23 AND 29 ORDER BY id;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

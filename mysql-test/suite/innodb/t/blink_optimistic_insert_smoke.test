@@ -1,0 +1,33 @@
+--source include/have_innodb.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=OFF;
+CREATE TABLE t0 (
+  a INT NOT NULL PRIMARY KEY,
+  b INT NOT NULL,
+  c VARCHAR(40),
+  KEY ix_b(b)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t1 (
+  a INT NOT NULL PRIMARY KEY,
+  b INT NOT NULL,
+  c VARCHAR(40),
+  KEY ix_b(b)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t0 VALUES (10,100,'ten'),(20,200,'twenty');
+INSERT INTO t1 VALUES (10,100,'ten'),(20,200,'twenty');
+INSERT INTO t0 VALUES (5,50,'five'),(30,300,'thirty'),
+                      (15,150,'fifteen'),(25,250,'twenty-five');
+INSERT INTO t1 VALUES (5,50,'five'),(30,300,'thirty'),
+                      (15,150,'fifteen'),(25,250,'twenty-five');
+SELECT a,b,c FROM t1 ORDER BY a;
+SELECT a,b FROM t1 FORCE INDEX(ix_b) WHERE b BETWEEN 100 AND 250 ORDER BY b;
+SELECT (SELECT GROUP_CONCAT(a,':',b,':',c ORDER BY a) FROM t0)=
+       (SELECT GROUP_CONCAT(a,':',b,':',c ORDER BY a) FROM t1) AS tables_agree;
+SELECT (SELECT GROUP_CONCAT(a ORDER BY b) FROM t0 FORCE INDEX(ix_b))=
+       (SELECT GROUP_CONCAT(a ORDER BY b) FROM t1 FORCE INDEX(ix_b))
+       AS secondary_agree;
+CHECK TABLE t0,t1;
+DROP TABLE t0,t1;
+SET GLOBAL innodb_blink_enabled=@blink_save;

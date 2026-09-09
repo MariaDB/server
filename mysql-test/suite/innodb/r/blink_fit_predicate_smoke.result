@@ -1,0 +1,42 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t_wide_pk (
+a VARBINARY(2500) NOT NULL PRIMARY KEY,
+b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT COUNT(*),SUM(b),MIN(b),MAX(b) FROM t_wide_pk;
+COUNT(*)	SUM(b)	MIN(b)	MAX(b)
+200	20100	1	200
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(1 AS CHAR),2500,'0');
+b
+1
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(100 AS CHAR),2500,'0');
+b
+100
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(200 AS CHAR),2500,'0');
+b
+200
+CHECK TABLE t_wide_pk;
+Table	Op	Msg_type	Msg_text
+test.t_wide_pk	check	status	OK
+DROP TABLE t_wide_pk;
+CREATE TABLE t_wide_row (
+a BIGINT NOT NULL PRIMARY KEY,
+payload VARBINARY(2500)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT COUNT(*),MIN(a),MAX(a),SUM(a) FROM t_wide_row;
+COUNT(*)	MIN(a)	MAX(a)	SUM(a)
+500	1	500	125250
+SELECT a,LENGTH(payload) FROM t_wide_row WHERE a IN (1,250,500) ORDER BY a;
+a	LENGTH(payload)
+1	2500
+250	2500
+500	2500
+SELECT COUNT(*) FROM t_wide_row WHERE a BETWEEN 100 AND 200;
+COUNT(*)
+101
+CHECK TABLE t_wide_row;
+Table	Op	Msg_type	Msg_text
+test.t_wide_row	check	status	OK
+DROP TABLE t_wide_row;
+SET GLOBAL innodb_blink_enabled=@blink_save;

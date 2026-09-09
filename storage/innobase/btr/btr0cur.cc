@@ -1115,10 +1115,13 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
   if (use_blink_path(index())) {
     const btr_latch_mode base_mode=
       BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-    if (base_mode == BTR_SEARCH_LEAF || base_mode == BTR_MODIFY_LEAF)
+    const bool already_latched= latch_mode & BTR_ALREADY_S_LATCHED;
+    if (base_mode == BTR_SEARCH_LEAF || base_mode == BTR_MODIFY_LEAF ||
+        (base_mode == BTR_MODIFY_TREE && already_latched))
       return blink_search_leaf(
-        index(), tuple, mode, static_cast<rw_lock_type_t>(base_mode),
-        (latch_mode & BTR_ALREADY_S_LATCHED) != 0, this, mtr);
+        index(), tuple, mode,
+        base_mode == BTR_SEARCH_LEAF ? RW_S_LATCH : RW_X_LATCH,
+        already_latched, this, mtr);
   }
 
   buf_block_t *guess;
@@ -2689,7 +2692,12 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	if (index->page == btr_cur_get_block(cursor)->page.id().page_no()) {
+	if (use_blink_path(index)) {
+		*rec = blink_x_split_and_insert(flags, cursor, offsets, heap,
+						 entry, n_ext, mtr);
+		if (!*rec)
+			err = DB_OUT_OF_FILE_SPACE;
+	} else if (index->page == btr_cur_get_block(cursor)->page.id().page_no()) {
 		*rec = index->is_spatial()
 			? rtr_root_raise_and_insert(flags, cursor, offsets,
 						    heap, entry, n_ext, mtr,

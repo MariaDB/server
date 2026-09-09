@@ -38,6 +38,7 @@ Atomic_counter<uint64_t> blink_incomplete_retries;
 Atomic_counter<uint64_t> blink_pool_empty_retries;
 Atomic_counter<uint64_t> blink_pool_refills;
 Atomic_counter<uint64_t> blink_normal_x_index;
+Atomic_counter<uint64_t> blink_sync_x_splits;
 
 bool blink_stamp_empty_tree(dict_index_t *index)
 {
@@ -146,7 +147,8 @@ static page_cur_mode_t blink_internal_mode(page_cur_mode_t mode)
 dberr_t blink_search_to_level(dict_index_t *index, uint16_t target_level,
                               const dtuple_t *tuple, page_cur_mode_t mode,
                               rw_lock_type_t target_latch, bool index_latched,
-                              btr_cur_t *cursor, mtr_t *mtr)
+                              btr_cur_t *cursor, mtr_t *mtr,
+                              bool index_x_latched)
 {
   ut_ad(use_blink_path(index));
   ut_ad(target_latch == RW_S_LATCH || target_latch == RW_X_LATCH);
@@ -155,6 +157,9 @@ dberr_t blink_search_to_level(dict_index_t *index, uint16_t target_level,
   ut_ad(index->page != FIL_NULL);
   ut_ad(!index_latched || mtr->memo_contains_flagged(
     &index->lock, MTR_MEMO_S_LOCK | MTR_MEMO_SX_LOCK | MTR_MEMO_X_LOCK));
+  ut_ad(!index_x_latched || index_latched);
+  ut_ad(!index_x_latched ||
+        mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK));
 
   if (!index_latched)
     mtr_s_lock_index(index, mtr);
@@ -179,7 +184,8 @@ restart:
       current_level == target_level ? target_latch : RW_S_LATCH;
     buf_block_t *block;
     if (current_level == UINT16_MAX)
-      block= btr_root_block_get(index, RW_S_LATCH, mtr, &err);
+      block= btr_root_block_get(
+        index, index_x_latched ? RW_X_LATCH : RW_S_LATCH, mtr, &err);
     else
       block= btr_block_get(*index, page_id.page_no(), latch, mtr, &err);
     if (!block)
@@ -202,7 +208,10 @@ restart:
         mtr->release(*block);
         return DB_CORRUPTION;
       }
-      if (current_level == target_level && target_latch == RW_X_LATCH) {
+      if (index_x_latched)
+        latch= RW_X_LATCH;
+      if (current_level == target_level && target_latch == RW_X_LATCH &&
+          !index_x_latched) {
         mtr->release(*block);
         block= btr_root_block_get(index, RW_X_LATCH, mtr, &err);
         if (!block)
@@ -730,6 +739,223 @@ static dberr_t blink_clear_child_split(dict_index_t *index,
     return DB_CORRUPTION;
   page_clear_incomplete_split(left, mtr);
   return DB_SUCCESS;
+}
+
+static dberr_t blink_x_clear_child_split(buf_block_t *left, mtr_t *mtr)
+{
+  if (!page_has_incomplete_split(left->page.frame))
+    return DB_SUCCESS;
+  if (btr_page_get_next(left->page.frame) == FIL_NULL)
+    return DB_CORRUPTION;
+  page_clear_incomplete_split(left, mtr);
+  return DB_SUCCESS;
+}
+
+static uint32_t blink_node_ptr_child(const dtuple_t *node_ptr,
+                                     dict_index_t *index)
+{
+  const uint16_t field= dict_index_get_n_unique_in_tree_nonleaf(index);
+  const dfield_t *child= dtuple_get_nth_field(node_ptr, field);
+  ut_a(dfield_get_len(child) == 4);
+  return mach_read_from_4(static_cast<const byte*>(dfield_get_data(child)));
+}
+
+static void blink_free_direct_page(dict_index_t *index, buf_block_t *block,
+                                   ulint level, mtr_t *mtr)
+{
+  btr_page_create(block, nullptr, index, level, mtr);
+  ut_a(btr_page_free(index, block, mtr) == DB_SUCCESS);
+}
+
+static dberr_t blink_x_install_cascade(dict_index_t *index, uint16_t level,
+                                       dtuple_t *node_ptr,
+                                       buf_block_t *previous_left, mtr_t *mtr)
+{
+  ++blink_cascade_levels;
+  btr_cur_t parent;
+  parent.page_cur.index= index;
+  dberr_t err= blink_search_to_level(index, level, node_ptr, PAGE_CUR_LE,
+                                     RW_X_LATCH, true, &parent, mtr, true);
+  if (err != DB_SUCCESS)
+    return err;
+
+  buf_block_t *parent_block= parent.block();
+  ut_a(parent_block);
+  if (page_has_incomplete_split(parent_block->page.frame)) {
+    const uint32_t right_no= btr_page_get_next(parent_block->page.frame);
+    if (right_no == FIL_NULL)
+      return DB_CORRUPTION;
+    buf_block_t *right= btr_block_get(*index, right_no, RW_X_LATCH, mtr, &err);
+    if (!right)
+      return err;
+    mem_heap_t *debt_heap= mem_heap_create(512);
+    dtuple_t *debt_ptr= blink_build_node_ptr(index, right, debt_heap);
+    if (!debt_ptr) {
+      mem_heap_free(debt_heap);
+      return DB_CORRUPTION;
+    }
+    err= blink_x_install_cascade(index, level + 1, debt_ptr,
+                                 parent_block, mtr);
+    mem_heap_free(debt_heap);
+    if (err != DB_SUCCESS)
+      return err;
+  }
+
+  mem_heap_t *parent_heap= mem_heap_create(1024);
+  const uint32_t child= blink_node_ptr_child(node_ptr, index);
+  if (blink_parent_has_child(parent_block->page.frame, index, child,
+                             &parent_heap)) {
+    err= blink_x_clear_child_split(previous_left, mtr);
+    mem_heap_free(parent_heap);
+    return err;
+  }
+
+  rec_offs *parent_offsets= nullptr;
+  rec_t *installed= page_cur_tuple_insert(
+    &parent.page_cur, node_ptr, &parent_offsets, &parent_heap, 0, mtr);
+  if (!installed && btr_page_reorganize(&parent.page_cur, mtr) == DB_SUCCESS)
+    installed= page_cur_tuple_insert(
+      &parent.page_cur, node_ptr, &parent_offsets, &parent_heap, 0, mtr);
+  if (installed) {
+    err= blink_x_clear_child_split(previous_left, mtr);
+    if (err == DB_SUCCESS)
+      ++blink_parent_installs;
+    mem_heap_free(parent_heap);
+    return err;
+  }
+
+  const bool root= parent_block->page.id().page_no() == index->page;
+  buf_block_t *new_page= btr_page_alloc(
+    index, parent_block->page.id().page_no() + 1, FSP_UP, level,
+    mtr, mtr, &err);
+  if (!new_page) {
+    mem_heap_free(parent_heap);
+    return err;
+  }
+
+  buf_block_t *root_sibling= nullptr;
+  buf_block_t *old_right= nullptr;
+  if (root) {
+    root_sibling= btr_page_alloc(index, 0, FSP_NO_DIR, level,
+                                 mtr, mtr, &err);
+    if (!root_sibling) {
+      blink_free_direct_page(index, new_page, level, mtr);
+      mem_heap_free(parent_heap);
+      return err;
+    }
+  } else {
+    const uint32_t right_no= btr_page_get_next(parent_block->page.frame);
+    if (right_no != FIL_NULL) {
+      old_right= btr_block_get(*index, right_no, RW_X_LATCH, mtr, &err);
+      if (!old_right) {
+        blink_free_direct_page(index, new_page, level, mtr);
+        mem_heap_free(parent_heap);
+        return err;
+      }
+    }
+  }
+
+  rec_t *placed= root
+    ? blink_root_raise_and_insert(0, &parent, &parent_offsets, &parent_heap,
+                                  node_ptr, 0, new_page, root_sibling, mtr)
+    : blink_split_page_and_insert(0, &parent, &parent_offsets, &parent_heap,
+                                  node_ptr, 0, true, new_page, old_right, mtr);
+  if (!placed) {
+    blink_free_direct_page(index, new_page, level, mtr);
+    if (root)
+      blink_free_direct_page(index, root_sibling, level, mtr);
+    mem_heap_free(parent_heap);
+    return DB_OUT_OF_FILE_SPACE;
+  }
+
+  err= blink_x_clear_child_split(previous_left, mtr);
+  if (err != DB_SUCCESS) {
+    mem_heap_free(parent_heap);
+    return err;
+  }
+  ++blink_parent_installs;
+  if (root) {
+    mem_heap_free(parent_heap);
+    return DB_SUCCESS;
+  }
+
+  dtuple_t *next_ptr= blink_build_node_ptr(index, new_page, parent_heap);
+  if (!next_ptr) {
+    mem_heap_free(parent_heap);
+    return DB_CORRUPTION;
+  }
+  err= blink_x_install_cascade(index, level + 1, next_ptr,
+                               parent_block, mtr);
+  mem_heap_free(parent_heap);
+  return err;
+}
+
+rec_t *blink_x_split_and_insert(ulint flags, btr_cur_t *cursor,
+                                rec_offs **offsets, mem_heap_t **heap,
+                                dtuple_t *entry, ulint n_ext, mtr_t *mtr)
+{
+  dict_index_t *index= cursor->index();
+  buf_block_t *left= cursor->block();
+  const ulint level= btr_page_get_level(left->page.frame);
+  ut_ad(use_blink_path(index));
+  ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK));
+  ut_ad(flags & BTR_NO_LOCKING_FLAG);
+  ++blink_sync_x_splits;
+  if (!*heap)
+    *heap= mem_heap_create(1024);
+
+  dberr_t err= DB_SUCCESS;
+  if (left->page.id().page_no() == index->page) {
+    buf_block_t *old_root= btr_page_alloc(index, 0, FSP_NO_DIR, level,
+                                          mtr, mtr, &err);
+    if (!old_root)
+      return nullptr;
+    buf_block_t *sibling= btr_page_alloc(index, 0, FSP_NO_DIR, level,
+                                         mtr, mtr, &err);
+    if (!sibling) {
+      blink_free_direct_page(index, old_root, level, mtr);
+      return nullptr;
+    }
+    rec_t *inserted= blink_root_raise_and_insert(
+      flags, cursor, offsets, heap, entry, n_ext, old_root, sibling, mtr);
+    if (!inserted) {
+      blink_free_direct_page(index, old_root, level, mtr);
+      blink_free_direct_page(index, sibling, level, mtr);
+    }
+    return inserted;
+  }
+
+  buf_block_t *new_page= btr_page_alloc(
+    index, left->page.id().page_no() + 1, FSP_UP, level, mtr, mtr, &err);
+  if (!new_page)
+    return nullptr;
+  buf_block_t *old_right= nullptr;
+  const uint32_t right_no= btr_page_get_next(left->page.frame);
+  if (right_no != FIL_NULL) {
+    old_right= btr_block_get(*index, right_no, RW_X_LATCH, mtr, &err);
+    if (!old_right) {
+      blink_free_direct_page(index, new_page, level, mtr);
+      return nullptr;
+    }
+  }
+
+  rec_t *inserted= blink_split_page_and_insert(
+    flags, cursor, offsets, heap, entry, n_ext, true,
+    new_page, old_right, mtr);
+  if (!inserted) {
+    blink_free_direct_page(index, new_page, level, mtr);
+    return nullptr;
+  }
+
+  mem_heap_t *cascade_heap= mem_heap_create(1024);
+  dtuple_t *node_ptr= blink_build_node_ptr(index, new_page, cascade_heap);
+  ut_a(node_ptr);
+  err= blink_x_install_cascade(index, static_cast<uint16_t>(level + 1),
+                               node_ptr, left, mtr);
+  mem_heap_free(cascade_heap);
+  if (err != DB_SUCCESS)
+    ut_error;
+  return inserted;
 }
 
 static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,

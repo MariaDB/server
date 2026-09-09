@@ -1180,6 +1180,8 @@ static SHOW_VAR innodb_status_variables[]= {
    SHOW_SIMPLE_FUNC},
   {"blink_normal_x_index",
    (void*) &show_atomic_counter_u64<&blink_normal_x_index>, SHOW_SIMPLE_FUNC},
+  {"blink_sync_x_splits",
+   (void*) &show_atomic_counter_u64<&blink_sync_x_splits>, SHOW_SIMPLE_FUNC},
 
 #ifdef UNIV_DEBUG
   {"btr_cur_n_index_lock_upgrades",

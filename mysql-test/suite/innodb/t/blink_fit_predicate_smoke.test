@@ -1,0 +1,45 @@
+--source include/have_innodb.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+
+CREATE TABLE t_wide_pk (
+  a VARBINARY(2500) NOT NULL PRIMARY KEY,
+  b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=0;
+while ($i < 200) {
+  let $k=`SELECT (7 * $i) MOD 200 + 1`;
+  eval INSERT INTO t_wide_pk
+       VALUES (LPAD(CAST($k AS CHAR),2500,'0'),$k);
+  inc $i;
+}
+--enable_query_log
+SELECT COUNT(*),SUM(b),MIN(b),MAX(b) FROM t_wide_pk;
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(1 AS CHAR),2500,'0');
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(100 AS CHAR),2500,'0');
+SELECT b FROM t_wide_pk WHERE a=LPAD(CAST(200 AS CHAR),2500,'0');
+CHECK TABLE t_wide_pk;
+DROP TABLE t_wide_pk;
+
+CREATE TABLE t_wide_row (
+  a BIGINT NOT NULL PRIMARY KEY,
+  payload VARBINARY(2500)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=0;
+while ($i < 500) {
+  let $k=`SELECT (13 * $i) MOD 500 + 1`;
+  eval INSERT INTO t_wide_row VALUES ($k,REPEAT('x',2500));
+  inc $i;
+}
+--enable_query_log
+SELECT COUNT(*),MIN(a),MAX(a),SUM(a) FROM t_wide_row;
+SELECT a,LENGTH(payload) FROM t_wide_row WHERE a IN (1,250,500) ORDER BY a;
+SELECT COUNT(*) FROM t_wide_row WHERE a BETWEEN 100 AND 200;
+CHECK TABLE t_wide_row;
+DROP TABLE t_wide_row;
+SET GLOBAL innodb_blink_enabled=@blink_save;

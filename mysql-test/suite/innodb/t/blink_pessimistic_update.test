@@ -1,0 +1,40 @@
+--source include/have_innodb.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  k INT,
+  pad VARCHAR(8000),
+  KEY k_1(k)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC CHARSET=latin1;
+--sleep 1
+--disable_query_log
+BEGIN;
+let $i=1;
+while ($i <= 400) {
+  eval INSERT INTO t VALUES ($i,$i * 7 % 100,REPEAT('a',120));
+  inc $i;
+}
+COMMIT;
+--enable_query_log
+SELECT COUNT(*),SUM(LENGTH(pad)) FROM t;
+UPDATE t SET pad=REPEAT('b',6500) WHERE id % 3=0;
+SELECT COUNT(*),SUM(LENGTH(pad)) FROM t;
+SELECT COUNT(*) FROM t WHERE pad LIKE 'b%';
+SELECT COUNT(*) FROM t FORCE INDEX(k_1) WHERE k BETWEEN 0 AND 100;
+BEGIN;
+UPDATE t SET pad=REPEAT('c',6500) WHERE id % 3=1;
+ROLLBACK;
+SELECT COUNT(*) FROM t WHERE pad LIKE 'c%';
+SELECT COUNT(*),SUM(LENGTH(pad)) FROM t;
+BEGIN;
+UPDATE t SET k=k + 1000,pad=REPEAT('d',6500) WHERE id % 5=0;
+ROLLBACK;
+SELECT COUNT(*) FROM t FORCE INDEX(k_1) WHERE k >= 1000;
+SELECT COUNT(*),SUM(LENGTH(pad)) FROM t;
+UPDATE t SET pad=REPEAT('e',60) WHERE id % 3=0;
+SELECT COUNT(*),SUM(LENGTH(pad)) FROM t;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

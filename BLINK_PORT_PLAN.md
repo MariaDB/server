@@ -673,6 +673,24 @@ root never retains direction 6
 
 Each implementation phase includes its own tests instead of deferring all tests to the end.
 
+### Test migration status
+
+Deterministic Batch 1 was migrated on 2026-09-09:
+
+```text
+blink_descent_infimum_smoke
+blink_fit_predicate_smoke
+blink_insert_by_modify_overflow
+blink_optimistic_insert_smoke
+blink_pessimistic_update
+blink_split_append_trailing_record
+blink_split_sec_max_trx_id
+```
+
+The insert-by-modify and pessimistic-update tests exposed two synchronous-SMO self-deadlocks. The fix added an `X(index)`-serialized, single-MTR B-link split and parent cascade, B-link TREE descent under an already-held index latch, and a direct incomplete-flag clear that does not relatch the split sibling. `Innodb_blink_sync_x_splits` records entry into this fallback path.
+
+Batch 1 and the existing B-link regression set pass together (17 tests). The next migration batches are deterministic visibility windows, internal retry/KILL scenarios, allocator lifecycle races, and crash recovery.
+
 ## Phase 16: Functional workload
 
 Run in this order:

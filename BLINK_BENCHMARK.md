@@ -410,3 +410,40 @@ Its preparation consists only of:
 3. warming the dataset.
 
 The actual duration depends on the vanilla insert path and storage throughput and must be measured rather than predicted. Record each stage with millisecond timestamps or `/usr/bin/time`; do not compare total preparation time unless preload, dirty drain, and warmup are reported separately.
+
+## Possible optimization: concurrent pessimistic updates
+
+The main B-link insert path performs leaf splits and parent cascades concurrently under `S(index)`. Some uncommon DML and rollback paths cannot currently use this protocol safely and require a synchronous fallback under `X(index)`:
+
+- row-growing pessimistic `UPDATE`;
+- insertion into a delete-marked record when the replacement does not fit;
+- insert-by-modify overflow;
+- rollback of a row-growing update;
+- selected operations involving externally stored fields.
+
+Here, synchronous means that the high-key-aware leaf split, parent installation, possible parent splits, and root raise complete in one mini-transaction before control returns to the caller. It does not imply a synchronous disk flush.
+
+The fallback temporarily blocks normal B-link writers on the same index because their operations hold `S(index)`. This does not affect the canonical split-heavy benchmark: it inserts new keys only, and its measured `Innodb_blink_normal_x_index` delta was zero. Workloads dominated by record-growing updates can receive less benefit because a larger fraction of their structural changes will use the serialized path.
+
+The synchronous fallback is required by the current update and undo architecture. Before the replacement insert requests a split, the operation may already have changed or delete-marked the old record, written undo information, transferred record locks, prepared externally stored fields, and established cursor-lifetime requirements. Publishing a split and returning a normal retry at this point would not be equivalent to retrying a clean insert.
+
+A future fully concurrent update protocol could separate the operation into recoverable phases:
+
+```text
+prepare replacement
+publish update intent
+publish page split
+install replacement
+complete parent cascade
+commit update intent
+```
+
+Such a design would require new persistent state, compensation and rollback rules, lock-transfer semantics, and crash-recovery support. It should therefore be treated as a separate optimization project rather than an extension of the normal concurrent insert split.
+
+Future performance work should expose or retain a dedicated counter for synchronous B-link structural operations and report:
+
+```text
+sync_x_splits / total_splits
+```
+
+A near-zero ratio means that the workload uses the concurrent path almost exclusively. A high ratio identifies workloads where concurrent pessimistic updates could provide an additional scalability improvement.

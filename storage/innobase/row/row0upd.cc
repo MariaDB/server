@@ -32,6 +32,7 @@ Created 12/27/1996 Heikki Tuuri
 #include "dict0boot.h"
 #include "dict0crea.h"
 #include "mach0data.h"
+#include "btr0blink.h"
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "que0que.h"
@@ -2342,6 +2343,7 @@ row_upd_clust_rec(
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
 	dberr_t		err;
+	btr_latch_mode	restore_mode;
 
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!thr_get_trx(thr)->in_rollback);
@@ -2401,8 +2403,12 @@ row_upd_clust_rec(
 	the same transaction do not modify the record in the meantime.
 	Therefore we can assert that the restoration of the cursor succeeds. */
 
-	ut_a(pcur->restore_position(BTR_MODIFY_TREE, mtr) ==
-	    btr_pcur_t::SAME_ALL);
+	restore_mode= BTR_MODIFY_TREE;
+	if (use_blink_path(index)) {
+		mtr_x_lock_index(index, mtr);
+		restore_mode= BTR_MODIFY_TREE_ALREADY_LATCHED;
+	}
+	ut_a(pcur->restore_position(restore_mode, mtr) == btr_pcur_t::SAME_ALL);
 
 	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
 				    dict_table_is_comp(index->table)));
