@@ -1,11 +1,14 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
-# Some operating systems or file systems do not support sparse files.
-# For example, tmpfs on FreeBSD does not support them.
-# On Microsoft Windows, sparse files have to be created in a special way.
 --source include/big_test.inc
 # include/shutdown_mysqld.inc does not work in ./mtr --embedded
 --source include/not_embedded.inc
+# Some operating systems or file systems do not support sparse files.
+# For example, tmpfs on FreeBSD does not support them.
+# On macOS, HFS allocates every block of the skipped range.  APFS allocates
+# the whole range for a file smaller than 16MB, and records a hole above that.
+# On Microsoft Windows, sparse files have to be created in a special way.
+--source include/have_sparse_files.inc
 
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 
