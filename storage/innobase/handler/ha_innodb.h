@@ -538,6 +538,13 @@ protected:
 	Parallel_worker_ctx*
 		parallel_get_worker_context(size_t worker_idx) override;
 
+	void parallel_get_chunk_stats(ulonglong *chunks_created,
+				      ulonglong *chunks_resplit) const override
+	{
+		m_parallel_coordinator.get_chunk_stats(chunks_created,
+						       chunks_resplit);
+	}
+
 	int parallel_init_worker(Parallel_worker_ctx *wctx,
 				 handler *coordinator) override;
 

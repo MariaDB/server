@@ -2222,6 +2222,20 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         writer->add_ll((longlong) tracker.r_rows_per_worker[i]);
       writer->end_array();
     }
+    /*
+      And what the engine cut the scan into, which the per-worker counts above
+      cannot say on their own: they are the cut and the order the chunks were
+      handed out, together. chunks is every chunk the engine produced, the
+      finer ones a re-split made included; chunks_resplit is how many were
+      divided again rather than scanned, which is how an uneven first cut gets
+      evened out.
+    */
+    if (tracker.r_chunks_created)
+    {
+      writer->add_member("r_chunks").add_ull(tracker.r_chunks_created);
+      writer->add_member("r_chunks_resplit").
+        add_ull(tracker.r_chunks_resplit);
+    }
   }
 
   if (cost != 0.0)

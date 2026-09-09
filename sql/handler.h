@@ -3843,6 +3843,18 @@ public:
   */
   virtual int parallel_end_coordinator() { return 0; }
 
+  /**
+    How the engine divided this scan: the number of chunks it produced, and how
+    many of those it re-split rather than scanned. Asked of the coordinator's
+    handler once the workers have finished, for ANALYZE FORMAT=JSON. An engine
+    that does not divide scans leaves both at zero and nothing is reported.
+  */
+  virtual void parallel_get_chunk_stats(ulonglong *chunks_created,
+                                        ulonglong *chunks_resplit) const
+  {
+    *chunks_created= *chunks_resplit= 0;
+  }
+
   /* To be called from the master thread to get context data for each worker */
   virtual Parallel_worker_ctx *parallel_get_worker_context(size_t worker_idx)
   {

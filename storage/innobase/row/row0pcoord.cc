@@ -84,6 +84,16 @@ void Parallel_coordinator::Scan_ctx::index_s_unlock()
 
 dberr_t Parallel_coordinator::Exec_ctx::split()
 {
+  /*
+    Twice the worker count, not once: the pieces this split produces are never
+    re-split again (create_context() below flags none of them), so if the rows
+    inside this chunk are themselves skewed, the only slack for evening that
+    out is having more pieces than workers. Twice keeps the piece count -- and
+    with it the per-piece descent from the root -- small, while leaving a
+    second helping for whoever finishes early.
+  */
+  const size_t target= std::max(2 * m_scan_ctx->num_workers(), size_t{2});
+
   ut_ad(m_range.first->m_tuple == nullptr ||
         dtuple_validate(m_range.first->m_tuple));
   ut_ad(m_range.second->m_tuple == nullptr ||
@@ -103,6 +113,40 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
 
   if (!ranges.empty())
     ranges.back().second = m_range.second;
+
+  /* partition() at level 1 cuts this sub-tree at every child of its root, and
+  for a tree of any depth that is one range per page at the level below --
+  hundreds or thousands of them. That is far more than the shortfall this
+  re-split exists to make up: a chunk is re-split because some worker had
+  nothing to do, so a handful of pieces is enough, and every piece beyond that
+  costs a descent from the root when a worker picks it up, plus the queue
+  traffic to hand it over.
+
+  Keep the boundaries the partitioning found and use only every m'th one.
+
+  Adjacent ranges are contiguous intervals that share an endpoint, so merging a
+  run of them is just taking the first one's start and the last one's end. */
+
+  if (ranges.size() > target)
+  {
+    /*
+      Floor, not ceiling: rounding m up makes ceil(size/m) groups, which for a
+      size just over the target collapses to half of it -- 16 boundaries at
+      target 15 would merge into 8 pieces. Rounding m down overshoots instead,
+      bounded by twice the target, and too many small pieces costs less than
+      too few large ones: the whole point of this split is idle workers.
+    */
+    const size_t m= std::max(ranges.size() / target, size_t{1});
+    Parallel_coordinator::Scan_ctx::Ranges merged{};
+
+    for (size_t i= 0; i < ranges.size(); i+= m)
+    {
+      const size_t last= std::min(i + m, ranges.size()) - 1;
+      merged.push_back(Parallel_coordinator::Scan_ctx::Range(
+          ranges[i].first, ranges[last].second));
+    }
+    ranges.swap(merged);
+  }
 
   dberr_t err{DB_SUCCESS};
 
@@ -218,6 +262,9 @@ void Parallel_coordinator::enqueue(std::shared_ptr<Exec_ctx> ctx)
 {
   mysql_mutex_lock(&m_mutex);
   m_ctxs.push_back(ctx);
+  /* Every chunk that becomes work passes through here, the ones a re-split
+  produced along with the ones the first partitioning did. */
+  ++m_chunks_created;
   mysql_cond_signal(&m_cond);
   mysql_mutex_unlock(&m_mutex);
 }
@@ -282,6 +329,9 @@ Parallel_coordinator::get_job_for_worker(Worker_ctx *worker_ctx)
       mysql_mutex_lock(&m_mutex);
       ut_ad(m_n_resplitting > 0);
       --m_n_resplitting;
+      /* This chunk was divided instead of being scanned; its pieces counted
+      themselves in as they were enqueued. */
+      ++m_chunks_resplit;
       mysql_cond_broadcast(&m_cond);
       mysql_mutex_unlock(&m_mutex);
 
@@ -845,6 +895,8 @@ int Parallel_coordinator::initialize(size_t n_workers)
 
   mysql_cond_init(PSI_NOT_INSTRUMENTED, &m_cond, nullptr);
   m_n_resplitting= 0;
+  m_chunks_created= 0;
+  m_chunks_resplit= 0;
 
   m_worker_ctxs.reserve(n_workers);
   for (size_t i = 0; i < n_workers; ++i)
