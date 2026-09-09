@@ -130,6 +130,25 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
   to[0]= (uchar) (value >> 56) ^ (unsigned_flag ? 0 : 128);
 }
 
+
+/*
+  @brief
+    Encode the current JSON value in *je to either store or look it up in
+    Multi-Value Index. The index uses cast_th datatype.
+
+  @detail
+    The encoded value shouldn't have space, punctuation or other similar
+    characters, as we're using the default Fulltext parser and want the
+    encoded value treated as one "term".
+
+    If the value cannot be encoded this means it is not stored, also
+    searches won't find any matches for it.
+
+  @return
+    false   Encoded successfully
+    true    The JSON value cannot be represented in the index datatype.
+*/
+
 bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf)
 {
@@ -146,27 +165,36 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
   switch(cast_ftype)
   {
     case MYSQL_TYPE_LONGLONG:
-      store_sort_key_longlong(
-      (uchar *) sorted.c_ptr(), is_unsigned,
-      json_value_to_longlong(je->value_type, cs,
-                             (char *) je->value, je->value_len));
+    {
+      longlong val= json_value_to_longlong(je->value_type, cs,
+                                           (char *) je->value,
+                                           je->value_len);
       sorted.length(8);
+      store_sort_key_longlong((uchar *) sorted.c_ptr(),
+                              is_unsigned, val);
       break;
-      /* TODO: unquote? */
-      /* CHAR(n) => LONG BLOB */
+    }
+    /* TODO: unquote? */
+    /* CHAR(n) => LONG BLOB */
     case MYSQL_TYPE_LONG_BLOB:
     {
       /* Trim trailing whitespaces if possible */
       if (!(cs->state & MY_CS_NOPAD))
+      {
         je->value_len= (int) cs->lengthsp((const char *) je->value,
                                          je->value_len);
+      }
       if (my_binary_compare(cs))
+      {
         sorted.set((char *) je->value, je->value_len,
                    &my_charset_latin1_bin);
+      }
       else
       {
-        my_strnxfrm_ret_t rc= cs->strnxfrm(
-        (uchar *) sorted.c_ptr(), 42, 42, je->value, je->value_len, 0);
+        // TODO: Is this ever used outside of "SELECT MVI_ENCODE()" ?
+        my_strnxfrm_ret_t rc=
+          cs->strnxfrm((uchar *) sorted.c_ptr(), /*buffer_size*/42,
+                       /*n_weights*/ 42, je->value, je->value_len, 0);
         sorted.length(rc.m_result_length);
       }
       break;
