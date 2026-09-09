@@ -28,7 +28,6 @@ SET(MYSYS_SSL_HIDDEN_SOURCES
     my_sha384.cc
     my_sha512.cc
     my_md5.cc
-    openssl.c
    )
 
 SET(MYSYS_SSL_SOURCES
