@@ -12,3 +12,43 @@ drop table t1;
 set global innodb_encryption_threads = 0;
 set global innodb_encryption_rotate_key_age = 1;
 
+--echo #
+--echo # MDEV-41055 innodb_encryption_threads=0 hangs indefinitely
+--echo #		when rotation IOPS is zero
+--echo #
+--connect (con1,localhost,root,,,,,)
+--connection default
+
+SET @old_encrypt_tables= @@GLOBAL.innodb_encrypt_tables;
+SET @old_threads= @@GLOBAL.innodb_encryption_threads;
+SET @old_iops= @@GLOBAL.innodb_encryption_rotation_iops;
+
+SET GLOBAL innodb_encryption_threads= 0;
+SET GLOBAL innodb_encrypt_tables= OFF;
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+SET GLOBAL innodb_encryption_rotation_iops= 0;
+SET GLOBAL innodb_encryption_threads= 1;
+SET GLOBAL innodb_encrypt_tables= ON;
+
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
+   WHERE ENCRYPTION_SCHEME = 1 AND MIN_KEY_VERSION = 0;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS rotating
+  FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
+ WHERE ROTATING_OR_FLUSHING <> 0;
+
+--connection con1
+SET GLOBAL innodb_encryption_threads= 0;
+
+--connection default
+SELECT @@GLOBAL.innodb_encryption_threads;
+--disconnect con1
+
+DROP TABLE t1;
+SET GLOBAL innodb_encryption_rotation_iops= @old_iops;
+SET GLOBAL innodb_encrypt_tables= @old_encrypt_tables;
+SET GLOBAL innodb_encryption_threads= @old_threads;
