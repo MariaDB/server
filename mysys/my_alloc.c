@@ -52,7 +52,7 @@ static void *root_alloc(MEM_ROOT *root, size_t size, size_t *alloced_size,
   {
     void *ptr;
     *alloced_size= MY_ALIGN(size, my_system_page_size);
-    if ((ptr= my_virtual_mem_commit(NULL, *alloced_size)))
+    if ((ptr= my_virtual_mem_commit(NULL, *alloced_size, MYF(0))))
       update_malloc_size(*alloced_size,
                          MY_TEST(root->flags & ROOT_FLAG_THREAD_SPECIFIC));
     return ptr;
