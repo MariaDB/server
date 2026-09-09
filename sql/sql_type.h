@@ -4106,7 +4106,11 @@ public:
   {
     return false;
   }
-  virtual bool is_limit_clause_valid_type() const
+  virtual bool is_numeric_clause_valid_type() const
+  {
+    return false;
+  }
+  virtual bool is_tablesample_clause_valid_type() const
   {
     return false;
   }
@@ -4989,6 +4993,7 @@ public:
     override;
   bool Item_char_typecast_fix_length_and_dec(Item_char_typecast *) const
     override;
+  bool is_tablesample_clause_valid_type() const override { return true; }
 };
 
 
@@ -5477,7 +5482,7 @@ public:
     return attr->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
   }
   bool is_order_clause_position_type() const override { return true; }
-  bool is_limit_clause_valid_type() const override { return true; }
+  bool is_numeric_clause_valid_type() const override { return true; }
   virtual ~Type_handler_int_result() = default;
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const override;

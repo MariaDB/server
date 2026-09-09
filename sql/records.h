@@ -16,6 +16,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "table.h"
+#include "hash.h"
 
 struct st_join_table;
 class handler;
@@ -67,6 +68,18 @@ struct READ_RECORD
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
 
+  // initialised only if dealing with tablesample clause
+  struct my_rnd_struct sample_rand;
+  // initialised only when using rr_sampling_system (TABLESAMPLE SYSTEM)
+  uint sample_key;
+  /*
+    Primary key values of the rows already returned by rr_sampling_system(),
+    so that a later ha_index_random_dive() landing on a row we already
+    returned can be recognised and skipped instead of yielding a duplicate.
+    Initialised only when using rr_sampling_system (TABLESAMPLE SYSTEM).
+  */
+  HASH sample_seen_keys;
+
   /*
     Structure storing information about sorting
   */
@@ -84,7 +97,7 @@ struct READ_RECORD
   Copy_field *copy_field;
   Copy_field *copy_field_end;
 public:
-  READ_RECORD() : table(NULL), cache(NULL) {}
+  READ_RECORD() : table(NULL), cache(NULL), sample_seen_keys() {}
   ~READ_RECORD() { end_read_record(this); }
 };
 

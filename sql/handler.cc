@@ -4314,6 +4314,45 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
 }
 
 
+/**
+  Land on an approximately random row of the active index.
+
+  Used by TABLESAMPLE SYSTEM (@see rr_sampling_system()), which needs to
+  visit a random sample of rows without reading every row like BERNOULLI
+  sampling does. The active index (opened with ha_index_init() by the
+  caller) is assumed to be the table's primary key, i.e. a full row is
+  available at every key value. The actual dive strategy is implemented
+  by the index_random_dive() virtual, which storage engines override.
+
+  @param buf         Buffer to read the found row into.
+  @param rand_state  Random generator state to use for the dive.
+
+  @retval 0 on success, otherwise the error returned by the underlying
+          index operation (including end-of-file style errors).
+*/
+
+int handler::ha_index_random_dive(uchar *buf, struct my_rnd_struct *rand_state)
+{
+  int result;
+  DBUG_ENTER("handler::ha_index_random_dive");
+  DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
+              m_lock_type != F_UNLCK);
+  DBUG_ASSERT(inited == INDEX);
+
+  TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, active_index, result,
+    { result= index_random_dive(buf, rand_state); })
+  increment_statistics(&SSV::ha_read_key_count);
+  if (!result)
+  {
+    update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+  }
+  table->status= result ? STATUS_NOT_FOUND : 0;
+  DBUG_RETURN(result);
+}
+
+
 bool handler::ha_was_semi_consistent_read()
 {
   bool result= was_semi_consistent_read();

@@ -268,6 +268,8 @@ extern int mi_rlast(struct st_myisam_info *file,uchar *buf,int inx);
 extern int mi_rnext(struct st_myisam_info *file,uchar *buf,int inx);
 extern int mi_rnext_same(struct st_myisam_info *info, uchar *buf);
 extern int mi_rprev(struct st_myisam_info *file,uchar *buf,int inx);
+extern int mi_random_dive(struct st_myisam_info *file, int inx, uchar *buf,
+                          struct my_rnd_struct *rand_state);
 extern int mi_rrnd(struct st_myisam_info *file,uchar *buf, my_off_t pos);
 extern int mi_scan_init(struct st_myisam_info *file);
 extern int mi_scan(struct st_myisam_info *file,uchar *buf);
