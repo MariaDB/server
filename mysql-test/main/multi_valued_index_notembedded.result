@@ -21,12 +21,18 @@ jd
 [
     {
         "table": "t1",
-        "index": "idx",
-        "match": "all",
-        "rows": 1,
-        "cost": 0.00171364,
-        "ranges": 
-        ["616161"]
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "all",
+                "rows": 1,
+                "cost": 0.00171364,
+                "ranges": 
+                ["616161"],
+                "chosen": true
+            }
+        ]
     }
 ]
 #
@@ -55,12 +61,21 @@ jd
 [
     {
         "table": "t3",
-        "index": "idx3",
-        "match": "all",
-        "rows": 1,
-        "cost": 0.00171364,
-        "ranges": 
-        ["616161"]
+        "candidates": 
+        [
+            {
+                "index": "idx3",
+                "match": "all",
+                "rows": 1,
+                "cost": 0.00171364,
+                "ranges": 
+                [
+                    "616161",
+                    "626262"
+                ],
+                "chosen": true
+            }
+        ]
     }
 ]
 select * from t3 where json_contains(j->'$.tags','["aaa","bbb"]') order by c;
@@ -89,21 +104,33 @@ jd
 [
     {
         "table": "t1",
-        "index": "idx",
-        "match": "all",
-        "rows": 1,
-        "cost": 0.00171364,
-        "ranges": 
-        ["616161"]
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "all",
+                "rows": 1,
+                "cost": 0.00171364,
+                "ranges": 
+                ["616161"],
+                "chosen": true
+            }
+        ]
     },
     {
         "table": "t2",
-        "index": "idx2",
-        "match": "all",
-        "rows": 1,
-        "cost": 0.00171364,
-        "ranges": 
-        ["7a7a7a"]
+        "candidates": 
+        [
+            {
+                "index": "idx2",
+                "match": "all",
+                "rows": 1,
+                "cost": 0.00171364,
+                "ranges": 
+                ["7a7a7a"],
+                "chosen": true
+            }
+        ]
     }
 ]
 #
@@ -120,14 +147,20 @@ jd
 [
     {
         "table": "t1",
-        "index": "idx",
-        "match": "any",
-        "rows": 2,
-        "cost": 0.00260808,
-        "ranges": 
+        "candidates": 
         [
-            "626262",
-            "636363"
+            {
+                "index": "idx",
+                "match": "any",
+                "rows": 2,
+                "cost": 0.00260808,
+                "ranges": 
+                [
+                    "626262",
+                    "636363"
+                ],
+                "chosen": true
+            }
         ]
     }
 ]
@@ -141,5 +174,155 @@ select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
 from information_schema.optimizer_trace;
 jd
 NULL
-set optimizer_trace=default;
 drop table t1,t2;
+#
+# Merging the accesses of several predicates on one index
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),
+(4,'{"tags": ["aaa","ccc"]}');
+# Two JSON_CONTAINS on the same path are one index search for both
+# keys, not a search for one of them with the other left to the
+# WHERE clause.
+explain
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"bbb"') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where; Using filesort
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "all",
+                "rows": 1,
+                "cost": 0.00171364,
+                "ranges": 
+                [
+                    "616161",
+                    "626262"
+                ],
+                "chosen": true
+            }
+        ]
+    }
+]
+# a key we already search for is not searched for twice
+explain
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"aaa"') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	3	Using where; Using filesort
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "all",
+                "rows": 3,
+                "cost": 0.00350252,
+                "ranges": 
+                ["616161"],
+                "chosen": true
+            }
+        ]
+    }
+]
+# JSON_OVERLAPS does not merge: (a OR b) AND (c OR d) is not a
+# boolean-mode query we can build, so the two stay separate
+# candidates and the cheaper one is used.
+explain
+select * from t1
+where json_overlaps(j->'$.tags','["aaa","bbb"]')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	3	Using where; Using filesort
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "any",
+                "rows": 4,
+                "cost": 0.00439696,
+                "ranges": 
+                [
+                    "616161",
+                    "626262"
+                ]
+            },
+            {
+                "index": "idx",
+                "match": "any",
+                "rows": 3,
+                "cost": 0.00350252,
+                "ranges": 
+                [
+                    "626262",
+                    "636363"
+                ],
+                "chosen": true
+            }
+        ]
+    }
+]
+# ... and a conjunctive and a disjunctive access on one index do not
+# merge either
+explain
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	3	Using where; Using filesort
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "candidates": 
+        [
+            {
+                "index": "idx",
+                "match": "all",
+                "rows": 3,
+                "cost": 0.00350252,
+                "ranges": 
+                ["616161"],
+                "chosen": true
+            },
+            {
+                "index": "idx",
+                "match": "any",
+                "rows": 3,
+                "cost": 0.00350252,
+                "ranges": 
+                [
+                    "626262",
+                    "636363"
+                ]
+            }
+        ]
+    }
+]
+drop table t1;
+set optimizer_trace=default;

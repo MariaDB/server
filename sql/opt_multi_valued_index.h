@@ -43,6 +43,17 @@ struct Mvi_access : public Sql_alloc
   /* Build: Add one encoded element key */
   bool add_key(MEM_ROOT *mem_root, const String *key);
 
+  /*
+    Build: can `other' be folded into this access? Two accesses on the same
+    index that both require all of their keys are the same thing as one
+    access requiring the union of the keys.
+  */
+  bool can_merge(const Mvi_access *other) const
+  { return index == other->index && conjunctive && other->conjunctive; }
+
+  /* Build: fold `other' into this access. can_merge() must hold */
+  bool merge(MEM_ROOT *mem_root, Mvi_access *other);
+
   /* Usage: Estimate how many records this access will read */
   void estimate_records();
 
@@ -62,8 +73,8 @@ struct Mvi_access : public Sql_alloc
 
 /*
   The state of the MVI analysis of one table. It only lives for the duration
-  of setup_mvi_access_for_table(): the access that analysis settles on is
-  what outlives it.
+  of setup_mvi_access_for_table(): the accesses that analysis settles on are
+  what outlive it.
 */
 class Mvi_context : public Sql_alloc
 {

@@ -86,5 +86,67 @@ select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
 from information_schema.optimizer_trace;
 --enable_view_protocol
 
-set optimizer_trace=default;
 drop table t1,t2;
+
+--echo #
+--echo # Merging the accesses of several predicates on one index
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),
+                      (4,'{"tags": ["aaa","ccc"]}');
+
+--echo # Two JSON_CONTAINS on the same path are one index search for both
+--echo # keys, not a search for one of them with the other left to the
+--echo # WHERE clause.
+--disable_replay next_query Need to preserve optimizer trace
+explain
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.tags','"bbb"') order by c;
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # a key we already search for is not searched for twice
+--disable_replay next_query Need to preserve optimizer trace
+explain
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.tags','"aaa"') order by c;
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # JSON_OVERLAPS does not merge: (a OR b) AND (c OR d) is not a
+--echo # boolean-mode query we can build, so the two stay separate
+--echo # candidates and the cheaper one is used.
+--disable_replay next_query Need to preserve optimizer trace
+explain
+select * from t1
+ where json_overlaps(j->'$.tags','["aaa","bbb"]')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+--echo # ... and a conjunctive and a disjunctive access on one index do not
+--echo # merge either
+--disable_replay next_query Need to preserve optimizer trace
+explain
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+drop table t1;
+
+set optimizer_trace=default;
