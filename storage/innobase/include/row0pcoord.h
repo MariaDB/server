@@ -266,6 +266,17 @@ class Parallel_coordinator
   @param[in] ctx                Execution context to add to the queue. */
   void enqueue(std::shared_ptr<Exec_ctx> ctx);
 
+public:
+  /** How the scan was divided; see m_chunks_created. Read after the workers
+  have finished, so no locking. */
+  void get_chunk_stats(ulonglong *created, ulonglong *resplit) const
+  {
+    *created= m_chunks_created;
+    *resplit= m_chunks_resplit;
+  }
+
+private:
+
   /** Fetch the next job execute.
   @return job to execute or nullptr. */
   [[nodiscard]] std::shared_ptr<Exec_ctx> dequeue();
@@ -294,6 +305,12 @@ class Parallel_coordinator
 
   /** Contexts that must be executed. */
   Exec_ctxs m_ctxs{};
+
+  /** How many chunks this scan was divided into, counting the finer ones a
+  re-split produced, and how many chunks were re-split rather than scanned.
+  Reported by ANALYZE FORMAT=JSON. Protected by m_mutex. */
+  size_t m_chunks_created{};
+  size_t m_chunks_resplit{};
 
   /** Contexts taken off m_ctxs that are being re-partitioned and have not
   enqueued their sub-contexts yet. Protected by m_mutex. */
