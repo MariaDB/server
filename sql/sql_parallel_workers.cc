@@ -534,6 +534,21 @@ void pwt_manager::quiesce_workers()
     Table_access_tracker *tr= exec.jointabs[t]->tracker;
     if (!tr)
       continue;
+    /*
+      Per-execution, all of it: a plan that runs more than once -- a correlated
+      subquery, a routine loop -- reports its last execution, not a running
+      total. The serial path accumulates across executions instead, but the
+      per-worker split and the chunk counts below are only meaningful for one
+      execution, and totals sitting beside them would answer a different
+      question about a different number of rows. So the counts this block sums
+      into start from zero every time, and everything ANALYZE prints for a
+      parallel scan describes the same, latest, run.
+    */
+    tr->r_scans= 0;
+    tr->r_rows= 0;
+    tr->r_rows_after_where= 0;
+    tr->r_chunks_created= 0;
+    tr->r_chunks_resplit= 0;
     if ((tr->r_rows_per_worker= thd->calloc<ha_rows>(nworkers())))
       tr->n_workers= nworkers();
   }
@@ -563,7 +578,13 @@ void pwt_manager::quiesce_workers()
     which is what the serial plan reports and what makes r_rows per scan comparable.
   */
   if (exec.jointabs[0]->tracker)
+  {
     exec.jointabs[0]->tracker->r_scans++;
+    // How the engine cut that one scan table up.
+    exec.scan_tab->table->file->parallel_get_chunk_stats(
+        &exec.jointabs[0]->tracker->r_chunks_created,
+        &exec.jointabs[0]->tracker->r_chunks_resplit);
+  }
   reaped= true;
   DBUG_VOID_RETURN;
 }

@@ -224,7 +224,8 @@ class Table_access_tracker
 {
 public:
   Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0),
-    r_rows_per_worker(NULL), n_workers(0)
+    r_rows_per_worker(NULL), n_workers(0),
+    r_chunks_created(0), r_chunks_resplit(0)
   {}
 
   ha_rows r_scans; /* how many scans were ran on this join_tab */
@@ -241,6 +242,16 @@ public:
   */
   ha_rows *r_rows_per_worker;
   uint     n_workers;
+
+  /*
+    How the engine divided this table's scan between those workers: chunks it
+    produced in all, and how many of those it re-split rather than scanned. The
+    per-worker row counts above say how the work landed, which is the cut and
+    the order the pull queue handed chunks out together; these two say what the
+    cut itself was. Zero unless the table was scanned in parallel.
+  */
+  ulonglong r_chunks_created;
+  ulonglong r_chunks_resplit;
 
   double get_avg_rows() const
   {

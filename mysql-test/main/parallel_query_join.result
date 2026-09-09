@@ -213,6 +213,8 @@ ANALYZE
           "rows": 5000,
           "r_rows": 5000,
           "r_rows_per_worker": REPLACED,
+          "r_chunks": "REPLACED",
+          "r_chunks_resplit": "REPLACED",
           "cost": "REPLACED",
           "r_engine_stats": REPLACED,
           "filtered": 0.200000003,
