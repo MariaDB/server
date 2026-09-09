@@ -1,11 +1,10 @@
 # The MariaDB configuration file
 #
-# The MariaDB/MySQL tools read configuration files in the following order:
-# 0. "/etc/mysql/my.cnf" symlinks to this file, reason why all the rest is read.
-# 1. "/etc/mysql/mariadb.cnf" (this file) to set global defaults,
-# 2. "/etc/mysql/conf.d/*.cnf" to set global options.
-# 3. "/etc/mysql/mariadb.conf.d/*.cnf" to set MariaDB-only options.
-# 4. "~/.my.cnf" to set user-specific options.
+# MariaDB reads configuration files in the following order:
+# 0. "/etc/mariadb/my.cnf" (a symlink to this file) to set global defaults,
+# 1. "/etc/mariadb/conf.d/*.cnf" to set global options,
+# 2. "/etc/mariadb/mariadb.conf.d/*.cnf" to set MariaDB-only options,
+# 3. "~/.my.cnf" to set user-specific options.
 #
 # If the same option is defined multiple times, the last one will apply.
 #
@@ -25,5 +24,5 @@
 socket = /run/mysqld/mysqld.sock
 
 # Import all .cnf files from configuration directory
-!includedir /etc/mysql/conf.d/
-!includedir /etc/mysql/mariadb.conf.d/
+!includedir /etc/mariadb/conf.d/
+!includedir /etc/mariadb/mariadb.conf.d/

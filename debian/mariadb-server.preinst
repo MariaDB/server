@@ -169,7 +169,7 @@ then
   mv -f "$mariadb_datadir" "$mariadb_datadir-$found_version"
   # Also move away the old debian.cnf file that included credentials that are
   # no longer valid. If none existed, ignore error and let dpkg continue.
-  mv -f /etc/mysql/debian.cnf "/etc/mysql/debian.cnf-$found_version" || true
+  mv -f /etc/mariadb/debian.cnf "/etc/mariadb/debian.cnf-$found_version" 2>/dev/null || true
 fi
 
 # to be sure

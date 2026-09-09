@@ -1,0 +1,47 @@
+#!/bin/sh
+set -e
+
+mariadb_cfgdir=/etc/mariadb
+legacy_mariadb_cfgdir=/etc/mysql
+
+# Migrate MariaDB's configuration from /etc/mysql to /etc/mariadb on upgrade.
+if [ "$1" = "upgrade" ] && [ -d "$legacy_mariadb_cfgdir" ]
+then
+  mkdir -p "$mariadb_cfgdir"
+
+  # Main config file.
+  if [ -e "$legacy_mariadb_cfgdir/mariadb.cnf" ] && [ ! -e "$mariadb_cfgdir/mariadb.cnf" ]
+  then
+    mv "$legacy_mariadb_cfgdir/mariadb.cnf" "$mariadb_cfgdir/mariadb.cnf"
+    echo "Moved $legacy_mariadb_cfgdir/mariadb.cnf to $mariadb_cfgdir/mariadb.cnf"
+  fi
+
+  # MariaDB-specific config directory.
+  if [ -d "$legacy_mariadb_cfgdir/mariadb.conf.d" ] && [ ! -e "$mariadb_cfgdir/mariadb.conf.d" ]
+  then
+    mv "$legacy_mariadb_cfgdir/mariadb.conf.d" "$mariadb_cfgdir/mariadb.conf.d"
+    echo "Moved $legacy_mariadb_cfgdir/mariadb.conf.d/ to $mariadb_cfgdir/mariadb.conf.d/"
+  elif [ -d "$legacy_mariadb_cfgdir/mariadb.conf.d" ]
+  then
+    # Folder exists, move any missing files over.
+    for f in "$legacy_mariadb_cfgdir/mariadb.conf.d"/*.cnf
+    do
+      [ -e "$f" ] || continue
+      base=$(basename "$f")
+      if [ ! -e "$mariadb_cfgdir/mariadb.conf.d/$base" ]
+      then
+        mv "$f" "$mariadb_cfgdir/mariadb.conf.d/$base"
+        echo "Moved $f to $mariadb_cfgdir/mariadb.conf.d/$base"
+      fi
+    done
+  fi
+
+  # debian-start script
+  if [ -e "$legacy_mariadb_cfgdir/debian-start" ] && [ ! -e "$mariadb_cfgdir/debian-start" ]
+  then
+    mv "$legacy_mariadb_cfgdir/debian-start" "$mariadb_cfgdir/debian-start"
+    echo "Moved $legacy_mariadb_cfgdir/debian-start to $mariadb_cfgdir/debian-start"
+  fi
+fi
+
+#DEBHELPER#

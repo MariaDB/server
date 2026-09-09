@@ -1,1 +1,2 @@
-etc/mysql/mariadb.conf.d
+etc/mariadb/mariadb.conf.d
+etc/mariadb/conf.d

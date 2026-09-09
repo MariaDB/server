@@ -42,7 +42,7 @@
 # - INSTALL_SBINDIR         (directory with mysqld)
 # - INSTALL_SCRIPTDIR       (several scripts, rarely used)
 # - INSTALL_SYSCONFDIR	    (my.cnf config file. Usually /etc or nothing)
-# - INSTALL_SYSCONF2DIR     (additional config files, e.g. /etc/mysql/conf.d)
+# - INSTALL_SYSCONF2DIR     (additional config files, e.g. /etc/mariadb/conf.d)
 #
 # - INSTALL_LIBDIR          (directory with client end embedded libraries)
 # - INSTALL_PLUGINDIR       (directory for plugins)
@@ -179,7 +179,7 @@ SET(INSTALL_BINDIR_DEB                  "bin")
 SET(INSTALL_SBINDIR_DEB                 "sbin")
 SET(INSTALL_SCRIPTDIR_DEB               "bin")
 SET(INSTALL_SYSCONFDIR_DEB              "/etc")
-SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/mariadb.conf.d")
+SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mariadb/mariadb.conf.d")
 #
 SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")

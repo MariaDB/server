@@ -1,2 +1,2 @@
-etc/mysql/mariadb.conf.d/videx.cnf
+etc/mariadb/mariadb.conf.d/videx.cnf
 usr/lib/mysql/plugin/ha_videx.so
