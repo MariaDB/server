@@ -34,6 +34,29 @@ C_MODE_START
 #define HP_MIN_RECORDS_IN_BLOCK 16
 #define HP_MAX_RECORDS_IN_BLOCK 8192
 
+/*
+  A VARCHAR whose declared payload is wider than this many bytes is
+  stored as a blob instead of inline.
+
+  Heap records are fixed width, so an inline VARCHAR(N) reserves its full
+  declared width in every row whether or not the row uses it.  N counts
+  characters, so that width is between N and 4N bytes depending on the
+  character set: the same VARCHAR(100) reserves 100 bytes in latin1 and
+  400 in utf8mb4.  A blob costs a length prefix and a pointer in the row,
+  and only the bytes actually present in a continuation run.  The
+  threshold is therefore compared against the byte width, not N.
+
+  Below the threshold promotion loses: a non-empty promoted value costs
+  at least one whole continuation record, so a narrow column pays more
+  for the run than it saves on the row.
+
+  It must also stay at or above the width of a pointer: a column
+  narrower than one is made larger by the move, and the record
+  arithmetic that gives back the declared width and spends a pointer
+  would wrap.
+*/
+#define HEAP_CONVERT_IF_BIGGER_TO_BLOB 32
+
 /* Flags stored in the 'visible' byte at end of each record */
 #define HP_ROW_ACTIVE    1   /* Bit 0: record is active (not deleted) */
 #define HP_ROW_HAS_CONT  2   /* Bit 1: primary record has continuation chain(s) */
@@ -202,17 +225,45 @@ static inline uint16 hp_free_block_start_count(const uchar *pos)
 }
 
 /*
+  Record length up to which clearing dark records contiguously beats
+  clearing them at a stride.
+
+  A record's two write sites, del_link at the start and the flags byte
+  at 'visible', land in different cache lines for any record this short,
+  so the strided loop dirties every line in the range anyway and gains
+  nothing by touching fewer bytes of each.  Measured on Zen 4 (AVX-512),
+  Broadwell (AVX2) and Denverton (no AVX): at recbuffer 16 a contiguous
+  clear is 2.6 to 4.7 times faster, at 32 it is 1.3 to 2.3 times faster,
+  and the two cross over between 48 and 96 depending on the machine.
+
+  A promoted VARCHAR gives a stored record of a length prefix and a
+  chain pointer, so its recbuffer is 16 and it sits at the top of that
+  range.
+*/
+#define HP_CLEAR_DARK_MEMSET_MAX 32
+
+/*
   Clear the metadata bytes of dark records (records between block-start
   and block-end that are not individually on the free list).
-  Uses a strided loop so only the essential bytes per record are touched.
-  For short record lengths a contiguous bzero over the full range would
-  be faster, but the crossover point has not been measured.
+
+  Clearing a short record whole rather than just its metadata is safe.
+  A record reaches here only once it is free, and the strided form below
+  already overwrites the first nine bytes of every one of them, so
+  nothing may rely on a dark record's contents either way.  Callers pass
+  whole-record boundaries, so the two forms cover the same records.
 */
 
 static inline void hp_clear_dark_records(uchar *from, uchar *to,
                                          uint recbuffer, uint visible)
 {
   uchar *pos;
+
+  if (recbuffer <= HP_CLEAR_DARK_MEMSET_MAX)
+  {
+    if (to > from)
+      bzero(from, (size_t) (to - from));
+    return;
+  }
   for (pos= from; pos < to; pos+= recbuffer)
   {
     *((uchar**) pos)= NULL;
@@ -234,6 +285,7 @@ static inline void hp_push_free_record(HP_SHARE *share, uchar *pos)
   share->del_link= pos;
   pos[share->visible]= 0;
   share->deleted++;
+  share->deleted_entries++;
   share->total_records--;
 }
 
@@ -284,9 +336,10 @@ static inline uchar *hp_pop_free_record(HP_SHARE *share)
 
   if (!hp_is_free_block_end(pos))
   {
-    /* Single record */
+    /* Single record: the whole entry goes */
     share->del_link= *((uchar**) pos);
     share->deleted--;
+    share->deleted_entries--;
     share->total_records++;
     return pos;
   }
@@ -374,6 +427,111 @@ static inline uint32 hp_blob_length(const HP_BLOB_DESC *desc,
                                     const uchar *record)
 {
   return (uint32) read_lowendian(record + desc->offset, desc->packlength);
+}
+
+/*
+  The same length, read from a stored record.  Promoted columns move
+  under compaction, so the stored descriptor is not at desc->offset.
+*/
+
+static inline uint32 hp_blob_stored_length(const HP_BLOB_DESC *desc,
+                                           const uchar *pos)
+{
+  return (uint32) read_lowendian(pos + desc->store_offset, desc->packlength);
+}
+
+/*
+  The chain of continuation records a stored record holds for a blob
+  column, in the slot that follows the column's length prefix.  Only a
+  stored record has one, and only at store_offset: compaction moves every
+  column that follows a promoted one, so the slot is not at desc->offset.
+
+  A zero-length value has no chain, and the slot is cleared rather than
+  set, which is what hp_blob_clear_chain() is for.
+*/
+
+static inline uchar *hp_blob_get_chain(const HP_BLOB_DESC *desc,
+                                       const uchar *pos)
+{
+  uchar *chain;
+  memcpy(&chain, pos + desc->store_offset + desc->packlength, sizeof(chain));
+  return chain;
+}
+
+static inline void hp_blob_set_chain(const HP_BLOB_DESC *desc, uchar *pos,
+                                     uchar *chain)
+{
+  memcpy(pos + desc->store_offset + desc->packlength, &chain, sizeof(chain));
+}
+
+static inline void hp_blob_clear_chain(const HP_BLOB_DESC *desc, uchar *pos)
+{
+  hp_blob_set_chain(desc, pos, NULL);
+}
+
+/*
+  Copy the SQL record buffer into a stored record, and back.
+
+  Defined here rather than in hp_blob.c because every row read and every
+  row write of every HEAP table goes through one of them, including the
+  tables with nothing promoted, where the span list is a single span
+  covering the whole record and the body is one memcpy.  Out of line that
+  memcpy costs a call and two dependent loads to reach its size.
+
+  hp_pack_record() leaves each promoted column's chain pointer slot
+  untouched; the caller runs hp_write_blobs() afterwards to allocate the
+  chains and store the pointers.  A promoted column's length prefix is
+  carried by a span and is already in place when it returns.
+
+  hp_unpack_record() leaves each promoted column's payload untouched; the
+  caller runs hp_read_blobs() afterwards to copy the bytes out of the
+  continuation chain.  A promoted column cannot be read without that
+  copy: the SQL layer reaches its data at a fixed offset from the length
+  prefix, so unlike a native blob there is no pointer slot to aim at heap
+  memory.  The reserved bytes past the value's length are never read by
+  the SQL layer and nothing writes them here, so they hold whatever the
+  previous row left behind.  A bulk record comparison would still trip a
+  memory checker over them, so they are annotated as defined, the way
+  Aria and InnoDB annotate their VARCHAR slack.
+*/
+
+static inline void hp_pack_record(HP_SHARE *share, uchar *pos,
+                                  const uchar *record)
+{
+  const HP_COPY_SPAN *span, *span_end;
+
+  if (!share->promoted_count)
+  {
+    memcpy(pos, record, share->reclength);
+    return;
+  }
+  for (span= share->copy_spans, span_end= span + share->copy_span_count;
+       span < span_end; span++)
+    memcpy(pos + span->store_offset, record + span->offset, span->length);
+}
+
+static inline void hp_unpack_record(HP_SHARE *share, uchar *record,
+                                    const uchar *pos)
+{
+  const HP_COPY_SPAN *span, *span_end;
+  const HP_BLOB_DESC *desc, *desc_end;
+
+  if (!share->promoted_count)
+  {
+    memcpy(record, pos, share->reclength);
+    return;
+  }
+  for (span= share->copy_spans, span_end= span + share->copy_span_count;
+       span < span_end; span++)
+    memcpy(record + span->offset, pos + span->store_offset, span->length);
+
+  for (desc= share->blob_descs, desc_end= desc + share->blob_count;
+       desc < desc_end; desc++)
+  {
+    if (desc->promoted)
+      MEM_MAKE_DEFINED(record + desc->offset + desc->packlength,
+                       desc->length);
+  }
 }
 extern int hp_write_one_blob(HP_SHARE *share, const uchar *data_ptr,
                              uint32 data_len, uchar **first_run_out);
