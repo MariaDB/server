@@ -1358,7 +1358,7 @@ Event_job_data::execute(THD *thd, bool drop)
 {
   String sp_sql;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  Security_context event_sctx, *save_sctx= NULL;
+  Security_context *save_sctx= NULL;
 #endif
   List<Item> empty_item_list;
   bool ret= TRUE;

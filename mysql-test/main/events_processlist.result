@@ -18,3 +18,57 @@ connection default;
 SET GLOBAL event_scheduler = OFF;
 DROP EVENT e;
 DROP USER u@localhost;
+#
+# MDEV-39146 processlist_callback() dereferences a stale
+# Security_context, racing a DEFINER switch that used to be
+# stack-allocated in Event_job_data::execute().
+#
+CREATE USER definer@localhost;
+GRANT EVENT ON *.* TO definer@localhost;
+GRANT SUPER ON *.* TO definer@localhost;
+SET DEBUG_SYNC= 'RESET';
+# Per-session DEBUG_SYNC: must arm from inside the event body (its own
+# thd), not from another connection.
+CREATE DEFINER=definer@localhost EVENT ev
+ON SCHEDULE AT CURRENT_TIMESTAMP
+DO
+BEGIN
+SET DEBUG_SYNC= 'event_worker_thread_after_execute_returned SIGNAL event_execute_returned';
+SET DEBUG_SYNC= 'now SIGNAL definer_ctx_active WAIT_FOR event_may_finish';
+END|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SET GLOBAL event_scheduler= ON;
+# Connect 'waiter' now: iterate() holds server_threads' rwlock for the
+# whole scan; connecting after would deadlock (needs that lock's
+# write side).
+connect  waiter, localhost, root,,;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR definer_ctx_active';
+# Pause right after processlist_callback() captures the
+# DEFINER-switched security_ctx, before USER/HOST are read.
+SET @saved_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,processlist_callback_pause_after_sctx_capture';
+SET DEBUG_SYNC= 'processlist_callback_captured_sctx SIGNAL scanner_captured WAIT_FOR let_scanner_continue';
+# Filter by name, not row count -- asserts the corrupted value itself
+# comes back correct.
+SELECT user, host FROM information_schema.processlist WHERE user = 'definer';
+connection waiter;
+SET DEBUG_SYNC= 'now WAIT_FOR scanner_captured';
+# Let the event finish, then wait for execute() to actually return --
+# where its old stack-local Security_context (pre-fix) would have
+# been gone for good. Generous timeout: nothing blocks the event
+# from finishing quickly, this fix adds no locking.
+SET DEBUG_SYNC= 'now SIGNAL event_may_finish WAIT_FOR event_execute_returned TIMEOUT 60';
+# Release the scanner to dereference the pointer it captured.
+SET DEBUG_SYNC= 'now SIGNAL let_scanner_continue';
+disconnect waiter;
+connection default;
+user	host
+definer	localhost
+SET SESSION debug_dbug= @saved_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL event_scheduler= OFF;
+DROP EVENT ev;
+DROP USER definer@localhost;
+# End of 10.11 tests

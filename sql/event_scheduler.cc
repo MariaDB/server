@@ -317,6 +317,10 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 
   res= job_data.execute(thd, event->dropped);
 
+  /* Test hook: execute()'s stack frame is gone here; job_data's isn't --
+     why event_sctx moved there. */
+  DEBUG_SYNC(thd, "event_worker_thread_after_execute_returned");
+
   print_warnings(thd, &job_data);
 
   if (res && global_system_variables.log_warnings > 2)

@@ -3334,6 +3334,14 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   ulonglong max_counter;
   bool got_thd_data;
 
+  /* Test hook: pause between capture and dereference -- the window
+     that mattered while Event_job_data::event_sctx was a stack local. */
+  DBUG_EXECUTE_IF("processlist_callback_pause_after_sctx_capture",
+                  if (tmp->system_thread == SYSTEM_THREAD_EVENT_WORKER &&
+                      tmp_sctx != &tmp->main_security_ctx)
+                    DEBUG_SYNC(arg->thd,
+                               "processlist_callback_captured_sctx"););
+
   if (!thd_visible_in_processlist(arg->thd->security_ctx, tmp))
     return 0;
 
