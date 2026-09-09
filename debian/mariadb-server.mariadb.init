@@ -171,7 +171,7 @@ case "${1:-''}" in
    log_end_msg 0
   else
     # Could be removed during boot
-    test -e /run/mysqld || install -m 755 -o mysql -g root -d /run/mysqld
+    test -e /run/mariadbd || install -m 755 -o mysql -g root -d /rrun/mariadbd
 
     # Start MariaDB!
     /usr/bin/mariadbd-safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
