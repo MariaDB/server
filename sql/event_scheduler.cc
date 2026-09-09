@@ -317,6 +317,9 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 
   res= job_data.execute(thd, event->dropped);
 
+  /* Test hook: execute() has returned, job_data is still alive. */
+  DEBUG_SYNC(thd, "event_worker_thread_after_execute_returned");
+
   print_warnings(thd, &job_data);
 
   if (res && global_system_variables.log_warnings > 2)
