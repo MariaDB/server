@@ -52,8 +52,8 @@ extern pthread_key_t THR_PFS_SG;  // global_status
 extern pthread_key_t THR_PFS_SS;  // session_status
 extern pthread_key_t THR_PFS_SBT; // status_by_thread
 extern pthread_key_t THR_PFS_SBU; // status_by_user
-extern pthread_key_t THR_PFS_SBA; // status_by_host
-extern pthread_key_t THR_PFS_SBH; // status_by_account
+extern pthread_key_t THR_PFS_SBH; // status_by_host
+extern pthread_key_t THR_PFS_SBA; // status_by_account
 
 /** True when @c THR_PFS and all other Performance Schema TLS keys are initialized. */
 extern bool THR_PFS_initialized;
