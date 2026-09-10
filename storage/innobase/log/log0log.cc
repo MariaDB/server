@@ -767,6 +767,12 @@ void log_t::header_rewrite(my_bool archive) noexcept
 @param thd      SQL connection */
 void log_t::set_archive(my_bool archive, THD *thd) noexcept
 {
+  if (UNIV_UNLIKELY(recv_sys.rpo != 0))
+  {
+    my_error(ER_INNODB_READ_ONLY, MYF(0));
+    return;
+  }
+
   thd_wait_begin(thd, THD_WAIT_DISKIO);
   tpool::tpool_wait_begin();
   lsn_t wait_lsn;
