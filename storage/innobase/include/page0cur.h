@@ -212,6 +212,21 @@ bool page_apply_delete_dynamic(const buf_block_t &block, ulint prev,
                                size_t hdr_size, size_t data_size);
 
 MY_ATTRIBUTE((warn_unused_result))
+/** Position a cursor on a leaf page for PAGE_CUR_LE on a user record or on
+the record before or after it, as a search that starts where the previous one
+landed.
+@param tuple        search key
+@param rec          user record on cursor->block to start from
+@param iup_fields   matched fields in the upper limit record
+@param ilow_fields  matched fields in the low limit record
+@param cursor       page cursor
+@return whether the cursor was positioned; false when the search would land
+on none of the three records, and the cursor is then unchanged */
+bool page_cur_search_near(const dtuple_t *tuple, const rec_t *rec,
+                          uint16_t *iup_fields, uint16_t *ilow_fields,
+                          page_cur_t *cursor) noexcept;
+
+MY_ATTRIBUTE((warn_unused_result))
 /** Search the right position for a page cursor.
 @param tuple        search key
 @param mode         search mode
