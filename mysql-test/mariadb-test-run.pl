@@ -180,6 +180,7 @@ my @DEFAULT_SUITES= qw(
     main-
     archive-
     atomic-
+    backup-
     binlog-
     binlog_encryption-
     binlog_in_engine-
