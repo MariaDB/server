@@ -1614,6 +1614,153 @@ release_tree:
   goto search_loop;
 }
 
+bool btr_cur_t::try_leaf_hint(const dtuple_t *tuple, page_id_t hint_page_id,
+                              btr_leaf_step &step, mtr_t *mtr) noexcept
+{
+  /* A clustered index only: the checks below accept FIL_PAGE_RTREE, which
+  search_leaf() rejects, and no page of a clustered index is an R-tree. */
+  ut_ad(index()->is_primary());
+
+  /* A complete unique key. The search below takes a match on every compared
+  field as the answer without examining the successor record, which only a
+  key that cannot repeat allows: the PAGE_CUR_LE match of a repeating key can
+  be on a later leaf. */
+  ut_ad(dtuple_get_n_fields_cmp(tuple) == dict_index_get_n_unique(index()));
+  /* A user key, not the search key of the metadata pseudo-record, which
+  page_cur_search_with_match() would report as a full match on it. */
+  ut_ad(!(tuple->info_bits & REC_INFO_MIN_REC_FLAG));
+
+  /* hint_page_id was not read from a latched parent page, so it may now
+  precede the caller's already-latched secondary-index leaf in the
+  B-tree latching order: never block on its latch (page latches have no
+  deadlock detection) and never read it from disk. */
+  buf_block_t *const block= buf_page_try_get(hint_page_id, mtr);
+  if (!block)
+    return false;
+
+  const page_t *const page= block->page.frame;
+  if (block->page.is_freed() || !fil_page_index_page_check(page) ||
+      !page_is_leaf(page) ||
+      !!page_is_comp(page) != index()->table->not_redundant() ||
+      btr_page_get_index_id(page) != index()->id)
+  {
+    /* Stale hint or, for search_leaf()'s own checks, corruption; we cannot
+    tell here, so fall back either way, and the full descent still reports a
+    corrupt live leaf. is_freed() is the guard that descent omits: a freed
+    but unreused page keeps old contents that pass the other checks. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  /* Search on a copy, so that a rejection below leaves this cursor as it
+  was. */
+  page_cur_t cur{page_cur};
+  cur.block= block;
+  uint16_t up= 0, low= 0;
+
+  /* A record pointer stays valid while the block holds the same page and
+  its modify_clock has not moved: eviction, deletion and reorganization
+  all advance the clock, and an insertion moves no record. Try the record
+  where the previous search of this leaf landed and the records before and
+  after it, and nothing further, because the binary search is what the step
+  replaces. */
+  const bool step_valid= step.block == block &&
+    step.modify_clock == block->modify_clock;
+  const bool stepped= step_valid && step.expect &&
+    page_cur_search_near(tuple, step.rec, &up, &low, &cur);
+#ifdef UNIV_DEBUG
+  if (stepped)
+  {
+    page_cur_t check{page_cur};
+    check.block= block;
+    uint16_t check_up= 0, check_low= 0;
+    ut_a(!page_cur_search_with_match(tuple, PAGE_CUR_LE, &check_up,
+                                     &check_low, &check, nullptr));
+    ut_a(check.rec == cur.rec);
+    ut_a(check_low == low);
+  }
+#endif /* UNIV_DEBUG */
+
+  if (!stepped &&
+      (page_cur_search_with_match(tuple, PAGE_CUR_LE, &up, &low, &cur,
+                                  nullptr) ||
+       page_rec_is_infimum(cur.rec)))
+  {
+    /* Corruption, or tuple precedes every record on this page: its
+    predecessor, if any, is on an earlier leaf. */
+    mtr->release_last_page();
+    return false;
+  }
+
+  /* A user key sorts above the metadata pseudo-record on 0 fields. Landing
+  on it means that tuple precedes every key of the leftmost leaf, so that
+  it is not in the index, which a full descent reports the same way. */
+  ut_ad(!rec_is_metadata(cur.rec, *index()) || !low);
+
+  if (page_has_next(page) && low < dtuple_get_n_fields_cmp(tuple))
+  {
+    /* The record found is strictly less than tuple: PAGE_CUR_LE lands on
+    the greatest record <= tuple, and a full match would have made
+    low == n_fields_cmp. If it is the last user record of a leaf
+    with a right sibling, the true match may be on a later leaf; we cannot
+    resolve that from here, so reject the hint. The rightmost leaf needs
+    no such check: its last record is that match for any larger tuple. */
+    const rec_t *const next_rec= page_rec_get_next_const(cur.rec);
+    if (UNIV_UNLIKELY(!next_rec) || page_rec_is_supremum(next_rec))
+    {
+      mtr->release_last_page();
+      return false;
+    }
+  }
+
+  /* This feeds no btr_search_info_update(). The caller tries a hint only
+  while the adaptive hash index is disabled, and search_leaf() feeds
+  nothing then either. */
+
+  /* Age the page as the buf_page_get_gen() of a descent would, which
+  buf_page_try_get() does not do: a leaf that a correlated scan reads once
+  per row must not look less recently used than one reached by descent. */
+  buf_page_make_young_if_needed(&block->page);
+
+  /* A failed step costs comparisons whose outcome no branch predictor can
+  guess, so try the next one only where this search landed where a step
+  would have: on the previous record or right before or after it. The record
+  right before it is told by its successor, one link away, because finding a
+  predecessor takes a walk of the page directory. */
+  step.expect= stepped ||
+    (step_valid && (cur.rec == step.rec ||
+                    cur.rec == page_rec_get_next_const(step.rec) ||
+                    page_rec_get_next_const(cur.rec) == step.rec));
+  step.block= block;
+  step.modify_clock= block->modify_clock;
+  step.rec= cur.rec;
+
+  page_cur= cur;
+  up_match= up;
+  low_match= low;
+  /* The byte counts stay 0 instead of being computed: the search above does
+  not report them, and their only reader is the adaptive hash index, which
+  the hints stand down for. */
+  up_bytes= 0;
+  low_bytes= 0;
+
+  /* search_leaf() also sets tree_height, which the hint cannot know because
+  it never walks the levels above the leaf. The value that the last descent
+  of this cursor left stands, and it is a real height of this tree: a hint is
+  only tried where a descent of this cursor already remembered a leaf of this
+  index. That matters because the value can travel: apart from search_leaf()
+  itself, its readers are the extent reservations of the pessimistic insert,
+  update and delete, which btr_pcur_copy_stored_position() reaches by copying
+  the whole cursor into the cursor of an update node. None of the three ever
+  sees a value that a hint left: each holds the index latch, which this
+  cursor can only take by descending again under BTR_MODIFY_TREE, and that
+  descent sets tree_height afresh. */
+#ifdef BTR_CUR_HASH_ADAPT
+  flag= BTR_CUR_BINARY;
+#endif
+  return true;
+}
+
 ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
 {
   auto &slot= m_memo[get_savepoint() - 1];
