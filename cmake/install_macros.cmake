@@ -300,36 +300,3 @@ ENDFUNCTION()
 # For Makefile generators we default Debug build directory to ${buildroot}/../debug.
 GET_FILENAME_COMPONENT(BINARY_PARENTDIR ${CMAKE_BINARY_DIR} PATH)
 SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug build")
-
-FUNCTION(INSTALL_MYSQL_TEST from to)
-  IF(INSTALL_MYSQLTESTDIR)
-    IF(NOT WITH_WSREP)
-      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|std_data/(galera|wsrep).*)")
-    ELSE()
-      SET(EXCL_GALERA "^DOES_NOT_EXIST$")
-    ENDIF()
-    INSTALL(
-      DIRECTORY ${from}
-      DESTINATION "${INSTALL_MYSQLTESTDIR}/${to}"
-      USE_SOURCE_PERMISSIONS
-      COMPONENT Test
-      PATTERN "var" EXCLUDE
-      PATTERN "lib/My/SafeProcess" EXCLUDE
-      PATTERN "lib/t*" EXCLUDE
-      PATTERN "CPack" EXCLUDE
-      PATTERN "CMake*" EXCLUDE
-      PATTERN "cmake_install.cmake" EXCLUDE
-      PATTERN "mtr.out*" EXCLUDE
-      PATTERN ".cvsignore" EXCLUDE
-      PATTERN "*.am" EXCLUDE
-      PATTERN "*.in" EXCLUDE
-      PATTERN "Makefile" EXCLUDE
-      PATTERN "*.vcxproj" EXCLUDE
-      PATTERN "*.vcxproj.filters" EXCLUDE
-      PATTERN "*.vcxproj.user" EXCLUDE
-      PATTERN "CTest*" EXCLUDE
-      PATTERN "*~" EXCLUDE
-      REGEX "${EXCL_GALERA}" EXCLUDE
-    )
-  ENDIF()
-ENDFUNCTION()

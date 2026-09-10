@@ -14,10 +14,46 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
+IF(NOT EXTERNAL_PLUGIN)
+  STRING(CONCAT PARENT_SCOPE PARENT_SCOPE) # cannot use SET here
+ENDIF()
+
+FUNCTION(INSTALL_MYSQL_TEST from to)
+  IF(INSTALL_MYSQLTESTDIR)
+    IF(NOT WITH_WSREP)
+      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|std_data/(galera|wsrep).*)")
+    ELSE()
+      SET(EXCL_GALERA "^DOES_NOT_EXIST$")
+    ENDIF()
+    INSTALL(
+      DIRECTORY ${from}
+      DESTINATION "${INSTALL_MYSQLTESTDIR}/${to}"
+      USE_SOURCE_PERMISSIONS
+      COMPONENT Test
+      PATTERN "var" EXCLUDE
+      PATTERN "lib/My/SafeProcess" EXCLUDE
+      PATTERN "lib/t*" EXCLUDE
+      PATTERN "CPack" EXCLUDE
+      PATTERN "CMake*" EXCLUDE
+      PATTERN "cmake_install.cmake" EXCLUDE
+      PATTERN "mtr.out*" EXCLUDE
+      PATTERN ".cvsignore" EXCLUDE
+      PATTERN "*.am" EXCLUDE
+      PATTERN "*.in" EXCLUDE
+      PATTERN "Makefile" EXCLUDE
+      PATTERN "*.vcxproj" EXCLUDE
+      PATTERN "*.vcxproj.filters" EXCLUDE
+      PATTERN "*.vcxproj.user" EXCLUDE
+      PATTERN "CTest*" EXCLUDE
+      PATTERN "*~" EXCLUDE
+      REGEX "${EXCL_GALERA}" EXCLUDE
+    )
+  ENDIF()
+ENDFUNCTION()
 
 INCLUDE(CMakeParseArguments)
 
-# MYSQL_ADD_PLUGIN(plugin_name source1...sourceN
+# MARIADB_ADD_PLUGIN(plugin_name source1...sourceN
 # [STORAGE_ENGINE]
 # [STATIC_ONLY|MODULE_ONLY]
 # [MANDATORY|DEFAULT]
@@ -32,10 +68,10 @@ INCLUDE(CMakeParseArguments)
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDS target1...targetN]
 
-MACRO(MYSQL_ADD_PLUGIN)
+MACRO(MARIADB_ADD_PLUGIN)
   CMAKE_PARSE_ARGUMENTS(ARG
     "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;NOT_EMBEDDED;RECOMPILE_FOR_EMBEDDED;CLIENT"
-    "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG;VERSION"
+    "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG;VERSION;AUTHOR;DESCRIPTION"
     "LINK_LIBRARIES;DEPENDS"
     ${ARGN}
   )
@@ -108,6 +144,10 @@ MACRO(MYSQL_ADD_PLUGIN)
     MESSAGE(FATAL_ERROR "Invalid value for PLUGIN_${plugin}")
   ENDIF()
 
+  IF(EXTERNAL_PLUGIN)
+    EXTERNAL_PLUGIN_PRE()
+  ENDIF()
+
   # Validate that the requested build mode is compatible with what the
   # plugin actually supports. STATIC_ONLY plugins cannot be built as
   # dynamic modules, and MODULE_ONLY plugins cannot be linked statically.
@@ -130,10 +170,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET(ARG_DEPENDS)
   ENDIF()
 
+  SET(definitions ";PLUGIN_NAME=\"${target}\";PLUGIN_LICENSE=PLUGIN_LICENSE_GPL")
   IF(ARG_VERSION)
-    SET(version_string ";PLUGIN_${plugin}_VERSION=\"${ARG_VERSION}\"")
+    SET(definitions "${definitions};PLUGIN_VERSION=\"${ARG_VERSION}\";PLUGIN_HEX_VERSION=${V_MAJOR}*256+${V_MINOR}")
   ENDIF()
-  
+  IF(ARG_AUTHOR)
+    SET(definitions "${definitions};PLUGIN_AUTHOR=\"${ARG_AUTHOR}\"")
+  ENDIF()
+  IF(ARG_DESCRIPTION)
+    SET(definitions "${definitions};PLUGIN_DESCRIPTION=\"${ARG_DESCRIPTION}\"")
+  ENDIF()
+
   IF(NOT ARG_MODULE_OUTPUT_NAME)
     IF(ARG_STORAGE_ENGINE)
       SET(ARG_MODULE_OUTPUT_NAME "ha_${target}")
@@ -169,7 +216,7 @@ MACRO(MYSQL_ADD_PLUGIN)
         DTRACE_INSTRUMENT(${target}_embedded)   
         IF(ARG_RECOMPILE_FOR_EMBEDDED)
           SET_TARGET_PROPERTIES(${target}_embedded 
-            PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
+            PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${definitions}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
         IF(ARG_LINK_LIBRARIES)
@@ -207,11 +254,11 @@ MACRO(MYSQL_ADD_PLUGIN)
     IF(ARG_MANDATORY)
       SET (mysql_mandatory_plugins  
         "${mysql_mandatory_plugins}${builtin_entry}\n")
-      SET (mysql_mandatory_plugins ${mysql_mandatory_plugins} PARENT_SCOPE)
+      SET (mysql_mandatory_plugins ${mysql_mandatory_plugins} ${PARENT_SCOPE})
     ELSE()
       SET (mysql_optional_plugins  
         "${mysql_optional_plugins}${builtin_entry}\n")
-      SET (mysql_optional_plugins ${mysql_optional_plugins} PARENT_SCOPE)
+      SET (mysql_optional_plugins ${mysql_optional_plugins} ${PARENT_SCOPE})
     ENDIF()
   ELSEIF(PLUGIN_${plugin} MATCHES "(DYNAMIC|AUTO|YES)"
          AND NOT ARG_STATIC_ONLY AND NOT WITHOUT_DYNAMIC_PLUGINS)
@@ -223,7 +270,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET_TARGET_PROPERTIES (${target} PROPERTIES PREFIX "")
     IF (NOT ARG_CLIENT)
       SET_TARGET_PROPERTIES (${target} PROPERTIES
-        COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN${version_string}")
+        COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN${definitions}")
     ENDIF()
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
@@ -263,24 +310,29 @@ MACRO(MYSQL_ADD_PLUGIN)
       IF(CPACK_COMPONENTS_ALL AND
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT}
          AND INSTALL_SYSCONF2DIR)
-        IF (ARG_STORAGE_ENGINE)
-          STRING(REPLACE "-" "_" ver ${SERVER_VERSION})
-          SET(ver " = ${ver}-%{release}")
+        IF (ARG_STORAGE_ENGINE OR ARG_RECOMPILE_FOR_EMBEDDED)
+          IF(RPM)
+            STRING(REPLACE "-" "_" ver ${SERVER_VERSION})
+            SET(ver " = ${ver}-%{release}")
+          ELSE() # DEB
+	    SET(ver " (= 1:${SERVER_VERSION}+maria~${DEBIAN_ABBR})")
+          ENDIF()
         ELSE()
           SET(ver "")
         ENDIF()
         STRING(TOUPPER ${ARG_COMPONENT} ARG_COMPONENT_UPPER)
-        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}SYMLINKS_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
-        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}_GROUP ${ARG_COMPONENT} PARENT_SCOPE)
+        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}SYMLINKS_GROUP ${ARG_COMPONENT} ${PARENT_SCOPE})
+        SET(CPACK_COMPONENT_${ARG_COMPONENT_UPPER}_GROUP ${ARG_COMPONENT} ${PARENT_SCOPE})
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} ${ARG_COMPONENT}Symlinks)
-        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${PARENT_SCOPE})
 
         IF (NOT ARG_CLIENT)
-          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server${ver}" PARENT_SCOPE)
+          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server${ver}" ${PARENT_SCOPE})
+          SET(CPACK_DEBIAN_PACKAGE_DEPENDS "mariadb-server${ver}")
         ENDIF()
-        SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} PARENT_SCOPE)
+        SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} ${PARENT_SCOPE})
         IF (ARG_VERSION)
-          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION ${SERVER_VERSION}_${ARG_VERSION} PARENT_SCOPE)
+          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION ${SERVER_VERSION}_${ARG_VERSION} ${PARENT_SCOPE})
           SET_PLUGIN_DEB_VERSION(${target} ${SERVER_VERSION}-${ARG_VERSION})
         ENDIF()
         IF(NOT ARG_CLIENT AND UNIX)
@@ -288,9 +340,9 @@ MACRO(MYSQL_ADD_PLUGIN)
             SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target}.cnf")
             FILE(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
           ENDIF()
-          SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
-          SET(CPACK_RPM_${ARG_COMPONENT}_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/plugin-postin.sh PARENT_SCOPE)
-          SET(CPACK_RPM_${ARG_COMPONENT}_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh PARENT_SCOPE)
+          SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" ${PARENT_SCOPE})
+          SET(CPACK_RPM_${ARG_COMPONENT}_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/plugin-postin.sh ${PARENT_SCOPE})
+          SET(CPACK_RPM_${ARG_COMPONENT}_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh ${PARENT_SCOPE})
         ENDIF()
       ENDIF()
     ELSE()
@@ -323,23 +375,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     ADD_FEATURE_INFO(${plugin} ${have_target} "Server plugin ${plugin_type}")
   ENDIF()
   ENDIF(NOT WITHOUT_SERVER OR ARG_CLIENT)
+  IF (EXTERNAL_PLUGIN)
+    EXTERNAL_PLUGIN_POST()
+  ENDIF()
 ENDMACRO()
 
+MACRO(MYSQL_ADD_PLUGIN)
+  MARIADB_ADD_PLUGIN(${ARGV})
+ENDMACRO()
 
-# Add all CMake projects under storage  and plugin 
-# subdirectories, configure sql_builtins.cc
-MACRO(CONFIGURE_PLUGINS)
-  IF(NOT WITHOUT_SERVER)
-    FILE(GLOB dirs_storage ${CMAKE_SOURCE_DIR}/storage/*)
-  ENDIF()
-
-  FILE(GLOB dirs_plugin ${CMAKE_SOURCE_DIR}/plugin/*)
-  FOREACH(dir ${dirs_storage} ${dirs_plugin})
-    IF (EXISTS ${dir}/CMakeLists.txt)
-      ADD_SUBDIRECTORY(${dir})
-    ENDIF()
-  ENDFOREACH()
-
+# verify that all -DPLUGIN_xxx=YES plugins are being built
+MACRO(VERIFY_PLUGINS)
   GET_CMAKE_PROPERTY(ALL_VARS VARIABLES)
   FOREACH (V ${ALL_VARS})
     IF (V MATCHES "^PLUGIN_")
