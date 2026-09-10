@@ -32,17 +32,13 @@ struct backup_target
 struct backup_sink
 {
 #ifdef _WIN32
-# ifdef __cplusplus
   /** A value indicating an invalid stream */
   static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};
-# endif
   /** Target pipe, or NO_STREAM if path!=nullptr */
   HANDLE stream;
 #else
-# ifdef __cplusplus
   /** A value indicating an invalid file descriptor or stream */
   static constexpr int NO_STREAM{-1};
-# endif
   /** Target pipe, or NO_STREAM if copying to a directory */
   int stream;
 #endif
@@ -100,26 +96,22 @@ copy_entire_file() or backup::copy() */
 @param dst  target to append src to
 @return error code (negative)
 @retval 0   on success */
-inline int copy_entire_file(int src, int dst)
+inline int copy_entire_file(int src, int dst) noexcept
 {
   return fcopyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE);
 }
 #else
-# ifdef __cplusplus
-extern "C"
-# endif
 /** Copy an entire file.
 @param src  source file descriptor
 @param dst  target to append src to
 @return error code (non-positive)
 @retval 0   on success */
-int copy_entire_file(int src, int dst);
+int copy_entire_file(int src, int dst) noexcept;
 #endif
 
-#ifdef __cplusplus
-# ifdef _WIN32
+#ifdef _WIN32
 struct native_file_handle;
-# endif
+#endif
 namespace backup {
 
 typedef IF_WIN(native_file_handle, int) handle;
@@ -134,6 +126,32 @@ typedef IF_WIN(native_file_handle, int) handle;
    @retval 0   on success
 */
 int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept;
+
+#ifndef _WIN32
+/**
+   Copy or stream a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param src        source file descriptor from open(), to be closed here
+   @param path       file name
+   @return error code (also errno will be set)
+   @retval 0 on success
+*/
+int copy_or_stream(const backup_target &target, const backup_sink &sink,
+                   int src, const char *path) noexcept;
+#endif
+
+/**
+   Copy or stream a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param path       file name
+   @param dir_prefix length of the path prefix to omit from the backup
+   @return error code (also errno will be set)
+   @retval 0 on success
+*/
+int copy_or_stream(const backup_target &target, const backup_sink &sink,
+                   const char *path, size_t dir_prefix= 0) noexcept;
 
 /**
    Append a file snippet to the stream,
@@ -151,15 +169,11 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept;
 int append(handle src, backup_fd stream, uint64_t start, uint64_t end)
   noexcept;
 }
-#endif
 
 #if defined _WIN32 || defined __FreeBSD__
 /* There is no special variant of backup::copy(). */
 #else
 # if SIZEOF_SIZE_T > 4
-#  ifdef __cplusplus
-extern "C"
-#  endif
 /**
    Copy from a memory mapping to a file.
    @param map   source file mapping
@@ -169,14 +183,11 @@ extern "C"
    @return error code (non-positive)
    @retval 0   on success
 */
-int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end);
+int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end) noexcept;
 #  define copy_file_mmap copy_mmap
 # endif
 
 # ifdef __linux__
-#  ifdef __cplusplus
-extern "C"
-#  endif
 /**
    Try to copy a portion of a file via copy_file_range(2).
    @param src   source file descriptor
@@ -187,14 +198,12 @@ extern "C"
    @retval 0   on success
    @retval 1   if a fallback to copy_mmap() or backup::copy() is needed
 */
-int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end);
+int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
+  noexcept;
 #  define copy_file_shortcut copy_file_range_try
 # endif
 #endif
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /** Append to the configuration file.
 @param target   backup target directory
 @param config   the configuration file snippet to append
@@ -202,22 +211,17 @@ extern "C"
 @return error code (non-positive)
 @retval 0   on success */
 int backup_config_append(IF_WIN(const char*, int) target,
-                         const char *config, size_t size);
+                         const char *config, size_t size) noexcept;
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /** Append to the configuration file.
 @param target   backup stream
 @param config   the configuration file snippet to append
 @param size     length of the snippet
 @return error code (non-positive)
 @retval 0   on success */
-int backup_stream_config(backup_fd stream, const char *config, size_t size);
+int backup_stream_config(backup_fd stream, const char *config, size_t size)
+  noexcept;
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /** Start streaming a file.
 @param target   backup target
 @param name     file name
@@ -229,11 +233,8 @@ extern "C"
 @retval 0   on success */
 int backup_stream_start(backup_fd stream,
                         const char *name, mode_t mode, uint64_t size,
-                        const struct backup_chunk *chunks, size_t n_chunks);
+                        const backup_chunk *chunks, size_t n_chunks) noexcept;
 
-#ifdef __cplusplus
-extern "C"
-#endif
 /**
    Write data to a stream.
    @param stream  backup stream
@@ -242,30 +243,9 @@ extern "C"
    @return error code (non-positive)
    @retval 0 on success
 */
-int backup_stream_write(backup_fd stream, const void *buf, size_t size);
+int backup_stream_write(backup_fd stream, const void *buf, size_t size)
+  noexcept;
 
-#ifdef __cplusplus
-extern "C"
-#endif
-/**
-   Append a file snippet to the stream,
-   after a corresponding call to backup_stream_start().
-
-   Note that tar uses 512-byte blocks. If end-start is not a multiple of
-   512 bytes, backup_stream_zeropad() must be invoked.
-   @param src    source file
-   @param stream backup stream
-   @param start  first offset to copy
-   @param end    last offset to copy (exclusive)
-   @return error code (non-positive)
-   @retval 0   on success
-*/
-int backup_stream_append_plain(backup_fd src, backup_fd stream,
-                               uint64_t start, uint64_t end);
-
-#ifdef __cplusplus
-extern "C"
-#endif
 /**
    Zero-pad a the stream to a multiple of 512 bytes.
 
@@ -274,14 +254,11 @@ extern "C"
    @return error code (non-positive)
    @retval 0   on success
 */
-int backup_stream_zeropad(backup_fd stream, size_t written);
+int backup_stream_zeropad(backup_fd stream, size_t written) noexcept;
 
 #ifdef _WIN32
-# define backup_stream_append_async backup_stream_append_plain
+# define backup_stream_append_async backup::append
 #else
-# ifdef __cplusplus
-extern "C"
-# endif
 /**
    Zero-copy append an immutable file snippet to a stream.
 
@@ -301,5 +278,5 @@ extern "C"
    @retval 0   on success
 */
 int backup_stream_append_async(int src, int stream,
-                               uint64_t start, uint64_t end);
+                               uint64_t start, uint64_t end) noexcept;
 #endif

@@ -70,6 +70,8 @@ bool Sql_cmd_backup::execute(THD *thd)
 using tpool::pread;
 using tpool::pwrite;
 #else
+# include <sys/types.h>
+# include <dirent.h>
 # include <sys/mman.h>
 /**
    Copy a file using a memory mapping.
@@ -183,7 +185,7 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 @param dst  target to append src to
 @return error code (non-positive)
 @retval 0   on success */
-extern "C" int copy_entire_file(int src, int dst)
+int copy_entire_file(int src, int dst) noexcept
 {
   uint64_t end(lseek(src, 0, SEEK_END));
 #ifdef POSIX_FADV_SEQUENTIAL
@@ -268,6 +270,135 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 #endif
 }
 
+#ifndef _WIN32
+/**
+   Copy or stream a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param src        source file descriptor from open(), to be closed here
+   @param path       file name
+   @return error code (also errno will be set)
+   @retval 0 on success
+*/
+int copy_or_stream(const backup_target &target, const backup_sink &sink,
+                   int src, const char *path) noexcept
+{
+  int ret= -1, dst= sink.stream;
+  if (src < 0)
+  {
+    my_error(ER_CANT_OPEN_FILE, MYF(0), path, errno);
+    return ret;
+  }
+  if (dst < 0)
+  {
+    dst= openat(target.fd, path, O_CREAT | O_EXCL | O_WRONLY, 0666);
+    if (dst < 0)
+      my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
+    else
+    {
+      ret= copy_entire_file(src, dst) | close(dst);
+      if (ret)
+      write_error:
+        my_error(ER_ERROR_ON_WRITE, MYF(0), path, errno);
+    }
+  }
+  else
+  {
+    uint64_t end= (uint64_t) lseek(src, 0, SEEK_END);
+    ret= backup_stream_start(dst, path, 0644, end, NULL, 0) ||
+      backup::append(src, dst, 0, end) ||
+      backup_stream_zeropad(dst, (size_t) end);
+    if (ret)
+      goto write_error;
+  }
+  close(src);
+  return ret;
+}
+#endif
+
+/**
+   Copy or stream a file.
+   @param target     BACKUP SERVER target (possibly, a directory)
+   @param sink       per-thread context (possibly, a stream to write to)
+   @param path       file name
+   @param dir_prefix length of the path prefix to omit from the backup
+   @return error code (also errno will be set)
+   @retval 0 on success (errno might not be touched)
+*/
+int copy_or_stream(const backup_target &target, const backup_sink &sink,
+                   const char *path, size_t dir_prefix) noexcept
+{
+#ifndef _WIN32
+  return copy_or_stream(target, sink,
+                        open(path, O_RDONLY), path + dir_prefix);
+#else
+  int ret= -1;
+  if (sink.stream == INVALID_HANDLE_VALUE)
+  {
+    int len= snprintf(NULL, 0, "%s/%s", target.path, path + dir_prefix) + 1;
+    char *dstpath= malloc(len);
+    if (!dstpath)
+      my_error(ER_TOO_LONG_IDENT, MYF(0), path + dir_prefix);
+    else
+    {
+      snprintf(dstpath, len, "%s/%s", target.path, path + dir_prefix);
+      while (!CopyFileEx(path, dstpath, NULL, NULL, NULL,
+                         COPY_FILE_NO_BUFFERING))
+        switch (GetLastError()) {
+        default:
+          my_osmaperr(GetLastError());
+          my_error(ER_CANT_CREATE_FILE, MYF(0), dstpath, errno);
+          goto done;
+        case ERROR_SHARING_VIOLATION:
+        case ERROR_LOCK_VIOLATION:
+          Sleep(10);
+        }
+      ret= 0;
+    done:
+      free(dstpath);
+    }
+  }
+  else
+  {
+    LARGE_INTEGER li;
+    HANDLE src, dst= sink.stream;
+    for (;;)
+    {
+      src= CreateFile(path, GENERIC_READ,
+                      FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+                      my_win_file_secattr(), OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, NULL);
+      if (src != INVALID_HANDLE_VALUE)
+        break;
+      switch (GetLastError()) {
+      case ERROR_SHARING_VIOLATION:
+      case ERROR_LOCK_VIOLATION:
+        Sleep(10);
+        continue;
+      }
+
+      my_osmaperr(GetLastError());
+      my_error(ER_FILE_NOT_FOUND, MYF(ME_ERROR_LOG), path, errno);
+      return ret;
+    }
+
+    ret= !GetFileSizeEx(src, &li) ||
+      backup_stream_start(dst, path + dir_prefix, 0644, li.QuadPart,
+                          NULL, 0) ||
+      backup::append(src, dst, 0, li.QuadPart) ||
+      backup_stream_zeropad(dst, (size_t) li.QuadPart);
+    (void) CloseHandle(src);
+
+    if (ret)
+    {
+      my_osmaperr(GetLastError());
+      my_error(ER_ERROR_ON_WRITE, MYF(0), path + dir_prefix, errno);
+    }
+  }
+  return ret;
+#endif
+}
+
 /**
    Append a file snippet to stream,
    after a corresponding call to backup_stream_start().
@@ -323,20 +454,7 @@ int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
 #endif
   return int(pread_write<true>(src, stream, start, end));
 }
-}
 
-extern "C" int backup_stream_append_plain(backup_fd src, backup_fd stream,
-                                          uint64_t start, uint64_t end)
-{
-  /*
-    On Windows, this invokes native_file_handle::native_file_handle(HANDLE).
-
-    Elsewhere, this should be a tail-call, for example JMP rel32
-    (0xe9) on IA-32 or AMD64. This non-inline wrapper exists only
-    because the basic API target is C, not C++, which is required
-    because of Windows.
-  */
-  return backup::append(src, stream, start, end);
 }
 
 /**
@@ -347,7 +465,7 @@ extern "C" int backup_stream_append_plain(backup_fd src, backup_fd stream,
    @return error code (non-positive)
    @retval 0   on success
 */
-extern "C" int backup_stream_zeropad(backup_fd stream, size_t written)
+int backup_stream_zeropad(backup_fd stream, size_t written) noexcept
 {
   static constexpr const char zerobuf[511]{'\0'};
   written&= 511;
@@ -365,8 +483,8 @@ extern "C" int backup_stream_zeropad(backup_fd stream, size_t written)
    @retval 0   on success
    @retval 1   if a fallback to copy_mmap() or backup::copy() is needed
 */
-extern "C"
 int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
+  noexcept
 {
   assert(end >= start);
   ssize_t ret{cfr(src, dst, off_t(start), off_t(end))};
@@ -387,8 +505,7 @@ int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
    @return error code (non-positive)
    @retval 0   on success
 */
-extern "C" int
-copy_mmap(const void *map, int dst, uint64_t start, uint64_t end)
+int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end) noexcept
 {
   return int(mmap_copy<false>(map, dst, start, end));
 }
@@ -400,8 +517,8 @@ copy_mmap(const void *map, int dst, uint64_t start, uint64_t end)
 @param size     length of the snippet
 @return error code (non-positive)
 @retval 0   on success */
-extern "C" int backup_config_append(IF_WIN(const char*, int) target,
-                                    const char *config, size_t size)
+int backup_config_append(IF_WIN(const char*, int) target,
+                         const char *config, size_t size) noexcept
 {
   /* FIXME: append to a pre-created configuration file */
 #ifdef _WIN32
@@ -451,7 +568,411 @@ extern "C" int backup_config_append(IF_WIN(const char*, int) target,
   return -1;
 }
 
-/** backup context */
+/**
+   Invoke handlerton::backup_file() on a storage engine in a thread
+   that may or may not be associated with a BACKUP SERVER connection,
+   between handlerton::backup_start() and handlerton::backup_end()
+   of the same backup_phase.
+   @param thd     the BACKUP SERVER session
+   @param plugin  storage engine
+   @param arg     the name to check
+   @return whether the name should be excluded
+*/
+static my_bool backup_name_filtered(THD *thd, plugin_ref plugin, void *arg)
+  noexcept
+{
+  const handlerton *hton= plugin_hton(plugin);
+  LEX_CSTRING &name{*static_cast<LEX_CSTRING*>(arg)};
+  return hton->backup_file && !hton->backup_file(BACKUP_PHASE_NO_COMMIT, name);
+}
+
+/** process-wide backup context */
+struct backup_context
+{
+  /** engine-specific context */
+  std::unordered_map<const handlerton*,void*> ha_data;
+#ifndef _WIN32
+  /** directory stream */
+  DIR *dir{};
+  /** the readdir(dir) result for which subdir was opened */
+  const struct dirent *d{};
+  /** subdirectory stream, or NULL if iterating to next entry in dir */
+  DIR *subdir{};
+#else
+  /** directory iterator */
+  HANDLE dir{INVALID_HANDLE_VALUE};
+    /** subdirectory iterator, or INVALID_HANDLE_VALUE */
+  HANDLE subdir{INVALID_HANDLE_VALUE};
+#endif
+  /** whether the operation failed */
+  bool fail{};
+  /** mutex protecting d, subdir, fail */
+  std::mutex mutex;
+#ifdef _WIN32
+  /** FindFirstFileA()/FindNextFile() buffer for dir */
+  WIN32_FIND_DATAA d{};
+  /** FindFirstFileA()/FindNextFile() buffer for subdir */
+  WIN32_FIND_DATAA sd{};
+#endif
+
+#ifndef _WIN32
+  backup_context()
+  {
+    int dfd= open(mysql_data_home, O_DIRECTORY);
+    if (dfd >= 0)
+    {
+      if (!(dir= fdopendir(dfd)))
+        close(dfd);
+    }
+  }
+  bool invalid() const noexcept { return !dir; }
+  ~backup_context()
+  {
+    if (dir)
+      closedir(dir);
+    if (subdir)
+      closedir(subdir);
+  }
+#else
+  backup_context() : dir(FindFirstFileA("*.*", &d)) {}
+  bool invalid() const noexcept { return dir == INVALID_HANDLE_VALUE; }
+  ~backup_context()
+  {
+    if (dir != INVALID_HANDLE_VALUE)
+      FindClose(dir);
+    if (subdir != INVALID_HANDLE_VALUE)
+      FindClose(subdir);
+  }
+#endif
+  /**
+     Rewind the directory.
+     @return whether the operation failed
+  */
+  bool rewinddir() noexcept // FIXME: not used yet
+  {
+    assert(!invalid());
+#ifndef _WIN32
+    assert(!d);
+    assert(!subdir);
+    ::rewinddir(dir);
+#else
+    assert(subdir == INVALID_HANDLE_VALUE);
+    FindClose(dir);
+    dir= FindFirstFileA("*.*", &d);
+    if (invalid())
+    {
+      dir_error(mysql_data_home);
+      return true;
+    }
+#endif
+    return false;
+  }
+
+  /**
+     Create a subdirectory unless we are streaming or it pre-exists.
+     @param target    BACKUP SERVER TO target directory
+     @param name      base name of subdirectory to create
+     @return error code (also errno will be set)
+     @retval 0 on success (errno might not be touched)
+  */
+  static int mkdir(const backup_target &target, const char *name) noexcept
+  {
+#ifdef _WIN32
+    if (!target.path)
+      return 0;
+    int ret= snprintf(NULL, 0, "%s/%s", target.path, name) + 1;
+    char *path= malloc(ret);
+    if (!path)
+    {
+      my_error(ER_TOO_LONG_IDENT, MYF(0), name);
+      return 1;
+    }
+    snprintf(path, ret, "%s/%s", target->path, name);
+    if (CreateDirectory(path, NULL))
+      ret= 0;
+    else
+    {
+      const DWORD err= GetLastError();
+      ret= err != ERROR_ALREADY_EXISTS;
+      if (ret)
+      {
+        my_osmaperr(err);
+        my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
+      }
+    }
+    free(path);
+    return ret;
+#else
+    if (target.fd == -1 || likely(!mkdirat(target.fd, name, 0777)) ||
+        errno == EEXIST)
+      return 0;
+    my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
+    return 1;
+#endif
+  }
+
+  /**
+     Determine if a built-in file may be backed up.
+     @param file_name   candidate file name
+     @param len         strlen(file_name)
+     @return whether the file may be included
+  */
+  static bool is_db_file(const char *file_name, size_t len) noexcept
+  {
+    uint32_t suffix;
+    assert(len >= 4);
+    memcpy(&suffix, file_name + len - 4, 4);
+    switch (suffix) {
+#ifdef WORDS_BIGENDIAN
+    case 0x2e41524d: /* .ARM ENGINE=ARCHIVE metadata */
+    case 0x2e41525a: /* .ARZ ENGINE=ARCHIVE compressed data */
+    case 0x2e43534d: /* .CSM ENGINE=CSV metadata */
+    case 0x2e435356: /* .CSV ENGINE=CSV data ("comma separated values") */
+    case 0x2e4d5247: /* .MRG ENGINE=MRG_MyISAM */
+    case 0x2e4d5944: /* .MYD ENGINE=MyISAM data heap */
+    case 0x2e4d5949: /* .MYI ENGINE=MyISAM indexes */
+    case 0x2e545247: /* .TRG trigger definition */
+    case 0x2e54524e: /* .TRN trigger name */
+    case 0x2e66726d: /* .frm form (SHOW CREATE TABLE) */
+    case 0x2e706172: /* .par PARTITION metadata */
+#else
+    case 0x4d52412e: /* .ARM ENGINE=ARCHIVE metadata */
+    case 0x5a52412e: /* .ARZ ENGINE=ARCHIVE compressed data */
+    case 0x4d53432e: /* .CSM ENGINE=CSV metadata */
+    case 0x5653432e: /* .CSV ENGINE=CSV data ("comma separated values") */
+    case 0x47524d2e: /* .MRG ENGINE=MRG_MyISAM */
+    case 0x44594d2e: /* .MYD ENGINE=MyISAM data heap */
+    case 0x49594d2e: /* .MYI ENGINE=MyISAM indexes */
+    case 0x4752542e: /* .TRG trigger definition */
+    case 0x4e52542e: /* .TRN trigger name */
+    case 0x6d72662e: /* .frm form (SHOW CREATE TABLE) */
+    case 0x7261702e: /* .par PARTITION metadata */
+#endif
+      return true;
+    }
+    return len == 6 && !memcmp(file_name, C_STRING_WITH_LEN("db.opt"));
+  }
+
+  /**
+     Report that a directory cannot be read.
+     @param name   directory name
+  */
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static void dir_error(const char *name)
+    noexcept
+  {
+#ifdef _WIN32
+    my_osmaperr(GetLastError());
+#endif
+    my_error(ER_CANT_READ_DIR, MYF(0), name, errno);
+  }
+
+  /**
+     Consume a data file name and copy the file if needed.
+     @param tp         BACKUP SERVER target and phase
+     @param sink       per-thread context (possibly, a stream to write to)
+     @retval 1 on success if some work remains
+     @retval 0 on successful completion
+     @retval -1 on error
+  */
+  int step(const backup_target &target, const backup_sink &sink) noexcept
+  {
+    const char *filename{};
+    char path[FN_REFLEN + 2];
+    int left{};
+#ifndef _WIN32
+    struct stat sb;
+    assert(dir);
+#else
+    assert(dir != INVALID_HANDLE_VALUE);
+#endif
+    {
+      std::lock_guard<std::mutex> _{mutex};
+
+      if (fail)
+      {
+      err_exit:
+        fail= true;
+        my_error(ER_UNKNOWN_ERROR, MYF(0));
+        return -1;
+      }
+#ifndef _WIN32
+      else if (!subdir)
+      {
+        while (struct dirent *de= readdir(dir))
+        {
+          switch (de->d_type) {
+          default:
+            continue;
+          case DT_DIR:
+            if (de->d_name[0] == '.' &&
+                (de->d_name[1] == '\0' ||
+                 (de->d_name[1] == '.' && de->d_name[2] == '\0')))
+              continue;
+            break;
+          case DT_UNKNOWN:
+            if (fstatat(dirfd(dir), de->d_name, &sb, 0) ||
+                (sb.st_mode & S_IFMT) != S_IFDIR)
+              continue;
+          }
+          if (!mkdir(target, de->d_name))
+          {
+            int dfd= openat(dirfd(dir), de->d_name, O_DIRECTORY);
+            d= de;
+            if (dfd >= 0)
+            {
+              if ((subdir= fdopendir(dfd)))
+                goto consume_subdir;
+              close(dfd);
+            }
+            dir_error(de->d_name);
+          }
+          goto err_exit;
+        }
+      }
+      else
+      {
+      consume_subdir:
+        assert(d);
+        assert(d->d_type == DT_DIR || d->d_type == DT_UNKNOWN);
+        struct dirent *sd;
+        while ((sd= readdir(subdir)))
+        {
+          const char *const name= sd->d_name;
+          switch (sd->d_type) {
+          default:
+            continue;
+          case DT_REG:
+          case DT_LNK:
+            break;
+          case DT_UNKNOWN:
+            if (fstatat(dirfd(subdir), name, &sb, 0) ||
+                (sb.st_mode & S_IFMT) != S_IFREG)
+              continue;
+          }
+          /* Consume a file name */
+          if ((int) sizeof path <=
+              snprintf(path, sizeof path, "%s/%s", d->d_name, name))
+          {
+            path[(sizeof path) - 1]= '\0';
+            my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+            goto err_exit;
+          }
+          filename= path;
+          break;
+        }
+
+        left= 1;
+        if (!sd)
+        {
+          closedir(subdir);
+          d= nullptr;
+          subdir= nullptr;
+        }
+      }
+#else
+      else if (subdir == INVALID_HANDLE_VALUE)
+      {
+        do
+        {
+          if (!(d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            continue;
+          if (d.cFileName[0] == '.' &&
+              (d.cFileName[1] == '\0' ||
+               (d.cFileName[1] == '.' && d.cFileName[2] == '\0')))
+            continue;
+          if ((int) sizeof path <=
+              snprintf(path, sizeof path, "%s/*.*", d.cFileName))
+          name_too_long:
+            my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+          else if (mkdir(target, d.cFileName));
+          else if ((subdir= FindFirstFileA(path, &sd)) !=
+                   INVALID_HANDLE_VALUE)
+            goto consume_subdir;
+          else
+            dir_error(path);
+          goto err_exit;
+        }
+        while (FindNextFile(dir, &d));
+      }
+      else
+      {
+      consume_subdir:
+        do
+        {
+          const char *const name= sd.cFileName;
+          size_t len;
+          if (sd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+          /* Consume a file name */
+          if ((int) sizeof path <=
+              snprintf(path, sizeof path, "%s/%s", d.cFileName, name))
+            goto name_too_long;
+          filename= path;
+        }
+        while ((left= FindNextFile(subdir, &sd)) && !filename);
+
+        if (!left)
+        {
+          FindClose(subdir);
+          subdir= INVALID_HANDLE_VALUE;
+          left= FindNextFile(dir, &d);
+        }
+      }
+#endif
+    }
+
+    if (!filename)
+      return left;
+
+    assert(left >= 0);
+
+    do
+    {
+      const char *name{strrchr(filename, '/')};
+      assert(name); /* we constructed this with %s/%s */
+      size_t len= strlen(++name);
+      static_assert(tmp_file_prefix_length == 4);
+      if (len < 4 ||
+          /*
+            As noted in MDEV-25854, file names that start with #sql
+            must be excluded from the backup. For example, a call to
+            MDL_context::upgrade_shared_lock() in
+            mysql_inplace_alter_table() could time out, resulting in
+            cleanup_table_after_inplace_alter() deleting a
+            #sql-alter*.frm file before we get a chance to copy it.
+          */
+          !memcmp(name, tmp_file_prefix, tmp_file_prefix_length))
+        continue;
+
+      if (!is_db_file(name, len))
+      {
+        LEX_CSTRING n{name, len};
+        if (plugin_foreach_with_mask(nullptr, backup_name_filtered,
+                                     MYSQL_STORAGE_ENGINE_PLUGIN,
+                                     PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                                     &n))
+          continue;
+      }
+
+      if (backup::copy_or_stream(target, sink,
+#ifndef _WIN32
+                                 openat(dirfd(dir), filename, O_RDONLY),
+#endif
+                                 filename))
+        return -1;
+    }
+    while (false);
+
+    return left;
+  }
+
+#ifndef _WIN32
+#else
+
+#endif
+};
+
+/** per-thread backup context */
 struct backup_target_phase
 {
   /** target directory or stream */
@@ -464,8 +985,19 @@ struct backup_target_phase
   FILE *stream;
   /** handlerton::backup_step return value in multi-threaded operation */
   int ret;
-  /** engine-specific backup context */
-  std::unordered_map<const handlerton*,void*> &ha_data;
+  /** process-wide backup context */
+  backup_context &context;
+
+  /**
+     Scan the data directory and copy files if needed.
+     @return whether an error occurred
+  */
+  int step() const noexcept
+  {
+    if (phase == BACKUP_PHASE_NO_DDL)
+      return context.step(target, sink);
+    return 0;
+  }
 };
 
 /**
@@ -497,12 +1029,12 @@ static my_bool backup_start(THD *thd, plugin_ref plugin, void *arg) noexcept
   assert(int{t.phase} >= 0 || t.phase == BACKUP_PHASE_FINISH);
   if (hton->backup_start)
   {
-    t.sink.ha_data= t.ha_data[hton];
+    t.sink.ha_data= t.context.ha_data[hton];
     void *data= hton->backup_start(thd, &t.target, t.phase, &t.sink);
     if (data == reinterpret_cast<void*>(-1))
       return true;
-    assert(!t.ha_data[hton] || t.ha_data[hton] == data);
-    t.ha_data[hton]= data;
+    assert(!t.context.ha_data[hton] || t.context.ha_data[hton] == data);
+    t.context.ha_data[hton]= data;
   }
   return false;
 }
@@ -521,7 +1053,7 @@ static my_bool backup_end(THD *thd, plugin_ref plugin, void *arg) noexcept
   backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
   if (hton->backup_end)
   {
-    t.sink.ha_data= t.ha_data[hton];
+    t.sink.ha_data= t.context.ha_data[hton];
     return hton->backup_end(thd, &t.target, t.phase, &t.sink);
   }
   return false;
@@ -545,12 +1077,29 @@ static my_bool backup_step(THD *thd, plugin_ref plugin, void *arg) noexcept
   int res= 0;
   if (hton->backup_step)
   {
-    t.sink.ha_data= t.ha_data[hton];
+    t.sink.ha_data= t.context.ha_data[hton];
     while ((res= hton->backup_step(thd, &t.target, t.phase, &t.sink)))
       if (res < 0)
         break;
   }
   return res != 0;
+}
+
+/**
+   Execute all handlerton::backup_step() until completion or failure.
+   @param thd           current connection
+   @param target_phase  backup target and phase
+   @return whether the operation failed
+*/
+static bool backup_step_one(THD *thd, backup_target_phase *target_phase)
+{
+  while (int ret= target_phase->step())
+    if (ret < 0)
+      return ret;
+  return plugin_foreach_with_mask(thd, backup_step,
+                                  MYSQL_STORAGE_ENGINE_PLUGIN,
+                                  PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                                  target_phase);
 }
 
 /** Number of background tasks executing backup_step_callback */
@@ -561,9 +1110,16 @@ static void backup_step_callback(void *arg) noexcept
 {
   backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
   assert(!t.ret);
+  while (int ret= t.step())
+    if (ret < 0)
+    {
+      t.ret= true;
+      goto done;
+    }
   t.ret= plugin_foreach_with_mask(nullptr, backup_step,
                                   MYSQL_STORAGE_ENGINE_PLUGIN,
                                   PLUGIN_IS_DELETED|PLUGIN_IS_READY, &t);
+ done:
 #ifndef NDEBUG
   auto was_pending=
 #endif
@@ -583,10 +1139,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
 {
   assert(!backup_step_callback_pending);
   if (threads == 1)
-    return plugin_foreach_with_mask(thd, backup_step,
-                                    MYSQL_STORAGE_ENGINE_PLUGIN,
-                                    PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                    target_phase);
+    return backup_step_one(thd, target_phase);
   tpool::task *const tasks=
     static_cast<tpool::task*>(alloca(threads * sizeof *tasks));
   backup_step_callback_pending= threads - 1;
@@ -596,10 +1149,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
     tp->submit_task(new (&tasks[n]) tpool::task{backup_step_callback,
                                                 &target_phase[n]});
   }
-  bool fail= plugin_foreach_with_mask(thd, backup_step,
-                                      MYSQL_STORAGE_ENGINE_PLUGIN,
-                                      PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                      target_phase);
+  bool fail= backup_step_one(thd, target_phase);
   while (backup_step_callback_pending)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -682,7 +1232,12 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     return true;
 
   tpool::thread_pool *tp= nullptr;
-  std::unordered_map<const handlerton*,void*> ha_data{};
+  backup_context context{};
+  if (context.invalid())
+  {
+    context.dir_error(mysql_data_home);
+    return true;
+  }
   backup_target_phase *target_phase= static_cast<backup_target_phase*>
     (alloca(threads * sizeof *target_phase));
   if (threads > 1 && !(tp= tpool::create_thread_pool_generic()))
@@ -733,7 +1288,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 #endif
       new (&target_phase[--t])
         backup_target_phase{backup_target{IF_WIN(nullptr, -1)},
-          BACKUP_PHASE_START, backup_sink{sink, nullptr}, f, 0, ha_data};
+          BACKUP_PHASE_START, backup_sink{sink, nullptr}, f, 0, context};
     }
   }
   else if (my_mkdir(target, 0755, MYF(MY_WME)))
@@ -753,7 +1308,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       new (&target_phase[--t])
         backup_target_phase{backup_target{IF_WIN(target, dir)},
           BACKUP_PHASE_START,
-          backup_sink{backup_sink::NO_STREAM, nullptr}, nullptr, 0, ha_data};
+          backup_sink{backup_sink::NO_STREAM, nullptr}, nullptr, 0, context};
     }
   }
 
@@ -924,8 +1479,8 @@ static void ustar_block_checksum(char *buf) noexcept
    @return error code (non-positive)
    @retval 0 on success
 */
-extern "C" int backup_stream_write(backup_fd stream, const void *buf,
-                                   size_t size)
+int backup_stream_write(backup_fd stream, const void *buf, size_t size)
+  noexcept
 {
 #ifdef _WIN32
   for (DWORD sz= DWORD(size);;)
@@ -987,10 +1542,9 @@ static inline char *ustar_zeropad(char *b, const char *s, size_t size) noexcept
 @param n_chunks number of chunks; 0 unless sparse file
 @return error code (non-positive)
 @retval 0   on success */
-extern "C"
 int backup_stream_start(backup_fd stream,
                         const char *name, mode_t mode, uint64_t size,
-                        const struct backup_chunk *chunks, size_t n_chunks)
+                        const backup_chunk *chunks, size_t n_chunks) noexcept
 {
   assert(stream != backup_sink::NO_STREAM);
   char buf[512];
@@ -1043,8 +1597,8 @@ int backup_stream_start(backup_fd stream,
 @param size     length of the snippet
 @return error code (non-positive)
 @retval 0   on success */
-extern "C" int backup_stream_config(backup_fd stream,
-                                    const char *config, size_t size)
+int backup_stream_config(backup_fd stream,
+                         const char *config, size_t size) noexcept
 {
   /* FIXME: append to a pre-created configuration file */
   if (int ret=
@@ -1090,8 +1644,8 @@ send_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
    @return error code (non-positive)
    @retval 0   on success
 */
-extern "C" int backup_stream_append_async(int src, int stream,
-                                          uint64_t start, uint64_t end)
+int backup_stream_append_async(int src, int stream,
+                               uint64_t start, uint64_t end) noexcept
 {
   assert(stream != backup_sink::NO_STREAM);
 # ifdef __linux__

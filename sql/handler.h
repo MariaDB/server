@@ -1936,6 +1936,14 @@ struct handlerton : public transaction_participant
   int (*backup_end)(THD *thd, const backup_target *target, backup_phase phase,
                     const backup_sink *sink);
 
+  /**
+     Determine if a file should be backed up.
+     @param phase   last phase on which backup_start() was successfully invoked
+     @param name    file name
+     @return whether the file should be backed up
+  */
+  bool (*backup_file)(backup_phase phase, const LEX_CSTRING name);
+
   /**********************************************************************
    WSREP specific
   **********************************************************************/
