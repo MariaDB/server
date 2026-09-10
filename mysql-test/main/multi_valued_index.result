@@ -300,6 +300,99 @@ c	j	c	j
 1	{"tags": ["aaa"]}	1	{"tags": ["aaa"]}
 1	{"tags": ["aaa"]}	4	{"tags": ["aaa","bbb"]}
 drop table t1;
+# JSON_OVERLAPS and nested arrays
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [["aaa"]]}'),
+(3,'{"tags": [["aaa"],"ccc"]}'),(4,'{"tags": [["ccc"]]}'),
+(5,'{"tags": [[]]}');
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+explain select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+# the same when the element is nothing but empty arrays
+explain select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+# An empty array deeper inside the depth-2 array does not
+# matter: what the depth-2 array as a whole flattens to is not
+# empty.
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+c	j
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+c	j
+# JSON_CONTAINS is not affected: it flattens nested arrays itself, and
+# dropping a key from an AND is always safe.
+explain select * from t1 where json_contains(j->'$.tags','[[],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+# Wrong results are consistent. Bug separate from this feature.
+explain
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+select * from t1 ignore index(idx) where json_overlaps(j->'$.tags', '[[]]');
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+drop table t1;
 # The predicate does not have to be in the WHERE clause: for a table on
 # the inner side of an outer join we look at the ON expression, which is
 # what has to be true for the rows we read.

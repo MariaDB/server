@@ -182,6 +182,18 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
     so that row has no key in the index for us to find it by. Dropping the
     key would lose it. Give up on the access instead.
 
+    An element that is itself an array is flattened, the same way
+    MVI_ENCODE flattens the document. JSON_OVERLAPS does not flatten:
+    it only matches such an element against a document element that is
+    an array too, compared whole (json_compare_arrays_in_order()). The
+    flattening here is still safe as it will produce only false
+    positives that will be eliminated by a recheck. The only exception
+    is when the nested array yields no key at all i.e. [], [[]],
+    [[],[]], [[[]]], etc. Such an element may match a document element
+    that has no key of ours either, so nothing we could search for
+    would find that row. Give up in this case, as for a failed
+    encoding.
+
   @return
     The access descriptor, or NULL if the predicate cannot use this MVI.
 */
@@ -198,6 +210,11 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
     (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
   int depth= 0;
+  /*
+    The number of keys collected when inside a current depth-2 array
+    element. Only used for an OR / JSON_OVERLAPS
+  */
+  uint keys_before_level2_array= 0;
 
   buf.length(0);
   buf.set_charset(&my_charset_latin1_bin);
@@ -236,6 +253,13 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
       case JST_ARRAY_END:
         if (--depth == 0)
           return access;
+        /*
+          Closed a top-level element that was an array. See above: for an OR
+          it has to have contributed at least one key.
+        */
+        if (depth == 1 && !conjunctive &&
+            (access ? access->encoded.elements : 0) == keys_before_level2_array)
+          return NULL;
         break;
       case JST_VALUE:
       {
@@ -243,7 +267,8 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
           return NULL;
         if (je->state == JST_ARRAY_START)
         {
-          depth++;
+          if (++depth == 2)
+            keys_before_level2_array= access ? access->encoded.elements : 0;
           break;
         }
         if (je->value_type == JSON_VALUE_OBJECT)
