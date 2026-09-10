@@ -1,0 +1,594 @@
+--source include/have_innodb.inc
+
+--echo # basic tests
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+SHOW CREATE TABLE t1;
+show index from t1;
+
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set global innodb_ft_aux_table='test/t1';
+
+insert into t1 values (1, '{"tags": [1, 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (2, '{"tags": ["1", "abcde", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (3, '{"tags": ["1.0", "34567", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+insert into t1 values (4, '{}');
+insert into t1 values (5, '{"tags": [[["1"], "34567"]]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+
+explain
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+select * from t1 where json_contains(j->'$.tags', '1.0');
+select * from t1 where json_contains(j->'$.tags', '1');
+select * from t1 where json_contains(j->'$.tags', '"1"');
+explain
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+explain
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
+explain
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+
+# Invalid JSONs, errors not raised during optimization
+select * from t1 where json_contains(j->'$.tags', '[[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1", {}}]');
+
+DROP TABLE t1;
+
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+
+create table t1 (j json, key idx ((CAST(j->'$.n' AS INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+drop table t1;
+
+create table t1 (j json, key idx ((CAST(j->'$.n' AS SIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+drop table t1;
+
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+drop table t1;
+
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+drop table t1;
+
+--echo # top level or
+
+create table t1 (c int, j1 json, j2 json, key idx1 ((CAST(j1->'$.tags' AS CHAR(6) ARRAY))), key idx2 ((CAST(j2->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+
+explain
+select * from t1 where json_contains(j1->'$.tags', '"abcde"') or json_contains(j2->'$.tags', '"abcde"');
+
+DROP TABLE t1;
+
+--echo # MVI access is chosen on cost, and survives the re-optimization
+--echo # that a LIMIT triggers in make_join_select()
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+
+--echo # No MATCH() is added to the WHERE clause
+--echo # ("filtered" depends on the engine's row estimate, so hide it)
+--replace_column 9 # 10 #
+explain extended select * from t1 where json_contains(j->'$.tags','"aaa"');
+
+--echo # A predicate under a top-level OR cannot use the index: the scan
+--echo # would drop the rows that only match the other branch
+--replace_column 9 #
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+
+--echo # The scan is re-initialized for each execution: MVI table on the
+--echo # inner side of a join, and in a correlated subquery
+create table t2 (a int) engine=innodb;
+insert into t2 values (1),(2),(3);
+--replace_column 9 #
+explain select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+set @@join_cache_level=0;
+select * from t2 straight_join t1
+        where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+set @@join_cache_level=default;
+select a, (select count(*) from t1
+           where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a) from t2;
+
+drop table t1,t2;
+
+--echo # Repeated optimization: prepared statements and stored procedures.
+--echo # '"aaa"' can use the index; an object argument cannot, but still
+--echo # matches row 2, which the '"aaa"' index scan would not return.
+
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [{"a":1}]}');
+
+prepare s from 'select * from t1 where json_contains(j->''$.tags'', ?)';
+set @p='"aaa"';
+execute s using @p;
+set @p='{"a":1}';
+execute s using @p;
+set @p='"aaa"';
+execute s using @p;
+deallocate prepare s;
+
+create procedure p1(x json) select * from t1 where json_contains(j->'$.tags', x);
+call p1('"aaa"');
+call p1('{"a":1}');
+call p1('"aaa"');
+drop procedure p1;
+
+drop table t1;
+
+--echo # JSON_OVERLAPS is sargable too. It is true when ANY of the elements
+--echo # has a match, so the keys are ORed, and it is symmetric: the indexed
+--echo # expression can be either argument.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["ccc"]}'),(4,'{"tags": ["aaa","bbb"]}'),
+                      (5,'{"tags": [123]}'),(6,'{}');
+
+explain select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]');
+select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+
+--echo # the indexed expression as the second argument
+explain select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags');
+select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags') order by c;
+
+--echo # a scalar instead of an array
+select * from t1 where json_overlaps(j->'$.tags','"ccc"') order by c;
+
+--echo # 123 cannot be encoded for a CHAR array, so it is not in the index
+--echo # either. Row 5 matches the predicate through it, so an index scan
+--echo # for the remaining key would lose that row: don't use the index.
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]');
+select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+
+--echo # JSON_CONTAINS may skip such an element: dropping a key from an AND
+--echo # only makes the scan less selective, so it stays a superset.
+explain select * from t1 where json_contains(j->'$.tags','[123,"aaa"]');
+select * from t1 where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+
+--echo # Forms that cannot use the index. None of these may change the result.
+select * from t1 where json_overlaps(j->'$.tags', NULL) order by c;
+select * from t1 where json_overlaps(j->'$.tags','[]') order by c;
+select * from t1 where json_overlaps(j->'$.tags','{"a":1}') order by c;
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+--echo # neither argument is a constant
+select * from t1 a, t1 b
+where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
+
+drop table t1;
+
+--echo # JSON_OVERLAPS and nested arrays
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [["aaa"]]}'),
+                      (3,'{"tags": [["aaa"],"ccc"]}'),(4,'{"tags": [["ccc"]]}'),
+                      (5,'{"tags": [[]]}');
+
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]');
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]');
+select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+
+--echo # the same when the element is nothing but empty arrays
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]');
+select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+
+--echo # An empty array deeper inside the depth-2 array does not
+--echo # matter: what the depth-2 array as a whole flattens to is not
+--echo # empty.
+--replace_column 9 #
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]');
+select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+
+--echo # JSON_CONTAINS is not affected: it flattens nested arrays itself, and
+--echo # dropping a key from an AND is always safe.
+--replace_column 9 #
+explain select * from t1 where json_contains(j->'$.tags','[[],"aaa"]');
+select * from t1 where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+
+--echo # Wrong results are consistent. Bug separate from this feature.
+explain
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+select * from t1 ignore index(idx) where json_overlaps(j->'$.tags', '[[]]');
+drop table t1;
+
+--echo # The predicate does not have to be in the WHERE clause: for a table on
+--echo # the inner side of an outer join we look at the ON expression, which is
+--echo # what has to be true for the rows we read.
+
+create table t0 (a int);
+insert into t0 values (1),(2),(3);
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+
+explain select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"');
+select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+--echo # the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+                  on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+
+--echo # The outer rows that find no match are still NULL-complemented
+explain select * from t0 left join t1
+                  on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a;
+select * from t0 left join t1
+            on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+--echo # the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+                  on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+
+drop table t0, t1;
+
+--echo # SHOW CREATE TABLE prints the expression the index was declared with.
+--echo # The column that holds the index keys is internal and is not printed.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+show create table t1;
+show index from t1;
+
+--echo # That output is all it takes to re-create the index: feed it back in
+create table t2 (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+      CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB;
+show create table t2;
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+drop table t2;
+
+--echo # An ALTER TABLE that rebuilds the table keeps the index
+alter table t1 add column x int;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo # ... and it can be dropped and added by name like any other index
+alter table t1 drop key idx;
+show create table t1;
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+
+drop table t1;
+
+--echo # An index over an ARRAY has exactly one key part. A key with several
+--echo # would have no defining expression to show and no way to be read back.
+--error ER_TOO_MANY_KEY_PARTS
+create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+                                  (CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_TOO_MANY_KEY_PARTS
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),c))engine=innodb;
+--error ER_TOO_MANY_KEY_PARTS
+create table t1 (c int, j json,
+                 key idx (c,(CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--echo # ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+--error ER_TOO_MANY_KEY_PARTS
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+                            (CAST(j->'$.b' AS CHAR(6) ARRAY)));
+drop table t1;
+
+--echo # A plain KEY is the only thing an index over an ARRAY can be. The
+--echo # index is a fulltext index over the encoded elements underneath, which
+--echo # would not enforce UNIQUE or PRIMARY KEY, and which MATCH() would find
+--echo # nothing in.
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 constraint u unique ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_WRONG_USAGE
+create table t1 (j json,
+                 fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+
+--echo # ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+--error ER_WRONG_USAGE
+alter table t1 add unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+--echo # the plain form is accepted
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+show create table t1;
+drop table t1;
+
+--echo # MATCH() and a multi-valued index on the same table
+create table t1 (c int, txt text, j json,
+                 fulltext key ft (txt),
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'alpha beta','{"tags": ["aaa"]}'),
+                      (2,'gamma','{"tags": ["bbb"]}'),
+                      (3,'alpha','{"tags": ["aaa","bbb"]}');
+
+--echo ## mvi chosen
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+--echo ## ft chosen
+explain select * from t1
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"');
+select * from t1
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+--echo # the same rows without the index
+select * from t1 ignore index(idx)
+ where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+
+drop table t1;
+
+--echo #
+--echo # CREATE TABLE ... LIKE
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+create table t2 like t1;
+show create table t2;
+--echo # one internal column, named from scratch in the new table
+show index from t2;
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo # the same rows without the index:
+select * from t2 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+drop table t2, t1;
+
+--echo #
+--echo # Renaming the base column
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+alter table t1 rename column j to jj;
+show create table t1;
+explain select * from t1 where json_contains(jj->'$.tags','"aaa"');
+select * from t1 where json_contains(jj->'$.tags','"aaa"') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(jj->'$.tags','"aaa"') order by c;
+
+--echo # ... and through CHANGE COLUMN, which renames and retypes at once
+alter table t1 change jj j json;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+drop table t1;
+
+--echo #
+--echo # Dropping the base column
+--echo #
+--echo # The hidden column is computed from it, so the drop has to be refused
+--echo # while the index exists. It must not leave an index over a column
+--echo # that is gone.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
+
+--error ER_BAD_FIELD_ERROR
+alter table t1 drop column j;
+--echo # the table is unchanged and still usable
+show create table t1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo # dropping the index first makes it possible
+alter table t1 drop key idx, drop column j;
+show create table t1;
+
+drop table t1;
+
+--echo #
+--echo # ALGORITHM=INSTANT / COPY / INPLACE
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}');
+
+--echo ## adding a multi-valued index costs the table instant ADD COLUMN
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 add column x int, algorithm=instant;
+show create table t1;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+alter table t1 add column y int, algorithm=inplace;
+show create table t1;
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo ## the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+alter table t1 add column z int, algorithm=copy;
+show create table t1;
+explain
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo ## adding the index in place to a table that already has rows
+create table t2 (c int, j json) engine=innodb;
+insert into t2 select c, j from t1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=inplace;
+
+--echo ## ... it needs a rebuild, which ALGORITHM=COPY does
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=copy;
+show create table t2;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo ## the same rows without the index:
+select * from t2 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo ## ... rebuild still needed needed even when a table already has a fulltext index
+create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
+insert into t3 select c, 'alpha', j from t1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=inplace;
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=copy;
+show create table t3;
+select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
+drop table t3;
+drop table t1, t2;
+
+--echo #
+--echo # Merging the accesses of several predicates on one index
+--echo #
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+                      (3,'{"tags": ["aaa","bbb"]}'),
+                      (4,'{"tags": ["aaa","ccc"]}');
+
+--echo # Two JSON_CONTAINS on the same path are one index search for both
+--echo # keys, not a search for one of them with the other left to the
+--echo # WHERE clause.
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.tags','"bbb"') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.tags','"bbb"') order by c;
+
+--echo # a key we already search for is not searched for twice
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.tags','"aaa"') order by c;
+select * from t1 where json_contains(j->'$.tags','["aaa","aaa"]') order by c;
+
+--echo # JSON_OVERLAPS does not merge: (a OR b) AND (c OR d) is not a
+--echo # boolean-mode query we can build, so the two stay separate
+--echo # candidates and the cheaper one is used.
+select * from t1
+ where json_overlaps(j->'$.tags','["aaa","bbb"]')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_overlaps(j->'$.tags','["aaa","bbb"]')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+
+--echo # ... and a conjunctive and a disjunctive access on one index do not
+--echo # merge either
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"')
+   and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+
+drop table t1;
+
+--echo # Accesses on two different indexes cannot be merged into one
+--echo # fulltext search, so the cheaper one is chosen and the other
+--echo # predicate is left to the WHERE clause.
+
+create table t1 (c int, j json,
+                 key idx_t ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 key idx_n ((CAST(j->'$.nums' AS UNSIGNED ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"], "nums": [1,2]}'),
+                      (2,'{"tags": ["bbb"], "nums": [2,3]}'),
+                      (3,'{"tags": ["aaa"], "nums": [3,4]}');
+show create table t1;
+
+select * from t1
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.nums','3') order by c;
+--echo # the same rows without the indexes:
+select * from t1 ignore index(idx_t,idx_n)
+ where json_contains(j->'$.tags','"aaa"')
+   and json_contains(j->'$.nums','3') order by c;
+
+drop table t1;
+
+--echo # direct call of mvi_encode
+select mvi_encode('[1, 42, "3"]', int);
+select mvi_encode('[1, 42, "3"]', unsigned);
+select mvi_encode('[1, 42, "3   "]', char(6));
+select mvi_encode('[1, 42, "   "]', char(6));
+select mvi_encode('[1, 42, "3   "]', binary(6));
+select mvi_encode('[1, 42]', char(6));
+select mvi_encode('[1, 42, {}}]', char(6));
+select mvi_encode('[[1], 42]', int);
+# trailing junk after outer array is accepted, consistent with normal
+# JSON_CONTAINS behaviour. NOTE that mysql would fail `select
+# JSON_CONTAINS('[1]]', '1');` but not mariadb
+select mvi_encode('[1]]', int);

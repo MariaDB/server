@@ -1,0 +1,958 @@
+# basic tests
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set global innodb_ft_aux_table='test/t1';
+insert into t1 values (1, '{"tags": [1, 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+insert into t1 values (2, '{"tags": ["1", "abcde", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+31xx	2	2	1	2	0
+6162636465	2	2	1	2	5
+xxxx	2	2	1	2	16
+insert into t1 values (3, '{"tags": ["1.0", "34567", "", 34567]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+312e30	3	3	1	3	0
+31xx	2	2	1	2	0
+3334353637	3	3	1	3	7
+6162636465	2	2	1	2	5
+xxxx	2	3	2	2	16
+xxxx	2	3	2	3	18
+insert into t1 values (4, '{}');
+insert into t1 values (5, '{"tags": [[["1"], "34567"]]}');
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+312e30	3	3	1	3	0
+31xx	2	5	2	2	0
+31xx	2	5	2	5	0
+3334353637	3	5	2	3	7
+3334353637	3	5	2	5	5
+6162636465	2	2	1	2	5
+xxxx	2	3	2	2	16
+xxxx	2	3	2	3	18
+explain
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+select * from t1 where json_contains(j->'$.tags', '"abcde"');
+c	j
+2	{"tags": ["1", "abcde", "", 34567]}
+select * from t1 where json_contains(j->'$.tags', '1.0');
+c	j
+1	{"tags": [1, 34567]}
+select * from t1 where json_contains(j->'$.tags', '1');
+c	j
+1	{"tags": [1, 34567]}
+select * from t1 where json_contains(j->'$.tags', '"1"');
+c	j
+2	{"tags": ["1", "abcde", "", 34567]}
+5	{"tags": [[["1"], "34567"]]}
+explain
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+select * from t1 where json_contains(j->'$.tags', '["1", "abcde"]');
+c	j
+2	{"tags": ["1", "abcde", "", 34567]}
+explain
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+select * from t1 where json_contains(j->'$.tags', '[1, "abcde"]');
+c	j
+select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
+c	j
+2	{"tags": ["1", "abcde", "", 34567]}
+explain
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+c	j
+5	{"tags": [[["1"], "34567"]]}
+select * from t1 where json_contains(j->'$.tags', '[[["34567"], "1"]');
+c	j
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_contains'
+select * from t1 where json_contains(j->'$.tags', '[["34567"], "1", {}}]');
+c	j
+DROP TABLE t1;
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as int array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS SIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as int array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as unsigned array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+create table t1 (j json, key idx ((CAST(j->'$.n' AS UNSIGNED INT ARRAY))));
+insert into t1 values ('{"n": [123, "456"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.n') as unsigned array)))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+# top level or
+create table t1 (c int, j1 json, j2 json, key idx1 ((CAST(j1->'$.tags' AS CHAR(6) ARRAY))), key idx2 ((CAST(j2->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+explain
+select * from t1 where json_contains(j1->'$.tags', '"abcde"') or json_contains(j2->'$.tags', '"abcde"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+DROP TABLE t1;
+# MVI access is chosen on cost, and survives the re-optimization
+# that a LIMIT triggers in make_join_select()
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') limit 1;
+c	j
+1	{"tags": ["aaa"]}
+# No MATCH() is added to the WHERE clause
+# ("filtered" depends on the engine's row estimate, so hide it)
+explain extended select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	#	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c` AS `c`,`test`.`t1`.`j` AS `j` from `test`.`t1` where json_contains(json_extract(`test`.`t1`.`j`,'$.tags'),'"aaa"')
+# A predicate under a top-level OR cannot use the index: the scan
+# would drop the rows that only match the other branch
+explain select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') or c=2;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+# The scan is re-initialized for each execution: MVI table on the
+# inner side of a join, and in a correlated subquery
+create table t2 (a int) engine=innodb;
+insert into t2 values (1),(2),(3);
+explain select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where; Using join buffer (flat, BNL join)
+select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+set @@join_cache_level=0;
+select * from t2 straight_join t1
+where json_contains(t1.j->'$.tags','"aaa"') and t2.a=t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+set @@join_cache_level=default;
+select a, (select count(*) from t1
+where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a) from t2;
+a	(select count(*) from t1
+where json_contains(t1.j->'$.tags','"aaa"') and t1.c=t2.a)
+1	1
+2	0
+3	1
+drop table t1,t2;
+# Repeated optimization: prepared statements and stored procedures.
+# '"aaa"' can use the index; an object argument cannot, but still
+# matches row 2, which the '"aaa"' index scan would not return.
+create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [{"a":1}]}');
+prepare s from 'select * from t1 where json_contains(j->''$.tags'', ?)';
+set @p='"aaa"';
+execute s using @p;
+c	j
+1	{"tags": ["aaa"]}
+set @p='{"a":1}';
+execute s using @p;
+c	j
+2	{"tags": [{"a":1}]}
+set @p='"aaa"';
+execute s using @p;
+c	j
+1	{"tags": ["aaa"]}
+deallocate prepare s;
+create procedure p1(x json) select * from t1 where json_contains(j->'$.tags', x);
+call p1('"aaa"');
+c	j
+1	{"tags": ["aaa"]}
+call p1('{"a":1}');
+c	j
+2	{"tags": [{"a":1}]}
+call p1('"aaa"');
+c	j
+1	{"tags": ["aaa"]}
+drop procedure p1;
+drop table t1;
+# JSON_OVERLAPS is sargable too. It is true when ANY of the elements
+# has a match, so the keys are ORed, and it is symmetric: the indexed
+# expression can be either argument.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["ccc"]}'),(4,'{"tags": ["aaa","bbb"]}'),
+(5,'{"tags": [123]}'),(6,'{}');
+explain select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	4	Using where
+select * from t1 where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# the indexed expression as the second argument
+explain select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	4	Using where
+select * from t1 where json_overlaps('["aaa","bbb"]', j->'$.tags') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": ["bbb"]}
+4	{"tags": ["aaa","bbb"]}
+# a scalar instead of an array
+select * from t1 where json_overlaps(j->'$.tags','"ccc"') order by c;
+c	j
+3	{"tags": ["ccc"]}
+# 123 cannot be encoded for a CHAR array, so it is not in the index
+# either. Row 5 matches the predicate through it, so an index scan
+# for the remaining key would lose that row: don't use the index.
+explain select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+4	{"tags": ["aaa","bbb"]}
+5	{"tags": [123]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+4	{"tags": ["aaa","bbb"]}
+5	{"tags": [123]}
+# JSON_CONTAINS may skip such an element: dropping a key from an AND
+# only makes the scan less selective, so it stays a superset.
+explain select * from t1 where json_contains(j->'$.tags','[123,"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[123,"aaa"]') order by c;
+c	j
+# Forms that cannot use the index. None of these may change the result.
+select * from t1 where json_overlaps(j->'$.tags', NULL) order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','[]') order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','{"a":1}') order by c;
+c	j
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+# neither argument is a constant
+select * from t1 a, t1 b
+where json_overlaps(a.j->'$.tags', b.j->'$.tags') and a.c=1 order by b.c;
+c	j	c	j
+1	{"tags": ["aaa"]}	1	{"tags": ["aaa"]}
+1	{"tags": ["aaa"]}	4	{"tags": ["aaa","bbb"]}
+drop table t1;
+# JSON_OVERLAPS and nested arrays
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": [["aaa"]]}'),
+(3,'{"tags": [["aaa"],"ccc"]}'),(4,'{"tags": [["ccc"]]}'),
+(5,'{"tags": [[]]}');
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa"]]') order by c;
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+explain select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+# the same when the element is nothing but empty arrays
+explain select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[[[]],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+# An empty array deeper inside the depth-2 array does not
+# matter: what the depth-2 array as a whole flattens to is not
+# empty.
+explain select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+c	j
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','[["aaa",[]]]') order by c;
+c	j
+# JSON_CONTAINS is not affected: it flattens nested arrays itself, and
+# dropping a key from an AND is always safe.
+explain select * from t1 where json_contains(j->'$.tags','[[],"aaa"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select * from t1 where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','[[],"aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+# Wrong results are consistent. Bug separate from this feature.
+explain
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+select * from t1 where json_overlaps(j->'$.tags', '[[]]');
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+select * from t1 ignore index(idx) where json_overlaps(j->'$.tags', '[[]]');
+c	j
+2	{"tags": [["aaa"]]}
+3	{"tags": [["aaa"],"ccc"]}
+4	{"tags": [["ccc"]]}
+5	{"tags": [[]]}
+drop table t1;
+# The predicate does not have to be in the WHERE clause: for a table on
+# the inner side of an outer join we look at the ON expression, which is
+# what has to be true for the rows we read.
+create table t0 (a int);
+insert into t0 values (1),(2),(3);
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),(4,'{}');
+explain select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using join buffer (flat, BNL join)
+select * from t0 left join t1 on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+1	3	{"tags": ["aaa","bbb"]}
+2	1	{"tags": ["aaa"]}
+2	3	{"tags": ["aaa","bbb"]}
+3	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+on json_contains(t1.j->'$.tags','"aaa"')
+order by t0.a, t1.c;
+a	c	j
+1	1	{"tags": ["aaa"]}
+1	3	{"tags": ["aaa","bbb"]}
+2	1	{"tags": ["aaa"]}
+2	3	{"tags": ["aaa","bbb"]}
+3	1	{"tags": ["aaa"]}
+3	3	{"tags": ["aaa","bbb"]}
+# The outer rows that find no match are still NULL-complemented
+explain select * from t0 left join t1
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using join buffer (flat, BNL join)
+select * from t0 left join t1
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+a	c	j
+1	1	{"tags": ["aaa"]}
+2	NULL	NULL
+3	3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t0 left join t1 ignore index(idx)
+on json_contains(t1.j->'$.tags','"aaa"') and t1.c=t0.a
+order by t0.a;
+a	c	j
+1	1	{"tags": ["aaa"]}
+2	NULL	NULL
+3	3	{"tags": ["aaa","bbb"]}
+drop table t0, t1;
+# SHOW CREATE TABLE prints the expression the index was declared with.
+# The column that holds the index keys is internal and is not printed.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+# That output is all it takes to re-create the index: feed it back in
+create table t2 (
+`c` int(11) DEFAULT NULL,
+`j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+CHECK (json_valid(`j`)),
+KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t2;
+# An ALTER TABLE that rebuilds the table keeps the index
+alter table t1 add column x int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	x
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+# ... and it can be dropped and added by name like any other index
+alter table t1 drop key idx;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `x` int(11) DEFAULT NULL,
+  KEY `idx2` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx2	idx2	0	NULL	2	Using where
+drop table t1;
+# An index over an ARRAY has exactly one key part. A key with several
+# would have no defining expression to show and no way to be read back.
+create table t1 (j json, key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+(CAST(j->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),c))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+create table t1 (c int, j json,
+key idx (c,(CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+# ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)),
+(CAST(j->'$.b' AS CHAR(6) ARRAY)));
+ERROR 42000: Too many key parts specified; max 1 parts allowed
+drop table t1;
+# A plain KEY is the only thing an index over an ARRAY can be. The
+# index is a fulltext index over the encoded elements underneath, which
+# would not enforce UNIQUE or PRIMARY KEY, and which MATCH() would find
+# nothing in.
+create table t1 (j json,
+unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+create table t1 (j json,
+constraint u unique ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+create table t1 (j json,
+primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of PRIMARY KEY and ARRAY
+create table t1 (j json,
+fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Incorrect usage of FULLTEXT and ARRAY
+# ... and the same through ALTER TABLE
+create table t1 (j json)engine=innodb;
+alter table t1 add unique key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of UNIQUE and ARRAY
+alter table t1 add primary key ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of PRIMARY KEY and ARRAY
+alter table t1 add fulltext key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: Incorrect usage of FULLTEXT and ARRAY
+# the plain form is accepted
+alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.a') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+# MATCH() and a multi-valued index on the same table
+create table t1 (c int, txt text, j json,
+fulltext key ft (txt),
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'alpha beta','{"tags": ["aaa"]}'),
+(2,'gamma','{"tags": ["bbb"]}'),
+(3,'alpha','{"tags": ["aaa","bbb"]}');
+## mvi chosen
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+## ft chosen
+explain select * from t1
+where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	fulltext	ft,idx	ft	0		1	Using where
+select * from t1
+where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+c	txt	j
+1	alpha beta	{"tags": ["aaa"]}
+3	alpha	{"tags": ["aaa","bbb"]}
+# the same rows without the index
+select * from t1 ignore index(idx)
+where match(txt) against('alpha') and json_contains(j->'$.tags','"aaa"')
+order by c;
+c	txt	j
+1	alpha beta	{"tags": ["aaa"]}
+3	alpha	{"tags": ["aaa","bbb"]}
+drop table t1;
+#
+# CREATE TABLE ... LIKE
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+create table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+# one internal column, named from scratch in the new table
+show index from t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+insert into t2 select * from t1;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t2 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t2, t1;
+#
+# Renaming the base column
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+alter table t1 rename column j to jj;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `jj` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`jj`)),
+  KEY `idx` ((cast(json_extract(`jj`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(jj->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(jj->'$.tags','"aaa"') order by c;
+c	jj
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(jj->'$.tags','"aaa"') order by c;
+c	jj
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+# ... and through CHANGE COLUMN, which renames and retypes at once
+alter table t1 change jj j json;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+drop table t1;
+#
+# Dropping the base column
+#
+# The hidden column is computed from it, so the drop has to be refused
+# while the index exists. It must not leave an index over a column
+# that is gone.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
+alter table t1 drop column j;
+ERROR 42S22: Unknown column 'j' in 'GENERATED ALWAYS AS'
+# the table is unchanged and still usable
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+# dropping the index first makes it possible
+alter table t1 drop key idx, drop column j;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+#
+# ALGORITHM=INSTANT / COPY / INPLACE
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}');
+## adding a multi-valued index costs the table instant ADD COLUMN
+alter table t1 add column x int, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+alter table t1 add column y int, algorithm=inplace;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `y` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+## the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y
+1	{"tags": ["aaa"]}	NULL
+3	{"tags": ["aaa","bbb"]}	NULL
+alter table t1 add column z int, algorithm=copy;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `y` int(11) DEFAULT NULL,
+  `z` int(11) DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where; Using filesort
+select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j	y	z
+1	{"tags": ["aaa"]}	NULL	NULL
+3	{"tags": ["aaa","bbb"]}	NULL	NULL
+## adding the index in place to a table that already has rows
+create table t2 (c int, j json) engine=innodb;
+insert into t2 select c, j from t1;
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+## ... it needs a rebuild, which ALGORITHM=COPY does
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=copy;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+## the same rows without the index:
+select * from t2 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+## ... rebuild still needed needed even when a table already has a fulltext index
+create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
+insert into t3 select c, 'alpha', j from t1;
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=copy;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `c` int(11) DEFAULT NULL,
+  `txt` text DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  FULLTEXT KEY `ft` (`txt`),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
+c	txt	j
+1	alpha	{"tags": ["aaa"]}
+3	alpha	{"tags": ["aaa","bbb"]}
+drop table t3;
+drop table t1, t2;
+#
+# Merging the accesses of several predicates on one index
+#
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["aaa","bbb"]}'),
+(4,'{"tags": ["aaa","ccc"]}');
+# Two JSON_CONTAINS on the same path are one index search for both
+# keys, not a search for one of them with the other left to the
+# WHERE clause.
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"bbb"') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"bbb"') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+# a key we already search for is not searched for twice
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+select * from t1 where json_contains(j->'$.tags','["aaa","aaa"]') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# JSON_OVERLAPS does not merge: (a OR b) AND (c OR d) is not a
+# boolean-mode query we can build, so the two stay separate
+# candidates and the cheaper one is used.
+select * from t1
+where json_overlaps(j->'$.tags','["aaa","bbb"]')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["aaa","bbb"]')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+2	{"tags": ["bbb"]}
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# ... and a conjunctive and a disjunctive access on one index do not
+# merge either
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+# the same rows without the index:
+select * from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"')
+and json_overlaps(j->'$.tags','["bbb","ccc"]') order by c;
+c	j
+3	{"tags": ["aaa","bbb"]}
+4	{"tags": ["aaa","ccc"]}
+drop table t1;
+# Accesses on two different indexes cannot be merged into one
+# fulltext search, so the cheaper one is chosen and the other
+# predicate is left to the WHERE clause.
+create table t1 (c int, j json,
+key idx_t ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+key idx_n ((CAST(j->'$.nums' AS UNSIGNED ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"], "nums": [1,2]}'),
+(2,'{"tags": ["bbb"], "nums": [2,3]}'),
+(3,'{"tags": ["aaa"], "nums": [3,4]}');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx_t` ((cast(json_extract(`j`,'$.tags') as char(6) array))),
+  KEY `idx_n` ((cast(json_extract(`j`,'$.nums') as unsigned array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.nums','3') order by c;
+c	j
+3	{"tags": ["aaa"], "nums": [3,4]}
+# the same rows without the indexes:
+select * from t1 ignore index(idx_t,idx_n)
+where json_contains(j->'$.tags','"aaa"')
+and json_contains(j->'$.nums','3') order by c;
+c	j
+3	{"tags": ["aaa"], "nums": [3,4]}
+drop table t1;
+# direct call of mvi_encode
+select mvi_encode('[1, 42, "3"]', int);
+mvi_encode('[1, 42, "3"]', int)
+8000000000000001 800000000000002a
+select mvi_encode('[1, 42, "3"]', unsigned);
+mvi_encode('[1, 42, "3"]', unsigned)
+0000000000000001 000000000000002a
+select mvi_encode('[1, 42, "3   "]', char(6));
+mvi_encode('[1, 42, "3   "]', char(6))
+33xx
+select mvi_encode('[1, 42, "   "]', char(6));
+mvi_encode('[1, 42, "   "]', char(6))
+xxxx
+select mvi_encode('[1, 42, "3   "]', binary(6));
+mvi_encode('[1, 42, "3   "]', binary(6))
+33xx
+select mvi_encode('[1, 42]', char(6));
+mvi_encode('[1, 42]', char(6))
+
+select mvi_encode('[1, 42, {}}]', char(6));
+mvi_encode('[1, 42, {}}]', char(6))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'mvi_encode' at position 11
+select mvi_encode('[[1], 42]', int);
+mvi_encode('[[1], 42]', int)
+8000000000000001 800000000000002a
+select mvi_encode('[1]]', int);
+mvi_encode('[1]]', int)
+8000000000000001

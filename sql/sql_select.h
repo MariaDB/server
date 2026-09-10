@@ -35,6 +35,7 @@
 #include "cset_narrowing.h"
 
 typedef struct st_join_table JOIN_TAB;
+struct Mvi_access;
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1U
 #define KEY_OPTIMIZE_REF_OR_NULL	2U
@@ -566,6 +567,12 @@ typedef struct st_join_table {
   key_map	checked_keys;			/**< Keys checked in find_best */
   key_map	needed_reg;
   key_map       keys;                           /**< all keys with can be used */
+  /*
+    The multi-valued index accesses this table's predicates allow, or NULL if
+    there are none. Set by setup_mvi_access_for_table(); get_best_mvi_access()
+    prices them and picks one.
+  */
+  List<Mvi_access> *mvi_accesses;
 
   /* Either #rows in the table or 1 for const table.  */
   ha_rows	records;
@@ -3035,5 +3042,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
 
 #include "opt_vcol_substitution.h"
+#include "opt_multi_valued_index.h"
 
 #endif /* SQL_SELECT_INCLUDED */

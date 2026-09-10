@@ -141,7 +141,7 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables);
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j, KEYUSE *org_keyuse,
 			       bool allow_full_scan, table_map used_tables);
 static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
-				      TABLE *table,
+				      JOIN_TAB *tab,
 				      const key_map *keys,ha_rows limit,
                                       ha_rows *quick_count);
 static void optimize_straight_join(JOIN *join, table_map join_tables);
@@ -5463,13 +5463,51 @@ err:
 }
 
 
+/*
+  @brief
+    Keep the cheaper of *quick_ref and mvi_quick in *quick_ref, delete the
+    other one.
+
+  @detail
+    The range optimizer skips fulltext keys, so it can never produce an MVI
+    access itself. Instead the caller creates one, hands it to us and we keep
+    it if test_quick_select() did not come up with anything better.
+
+    mvi_quick may be NULL, which means "there is no MVI access".
+
+    TODO: when the MVI access gets a real cost estimate, also compare it with
+    the cost of a table scan. Right now, if test_quick_select() produced no
+    quick select at all (because a table scan was cheaper than any range), we
+    take the MVI access without asking how much it costs.
+*/
+
+static void keep_cheaper_quick(TABLE *table, QUICK_SELECT_I **quick_ref,
+                               QUICK_SELECT_I *mvi_quick)
+{
+  if (!mvi_quick)
+    return;
+  if (*quick_ref && (*quick_ref)->read_time <= mvi_quick->read_time)
+  {
+    delete mvi_quick;
+    return;
+  }
+  delete *quick_ref;
+  *quick_ref= mvi_quick;
+  /*
+    Callers assume (*quick_ref)->records >= opt_range_condition_rows. This is
+    a min-setter, so it can only lower the value.
+  */
+  table->set_opt_range_condition_rows(mvi_quick->records);
+}
+
+
 /**
   Approximate how many records are going to be returned by this table in this
   select with this key.
 
   @param      thd            Thread handle
   @param      select         Select to be examined
-  @param      table          The table of interest
+  @param      tab            The table of interest
   @param      keys           The keys of interest
   @param      limit          Maximum number of rows of interest
   @param      quick_count    Pointer to where we want the estimate written
@@ -5480,11 +5518,12 @@ err:
 
 */
 static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
-				      TABLE *table,
+				      JOIN_TAB *tab,
 				      const key_map *keys,ha_rows limit,
                                       ha_rows *quick_count)
 {
   quick_select_return error;
+  TABLE *table= tab->table;
   DBUG_ENTER("get_quick_record_count");
   uchar buff[STACK_BUFF_ALLOC];
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
@@ -5496,6 +5535,12 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
   {
     select->head=table;
     table->reginfo.impossible_range=0;
+    /*
+      An MVI access is not something test_quick_select() can find. Create it
+      here and keep it across the call: test_quick_select() deletes
+      select->quick on entry.
+    */
+    QUICK_SELECT_I *mvi_quick= get_best_mvi_access(thd, tab);
     /*
       EQ_FUNC and EQUAL_FUNC already sent unusable key notes (if any)
       during update_ref_and_keys(). Have only other functions raise notes
@@ -5509,6 +5554,7 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
 
     if (error == SQL_SELECT::OK)
     {
+      keep_cheaper_quick(table, &select->quick, mvi_quick);
       if (select->quick)
       {
         /*
@@ -5523,6 +5569,8 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
       }
       DBUG_RETURN(false);
     }
+    /* Impossible range or an error: the MVI access is of no use */
+    delete mvi_quick;
     if (error == SQL_SELECT::IMPOSSIBLE_RANGE)
     {
       table->reginfo.impossible_range=1;
@@ -6203,6 +6251,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       */
       add_group_and_distinct_keys(join, s);
 
+      /*
+        Same for the multi-valued index this table can be read through: a
+        fulltext key never gets a bit of its own. Use the same condition the
+        range analysis below will use.
+      */
+      if (setup_mvi_access_for_table(thd, s, *get_sargable_cond(join, s->table)))
+        goto error;
+
       /* This will be updated in calculate_cond_selectivity_for_table() */
       s->table->set_cond_selectivity(1.0);
       DBUG_ASSERT(s->table->used_stat_records == 0 ||
@@ -6241,7 +6297,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                               (SORT_INFO*) 0, 1, &error);
           if (!select)
             goto error;
-          if (get_quick_record_count(join->thd, select, s->table,
+          if (get_quick_record_count(join->thd, select, s,
                                      &s->const_keys, join->row_limit, &records))
           {
             /* There was an error in test_quick_select */
@@ -9875,7 +9931,13 @@ best_access_path(JOIN      *join,
       }
       else
       {
-        type= JT_INDEX_MERGE;
+        if (s->quick->get_type() == QUICK_SELECT_I::QS_TYPE_MVI)
+          type= JT_RANGE;
+        else
+        {
+          type= JT_INDEX_MERGE;
+          force_plan= s->quick->force_index_merge;
+        }
         /*
           We don't know exactly from where the costs comes from.
           Let's store it in copy_cost.
@@ -9884,7 +9946,6 @@ best_access_path(JOIN      *join,
         */
         cost.reset();
         cost.copy_cost= s->quick->read_time;
-        force_plan= s->quick->force_index_merge;
       }
       loose_scan_opt.check_range_access(join, idx, s->quick);
     }
@@ -14861,6 +14922,19 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	      sel->cond->quick_fix_field();
             quick_select_return res;
 
+            /*
+              Take an MVI quick select out of sel->quick before the call:
+              test_quick_select() deletes it on entry and cannot produce
+              another one, so it would be lost for good.
+            */
+            QUICK_SELECT_I *mvi_quick= NULL;
+            if (sel->quick &&
+                sel->quick->get_type() == QUICK_SELECT_I::QS_TYPE_MVI)
+            {
+              mvi_quick= sel->quick;
+              sel->quick= 0;
+            }
+
 	    if ((res= sel->test_quick_select(thd, tab->keys,
                                              ((used_tables & ~ current_map) |
                                               OUTER_REF_TABLE_BIT),
@@ -14888,13 +14962,21 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                                 0, FALSE, FALSE, FALSE,
                                                 Item_func::BITMAP_NONE)) ==
                   SQL_SELECT::IMPOSSIBLE_RANGE)
+              {
+                delete mvi_quick;
 		DBUG_RETURN(1);			// Impossible WHERE
+              }
             }
             else
 	      sel->cond=orig_cond;
 
             if (res == SQL_SELECT::ERROR)
+            {
+              delete mvi_quick;
               DBUG_RETURN(1); /* Some error in one of test_quick_select calls */
+            }
+
+            keep_cheaper_quick(sel->head, &sel->quick, mvi_quick);
 
 	    /* Fix for EXPLAIN */
 	    if (sel->quick)

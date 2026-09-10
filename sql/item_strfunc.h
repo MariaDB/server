@@ -2644,6 +2644,62 @@ protected:
 };
 
 
+/*
+  A function to support ARRAY indexes. When the user specifies an ARRAY index:
+
+    CREATE INDEX idx1 ON
+     t1 ((CAST(JSON_EXTRACT(json_col, '$.arr') AS $datatype ARRAY)));
+
+  We create a virtual column and a fulltext index over it:
+
+     mvi_col_1 BLOB AS (MVI_ENCODE(JSON_EXTRACT(json_col, '$.arr'), $datatype)),
+     FULLTEXT INDEX idx (mvi_col_1)
+
+  So, MVI_ENCODE has this signature:
+
+     MVI_ENCODE(json_array, datatype)
+
+  and it returns the JSON array elements represented in a form suitable for
+  putting into the fulltext index (without any custom fulltext parser atm)
+
+  @seealso "multi_valued_key_part:" rule in sql_yacc.yy
+
+  (TODO: move this item to opt_multi_valued_index, too)
+*/
+
+class Item_func_mvi_encode : public Item_str_ascii_func
+{
+  Lex_cast_type_st m_cast_type;
+  String tmp_js;
+  json_engine_t je;
+  /* Print the type the values are cast to, as CAST() spells it */
+  void append_cast_type(String *str) const;
+public:
+  void print(String *str, enum_query_type query_type) override;
+  /*
+    Print as the CAST(... AS ... ARRAY) the index was declared with, for
+    SHOW CREATE TABLE. print() cannot do this: what it produces goes into
+    the FRM, and that is parsed back as a call of this function.
+  */
+  void print_as_array_cast(String *str);
+  Item_func_mvi_encode(THD* thd, Item *expr, const Lex_cast_type_st &cast_type):
+    Item_str_ascii_func(thd, expr), m_cast_type(cast_type) {}
+  String *val_str_ascii(String *buf) override;
+  enum Functype functype() const override { return MVI_ENCODE_FUNC; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("mvi_encode")};
+    return name;
+  }
+  bool fix_length_and_dec(THD *thd) override;
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Item_func_mvi_encode>(thd, this);
+  }
+  Lex_cast_type_st &cast_type() { return m_cast_type; }
+};
+
+
 class Item_func_format_pico_time : public Item_str_ascii_func
 {
   /* Format is 'AAAA.BB UUU' = 11 characters or 'AAA ps' = 6 characters. */

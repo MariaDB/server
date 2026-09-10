@@ -1011,6 +1011,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MONITOR_SYM                   /* MariaDB privilege */
 %token  <kwd>  MONTH_SYM                     /* SQL-2003-R */
 %token  <kwd>  MUTEX_SYM
+%token  <kwd>  MVI_ENCODE_SYM
 %token  <kwd>  MYSQL_SYM
 %token  <kwd>  MYSQL_ERRNO_SYM
 %token  <kwd>  NAMES_SYM                     /* SQL-2003-N */
@@ -1761,7 +1762,7 @@ rule:
         using_list opt_use_partition use_partition
 
 %type <key_part>
-        key_part key_part_simple
+        key_part key_part_simple multi_valued_key_part
 
 %type <table_list>
         join_table_list  join_table
@@ -7638,6 +7639,7 @@ opt_without_overlaps:
 
 key_part:
           key_part_simple
+        | multi_valued_key_part
         | ident '(' NUM ')'
           {
             int key_part_len= atoi($3.str);
@@ -7645,6 +7647,14 @@ key_part:
               my_yyabort_error((ER_KEY_PART_0, MYF(0), $1.str));
             $$= new (thd->mem_root) Key_part_spec(&$1, (uint) key_part_len);
             if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
+multi_valued_key_part:
+          '(' CAST_SYM '(' expr AS cast_type ARRAY_SYM ')' ')'
+          {
+            if (unlikely(!($$= add_mvi_key_part(thd, $4, $6))))
               MYSQL_YYABORT;
           }
         ;
@@ -11147,6 +11157,12 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             Lex->safe_to_cache_query= false;
+          }
+        | MVI_ENCODE_SYM '(' expr ',' cast_type ')'
+          {
+            $$= new (thd->mem_root) Item_func_mvi_encode(thd, $3, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
           }
         | NOW_SYM opt_time_precision
           {
@@ -16909,6 +16925,7 @@ keyword_sp_var_not_label:
         | HELP_SYM
         | HOST_SYM
         | INSTALL_SYM
+        | MVI_ENCODE_SYM
         | OPTION
         | OPTIONS_SYM
         | OTHERS_MARIADB_SYM

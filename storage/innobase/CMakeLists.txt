@@ -173,6 +173,7 @@ SET(INNOBASE_SOURCES
 	fts/fts0blex.cc
 	fts/fts0config.cc
 	fts/fts0exec.cc
+	fts/fts0est.cc
 	fts/fts0opt.cc
 	fts/fts0pars.cc
 	fts/fts0que.cc

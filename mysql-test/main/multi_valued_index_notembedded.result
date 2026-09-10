@@ -1,0 +1,145 @@
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb","ccc"]}');
+# The trace prints the element keys in their encoded form, which is not
+# readable. These are the tokens the index is built from, so the values
+# the trace prints below must be found here:
+select c, mvi_encode(j->'$.tags', char(6)) from t1;
+c	mvi_encode(j->'$.tags', char(6))
+1	616161
+2	626262 636363
+set optimizer_trace=1;
+#
+# One element key
+#
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "match": "all",
+        "rows": 1,
+        "cost": 0.00171364,
+        "ranges": 
+        ["616161"]
+    }
+]
+#
+# Several element keys. A row has to have all of them, so the rarest
+# one alone already reads every row we may return: only that key is
+# left in "ranges", and the JSON predicate in the WHERE clause discards
+# whatever else the shorter search finds.
+#
+create table t3 (c int, j json,
+key idx3 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t3 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}'),
+(3,'{"tags": ["bbb"]}'),(4,'{"tags": ["bbb","ccc"]}');
+select c, mvi_encode(j->'$.tags', char(6)) from t3;
+c	mvi_encode(j->'$.tags', char(6))
+1	616161 626262
+2	626262
+3	626262
+4	626262 636363
+# "bbb" is in every row and "aaa" in one, so "aaa" is what we search for
+explain select * from t3 where json_contains(j->'$.tags','["aaa","bbb"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	idx3	idx3	0	NULL	1	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t3",
+        "index": "idx3",
+        "match": "all",
+        "rows": 1,
+        "cost": 0.00171364,
+        "ranges": 
+        ["616161"]
+    }
+]
+select * from t3 where json_contains(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa","bbb"]}
+# the same rows without the index:
+select * from t3 ignore index(idx3)
+where json_contains(j->'$.tags','["aaa","bbb"]') order by c;
+c	j
+1	{"tags": ["aaa","bbb"]}
+drop table t3;
+#
+# Two tables: each entry names the table it belongs to
+#
+create table t2 (c int, j json,
+key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t2 values (1,'{"tags": ["zzz"]}');
+explain select * from t1,t2 where json_contains(t1.j->'$.tags','"aaa"')
+and json_contains(t2.j->'$.tags','"zzz"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
+1	SIMPLE	t2	range	idx2	idx2	0	NULL	1	Using where; Using join buffer (flat, BNL join)
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "match": "all",
+        "rows": 1,
+        "cost": 0.00171364,
+        "ranges": 
+        ["616161"]
+    },
+    {
+        "table": "t2",
+        "index": "idx2",
+        "match": "all",
+        "rows": 1,
+        "cost": 0.00171364,
+        "ranges": 
+        ["7a7a7a"]
+    }
+]
+#
+# JSON_OVERLAPS: the keys are ORed, so "match" is "any". A row matches
+# through any one of them, so the estimates add up and every key stays
+# in the query.
+#
+explain select * from t1 where json_overlaps(j->'$.tags','["bbb","ccc"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+[
+    {
+        "table": "t1",
+        "index": "idx",
+        "match": "any",
+        "rows": 2,
+        "cost": 0.00260808,
+        "ranges": 
+        [
+            "626262",
+            "636363"
+        ]
+    }
+]
+#
+# A predicate under a top-level OR gives no access, so nothing is printed
+#
+explain select * from t1 where json_contains(t1.j->'$.tags','"aaa"') or c=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+select json_detailed(json_extract(trace, '$**.multi_value_index_use')) as jd
+from information_schema.optimizer_trace;
+jd
+NULL
+set optimizer_trace=default;
+drop table t1,t2;

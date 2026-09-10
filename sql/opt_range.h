@@ -1216,7 +1216,8 @@ public:
     QS_TYPE_FULLTEXT   = 4,
     QS_TYPE_ROR_INTERSECT = 5,
     QS_TYPE_ROR_UNION = 6,
-    QS_TYPE_GROUP_MIN_MAX = 7
+    QS_TYPE_GROUP_MIN_MAX = 7,
+    QS_TYPE_MVI = 8
   };
 
   /* Get type of this quick select - one of the QS_TYPE_* values */

@@ -707,9 +707,10 @@ public:
 
   bool is_basic() 
   {
-    return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+    return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE ||
             quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
-            quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX);
+            quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX ||
+            quick_type == QUICK_SELECT_I::QS_TYPE_MVI);
   }
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
