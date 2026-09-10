@@ -179,7 +179,8 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
 Parallel_coordinator::Scan_ctx::Scan_ctx(Parallel_coordinator *coordinator, size_t id,
                                     trx_t *trx,
                                     const Parallel_coordinator::Config &config)
-    : m_id(id), m_config(config), m_trx(trx), m_coordinator(coordinator) {}
+    : m_id(id), m_config(config), m_trx(trx), m_coordinator(coordinator)
+{}
 
 buf_block_t *Parallel_coordinator::Scan_ctx::block_get_s_latched(
     const page_id_t &page_id, mtr_t *mtr, size_t line) const
@@ -442,7 +443,8 @@ page_cur_t Parallel_coordinator::Scan_ctx::start_range(
     page_cur_t page_cursor;
     page_cursor.index = index;
 
-    if (key != nullptr) {
+    if (key != nullptr)
+    {
       auto ps_err = pread_page_cur_search(block, index, key, PAGE_CUR_GE, &page_cursor);
       if (ps_err != DB_SUCCESS)
       {
@@ -924,24 +926,24 @@ Parallel_coordinator::get_worker_ctx(size_t worker_idx) const
   return m_worker_ctxs[worker_idx];
 }
 
-  void Parallel_coordinator::cleanup()
-  {
-    if (!m_is_initialized) return;
+void Parallel_coordinator::cleanup()
+{
+  if (!m_is_initialized) return;
 
-    for (auto *p : m_worker_ctxs) UT_DELETE(p);
-    m_worker_ctxs.clear();
+  for (auto *p : m_worker_ctxs) UT_DELETE(p);
+  m_worker_ctxs.clear();
 
-    m_ctxs.clear();
-    m_scan_ctxs.clear();
-    m_scan_ctx_id = 0;
-    m_ctx_id.store(0, std::memory_order_relaxed);
-    m_n_workers = 0;
-    m_n_resplitting = 0;
+  m_ctxs.clear();
+  m_scan_ctxs.clear();
+  m_scan_ctx_id = 0;
+  m_ctx_id.store(0, std::memory_order_relaxed);
+  m_n_workers = 0;
+  m_n_resplitting = 0;
 
-    m_err.store(DB_SUCCESS, std::memory_order_relaxed);
+  m_err.store(DB_SUCCESS, std::memory_order_relaxed);
 
-    mysql_cond_destroy(&m_cond);
-    mysql_mutex_destroy(&m_mutex);
+  mysql_cond_destroy(&m_cond);
+  mysql_mutex_destroy(&m_mutex);
 
-    m_is_initialized = false;
-  }
+  m_is_initialized = false;
+}

@@ -88,7 +88,7 @@ will scan from [Start, End) rows. We use std::shared_ptr to manage the
 reference counting, this allows us to dispose of the Exec_ctx instances
 without worrying about dangling pointers.
 
-NOTE: Secondary index scans are not supported currently. */
+*/
 
 // Forward declarations
 struct trx_t;
