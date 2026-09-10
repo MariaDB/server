@@ -2164,10 +2164,23 @@ bool Gis_multi_point::init_from_wkt(Gis_read_stream *trs, String *wkb)
   uint32 n_points= 0;
   uint32 np_pos= wkb->length();
   Gis_point p;
+  char next_sym;
 
   if (wkb->reserve(4, 512))
     return 1;
   wkb->length(wkb->length()+4);			// Reserve space for points
+
+  /*
+    MULTIPOINT(0 0,1 1) and MULTIPOINT((0 0),(1 1)) name the same geometry.
+    The first point fixes which of the two spellings the whole list uses,
+    and every later point repeats it.  A mixed list such as
+    MULTIPOINT((0 0),1 1) is rejected.  No check tests for mixing itself.
+    The point that breaks the pattern fails to parse under the spelling
+    already fixed.
+  */
+  if (!(next_sym= trs->next_symbol()))
+    return 1;
+  const bool bracketed= next_sym == '(';
 
   for (;;)
   {
@@ -2175,7 +2188,9 @@ bool Gis_multi_point::init_from_wkt(Gis_read_stream *trs, String *wkb)
       return 1;
     wkb->q_append((char) wkb_ndr);
     wkb->q_append((uint32) wkb_point);
-    if (p.init_from_wkt(trs, wkb))
+    if ((bracketed && trs->check_next_symbol('(')) ||
+        p.init_from_wkt(trs, wkb) ||
+        (bracketed && trs->check_next_symbol(')')))
       return 1;
     n_points++;
     if (trs->skip_char(','))			// Didn't find ','
