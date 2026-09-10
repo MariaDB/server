@@ -1,0 +1,43 @@
+#
+# MDEV-39566 MariaDB crash while running a SELECT on table
+# performance_schema.status_by_thread
+#
+# Started with performance_schema_hosts_size=0, so that the host and
+# the account containers have different sizes.
+SELECT COUNT(*) AS host_rows FROM performance_schema.status_by_host;
+host_rows
+0
+# A sorted scan re-initializes the table context from thread local
+# storage after the sort. status_by_account must not restore the
+# context of status_by_host, which the correlated subquery scans in
+# between.
+SELECT COUNT(*) = @unsorted AS all_rows_returned_by_status_by_account FROM t1;
+all_rows_returned_by_status_by_account
+1
+DROP TEMPORARY TABLE t1;
+# The same the other way round.
+SELECT COUNT(*) = @unsorted AS all_rows_returned_by_status_by_host FROM t1;
+all_rows_returned_by_status_by_host
+1
+DROP TEMPORARY TABLE t1;
+# The other tables sized from a buffer container. variables_by_thread
+# is changed too but is not exposed as a table in MariaDB.
+SELECT COUNT(*) = @unsorted AS all_rows_returned_by_status_by_thread FROM t1;
+all_rows_returned_by_status_by_thread
+1
+DROP TEMPORARY TABLE t1;
+SELECT COUNT(*) = @unsorted AS all_rows_returned_by_status_by_user FROM t1;
+all_rows_returned_by_status_by_user
+1
+DROP TEMPORARY TABLE t1;
+# A filesort that sorts row ids rather than whole rows calls rnd_pos()
+# for every sorted row, so this is the only case that reads the map of
+# the restored context.
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET @@max_length_for_sort_data= 4;
+SELECT COUNT(*) = @unsorted AS all_rows_returned_by_status_by_account FROM t1;
+all_rows_returned_by_status_by_account
+1
+DROP TEMPORARY TABLE t1;
+SET @@max_length_for_sort_data= @save_max_length_for_sort_data;
+# End of 10.11 tests
