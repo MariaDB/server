@@ -160,8 +160,7 @@ class Parallel_coordinator
           m_index(index),
           m_is_compact(dict_table_is_comp(index->table)),
           m_zip_size(index->table->space->zip_size()),
-          m_read_level(read_level),
-          m_partition_id(partition_id) {}
+          m_read_level(read_level) {}
 
     /** Copy constructor.
     @param[in] config           Instance to copy from. */
@@ -181,10 +180,6 @@ class Parallel_coordinator
 
     /** Btree level from which records need to be read. */
     uint16_t m_read_level{0};
-
-    /** Partition id if the index to be scanned belongs to a partitioned table,
-    else std::numeric_limits<size_t>::max(). */
-    size_t m_partition_id{std::numeric_limits<size_t>::max()};
   };
 
   struct Worker_ctx : public Parallel_worker_ctx
@@ -557,13 +552,6 @@ class Parallel_coordinator::Exec_ctx {
   for the chunk the bound falls in. */
   [[nodiscard]] const dtuple_t *scan_start() const {
     return m_scan_ctx->m_config.m_scan_range.m_start;
-  }
-
-  /** @return the partition id of the index.
-  @note this is std::numeric_limits<size_t>::max() if the index does not
-  belong to a partition. */
-  [[nodiscard]] size_t partition_id() const {
-    return m_scan_ctx->m_config.m_partition_id;
   }
 
   /** Range to read in this context. */
