@@ -336,7 +336,7 @@ int copy_or_stream(const backup_target &target, const backup_sink &sink,
   if (sink.stream == INVALID_HANDLE_VALUE)
   {
     int len= snprintf(NULL, 0, "%s/%s", target.path, path + dir_prefix) + 1;
-    char *dstpath= malloc(len);
+    char *dstpath= static_cast<char*>(malloc(len));
     if (!dstpath)
       my_error(ER_TOO_LONG_IDENT, MYF(0), path + dir_prefix);
     else
@@ -681,13 +681,13 @@ struct backup_context
     if (!target.path)
       return 0;
     int ret= snprintf(NULL, 0, "%s/%s", target.path, name) + 1;
-    char *path= malloc(ret);
+    char *path= static_cast<char*>(malloc(ret));
     if (!path)
     {
       my_error(ER_TOO_LONG_IDENT, MYF(0), name);
       return 1;
     }
-    snprintf(path, ret, "%s/%s", target->path, name);
+    snprintf(path, ret, "%s/%s", target.path, name);
     if (CreateDirectory(path, NULL))
       ret= 0;
     else
