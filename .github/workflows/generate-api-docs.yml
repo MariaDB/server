@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - 'main'
+    paths:
+      - 'include/mysql/**'
   pull_request:
     branches:
       - 'main'
+    paths:
+      - 'include/mysql/**'
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
