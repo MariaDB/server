@@ -30,15 +30,15 @@
 
 #include "mysql/psi/psi.h"
 
-#ifndef PSI_TRANSACTION_CALL
-#define PSI_TRANSACTION_CALL(M) PSI_DYNAMIC_CALL(M)
-#endif
-
 /**
   @defgroup Transaction_instrumentation Transaction Instrumentation
   @ingroup Instrumentation_interface
   @{
 */
+
+#ifndef PSI_TRANSACTION_CALL
+#define PSI_TRANSACTION_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
 
 #ifdef HAVE_PSI_TRANSACTION_INTERFACE
   #define MYSQL_START_TRANSACTION(STATE, XID, TRXID, ISO, RO, AC) \

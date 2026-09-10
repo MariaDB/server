@@ -26,8 +26,13 @@
   This file is only used to automate detection of changes between versions.
   Do not include this file, include mysql/psi/psi.h instead.
 */
+
+/**
+  @addtogroup Instrumentation_interface
+  @{
+*/
 #define USE_PSI_1
 #define HAVE_PSI_INTERFACE
 #define MY_GLOBAL_INCLUDED
 #include "mysql/psi/psi.h"
-
+/** @} */

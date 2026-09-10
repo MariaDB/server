@@ -26,6 +26,13 @@
 /**
   @file mysql/psi/mysql_ps.h
   Instrumentation helpers for prepared statements.
+
+  @defgroup Prepared_statements_instrumentation Prepared Statements Instrumentation
+  @ingroup Instrumentation_interface
+
+  Instrumentation helpers for prepared statements.
+
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -104,5 +111,7 @@ inline_mysql_set_prepared_stmt_text(PSI_prepared_stmt *prepared_stmt,
   }
 }
 #endif
+
+/** @} */
 
 #endif

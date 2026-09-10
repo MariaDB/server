@@ -13,34 +13,42 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifndef MYSQL_SERVICE_JSON
-#define MYSQL_SERVICE_JSON
-
 /**
   @file
   json service
 
+*/
+
+#ifndef MYSQL_SERVICE_JSON
+#define MYSQL_SERVICE_JSON
+
+/**
+  @defgroup plugin_api_service_json JSON service
+  @ingroup plugin_api_services
+
   Exports JSON parsing methods for plugins to use.
 
   Functions of the service:
-    json_type - returns the type of the JSON argument,
+    @ref json_type - returns the type of the JSON argument,
        and the parsed value if it's scalar (not object or array)
 
-    json_get_array_item - expects JSON array as an argument,
+    @ref json_get_array_item - expects JSON array as an argument,
        and returns the type of the element at index `n_item`.
-       Returns JSV_NOTHING type if the array is shorter
+       Returns @ref JSV_NOTHING type if the array is shorter
        than n_item and the actual length of the array in value_len.
        If successful, then `value` up till `value[value_len]` contains the array
        element at the desired index (n_item).
 
-    json_get_object_key - expects JSON object as an argument,
+    @ref json_get_object_key - expects JSON object as an argument,
        searches for a key in the object, return it's type and stores its value in `value`.
-       JSV_NOTHING if no such key found, the number of keys
+       @ref JSV_NOTHING if no such key found, the number of keys
        in v_len.
 
-    json_get_object_nkey - expects JSON object as an argument.
+    @ref json_get_object_nkey - expects JSON object as an argument.
       finds n_key's key in the object, returns it's name, type and value.
-      JSV_NOTHING if object has less keys than n_key.
+      @ref JSV_NOTHING if object has less keys than n_key.
+
+  @{
 */
 
 
@@ -113,6 +121,8 @@ int json_unescape_json(const char *json_str, const char *json_end,
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /*MYSQL_SERVICE_JSON */
 

@@ -1,4 +1,3 @@
-#ifndef MYSQL_PLUGIN_PASSWORD_VALIDATION_INCLUDED
 /* Copyright (C) 2014 Sergei Golubchik and MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_PLUGIN_PASSWORD_VALIDATION_INCLUDED
+#define MYSQL_PLUGIN_PASSWORD_VALIDATION_INCLUDED
+
 /**
   @file
 
@@ -22,9 +24,17 @@
   This file defines the API for server password validation plugins.
 */
 
-#define MYSQL_PLUGIN_PASSWORD_VALIDATION_INCLUDED
 
 #include <mysql/plugin.h>
+
+/**
+   @defgroup password_validation_plugin_data Password Validation Plugin
+   @ingroup plugin_types
+   Password validation plugin API (@ref MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION)
+
+   This file defines the API for server plugins that perform password validation.
+   @{
+*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,6 +60,8 @@ struct st_mariadb_password_validation
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif
 

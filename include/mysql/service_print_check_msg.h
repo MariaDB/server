@@ -20,21 +20,28 @@
   This service provides functions to write messages for check or repair
 */
 
+/**
+  @defgroup plugin_api_service_print_check_msg Print Check Msg service
+  @ingroup plugin_api_services
+
+  This service provides functions to write messages for check or repair
+  @{
+*/
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
 extern struct print_check_msg_service_st {
-  void (*print_check_msg)(MYSQL_THD, const char *db_name, const char *table_name,
+  void (*print_check_msg)(MYSQL_THD thd, const char *db_name, const char *table_name,
                           const char *op, const char *msg_type, const char *message,
                           my_bool print_to_log);
 } *print_check_msg_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
-# define print_check_msg_context(_THD) print_check_msg_service->print_check_msg
+# define print_check_msg(thd, db_name, table_name, op, msg_type, message, print_to_log) \
+  print_check_msg_service->print_check_msg(thd, db_name, table_name, op, msg_type, message, print_to_log)
 #else
-extern void print_check_msg(MYSQL_THD, const char *db_name, const char *table_name,
+extern void print_check_msg(MYSQL_THD thd, const char *db_name, const char *table_name,
                             const char *op, const char *msg_type, const char *message,
                             my_bool print_to_log);
 #endif
@@ -42,3 +49,5 @@ extern void print_check_msg(MYSQL_THD, const char *db_name, const char *table_na
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */

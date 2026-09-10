@@ -29,6 +29,12 @@
   Instrumentation helpers for statements.
 */
 
+/**
+  @defgroup Statement_instrumentation Statement Instrumentation
+  @ingroup Instrumentation_interface
+  @{
+*/
+
 #include "mysql/psi/psi.h"
 
 class Diagnostics_area;
@@ -41,12 +47,6 @@ typedef const struct charset_info_st CHARSET_INFO;
 #ifndef PSI_DIGEST_CALL
 #define PSI_DIGEST_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Statement_instrumentation Statement Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def mysql_statement_register(P1, P2, P3)
