@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
 --source include/not_embedded.inc
+--source include/have_sparse_files.inc
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 call mtr.add_suppression("InnoDB: Tablespace size stored in header is 768 pages, but the sum of data file sizes is 384 pages");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file");

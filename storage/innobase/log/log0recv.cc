@@ -1480,7 +1480,7 @@ void recv_sys_t::tmp_free() noexcept
 {
   if (tmp_buf)
   {
-    ut_free_dodump(tmp_buf, tmp_buf_size);
+    ut_free_dodump(tmp_buf, tmp_buf_alloc_size);
     tmp_buf= nullptr;
   }
 }
@@ -1869,8 +1869,9 @@ dberr_t recv_sys_t::find_checkpoint()
 
     if (!tmp_buf)
     {
+      tmp_buf_alloc_size= tmp_buf_size;
       tmp_buf= static_cast<byte*>
-        (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+        (ut_malloc_dontdump_size(&tmp_buf_alloc_size));
       if (!tmp_buf)
         return DB_OUT_OF_MEMORY;
     }

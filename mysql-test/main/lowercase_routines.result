@@ -1,0 +1,46 @@
+#
+# MDEV-33616 Routines of a mixed case database are not listed when
+# lower_case_table_names is 2
+#
+CREATE DATABASE Db1;
+USE Db1;
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+CREATE PROCEDURE p1(b INT) BEGIN END;
+SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='Db1';
+SCHEMA_NAME
+Db1
+SELECT db, name FROM mysql.proc WHERE name IN ('f1','p1');
+db	name
+db1	f1
+db1	p1
+SELECT ROUTINE_NAME FROM information_schema.ROUTINES
+WHERE ROUTINE_SCHEMA='Db1';
+ROUTINE_NAME
+f1
+p1
+SELECT SPECIFIC_NAME, ORDINAL_POSITION, PARAMETER_NAME
+FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='Db1';
+SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_NAME
+f1	0	NULL
+f1	1	a
+p1	1	b
+SHOW FUNCTION STATUS WHERE Db='Db1';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db1	f1	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW PROCEDURE STATUS WHERE Db='Db1';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+db1	p1	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT ROUTINE_NAME FROM information_schema.ROUTINES
+WHERE ROUTINE_SCHEMA='Db1' ORDER BY ROUTINE_NAME;
+ROUTINE_NAME
+f1
+p1
+SELECT SPECIFIC_NAME, ORDINAL_POSITION, PARAMETER_NAME
+FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA='Db1'
+ ORDER BY SPECIFIC_NAME, ORDINAL_POSITION;
+SPECIFIC_NAME	ORDINAL_POSITION	PARAMETER_NAME
+f1	0	NULL
+f1	1	a
+p1	1	b
+USE test;
+DROP DATABASE Db1;
