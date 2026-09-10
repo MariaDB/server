@@ -82,6 +82,7 @@ MACRO(EXTERNAL_PLUGIN_PRE)
   ENDFOREACH()
 
   SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "${ARG_AUTHOR}")
+  SET(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
   SET(CPACK_COMPONENTS_ALL TRUE) # for version-fiddling IF in plugin.cmake
   IF (DEB)
     # match autobake-deb.sh naming
