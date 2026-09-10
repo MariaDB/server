@@ -130,6 +130,11 @@ enum Graph_table_indices {
 class MHNSW_Share;
 class FVectorNode;
 
+using BulkLink= Atomic_relaxed<FVectorNode *>;
+
+static_assert(sizeof(BulkLink) == sizeof(FVectorNode *));
+static_assert(alignof(BulkLink) == alignof(FVectorNode *));
+
 /*
   One vector, an array of coordinates in ctx->vec_len dimensions
 */
@@ -394,16 +399,29 @@ struct FVector
 */
 struct Neighborhood: public Sql_alloc
 {
-  FVectorNode **links;
+  union
+  {
+    FVectorNode **links;
+    BulkLink *bulk_links;
+  };
   size_t num;
-  Atomic_relaxed<size_t> num_bulk;
+
   FVectorNode **init(FVectorNode **ptr, size_t n)
   {
     num= 0;
-    num_bulk.store(0, std::memory_order_relaxed);
     links= ptr;
     n= MY_ALIGN(n, 8);
     bzero(ptr, n*sizeof(*ptr));
+    return ptr + n;
+  }
+
+  BulkLink *init_bulk(BulkLink *ptr, size_t n)
+  {
+    num= 0;
+    bulk_links= ptr;
+    n= MY_ALIGN(n, 8);
+    for (size_t i= 0; i < n; i++)
+      new (ptr + i) BulkLink(nullptr);
     return ptr + n;
   }
 };
@@ -454,7 +472,7 @@ public:
                               Stats *stats) const;
   int load(TABLE *graph);
   int load_from_record(TABLE *graph);
-  int save(TABLE *graph);
+  int save(TABLE *graph, bool bulk= false);
   size_t tref_len() const;
   size_t gref_len() const;
   uchar *gref() const;
@@ -662,9 +680,12 @@ public:
 
   void *alloc_neighborhood(size_t max_layer)
   {
+    const size_t slots= MY_ALIGN(M, 4)*2 + MY_ALIGN(M, 8)*max_layer;
+    const size_t link_size= bulk_active ? sizeof(BulkLink)
+                                        : sizeof(FVectorNode*);
     mysql_mutex_lock(&cache_lock);
     auto p= alloc_root(&root, sizeof(Neighborhood)*(max_layer+1) +
-             sizeof(FVectorNode*)*(MY_ALIGN(M, 4)*2 + MY_ALIGN(M,8)*max_layer));
+                               link_size*slots);
     mysql_mutex_unlock(&cache_lock);
     return p;
   }
@@ -991,9 +1012,18 @@ int FVectorNode::alloc_neighborhood(uint8_t layer)
     return 0;
   max_layer= layer;
   neighbors= (Neighborhood*)ctx->alloc_neighborhood(layer);
-  auto ptr= (FVectorNode**)(neighbors + (layer+1));
-  for (size_t i= 0; i <= layer; i++)
-    ptr= neighbors[i].init(ptr, ctx->max_neighbors(i));
+  if (ctx->bulk_active)
+  {
+    auto ptr= (BulkLink*)(neighbors + (layer+1));
+    for (size_t i= 0; i <= layer; i++)
+      ptr= neighbors[i].init_bulk(ptr, ctx->max_neighbors(i));
+  }
+  else
+  {
+    auto ptr= (FVectorNode**)(neighbors + (layer+1));
+    for (size_t i= 0; i <= layer; i++)
+      ptr= neighbors[i].init(ptr, ctx->max_neighbors(i));
+  }
   return 0;
 }
 
@@ -1073,10 +1103,12 @@ void FVectorNode::push_neighbor(size_t layer, FVectorNode *other)
 {
   DBUG_ASSERT(neighbors[layer].num < ctx->max_neighbors(layer));
   size_t cur_num= neighbors[layer].num;
-  neighbors[layer].links[cur_num]= other;
-  neighbors[layer].num= cur_num + 1;
   if (ctx->bulk_active)
-    neighbors[layer].num_bulk.store(cur_num + 1, std::memory_order_release);
+    neighbors[layer].bulk_links[cur_num].store(other,
+                                               std::memory_order_relaxed);
+  else
+    neighbors[layer].links[cur_num]= other;
+  neighbors[layer].num= cur_num + 1;
 }
 
 size_t FVectorNode::tref_len() const { return ctx->tref_len; }
@@ -1229,12 +1261,17 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
   for (size_t i= 0; i < discarded_num && temp_num < max_neighbor_connections; i++)
     temp_links[temp_num++]= discarded[i]->node;
 
-  for (size_t i= 0; i < temp_num; i++)
-    neighbors.links[i]= temp_links[i];
-
-  neighbors.num= temp_num;
   if (p->ctx->bulk_active)
-    neighbors.num_bulk.store(temp_num, std::memory_order_release);
+  {
+    for (size_t i= 0; i < temp_num; i++)
+      neighbors.bulk_links[i].store(temp_links[i], std::memory_order_relaxed);
+  }
+  else
+  {
+    for (size_t i= 0; i < temp_num; i++)
+      neighbors.links[i]= temp_links[i];
+  }
+  neighbors.num= temp_num;
 
   my_safe_afree(temp_links, sizeof(FVectorNode*) * max_neighbor_connections);
   my_safe_afree(discarded, sizeof(Visited**)*max_neighbor_connections);
@@ -1242,7 +1279,7 @@ static int select_neighbors(MHNSW_param *p, FVectorNode *target,
 }
 
 
-int FVectorNode::save(TABLE *graph)
+int FVectorNode::save(TABLE *graph, bool bulk)
 {
   DBUG_ASSERT(vec);
   DBUG_ASSERT(neighbors);
@@ -1268,7 +1305,12 @@ int FVectorNode::save(TABLE *graph)
   {
     *ptr++= (uchar)(neighbors[i].num);
     for (size_t j= 0; j < neighbors[i].num; j++, ptr+= gref_len())
-      memcpy(ptr, neighbors[i].links[j]->gref(), gref_len());
+    {
+      FVectorNode *neighbor= bulk
+        ? neighbors[i].bulk_links[j].load(std::memory_order_relaxed)
+        : neighbors[i].links[j];
+      memcpy(ptr, neighbor->gref(), gref_len());
+    }
   }
   graph->field[FIELD_NEIGHBORS]->store_binary(neighbor_blob, total_size);
 
@@ -1298,17 +1340,52 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
 {
   const uint max_neighbors= p->ctx->max_neighbors(p->layer);
   const bool bulk= p->ctx->bulk_active;
+  Neighborhood &neighbors= node->neighbors[p->layer];
   if (bulk)
     p->ctx->assert_node_unlocked(node);
-  const size_t num_neighbors= node->neighbors[p->layer].num;
+
+  size_t num_neighbors;
+  size_t q_capacity;
+  if (bulk)
+  {
+    num_neighbors= 0;
+    q_capacity= max_neighbors;
+  }
+  else
+  {
+    num_neighbors= neighbors.num;
+    q_capacity= num_neighbors;
+  }
+
+  if (!q_capacity)
+    return 0;
+
+  /*
+    Snapshot the links into a stable worklist because bulk writers may change
+    this unlocked neighborhood while it is being read.
+  */
+  FVectorNode **q= (FVectorNode**)
+    my_safe_alloca(sizeof(FVectorNode*) * q_capacity);
+  SCOPE_EXIT([q, q_capacity]() {
+    my_safe_afree(q, sizeof(*q) * q_capacity);
+  });
+
+  if (bulk)
+  {
+    while (num_neighbors < max_neighbors)
+    {
+      FVectorNode *neighbor= neighbors.bulk_links[num_neighbors].load(
+                               std::memory_order_relaxed);
+      if (!neighbor)
+        break;
+      q[num_neighbors++]= neighbor;
+    }
+  }
+  else
+    memcpy(q, neighbors.links, sizeof(*q) * num_neighbors);
 
   if (num_neighbors == 0)
     return 0;
-
-  FVectorNode **q= (FVectorNode**) my_safe_alloca(sizeof(FVectorNode*) * num_neighbors);
-
-  for (size_t i= 0; i < num_neighbors; i++)
-    q[i]= node->neighbors[p->layer].links[i];
 
   size_t head= 0;
   size_t tail= 0;
@@ -1325,6 +1402,8 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
     {
       // Benchmarking showed 37% of workers time waiting on this lock,
       // hurting scalability, so defer contended nodes instead of blocking.
+      // Totally skipping nodes without pushing them back in the queue made
+      // the graph slightly worse, with no noticeable reduction in build time.
       if (q_len == 0)
         ticket= p->ctx->lock_node(neigh);
       else if (!p->ctx->try_lock_node(neigh, ticket))
@@ -1351,13 +1430,9 @@ static int update_second_degree_neighbors(MHNSW_param *p, FVectorNode *node)
       err= neigh->save(p->graph);
 
     if (err)
-    {
-      my_safe_afree(q, sizeof(FVectorNode*) * num_neighbors);
       return err;
-    }
   }
 
-  my_safe_afree(q, sizeof(FVectorNode*) * num_neighbors);
   return 0;
 }
 
@@ -1420,6 +1495,8 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
 
   float furthest_best= best.is_empty() ? FLT_MAX
                        : lenient_furthest(best, p->acc.diameter, leniency);
+  const bool bulk= p->ctx->bulk_active;
+
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -1429,13 +1506,30 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
     visited.flush();
 
     Neighborhood &neighbors= cur.node->neighbors[p->layer];
-    FVectorNode **links= neighbors.links;
-    size_t cur_num= p->ctx->bulk_active
-                  ? neighbors.num_bulk.load(std::memory_order_acquire)
-                  : neighbors.num;
-    FVectorNode **end= links + cur_num;
-    for (; links < end; links+= 8)
+    size_t cur_num= bulk ? p->ctx->max_neighbors(p->layer) : neighbors.num;
+    for (size_t offset= 0; offset < cur_num; offset+= 8)
     {
+      FVectorNode *batch[8]= {};
+      FVectorNode **links;
+      if (bulk)
+      {
+        // Reinterpreting atomic links as pointers triggers TSAN warnings, so
+        // copy them into a pointer batch for SIMD.
+        links= batch;
+        for (size_t i= 0; i < 8; i++)
+        {
+          batch[i]= neighbors.bulk_links[offset + i].load(
+                      std::memory_order_relaxed);
+          if (!batch[i])
+          {
+            cur_num= offset + i;
+            break;
+          }
+        }
+      }
+      else
+        links= neighbors.links + offset;
+
       uint8_t res= visited.seen(links);
       if (res == 0xff)
         continue;
@@ -1444,11 +1538,12 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
       {
         if (res & (1 << i))
           continue;
-        if (int err= links[i]->load(p->graph))
+        FVectorNode *node= links[i];
+        if (int err= node->load(p->graph))
           return err;
         if (!best.is_full())
         {
-          Visited *v= visited.create(links[i], links[i]->distance_to(target));
+          Visited *v= visited.create(node, node->distance_to(target));
           if (v->distance_to_target <= threshold)
             continue;
           p->acc.diameter= std::max(p->acc.diameter, v->distance_to_target);
@@ -1460,9 +1555,9 @@ static int search_layer(MHNSW_param *p, const FVector *target, float threshold,
         }
         else
         {
-          Visited *v= visited.create(links[i],
-                        links[i]->distance_greater_than(target, furthest_best,
-                                                        p->mode, &p->acc));
+          Visited *v= visited.create(node,
+                        node->distance_greater_than(target, furthest_best,
+                                                    p->mode, &p->acc));
           if (v->distance_to_target <= threshold)
             continue;
           if (v->distance_to_target < furthest_best)
@@ -1649,7 +1744,8 @@ static void *bulk_build_thread(void *param)
 
     const size_t max_found= ctx->max_neighbors(0);
     Neighborhood candidates;
-    candidates.init((FVectorNode**)alloc_root(&thread_root, sizeof(FVectorNode*) * (max_found + 8)), max_found);
+    candidates.init((FVectorNode**)alloc_root(&thread_root,
+                    sizeof(FVectorNode*) * (max_found + 8)), max_found);
     candidates.links[candidates.num++]= ctx->start;
 
     for (; p.layer > target_layer; p.layer--)
@@ -1663,7 +1759,8 @@ static void *bulk_build_thread(void *param)
       uint max_neighbors= ctx->max_neighbors(p.layer);
       if ((arg->error= search_layer(&p, target->vec, NEAREST, max_neighbors, &candidates, true)))
         return nullptr;
-      if ((arg->error= select_neighbors(&p, target, candidates, 0, max_neighbors)))
+      if ((arg->error= select_neighbors(&p, target, candidates, 0,
+                                        max_neighbors)))
         return nullptr;
     }
 
@@ -1701,7 +1798,7 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   size_t node_alloc_size= sizeof(FVectorNode) + ctx->gref_len + ctx->tref_len +
                           FVector::alloc_size(ctx->vec_len);
   size_t neighborhood_alloc_size= sizeof(Neighborhood) +
-                                  sizeof(FVectorNode*) * MY_ALIGN(ctx->M, 4) * 2;
+                                  sizeof(BulkLink) * MY_ALIGN(ctx->M, 4) * 2;
 
   ulonglong estimated_mem= rows * (sizeof(FVectorNode*) + node_alloc_size +
                                    neighborhood_alloc_size);
@@ -1745,6 +1842,7 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   bulk->current_max_layer= 0;
   bulk->start_node_idx= 0;
   table->hlindex->context= bulk;
+  ctx= nullptr;
   return 0;
 }
 
@@ -1814,6 +1912,8 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   MHNSW_Share *ctx= bulk->ctx;
   SCOPE_EXIT([ctx, bulk, table](){
     delete_dynamic(&bulk->nodes);
+    // Bulk nodes use atomic links, so they cannot be reused by the normal path.
+    ctx->reset(table->s);
     ctx->bulk_active= 0;
     ctx->release(table);
     table->hlindex->context= nullptr;
@@ -1892,7 +1992,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   for (size_t i= 0; i < bulk->nodes.elements; i++)
   {
     FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
-    if (int err= node->save(graph))
+    if (int err= node->save(graph, true))
       return err;
   }
 
@@ -1909,7 +2009,7 @@ int mhnsw_bulk_insert_end(TABLE *table, KEY *keyinfo)
   for (size_t i= 0; i < bulk->nodes.elements; i++)
   {
     FVectorNode *node= *(FVectorNode**)dynamic_element(&bulk->nodes, i, FVectorNode**);
-    if (int err= node->save(graph))
+    if (int err= node->save(graph, true))
       return err;
   }
 
