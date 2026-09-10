@@ -136,7 +136,8 @@ struct pwt_worker_execution
     tables(nullptr), n_tables(0),
     sums(nullptr), aggr_tab(nullptr),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
-    tab_stats(nullptr), tab_hstats(nullptr), handler_ctx(nullptr)
+    tab_stats(nullptr), tab_hstats(nullptr), tab_trackers(nullptr),
+    handler_ctx(nullptr)
   {}
 
   /*
@@ -245,6 +246,12 @@ struct pwt_worker_execution
   */
   Table_access_tracker  *tab_stats;
   ha_handler_stats      *tab_hstats;
+  /*
+    One per table, installed on this worker's handlers so the time they spend
+    in the engine is measured; the manager's own trackers belong to the plan
+    and see nothing a worker does.
+  */
+  Exec_time_tracker     *tab_trackers;
   Parallel_worker_ctx   *handler_ctx;
 };
 

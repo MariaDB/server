@@ -551,6 +551,8 @@ void pwt_manager::quiesce_workers()
     tr->r_chunks_resplit= 0;
     if ((tr->r_rows_per_worker= thd->calloc<ha_rows>(nworkers())))
       tr->n_workers= nworkers();
+    tr->r_engine_time_per_worker= thd->calloc<ulonglong>(nworkers());
+    tr->r_pages_read_time_per_worker= thd->calloc<ulonglong>(nworkers());
   }
 
   for (uint i= 0; i < nworkers(); i++)
@@ -569,6 +571,20 @@ void pwt_manager::quiesce_workers()
           workers[i]->exec.tab_stats[t].r_rows_after_where;
         if (tr->r_rows_per_worker)
           tr->r_rows_per_worker[i]= workers[i]->exec.tab_stats[t].r_rows;
+      }
+      /*
+        The worker's own engine figures, kept per worker as well as summed:
+        the sum says what the scan cost, the split says whether it cost the
+        workers the same, which is the question a parallel plan has to answer
+        and a serial one never asks.
+      */
+      if (Table_access_tracker *tr= exec.jointabs[t]->tracker)
+      {
+        const ha_handler_stats *ws= &workers[i]->exec.tab_hstats[t];
+        if (tr->r_engine_time_per_worker)
+          tr->r_engine_time_per_worker[i]= ws->engine_time;
+        if (tr->r_pages_read_time_per_worker)
+          tr->r_pages_read_time_per_worker[i]= ws->pages_read_time;
       }
       if (ha_handler_stats *hs= exec.tables[t]->file->handler_stats)
         hs->add(&workers[i]->exec.tab_hstats[t]);
