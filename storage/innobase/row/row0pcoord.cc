@@ -786,18 +786,14 @@ dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
                                                        bool resplit,
                                                        bool end_inclusive)
 {
-  auto ctx_id =
-    m_coordinator->m_ctx_id.fetch_add(1, std::memory_order_relaxed);
-
   auto ctx = std::shared_ptr<Parallel_coordinator::Exec_ctx>(
-    UT_NEW_NOKEY(Parallel_coordinator::Exec_ctx(ctx_id, this, range)),
+    UT_NEW_NOKEY(Parallel_coordinator::Exec_ctx(this, range)),
     [](Parallel_coordinator::Exec_ctx *ctx) { UT_DELETE(ctx); });
 
   dberr_t err{DB_SUCCESS};
 
   if (ctx.get() == nullptr)
   {
-    m_coordinator->m_ctx_id.fetch_sub(1, std::memory_order_relaxed);
     return (DB_OUT_OF_MEMORY);
   }
   else
@@ -936,7 +932,6 @@ void Parallel_coordinator::cleanup()
   m_ctxs.clear();
   m_scan_ctxs.clear();
   m_scan_ctx_id = 0;
-  m_ctx_id.store(0, std::memory_order_relaxed);
   m_n_workers = 0;
   m_n_resplitting = 0;
 
