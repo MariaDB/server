@@ -1269,8 +1269,11 @@ public:
   {
     bool binary_cmp;        /**< Make binary comparison */
     bool omit_table_names;  /**< Skip table and db names comparison */
-    Eq_config(bool binary_cmp, bool omit_table_names= false)
-      : binary_cmp(binary_cmp), omit_table_names(omit_table_names) {}
+    bool unordered_conditions; /**< Ignore AND/OR operand order and duplicates */
+    Eq_config(bool binary_cmp, bool omit_table_names= false,
+              bool unordered_conditions= false)
+      : binary_cmp(binary_cmp), omit_table_names(omit_table_names),
+        unordered_conditions(unordered_conditions) {}
   };
   virtual bool eq(const Item *, const Eq_config &config) const;
   enum_field_types field_type() const
@@ -8385,11 +8388,13 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      int *escape);
 
 inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol,
-                                          bool omit_table_names) const
+                                          bool omit_table_names,
+                                          bool unordered_conditions) const
 {
   return type_handler()  == vcol->type_handler()
       && stored_in_db == vcol->is_stored()
-      && expr->eq(vcol->expr, {true, omit_table_names});
+      && expr->eq(vcol->expr,
+                  {true, omit_table_names, unordered_conditions});
 }
 
 inline void Virtual_column_info::print(String* str)

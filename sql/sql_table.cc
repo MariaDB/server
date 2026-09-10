@@ -7531,13 +7531,17 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
                              second table.
   @param[in]  create_info    Create options for the second table.
   @param[out] metadata_equal Result of comparison.
+  @param[in]  compare_vcol_expr_as_sets
+                             Ignore AND/OR order and duplicate terms in
+                             generated column expressions.
 
   @retval true   error
   @retval false  success
 */
 
 bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
-                          HA_CREATE_INFO *create_info, bool *metadata_equal)
+                          HA_CREATE_INFO *create_info, bool *metadata_equal,
+                          bool compare_vcol_expr_as_sets)
 {
   DBUG_ENTER("mysql_compare_tables");
 
@@ -7606,7 +7610,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info, true))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info,
+                                      true, compare_vcol_expr_as_sets))
         DBUG_RETURN(false);
     }
 

@@ -5597,37 +5597,36 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 
 /**
   Compare two Item_cond expressions for equality.
-  
-  For AND/OR conditions, the order of arguments doesn't matter (commutative),
-  so we need to do a set-based comparison rather than order-based.
-  
+
+  Distinct AND/OR items are normally not considered equal, preserving their
+  execution order. Some metadata comparisons can explicitly request a set
+  comparison because table definitions may be serialized with their
+  arguments reordered.
+
   @param item   The other Item to compare with
   @param config Comparison configuration
-  
+
   @return true if expressions are equivalent, false otherwise
 */
 bool Item_cond::eq(const Item *item, const Eq_config &config) const
 {
-  /* Assume we don't have rtti */
   if (this == item)
     return true;
-  
-  /* Ensure we are comparing two condition items */
-  if (item->type() != COND_ITEM)
+
+  if (item->type() != COND_ITEM || (used_tables() & RAND_TABLE_BIT))
     return false;
-  
+
   const Item_cond *item_cond= (const Item_cond *) item;
-  
-  /* Must be same type (AND vs OR) */
   if (functype() != item_cond->functype())
     return false;
-  
-  /* Must have same number of arguments */
-  if (list.elements != item_cond->list.elements)
+
+  if (!config.unordered_conditions)
     return false;
-  
-  /* For AND/OR conditions, order doesn't matter - do set-based comparison */
-  /* Check if every argument in this list has an equivalent in the other list */
+
+  /*
+    Treat the argument lists as sets. Checking both directions deliberately
+    ignores duplicate terms: A OR B and A OR B OR A are equivalent here.
+  */
   List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
   Item *arg1;
   while ((arg1= li1++))
@@ -5646,9 +5645,7 @@ bool Item_cond::eq(const Item *item, const Eq_config &config) const
     if (!found_match)
       return false;
   }
-  
-  /* Also check the reverse - every argument in other list has equivalent in this list */
-  /* (This handles cases where there might be duplicates) */
+
   List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
   Item *arg2;
   while ((arg2= li2++))
@@ -5667,7 +5664,7 @@ bool Item_cond::eq(const Item *item, const Eq_config &config) const
     if (!found_match)
       return false;
   }
-  
+
   return true;
 }
 

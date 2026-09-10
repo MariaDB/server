@@ -165,7 +165,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 bool mysql_compare_tables(TABLE *table,
                           Alter_info *alter_info,
                           HA_CREATE_INFO *create_info,
-                          bool *metadata_equal);
+                          bool *metadata_equal,
+                          bool compare_vcol_expr_as_sets);
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
                           class Recreate_info *recreate_info, bool table_copy);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
