@@ -168,8 +168,11 @@ page_cur_tuple_insert(
 		static_cast<byte*>(mem_heap_alloc(*heap, size)),
 		cursor->index, tuple, n_ext);
 
+	const bool node_ptr=
+		(dtuple_get_info_bits(tuple) & REC_NEW_STATUS_MASK) ==
+		REC_STATUS_NODE_PTR;
 	*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-				   page_is_leaf(cursor->block->page.frame)
+				   page_is_leaf(cursor->block->page.frame) && !node_ptr
 				   ? cursor->index->n_core_fields : 0,
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));

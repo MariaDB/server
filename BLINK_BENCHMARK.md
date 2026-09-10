@@ -85,6 +85,7 @@ The server reported source revision `0f4fa0590289133b3a1fb25c539022671acbd46e`; 
 | 2.5M/400k, t32 | 24 GiB BP, 100 MiB redo, dirty prefill, flush=1 | 2,061.40 | 15.52 ms | 68.05 ms | 2404.92 ms | `blink-proposal-memory-t32-20260902T204619Z` |
 | 2.5M/400k, t32 | 24 GiB BP, 8 GiB redo, clean prefill, flush=1 | 8,695.30 | 3.68 ms | 6.43 ms | 423.21 ms | `blink-proposal-memory-redo8g-t32-20260902T213232Z` |
 | 2.5M/400k, t32 | 24 GiB BP, 8 GiB redo, clean prefill, flush=2 | 102,837.80 | 0.31 ms | 0.56 ms | 220.07 ms | `blink-proposal-flush2-t32-20260903T090949Z` |
+| 2.5M/400k, t32 | post-sync-path regression, otherwise canonical | 102,648.37 | 0.31 ms | 0.45 ms | 760.36 ms | `blink-sync-perf-t32-20260909T215723Z` |
 
 `flush=2` is not durability-equivalent to `flush=1`: an operating-system or power failure can lose approximately the latest second of committed transactions.
 

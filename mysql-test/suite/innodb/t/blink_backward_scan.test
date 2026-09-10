@@ -1,0 +1,49 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id VARBINARY(2500) NOT NULL PRIMARY KEY,
+  b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=1;
+while ($i <= 250) {
+  eval INSERT INTO t VALUES (LPAD(CAST($i AS CHAR),2500,'0'),$i);
+  inc $i;
+}
+--enable_query_log
+--connect(con1,localhost,root,,test)
+--connect(con2,localhost,root,,test)
+--connection con1
+SET DEBUG_SYNC='blink_after_cascade_mtr SIGNAL internal_published WAIT_FOR resume EXECUTE 1';
+--send
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 251 UNION ALL SELECT n + 1 FROM cte WHERE n < 275)
+SELECT LPAD(CAST(n AS CHAR),2500,'0'),n FROM cte;
+--connection con2
+SET DEBUG_SYNC='now WAIT_FOR internal_published TIMEOUT 30';
+SELECT b FROM t ORDER BY id DESC LIMIT 3;
+SELECT b FROM t WHERE id <= LPAD(CAST(275 AS CHAR),2500,'0')
+ORDER BY id DESC LIMIT 3;
+SELECT b FROM t WHERE id >= LPAD(CAST(240 AS CHAR),2500,'0')
+ORDER BY id DESC;
+SELECT COUNT(*) FROM t;
+SET DEBUG_SYNC='now SIGNAL resume';
+--connection con1
+--reap
+--disconnect con1
+--connection default
+SET DEBUG_SYNC='RESET';
+--connection con2
+--disconnect con2
+--connection default
+SELECT b FROM t ORDER BY id DESC LIMIT 3;
+SELECT COUNT(*) FROM (SELECT id FROM t ORDER BY id DESC) AS dt;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

@@ -970,6 +970,7 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
   for (;;) {
     mtr_t mtr{holder->trx};
     mtr.start();
+    index->set_modified(mtr);
     holder->transfer_to(&mtr, &index->lock, MTR_MEMO_S_LOCK);
     holder->commit();
 
@@ -1099,6 +1100,9 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
     next_holder.start();
     mtr.transfer_to(&next_holder, &index->lock, MTR_MEMO_S_LOCK);
     mtr.commit();
+    if (thr)
+      DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
+                          "blink_after_cascade_mtr");
     mem_heap_free(parent_heap);
     err= blink_insert_into_level(flags, next_node_ptr, level + 1,
                                  next_previous, &next_holder, index, stash,
@@ -1231,6 +1235,9 @@ dberr_t blink_pessimistic_insert(ulint flags, btr_cur_t *cursor,
   holder.start();
   mtr->transfer_to(&holder, &index->lock, MTR_MEMO_S_LOCK);
   mtr->commit();
+  if (thr)
+    DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
+                        "blink_after_leaf_split");
   err= blink_insert_into_level(flags, node_ptr, 1, previous_child,
                                &holder, index, &stash, thr);
   mem_heap_free(cascade_heap);

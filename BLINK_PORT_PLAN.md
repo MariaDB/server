@@ -689,7 +689,17 @@ blink_split_sec_max_trx_id
 
 The insert-by-modify and pessimistic-update tests exposed two synchronous-SMO self-deadlocks. The fix added an `X(index)`-serialized, single-MTR B-link split and parent cascade, B-link TREE descent under an already-held index latch, and a direct incomplete-flag clear that does not relatch the split sibling. `Innodb_blink_sync_x_splits` records entry into this fallback path.
 
-Batch 1 and the existing B-link regression set pass together (17 tests). The next migration batches are deterministic visibility windows, internal retry/KILL scenarios, allocator lifecycle races, and crash recovery.
+Deterministic Batch 2 was migrated on 2026-09-10:
+
+```text
+blink_cascade_visibility
+blink_cascade_nodeptr_stability
+blink_backward_scan
+```
+
+The visibility tests exercise committed leaf-split publication before parent installation and separator ownership across a forced right-page reorganization. The backward-scan test exposed unguarded structural high-key child reads in rightmost descent and range cardinality estimation; these paths now step to the preceding real node pointer instead of following `FIL_NULL`. Debug validation also now treats structural high keys as node-pointer-shaped records during page reorganization and free-list reuse.
+
+Batch 2 and the existing B-link regression set pass together in the Debug build (20 tests). The next migration batches are internal retry/KILL scenarios, allocator lifecycle races, and crash recovery.
 
 ## Phase 16: Functional workload
 

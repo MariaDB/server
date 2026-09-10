@@ -463,8 +463,7 @@ page_copy_rec_list_end_no_locks(
 		return DB_CORRUPTION;
 	}
 
-	const ulint n_core = page_is_leaf(block->page.frame)
-		? index->n_core_fields : 0;
+	const bool leaf = page_is_leaf(block->page.frame);
 
 	dberr_t err = DB_SUCCESS;
 	page_cur_set_before_first(new_block, &cur2);
@@ -473,6 +472,9 @@ page_copy_rec_list_end_no_locks(
 
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	ins_rec;
+		const ulint n_core = leaf &&
+			(!page_is_comp(block->page.frame) ||
+			 !rec_get_node_ptr_flag(cur1.rec)) ? index->n_core_fields : 0;
 		offsets = rec_get_offsets(cur1.rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(&cur2, cur1.rec, offsets,

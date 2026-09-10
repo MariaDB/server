@@ -36,6 +36,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "que0que.h"
 #include "page0blink.h"
 #include "debug_sync.h"
+#include "scope.h"
 #ifdef WITH_WSREP
 # include <mysql/service_wsrep.h>
 #endif
@@ -1736,7 +1737,8 @@ dict_stats_scan_page(
 	const bool	should_count_external_pages = n_external_pages != NULL;
 	const auto get_next_user= [=](const rec_t *record) {
 		const rec_t *next= get_next(page, record);
-		return rec_is_high_key(page, next, index)
+		return next && (rec_is_high_key(page, next, index) ||
+				(page_is_leaf(page) && rec_get_node_ptr_flag(next)))
 			? get_next(page, next) : next;
 	};
 
@@ -1806,7 +1808,7 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
-		next_rec = get_next(page, next_rec);
+		next_rec = get_next_user(next_rec);
 	}
 
 	/* offsets1,offsets2 should have been big enough */

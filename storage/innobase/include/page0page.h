@@ -371,7 +371,7 @@ page_rec_is_leaf(const page_t* rec)
 	bool leaf = page_is_leaf(page);
 	ut_ad(!page_rec_is_comp(rec)
 	      || !page_rec_is_user_rec_low(ulint(rec - page))
-	      || leaf == !rec_get_node_ptr_flag(rec));
+	      || leaf || rec_get_node_ptr_flag(rec));
 	return leaf;
 }
 

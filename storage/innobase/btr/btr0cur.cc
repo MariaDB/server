@@ -1558,8 +1558,26 @@ release_tree:
     }
   }
 
+  if (use_blink_path(index()) &&
+      rec_is_high_key(block->page.frame, page_cur.rec, index())) {
+    if (!page_cur_move_to_prev(&page_cur))
+      goto corrupted;
+    offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+  }
+
   /* Go to the child node */
-  page_id.set_page_no(btr_node_ptr_get_child_page_no(page_cur.rec, offsets));
+  uint32_t child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+  if (use_blink_path(index()) && child_page == FIL_NULL) {
+    if (!page_cur_move_to_prev(&page_cur))
+      goto corrupted;
+    offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+    child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+    if (child_page == FIL_NULL)
+      goto corrupted;
+  }
+  page_id.set_page_no(child_page);
 
   if (!--height)
   {
@@ -1599,8 +1617,17 @@ release_tree:
             goto corrupted;
           offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0,
                                    ULINT_UNDEFINED, &heap);
-          page_id.set_page_no(btr_node_ptr_get_child_page_no(page_cur.rec,
-                                                             offsets));
+          child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+          if (use_blink_path(index()) && child_page == FIL_NULL) {
+            if (!page_cur_move_to_prev(&page_cur))
+              goto corrupted;
+            offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0,
+                                     ULINT_UNDEFINED, &heap);
+            child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+            if (child_page == FIL_NULL)
+              goto corrupted;
+          }
+          page_id.set_page_no(child_page);
         }
       }
       rw_latch= rw_lock_type_t(latch_mode & (RW_X_LATCH | RW_S_LATCH));
@@ -1729,10 +1756,24 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
 
   page_id_t page_id{block->page.id()};
 
+  if (use_blink_path(index()) &&
+      rec_is_high_key(block->page.frame, page_cur.rec, index()) &&
+      !page_cur_move_to_prev(&page_cur))
+    goto corrupted;
   offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0, ULINT_UNDEFINED,
                            &heap);
   /* Go to the child node */
-  page_id.set_page_no(btr_node_ptr_get_child_page_no(page_cur.rec, offsets));
+  uint32_t child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+  if (use_blink_path(index()) && child_page == FIL_NULL) {
+    if (!page_cur_move_to_prev(&page_cur))
+      goto corrupted;
+    offsets= rec_get_offsets(page_cur.rec, index(), offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+    child_page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+    if (child_page == FIL_NULL)
+      goto corrupted;
+  }
+  page_id.set_page_no(child_page);
 
   block=
     buf_page_get_gen(page_id, block->zip_size(), RW_X_LATCH, nullptr, BUF_GET,
@@ -1909,8 +1950,18 @@ search_loop:
   offsets = rec_get_offsets(cursor->page_cur.rec, index, offsets, 0,
                             ULINT_UNDEFINED, &heap);
   /* Go to the child node */
-  page_id.set_page_no(btr_node_ptr_get_child_page_no(cursor->page_cur.rec,
-                                                     offsets));
+  uint32_t child_page=
+    btr_node_ptr_get_child_page_no(cursor->page_cur.rec, offsets);
+  if (use_blink_path(index) && child_page == FIL_NULL) {
+    if (!page_cur_move_to_prev(&cursor->page_cur))
+      goto corrupted;
+    offsets= rec_get_offsets(cursor->page_cur.rec, index, offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+    child_page= btr_node_ptr_get_child_page_no(cursor->page_cur.rec, offsets);
+    if (child_page == FIL_NULL)
+      goto corrupted;
+  }
+  page_id.set_page_no(child_page);
   block= nullptr;
   goto search_loop;
 }
@@ -2084,6 +2135,15 @@ index_locked:
     offsets= rec_get_offsets(page_cur.rec, index, offsets, 0, ULINT_UNDEFINED,
                              &heap);
     page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+    if (use_blink_path(index) && page == FIL_NULL) {
+      if (!page_cur_move_to_prev(&page_cur))
+        goto corrupted;
+      offsets= rec_get_offsets(page_cur.rec, index, offsets, 0,
+                               ULINT_UNDEFINED, &heap);
+      page= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+      if (page == FIL_NULL)
+        goto corrupted;
+    }
 
     ut_ad(latch_mode != BTR_MODIFY_TREE || upper_rw_latch == RW_X_LATCH);
 
@@ -5066,7 +5126,15 @@ public:
                               heap);
 
     /* Go to the child node */
-    m_page_id.set_page_no(btr_node_ptr_get_child_page_no(node_ptr, *offsets));
+    uint32_t child_page= btr_node_ptr_get_child_page_no(node_ptr, *offsets);
+    if (use_blink_path(index()) && child_page == FIL_NULL &&
+        page_cur_move_to_prev(&m_page_cur)) {
+      node_ptr= page_cur_get_rec(&m_page_cur);
+      *offsets= rec_get_offsets(node_ptr, index(), *offsets, 0,
+                                ULINT_UNDEFINED, heap);
+      child_page= btr_node_ptr_get_child_page_no(node_ptr, *offsets);
+    }
+    m_page_id.set_page_no(child_page);
   }
 
   /** @return true if left border should be counted */

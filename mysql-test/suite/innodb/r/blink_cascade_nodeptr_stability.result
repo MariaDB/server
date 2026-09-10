@@ -1,0 +1,54 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+id VARBINARY(2500) NOT NULL PRIMARY KEY,
+b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT COUNT(*),SUM(b) FROM t;
+COUNT(*)	SUM(b)
+12	780
+connect con1,localhost,root,,test;
+connect con2,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC='blink_after_leaf_split SIGNAL split_published WAIT_FOR resume EXECUTE 1';
+INSERT INTO t
+WITH RECURSIVE cte(n) AS
+(SELECT 13 UNION ALL SELECT n + 1 FROM cte WHERE n < 42)
+SELECT LPAD(CAST(n AS CHAR),2500,'0'),n * 10 FROM cte;
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR split_published TIMEOUT 10';
+SELECT COUNT(*),SUM(b) FROM t;
+COUNT(*)	SUM(b)
+12	780
+INSERT INTO t VALUES (LPAD(CAST(100 AS CHAR),2500,'0'),1000);
+SET DEBUG_DBUG='+d,do_page_reorganize';
+INSERT INTO t VALUES (LPAD(CAST(101 AS CHAR),2500,'0'),1010);
+SET DEBUG_DBUG='-d,do_page_reorganize';
+SELECT COUNT(*),SUM(b) FROM t;
+COUNT(*)	SUM(b)
+14	2790
+SET DEBUG_SYNC='now SIGNAL resume';
+connection con1;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC='RESET';
+connection con2;
+disconnect con2;
+connection default;
+SELECT COUNT(*),SUM(b),MIN(b),MAX(b) FROM t;
+COUNT(*)	SUM(b)	MIN(b)	MAX(b)
+44	11040	10	1010
+SELECT b FROM t WHERE id IN (LPAD(CAST(13 AS CHAR),2500,'0'),
+LPAD(CAST(42 AS CHAR),2500,'0'),
+LPAD(CAST(100 AS CHAR),2500,'0'),
+LPAD(CAST(101 AS CHAR),2500,'0')) ORDER BY b;
+b
+130
+420
+1000
+1010
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

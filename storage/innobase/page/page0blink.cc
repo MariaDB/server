@@ -131,19 +131,19 @@ bool blink_write_high_key_record(buf_block_t *block, const dtuple_t *key,
 
   cursor.index= index;
   dtuple_t *tuple= blink_make_high_key_record(index, key, heap);
-  mtr->write<2>(*block,
-                block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
+  mtr->write<2,mtr_t::MAYBE_NOP>(
+    *block, block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
   rec_offs *offsets= nullptr;
   rec_t *inserted= page_cur_tuple_insert(
     &cursor, tuple, &offsets, &heap, 0, mtr);
   if (!inserted && btr_page_reorganize(&cursor, mtr) == DB_SUCCESS) {
-    mtr->write<2>(*block,
-                  block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
+    mtr->write<2,mtr_t::MAYBE_NOP>(
+      *block, block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
     inserted= page_cur_tuple_insert(&cursor, tuple, &offsets, &heap, 0, mtr);
   }
   if (inserted)
-    mtr->write<2>(*block,
-                  block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
+    mtr->write<2,mtr_t::MAYBE_NOP>(
+      *block, block->page.frame + PAGE_HEADER + PAGE_LAST_INSERT, 0U);
   page_set_split_direction(block, direction, mtr);
   const bool success= inserted && rec_is_high_key_structural(
     block->page.frame, inserted, index);

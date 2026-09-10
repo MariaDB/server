@@ -40,6 +40,8 @@ Smart ALTER TABLE
 #include "dict0dict.h"
 #include "dict0load.h"
 #include "dict0stats.h"
+#include "fts0plugin.h"
+#include "fts0types.h"
 #include "log0log.h"
 #include "rem0types.h"
 #include "row0log.h"

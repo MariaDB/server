@@ -1416,7 +1416,8 @@ inline void mtr_t::page_insert(const buf_block_t &block, bool reuse,
     ut_ad(0);
     break;
   case REC_STATUS_NODE_PTR:
-    ut_ad(!page_is_leaf(block.page.frame));
+    ut_ad(!page_is_leaf(block.page.frame) ||
+          mach_read_from_4(block.page.frame + FIL_PAGE_NEXT) != FIL_NULL);
     break;
   case REC_STATUS_INSTANT:
   case REC_STATUS_ORDINARY:
@@ -1570,10 +1571,11 @@ page_cur_insert_rec_low(
 
     rec_offs_init(foffsets_);
 
-    rec_offs *foffsets= rec_get_offsets(free_rec, index, foffsets_,
-                                        page_is_leaf(block->page.frame)
-                                        ? index->n_core_fields : 0,
-                                        ULINT_UNDEFINED, &heap);
+    rec_offs *foffsets= rec_get_offsets(
+      free_rec, index, foffsets_,
+      page_is_leaf(block->page.frame) &&
+      (!comp || !rec_get_node_ptr_flag(free_rec)) ? index->n_core_fields : 0,
+      ULINT_UNDEFINED, &heap);
     const ulint fextra_size= rec_offs_extra_size(foffsets);
     insert_buf= free_rec - fextra_size;
     const bool too_small= (fextra_size + rec_offs_data_size(foffsets)) <
@@ -1627,7 +1629,7 @@ use_heap:
   byte *page_last_insert= my_assume_aligned<2>(PAGE_LAST_INSERT + PAGE_HEADER +
                                                block->page.frame);
   const uint16_t last_insert= mach_read_from_2(page_last_insert);
-  ut_ad(!last_insert || !comp ||
+  ut_ad(!last_insert || !comp || page_is_leaf(block->page.frame) ||
         rec_get_node_ptr_flag(block->page.frame + last_insert) ==
         rec_get_node_ptr_flag(rec));
 
@@ -1697,7 +1699,9 @@ inc_dir:
     }
     switch (rec_get_status(rec)) {
     case REC_STATUS_NODE_PTR:
-      ut_ad(!page_is_leaf(block->page.frame));
+      ut_ad(!page_is_leaf(block->page.frame) ||
+            ((index->type & DICT_BLINK) && page_rec_is_supremum(next_rec) &&
+             mach_read_from_4(block->page.frame + FIL_PAGE_NEXT) != FIL_NULL));
       break;
     case REC_STATUS_INSTANT:
       ut_ad(index->is_instant());
@@ -1860,7 +1864,9 @@ copied:
   }
 
   rec_offs_make_valid(insert_buf + extra_size, index,
-                      page_is_leaf(block->page.frame), offsets);
+                      page_is_leaf(block->page.frame) &&
+                      (!comp || (info_status & REC_NEW_STATUS_MASK) !=
+                                REC_STATUS_NODE_PTR), offsets);
   return insert_buf + extra_size;
 }
 
