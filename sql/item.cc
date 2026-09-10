@@ -2393,8 +2393,23 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     If this is an item_ref, get the original item
     This is a safety measure if this is called for things that is
     already a reference.
+
+    Item_direct_view_ref is an exception: the item it refers to is shared
+    between all the references to the same column of a merged derived table
+    or view, including the references that are left in the WHERE/ON
+    conditions of the query. Putting that shared item into the list of the
+    temporary table fields would set its result_field to a field of the
+    temporary table, and Item_field::save_in_field() reads the value from
+    result_field. As a result, a condition that refers to the same view
+    column would read the value from the (not yet filled) temporary table
+    when it is evaluated at execution time, e.g. by the range optimizer
+    doing "Range checked for each record" (MDEV-39868).
+    Keep the Item_direct_view_ref wrapper in this case: the wrapper itself
+    is not shared, so the temporary table field is attached to it only.
   */
-  Item *real_itm= real_item();
+  Item *real_itm= (type() == REF_ITEM &&
+                   ((Item_ref *) this)->ref_type() == Item_ref::VIEW_REF) ?
+                  this : real_item();
   ref_pointer_array[el]= real_itm;
   if (type() == WINDOW_FUNC_ITEM)
   {
