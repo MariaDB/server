@@ -224,7 +224,8 @@ class Table_access_tracker
 {
 public:
   Table_access_tracker() : r_scans(0), r_rows(0), r_rows_after_where(0),
-    r_rows_per_worker(NULL), n_workers(0),
+    r_rows_per_worker(NULL), r_engine_time_per_worker(NULL),
+    r_pages_read_time_per_worker(NULL), n_workers(0),
     r_chunks_created(0), r_chunks_resplit(0)
   {}
 
@@ -241,6 +242,28 @@ public:
     engine's chunks divided the work.
   */
   ha_rows *r_rows_per_worker;
+
+  /*
+    r_engine_time_per_worker is long each worker was busy in the engine.
+      This includes time spent waiting for IO, measured by...
+    r_pages_read_time_per_worker, time spent waiting for pages to arrive
+      timer_tracker_frequency() units,  NULL or engine implemented
+
+    The row counts say how much work each worker was given, these say what that
+    work cost it, and the gap between the two identifies which of the two a
+    straggler suffered from: a worker with its share of the rows and an
+    outsized read time was blocked, one with few rows and little time simply
+    ran out of chunks to take. Reading is where a scan waits -- a parallel scan
+    takes no row locks, the engine declines it if the read is a locking one --
+    so page read time is the wait worth attributing per worker.
+
+    Both are undercounts where the pre-fetcher did its job: a page someone else
+    fetched costs the worker that reads it nothing here, which is the point of
+    prefetching but does mean a low read time is not proof that nobody waited.
+  */
+  ulonglong *r_engine_time_per_worker;
+  ulonglong *r_pages_read_time_per_worker;
+
   uint     n_workers;
 
   /*

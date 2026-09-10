@@ -2006,6 +2006,56 @@ static void print_r_icp_filtered(handler *file, Json_writer *writer)
   writer->add_member("r_icp_filtered").add_double(r_icp_filtered * 100);
 }
 
+/*
+  Print one per-worker array of engine timings, converted from
+  timer_tracker_frequency() units to milliseconds the way the summed
+  r_engine_stats figures are. Nothing is printed if the engine recorded no
+  time at all, so a plan whose scan never touched the disk does not carry an
+  array of zeroes.
+*/
+
+static void print_per_worker_time(Json_writer *writer, const char *name,
+                                  const ulonglong *times, uint n_workers)
+{
+  if (!times)
+    return;
+  bool any= false;
+  for (uint i= 0; i < n_workers && !any; i++)
+    any= times[i] != 0;
+  if (!any)
+    return;
+
+  writer->add_member(name).start_array();
+  for (uint i= 0; i < n_workers; i++)
+    writer->add_double(times[i] * 1000. / timer_tracker_frequency());
+  writer->end_array();
+}
+
+
+static void print_peak_to_average_ratio(Json_writer *writer,
+                                        const ulonglong *times, uint n_workers)
+{
+  if (!times || !n_workers)
+    return;
+  bool any= false;
+  for (uint i= 0; i < n_workers && !any; i++)
+    any= times[i] != 0;
+  if (!any)
+    return;
+
+  double max= 0, sum= 0;
+
+  for (uint i= 0; i < n_workers; i++)
+  {
+    if (times[i] > max)
+      max= times[i];
+    sum+= times[i];
+  }
+  writer->add_member("r_peak_to_average_ratio");
+  writer->add_double(max * n_workers / sum);
+}
+
+
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
@@ -2223,7 +2273,23 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       writer->end_array();
     }
     /*
-      And what the engine cut the scan into, which the per-worker counts above
+      What that work cost each worker inside the engine, and how much of it was
+      waiting for a page to be read. Printed beside the row counts because the
+      pair is what makes a straggler readable: rows without time is a worker
+      that was given more to do, time without rows is one that was blocked.
+      Suppressed when the engine kept no timings, which is the usual case for
+      an all-in-memory scan.
+    */
+    print_per_worker_time(writer, "r_engine_time_per_worker_ms",
+                          tracker.r_engine_time_per_worker,
+                          tracker.n_workers);
+    print_peak_to_average_ratio(writer, tracker.r_engine_time_per_worker,
+                                tracker.n_workers);
+    print_per_worker_time(writer, "r_pages_read_time_per_worker_ms",
+                          tracker.r_pages_read_time_per_worker,
+                          tracker.n_workers);
+    /*
+      What the engine cut the scan into, which the per-worker counts above
       cannot say on their own: they are the cut and the order the chunks were
       handed out, together. chunks is every chunk the engine produced, the
       finer ones a re-split made included; chunks_resplit is how many were
