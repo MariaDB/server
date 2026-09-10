@@ -18,6 +18,25 @@ FUNCTION (EXTRACT_REPO_NAME_AND_USER repo_url repo_name_var repo_user_var)
   SET(${repo_user_var} ${repo_user} PARENT_SCOPE)
 ENDFUNCTION()
 
+# Extract a valid RFC 5322 email address out of CPACK_PACKAGE_CONTACT.
+# CPACK_PACKAGE_CONTACT is normally in the "Display Name <email@domain>" form,
+# but a bare "email@domain" is also accepted. FATAL_ERROR if no valid email
+# can be found, since the SBOM schema requires the author's email to be a
+# real address.
+FUNCTION(SBOM_GET_CONTACT_EMAIL varname)
+  SET(email_regex "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]+$")
+  STRING(REGEX MATCH "<([^>]+)>" bracketed "${CPACK_PACKAGE_CONTACT}")
+  IF(bracketed)
+    SET(email "${CMAKE_MATCH_1}")
+  ELSE()
+    SET(email "${CPACK_PACKAGE_CONTACT}")
+  ENDIF()
+  IF(NOT email MATCHES "${email_regex}")
+    MESSAGE(FATAL_ERROR "CPACK_PACKAGE_CONTACT ('${CPACK_PACKAGE_CONTACT}') does not contain a valid email address")
+  ENDIF()
+  SET(${varname} "${email}" PARENT_SCOPE)
+ENDFUNCTION()
+
 # Add a known 3rd party dependency for SBOM generation
 # Currently used for "vendored" (part of our repository) source code we know about
 # such as zlib, as well ExternalProject_Add() projects
@@ -314,5 +333,6 @@ FUNCTION(GENERATE_SBOM)
     SET(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
   ENDIF()
   STRING(TIMESTAMP CURRENT_YEAR "%Y")
+  SBOM_GET_CONTACT_EMAIL(SBOM_AUTHOR_EMAIL)
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/sbom.json.in ${CMAKE_BINARY_DIR}/sbom.json)
 ENDFUNCTION()
