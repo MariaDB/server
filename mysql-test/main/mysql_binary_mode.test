@@ -41,7 +41,7 @@ eval DROP TABLE `$table_name_right`;
 
 --echo
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/my.sql
+--exec $MYSQL_BINLOG --query-events-as-sql $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/my.sql
 RESET MASTER;
 
 --echo # '--exec mysql ...' without --binary-mode option
@@ -109,7 +109,7 @@ FLUSH LOGS;
 --copy_file $MYSQLD_DATADIR/$binlog_file $binlog_uuid_filename
 RESET MASTER;
 
---exec $MYSQL_BINLOG $binlog_uuid_filename  | $MYSQL
+--exec $MYSQL_BINLOG --query-events-as-sql $binlog_uuid_filename  | $MYSQL
 
 --let $table_name=`SELECT table_name FROM information_schema.tables WHERE table_schema='test'`
 --let $tbl1= `SELECT hex(table_name) FROM information_schema.tables WHERE table_schema='test'`
@@ -121,7 +121,7 @@ RESET MASTER;
 #### Replay through regular mysql client non-interactive mode and with binary mode set
 
 RESET MASTER;
---exec $MYSQL_BINLOG $binlog_uuid_filename  | $MYSQL --binary-mode
+--exec $MYSQL_BINLOG --query-events-as-sql $binlog_uuid_filename  | $MYSQL --binary-mode
 
 --let $table_name=`SELECT table_name FROM information_schema.tables WHERE table_schema='test'`
 --let $tbl2= `SELECT hex(table_name) FROM information_schema.tables WHERE table_schema='test'`

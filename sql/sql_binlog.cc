@@ -58,6 +58,7 @@ static int check_event_type(int type, Relay_log_info *rli)
   case START_EVENT_V3:
   case FORMAT_DESCRIPTION_EVENT:
   case QUERY_EVENT:
+  case QUERY_COMPRESSED_EVENT:
   case TABLE_MAP_EVENT:
   case WRITE_ROWS_EVENT_V1:
   case UPDATE_ROWS_EVENT_V1:
@@ -158,19 +159,17 @@ int binlog_defragment(THD *thd)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
 {
-  if (ev->get_type_code() != QUERY_EVENT)
+  if (!LOG_EVENT_IS_QUERY(ev->get_type_code()))
     return ev->apply_event(rgi);
 
   THD *thd= rgi->thd;
   Relay_log_info *rli= thd->rli_fake;
-  DBUG_ASSERT(!rli->mi);
-  LEX_CSTRING connection_name= { STRING_WITH_LEN("BINLOG_BASE64_EVENT") };
-
-  if (!(rli->mi= new Master_info(&connection_name, false)))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return -1;
-  }
+  /*
+    The Master_info is created once per connection together with rli_fake (see
+    mysql_client_binlog_statement()) and persists for the session, so unlike
+    before we neither create nor delete it here.
+  */
+  DBUG_ASSERT(rli->mi);
 
   sql_digest_state *m_digest= thd->m_digest;
   PSI_statement_locker *m_statement_psi= thd->m_statement_psi;;
@@ -189,8 +188,6 @@ int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
   thd->m_statement_psi= m_statement_psi;
   thd->variables.pseudo_thread_id= m_thread_id;
   thd->reset_db(&save_db);
-  delete rli->mi;
-  rli->mi= NULL;
 
   return err;
 }
@@ -234,28 +231,61 @@ void mysql_client_binlog_statement(THD* thd)
 
   int err;
   Relay_log_info *rli;
-  rpl_group_info *rgi;
+  rpl_group_info *rgi= thd->rgi_fake;
   uchar *buf= NULL;
   size_t coded_len= 0, decoded_len= 0;
+  const char *error= 0;
+  Log_event *ev= 0;
+  my_bool is_fragmented= FALSE;
 
   rli= thd->rli_fake;
-  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
-    rli->sql_driver_thd= thd;
-  if (!(rgi= thd->rgi_fake))
-    rgi= thd->rgi_fake= new rpl_group_info(rli);
-  rgi->thd= thd;
-  const char *error= 0;
-  Log_event *ev = 0;
-  my_bool is_fragmented= FALSE;
-  my_bool keep_rgi= false;
-  /*
-    Out of memory check
-  */
-  if (!(rli))
+  if (!rli)
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);  /* needed 1 bytes */
-    goto end;
+    /*
+      Create a session-scoped Master_info whose embedded Relay_log_info serves
+      as rli_fake for this connection. Having a stable Master_info/Relay_log_info
+      pair for the lifetime of the connection means Query_log_events replayed via
+      BINLOG statements get a valid execution context without recreating a
+      throwaway Master_info for every event (see save_restore_context_apply_event).
+
+      Note: it is intentionally NOT registered in master_info_index; surfacing
+      replay connections in SHOW SLAVE STATUS is left as future work.
+    */
+    LEX_CSTRING connection_name= { STRING_WITH_LEN("BINLOG_BASE64_EVENT") };
+    /*
+      Name the embedded Relay_log_info "BINLOG_BASE64_EVENT" (rather than the
+      default "SQL") so replay error messages keep their historical identity.
+    */
+    Master_info *mi= new Master_info(&connection_name, false,
+                                     "BINLOG_BASE64_EVENT");
+    if (!mi || mi->error())
+    {
+      delete mi;
+      my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);  /* needed 1 bytes */
+      goto end;
+    }
+    mi->rli.mi= mi;
+    mi->rli.sql_driver_thd= thd;
+    thd->mi_fake= mi;
+    thd->rli_fake= rli= &mi->rli;
   }
+
+  /*
+    The rpl_group_info is created once per connection and persists across
+    BINLOG statements (it is freed in THD::free_connection). Keeping it alive
+    preserves cross-event context (table maps, deferred events, partial-row
+    assembly) between consecutive BINLOG statements, matching the slave SQL
+    thread which keeps a single rgi for the lifetime of the thread.
+  */
+  if (!rgi)
+  {
+    if (!(rgi= thd->rgi_fake= new rpl_group_info(rli)))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+      goto end;
+    }
+  }
+  rgi->thd= thd;
 
   DBUG_ASSERT(rli->belongs_to_client());
 
@@ -412,16 +442,6 @@ void mysql_client_binlog_statement(THD* thd)
         */
         LEX *backup_lex;
 
-        /*
-          If we are re-assembling a Rows_log_event from a group of
-          Partial_rows_log_events, the rgi houses the assembler, so we need
-          it around while we are re-constructing the event.
-        */
-        if (ev->get_type_code() == PARTIAL_ROW_DATA_EVENT &&
-            (((Partial_rows_log_event *) ev)->seq_no <
-             ((Partial_rows_log_event *) ev)->total_fragments))
-          keep_rgi= true;
-
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
         thd->restore_current_lex(backup_lex);
@@ -462,13 +482,19 @@ end:
   if (unlikely(is_fragmented))
     my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
-  rgi->slave_close_thread_tables(thd);
+  /*
+    Close the tables and drop the rgi's table-map / tables_to_lock context at
+    the end of a BINLOG statement only when we are NOT inside an explicit
+    transaction. Within a transaction the rgi must persist across BINLOG
+    statements (so tables opened by one event group stay usable by the next),
+    and cleanup happens when the transaction-ending COMMIT -- which mysqlbinlog
+    now emits as plain SQL -- runs through dispatch_command(). For autocommit
+    BINLOG statements there is no such COMMIT, and dispatch_command() closes
+    thd tables but does not clear the rgi table maps, so we must do it here;
+    otherwise a stale table id would clash with a later Table_map (MDEV-37602).
+  */
+  if (rgi && !thd->in_active_multi_stmt_transaction())
+    rgi->slave_close_thread_tables(thd);
   my_free(buf);
-
-  if (!keep_rgi)
-  {
-    delete rgi;
-    rgi= thd->rgi_fake= NULL;
-  }
   DBUG_VOID_RETURN;
 }
