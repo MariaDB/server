@@ -762,7 +762,7 @@ dberr_t Parallel_coordinator::Scan_ctx::partition(
 
   /* Stamp the scan's own upper bound onto the last chunk. Whether the bound
   itself belongs to the scan travels separately, on the Exec_ctx built from
-  this range, and reaches the clamp via set_pscan_end_tuple(). */
+  this range, and reaches the clamp via pscan_chunk_clamp.reset_to(). */
   if (err == DB_SUCCESS && scan_range.m_end != nullptr && !ranges.empty()) {
     auto &iter = ranges.back().second;
 
