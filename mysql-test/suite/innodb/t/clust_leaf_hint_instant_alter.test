@@ -1,0 +1,163 @@
+#
+# MDEV-32286 ANALYZE displays a huge number of InnoDB secondary index pages_accessed
+#
+# A clustered leaf hint holds the dict_index_t::n_core_fields that its key
+# copies were made with, because that value is what the copies and their
+# offsets can be interpreted with. dict_index_t::clear_instant_alter() raises
+# it under a reader that holds no more than a shared metadata lock, and
+# row_sel_clust_leaf_hint_covers() rejects every slot that such a change has
+# outlived. The case below is the shape that reaches that rejection, and these
+# are the constraints that leave no other:
+#
+# - The clear needs the clustered index to lose the last user record of its
+#   root page, so the tree must be one page by then, while a slot is only
+#   filled from a leaf that is not the root. The tree therefore has to shrink
+#   between the two, which purge does here.
+# - The rows that the reader can see must be rows that something may remove
+#   while its statement runs. Purge may remove only what was delete-marked and
+#   committed before the read view of the reader, and a row in that state is
+#   one that no isolation level shows it. A locking read would wait for the
+#   inserting transaction rather than read it. That leaves uncommitted inserts
+#   read at READ UNCOMMITTED and taken away by a rollback.
+# - The reader must look up one more row after the clear, so a row has to
+#   arrive after it, above the key that the reader is stopped at.
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+# The note below is read from the error log, and an embedded server writes its
+# stderr to the log of mariadb-test instead of that file.
+--source include/not_embedded.inc
+
+# The hints are collected and tested only while the adaptive hash index is
+# off, so a run with it on would reach none of this. Kept out of the .result,
+# so that a build without the adaptive hash index records the same result.
+--disable_query_log
+let $adaptive_hash_index= `select count(*) from information_schema.global_variables
+                           where variable_name = 'innodb_adaptive_hash_index'`;
+if ($adaptive_hash_index)
+{
+  set @save_adaptive_hash_index= @@global.innodb_adaptive_hash_index;
+  set global innodb_adaptive_hash_index= 0;
+}
+--enable_query_log
+
+create table t1 (
+  pk int not null primary key,
+  domain_grp int,
+  val text,
+  key domain_idx(domain_grp)
+) engine=innodb row_format=dynamic stats_persistent=0;
+
+# Filler rows, enough of them that the clustered index has more than one leaf
+# at every page size: what a lookup lands on is then not the root, and can be
+# remembered. Where the value is stored off page, which is every page size
+# below 16k, the count and not the width is what gives the tree its leaves.
+insert into t1 select seq, 9, repeat('f', 4000) from seq_1_to_500;
+
+# The instant ADD COLUMN needs a non-empty table. On an empty one it is
+# carried out by emptying the root page, which leaves n_core_fields at
+# n_fields and nothing for the clear to change.
+alter table t1 add column extra int, algorithm=instant;
+
+connect (prevent_purge,localhost,root);
+start transaction with consistent snapshot;
+
+connection default;
+# Delete-marked here, and committed before the reader opens its read view, so
+# that purge may remove these rows while the reader is stopped. Until
+# prevent_purge commits it may not, which is what keeps the tree tall enough
+# for the reader to fill a slot.
+delete from t1 where domain_grp=9;
+
+connect (ins,localhost,root);
+begin;
+# Consecutive keys above every filler key, and narrow, so that all of them
+# share one leaf. The lookups of the reader then answer each other from the
+# first slot, and the miss counter stays below CLUST_LEAF_HINT_MAX_MISSES,
+# which a scan that gives up would exceed.
+insert into t1 (pk, domain_grp, val) select 1000000+seq, 1, 'v' from seq_1_to_8;
+
+connection default;
+delimiter |;
+create function hold(x int) returns int
+begin
+  if x = 1000008 then
+    set debug_sync= 'now SIGNAL reader_paused';
+    set debug_sync= 'now WAIT_FOR reader_go';
+  end if;
+  return 1;
+end|
+delimiter ;|
+
+connect (reader,localhost,root);
+# READ UNCOMMITTED is what lets the reader see the uncommitted rows above.
+set session transaction isolation level read uncommitted;
+# Without this the condition would be evaluated inside the engine, before the
+# clustered lookup of the row it stops on rather than after it.
+set session optimizer_switch='index_condition_pushdown=off';
+# The rejection leaves no trace that a query can read, so the note that this
+# writes to the error log is what says the case still covers it.
+set session debug_dbug='+d,ib_log_stale_clust_leaf_hint';
+# val is outside domain_idx, so every row costs a clustered lookup, and its
+# type keeps row_prebuilt_t::templ_contains_blob set, which turns the prefetch
+# cache off: with it on, one fetch reads ahead past the row that hold() stops
+# on.
+--send select pk, left(val,1) from t1 force index(domain_idx) where domain_grp=1 and hold(pk)
+
+connection default;
+set debug_sync='now WAIT_FOR reader_paused';
+# Eight lookups have been made and at least one slot is filled, all of them
+# with the n_core_fields that the instant ADD COLUMN left.
+
+connection prevent_purge;
+commit;
+
+connection default;
+# Purge now removes the filler rows, which collapses the clustered index onto
+# its root. The eight rows of the reader keep the root from losing its last
+# user record, so nothing is cleared yet.
+set global innodb_max_purge_lag_wait=0;
+let $wait_all_purged= 0;
+--source include/wait_all_purged.inc
+
+connection ins;
+# The last of these removals empties the root page, where
+# dict_index_t::clear_instant_alter() raises n_core_fields past the value that
+# every slot of the reader was filled with.
+rollback;
+
+connection default;
+# One row for the reader to look up after that change. Its key sorts above the
+# position the reader is stopped at, so the scan reaches it, and the lookup it
+# costs is the one that tests the slots.
+insert into t1 values (1000009, 1, 'w', null);
+
+set debug_sync='now SIGNAL reader_go';
+
+connection reader;
+--reap
+
+connection default;
+# One line per slot that the reader had filled, and it had filled one. The
+# counts are printed rather than named in the pattern, so that a case which
+# reaches the rejection with other ones, or in the other direction, is a
+# difference to look at and not a pass.
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = Clustered leaf hint outlived a change of n_core_fields from \d+ to \d+
+--let SEARCH_OUTPUT = matches
+--source include/search_pattern_in_file.inc
+
+disconnect reader;
+disconnect ins;
+disconnect prevent_purge;
+drop function hold;
+drop table t1;
+set debug_sync='reset';
+--disable_query_log
+if ($adaptive_hash_index)
+{
+  set global innodb_adaptive_hash_index= @save_adaptive_hash_index;
+}
+--enable_query_log
