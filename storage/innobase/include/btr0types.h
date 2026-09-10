@@ -34,6 +34,21 @@ struct btr_pcur_t;
 /** B-tree cursor */
 struct btr_cur_t;
 
+/** A user record that a search of a leaf page landed on, valid while the
+block holds the same page and its modify_clock has not moved */
+struct btr_leaf_step
+{
+  /** the block that held the leaf, or nullptr */
+  const buf_block_t *block;
+  /** buf_block_t::modify_clock of block when rec was found */
+  uint64_t modify_clock;
+  /** the record that the search landed on */
+  const rec_t *rec;
+  /** whether the search landed on or right after the record of the search
+  before it, which is when the next one is worth starting from rec */
+  bool expect;
+};
+
 /** The size of a reference to data stored on a different page.
 The reference is stored at the end of the prefix of the field
 in the index record. */
