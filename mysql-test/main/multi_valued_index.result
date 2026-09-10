@@ -76,10 +76,10 @@ select * from t1 where json_contains(j->'$.tags', '["1", 34567]');
 c	j
 2	{"tags": ["1", "abcde", "", 34567]}
 explain
-select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], ["1"]]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
-select * from t1 where json_contains(j->'$.tags', '[["34567"], "1"]');
+select * from t1 where json_contains(j->'$.tags', '[["34567"], ["1"]]');
 c	j
 5	{"tags": [[["1"], "34567"]]}
 select * from t1 where json_contains(j->'$.tags', '[[["34567"], "1"]');

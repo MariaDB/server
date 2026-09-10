@@ -92,12 +92,113 @@ class Mvi_context : public Sql_alloc
 enum json_value_types mvi_json_class(enum_field_types ftype);
 
 /*
-  Encode one JSON value into the form it has in the index. Returns true if
-  the value cannot be encoded for this index and has to be skipped.
+  A key is one fulltext token, so it cannot be longer than the maximum
+  token size the engine will index: 84 characters (HA_FT_MAXCHARLEN, which
+  is also the default and the maximum of innodb_ft_max_token_size). The key
+  is the hex of the key image, so that image is at most half of it.
+
+  TODO: innodb_ft_max_token_size can be set lower than its default, and
+  innodb_ft_min_token_size higher, and then the engine drops keys we
+  consider valid. Validate both against the index at DDL time.
+*/
+#define MVI_KEY_IMAGE_MAX_LEN 42
+#define MVI_ENCODED_KEY_MAX_LEN (MVI_KEY_IMAGE_MAX_LEN * 2)
+
+/*
+  Encode one JSON value into the form it has in the index, appending it to
+  `buf'. Returns true if the value cannot be encoded for this index and has
+  to be skipped, in which case nothing is appended.
   Shared with opt_mvi_jsonfuncs.cc.
 */
 bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf);
+
+/*
+  @brief
+    Walk a JSON array, encoding its elements for a multi-valued index of
+    the cast_th datatype.
+
+  @detail
+    Both sides of the index read the elements this way: MVI_ENCODE, which
+    turns them into the fulltext document of a row, and the optimizer,
+    which turns them into the keys to search that document for. They agree
+    on what the keys of a document are because this is where the keys are
+    made.
+
+    An element that is an array is walked too, so that the keys of a nested
+    array are the keys of its elements, with MVI_NESTED_START and
+    MVI_NESTED_END around them.
+
+    A key is appended to the `key' buffer the iterator was given. The
+    caller decides what that buffer is: MVI_ENCODE hands over the document
+    it is building, and gets the key encoded into it with nothing to copy
+    afterwards; the optimizer hands over a scratch buffer and empties it
+    between keys. An element that turns out to have no key leaves the
+    buffer as it was.
+
+    Usage:
+
+      Mvi_array_iterator it(je, cs, cast_th, &buf);
+      for (event= it.start(str, end); !mvi_walk_stopped(event);
+           event= it.next())
+      { ... }
+*/
+
+class Mvi_array_iterator
+{
+  json_engine_t * const m_je;
+  CHARSET_INFO * const m_cs;
+  const Type_handler * const m_cast_th;
+  String * const m_key;
+  int m_depth;                  /* The array we are in. 1 is the outer one */
+  /*
+    Same as m_depth except when closing an array - m_event_depth
+    remains inside the array while m_depth is outside
+  */
+  int m_event_depth;
+public:
+
+  /*
+    What an Mvi_array_iterator stopped at. Everything from MVI_WALK_END on
+    is the end of the walk.
+  */
+  enum Event
+  {
+    MVI_KEY,              /* An element is read and encoded */
+    MVI_NO_KEY,           /* An element that is not: an object, or one that
+                             cannot be encoded in the index datatype */
+    MVI_NESTED_START,     /* An element that is an array was opened */
+    MVI_NESTED_END,       /* ... and closed. depth() is its depth */
+
+    MVI_WALK_END,         /* The array was walked to its end */
+    MVI_WALK_NOT_ARRAY,   /* The document is not an array. *je holds the value */
+    MVI_WALK_BAD_FORMAT,  /* The document is not a JSON we can make sense of */
+    MVI_WALK_JSON_ERROR   /* Malformed JSON. The error is in je->s.error */
+  };
+
+  Mvi_array_iterator(json_engine_t *je, CHARSET_INFO *cs,
+                     const Type_handler *cast_th, String *key)
+   : m_je(je), m_cs(cs), m_cast_th(cast_th), m_key(key),
+     m_depth(0), m_event_depth(0) {}
+
+  /* Position on the first element of the array between `start' and `end' */
+  Event start(const uchar *start, const uchar *end);
+
+  /* Move on to the next element */
+  Event next();
+
+  /*
+    The depth of the array the last event is about: the one that was opened
+    or closed for MVI_NESTED_START / MVI_NESTED_END, the one the element
+    belongs to for MVI_KEY / MVI_NO_KEY.
+  */
+  int depth() const { return m_event_depth; }
+private:
+  Event read_and_encode_element();
+};
+
+inline bool mvi_walk_stopped(Mvi_array_iterator::Event event)
+{ return event >= Mvi_array_iterator::MVI_WALK_END; }
 
 /*
   Is `field' the internal column that holds the keys of a multi-valued index?

@@ -145,8 +145,9 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
     searches won't find any matches for it.
 
   @return
-    false   Encoded successfully
+    false   Encoded successfully, the key is appended to *buf
     true    The JSON value cannot be represented in the index datatype.
+            Nothing is appended.
 */
 
 bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
@@ -154,8 +155,7 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 {
   enum_field_types cast_ftype= cast_th->field_type();
   bool is_unsigned= cast_th->is_unsigned();
-  /* TODO: 42 hardcoded */
-  StringBuffer<42> sorted;
+  StringBuffer<MVI_KEY_IMAGE_MAX_LEN> sorted;
   /* Skip encoding on type incompatibility */
   if (mvi_json_class(cast_ftype) != je->value_type)
     return true;
@@ -193,8 +193,10 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
       {
         // TODO: Is this ever used outside of "SELECT MVI_ENCODE()" ?
         my_strnxfrm_ret_t rc=
-          cs->strnxfrm((uchar *) sorted.c_ptr(), /*buffer_size*/42,
-                       /*n_weights*/ 42, je->value, je->value_len, 0);
+          cs->strnxfrm((uchar *) sorted.c_ptr(),
+                       /*buffer_size*/ MVI_KEY_IMAGE_MAX_LEN,
+                       /*n_weights*/ MVI_KEY_IMAGE_MAX_LEN,
+                       je->value, je->value_len, 0);
         sorted.length(rc.m_result_length);
       }
       break;
@@ -218,78 +220,143 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 
 /*
   @brief
+    Read the element the scan is positioned on. See Mvi_array_iterator.
+
+    TODO: deduplicate, so that ["34567", "34567"] yield only one key
+*/
+
+Mvi_array_iterator::Event Mvi_array_iterator::read_and_encode_element()
+{
+  uint32 key_start;
+  if (json_read_value(m_je))
+    return MVI_WALK_JSON_ERROR;
+
+  if (m_je->value_type == JSON_VALUE_ARRAY)
+  {
+    DBUG_ASSERT(m_je->state == JST_ARRAY_START);
+    m_event_depth= ++m_depth;
+    return MVI_NESTED_START;
+  }
+  m_event_depth= m_depth;
+
+  if (m_je->value_type == JSON_VALUE_OBJECT)
+    return json_skip_level(m_je) ? MVI_WALK_JSON_ERROR : MVI_NO_KEY;
+
+  key_start= m_key->length();
+  if (encode_mvi_key(m_je, m_cast_th, m_cs, m_key))
+  {
+    m_key->length(key_start);   /* Leave the buffer as we found it */
+    return MVI_NO_KEY;
+  }
+  return MVI_KEY;
+}
+
+
+Mvi_array_iterator::Event Mvi_array_iterator::start(const uchar *start, const uchar *end)
+{
+  if (json_scan_start(m_je, m_cs, start, end) || json_read_value(m_je))
+    return MVI_WALK_JSON_ERROR;
+
+  if (m_je->value_type != JSON_VALUE_ARRAY)
+    return MVI_WALK_NOT_ARRAY;
+
+  /* The scan is on the JST_ARRAY_START of the array we are to walk */
+  DBUG_ASSERT(m_je->state == JST_ARRAY_START);
+  m_depth= m_event_depth= 1;
+  return next();
+}
+
+
+Mvi_array_iterator::Event Mvi_array_iterator::next()
+{
+  /* The scan ending before the array is closed is an error */
+  if (json_scan_next(m_je))
+    return MVI_WALK_JSON_ERROR;
+
+  switch (m_je->state)
+  {
+    case JST_ARRAY_END:
+      m_event_depth= m_depth--;
+      /* Trailing junk after the outer array is ignored */
+      return m_depth == 0 ? MVI_WALK_END : MVI_NESTED_END;
+    case JST_VALUE:
+      return read_and_encode_element();
+    default:
+      /*
+        A nested array is opened by read_and_encode_element() or
+        Mvi_array_iterator::start. The json_scan_next at the beginning
+        of this function would have updated any encountered
+        JST_ARRAY_START state to something else
+      */
+      DBUG_ASSERT(m_je->state != JST_ARRAY_START);
+      return MVI_WALK_BAD_FORMAT;
+  }
+}
+
+
+/*
+  @brief
     Parse the JSON array argument and return a string that will be fed to the
     fulltext index.
+
+  @detail
+    The keys are encoded straight into *buf, so there is nothing to copy.
+    A separator follows every one of them, including the last, which is
+    taken back off at the end: putting it in front of every key but the
+    first would leave one behind when an element turns out to have no key.
 */
 
 String *Item_func_mvi_encode::val_str_ascii(String *buf)
 {
   String *value= args[0]->val_json(&tmp_js);
+  Mvi_array_iterator::Event event;
+  DBUG_ASSERT(fixed());
   if ((null_value= !value))
     return nullptr;
-  CHARSET_INFO *cs= value->charset();
-  const Type_handler *cast_th= m_cast_type.type_handler();
-  bool at_least_one= false;
-  const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
-  const uchar *end= start + value->length();
-  int depth= 0;
-  DBUG_ASSERT(fixed());
   buf->length(0);
   buf->set_charset(&my_charset_latin1_bin);
 
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    goto json_error;
-
-  if (je.value_type != JSON_VALUE_ARRAY)
-    goto error_format;
-
-  /* TODO: deduplicate, so that ["34567", "34567"] yield only one token */
-  do {
-    switch (je.state)
+  Mvi_array_iterator it(&je, value->charset(), m_cast_type.type_handler(),
+                        buf);
+  for (event= it.start(reinterpret_cast<const uchar *>(value->ptr()),
+                       reinterpret_cast<const uchar *>(value->end()));
+       !mvi_walk_stopped(event);
+       event= it.next())
+  {
+    /*
+      The key is already in place, only the separator is left to add.
+      An append that fails is out of memory, and a document that
+      silently loses a key could result in false negatives, so give up
+      on the row instead.
+    */
+    if (event == Mvi_array_iterator::MVI_KEY &&
+        buf->append(' '))
     {
-      case JST_ARRAY_START:
-        depth++;
-        continue;
-      case JST_ARRAY_END:
-        if (--depth == 0)
-          goto array_done;
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          goto json_error;
-        if (je.value_type == JSON_VALUE_ARRAY)
-        {
-          depth++;
-          break;
-        }
-        if (je.value_type == JSON_VALUE_OBJECT)
-        {
-          if (json_skip_level(&je))
-            goto json_error;
-          break;
-        }
-        if (!encode_mvi_key(&je, cast_th, cs, buf))
-        {
-          buf->append(' ');
-          at_least_one= true;
-        }
-        break;
-      }
-      default:
-        goto error_format;
+      null_value= true;
+      return nullptr;
     }
-  } while (json_scan_next(&je) == 0);
-  goto json_error;
+  }
 
-array_done:
+  switch (event)
+  {
+    case Mvi_array_iterator::MVI_WALK_END:
+      break;
+    case Mvi_array_iterator::MVI_WALK_NOT_ARRAY:
+    case Mvi_array_iterator::MVI_WALK_BAD_FORMAT:
+      goto error_format;
+    default:                    /* MVI_WALK_JSON_ERROR */
+      goto json_error;
+  }
+
+  /* Take the separator that follows the last key back off */
+  if (buf->length())
+    buf->length(buf->length() - 1);
+
   /*
     TODO: do something different when an empty string is
-    returned, i.e. at_least_one == false to avoid wasting index
-    space?
+    returned, i.e. the document has no key at all, to avoid wasting
+    index space?
   */
-  if (at_least_one)
-    buf->length(buf->length() - 1);
   return buf;
 
 error_format:
