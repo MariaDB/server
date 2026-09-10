@@ -3865,6 +3865,7 @@ static int innodb_init_params()
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
+#ifdef BTR_CUR_HASH_ADAPT
   if (btr_search.n_cells <=
       MYSQL_SYSVAR_NAME(adaptive_hash_index_cells).min_val)
   {
@@ -3877,6 +3878,7 @@ static int innodb_init_params()
     btr_search.n_cells=
       std::max(MYSQL_SYSVAR_NAME(adaptive_hash_index_cells).min_val, uint(n));
   }
+#endif /* BTR_CUR_HASH_ADAPT */
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
