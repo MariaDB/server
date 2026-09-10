@@ -75,7 +75,16 @@ MYSQL_ADD_EXECUTABLE(mariadb-show mysqlshow.c)
 TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
-TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB} mysys_ssl)
+IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$")
+  FIND_PACKAGE(CURL REQUIRED)
+  TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
+ENDIF()
+# The tool needs to know how MariaDB was installed to pick the way plugins
+# are installed. The install layout is only known when building, so it is
+# passed to the tool, together with the directories it has to verify.
+SET_TARGET_PROPERTIES(mariadb-plugin PROPERTIES COMPILE_DEFINITIONS
+ "INSTALL_LAYOUT_${INSTALL_LAYOUT};INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_BINDIRABS=${INSTALL_BINDIRABS}")
 
 MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
