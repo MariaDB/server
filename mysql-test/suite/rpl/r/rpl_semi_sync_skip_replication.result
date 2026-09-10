@@ -1,0 +1,185 @@
+include/rpl_init.inc [topology=1->2,1->3]
+#
+# Setup: primary and two semi-sync slaves with different skip filtering:
+#   server_2: replicate_events_marked_for_skip = FILTER_ON_MASTER
+#   server_3: replicate_events_marked_for_skip = REPLICATE (default)
+#
+connection server_1;
+SET @old_master_enabled= @@global.rpl_semi_sync_master_enabled;
+SET @old_master_timeout= @@global.rpl_semi_sync_master_timeout;
+SET @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+connection server_2;
+include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+include/start_slave.inc
+connection server_1;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+#
+# Wait point: AFTER_SYNC
+#
+connection server_3;
+SET @skip_before= @@global.replicate_events_marked_for_skip;
+connection server_1;
+# Baseline: a normal transaction is ACKed and reaches both slaves.
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Case 1 (mixed filtering): server_3 replicates skip_replication events,
+# so it ACKs them and semi-sync must stay in effect.
+#
+connection server_1;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+SET SESSION skip_replication= 0;
+# Semi-sync stayed ON and Rpl_semi_sync_master_yes_tx advanced -- PASS
+# Marker transaction, so both slaves can be synced past the skip events.
+INSERT INTO t1 VALUES (2);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# server_3 (REPLICATE) applied the skip_replication changes.
+connection server_3;
+# server_2 (FILTER_ON_MASTER) never received them.
+connection server_2;
+#
+# Case 2 (all slaves filter): reconfigure server_3 to FILTER_ON_MASTER,
+# so that no connected slave receives skip_replication events. Such a
+# transaction can never be ACKed: the master must not await an ACK, and
+# must not count one as either granted or missed.
+#
+connection server_3;
+include/stop_slave.inc
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+include/start_slave.inc
+connection server_1;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip2;
+CREATE TABLE db_skip2.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip2.t1 VALUES (1);
+SET SESSION skip_replication= 0;
+# Semi-sync stayed ON and no ACK was requested, granted or missed -- PASS
+#
+# Cleanup
+#
+connection server_1;
+DROP DATABASE IF EXISTS db_skip;
+DROP DATABASE IF EXISTS db_skip2;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Restore server_3 to the filtering it was called with.
+connection server_3;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL replicate_events_marked_for_skip= @skip_before;
+include/start_slave.inc
+connection server_1;
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+#
+# Wait point: AFTER_COMMIT
+#
+connection server_3;
+SET @skip_before= @@global.replicate_events_marked_for_skip;
+connection server_1;
+# Baseline: a normal transaction is ACKed and reaches both slaves.
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Case 1 (mixed filtering): server_3 replicates skip_replication events,
+# so it ACKs them and semi-sync must stay in effect.
+#
+connection server_1;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip;
+CREATE TABLE db_skip.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip.t1 VALUES (1);
+SET SESSION skip_replication= 0;
+# Semi-sync stayed ON and Rpl_semi_sync_master_yes_tx advanced -- PASS
+# Marker transaction, so both slaves can be synced past the skip events.
+INSERT INTO t1 VALUES (2);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# server_3 (REPLICATE) applied the skip_replication changes.
+connection server_3;
+# server_2 (FILTER_ON_MASTER) never received them.
+connection server_2;
+#
+# Case 2 (all slaves filter): reconfigure server_3 to FILTER_ON_MASTER,
+# so that no connected slave receives skip_replication events. Such a
+# transaction can never be ACKed: the master must not await an ACK, and
+# must not count one as either granted or missed.
+#
+connection server_3;
+include/stop_slave.inc
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+include/start_slave.inc
+connection server_1;
+SET SESSION skip_replication= 1;
+CREATE DATABASE db_skip2;
+CREATE TABLE db_skip2.t1 (a INT) ENGINE=InnoDB;
+INSERT INTO db_skip2.t1 VALUES (1);
+SET SESSION skip_replication= 0;
+# Semi-sync stayed ON and no ACK was requested, granted or missed -- PASS
+#
+# Cleanup
+#
+connection server_1;
+DROP DATABASE IF EXISTS db_skip;
+DROP DATABASE IF EXISTS db_skip2;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Restore server_3 to the filtering it was called with.
+connection server_3;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL replicate_events_marked_for_skip= @skip_before;
+include/start_slave.inc
+#
+# Cleanup
+#
+connection server_1;
+SET GLOBAL rpl_semi_sync_master_wait_point= @old_wait_point;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_enabled;
+SET GLOBAL rpl_semi_sync_master_timeout= @old_master_timeout;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+include/start_slave.inc
+include/rpl_end.inc
