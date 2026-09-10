@@ -239,6 +239,14 @@ public:
   const Type_handler *fixed_type_handler() const override
   { return &type_handler_bool; }
   CHARSET_INFO *compare_collation() const override { return NULL; }
+  /*
+    Specifies which result type the function uses to compare its arguments.
+    This method is used in equal field propagation.  NULL means the function
+    aggregated no comparison data type, which is the case for a function whose
+    arguments are conditions rather than values.  Item_bool_func2,
+    Item_func_opt_neg and Item_equal override it.
+  */
+  virtual const Type_handler *compare_type_handler() const { return NULL; }
   longlong val_int() override final
   {
     DBUG_ASSERT(!is_cond());
@@ -507,11 +515,7 @@ public:
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level) override;
   bool count_sargable_conds(void *arg) override;
-  /*
-    Specifies which result type the function uses to compare its arguments.
-    This method is used in equal field propagation.
-  */
-  virtual const Type_handler *compare_type_handler() const
+  const Type_handler *compare_type_handler() const override
   {
     /*
       Have STRING_RESULT by default, which means the function compares
@@ -1076,6 +1080,10 @@ public:
   CHARSET_INFO *compare_collation() const override
   {
     return cmp_collation.collation;
+  }
+  const Type_handler *compare_type_handler() const override
+  {
+    return m_comparator.type_handler();
   }
   Item *propagate_equal_fields(THD *, const Context &,
                                COND_EQUAL *) override= 0;
@@ -3571,7 +3579,8 @@ public:
   bool unmark_as_eliminated_processor(void *arg) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void print(String *str, enum_query_type query_type) override;
-  const Type_handler *compare_type_handler() const { return m_compare_handler; }
+  const Type_handler *compare_type_handler() const override
+  { return m_compare_handler; }
   CHARSET_INFO *compare_collation() const override
   { return m_compare_collation; }
 
