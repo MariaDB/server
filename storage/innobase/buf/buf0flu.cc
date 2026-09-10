@@ -856,8 +856,10 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
       log_write_up_to(lsn, true);
     ut_ad(space->is_temporary() || !space->full_crc32() ||
           !buf_page_is_corrupted(true, write_frame, space->flags));
-    space->io(IORequest{type, this, slot}, physical_offset(), size,
-              write_frame, this);
+    fil_io_t fio= space->io(IORequest{type, this, slot}, physical_offset(), size,
+                            write_frame, this);
+    if (fio.err != DB_SUCCESS)
+      return false;
   }
   else
     buf_dblwr.add_to_batch(IORequest{this, slot, space->chain.start, type},
@@ -988,9 +990,11 @@ uint32_t fil_space_t::flush_freed(bool writable) noexcept
     {
       written+= range.last - range.first + 1;
       reacquire();
-      io(IORequest(IORequest::PUNCH_RANGE),
-         os_offset_t{range.first} * physical,
-         (range.last - range.first + 1) * physical, nullptr);
+      fil_io_t fio= io(IORequest(IORequest::PUNCH_RANGE),
+                       os_offset_t{range.first} * physical,
+                       (range.last - range.first + 1) * physical, nullptr);
+      if (fio.err != DB_SUCCESS)
+        continue; /* result of io had to be used */
     }
   }
   else
@@ -1001,8 +1005,10 @@ uint32_t fil_space_t::flush_freed(bool writable) noexcept
       for (os_offset_t i= range.first; i <= range.last; i++)
       {
         reacquire();
-        io(IORequest(IORequest::WRITE_ASYNC), i * physical, physical,
-           const_cast<byte*>(field_ref_zero));
+        fil_io_t fio= io(IORequest(IORequest::WRITE_ASYNC), i * physical, physical,
+                         const_cast<byte*>(field_ref_zero));
+        if (fio.err != DB_SUCCESS)
+          continue; /* result of io had to be used */
       }
     }
   }
@@ -1180,6 +1186,7 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
   return space;
 }
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Start writing out pages for a tablespace.
 @param id   tablespace identifier
 @return tablespace and number of pages written */

@@ -994,6 +994,7 @@ void os_fake_read(const IORequest &type, os_offset_t offset) noexcept;
 @param n		number of bytes
 @retval DB_SUCCESS if request was queued successfully
 @retval DB_IO_ERROR on I/O error */
+MY_ATTRIBUTE((warn_unused_result))
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
   noexcept;
 
