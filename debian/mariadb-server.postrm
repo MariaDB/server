@@ -30,7 +30,7 @@ then
   then
     # never remove the debian.cnf when the databases are still existing
     # else we ran into big trouble on the next install!
-    rm -f /etc/mysql/debian.cnf
+    rm -f /etc/mariadb/debian.cnf
     # Remove all contents from /var/lib/mysql except if it's a
     # directory with file system data. See #829491 for details and
     # #608938 for potential mysql-server leftovers which erroneously

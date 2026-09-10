@@ -1,8 +1,0 @@
-#!/bin/bash
-set -e
-
-if [ "$1" = "purge" ]; then
-  rmdir /etc/mysql 2>/dev/null || true
-fi
-
-#DEBHELPER#

@@ -4,12 +4,16 @@ set -e
 
 case "$1" in
   remove|disappear)
-    # New packaging paradigm for my.cnf handling among MySQL variants
-    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
+    # Withdraw from the /etc/mysql/my.cnf alternatives if still registered from
+    # previous MySQL variant packaging paradigm.
     if [ -f /usr/share/mysql-common/configure-symlinks ]
     then
-      /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf"
+      /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf" || true
     fi
+    update-alternatives --remove my.cnf "/etc/mysql/mariadb.cnf" 2>/dev/null || true
+    ;;
+  purge)
+    rmdir /etc/mariadb 2>/dev/null || true
     ;;
 esac
 
