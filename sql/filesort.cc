@@ -92,6 +92,24 @@ static uint32 read_keypart_length(const uchar *from, uint bytes)
 
 
 // @param sortlen  [Maximum] length of the sort key
+/*
+  Whether the rowid this table hands out orders the rows in any way that
+  survives the server being restarted.
+
+  A MEMORY table's rowid is the address the record was allocated at, so
+  ordering by it orders by where the engine's blocks happen to lie in
+  memory, which is not the same from one server start to the next.  Every
+  other engine here answers with a position in a file, which is stable and
+  is the read order that appending the rowid to the sort key is meant to
+  produce.
+*/
+
+static bool rowid_orders_nothing(const TABLE *table)
+{
+  return table->file->ht == heap_hton;
+}
+
+
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ha_rows maxrows, Filesort *filesort)
 {
@@ -124,6 +142,13 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
       as an additional sorted field
     */
     sort_length+= ref_length;
+    /*
+      Comparing a rowid that orders nothing would make the order that two
+      rows with equal keys come out in unreproducible, and it buys nothing
+      in return.  Leave it out of the comparison and let equal keys keep
+      the order they were read in.
+    */
+    unordered_rowid= rowid_orders_nothing(table);
   }
   rec_length= sort_length + addon_length;
   max_rows= maxrows;
@@ -1645,6 +1670,11 @@ static bool check_if_pq_applicable(Sort_param *param,
         param->res_length= param->ref_length;
         param->sort_length+= param->ref_length;
         param->rec_length= param->sort_length;
+        /*
+          The rowid is appended here rather than in init_for_filesort(),
+          so the same question has to be asked again.
+        */
+        param->unordered_rowid= rowid_orders_nothing(table);
 
         DBUG_RETURN(true);
       }
@@ -1867,7 +1897,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
 
   rec_length= param->rec_length;
   res_length= param->res_length;
-  sort_length= param->sort_length;
+  sort_length= param->get_cmp_length();
   uint dupl_count_ofs= rec_length-sizeof(element_count);
   uint min_dupl_count= param->min_dupl_count;
   bool check_dupl_count= flag && min_dupl_count;
@@ -2970,9 +3000,10 @@ int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
   /*
     this comparison is done for the case when the sort keys is appended with
     the ROW_ID pointer. For such cases we don't have addon fields
-    so we can make a memcmp check over both the sort keys
+    so we can make a memcmp check over both the sort keys.
+    A rowid that orders nothing is not compared: see rowid_orders_nothing().
   */
-  if (!param->using_addon_fields())
+  if (!param->using_addon_fields() && !param->unordered_rowid)
     retval= memcmp(a, b, param->res_length);
   return retval;
 }
