@@ -900,7 +900,6 @@ struct backup_context
         do
         {
           const char *const name= sd.cFileName;
-          size_t len;
           if (sd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             continue;
           /* Consume a file name */
