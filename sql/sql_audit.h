@@ -112,7 +112,7 @@ void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
 */
  
 static inline
-void mysql_audit_general_log(THD *thd, time_t time,
+void mysql_audit_general_log(THD *thd, my_hrtime_t time,
                              const char *user, uint userlen,
                              const char *cmd, uint cmdlen,
                              const char *query, uint querylen)
@@ -123,7 +123,8 @@ void mysql_audit_general_log(THD *thd, time_t time,
 
     event.event_subclass= MYSQL_AUDIT_GENERAL_LOG;
     event.general_error_code= 0;
-    event.general_time= time;
+    event.general_time= hrtime_to_time(time);
+    event.general_time_microseconds= time.val;
     event.general_user= user;
     event.general_user_length= userlen;
     event.general_command= cmd;
@@ -177,7 +178,25 @@ void mysql_audit_general(THD *thd, uint event_subtype,
 
     event.event_subclass= event_subtype;
     event.general_error_code= error_code;
-    event.general_time= my_time(0);
+    {
+      /*
+        Use the wall-clock timestamp the server already maintains for the
+        current command (set once per query in dispatch_command), so that
+        all audit events of the same query carry the same time and no extra
+        clock call is made per event. start_utime cannot be used here: it is
+        a monotonic interval timer, not a wall-clock timestamp. Fall back to
+        the current wall-clock time if the timestamp is not set.
+      */
+      unsigned long long general_time_us;
+      if (thd && thd->start_time)
+        general_time_us= (unsigned long long) thd->start_time * 1000000 +
+                         thd->start_time_sec_part;
+      else
+        general_time_us= my_hrtime().val;
+      my_hrtime_t general_time= { general_time_us };
+      event.general_time= hrtime_to_time(general_time);
+      event.general_time_microseconds= general_time_us;
+    }
     event.general_command= msg;
     event.general_command_length= safe_strlen_uint(msg);
 
