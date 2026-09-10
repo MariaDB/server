@@ -418,6 +418,11 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const override { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  /*
+    This means a function is a candidate for streaming, current suppored
+    functions are ROW_NUMBER, RANK, DENSE_RANK COUNT, SUM, AVG, MIN, MAX.
+  */
+  virtual inline bool is_streamable() const { return false; }
   bool is_aggr_sum_func()
   {
     switch (sum_func()) {
@@ -872,6 +877,8 @@ public:
     return true;
   }
 
+  inline bool is_streamable() const override { return true; }
+
 private:
   void add_helper(bool perform_removal);
   ulonglong count;
@@ -948,6 +955,8 @@ public:
     return true;
   }
 
+  inline bool is_streamable() const override { return true; }
+
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_sum_count>(thd, this); }
@@ -1006,6 +1015,8 @@ public:
   {
     return true;
   }
+
+  inline bool is_streamable() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1210,6 +1221,8 @@ public:
   Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
   void setup_caches(THD *thd) override
   { setup_hybrid(thd, arguments()[0], NULL); }
+
+  inline bool is_streamable() const override { return true; }
 };
 
 
