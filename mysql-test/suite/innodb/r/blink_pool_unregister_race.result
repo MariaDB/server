@@ -1,0 +1,38 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET @debug_save=@@debug_dbug;
+SET @leaf_low=@@global.innodb_blink_leaf_pool_low;
+SET @leaf_high=@@global.innodb_blink_leaf_pool_high;
+SET @internal_low=@@global.innodb_blink_internal_pool_low;
+SET @internal_high=@@global.innodb_blink_internal_pool_high;
+SET GLOBAL innodb_blink_leaf_pool_low=16;
+SET GLOBAL innodb_blink_leaf_pool_high=64;
+SET GLOBAL innodb_blink_internal_pool_low=8;
+SET GLOBAL innodb_blink_internal_pool_high=32;
+SET GLOBAL innodb_blink_enabled=ON;
+SET DEBUG_DBUG='+d,blink_alloc_hold_index_lock';
+CREATE TABLE t (
+id INT NOT NULL PRIMARY KEY,
+a VARCHAR(64),
+KEY ka(a)
+) ENGINE=InnoDB;
+SET DEBUG_DBUG=@debug_save;
+ALTER TABLE t DROP INDEX ka,ALGORITHM=COPY;
+INSERT INTO t VALUES (1,'a'),(2,'b'),(3,'c');
+SELECT COUNT(*),SUM(id) FROM t;
+COUNT(*)	SUM(id)
+3	6
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+SELECT COUNT(*),SUM(id) FROM t;
+COUNT(*)	SUM(id)
+3	6
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;
+SET GLOBAL innodb_blink_leaf_pool_low=@leaf_low;
+SET GLOBAL innodb_blink_leaf_pool_high=@leaf_high;
+SET GLOBAL innodb_blink_internal_pool_low=@internal_low;
+SET GLOBAL innodb_blink_internal_pool_high=@internal_high;

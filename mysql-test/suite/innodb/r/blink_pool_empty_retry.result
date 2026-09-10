@@ -1,0 +1,23 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+id VARBINARY(2500) NOT NULL PRIMARY KEY,
+b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET DEBUG_DBUG='+d,blink_pool_force_empty';
+INSERT INTO t VALUES (LPAD(CAST(7 AS CHAR),2500,'0'),7);
+SET DEBUG_DBUG='-d,blink_pool_force_empty';
+SELECT COUNT(*),SUM(b) FROM t;
+COUNT(*)	SUM(b)
+7	28
+SELECT b FROM t WHERE id=LPAD(CAST(1 AS CHAR),2500,'0');
+b
+1
+SELECT b FROM t WHERE id=LPAD(CAST(7 AS CHAR),2500,'0');
+b
+7
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

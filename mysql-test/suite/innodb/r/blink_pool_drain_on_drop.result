@@ -1,0 +1,44 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET @leaf_low=@@global.innodb_blink_leaf_pool_low;
+SET @leaf_high=@@global.innodb_blink_leaf_pool_high;
+SET @internal_low=@@global.innodb_blink_internal_pool_low;
+SET @internal_high=@@global.innodb_blink_internal_pool_high;
+SET GLOBAL innodb_blink_leaf_pool_low=4;
+SET GLOBAL innodb_blink_leaf_pool_high=8;
+SET GLOBAL innodb_blink_internal_pool_low=2;
+SET GLOBAL innodb_blink_internal_pool_high=4;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY,b CHAR(200)) ENGINE=InnoDB;
+SELECT COUNT(*),SUM(id) FROM t;
+COUNT(*)	SUM(id)
+500	125250
+SELECT VARIABLE_VALUE > 0 AS pool_ready
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='INNODB_BLINK_POOL_DEPTH_LEAF';
+pool_ready
+1
+DROP TABLE t;
+SELECT VARIABLE_VALUE = 0 AS pool_drained
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='INNODB_BLINK_POOL_DEPTH_LEAF';
+pool_drained
+1
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY,b CHAR(200)) ENGINE=InnoDB;
+SELECT COUNT(*),SUM(id) FROM t;
+COUNT(*)	SUM(id)
+200	20100
+DROP TABLE t;
+SELECT VARIABLE_VALUE = 0 AS pool_drained
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='INNODB_BLINK_POOL_DEPTH_LEAF';
+pool_drained
+1
+SET GLOBAL innodb_blink_enabled=OFF;
+CREATE TABLE t (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (1),(2),(3);
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;
+SET GLOBAL innodb_blink_leaf_pool_low=@leaf_low;
+SET GLOBAL innodb_blink_leaf_pool_high=@leaf_high;
+SET GLOBAL innodb_blink_internal_pool_low=@internal_low;
+SET GLOBAL innodb_blink_internal_pool_high=@internal_high;

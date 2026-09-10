@@ -4,6 +4,7 @@
 #include "btr0btr.h"
 #include "dict0mem.h"
 #include "mtr0mtr.h"
+#include "my_dbug.h"
 #include "srv0srv.h"
 
 #include <algorithm>
@@ -57,6 +58,9 @@ static std::unordered_map<dict_index_t*, std::unique_ptr<blink_pool_entry_t>>
 static std::deque<blink_pool_entry_t*> blink_reclaim_queue;
 static std::thread blink_allocator_thread;
 static std::atomic<bool> blink_allocator_shutdown{false};
+#ifdef UNIV_DEBUG
+static std::atomic<bool> blink_hold_next_allocation{false};
+#endif
 static bool blink_allocator_running;
 
 static size_t blink_kind_index(blink_page_kind kind) noexcept
@@ -97,6 +101,11 @@ bool blink_page_pool_register(dict_index_t *index) noexcept
     index->blink_page_pool= &entry->pool;
     blink_registry.emplace(index, std::move(entry));
   }
+#ifdef UNIV_DEBUG
+  DBUG_EXECUTE_IF("blink_alloc_hold_index_lock", {
+    blink_hold_next_allocation.store(true);
+  });
+#endif
   blink_pending_split_enqueue(index, FIL_NULL);
   blink_registry_cv.notify_one();
   return true;
@@ -109,6 +118,11 @@ bool blink_page_pool_try_pop(dict_index_t *index, blink_page_kind kind,
   blink_pool_entry_t *entry= blink_page_pool_pin(index);
   if (!entry)
     return false;
+  DBUG_EXECUTE_IF("blink_pool_force_empty", {
+    DBUG_SET("-d,blink_pool_force_empty");
+    blink_page_pool_unpin(entry);
+    return false;
+  });
   const size_t slot= blink_kind_index(kind);
   bool found= false;
   {
@@ -166,6 +180,12 @@ static uint32_t blink_alloc_page(dict_index_t *index,
     return FIL_NULL;
   }
   mtr.memo_push(&index->lock, MTR_MEMO_S_LOCK);
+#ifdef UNIV_DEBUG
+  if (blink_hold_next_allocation.exchange(false)) {
+    ib::info() << "B-link allocator test lock hold";
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+#endif
   if (index->page == FIL_NULL || !index->table->space) {
     mtr.commit();
     space->release_free_extents(reserved);

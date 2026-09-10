@@ -712,7 +712,20 @@ blink_cascade_kill_big_rec
 
 The retry test verifies that `DB_BLINK_RETRY` remains internal after durable leaf publication. The KILL tests verify interruption, statement rollback, abandoned-split completion, and external-field integrity. Fresh-insert rollback exposed a missing synchronous B-link undo bridge; its pessimistic delete now takes `X(index)` and descends with `BTR_MODIFY_TREE_ALREADY_LATCHED`, matching the existing update and modify undo paths.
 
-Batch 3 and the existing B-link regression set pass together in the Debug build (24 tests). The next migration batches are allocator lifecycle races and crash recovery.
+Batch 3 and the existing B-link regression set pass together in the Debug build (24 tests).
+
+Allocator Batch 4 was migrated on 2026-09-10:
+
+```text
+blink_pool_empty_retry
+blink_pool_warmup
+blink_pool_drain_on_drop
+blink_pool_unregister_race
+```
+
+The first two tests cover the row-layer pool-empty retry and asynchronous pool warmup. The drop test covers pool drain, same-name recreation, and unstamped-index teardown. MariaDB uses synchronous unregister/reclaim rather than the upstream deferred-reaper protocol, so a MariaDB-specific test deterministically overlaps unregister with an in-flight preallocator allocation holding `S(index)`.
+
+Batch 4 and the existing B-link regression set pass together in the Debug build (28 tests). Crash recovery is the remaining migration batch.
 
 ## Phase 16: Functional workload
 

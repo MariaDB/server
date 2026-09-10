@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET @leaf_low=@@global.innodb_blink_leaf_pool_low;
+SET @leaf_high=@@global.innodb_blink_leaf_pool_high;
+SET @internal_low=@@global.innodb_blink_internal_pool_low;
+SET @internal_high=@@global.innodb_blink_internal_pool_high;
+SET GLOBAL innodb_blink_leaf_pool_low=4;
+SET GLOBAL innodb_blink_leaf_pool_high=8;
+SET GLOBAL innodb_blink_internal_pool_low=2;
+SET GLOBAL innodb_blink_internal_pool_high=4;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id INT NOT NULL PRIMARY KEY,
+  b VARCHAR(64) NOT NULL,
+  KEY ix_b(b)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t VALUES (1,'one'),(2,'two'),(3,'three'),(10,'ten'),(20,'twenty');
+--sleep 1
+SELECT VARIABLE_VALUE > 0 AS pool_warm
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+WHERE VARIABLE_NAME='INNODB_BLINK_POOL_DEPTH_LEAF';
+SELECT id,b FROM t ORDER BY id;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;
+SET GLOBAL innodb_blink_leaf_pool_low=@leaf_low;
+SET GLOBAL innodb_blink_leaf_pool_high=@leaf_high;
+SET GLOBAL innodb_blink_internal_pool_low=@internal_low;
+SET GLOBAL innodb_blink_internal_pool_high=@internal_high;
