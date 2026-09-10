@@ -15,7 +15,7 @@
 #user                    = mysql
 pid-file                = /run/mysqld/mysqld.pid
 basedir                 = /usr
-#datadir                 = /var/lib/mysql
+#datadir                 = /var/lib/mariadb  # Starting with MariaDB 13.2.0, /var/lib/mariadb is used by default instead of /var/lib/mysql.
 #tmpdir                  = /tmp
 
 # Broken reverse DNS slows down connections considerably and name resolve is
