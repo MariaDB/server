@@ -95,7 +95,9 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
   A key is one fulltext token, so it cannot be longer than the maximum
   token size the engine will index: 84 characters (HA_FT_MAXCHARLEN, which
   is also the default and the maximum of innodb_ft_max_token_size). The key
-  is the hex of the key image, so that image is at most half of it.
+  is the hex of the key image, so that image is at most half of it. An
+  image longer than that is cut down to it, making the key a prefix key:
+  see encode_mvi_key().
 
   TODO: innodb_ft_max_token_size can be set lower than its default, and
   innodb_ft_min_token_size higher, and then the engine drops keys we

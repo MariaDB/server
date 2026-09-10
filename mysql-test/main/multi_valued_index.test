@@ -238,6 +238,62 @@ select * from t1 where json_overlaps(j->'$.tags', '[[]]');
 select * from t1 ignore index(idx) where json_overlaps(j->'$.tags', '[[]]');
 drop table t1;
 
+--echo # A value whose key image is longer than a fulltext token can be is
+--echo # keyed by the first 42 bytes of it: the engine drops a token longer
+--echo # than that, on the DML path and on the index build path alike, and
+--echo # a value with no key at all is one the index cannot be used for.
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(60) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}');
+insert into t1 values (2, concat('{"tags": ["', repeat('b',43), '"]}'));
+insert into t1 values (3, concat('{"tags": ["', repeat('c',42), '"]}'));
+
+--replace_column 9 #
+explain select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43)));
+select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+--echo # the same rows without the index:
+select c from t1 ignore index(idx)
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+
+--replace_column 9 #
+explain select c from t1
+ where json_contains(j->'$.tags', json_array(repeat('b',43)));
+# TODO: why is there a warning 4036 here?
+select c from t1
+ where json_contains(j->'$.tags', json_array(repeat('b',43))) order by c;
+
+--echo # a value that is exactly as long as the key image can be
+--replace_column 9 #
+explain select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('c',42)));
+select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('c',42))) order by c;
+select c from t1 ignore index(idx)
+ where json_overlaps(j->'$.tags', json_array(repeat('c',42))) order by c;
+
+--echo # Rows 2 and 4 agree on the first 42 bytes and share a key, so the
+--echo # scan reads both and the predicate keeps the one that matches.
+insert into t1 values (4, concat('{"tags": ["', repeat('b',43), 'z"]}'));
+--replace_column 9 #
+explain select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43)));
+select c from t1
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+select c from t1 ignore index(idx)
+ where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+--echo # and the other way round
+select c from t1
+ where json_overlaps(j->'$.tags',
+                     json_array(concat(repeat('b',43),'z'))) order by c;
+select c from t1 ignore index(idx)
+ where json_overlaps(j->'$.tags',
+                     json_array(concat(repeat('b',43),'z'))) order by c;
+
+drop table t1;
+
 --echo # The predicate does not have to be in the WHERE clause: for a table on
 --echo # the inner side of an outer join we look at the ON expression, which is
 --echo # what has to be true for the rows we read.
@@ -593,3 +649,13 @@ select mvi_encode('[[1], 42]', int);
 # JSON_CONTAINS behaviour. NOTE that mysql would fail `select
 # JSON_CONTAINS('[1]]', '1');` but not mariadb
 select mvi_encode('[1]]', int);
+
+# A key image longer than 42 bytes does not fit in a fulltext token, so
+# it is cut down to 42 and the key is a prefix key. Only a binary
+# collation gets there: strnxfrm() is asked for 42 bytes and cannot
+# return more.
+select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
+# the same key as above
+select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
+select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
+select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));

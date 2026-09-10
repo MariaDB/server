@@ -144,6 +144,16 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
     If the value cannot be encoded this means it is not stored, also
     searches won't find any matches for it.
 
+    A key image longer than a fulltext token can be is cut short instead:
+    the engine drops a token that long, on the DML path and on the index
+    build path alike (fts_check_token()), and a value with no key in the
+    index is a value the index cannot be used for at all. Two values that
+    agree on the first MVI_KEY_IMAGE_MAX_LEN bytes of their image then
+    share a key, which costs false positives and nothing else -- the
+    predicate is rechecked on every row the index produces. The strnxfrm()
+    branch below has always worked that way; it asks for exactly that many
+    bytes of weights and cannot get more back.
+
   @return
     false   Encoded successfully, the key is appended to *buf
     true    The JSON value cannot be represented in the index datatype.
@@ -205,10 +215,14 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
       return true;
   }
 
-  /* 2. hex */
+  /* 2. cut what the engine would not index down to what it will, see above */
+  if (sorted.length() > MVI_KEY_IMAGE_MAX_LEN)
+    sorted.length(MVI_KEY_IMAGE_MAX_LEN);
+
+  /* 3. hex */
   buf->append_hex(sorted.c_ptr(), sorted.length());
 
-  /* 3. pad */
+  /* 4. pad */
   if (sorted.length() == 0)
     buf->append(STRING_WITH_LEN("xxxx"));
   else if (sorted.length() == 1)
@@ -352,11 +366,6 @@ String *Item_func_mvi_encode::val_str_ascii(String *buf)
   if (buf->length())
     buf->length(buf->length() - 1);
 
-  /*
-    TODO: do something different when an empty string is
-    returned, i.e. the document has no key at all, to avoid wasting
-    index space?
-  */
   return buf;
 
 error_format:

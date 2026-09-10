@@ -393,6 +393,77 @@ c	j
 4	{"tags": [["ccc"]]}
 5	{"tags": [[]]}
 drop table t1;
+# A value whose key image is longer than a fulltext token can be is
+# keyed by the first 42 bytes of it: the engine drops a token longer
+# than that, on the DML path and on the index build path alike, and
+# a value with no key at all is one the index cannot be used for.
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(60) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}');
+insert into t1 values (2, concat('{"tags": ["', repeat('b',43), '"]}'));
+insert into t1 values (3, concat('{"tags": ["', repeat('c',42), '"]}'));
+explain select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('b',43)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+c
+2
+# the same rows without the index:
+select c from t1 ignore index(idx)
+where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+c
+2
+explain select c from t1
+where json_contains(j->'$.tags', json_array(repeat('b',43)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1
+where json_contains(j->'$.tags', json_array(repeat('b',43))) order by c;
+c
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 2 to function 'json_contains' at position 45
+# a value that is exactly as long as the key image can be
+explain select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('c',42)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('c',42))) order by c;
+c
+3
+select c from t1 ignore index(idx)
+where json_overlaps(j->'$.tags', json_array(repeat('c',42))) order by c;
+c
+3
+# Rows 2 and 4 agree on the first 42 bytes and share a key, so the
+# scan reads both and the predicate keeps the one that matches.
+insert into t1 values (4, concat('{"tags": ["', repeat('b',43), 'z"]}'));
+explain select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('b',43)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1
+where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+c
+2
+select c from t1 ignore index(idx)
+where json_overlaps(j->'$.tags', json_array(repeat('b',43))) order by c;
+c
+2
+# and the other way round
+select c from t1
+where json_overlaps(j->'$.tags',
+json_array(concat(repeat('b',43),'z'))) order by c;
+c
+4
+select c from t1 ignore index(idx)
+where json_overlaps(j->'$.tags',
+json_array(concat(repeat('b',43),'z'))) order by c;
+c
+4
+drop table t1;
 # The predicate does not have to be in the WHERE clause: for a table on
 # the inner side of an outer join we look at the ON expression, which is
 # what has to be true for the rows we read.
@@ -956,3 +1027,15 @@ mvi_encode('[[1], 42]', int)
 select mvi_encode('[1]]', int);
 mvi_encode('[1]]', int)
 8000000000000001
+select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
+mvi_encode(concat('["', repeat('b',42), '"]'), char(60))
+424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
+mvi_encode(concat('["', repeat('b',43), '"]'), char(60))
+424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
+mvi_encode(concat('["', repeat('b',100), '"]'), char(60))
+424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
+mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60))
+414141 424242424242424242424242424242424242424242424242424242424242424242424242424242424242
