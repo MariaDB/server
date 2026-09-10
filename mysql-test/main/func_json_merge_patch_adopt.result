@@ -1,0 +1,77 @@
+# the answer must not depend on how the arguments are produced
+SELECT JSON_MERGE_PATCH(NULL, '[1]', '{"aaaaaaaaaaaaaaaa":1}') AS literal;
+literal
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'),
+LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS built;
+built
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, CONCAT('[', '1]'),
+CONCAT('{"aaaaaaaaaaaaaaaa"', ':1}')) AS concatenated;
+concatenated
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, REVERSE(']1['),
+REVERSE('}1:"aaaaaaaaaaaaaaaa"{')) AS reversed;
+reversed
+{"aaaaaaaaaaaaaaaa": 1}
+# a taken-over document of every kind that is not an object, since
+# an object is merged rather than taken over
+SELECT JSON_MERGE_PATCH(NULL, LOWER('1'),
+LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_number;
+was_number
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('"S"'),
+LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_string;
+was_string
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('TRUE'),
+LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_true;
+was_true
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1,2]'),
+LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_array;
+was_array
+{"aaaaaaaaaaaaaaaa": 1}
+# room that has to be found rather than grown into
+SELECT JSON_MERGE_PATCH(NULL, LOWER('1'),
+LOWER(CONCAT('{"k":"', REPEAT('x', 500), '"}')))
+IS NULL AS big_jump_null;
+big_jump_null
+0
+SELECT JSON_LENGTH(JSON_MERGE_PATCH(NULL, LOWER('1'),
+LOWER(CONCAT('{"k":"', REPEAT('x', 500), '"}')))) AS big_len;
+big_len
+1
+# more arguments after the one that was taken over
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'), LOWER('{"AAAAAAAAAAAAAAAA":1}'),
+LOWER('{"BBBBBBBBBBBBBBBB":2}')) AS three;
+three
+{"aaaaaaaaaaaaaaaa": 1, "bbbbbbbbbbbbbbbb": 2}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'), LOWER('{"AAAAAAAAAAAAAAAA":1}'),
+LOWER('{"AAAAAAAAAAAAAAAA":9}')) AS three_same_key;
+three_same_key
+{"aaaaaaaaaaaaaaaa": 9}
+# out of a table, so the arguments change from row to row
+CREATE TABLE t (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t VALUES
+(1, '[1]', '{"aaaaaaaaaaaaaaaa":1}'),
+(2, '[2]', '{"bbbbbbbbbbbbbbbb":2}');
+SELECT id, JSON_MERGE_PATCH(NULL, a, b) AS plain FROM t ORDER BY id;
+id	plain
+1	{"aaaaaaaaaaaaaaaa": 1}
+2	{"bbbbbbbbbbbbbbbb": 2}
+SELECT id, JSON_MERGE_PATCH(NULL, LOWER(a), LOWER(b)) AS built FROM t
+ORDER BY id;
+id	built
+1	{"aaaaaaaaaaaaaaaa": 1}
+2	{"bbbbbbbbbbbbbbbb": 2}
+DROP TABLE t;
+# controls: the same second argument reached without a taken-over
+# first one, and a second argument no longer than the first
+SELECT JSON_MERGE_PATCH('{}', LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS no_adoption;
+no_adoption
+{"aaaaaaaaaaaaaaaa": 1}
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1,2,3,4,5,6,7,8,9]'),
+LOWER('{"A":1}')) AS shorter_after;
+shorter_after
+{"a": 1}

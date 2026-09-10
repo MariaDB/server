@@ -42,6 +42,8 @@
 #include "sql_view.h"
 #include "rpl_filter.h"
 #include "sql_cte.h"
+#include "sql_type_json.h"       // Type_handler_json_common
+#include "item_jsonfunc.h"       // Json_scans_unbilled
 #include "ha_sequence.h"
 #include "sql_show.h"
 #include "opt_trace.h"
@@ -1268,6 +1270,17 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                                       &((*field_ptr)->check_constraint),
                                       error_reported);
       *check_constraint_ptr++= (*field_ptr)->check_constraint;
+      /*
+        Work out once, here, whether this check asks anything besides
+        whether its own column holds a document.  TABLE::verify_constraints
+        reads the answer per row and cannot afford to work it out there.
+      */
+      if (vcol &&
+          Type_handler_json_common::is_json_valid_of_field(vcol, *field_ptr))
+      {
+        vcol->json_valid_field_index= (*field_ptr)->field_index;
+        table->has_own_json_valid_check= true;
+      }
       break;
     case VCOL_CHECK_TABLE:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
@@ -4569,7 +4582,7 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  bitmap_count= 7;
+  bitmap_count= 8;
   if (share->virtual_fields)
     bitmap_count++;
 
@@ -4597,6 +4610,9 @@ partititon_err:
                  (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
+                 (my_bitmap_map*) bitmaps, share->fields);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->is_valid_json_set,
                  (my_bitmap_map*) bitmaps, share->fields);
   outparam->default_column_bitmaps();
 
@@ -5970,6 +5986,12 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   pos_in_table_list= tl;
 
   clear_column_bitmaps();
+  /*
+    A cached TABLE, or one whose statement gave up between a write and the
+    reading of what was written, can arrive here with marks still on it.
+    They are about a row image that is over.
+  */
+  clear_is_valid_json_marks();
   for (Field **f_ptr= field ; *f_ptr ; f_ptr++)
   {
     (*f_ptr)->next_equal_field= NULL;
@@ -6638,6 +6660,66 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 
 int TABLE::verify_constraints(bool ignore_failure)
 {
+  int rc= run_check_constraints(ignore_failure);
+  /*
+    The marks are about the bytes that are in record[0] right now, and this
+    is where the row image they belong to is done with.  Draining them here
+    rather than at the callers is what makes them safe: whatever replaces
+    those bytes next - restore_record() between the two readings of
+    INSERT ... ON DUPLICATE KEY UPDATE is the sharp case - finds nothing
+    left over to be believed.
+  */
+  clear_is_valid_json_marks();
+  return rc;
+}
+
+
+#ifndef DBUG_OFF
+/*
+  Reads back what a mark claimed, and stops a debug server if it was wrong.
+
+  The mark says this column holds a document, so the check would pass and
+  is being left unrun.  Nothing downstream ever finds out otherwise: a
+  wrong mark is a constraint that quietly stops being enforced, and the row
+  it lets through is indistinguishable from a row that passed.  This is the
+  last place that can still tell the difference, so a debug build spends
+  the reading here to tell it.
+
+  It is worth the cost because of the shape of the thing it polices.  The
+  marks are SET at three places, which is a closed list, but they are
+  CLEARED at every place that writes record[0] without going through those
+  three - and that list is open.  A site added later that forgets to clear
+  produces no wrong answer, no warning and no failing test: it produces a
+  check that silently stops running.  With this here it produces an abort
+  on the first row that reaches it.
+
+  The reading is taken back off Json_scans afterwards.  It is the debug
+  build's work rather than the server's, and counting it would move a
+  number kept to watch the work a released server does.
+*/
+
+void TABLE::check_json_valid_mark(Virtual_column_info *check)
+{
+  bool held;
+
+  /*
+    An error already standing makes the reading say nothing about the
+    mark, only about the error.
+  */
+  if (in_use->is_error())
+    return;
+
+  {
+    Json_scans_unbilled unbilled(in_use);
+    held= check->expr->val_bool() || check->expr->null_value;
+  }
+  DBUG_ASSERT(held);
+}
+#endif
+
+
+int TABLE::run_check_constraints(bool ignore_failure)
+{
   /*
     We have to check is_error() first as we are checking it for each
     constraint to catch fatal warnings.
@@ -6655,6 +6737,19 @@ int TABLE::verify_constraints(bool ignore_failure)
     StringBuffer<MAX_FIELD_WIDTH> field_error(system_charset_info);
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
+      /*
+        A check that asks nothing but whether its own column holds a
+        document has nothing to find out where that column was written
+        from an item that already attested to the value.
+      */
+      if ((*chk)->json_valid_field_index != NO_JSON_VALID_FIELD &&
+          bitmap_is_set(&is_valid_json_set, (*chk)->json_valid_field_index))
+      {
+#ifndef DBUG_OFF
+        check_json_valid_mark(*chk);
+#endif
+        continue;
+      }
       /*
         yes! NULL is ok.
         see 4.23.3.4 Table check constraints, part 2, SQL:2016
@@ -9288,6 +9383,13 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 # endif
       vcol_info->expr->save_in_field(vf, 0);
       DBUG_RESTORE_WRITE_SET(vf);
+      /*
+        Whatever was put into this field before, what stands there now came
+        from the column's own expression and nobody has attested to it.
+        A value assigned to a stored generated column is taken and then
+        written over exactly here.
+      */
+      vf->clear_is_valid_json();
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -9347,6 +9449,8 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   DBUG_FIX_WRITE_SET(vf);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf);
+  /* See the same call in update_virtual_fields() above. */
+  vf->clear_is_valid_json();
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
   if (ignore_warnings)

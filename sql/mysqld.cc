@@ -7691,6 +7691,9 @@ SHOW_VAR status_vars[]= {
   {"Handler_tmp_write",        (char*) offsetof(STATUS_VAR, ha_tmp_write_count), SHOW_LONG_STATUS},
   {"Handler_update",           (char*) offsetof(STATUS_VAR, ha_update_count), SHOW_LONG_STATUS},
   {"Handler_write",            (char*) offsetof(STATUS_VAR, ha_write_count), SHOW_LONG_STATUS},
+#ifndef DBUG_OFF
+  {"Json_scans",               (char*) offsetof(STATUS_VAR, json_scans), SHOW_LONG_STATUS},
+#endif
   SHOW_FUNC_ENTRY("Key",       &show_default_keycache),
   {"optimizer_join_prefixes_check_calls",     (char*) offsetof(STATUS_VAR, optimizer_join_prefixes_check_calls), SHOW_LONG_STATUS},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},

@@ -36,6 +36,11 @@
 #include "tztime.h"                      // struct Time_zone
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
+#include "sql_type_json.h"               // Type_handler_json_common
+#ifndef DBUG_OFF
+#include "item_jsonfunc.h"               // json_value_reads_as_document,
+                                         // json_value_is_nice
+#endif
 #include <m_ctype.h>
 
 // Maximum allowed exponent value for converting string to decimal
@@ -1505,6 +1510,7 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
   DBUG_ASSERT(value);
 
   Item *expr_item;
+  int store_rc;
 
   if (!(expr_item= thd->sp_fix_func_item_for_assignment(this, value)))
     goto error;
@@ -1514,10 +1520,18 @@ bool Field::sp_prepare_and_store_item(THD *thd, Item **value)
 
   /* Save the value in the field. Convert the value if needed. */
 
-  expr_item->save_in_field(this, 0);
+  store_rc= expr_item->save_in_field(this, 0);
 
   if (likely(!thd->is_error()))
+  {
+    /*
+      The one place a stored program's variable is written, and so the
+      one place there is anything to say about what is in it - see
+      Field::set_json_held_marks().
+    */
+    set_json_held_marks(expr_item, store_rc);
     DBUG_RETURN(false);
+  }
 
 error:
   /*
@@ -1527,6 +1541,13 @@ error:
     set x = x + 1;
   */
   set_null();
+  /*
+    The assignment failed, so nothing attests to what this field holds:
+    the bytes are whatever the store put down before the error, under a
+    NULL that was set without clearing them.  The marks the previous
+    assignment left go with them.
+  */
+  clear_json_held_marks();
   DBUG_ASSERT(thd->is_error());
   DBUG_RETURN(true);
 }
@@ -2684,6 +2705,472 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff)
     tmp->move_field_offset(diff);
   }
   return tmp;
+}
+
+
+/*
+  Whether a store into this field that answered 0 puts down exactly the
+  characters it was handed.
+
+  Only such a field can carry what an Item answered about those characters,
+  JSON being written in characters.  CHAR and BINARY pad what they are
+  given and the padding is part of what is stored; ENUM and SET keep the
+  member they matched rather than the text that matched it; GEOMETRY and
+  the compressed types put down something else entirely; and the rest
+  convert.  Every one of those answers 0 while doing it.
+
+  Asked of real_type() rather than answered by a virtual, so that a field
+  type has to be NAMED here to be trusted.  A field type nobody has looked
+  at is untrusted, and a new subclass of a trusted one does not inherit the
+  trust - which is the way round that costs a check that was going to pass,
+  rather than the way round that admits a value that is not a document.
+
+  That holds for every subclass that says what it is: Field_geom derives
+  from Field_blob and answers MYSQL_TYPE_GEOMETRY, so naming the blobs
+  below does not name it.  The compressed classes are the exception and
+  the reason for the question below the comment: they derive from a named
+  type and go on answering its real_type(), saying nothing anywhere that
+  a switch could read.  They are asked about their compression instead,
+  which is the one thing they do say.
+
+  A virtual is safe THAT way round.  It is asked in order to REFUSE, so a
+  field type that has never heard of it is left where it started - refused
+  unless something below names it - and the inheritance that costs the
+  trust cannot grant any.
+*/
+
+bool Field::is_character_preserving() const
+{
+  if (compression_method())
+    return false;
+
+  switch (real_type()) {
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_BLOB:
+    return true;
+  default:
+    return false;
+  }
+}
+
+
+/*
+  The one rule every store site applies, asked in one place.
+
+  A store that returned 0 into a field that puts down what it is given
+  mapped every character across without putting anything in its place.
+  JSON is written in characters, so a document that arrived that way is
+  still a document; anything else leaves the caller with nothing to say.
+
+  Mapped across, and not merely carried across.  A store into or out of
+  a binary field keeps the bytes and calls them by the other set's name,
+  which is a different string of characters - so a document written in
+  ucs2 and put into a BLOB arrives as bytes that read back as nothing at
+  all.  conversion_keeps_characters() is the question, rather than the
+  plain my_charset_same() the two standing grants ask: those are said
+  once about values not yet made, where a store that would convert has
+  not happened yet and cannot be counted on, and this one is said with
+  the store already done and its answer in hand.
+
+  The item is asked before the field type is, the two being in the order
+  that refuses soonest.  Every value a table is given arrives here, and
+  one virtual answering no for everything that is not a document costs
+  less than the two virtuals and the switch that work out what this
+  field would have done with it.
+*/
+
+bool Field::is_attestation_preserved(const Item *item, int store_rc) const
+{
+  CHARSET_INFO *from= item->collation.collation;
+
+  return store_rc == 0 && item->is_valid_json() &&
+         is_character_preserving() &&
+         String_copier::conversion_keeps_characters(charset(), from) &&
+         !table->in_use->is_error();
+}
+
+
+void Field::set_is_valid_json(const Item *item, int store_rc)
+{
+  /*
+    The list of places that set a mark is closed, and every one of them
+    asks first whether any column of this table carries a check that
+    could ever read one.  Said here as well as at each of them, because
+    the closed list is what the debug reading in TABLE rests on: a site
+    added later that sets a mark on a table nobody asked about is a site
+    that will go on setting marks nothing polices.
+  */
+  DBUG_ASSERT(table->has_own_json_valid_check);
+
+  if (is_attestation_preserved(item, store_rc))
+    bitmap_set_bit(&table->is_valid_json_set, field_index);
+  else
+    bitmap_clear_bit(&table->is_valid_json_set, field_index);
+}
+
+
+/*
+  The three of these are here rather than beside their siblings in
+  field.h for one reason: JSON_DEPTH_UNKNOWN is declared in item.h,
+  which a field header does not see and should not have to.  The call
+  costs nothing beside the reading it exists to save.
+
+  Asked through the standing answer, so a column that has given that up
+  has given the depth up with it and cannot be asked to return a
+  figure about values it no longer attests to.
+*/
+
+uint Field::json_static_depth() const
+{
+  return is_valid_json_static() ? table->json_static_depth[field_index]
+                                : JSON_DEPTH_UNKNOWN;
+}
+
+
+/*
+  What a value that has just arrived makes of the running figure.  The
+  entry only ever rises, so this is asked in the same call as the store
+  and before anything reads the row - which is what makes a figure read
+  at row N no smaller than the depth of row N.
+
+  A value nobody counted arrives as JSON_DEPTH_UNKNOWN, which is the
+  largest there is, so it takes the column there and nothing brings it
+  back.
+*/
+
+void Field::raise_json_static_depth(uint depth)
+{
+  if (table->json_static_depth && depth > table->json_static_depth[field_index])
+    table->json_static_depth[field_index]= depth;
+}
+
+
+void Field::forget_json_static_depth()
+{
+  if (table->json_static_depth)
+    table->json_static_depth[field_index]= JSON_DEPTH_UNKNOWN;
+}
+
+
+/*
+  Said once, of a field of a temporary table the server is building for
+  itself, while the one item that will ever write it is in hand.
+
+  Three things are asked, and all three are properties of the pair rather
+  than of any value:
+
+  1. the item returns a document EVERY time it is evaluated, not just
+     the time somebody happens to look - which is the question this field
+     needs, there being no evaluation to have looked at yet;
+  2. the field puts down the characters it is given, by the same list
+     is_character_preserving() uses for the check skip;
+  3. it writes them in the character set they arrive in, so no character
+     is encoded again on the way down.  A document rewritten into another
+     character set is still a document, but only where every character of
+     it can be written there, and that is not a question about the pair.
+
+  The field being JSON-typed is asked too, and not because it makes the
+  value any more of a document: it is what decides whether anybody will
+  ever ask; an attestation about a column nothing reads as JSON is
+  never looked at.
+
+  The formatting is granted here too, as a yes, without anything being
+  asked.  Nothing could be asked: the item is in hand, but the question
+  is about values it has not made yet, and unlike being a document the
+  formatting is settled one value at a time.  So it is granted here and
+  spent afterwards - each value that arrives written another way takes
+  it back, and a field that is never written keeps it and is never read.
+
+  How deep the values go is settled the same way and for the same
+  reason, but it runs the other direction: it starts at nothing, being
+  the deepest of no rows, and each value that arrives raises it.  Where
+  no answer is given at all it starts at the largest figure there is,
+  so that a column nobody attested to cannot be read as a shallow one.
+*/
+
+void Field::set_is_valid_json_static(const Item *item)
+{
+  if (!table->is_valid_json_static_set)
+    return;
+  DBUG_ASSERT(table->is_nice_json_static_set && table->json_static_depth);
+  if (item->is_valid_json_static() && is_character_preserving() &&
+      Type_handler_json_common::is_json_type_handler(type_handler()) &&
+      my_charset_same(charset(), item->collation.collation))
+  {
+    bitmap_set_bit(table->is_valid_json_static_set, field_index);
+    bitmap_set_bit(table->is_nice_json_static_set, field_index);
+    table->json_static_depth[field_index]= 0;
+  }
+  else
+  {
+    bitmap_clear_bit(table->is_valid_json_static_set, field_index);
+    bitmap_clear_bit(table->is_nice_json_static_set, field_index);
+    table->json_static_depth[field_index]= JSON_DEPTH_UNKNOWN;
+  }
+}
+
+
+/*
+  Asked after every store into such a field, because the promise above is
+  about characters and a store is where characters go missing.
+
+  It is asked as "how much did you keep", not "did anything go wrong",
+  because going wrong is not reported here: Field_longstr::
+  report_if_important_data() answers 0 for a truncation unless
+  count_cuted_fields is raised above CHECK_FIELD_EXPRESSION, and writing
+  a temporary table does not raise it.  A store that dropped the tail of
+  a document would return success and warn nobody.
+
+  Losing the mark is for good.  The value that arrived short is not a
+  document, and one field of one row being wrong is enough - a reader
+  believes the field, not the row.
+
+  No function asks for less room than it goes on to use, so nothing gets
+  here having lost anything; what this catches is one of them ever
+  doing so.  A store that comes up short is arranged for rather than
+  waited for, so that the losing of the mark is exercised and not merely
+  reasoned about.
+
+  The formatting is asked of the item instead of the store, that being
+  where the answer is: a store puts characters down and knows nothing
+  about the order they are in, while the item has just written them and
+  says how.  The two are asked together because they are spent together
+  - a store that lost characters has lost the formatting with them, which
+  is why the length is settled first and the formatting only after.
+
+  The depth comes off the item for the same reason and is taken the
+  same way round: a value the item did not count arrives as the largest
+  figure there is and takes the column with it, so nothing has to
+  decide here what an absent answer means.
+*/
+
+void Field::confirm_is_valid_json_static(uint32 handed_length, bool is_nice,
+                                         uint depth, CHARSET_INFO *cs)
+{
+  DBUG_EXECUTE_IF("json_tmp_store_kept_short", handed_length++;);
+  /*
+    The length alone is not the question, and both the other two ask the
+    rest of it.  A store between a wide set and the binary one keeps
+    every byte and calls them by the other set's name, so the length
+    comes back unchanged over characters that are no longer the ones
+    that were written: a ucs2 document arrives as bytes beginning 00 7B,
+    which nothing reads as a document.
+
+    Asked here rather than left to the grant, because on the union route
+    the grant cannot ask it.  The field is made from a type holder, whose
+    own set is the aggregated one and so is always the field's - the
+    question answers itself there and decides nothing.  The branches that
+    do the storing are the ones with something to say, and this is where
+    each of them says it.
+  */
+  if (value_length() != handed_length ||
+      !String_copier::conversion_keeps_characters(charset(), cs))
+  {
+    clear_is_valid_json_static();
+    return;
+  }
+  confirm_json_static_value(is_nice, depth);
+}
+
+
+/*
+  What is left of a confirm once the answer itself has survived it: the
+  formatting and the depth, which are said about the values rather than
+  about the column and so are taken one value at a time.
+
+  Both confirms end here, and the debug reading is written once for the
+  same reason the rule above it is: two copies of a check are two chances
+  for one of them to stop matching what it is checking.
+*/
+
+void Field::confirm_json_static_value(bool is_nice, uint depth)
+{
+  if (!is_nice)
+    clear_is_nice_json_static();
+  raise_json_static_depth(depth);
+#ifndef DBUG_OFF
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    const String *v= val_str(&kept);
+    /*
+      Nothing else will ever read this back.  The mark appears in no
+      result and changes no output, so a field wrongly carrying one goes
+      unnoticed until something acts on it - and by then the store that
+      made the promise is a long way from the code that believed it.
+    */
+    DBUG_ASSERT(json_value_reads_as_document(v));
+    DBUG_ASSERT(!is_nice_json_static() || json_value_is_nice(v));
+    DBUG_ASSERT(json_static_depth() >= json_value_depth(v));
+  }
+#endif
+}
+
+
+/*
+  Asked after such a field is filled from another FIELD rather than from
+  an item, which is how a temporary table built out of an earlier one is
+  filled.
+
+  The answer that field was given was copied at build time, before a row
+  of either table existed, so it is not the answer the source holds now.
+  It is an upper bound on it: the bit is set in one place, reached only
+  while such a table is being built, and everything that touches it
+  afterwards only ever clears, so a source that has given its answer up
+  cannot get it back and a copy of it can only be too generous.  Asking
+  the source again at every fill is what turns the bound into the
+  answer, and it is asked where both tables are alive by construction
+  and the source's own store of this row is already done - so nothing
+  here rests on the order two tables are written in.
+
+  The source is asked the same two things the store is asked: whether it
+  attests to its values at all, and whether this field kept every
+  character of what it holds.  The character sets are asked about too,
+  the length being counted in bytes and two fields of different
+  character sets being able to agree on a length while disagreeing about
+  every character in it.  A grant is only ever made where they match, so
+  this decides nothing today; it is here so that the byte count does not
+  quietly become the wrong question if a fill site ever brings a source
+  the grant did not look at.
+
+  The formatting comes from the source as well, and here it has to: no
+  item was evaluated to fill this field, so the only thing that knows
+  how the characters are arranged is the field they were copied from.
+  It is a bound in the same way the answer above is, and turned into the
+  answer the same way, by asking again at every fill.
+
+  The depth comes from the source too, and it is the source's figure
+  over all its rows rather than the depth of the one value being
+  copied - the source having kept a running deepest and not a per-row
+  one.  That is too large rather than wrong, and too large is the
+  direction this figure is allowed to be wrong in.
+*/
+
+void Field::confirm_is_valid_json_static_from(Field *from)
+{
+  uint32 handed_length;
+
+  /*
+    A NULL is not read as a document and nothing attests to it as one,
+    so a row that puts one here leaves the column's answer where it was.
+  */
+  if (is_null())
+    return;
+
+  handed_length= from->value_length();
+  DBUG_EXECUTE_IF("json_tmp_chain_kept_short", handed_length++;);
+  if (from->is_null() || !from->is_valid_json_static() ||
+      !my_charset_same(charset(), from->charset()) ||
+      value_length() != handed_length)
+  {
+    clear_is_valid_json_static();
+    return;
+  }
+  confirm_json_static_value(from->is_nice_json_static(),
+                            from->json_static_depth());
+}
+
+
+/*
+  What this field is holding, where it is a stored program's variable and
+  something was said about the value put here - see TABLE::json_held_marks.
+
+  A field with nowhere to keep an answer answers the same as one that was
+  never granted anything, which is the answer everything but a stored
+  program's variable gives and the answer those give until an assignment
+  says otherwise.
+*/
+
+bool Field::is_valid_json_held() const
+{
+  return table->json_held_marks &&
+         table->json_held_marks[field_index].valid();
+}
+
+
+bool Field::is_nice_json_held() const
+{
+  return table->json_held_marks &&
+         table->json_held_marks[field_index].nice();
+}
+
+
+uint Field::json_held_depth() const
+{
+  return table->json_held_marks ? table->json_held_marks[field_index].depth()
+                                : JSON_DEPTH_UNKNOWN;
+}
+
+
+void Field::clear_json_held_marks()
+{
+  if (table->json_held_marks)
+    table->json_held_marks[field_index].clear();
+}
+
+
+/*
+  Said once per assignment, with the item that was assigned in hand and
+  the store it just did already done.
+
+  The rule is the one every store site applies - the item said it was a
+  document, the store kept every character of it, and nothing went wrong
+  while it happened - and it is applied here for the same reason it is
+  applied there.  What is different is what the answer is about: a
+  column is attested once and read over many rows, while a variable
+  is attested as often as it is written and read only until it is
+  written again.  So the formatting and the depth are taken from the item
+  as well, exactly rather than as a bound: there is one value here, the
+  item that made it is right here, and it is the only value the answer
+  has to cover.
+
+  The store having returned 0 is asked about and not merely whether
+  anything went wrong, because in this direction the two are not the
+  same: a store that had to drop characters or write them another way
+  answers 2, and answers it while succeeding.  Assigning a variable does
+  raise an error where a column store would not, but that is a property
+  of this path rather than of the rule, and the rule is the conservative
+  one either way.
+
+  Nothing is cleared on the way in.  Every way out of the funnel this is
+  called from ends either here or at the clear beside it, so a value
+  that never arrived leaves no answer standing over the bytes of the one
+  before it.  Not clearing first is also what lets SET x = x keep an
+  answer: the item is this same field, and what it says is read after
+  the store rather than wiped before it.
+*/
+
+void Field::set_json_held_marks(const Item *item, int store_rc)
+{
+  if (!table->json_held_marks)
+    return;
+  Json_result_marks &marks= table->json_held_marks[field_index];
+  /*
+    The same rule a column's store is attested by - see
+    Field::is_attestation_preserved() - and a NULL besides, which is
+    not read as a document and is not attested as one.
+  */
+  if (!is_attestation_preserved(item, store_rc) || is_null())
+  {
+    marks.clear();
+    return;
+  }
+  {
+    /*
+      The value is read back out of the field rather than taken from the
+      item, so that what the answer is checked against is what a reader
+      of this field will find.  Only the check reads it - see
+      Json_result_marks::set(), which uses the value for nothing else -
+      so the reading is the debug build's work, the same as at the
+      confirm above.
+    */
+    IF_DBUG(StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;,)
+    marks.set(IF_DBUG(val_str(&kept), NULL), true, item->is_nice_json(),
+              item->last_depth());
+  }
 }
 
 
@@ -7397,17 +7884,22 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
 void Field_longstr::make_send_field(Send_field *field)
 {
   Field_str::make_send_field(field);
-  if (check_constraint)
-  {
-    /*
-      Append the format that is implicitly implied by the CHECK CONSTRAINT.
-      For example:
-        CREATE TABLE t1 (js longtext DEFAULT NULL CHECK (json_valid(a)));
-        SELECT j FROM t1;
-      will add "format=json" to the extended type info metadata for t1.js.
-    */
-    check_constraint->expr->set_format_by_check_constraint(field);
-  }
+  /*
+    Append the format that is implicitly implied by the CHECK CONSTRAINT.
+    For example:
+      CREATE TABLE t1 (js longtext DEFAULT NULL CHECK (json_valid(js)));
+      SELECT js FROM t1;
+    will add "format=json" to the extended type info metadata for t1.js.
+
+    What is asked is what types the column, which is the same question
+    Field_string::type_handler() below asks and the same answer.  A column
+    the client is told is a document is a column whose values it may pass
+    to a parser without quoting them, and that is what being typed JSON
+    means here; a check the column cannot pass without holding a document
+    is a weaker thing and does not type it.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    Type_handler_json_common::set_format_name(field);
 }
 
 
@@ -10845,8 +11337,12 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
 
 bool Column_definition::validate_check_constraint(THD *thd)
 {
-  return check_constraint &&
-         check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
+  if (!check_constraint)
+    return false;
+  Type_handler_json_common::warn_if_json_valid_does_not_type(thd,
+                                                             check_constraint,
+                                                             field_name);
+  return check_expression(check_constraint, &field_name, VCOL_CHECK_FIELD);
 }
 
 
@@ -11825,6 +12321,12 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
   Virtual_column_info* dst= new (thd->mem_root) Virtual_column_info(*this);
   if (!dst)
     return NULL;
+  /*
+    The copy's expression reads other Item_fields than the ones this was
+    worked out against, so it has to be worked out again when the table
+    the copy belongs to is opened.
+  */
+  dst->json_valid_field_index= NO_JSON_VALID_FIELD;
   if (expr)
   {
     dst->expr= expr->deep_copy_with_checks(thd);

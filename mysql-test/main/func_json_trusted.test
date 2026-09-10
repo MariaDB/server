@@ -1,0 +1,230 @@
+#
+# The seven functions that used to read their own answer back now hand
+# it as it was composed, whenever the item behind every document
+# they were given attests is_valid and is_nice.
+#
+# Nothing else in the suite goes down that path.  A string literal
+# attests is_valid false for its document, so the reading back still
+# happens and the composition is never the answer; a suite built out of
+# literals can be entirely green while the composing is entirely wrong.
+# Every case here is therefore built from a producer that attests to
+# what it passes - JSON_OBJECT, JSON_ARRAY or JSON_EXTRACT - and is
+# paired with the same statement written with a literal, which is what
+# a released server runs.  The pair has to agree.
+#
+# The answers in this file were recorded on a released 10.11 server, so
+# what they say is what that server says, not what this one does.  Five
+# lines of it are not, and they are the only five:
+#
+#   - Three of the refusals below carry an added Note naming the argument
+#     whose value would not fit, in front of the warning a released
+#     server gives on its own.  Nothing is said less; something is said
+#     more, and what it says is true.
+#
+#   - Two warning positions differ by one character from a released
+#     server's.  A position is an offset into
+#     the text that was composed, and the text composed here is already
+#     written the loose way where a released server composed it compact
+#     and tidied it afterwards.  Since these are the documents that are
+#     refused, the tidying never happened there, so its offsets are
+#     into a document that server threw away.  Ours are into the one it
+#     would have returned.
+#
+# Every answer, and every one of the compositions written out below in
+# full, is byte for byte what a released server gives.
+#
+
+--enable_warnings
+
+--echo #
+--echo # 1. A key both documents hold
+--echo #
+--echo #    Merging writes the value of such a key itself rather than
+--echo #    copying it out of either document, so the punctuation in
+--echo #    front of it is the composer's to get right.
+--echo #
+SELECT JSON_MERGE_PRESERVE('{"a": 1}', '{"a": 2}') AS literal;
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('a', 2)) AS built;
+SELECT JSON_MERGE(JSON_EXTRACT('{"a": 1}', '$'),
+                  JSON_EXTRACT('{"a": 2, "b": 3}', '$')) AS cut;
+
+--echo #
+--echo #    The same where the shared value is a container, which the
+--echo #    merging walks into and composes a level further down.
+--echo #
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', JSON_OBJECT('x', 1)),
+                           JSON_OBJECT('a', JSON_OBJECT('y', 2))) AS objects;
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', JSON_ARRAY(1, 2)),
+                           JSON_OBJECT('a', JSON_ARRAY(3, 4))) AS arrays;
+
+--echo #
+--echo #    A key only one of them holds is copied across with the
+--echo #    spacing it was written with, and is the control for the
+--echo #    three above.
+--echo #
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2)) AS apart;
+
+--echo #
+--echo # 2. Removing the first element of an array
+--echo #
+--echo #    What is taken out reaches to the comma; the space after it
+--echo #    belongs to the element that stays, and has to end up in
+--echo #    front of it and not behind the bracket.
+--echo #
+SELECT JSON_REMOVE('[1, 2, 3]', '$[0]') AS literal;
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[0]') AS cut;
+SELECT JSON_REMOVE(JSON_ARRAY(1, 2, 3), '$[0]') AS built;
+SELECT JSON_REMOVE(JSON_EXTRACT('{"a": [1, 2, 3]}', '$'), '$.a[0]') AS nested;
+SELECT JSON_REMOVE(JSON_EXTRACT('[[1], 2, 3]', '$'), '$[0]') AS container;
+
+--echo #
+--echo #    Taking out anything other than the first element ends at a
+--echo #    comma with nothing after it, so those are the controls.
+--echo #
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[1]') AS middle;
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[2]') AS last;
+SELECT JSON_REMOVE(JSON_EXTRACT('{"a": 1, "b": 2}', '$'), '$.a') AS first_key;
+
+--echo #
+--echo #    Where the document is nobody's word, what is composed is not
+--echo #    the answer but what the reading back at the end is made
+--echo #    from, and that reading is what complains about anything
+--echo #    written after the document.  It counts from the start of the
+--echo #    text it was handed, so that text has to be the one a
+--echo #    released server would have handed it - including the space
+--echo #    the taking out would otherwise carry off, which that server
+--echo #    leaves standing and drops later while writing the answer.
+--echo #
+SELECT JSON_REMOVE('[1, 2] x', '$[0]') AS pos_first;
+SELECT JSON_REMOVE('[1, 2, 3] x', '$[0]') AS pos_first_three;
+
+--echo #
+--echo #    The controls, none of which has such a space to lose: one
+--echo #    document written with no spacing at all, one where what is
+--echo #    taken out is not the first piece, and one where it is a key.
+--echo #
+SELECT JSON_REMOVE('[1,2] x', '$[0]') AS pos_compact;
+SELECT JSON_REMOVE('[1, 2] x', '$[1]') AS pos_second;
+SELECT JSON_REMOVE('{"a": 1, "b": 2} x', '$.a') AS pos_key;
+
+--echo #
+--echo # 3. A value put where the document would end up too deep
+--echo #
+--echo #    How deep the value ends up is the level it is put at plus
+--echo #    its own; the level it is put at is read off the scanner,
+--echo #    which by then has already left the thing being put into.
+--echo #
+SET @deep30= CONCAT(REPEAT('[', 30), '{"k": 1}', REPEAT(']', 30));
+SET @newkey= CONCAT('$', REPEAT('[0]', 30), '.n');
+SET @pastend= CONCAT('$', REPEAT('[0]', 30), '[1]');
+
+SELECT JSON_INSERT(@deep30, @newkey, JSON_EXTRACT('[5]', '$'))
+       IS NULL AS literal_isnull;
+SELECT JSON_INSERT(JSON_EXTRACT(@deep30, '$'), @newkey,
+                   JSON_EXTRACT('[5]', '$')) IS NULL AS cut_isnull;
+SELECT JSON_SET(JSON_EXTRACT(@deep30, '$'), @newkey,
+                JSON_EXTRACT('[5]', '$')) IS NULL AS set_isnull;
+
+SET @arr30= CONCAT(REPEAT('[', 30), '[1]', REPEAT(']', 30));
+SELECT JSON_INSERT(@arr30, @pastend, JSON_EXTRACT('[5]', '$'))
+       IS NULL AS end_literal_isnull;
+SELECT JSON_INSERT(JSON_EXTRACT(@arr30, '$'), @pastend,
+                   JSON_EXTRACT('[5]', '$')) IS NULL AS end_cut_isnull;
+
+--echo #
+--echo #    One level shallower, the same statements answer, and that
+--echo #    is what says the two above are refused for their depth and
+--echo #    not for their shape.
+--echo #
+SET @deep20= CONCAT(REPEAT('[', 20), '{"k": 1}', REPEAT(']', 20));
+SET @newkey20= CONCAT('$', REPEAT('[0]', 20), '.n');
+SELECT JSON_INSERT(JSON_EXTRACT(@deep20, '$'), @newkey20,
+                   JSON_EXTRACT('[5]', '$')) IS NULL AS shallow_isnull;
+
+--echo #
+--echo #    And what it actually composed, which is where a document
+--echo #    that came out a character longer or shorter than a released
+--echo #    server's would show itself.  Asking only whether an answer
+--echo #    came back would not.
+--echo #
+SELECT JSON_INSERT(JSON_EXTRACT('[[{"k": 1}]]', '$'), '$[0][0].n',
+                   JSON_EXTRACT('[5]', '$')) AS composed;
+SELECT JSON_INSERT(JSON_EXTRACT('[[1, 2]]', '$'), '$[0][2]',
+                   JSON_EXTRACT('[5]', '$')) AS composed_past_end;
+SELECT JSON_SET(JSON_EXTRACT('{"a": {"b": 1}}', '$'), '$.a.c',
+                JSON_EXTRACT('{"z": 9}', '$')) AS composed_set;
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('[1, 2]', '$'), '$',
+                         JSON_EXTRACT('[3, 4]', '$')) AS composed_append;
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1, 2]', '$'), '$[0]',
+                         JSON_EXTRACT('[3, 4]', '$')) AS composed_ainsert;
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('{"a": 1}', '$'), '$',
+                         JSON_EXTRACT('[3, 4]', '$')) AS composed_autowrap;
+SELECT JSON_EXTRACT('{"a": [1, 2], "b": {"c": 3}}', '$.a', '$.b')
+       AS composed_two_paths;
+SELECT JSON_MERGE(JSON_EXTRACT('{"a": 1}', '$'), JSON_EXTRACT('2', '$'))
+       AS composed_merge_wrap;
+
+--echo #
+--echo # 4. The bracket a reading of more than one path adds
+--echo #
+--echo #    Two matches are returned wrapped in an array, and that
+--echo #    wrapper is a level nobody asked the document about.
+--echo #
+SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SELECT JSON_VALID(@d31) AS legal_on_its_own;
+SELECT JSON_EXTRACT(@d31, '$') IS NULL AS one_path_isnull;
+SELECT JSON_EXTRACT(@d31, '$', '$') IS NULL AS two_paths_isnull;
+
+SET @d30= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SELECT JSON_EXTRACT(@d30, '$', '$') IS NULL AS two_paths_fit_isnull;
+
+--echo #
+--echo # 5. The bracket a merge adds
+--echo #
+--echo #    Merging a document with something it cannot be merged into
+--echo #    puts both in a new array, which is a level as well.
+--echo #
+SET @o31= CONCAT(REPEAT('{"a":', 31), '1', REPEAT('}', 31));
+SELECT JSON_VALID(@o31) AS legal_on_its_own;
+SELECT JSON_MERGE(JSON_EXTRACT(@o31, '$'), JSON_EXTRACT('1', '$'))
+       IS NULL AS scalar_wrap_isnull;
+SELECT JSON_MERGE(JSON_EXTRACT(@o31, '$'), JSON_EXTRACT('{"a": 1}', '$'))
+       IS NULL AS shared_key_isnull;
+
+SET @o30= CONCAT(REPEAT('{"a":', 30), '1', REPEAT('}', 30));
+SELECT JSON_MERGE(JSON_EXTRACT(@o30, '$'), JSON_EXTRACT('1', '$'))
+       IS NULL AS wrap_fits_isnull;
+
+--echo #
+--echo # 6. The value an autowrap keeps
+--echo #
+--echo #    Appending to something that is not an array wraps what is
+--echo #    already there, so the KEPT value goes a level down too -
+--echo #    not only the one being appended.
+--echo #
+SET @p30= CONCAT('$', REPEAT('.a', 30));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@o31, '$'), @p30, 1)
+       IS NULL AS append_wrap_isnull;
+SELECT JSON_INSERT(JSON_EXTRACT(@o31, '$'), CONCAT(@p30, '[1]'), 1)
+       IS NULL AS insert_wrap_isnull;
+
+SET @p29= CONCAT('$', REPEAT('.a', 29));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@o30, '$'), @p29, 1)
+       IS NULL AS append_wrap_fits_isnull;
+
+--echo #
+--echo # 7. A document that fits, and the diagnostic it must not get
+--echo #
+--echo #    The level a value is appended at is read off the scanner
+--echo #    after it has already been counted, so counting it again
+--echo #    refuses a document that fits - or lets it through with a
+--echo #    note saying it did not fit, which is worse, the note being
+--echo #    the only thing an application would go by.
+--echo #
+SET @nest30= CONCAT(REPEAT('[', 30), REPEAT(']', 30));
+SELECT JSON_ARRAY_APPEND('[1]', '$', JSON_EXTRACT(@nest30, '$'))
+       IS NULL AS literal_isnull;
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('[1]', '$'), '$',
+                         JSON_EXTRACT(@nest30, '$')) IS NULL AS cut_isnull;
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1]', '$'), '$[0]',
+                         JSON_EXTRACT(@nest30, '$')) IS NULL AS insert_isnull;

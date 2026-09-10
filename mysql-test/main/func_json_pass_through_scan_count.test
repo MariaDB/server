@@ -1,0 +1,238 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # How many times a document is read to find out that it is one when
+--echo # it reaches a JSON function through an expression that returns a
+--echo # value one of its arguments made: CASE and its abbreviations, and a
+--echo # scalar subquery.
+--echo #
+--echo # No query can see the difference - the reading could only have found
+--echo # out what was already known - so nothing but Json_scans says whether
+--echo # it happened.  The counts below are the record of it.  A count that
+--echo # goes up is a reading that came back.
+--echo #
+--echo # A debug build reads values back to check what was claimed about
+--echo # them, and none of those readings are counted: they are the debug
+--echo # build's work and not the server's.  A count of 0 below therefore
+--echo # means nothing read, not that a reading went uncounted.
+--echo #
+
+SET NAMES utf8mb4;
+
+# What is recorded here is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
+SET optimizer_switch='derived_merge=off';
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+
+--echo #
+--echo # 1. TWO rows through a function that attests to what it returns,
+--echo # spliced with nothing in between.  JSON_EXTRACT reads its input
+--echo # once a row; the splice reads nothing.  Every count below is held
+--echo # against this one.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_EXTRACT(j, '$')) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 2. The same value returned by a searched CASE.  What the CASE
+--echo # returns is what the THEN argument returned, so what that argument
+--echo # said about it is said about it here.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(CASE WHEN id > 0 THEN JSON_EXTRACT(j, '$')
+                       ELSE JSON_ARRAY() END) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 3. A simple CASE, which picks its argument by comparing rather
+--echo # than by testing, and the ELSE rather than a THEN.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(CASE id WHEN 0 THEN JSON_ARRAY()
+                          ELSE JSON_EXTRACT(j, '$') END) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 4. COALESCE and IFNULL, which find their argument by reading it.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(COALESCE(JSON_EXTRACT(j, '$'), JSON_ARRAY())) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+SELECT JSON_ARRAY(IFNULL(JSON_EXTRACT(j, '$'), JSON_ARRAY())) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 5. IFNULL again, this time returning its second argument.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(IFNULL(JSON_EXTRACT(NULL, '$'), JSON_EXTRACT(j, '$'))) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 6. IF and NVL2, which are told which argument to return by a
+--echo # switch.  The switch is not what either returns and is not asked.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(IF(id > 0, JSON_EXTRACT(j, '$'), JSON_ARRAY())) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+SELECT JSON_ARRAY(NVL2(id, JSON_EXTRACT(j, '$'), JSON_ARRAY())) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 7. NULLIF, which compares its first argument and then returns it.
+--echo # The function that makes the document therefore runs more than once
+--echo # a row and each run reads its own input, which is why this count is
+--echo # the highest here.  Those readings belong to the argument; the one
+--echo # the splice was making is the one that goes.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(NULLIF(JSON_EXTRACT(j, '$'), JSON_ARRAY())) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 8. A scalar subquery, whose value is kept in a cache and read out
+--echo # of it.  What the cache keeps is a copy of what the item under it
+--echo # returned, taken while the two were about the same characters.
+--echo #
+--echo # The subquery reads a table, so that it is still a subquery by the
+--echo # time it is run: one over no table at all is replaced by the
+--echo # expression inside it and there is nothing left to pass anything on.
+--echo # A correlated one is also run behind an expression cache, which is
+--echo # another value passed on and has to say the same thing.
+--echo #
+--echo # First with nothing spliced, which is what the subquery costs on
+--echo # its own, and then with the splice on top of it.
+--echo #
+FLUSH STATUS;
+SELECT (SELECT JSON_EXTRACT(x.j, '$') FROM t1 x
+         WHERE x.id = t1.id) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+SELECT JSON_ARRAY((SELECT JSON_EXTRACT(x.j, '$') FROM t1 x
+                    WHERE x.id = t1.id)) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # And with a producer that reads nothing of its own, so that the
+--echo # only reading left to count would be the splice's.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY((SELECT JSON_OBJECT('a', y.id) FROM t1 y
+                    WHERE y.id = t1.id)) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 9. Nested one inside another, so that the value is passed on twice
+--echo # before it is spliced.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(COALESCE(IF(id > 0, JSON_EXTRACT(j, '$'), NULL),
+                           JSON_ARRAY())) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 10. A value nothing attests to, passed through the same way.  The
+--echo # column says nothing about itself, so the splice reads it - and
+--echo # passing it through changes neither the answer nor the count.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(j) AS r FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+FLUSH STATUS;
+SELECT JSON_ARRAY(CASE WHEN id > 0 THEN j ELSE JSON_ARRAY() END) AS r
+  FROM t1 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 11. Through a temporary table, which is written before any row
+--echo # exists and so cannot be told what a row turned out to be.  What
+--echo # can be said in advance is what every argument that can be returned
+--echo # says, and both of these do.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, CASE WHEN id > 0 THEN JSON_OBJECT('a', id)
+                   ELSE JSON_ARRAY() END AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # The same for a subquery, whose one argument is the select list of
+--echo # the query inside it.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, (SELECT JSON_OBJECT('a', y.id) FROM t1 y
+                WHERE y.id = t1.id) AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 12. The same with one argument that says nothing.  One is enough
+--echo # to leave the column with nothing said about it, and every row is
+--echo # read on the way out - including the rows the other argument made.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, CASE WHEN id > 0 THEN JSON_OBJECT('a', id)
+                   ELSE j END AS x FROM t1) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 13. A GROUP BY, which writes a temporary table of its own, with
+--echo # the same expression in the select list.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, COALESCE(JSON_OBJECT('a', id), JSON_ARRAY()) AS x
+     FROM t1 GROUP BY id) d ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+--echo #
+--echo # 14. The WHEN expressions are not among the arguments that can be
+--echo # returned, so what they are made of settles nothing.  A CASE whose
+--echo # conditions read a column still attests for its THEN and ELSE.
+--echo #
+FLUSH STATUS;
+SELECT JSON_ARRAY(x) AS r FROM
+  (SELECT id, CASE WHEN j LIKE '%a%' THEN JSON_OBJECT('a', id)
+                   ELSE JSON_OBJECT('b', id) END AS x FROM t1) d
+  ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t1;
+SET optimizer_switch=DEFAULT;
+--enable_ps2_protocol
+
+--echo #
+--echo # 15. DECODE, which picks its argument the way a simple CASE does.
+--echo #
+--disable_ps2_protocol
+SET sql_mode=ORACLE;
+CREATE TABLE t2 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, '{"b":2}');
+
+FLUSH STATUS;
+SELECT JSON_ARRAY(DECODE(id, 0, JSON_ARRAY(), JSON_EXTRACT(j, '$'))) AS r
+  FROM t2 ORDER BY id;
+SHOW STATUS LIKE 'Json_scans';
+
+DROP TABLE t2;
+SET sql_mode=DEFAULT;
+--enable_ps2_protocol

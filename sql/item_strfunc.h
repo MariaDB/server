@@ -1982,6 +1982,21 @@ class Item_func_conv_charset :public Item_str_func
 {
   bool use_cached_value;
   String tmp_value;
+  /*
+    What can be said about the converted value.  A conversion that lost
+    nothing kept the sequence of characters it was given, and JSON is a
+    grammar over characters, so a document that went in comes out a
+    document and comes out written the same way.  A conversion that
+    substituted a character, or stopped on a byte it could not read, has
+    changed the value into something nothing here has looked at.
+
+    Conversion to "binary" is the exception, and is refused below.  It
+    is not a conversion but a relabelling: the bytes are kept, and each
+    one becomes a character of its own, so a multi-byte document comes
+    out as several times as many characters as it had.  The copier
+    cannot report that, binary having no byte that it rejects.
+  */
+  Json_result_marks m_marks;
 public:
   bool safe;
   Item_func_conv_charset(THD *thd, Item *a, CHARSET_INFO *cs):
@@ -2004,6 +2019,16 @@ public:
       use_cached_value= 1;
       str_value.mark_as_const();
       safe= (errors == 0);
+      /*
+        The bytes are settled here and never computed again, so what is
+        said about them has to be settled here too.  Asking the argument
+        later would pair an answer about a value it has since gone on to
+        produce with the one frozen above.
+      */
+      if (!null_value && safe &&
+          String_copier::conversion_keeps_characters(cs, str->charset()))
+        m_marks.set(&str_value, args[0]->is_valid_json(),
+                    args[0]->is_nice_json(), args[0]->last_depth());
     }
     else
     {
@@ -2069,6 +2094,16 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("convert") };
     return name;
   }
+  /*
+    What this wrapper is put round.  A caller looking through it for the
+    item underneath is told, rather than working out from the object
+    that this is what it was handed - see Item::conv_charset_arg(),
+    which says why that is worth a virtual of its own.
+  */
+  Item *conv_charset_arg() const override { return args[0]; }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
   void print(String *str, enum_query_type query_type) override;
   int save_in_field(Field*, bool) override;
 

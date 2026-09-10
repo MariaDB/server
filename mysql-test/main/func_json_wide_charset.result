@@ -1,0 +1,74 @@
+SET @save_collation_connection= @@collation_connection;
+#
+# Reading a value out. The result holds the value itself, in the
+# width the character set gives it.
+#
+SET collation_connection='utf16_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+HEX(JSON_EXTRACT('{"a":1,"b":2}','$.a')) AS scalar_bytes;
+scalar_value	scalar_bytes
+1	0031
+SELECT JSON_EXTRACT('{"a":{"x":1},"b":2}','$.a') AS object_value,
+HEX(JSON_EXTRACT('{"a":{"x":1},"b":2}','$.a')) AS object_bytes;
+object_value	object_bytes
+{"x": 1}	007B002200780022003A00200031007D
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a','$.b') AS several_paths,
+HEX(JSON_EXTRACT('{"a":1,"b":2}','$.a','$.b')) AS several_bytes;
+several_paths	several_bytes
+[1, 2]	005B0031002C00200032005D
+SELECT JSON_VALID(JSON_EXTRACT('{"a":{"x":1}}','$.a')) AS result_is_a_document;
+result_is_a_document
+1
+#
+# Appending to an array, and to something that is not one and has
+# to be wrapped in one first. Both arms copy the document.
+#
+SELECT JSON_ARRAY_APPEND('{"a":[1,2]}','$.a',3) AS target_is_array;
+target_is_array
+{"a": [1, 2, 3]}
+SELECT JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS target_is_scalar;
+target_is_scalar
+{"a": [1, 3]}
+SELECT JSON_ARRAY_APPEND('{"a":{"x":1}}','$.a',3) AS target_is_object;
+target_is_object
+{"a": [{"x": 1}, 3]}
+SELECT JSON_VALID(JSON_ARRAY_APPEND('{"a":1}','$.a',3)) AS result_is_a_document;
+result_is_a_document
+1
+#
+# The same at two bytes to the character, and at four.
+#
+SET collation_connection='ucs2_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+scalar_value	wrapped
+1	{"a": [1, 3]}
+SET collation_connection='utf32_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+scalar_value	wrapped
+1	{"a": [1, 3]}
+#
+# A character set of one byte answers as it always did.
+#
+SET collation_connection='utf8mb4_general_ci';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+scalar_value	wrapped
+1	{"a": [1, 3]}
+SET collation_connection='latin1_swedish_ci';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+scalar_value	wrapped
+1	{"a": [1, 3]}
+#
+# A document that is genuinely malformed is still refused, and the
+# position named is a position in what the caller sent.
+#
+SET collation_connection='utf16_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":oops}','$.a') AS malformed;
+malformed
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 24
+SET @@collation_connection= @save_collation_connection;

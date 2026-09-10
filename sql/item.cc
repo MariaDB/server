@@ -43,6 +43,7 @@
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
+#include "item_jsonfunc.h"             // json_value_reads_as_document
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -1738,6 +1739,78 @@ String *Item_sp_variable::val_str(String *sp)
 }
 
 
+/*
+  A JSON function keeps its document for the whole of its work.  It
+  walks the document to find the place it was asked about, then works
+  out the rest of its arguments, and only then reads the pieces of the
+  document either side of that place.  Working out an argument runs
+  whatever the caller wrote, and what the caller wrote can assign to
+  this very variable - the variables of a package body being in reach
+  of every routine in that package.  Storing a longer value there
+  gives the variable a new buffer and lets go of the old one, which is
+  the buffer being read from.
+
+  val_str() above returns a pointer INTO the variable rather than
+  bytes of the caller's own, and does so on purpose: a function that
+  builds into the buffer it is offered must not get to build into the
+  variable.  What that leaves the caller holding is a view, good only
+  for as long as nothing writes where it points, so a caller that
+  means to keep it across working something else out cannot be given
+  one.  Give that caller a copy.
+
+  A user variable has always been read this way - user_var_entry::
+  val_str() copies - which is why the same shape written with one of
+  those holds together.
+*/
+
+String *Item_sp_variable::val_json(String *str)
+{
+  DBUG_ASSERT(fixed());
+  Item *it= this_item();
+  String *res= it->val_json(str);
+
+  null_value= it->null_value;
+
+  /*
+    Nothing to copy, or worked out into the buffer that was offered
+    instead of read off the variable, in which case the bytes are the
+    caller's own already.
+  */
+  if (!res || res == str)
+    return res;
+
+  if (str->copy(res->ptr(), res->length(), res->charset()) ||
+      DBUG_IF("json_variable_copy_out_of_memory"))
+  {
+    null_value= true;                             /* Out of memory. */
+    return NULL;
+  }
+
+  return str;
+}
+
+
+/*
+  A view into the variable is what val_str() above returns, and it
+  is enough for a caller that reads the bytes and is done with them
+  before anything else can run: nothing can write where they point
+  while nothing is running.  So this is the one JSON caller that need
+  not be given a copy.  See val_json() above for the caller that must
+  be.
+*/
+
+String *Item_sp_variable::val_json_at_once(String *str)
+{
+  DBUG_ASSERT(fixed());
+  Item *it= this_item();
+  String *res= it->val_json(str);
+
+  null_value= it->null_value;
+
+  return res;
+}
+
+
 bool Item_sp_variable::val_native(THD *thd, Native *to)
 {
   return val_native_from_item(thd, this_item(), to);
@@ -2281,6 +2354,24 @@ public:
       Item_ident::print(str, query_type);
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
+
+  /*
+    The standing question, and only that one.  split_sum_func2() puts
+    this in front of whatever it moves out of an expression - "or copy
+    it (in case of fields)", its own comment says - so an aggregate is
+    not the only thing under here and an aggregate's habits cannot be
+    assumed of it.  The three answers about a VALUE are therefore left
+    to Item_ref, which asks the item what its result side passes
+    rather than what it made.
+
+    This one is not about a value.  It is asked while a temporary table
+    is being built, before a row exists, and by then the item underneath
+    has had its result field pointed at the very column being asked
+    about - so there is no result side to put the question to yet, and
+    the producer is the only thing there is to ask.
+  */
+  bool is_valid_json_static() const override
+  { return (*ref)->is_valid_json_static(); }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_aggregate_ref>(thd, this); }
@@ -5347,11 +5438,46 @@ int Item_copy_string::save_in_field(Field *field, bool no_conversions)
 
 void Item_copy_string::copy()
 {
+  bool kept= true;
   String *res=item->val_str(&str_value);
   if (res && res != &str_value)
-    str_value.copy(*res);
+    kept= !str_value.copy(*res);
   null_value=item->null_value;
-#ifndef DBUG_OFF
+  /*
+    The item was evaluated just above and nothing has evaluated it
+    since, so this is the one moment its answers are about the bytes
+    that are being kept.  String::copy() takes the character set along
+    with them, so the characters those answers are about are the
+    characters kept here - where it kept them at all.  A copy that could
+    not get the room leaves whatever was here before, which the value
+    side has always returned and which nothing here can attest to.
+
+    A value that carries an answer is one that gets spliced into a
+    document rather than quoted into one, and which of the two happens
+    is decided by the type rather than by the answer.  This item's type
+    is the one it was made over, so the two agree wherever that item is
+    the producer; where it is a character set conversion around the
+    producer they do not, the conversion carrying the answer through
+    while the type stops at it.  Asking the same question the splice
+    will ask is what keeps this item from attesting to a value that is
+    going to be quoted.
+
+    The splice asks is_json_type(), whose first question is this one and
+    whose second is whether the item is a conversion to look through.
+    A copy is not one and real_item() of a copy is the copy, so the
+    second question can only ever be answered no here - and answering it
+    is a dynamic_cast, on a path walked once a row for every copied
+    field in every grouped query, JSON or not.  So the first question is
+    asked directly, once, where the type is settled, and the two are the
+    same question.
+  */
+  DBUG_EXECUTE_IF("json_copy_not_kept", kept= false;);
+  if (null_value || !kept || !m_is_json)
+    m_marks.clear();
+  else
+    m_marks.set(&str_value, item->is_valid_json(), item->is_nice_json(),
+                item->last_depth());
+#ifdef DBUG_ASSERT_EXISTS
   copied_in= 1;
 #endif
 }
@@ -5386,7 +5512,7 @@ void Item_copy_real::copy()
 {
   cached_value= item->val_real();
   null_value= item->null_value;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   copied_in= 1;
 #endif
 }
@@ -5499,6 +5625,24 @@ String* Item_ref_null_helper::val_str(String* s)
 {
   DBUG_ASSERT(fixed());
   String* tmp= (*ref)->str_result(s);
+  owner->was_null|= null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+String* Item_ref_null_helper::val_json(String* s)
+{
+  DBUG_ASSERT(fixed());
+  String* tmp= (*ref)->val_json_result(s);
+  owner->was_null|= null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+String* Item_ref_null_helper::val_json_at_once(String* s)
+{
+  DBUG_ASSERT(fixed());
+  String* tmp= (*ref)->val_json_at_once_result(s);
   owner->was_null|= null_value= (*ref)->null_value;
   return tmp;
 }
@@ -7033,6 +7177,84 @@ void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 }
 
 
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  What a field is attesting to, read back off the bytes it is holding.
+  A field that answers nothing is nothing to disagree with, and a row
+  with nothing in it is a field that answers nothing.
+
+  Three bodies rather than one that settles all three at a stroke,
+  which is what a single walk over the value could do.  The three are
+  asked one at a time, so one body would be walked three times rather
+  than once - and answering the formatting means writing the whole value
+  out again and comparing it, which the other two would then be paying
+  for as well.  Reading each of them the cheapest way it can be read is
+  what keeps a debug build's checking proportional to what is checked.
+*/
+static bool field_reads_back_as_document(Field *f)
+{
+  /*
+    The two channels read the way is_valid_json() reads them, and not by
+    calling it: what it does before answering is ask for this.
+  */
+  if (!f->attests_is_valid_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_reads_as_document(f->val_str(&kept));
+  }
+}
+
+
+static bool field_reads_back_as_nice(Field *f)
+{
+  if (!f->attests_is_nice_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_is_nice(f->val_str(&kept));
+  }
+}
+
+
+static bool field_reads_back_no_deeper_than_claimed(Field *f)
+{
+  if (!f->attests_is_valid_json())
+    return true;
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE> kept;
+    return json_value_depth(f->val_str(&kept)) <= f->attested_json_depth();
+  }
+}
+
+
+/*
+  Asked of each of the two fields an item has: the one it names, and -
+  wherever a temporary table has been built out of that one - the copy
+  in it, which is what the _result() answers are about.  A fill site
+  nobody taught to ask its source announces itself in whichever of the
+  two it got wrong.
+*/
+bool Item_field::reads_back_as_document() const
+{ return field_reads_back_as_document(field); }
+
+bool Item_field::reads_back_as_nice() const
+{ return field_reads_back_as_nice(field); }
+
+bool Item_field::reads_back_no_deeper_than_claimed() const
+{ return field_reads_back_no_deeper_than_claimed(field); }
+
+bool Item_field::reads_back_as_document_result() const
+{ return field_reads_back_as_document(result_field); }
+
+bool Item_field::reads_back_as_nice_result() const
+{ return field_reads_back_as_nice(result_field); }
+
+bool Item_field::reads_back_no_deeper_than_claimed_result() const
+{ return field_reads_back_no_deeper_than_claimed(result_field); }
+#endif
+
+
 /**
   Save a field value in another field
 
@@ -7076,6 +7298,12 @@ static int save_field_in_field(Field *from, bool *null_value,
   if (to == from)
     DBUG_RETURN(0);
 
+  /*
+    field_conv() confirms the destination against what the source
+    attests to - see there.  A value that arrives off an ITEM goes through
+    Item::save_str_in_field instead, which asks the store the same
+    question this asks the source.
+  */
   res= field_conv(to, from);
   DBUG_RETURN(res);
 }
@@ -7117,6 +7345,16 @@ void Item_field::save_org_in_field(Field *to,
       DBUG_VOID_RETURN;
     }
     (*fast_field_copier_func)(to, field);
+    /*
+      One of the two routes that go around field_conv(), reaching what it
+      dispatches to without passing through it.  It does write fields of
+      the server's own temporary tables, so the question belongs here; no
+      field carrying an answer is known to arrive, which is a fact about
+      the queries anybody has written rather than about the route, so it
+      is asked and not assumed.
+    */
+    if (unlikely(to->is_valid_json_static()))
+      to->confirm_is_valid_json_static_from(field);
   }
   else
     save_field_in_field(field, &null_value, to, TRUE);
@@ -7192,6 +7430,24 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 
   field->set_notnull();
   int error= field->store(result->ptr(),result->length(),cs);
+  /*
+    A value that reaches a field carrying the standing answer off a
+    string ITEM comes through here, that being the one way one is put
+    into a field.  A value that comes off another FIELD does not, and
+    is asked about at the three places save_field_in_field() names.
+    The answer is about characters, so it is kept only while the store
+    keeps them.
+
+    How they are formatted is asked of the item rather than of the store,
+    and it is asked HERE rather than said at build time because it is
+    about the value just written and not about the item that wrote it.
+    How deep the value goes is asked here for the same reason and taken
+    the same way, an item that counted nothing answering with the
+    largest figure there is.
+  */
+  if (unlikely(field->is_valid_json_static()))
+    field->confirm_is_valid_json_static(result->length(), is_nice_json(),
+                                        last_depth(), cs);
   str_value.set_buffer_if_not_allocated(0, 0, cs);
   return error;
 }
@@ -8992,6 +9248,33 @@ String *Item_ref::val_str(String* tmp)
 }
 
 
+/*
+  The two below are written for a caller that wants a document, reaching
+  the same side of the referenced item that val_str() does.  Without
+  them Item::val_json() would send the request back through val_str(),
+  and an item that answers those two differently - a routine's variable
+  returns a view of itself from one and a copy from the other - would
+  have the difference thrown away by the reference in front of it.
+*/
+
+String *Item_ref::val_json(String* tmp)
+{
+  DBUG_ASSERT(fixed());
+  tmp=(*ref)->val_json_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_ref::val_json_at_once(String* tmp)
+{
+  DBUG_ASSERT(fixed());
+  tmp=(*ref)->val_json_at_once_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
 bool Item_ref::is_null()
 {
   DBUG_ASSERT(fixed());
@@ -9135,6 +9418,24 @@ longlong Item_direct_ref::val_int()
 String *Item_direct_ref::val_str(String* tmp)
 {
   tmp=(*ref)->val_str(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+/* The value side, val_str() above being of the value side here. */
+
+String *Item_direct_ref::val_json(String* tmp)
+{
+  tmp=(*ref)->val_json(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_ref::val_json_at_once(String* tmp)
+{
+  tmp=(*ref)->val_json_at_once(tmp);
   null_value=(*ref)->null_value;
   return tmp;
 }
@@ -9459,21 +9760,21 @@ String *Item_cache_wrapper::val_str(String* str)
   DBUG_ENTER("Item_cache_wrapper::val_str");
   if (!expr_cache)
   {
-    String *tmp= orig_item->val_str(str);
+    String *tmp= m_value_arm.read(orig_item, str);
     null_value= orig_item->null_value;
     DBUG_RETURN(tmp);
   }
 
   if ((cached_value= check_cache()))
   {
-    String *tmp= cached_value->val_str(str);
+    String *tmp= m_value_arm.read(cached_value, str);
     null_value= cached_value->null_value;
     DBUG_RETURN(tmp);
   }
   cache();
   if ((null_value= expr_value->null_value))
     DBUG_RETURN(NULL);
-  DBUG_RETURN(expr_value->val_str(str));
+  DBUG_RETURN(m_value_arm.read(expr_value, str));
 }
 
 
@@ -9984,6 +10285,22 @@ String *Item_direct_view_ref::str_result(String* tmp)
 }
 
 
+String *Item_direct_view_ref::val_json_result(String* tmp)
+{
+  tmp=(*ref)->val_json_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_view_ref::val_json_at_once_result(String* tmp)
+{
+  tmp=(*ref)->val_json_at_once_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
 my_decimal *Item_direct_view_ref::val_decimal_result(my_decimal *val)
 {
   my_decimal *tmp= (*ref)->val_decimal_result(val);
@@ -10441,6 +10758,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   field->table->copy_blobs= copy_blobs_saved;
   field->set_has_explicit_value();
+  if (field->table->has_own_json_valid_check)
+    field->set_is_valid_json(item, err_code);
 
   return err_code < 0;
 }
@@ -11018,11 +11337,13 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 
 bool Item_cache_str::cache_value()
 {
+  bool kept= true;
   if (!example)
   {
     DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
   }
+  m_marks.clear();
   value_cached= TRUE;
   THD *thd= current_thd;
   const bool err= thd->is_error();
@@ -11042,12 +11363,24 @@ bool Item_cache_str::cache_value()
              (select c from t1 where a=t2.a)
         from t2;
     */
-    value_buff.copy(*value);
+    kept= !value_buff.copy(*value);
     value= &value_buff;
   }
   else
-    value_buff.copy();
+    kept= !value_buff.copy();
   value_buff.mark_as_const();
+  /*
+    The item was evaluated just above and nothing has evaluated it since,
+    so this is the one moment its answers are about the bytes being kept
+    here.  They are asked of its result side because str_result() is what
+    was read.  String::copy() takes the character set along with the
+    bytes, so the characters answered about are the characters kept - a
+    copy that could not get the room keeps nothing this can attest to.
+  */
+  if (value && kept)
+    m_marks.set(value, example->is_valid_json_result(),
+                example->is_nice_json_result(),
+                example->last_depth_result());
   return TRUE;
 }
 

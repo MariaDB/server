@@ -1,0 +1,308 @@
+--echo #
+--echo # What a JSON column's check constraint keeps out.
+--echo #
+--echo # A column declared JSON carries a check constraint that reads every
+--echo # value stored into it and refuses the ones that are not documents.
+--echo # Where the value came from something that has already attested
+--echo # it, that reading finds out nothing that was not already known, and
+--echo # can be left undone.
+--echo #
+--echo # Everything below is a case where it CANNOT be left undone, and the
+--echo # answers here are what the column does about each of them.  Nothing
+--echo # in this file is supposed to change: it says what is refused, and a
+--echo # value that stops being refused is a value that got in.
+--echo #
+
+SET NAMES utf8mb4;
+
+# Some of the statements below are looked at once when they are prepared and
+# warn there rather than when they run, so the warnings only reach the client
+# when prepare warnings are asked for.
+--enable_prepare_warnings
+
+--echo #
+--echo # 1. A document that came from a JSON function goes in and stays put.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON);
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1, 'b', 2)),
+                      (2, JSON_ARRAY(1, 2, 3));
+SELECT id, j FROM t1 ORDER BY id;
+SELECT id, JSON_VALID(j) AS still_a_document FROM t1 ORDER BY id;
+
+--echo # the same through every other way a row is written
+INSERT INTO t1 SELECT id + 10, JSON_INSERT(j, '$.c', 3) FROM t1 ORDER BY id;
+UPDATE t1 SET j = JSON_SET(j, '$.d', 4) WHERE id = 1;
+REPLACE INTO t1 VALUES (2, JSON_ARRAY(9, 8));
+SELECT id, JSON_VALID(j) AS still_a_document FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 2. Text that is not a document is refused, whoever wrote it.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON);
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, 'not a document');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, '{"a":1');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, CONCAT('{"a":', '1'));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET j = 'not a document';
+SELECT id, j FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 3. A document that does not fit is cut, and what is left of it is
+--echo # read like anything else.  The value that arrives came from a JSON
+--echo # function and was a document when it set out; what the column holds
+--echo # is not, and that is what the check has to see.
+--echo #
+
+SET @sql_mode_saved = @@sql_mode;
+SET @@sql_mode = '';
+
+CREATE TABLE t1 (v VARCHAR(10) CHECK (JSON_VALID(v)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2, 3, 4567));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+--echo # short enough to arrive whole
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2));
+SELECT v FROM t1;
+DROP TABLE t1;
+
+--echo # a cut that happens to leave a document behind is accepted, as it
+--echo # always has been - the text after it is what went missing
+CREATE TABLE t1 (v VARCHAR(10) CHECK (JSON_VALID(v)));
+INSERT INTO t1 VALUES ('[1,2,3,45],6789');
+SELECT v FROM t1;
+DROP TABLE t1;
+
+SET @@sql_mode = @sql_mode_saved;
+
+--echo #
+--echo # 4. A character set that cannot encode a document does not get one.
+--echo # The brackets are not in swe7 at all, so they arrive as question
+--echo # marks and what is stored is not a document.
+--echo #
+
+SET @@sql_mode = '';
+CREATE TABLE t1 (v VARCHAR(64) CHARACTER SET swe7 CHECK (JSON_VALID(v)));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2));
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+DROP TABLE t1;
+SET @@sql_mode = @sql_mode_saved;
+
+--echo #
+--echo # 5. A row that is written twice is read twice.
+--echo #
+--echo # ON DUPLICATE KEY UPDATE writes the new row, reads it, then puts
+--echo # the old row's columns back and writes the update over the top.
+--echo # What the first writing attested is gone by then, and the
+--echo # second writing has to attest to itself.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, JSON_OBJECT('b', 2))
+  ON DUPLICATE KEY UPDATE j = 'not a document';
+SELECT id, j FROM t1 ORDER BY id;
+
+--echo # and the update that IS a document goes through
+INSERT INTO t1 VALUES (1, JSON_OBJECT('b', 2))
+  ON DUPLICATE KEY UPDATE j = JSON_OBJECT('c', 3);
+SELECT id, j FROM t1 ORDER BY id;
+
+--echo # the insert half refused, with a second row present to prove the
+--echo # statement reached it
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, JSON_OBJECT('d', 4)), (2, 'not a document')
+  ON DUPLICATE KEY UPDATE j = JSON_OBJECT('e', 5);
+SELECT id, j FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 6. A check that reads a DIFFERENT column is not this column's
+--echo # check, however much it looks like one.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64) CHECK (JSON_VALID(b)), b VARCHAR(64));
+--echo # a is given a document, b is not; the check reads b and refuses
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), 'not a document');
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+--echo # b a document, a not - accepted, the check having nothing to say
+--echo # about a
+INSERT INTO t1 VALUES ('not a document', JSON_OBJECT('b', 2));
+SELECT a, b FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # 7. A check that asks anything besides whether the value is a
+--echo # document keeps asking it.
+--echo #
+
+CREATE TABLE t1 (j VARCHAR(64) CHECK (JSON_VALID(j) AND LENGTH(j) < 12));
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (JSON_OBJECT('aaaaaaaaaa', 1));
+SELECT j FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT, j VARCHAR(64),
+                 CONSTRAINT ck CHECK (id > 0 AND JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (0, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (1, 'not a document');
+SELECT id, j FROM t1;
+DROP TABLE t1;
+
+--echo # a table-level check that asks only about the document is still a
+--echo # table-level check
+CREATE TABLE t1 (id INT, j VARCHAR(64), CONSTRAINT ck CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (2, 'not a document');
+SELECT id, j FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # 8. A trigger writing the column is a writer like any other.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = JSON_INSERT(NEW.j, '$.seen', 1);
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+SELECT id, j FROM t1 ORDER BY id;
+DROP TRIGGER tr1;
+
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.j = 'not a document';
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (2, JSON_OBJECT('a', 1));
+SELECT id, j FROM t1 ORDER BY id;
+DROP TRIGGER tr1;
+
+--echo # written twice in one trigger, the last writing being the one that
+--echo # counts
+DELIMITER |;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  SET NEW.j = JSON_OBJECT('first', 1);
+  SET NEW.j = 'not a document';
+END|
+DELIMITER ;|
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (3, JSON_OBJECT('a', 1));
+SELECT id, j FROM t1 ORDER BY id;
+DROP TRIGGER tr1;
+DROP TABLE t1;
+
+--echo #
+--echo # 9. Switching the checks off leaves bytes behind that the column
+--echo # would not have taken, and switching them back on does not go
+--echo # looking for them.  What it does do is refuse the next bad value.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON);
+SET @@check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (1, 'not a document');
+SET @@check_constraint_checks = ON;
+SELECT id, j, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+INSERT INTO t1 VALUES (2, JSON_OBJECT('a', 1));
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (3, 'also not a document');
+SELECT id, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+
+--echo # a copying ALTER reads every row again and finds the one that was
+--echo # let through
+--error ER_CONSTRAINT_FAILED
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+--echo # and ignoring drops it rather than keeping it
+ALTER IGNORE TABLE t1 FORCE, ALGORITHM=COPY;
+SELECT id, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 10. A versioned table writes a history row that is not read, and a
+--echo # current row that is.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)))
+  WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+UPDATE t1 SET j = JSON_OBJECT('b', 2) WHERE id = 1;
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET j = 'not a document' WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+SELECT j, JSON_VALID(j) AS reads_as_a_document
+  FROM t1 FOR SYSTEM_TIME ALL ORDER BY j;
+DROP TABLE t1;
+
+--echo #
+--echo # 11. Every other way of writing rows.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (id INT PRIMARY KEY, txt VARCHAR(64));
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, 'not a document');
+
+--echo # INSERT ... SELECT stops at the row that is not a document, the
+--echo # rows before it having already been written
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 SELECT id, txt FROM t2 ORDER BY id;
+SELECT id, j FROM t1 ORDER BY id;
+DELETE FROM t1;
+INSERT INTO t1 SELECT id, JSON_COMPACT(txt) FROM t2 WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+
+--echo # a plain UPDATE
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET j = 'not a document' WHERE id = 1;
+UPDATE t1 SET j = JSON_SET(j, '$.b', 2) WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+
+--echo # an update across two tables, both of them present in t1 this time
+INSERT INTO t1 VALUES (2, JSON_OBJECT('x', 9));
+--error ER_CONSTRAINT_FAILED
+UPDATE t1, t2 SET t1.j = t2.txt WHERE t1.id = t2.id AND t2.id = 2;
+--error ER_CONSTRAINT_FAILED
+UPDATE t1, t2 SET t1.j = 'not a document' WHERE t1.id = t2.id;
+UPDATE t1, t2 SET t1.j = JSON_COMPACT(t2.txt) WHERE t1.id = t2.id AND t2.id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # 12. Rows read out of a file are text and are read like text.
+--echo #
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (id INT, txt VARCHAR(64));
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, 'not a document');
+--let $DATA = $MYSQLTEST_VARDIR/tmp/func_json_check_skip.txt
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval SELECT id, txt FROM t2 ORDER BY id INTO OUTFILE '$DATA'
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_CONSTRAINT_FAILED
+--eval LOAD DATA INFILE '$DATA' INTO TABLE t1
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+--remove_file $DATA
+
+--echo # the same file with only the document in it
+DELETE FROM t2 WHERE id = 2;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval SELECT id, txt FROM t2 ORDER BY id INTO OUTFILE '$DATA'
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval LOAD DATA INFILE '$DATA' INTO TABLE t1
+SELECT id, j FROM t1 ORDER BY id;
+--remove_file $DATA
+DROP TABLE t1, t2;
+
+--disable_prepare_warnings

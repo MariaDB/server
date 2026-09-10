@@ -10758,3 +10758,13 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+# A number a later series has already given out would mean one number
+# with two meanings, so the next one starts above every number assigned
+# in any of them
+start-error-number 4269
+ER_WARN_JSON_VALID_OTHER_COLUMN
+        eng "CHECK constraint of column '%-.192s' calls JSON_VALID() on something other than '%-.192s'; the column is not a JSON column"
+ER_WARN_JSON_VALID_NOT_REQUIRED
+        eng "CHECK constraint of column '%-.192s' can pass without JSON_VALID() holding; the column is not a JSON column"
+ER_WARN_JSON_VALID_NOT_ALONE
+        eng "CHECK constraint of column '%-.192s' asks more than JSON_VALID() of it; the column is not a JSON column"

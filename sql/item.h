@@ -27,6 +27,7 @@
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
+#include "sql_type_json.h"           /* Type_handler_json_common */
 #include "sql_time.h"
 #include "sql_schema.h"
 #include "mem_root_array.h"
@@ -859,6 +860,121 @@ static inline item_with_t operator~(const item_with_t a)
 {
   return (item_with_t) ~(item_flags_t) a;
 }
+
+
+/*
+  What a function answers when it cannot say how many structures deep
+  the value it returned goes.  It is a number no document reaches,
+  so a caller weighing it against the limit turns the value down
+  whatever it is being put inside, which is the answer that costs a
+  reading and nothing else.
+
+  A caller with a bound of its own takes the smaller of the two before
+  adding anything to it, so this never enters a sum.
+*/
+#define JSON_DEPTH_UNKNOWN UINT_MAX
+
+
+/*
+  What a JSON function says about the value it has just returned:
+  is_valid, that the value is a document, and is_nice, that it is
+  formatted the way json_nice() writes one in its loose form.
+
+  Both start out saying nothing, and a function says something only
+  where it hands a result back, so every other way out leaves them as
+  they were.  Saying nothing is always safe - a caller that is told
+  nothing reads the value, which is what every caller does today.
+
+  The two are kept together in one member rather than as two bools of
+  their own so that a class picking up one picks up the other, and so
+  that there is a single place to say what copying and setting them
+  mean, however many classes come to hold one.
+
+  It lives here, and not with the JSON functions, because a class that
+  is not one of them can still carry a value through - see
+  Item_func_conv_charset - and going through this member is what puts
+  such a class under the debug check below.
+*/
+class Json_result_marks
+{
+  bool m_valid;
+  bool m_nice;
+  /*
+    How deep the value goes, where the function that wrote it worked
+    that out on the way; JSON_DEPTH_UNKNOWN where it did not.  Kept
+    with the other two because it is answered under the same rules and
+    over the same value, and because a class picking up one picks up
+    all three.
+  */
+  uint m_depth;
+public:
+  Json_result_marks()
+   : m_valid(false), m_nice(false), m_depth(JSON_DEPTH_UNKNOWN) {}
+  /*
+    A copy is a new item that has not been evaluated, so it has produced
+    no value and there is nothing for it to say.  What the item it was
+    copied from can say is about bytes that item still owns and is free
+    to write over.
+  */
+  Json_result_marks(const Json_result_marks &)
+   : m_valid(false), m_nice(false), m_depth(JSON_DEPTH_UNKNOWN) {}
+  bool valid() const { return m_valid; }
+  bool nice() const { return m_nice; }
+  uint depth() const { return m_depth; }
+  void clear()
+  { m_valid= m_nice= false; m_depth= JSON_DEPTH_UNKNOWN; }
+  /*
+    'str' is the value 'valid', 'nice' and 'depth' are being set for.  A
+    debug build reads it back and stops if it is not what they say it
+    is.  Nothing else ever would: the marks appear in no result, so a
+    claim that was not true would go unnoticed until something acted on
+    it.
+  */
+  void set(const String *str, bool valid, bool nice,
+           uint depth= JSON_DEPTH_UNKNOWN);
+};
+
+
+/*
+  What an item that returns a value one of its arguments made needs in
+  order to pass on what that argument said about it.  Such an item copies
+  the bytes out and adds nothing of its own to them, so the three
+  questions above are answered by putting them to the argument that made
+  the value.
+
+  Which argument that was is written down while the value is being read.
+  It cannot be worked out afterwards: some of these items find their
+  argument by reading it, and the rest are told which one by a condition
+  that may hold a subquery or a stored program, so asking a second time
+  would run those a second time.
+*/
+class Json_value_arm
+{
+  Item *m_arm;
+  /*
+    Whether the value is being read for a caller that asked for a
+    document.  An argument that keeps a value of its own returns a view
+    of it from val_str() and a copy from val_json(), and an item that
+    passes values on has to pass that request on with them.
+  */
+  bool m_read_as_json;
+public:
+  Json_value_arm() : m_arm(NULL), m_read_as_json(false) {}
+  /*
+    A copy is a new item that has not been evaluated, so it has read no
+    argument and there is nothing for it to pass on.  Json_result_marks
+    is not copied for the same reason.
+  */
+  Json_value_arm(const Json_value_arm &)
+   : m_arm(NULL), m_read_as_json(false) {}
+  /* Read the value off the argument that is returning it. */
+  String *read(Item *arm, String *str);
+  /* Have the reads above made with val_json() rather than val_str(). */
+  void want_json(bool want) { m_read_as_json= want; }
+  bool valid() const;
+  bool nice() const;
+  uint depth() const;
+};
 
 
 class Item :public Value_source,
@@ -1708,6 +1824,160 @@ public:
   String *val_str(String *str, String *converter, CHARSET_INFO *to);
 
   virtual String *val_json(String *str) { return val_str(str); }
+
+  /*
+    The same value, for a caller that is finished with it before
+    anything else can run.
+
+    val_json() may have to return bytes of the caller's own so that
+    they outlive whatever the caller does next.  A caller that does
+    nothing next has no use for them, and this variant lets the item
+    say so cheaply.
+
+    Only ask for it when BOTH hold: nothing else is worked out between
+    this call and the last read of what it returns, and no part of
+    what it returns reaches the caller's own caller.  If either
+    fails, val_json() is what is wanted.  Answering with val_json() is
+    always allowed, and is what an item that has no cheaper answer
+    does.
+  */
+  virtual String *val_json_at_once(String *str) { return val_json(str); }
+
+  /*
+    The same two of the result side, which is what a reference reads -
+    Item_ref::val_str() calls str_result(), so Item_ref::val_json()
+    calls these.  Where an item has no result side of its own the two
+    sides are the same object and the defaults here say so; the five
+    that override str_result() attest to whatever their own
+    str_result() reads, exactly as they do for the marks below.
+
+    Without them a reference would answer a request for a document by
+    falling back to Item::val_json(), which is val_str() - and an item
+    that hands out a view of somebody else's bytes from val_str() and a
+    copy from val_json() would be back to handing out the view.
+  */
+  virtual String *val_json_result(String *str) { return val_json(str); }
+  virtual String *val_json_at_once_result(String *str)
+  { return val_json_at_once(str); }
+
+  /*
+    Whether the value returned by the LAST evaluation of this item is
+    guaranteed to be a JSON document, written in the character set the
+    value says it is written in.
+
+    The question is put to the item rather than to the value because a
+    value has nowhere to keep the answer: val_str() returns bytes, a
+    length and a character set, and that is all there is room for.  So a
+    caller evaluates the item and asks it, in that order, and the answer
+    stands until the item is evaluated again.
+
+    FALSE does not say the value is not a document.  It says only that
+    nothing here attests to it, and a caller who needs to know must read
+    the value and find out - which is what every caller does today.
+    Answering TRUE for a value that is not guaranteed is the one answer
+    that must never be given; answering FALSE for one that is costs a
+    reading and nothing else.
+  */
+  virtual bool is_valid_json() const { return false; }
+
+  /*
+    Whether that same value is formatted the way json_nice() writes a
+    document in its LOOSE form, which is the formatting the JSON functions
+    return today.  Same rules as above, and the same one-sided cost:
+    a document said not to be in that form is simply written out again.
+  */
+  virtual bool is_nice_json() const { return false; }
+
+  /*
+    How many structures that same value nests: 0 for a scalar, 1 for an
+    array or object holding nothing but scalars, and so on.  Asked and
+    answered under the same rules as the two above, and read only
+    together with is_valid - a value that is not known to be a document
+    has no depth worth speaking of.
+
+    An item works this out only where it was going to walk the value
+    anyway, so most of them say nothing and answer JSON_DEPTH_UNKNOWN.
+    That is the safe answer here as false is there: a caller that is
+    told nothing reads the value, which is what every caller did before
+    there was anything to ask.
+
+    A number too small is the one answer that must never be given.  The
+    caller adds it to the depth the value is being spliced at and holds
+    the total against the limit, so an item that under-counts lets a
+    document past that limit be composed and passed on as one inside
+    it.
+  */
+  virtual uint last_depth() const { return JSON_DEPTH_UNKNOWN; }
+
+  /*
+    Whether EVERY evaluation of this item returns a document or
+    nothing at all.  A property of the class, so it can be asked before
+    anything has been evaluated - which is what a caller running at
+    create time needs, the two answers above having no meaning there.
+  */
+  virtual bool is_valid_json_static() const { return false; }
+
+  /*
+    The same three questions, asked of the value the RESULT side of this
+    item returns - str_result(), which is how an Item_ref reads it.
+
+    For nearly every item the two sides are one function:
+    Item::str_result() IS val_str(), so the value asked about is the
+    same value and the answers are the same answers, which is what the
+    defaults here say.  An item that keeps a result field of its own
+    returns a copy sitting in a record buffer instead, and what was
+    said about the value it made is not said about the copy.  Those
+    items - the five that override str_result() - attest to whatever
+    their own str_result() reads, by putting the question to it.
+
+    Which of the two sides a reference forwards is not a judgement it
+    makes.  Item_ref::val_str() calls str_result(), so it asks these;
+    Item_direct_ref::val_str() calls val_str(), so it asks the three
+    above.  Nothing is dropped for safety and nothing is guessed: the
+    marks describe the bytes because they are asked of whatever handed
+    the bytes over.
+  */
+  virtual bool is_valid_json_result() const { return is_valid_json(); }
+  virtual bool is_nice_json_result() const { return is_nice_json(); }
+  virtual uint last_depth_result() const { return last_depth(); }
+
+  /*
+    The argument of the wrapper that aggregating character sets puts
+    round an item whose value has to move to another one, and that
+    CONVERT(x USING cs) is written as, or NULL from every other item -
+    which is to say, this asks "are you that wrapper, and if so what
+    are you put round".
+
+    It is here so that a caller that has to look through the wrapper to
+    reach the item underneath can be told, instead of working it out
+    from the object it was handed.  is_json_type() is that caller: the
+    wrapper round a document is put there for the character set and
+    leaves a document, so a look that stopped at it would take the
+    documents moved between character sets for values that have to be
+    quoted.  It is asked once per value written into a container and
+    once per argument sized, which between them is nearly every
+    argument the JSON functions are given.
+
+    The two ways of working it out from the object are both worse.  A
+    dynamic_cast that fails walks the base classes of what it was
+    handed and cannot stop early, absence being provable only by
+    exhausting the graph, and Item derives from two classes, so every
+    item that reaches it is walked as the multiple-inheritance case;
+    no is the answer for all but a few.  A Functype of the wrapper's
+    own would be one comparison, but Functype is dispatched on by
+    engines outside the tree, several of which take UNKNOWN_FUNC to
+    mean "printed by name" - a wrapper that stopped answering it would
+    fall out of their dispatch, and what they build would lose the
+    conversion rather than refuse it.  A virtual answers the one
+    question that is being asked and is read by nothing else.
+
+    NULL is read as "not that wrapper, nothing to look through", never
+    as an error, and anything that comes to derive from the wrapper
+    inherits the answer - which is what the cast this replaces would
+    have said about it too.
+  */
+  virtual Item *conv_charset_arg() const { return NULL; }
+
   /*
     Return decimal representation of item with fixed point.
 
@@ -2195,15 +2465,6 @@ public:
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
-    Data type format implied by the CHECK CONSTRAINT,
-    to be sent to the client in the result set metadata.
-  */
-  virtual bool set_format_by_check_constraint(Send_field_extended_metadata *)
-                                                                        const
-  {
-    return false;
-  }
-  /*
     set value of aggregate function in case of no rows for grouping were found
   */
   virtual void no_rows_in_result() {}
@@ -2347,6 +2608,12 @@ public:
 
   virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
   virtual bool find_function_processor (void *arg) { return 0; }
+  /*
+    Whether this is a JSON_VALID() call reading the column named by arg.
+    Used while a table is being defined, where the expression is not fixed
+    yet and a column can only be recognised by its name.
+  */
+  virtual bool json_valid_of_column_processor (void *) { return 0; }
   /*
     Check if a partition function is allowed
     SYNOPSIS
@@ -3201,12 +3468,45 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *sp) override;
+  String *val_json(String *str) override;
+  String *val_json_at_once(String *str) override;
   my_decimal *val_decimal(my_decimal *decimal_value) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool val_native(THD *thd, Native *to) override;
   bool is_null() override;
 
 public:
+  /*
+    What the variable this stands for is holding, asked of the field the
+    value is in - see TABLE::json_held_marks.
+
+    Asked through this_item(), which finds the running frame the way
+    every other read of the variable does and never remembers what it
+    found.  The same item is called upon twice over, from both sides:
+    reading the variable comes through here, and assigning it to another
+    one arrives at the store as that same field, dereferenced on the way
+    by THD::sp_fix_func_item().  So one answer serves both, and a value
+    moved from variable to variable carries what was said about it
+    without anything having to move it.
+
+    A variable of a stored program is not typed as a document however it
+    was declared, so a value out of one is quoted into a document rather
+    than spliced into it, and these three answers change nothing about
+    that.  What they are read for is the other thing attestation saves:
+    a function given this value as the document to work on need not
+    parse it again.
+
+    The standing question is not answered here and cannot be.  A
+    variable holds what the last assignment put in it and the next one
+    will put something else there, so nothing about the value in it now
+    holds for every evaluation of it.
+  */
+  bool is_valid_json() const override
+  { return this_item()->is_valid_json(); }
+  bool is_nice_json() const override
+  { return this_item()->is_nice_json(); }
+  uint last_depth() const override
+  { return this_item()->last_depth(); }
   void make_send_field(THD *thd, Send_field *field) override;
   bool const_item() const override { return true; }
   Field *create_tmp_field_ex(MEM_ROOT *root,
@@ -3948,6 +4248,147 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg) override;
+  /*
+    A column says nothing about itself: a row can hold bytes no check ever
+    saw, and nothing in it records where they came from.  The one
+    exception is a field of a temporary table the server built for
+    itself, which was told at build time what would be written into it -
+    see TABLE::is_valid_json_static_set.  Nobody can address such a table,
+    so nothing can put anything else in it.
+
+    One bit answers both questions, and that is what it was given to
+    mean: it was said of every row the column will ever hold, so what is
+    true of this evaluation is true of all of them.  Answering the
+    standing question is what lets a column of one such table be written
+    into a column of the next - a table built out of an earlier one is
+    built before either has a row, so what the earlier column says THEN
+    is an upper bound on what it says by the time the row arrives, and
+    the later column asks it again at every fill.  See
+    Field::confirm_is_valid_json_static_from().
+
+    The other exception is a field a stored program keeps a variable in,
+    which was told what was put there by the assignment that put it -
+    see TABLE::json_held_marks.  That is a different promise about a
+    different thing and it is asked here for one reason: an assignment
+    of one variable to another arrives at the store as a read of the
+    field behind the source, this item and no other, so a variable
+    attesting to its value at all means this item attesting to it.
+
+    Only one of the two is ever there to be asked.  A table cannot both
+    be built by the server for a query and be where a stored program
+    keeps its variables, so the two never disagree and nothing has to
+    decide which of them wins.
+  */
+  bool is_valid_json() const override
+  {
+    DBUG_ASSERT(reads_back_as_document());
+    return field->attests_is_valid_json();
+  }
+  /*
+    The standing question, which only the first of the two answers.  A
+    variable is written as many times as somebody assigns it, so what is
+    in it now says nothing about what will be in it when a column built
+    out of it comes to be filled.
+  */
+  bool is_valid_json_static() const override
+  { return field->is_valid_json_static(); }
+  /*
+    Formatting, unlike the two above, is nothing the column was promised.
+    It was granted along with them and spent by whatever has been
+    written since, so what it answers is about the rows that are there -
+    which is what a reader with a row in front of it is asking about.
+
+    There is no standing companion to this one and there could not be:
+    the standing question is asked while a table is being built out of an
+    earlier one, and what the earlier column will come to be written like
+    is not a thing anybody knows then.  A column of the later table is
+    granted the formatting like any other and gets it from its source at
+    each fill - see Field::confirm_is_valid_json_static_from().
+  */
+  bool is_nice_json() const override
+  {
+    DBUG_ASSERT(reads_back_as_nice());
+    return field->attests_is_nice_json();
+  }
+  /*
+    And how deep it goes, which is what a caller splicing this value
+    into one of its own adds its own levels to.  It is the deepest of
+    the rows written so far rather than the depth of this one, which is
+    more than this value needs and never less - and more is the
+    direction a depth is allowed to be wrong in, costing a reading that
+    could have been skipped rather than admitting a document nothing
+    can read back.
+  */
+  uint last_depth() const override
+  {
+    DBUG_ASSERT(reads_back_no_deeper_than_claimed());
+    /*
+      Where a variable is what is being read the figure is the depth of
+      the one value in it rather than the deepest of a column's rows,
+      and so is exact.
+    */
+    return field->attested_json_depth();
+  }
+  /*
+    A field has no document of its own to pass - val_json() here is
+    Item::val_json(), which is val_str() - so its result side is
+    str_result() and nothing more.  The bytes it reads are a row's, and
+    a row outlives the working out of an argument, so there is nothing
+    for val_json_at_once() to be careful about, and the two are one
+    call.  Item_default_value inherits both: str_result() is virtual,
+    so its own is the one reached and the value gets put in place first.
+  */
+  String *val_json_result(String *str) override { return str_result(str); }
+  String *val_json_at_once_result(String *str) override
+  { return str_result(str); }
+  /*
+    str_result() reads result_field rather than field, so these read
+    result_field too.  Which of the two an Item_field is asked for is
+    decided by whoever reads it: everything that goes through a value
+    side reaches the first, and an Item_ref reaches the second, the two
+    being the same object until a temporary table has been built out of
+    this one and the copy put in it - which is exactly the case where
+    they can disagree, a store into the copy being able to shorten or
+    reformat what the original holds.
+  */
+  bool is_valid_json_result() const override
+  {
+    DBUG_ASSERT(reads_back_as_document_result());
+    return result_field->attests_is_valid_json();
+  }
+  bool is_nice_json_result() const override
+  {
+    DBUG_ASSERT(reads_back_as_nice_result());
+    return result_field->attests_is_nice_json();
+  }
+  uint last_depth_result() const override
+  {
+    DBUG_ASSERT(reads_back_no_deeper_than_claimed_result());
+    return result_field->attested_json_depth();
+  }
+#ifdef DBUG_ASSERT_EXISTS
+  /*
+    Detectors rather than checks, and the only ones that do not care
+    which way the value arrived: whatever filled this field, if the
+    column attests to its values then the bytes in the row have to read
+    as a document, and if it attests to their formatting they have to be
+    formatted that way.  A fill site nobody taught to ask its source
+    announces itself here, at the first read, rather than wherever
+    something later acts on the answer.
+  */
+  bool reads_back_as_document() const;
+  bool reads_back_as_nice() const;
+  bool reads_back_no_deeper_than_claimed() const;
+  /*
+    And the same three over the other field, for the three answers that
+    are about it.  A twin rather than a parameter because the assertions
+    read as the accessors do, each naming the field its own answer came
+    from.
+  */
+  bool reads_back_as_document_result() const;
+  bool reads_back_as_nice_result() const;
+  bool reads_back_no_deeper_than_claimed_result() const;
+#endif
   void set_refers_to_temp_table();
   friend class Item_default_value;
   friend class Item_insert_value;
@@ -5969,6 +6410,8 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   String *val_str(String* tmp) override;
+  String *val_json(String* tmp) override;
+  String *val_json_at_once(String* tmp) override;
   bool val_native(THD *thd, Native *to) override;
   bool is_null() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -5981,6 +6424,45 @@ public:
   my_decimal *val_decimal_result(my_decimal *) override;
   bool val_bool_result() override;
   bool is_null_result() override;
+  /*
+    val_str() here reads the referenced item through str_result(), so
+    what is asked of that item is what IT says about the value its
+    result side passes - which for most items is the value it made,
+    and for the few that keep a copy is the copy.  The item is the one
+    that knows which; nothing is decided here.
+  */
+  bool is_valid_json() const override
+  { return (*ref)->is_valid_json_result(); }
+  bool is_nice_json() const override
+  { return (*ref)->is_nice_json_result(); }
+  uint last_depth() const override
+  { return (*ref)->last_depth_result(); }
+  /*
+    And this item's own result side, which str_result() below reads out
+    of a result field where there is one and through val_str() where
+    there is not.  Whether there is one is a fact about this instance
+    rather than about the class, which is why the condition is written
+    out here rather than answered once and for all somewhere.
+  */
+  String *val_json_result(String* tmp) override
+  { return result_field ? str_result(tmp) : val_json(tmp); }
+  String *val_json_at_once_result(String* tmp) override
+  { return result_field ? str_result(tmp) : val_json_at_once(tmp); }
+  bool is_valid_json_result() const override
+  {
+    return result_field ? result_field->attests_is_valid_json()
+                        : (*ref)->is_valid_json_result();
+  }
+  bool is_nice_json_result() const override
+  {
+    return result_field ? result_field->attests_is_nice_json()
+                        : (*ref)->is_nice_json_result();
+  }
+  uint last_depth_result() const override
+  {
+    return result_field ? result_field->attested_json_depth()
+                        : (*ref)->last_depth_result();
+  }
   bool send(Protocol *prot, st_value *buffer) override;
   void make_send_field(THD *thd, Send_field *field) override;
   bool fix_fields(THD *, Item **) override;
@@ -6196,12 +6678,28 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   String *val_str(String* tmp) override;
+  String *val_json(String* tmp) override;
+  String *val_json_at_once(String* tmp) override;
   bool val_native(THD *thd, Native *to) override;
   bool is_null() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   longlong val_datetime_packed(THD *) override;
   longlong val_time_packed(THD *) override;
   Ref_Type ref_type() override { return DIRECT_REF; }
+
+  /*
+    val_str() here returns what the referenced item returned, byte
+    for byte, so whatever could be said about that value can still be
+    said about this one.  Item_ref cannot say the same: it reads through
+    str_result(), which for a field is the copy sitting in a record
+    buffer rather than the value the producing item made, and nothing
+    here knows what happened to it on the way.
+  */
+  bool is_valid_json() const override { return (*ref)->is_valid_json(); }
+  bool is_nice_json() const override { return (*ref)->is_nice_json(); }
+  uint last_depth() const override { return (*ref)->last_depth(); }
+  bool is_valid_json_static() const override
+  { return (*ref)->is_valid_json_static(); }
 
   /* Should be called if ref is changed */
   inline void ref_changed()
@@ -6269,6 +6767,13 @@ private:
   */
   Item_cache *expr_value;
 
+  /*
+    What this item returns is what the expression returned or what the
+    cache kept of it, and it adds nothing of its own to either.  See
+    Json_value_arm.
+  */
+  Json_value_arm m_value_arm;
+
   List<Item> parameters;
 
   Item *check_cache();
@@ -6292,6 +6797,30 @@ public:
   double val_real() override;
   longlong val_int() override;
   String *val_str(String* tmp) override;
+  /*
+    Asked for a document, which is a request whatever returns the value
+    has to see - see Json_value_arm.  val_str() below is what reads it.
+  */
+  String *val_json(String* tmp) override
+  {
+    m_value_arm.want_json(true);
+    String *res= val_str(tmp);
+    m_value_arm.want_json(false);
+    return res;
+  }
+  bool is_valid_json() const override
+  { return !null_value && m_value_arm.valid(); }
+  bool is_nice_json() const override
+  { return !null_value && m_value_arm.nice(); }
+  uint last_depth() const override
+  { return null_value ? JSON_DEPTH_UNKNOWN : m_value_arm.depth(); }
+  /*
+    A property of the expression rather than of any value it has
+    produced.  The cache keeps every character of what the expression
+    returns, so what holds of the expression holds of the cache.
+  */
+  bool is_valid_json_static() const override
+  { return orig_item->is_valid_json_static(); }
   bool val_native(THD *thd, Native *to) override;
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
@@ -6401,13 +6930,22 @@ class Item_direct_view_ref :public Item_direct_ref
 
   bool check_null_ref()
   {
-    DBUG_ASSERT(null_ref_table);
-    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
+    if (null_row_ref())
     {
       null_value= 1;
       return TRUE;
     }
     return FALSE;
+  }
+
+  /*
+    The same question without the answer being recorded, for callers that
+    only want to know and are not evaluating anything.
+  */
+  bool null_row_ref() const
+  {
+    DBUG_ASSERT(null_ref_table);
+    return null_ref_table != NO_NULL_TABLE && null_ref_table->null_row;
   }
 
 public:
@@ -6469,6 +7007,37 @@ public:
   Item *in_subq_field_transformer_for_where(THD *thd, uchar *arg) override;
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg) override;
 
+  /*
+    On a row the outer join filled in with NULLs the val_XXX below return
+    without evaluating the referenced item at all, so what that item can
+    say is about whatever row it was last asked about.  Say nothing here
+    instead.  The row that was just produced is the one being asked about,
+    which is why this reads null_row_ref() rather than remembering
+    anything: it is answering about the same row the val_XXX did.
+  */
+  bool is_valid_json() const override
+  { return !null_row_ref() && Item_direct_ref::is_valid_json(); }
+  bool is_nice_json() const override
+  { return !null_row_ref() && Item_direct_ref::is_nice_json(); }
+  uint last_depth() const override
+  {
+    return null_row_ref() ? JSON_DEPTH_UNKNOWN
+                          : Item_direct_ref::last_depth();
+  }
+  /*
+    str_result() below passes on whatever the referenced item's result
+    side gave, and does not look at the row the way the val_XXX above
+    it do, so neither do these.
+  */
+  String *val_json_result(String* tmp) override;
+  String *val_json_at_once_result(String* tmp) override;
+  bool is_valid_json_result() const override
+  { return (*ref)->is_valid_json_result(); }
+  bool is_nice_json_result() const override
+  { return (*ref)->is_nice_json_result(); }
+  uint last_depth_result() const override
+  { return (*ref)->last_depth_result(); }
+
   void save_val(Field *to) override
   {
     if (check_null_ref())
@@ -6496,6 +7065,20 @@ public:
       return NULL;
     else
       return Item_direct_ref::val_str(tmp);
+  }
+  String *val_json(String* tmp) override
+  {
+    if (check_null_ref())
+      return NULL;
+    else
+      return Item_direct_ref::val_json(tmp);
+  }
+  String *val_json_at_once(String* tmp) override
+  {
+    if (check_null_ref())
+      return NULL;
+    else
+      return Item_direct_ref::val_json_at_once(tmp);
   }
   bool val_native(THD *thd, Native *to) override
   {
@@ -6699,6 +7282,13 @@ public:
   double val_real() override;
   longlong val_int() override;
   String* val_str(String* s) override;
+  /*
+    Every val_XXX here notes a NULL down for the owner, so these have to
+    as well: they are how val_str() used to be reached, and a NULL that
+    goes unnoted is a subquery answering the wrong way.
+  */
+  String* val_json(String* s) override;
+  String* val_json_at_once(String* s) override;
   my_decimal *val_decimal(my_decimal *) override;
   bool val_bool() override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -6804,12 +7394,30 @@ protected:
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
-#ifndef DBUG_OFF
+    m_is_json= Type_handler_json_common::is_json_type_handler(type_handler());
+#ifdef DBUG_ASSERT_EXISTS
     copied_in= 0;
 #endif
   }
 
-#ifndef DBUG_OFF
+  /*
+    Whether a value kept here is one a splice puts into a document rather
+    than quotes into one.  The type settles that and the type is settled
+    here, so it is worked out once: the row path would otherwise ask two
+    virtuals per copied field per row to find out something that was true
+    before the query began.
+  */
+  bool m_is_json;
+
+  /*
+    Read by a DBUG_ASSERT and by nothing else, so it is compiled wherever
+    a DBUG_ASSERT is rather than wherever a debug build is.  Those are not
+    the same set: DBUG_ASSERT_AS_PRINTF turns the assertion into a printed
+    complaint and leaves its expression standing, while setting DBUG_OFF,
+    so a guard written the other way round leaves that expression with
+    nothing to read and the build stops compiling.
+  */
+#ifdef DBUG_ASSERT_EXISTS
   bool copied_in;
 #endif
 
@@ -6870,6 +7478,20 @@ public:
 */ 
 class Item_copy_string : public Item_copy
 {
+  /*
+    What the item this was made over said about the value kept here,
+    taken at the moment it was kept.
+
+    The three questions are about the last value an item produced, and
+    this item's values are produced elsewhere and at another time: what
+    copy() puts away stands until the next copy(), while the item it
+    came from goes on evaluating.  Asking that item when somebody asks
+    this one would pair an answer about a value it has since produced
+    with the bytes sitting here - which is why the answers are taken
+    once, beside the bytes they are about, exactly as
+    Item_func_conv_charset does over the value it freezes.
+  */
+  Json_result_marks m_marks;
 public:
   Item_copy_string(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
 
@@ -6881,6 +7503,25 @@ public:
   {
     DBUG_ASSERT(copied_in);
     return get_date_from_string(thd, ltime, fuzzydate);
+  }
+  /*
+    Asked next to val_str(), which returns the same bytes these are
+    about and which asserts the same thing about having been filled.
+  */
+  bool is_valid_json() const override
+  {
+    DBUG_ASSERT(copied_in);
+    return m_marks.valid();
+  }
+  bool is_nice_json() const override
+  {
+    DBUG_ASSERT(copied_in);
+    return m_marks.nice();
+  }
+  uint last_depth() const override
+  {
+    DBUG_ASSERT(copied_in);
+    return m_marks.depth();
   }
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
@@ -6971,7 +7612,7 @@ public:
     null_value= tmp.is_null();
     m_value= tmp.is_null() ? Timestamp_or_zero_datetime() :
                              Timestamp_or_zero_datetime(tmp);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     copied_in=1;
 #endif
   }
@@ -7176,7 +7817,14 @@ public:
   longlong val_time_packed(THD *thd) override
   { return Item::val_time_packed(thd); }
 
-  /* Result variants */
+  /*
+    Result variants.  Each of these puts the default in place and then
+    does what Item_field does, and the marks that go with them need no
+    variant of their own: what they add is the putting in place, and by
+    the time anybody asks what a value was, the value has been made.
+    An accessor that called calculate() again would be making a second
+    one.
+  */
   double val_result() override;
   longlong val_int_result() override;
   String *str_result(String* tmp) override;
@@ -8050,7 +8698,18 @@ class Item_cache_str: public Item_cache
   char buffer[STRING_BUFFER_USUAL_SIZE];
   String *value, value_buff;
   bool is_varbinary;
-  
+  /*
+    What the item this was cached from said about the value at the
+    moment it was cached, which is the moment the two are about the same
+    bytes.  Asking that item later would pair an answer about whatever
+    it has gone on to produce with the copy kept here - the copy being
+    the point of this item, and being what val_str() below returns.
+
+    Taken beside the copy exactly as Item_copy_string does over the value
+    it keeps.
+  */
+  Json_result_marks m_marks;
+
 public:
   Item_cache_str(THD *thd, const Item *item):
     Item_cache(thd, item->type_handler()), value(0),
@@ -8070,6 +8729,25 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
+  /*
+    Asked next to val_str(), which returns the bytes these are about.
+    A cache emptied by clear() or set_null() keeps no value at all, and
+    what was said about the one it used to keep is not said about that.
+  */
+  bool is_valid_json() const override
+  { return !null_value && m_marks.valid(); }
+  bool is_nice_json() const override
+  { return !null_value && m_marks.nice(); }
+  uint last_depth() const override
+  { return null_value ? JSON_DEPTH_UNKNOWN : m_marks.depth(); }
+  /*
+    A property of the item being cached rather than of any value it has
+    produced, so it is answered whether or not anything has been cached
+    yet.  The copy keeps every character of what that item returns, so
+    what holds of the one holds of the other.
+  */
+  bool is_valid_json_static() const override
+  { return example && example->is_valid_json_static(); }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str>(thd, this); }
@@ -8201,11 +8879,14 @@ class Item_type_holder: public Item, public Type_handler_hybrid_field_type
 {
 protected:
   const TYPELIB *enum_set_typelib;
+  bool m_is_valid_json_static;
 public:
   Item_type_holder(THD *thd, Item *item, const Type_handler *handler,
-                   const Type_all_attributes *attr, bool maybe_null_arg)
+                   const Type_all_attributes *attr, bool maybe_null_arg,
+                   bool is_valid_json_static_arg)
    :Item(thd), Type_handler_hybrid_field_type(handler),
-    enum_set_typelib(attr->get_typelib())
+    enum_set_typelib(attr->get_typelib()),
+    m_is_valid_json_static(is_valid_json_static_arg)
   {
     name= item->name;
     Type_std_attributes::set(*attr);
@@ -8225,6 +8906,17 @@ public:
   }
 
   Type type() const override { return TYPE_HOLDER; }
+  /*
+    A holder stands in for a column of a UNION, which has one producer
+    per branch and a type they agree on.  What is answered here is what
+    every one of those producers answers, asked of them all while the
+    types are being agreed - the branches being the one place they are
+    all in reach.  Where they were not all reached, the caller hands
+    down a no rather than letting the ones it did reach speak for the
+    rest.
+  */
+  bool is_valid_json_static() const override
+  { return m_is_valid_json_static; }
   const TYPELIB *get_typelib() const override { return enum_set_typelib; }
   /*
     When handling a query like this:

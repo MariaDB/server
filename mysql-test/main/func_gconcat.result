@@ -1556,3 +1556,68 @@ Warning	1260	Row 1 was cut by GROUP_CONCAT()
 disconnect u;
 connection default;
 # End of 10.6 tests
+#
+# A group with an OFFSET past its last row, asked for more than once
+#
+# Nothing says how often a statement asks for the result of a group.
+# HAVING on the alias is the shortest one that asks twice, and the
+# answer must not depend on how often it was asked.
+#
+CREATE TABLE t1 (g INT, a VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a'),(1,'b'),(1,'c'),(1,'d'),(2,'e'),(2,'f');
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1;
+v
+
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+
+# two conditions, so it is asked a third time
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%' AND v NOT LIKE 'a%';
+v
+
+# DISTINCT reaches the same walk by the other route
+SELECT GROUP_CONCAT(DISTINCT a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+
+# a group per row of output, so more than one group is replayed
+SELECT g, GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1
+GROUP BY g HAVING v LIKE '%' ORDER BY g;
+g	v
+1	
+2	
+# an offset that stops inside the group, which must not move
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 1) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+b,c
+SELECT GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 3) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+d
+# and no LIMIT at all
+SELECT GROUP_CONCAT(a ORDER BY a) AS v FROM t1 WHERE g = 1 HAVING v LIKE '%';
+v
+a,b,c,d
+# the same through the aggregate that is built on this one, where an
+# element written a second time lands outside the brackets already
+# put round the group
+SELECT JSON_ARRAYAGG(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1;
+v
+[]
+SELECT JSON_ARRAYAGG(a ORDER BY a LIMIT 2 OFFSET 4) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+[]
+SELECT JSON_VALID(JSON_ARRAYAGG(a ORDER BY a LIMIT 2 OFFSET 4)) AS v
+FROM t1 WHERE g = 1 HAVING v LIKE '%';
+v
+1
+SELECT JSON_ARRAYAGG(a ORDER BY a LIMIT 2 OFFSET 1) AS v FROM t1 WHERE g = 1
+HAVING v LIKE '%';
+v
+["b","c"]
+DROP TABLE t1;
+# End of 10.11 tests

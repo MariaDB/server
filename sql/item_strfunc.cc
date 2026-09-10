@@ -642,9 +642,6 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
   if (str->alloced_length() >= length)
     return false; // Alloced space is big enough, nothing to do.
 
-  if (str->alloced_length() == 0)
-    return str->alloc(length);
-
   /*
     Item_func_concat::val_str() makes sure the result length does not grow
     higher than max_allowed_packet. So "length" is limited to 1G here.
@@ -653,6 +650,9 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
     "str" will be reallocated exactly to "length" bytes in case of overflow.
+    It can even be zero, with "str" pointing to bytes that args[0] does not
+    own. realloc() moves those bytes into a buffer of our own, while alloc()
+    would throw them away: it empties the string it allocates for.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
@@ -3885,13 +3885,34 @@ String *Item_func_conv_charset::val_str(String *str)
   DBUG_ASSERT(fixed());
   if (use_cached_value)
     return null_value ? 0 : &str_value;
+  m_marks.clear();
   String *arg= args[0]->val_str(&tmp_value);
   String_copier_for_item copier(current_thd);
-  return ((null_value= args[0]->null_value ||
-                       copier.copy_with_warn(collation.collation, str,
-                                             arg->charset(), arg->ptr(),
-                                             arg->length(), arg->length()))) ?
-    0 : str;
+  if ((null_value= args[0]->null_value ||
+                   copier.copy_with_warn(collation.collation, str,
+                                         arg->charset(), arg->ptr(),
+                                         arg->length(), arg->length())))
+    return 0;
+  /*
+    Asked of the argument only now, after it has been evaluated: what it
+    answers is about the value it has just passed, which is the one
+    that was converted.  A conversion that lost nothing kept the
+    characters it was given, and how deeply a value nests is a property
+    of characters like the other two, so all three carry across.
+
+    Where the copy kept the BYTES and called them something else it
+    kept no such thing, and that is what the second test is for - see
+    String_copier::conversion_keeps_characters(), which reads the branch
+    this very copier took.  Either end being the binary set is enough:
+    bytes going into it are relabelled, and bytes coming out of it are
+    read as whatever the other set makes of them.
+  */
+  if (!copier.most_important_error_pos() &&
+      String_copier::conversion_keeps_characters(collation.collation,
+                                                 arg->charset()))
+    m_marks.set(str, args[0]->is_valid_json(), args[0]->is_nice_json(),
+                args[0]->last_depth());
+  return str;
 }
 
 bool Item_func_conv_charset::fix_length_and_dec(THD *thd)

@@ -1,0 +1,744 @@
+#
+# Splicing a value that is typed as JSON into a document.
+#
+# A value whose type is JSON is spliced into the result as it
+# stands rather than quoted as a string.  This is not only about
+# objects and arrays: a JSON number, string or boolean is spliced
+# the same way, which is what keeps a stored "a string" from coming
+# back out with its quotes escaped.
+#
+# Being typed as JSON and being JSON are different things: the type
+# comes from a check constraint, and a constraint can be switched
+# off for a statement, leaving bytes behind that it would have
+# rejected.  Nothing between the column and the result reads those
+# bytes.
+#
+# The constructors are the interesting half, because they have no
+# closing pass over what they built.  Whatever they splice is what
+# the caller gets.
+#
+# A value that does not parse is spliced all the same, byte for
+# byte.  What the constructor has then built is not a document, so
+# it returns NULL instead of it, and a warning names the argument
+# that was responsible.  A warning and not a note, because it is
+# the only word the statement gets about why it was given NULL,
+# and because a statement running under strict mode then stops at
+# the value rather than finishing without one.  A function that
+# reads its whole answer back has a second complaint to make about
+# the same value, and leaves this one a note.
+#
+# Non ASCII characters below are written as the bytes that encode
+# them, so this file needs no character set of its own:
+#   C3 A9       is U+00E9, one byte in latin1 (E9)
+#   E6 BC A2    is U+6F22, which latin1 has no room for
+#
+SET NAMES utf8mb4;
+#
+# 1. Which values are spliced as documents and which are quoted.
+#
+CREATE TABLE t1 (id INT, j JSON, txt LONGTEXT);
+INSERT INTO t1 VALUES (1, '{"a": 1}', '{"a": 1}');
+SELECT JSON_ARRAY(j) AS typed, JSON_ARRAY(txt) AS untyped FROM t1;
+typed	untyped
+[{"a": 1}]	["{\"a\": 1}"]
+# a function that returns JSON is typed the same way
+SELECT JSON_ARRAY(JSON_COMPACT('[1, 2]')) AS from_function;
+from_function
+[[1, 2]]
+SELECT JSON_ARRAY(CONCAT(j, '')) AS through_concat FROM t1;
+through_concat
+["{\"a\": 1}"]
+#
+# 2. A column holding bytes its constraint would have rejected.
+#
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (10, '{"a":1,', NULL);
+INSERT INTO t1 VALUES (11, 'not json at all', NULL);
+INSERT INTO t1 VALUES (12, '{"a":1} and then some', NULL);
+SET SESSION check_constraint_checks = ON;
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS built_a_document
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	built_a_document
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 9
+SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS built_a_document
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	built_a_document
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 9
+# more than one element, so the value is spliced in the middle of a
+# document rather than as the whole of it
+SELECT id, JSON_ARRAY(1, j, 'z') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 9
+SELECT id, JSON_OBJECT('before', 1, 'k', j, 'after', 2) AS v
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 4 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 4 to function 'json_object' at position 9
+# the aggregates, which splice a value per row
+SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS built_a_document
+FROM t1 WHERE id >= 10;
+built_a_document
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 9
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
+SELECT JSON_VALID(JSON_OBJECTAGG(id, j)) AS built_a_document
+FROM t1 WHERE id >= 10;
+built_a_document
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_objectagg'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_objectagg' at position 9
+# a group mixing a good row with a bad one
+SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id = 1 OR id = 10;
+v
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+# the mutators splice the same way, but read back what they built
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS v
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 3 to function 'json_set'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 21
+Note	4038	Syntax error in JSON text in argument 3 to function 'json_set' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 14
+Note	4038	Syntax error in JSON text in argument 3 to function 'json_set' at position 9
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_set' at position 22
+SELECT id, JSON_ARRAY_APPEND('[0]', '$', j) AS v
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	v
+10	NULL
+11	NULL
+12	NULL
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 3 to function 'json_array_append'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 12
+Note	4038	Syntax error in JSON text in argument 3 to function 'json_array_append' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 5
+Note	4038	Syntax error in JSON text in argument 3 to function 'json_array_append' at position 9
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 13
+#
+# 3. Bytes that are not a document and would not have looked wrong
+#    afterwards.
+#
+# An empty value leaves nothing behind at all, so what is built
+# round it parses and reports one element fewer than it was given.
+# A document like that gives no sign of what happened to it, and
+# is exactly what is not returned: the row is refused, and the
+# warning says which argument it was.
+#
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (20, '', NULL);
+INSERT INTO t1 VALUES (21, '   ', NULL);
+INSERT INTO t1 VALUES (22, '// nothing here', NULL);
+SET SESSION check_constraint_checks = ON;
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS looks_fine,
+JSON_LENGTH(JSON_ARRAY(j)) AS elements
+FROM t1 WHERE id >= 20 ORDER BY id;
+id	v	looks_fine	elements
+20	NULL	NULL	NULL
+21	NULL	NULL	NULL
+22	NULL	NULL	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+SELECT id, JSON_ARRAY(1, j, 2) AS v, JSON_VALID(JSON_ARRAY(1, j, 2)) AS looks_fine,
+JSON_LENGTH(JSON_ARRAY(1, j, 2)) AS elements
+FROM t1 WHERE id >= 20 ORDER BY id;
+id	v	looks_fine	elements
+20	NULL	NULL	NULL
+21	NULL	NULL	NULL
+22	NULL	NULL	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_array'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_array' at position 1
+SELECT id, JSON_OBJECT('k', j) AS v, JSON_VALID(JSON_OBJECT('k', j)) AS looks_fine
+FROM t1 WHERE id >= 20 ORDER BY id;
+id	v	looks_fine
+20	NULL	NULL
+21	NULL	NULL
+22	NULL	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_object'
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_object' at position 1
+SELECT JSON_ARRAYAGG(j) AS v, JSON_VALID(JSON_ARRAYAGG(j)) AS looks_fine
+FROM t1 WHERE id >= 20;
+v	looks_fine
+NULL	NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_arrayagg'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_arrayagg' at position 1
+#
+# 4. Nesting that only goes over the limit once the value is wrapped.
+#
+# The scanner takes 31 nested structures.  A document of exactly 31
+# is a document; put it inside one more and it is not, so the
+# constructor that wrapped it has nothing to return.  A mutator
+# reads its whole answer back and finds out there, as it always
+# did.
+#
+CREATE TABLE t2 (id INT, j JSON);
+INSERT INTO t2 VALUES (31, CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31)));
+INSERT INTO t2 VALUES (30, CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30)));
+SELECT id, JSON_VALID(j) AS on_its_own, JSON_DEPTH(j) AS deep FROM t2 ORDER BY id;
+id	on_its_own	deep
+30	1	31
+31	1	32
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS wrapped_once,
+LENGTH(JSON_ARRAY(j)) AS bytes FROM t2 ORDER BY id;
+id	wrapped_once	bytes
+30	1	63
+31	NULL	NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS wrapped_once FROM t2 ORDER BY id;
+id	wrapped_once
+30	1
+31	NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_object' at position 63
+# without a table in the way
+SELECT JSON_VALID(JSON_ARRAY(JSON_COMPACT(
+CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31))))) AS wrapped_once;
+wrapped_once
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+# a mutator splices at the depth the path reaches, and reads back
+SELECT id, JSON_VALID(JSON_SET('{}', '$.k', j)) AS spliced FROM t2 ORDER BY id;
+id	spliced
+30	1
+31	NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 36
+#
+# 5. A document written in a different character set from the one it
+#    is being spliced into.
+#
+# The constructors agree a character set across their arguments
+# first, so the value arrives already converted.  The mutators take
+# the character set of the document they are editing and convert
+# nothing, so the value arrives as it was written.
+#
+CREATE TABLE t3 (id INT, j JSON);
+INSERT INTO t3 VALUES (1, _utf8mb4 0x5B22C3A9225D);
+INSERT INTO t3 VALUES (2, _utf8mb4 0x5B22E6BCA2225D);
+SELECT id, CHARSET(j) AS column_cs, HEX(j) AS bytes FROM t3 ORDER BY id;
+id	column_cs	bytes
+1	utf8mb4	5B22C3A9225D
+2	utf8mb4	5B22E6BCA2225D
+# spliced by a constructor whose other argument is latin1
+SELECT id, CHARSET(JSON_ARRAY(CONVERT('x' USING latin1), j)) AS result_cs,
+HEX(JSON_ARRAY(CONVERT('x' USING latin1), j)) AS bytes
+FROM t3 ORDER BY id;
+id	result_cs	bytes
+1	utf8mb4	5B2278222C205B22C3A9225D5D
+2	utf8mb4	5B2278222C205B22E6BCA2225D5D
+# spliced by a mutator into a latin1 document
+SELECT id, CHARSET(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j))
+AS result_cs,
+HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j)) AS bytes
+FROM t3 ORDER BY id;
+id	result_cs	bytes
+1	latin1	7B2261223A20312C202262223A205B22E9225D7D
+2	latin1	7B2261223A20312C202262223A205B22E6BCA2225D7D
+SELECT id, HEX(JSON_ARRAY_APPEND(CONVERT(_utf8mb4'[1]' USING latin1), '$', j))
+AS bytes
+FROM t3 ORDER BY id;
+id	bytes
+1	5B312C205B22E9225D5D
+2	5B312C205B22E6BCA2225D5D
+# read the spliced value back out of the document it landed in
+SELECT id, HEX(JSON_EXTRACT(
+JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j),
+'$.b')) AS read_back
+FROM t3 ORDER BY id;
+id	read_back
+1	5B22E9225D
+2	5B22E6BCA2225D
+#
+# 6. Values that are what they say they are, which must not move.
+#
+# Note the scalars among them.  A column holding a JSON string is
+# spliced with one set of quotes, not two, which is the difference
+# between being spliced as JSON and being quoted as a string.
+#
+CREATE TABLE t4 (id INT, j JSON);
+INSERT INTO t4 VALUES (1, '{"a": 1, "b": [1, 2]}');
+INSERT INTO t4 VALUES (2, '[1, 2, 3]');
+INSERT INTO t4 VALUES (3, '"a string"');
+INSERT INTO t4 VALUES (4, '42');
+INSERT INTO t4 VALUES (5, 'null');
+INSERT INTO t4 VALUES (6, 'true');
+INSERT INTO t4 VALUES (7, '{"compact":[1,2],"no":"spaces"}');
+SELECT id, JSON_ARRAY(j) AS v FROM t4 ORDER BY id;
+id	v
+1	[{"a": 1, "b": [1, 2]}]
+2	[[1, 2, 3]]
+3	["a string"]
+4	[42]
+5	[null]
+6	[true]
+7	[{"compact":[1,2],"no":"spaces"}]
+SELECT id, JSON_OBJECT('k', j) AS v FROM t4 ORDER BY id;
+id	v
+1	{"k": {"a": 1, "b": [1, 2]}}
+2	{"k": [1, 2, 3]}
+3	{"k": "a string"}
+4	{"k": 42}
+5	{"k": null}
+6	{"k": true}
+7	{"k": {"compact":[1,2],"no":"spaces"}}
+SELECT id, JSON_ARRAY(1, j, 'z') AS v FROM t4 ORDER BY id;
+id	v
+1	[1, {"a": 1, "b": [1, 2]}, "z"]
+2	[1, [1, 2, 3], "z"]
+3	[1, "a string", "z"]
+4	[1, 42, "z"]
+5	[1, null, "z"]
+6	[1, true, "z"]
+7	[1, {"compact":[1,2],"no":"spaces"}, "z"]
+SELECT JSON_ARRAYAGG(j) AS v FROM t4;
+v
+[{"a": 1, "b": [1, 2]},[1, 2, 3],"a string",42,null,true,{"compact":[1,2],"no":"spaces"}]
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4;
+v
+{"1":{"a": 1, "b": [1, 2]}, "2":[1, 2, 3], "3":"a string", "4":42, "5":null, "6":true, "7":{"compact":[1,2],"no":"spaces"}}
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS v FROM t4 ORDER BY id;
+id	v
+1	{"x": 0, "k": {"a": 1, "b": [1, 2]}}
+2	{"x": 0, "k": [1, 2, 3]}
+3	{"x": 0, "k": "a string"}
+4	{"x": 0, "k": 42}
+5	{"x": 0, "k": null}
+6	{"x": 0, "k": true}
+7	{"x": 0, "k": {"compact": [1, 2], "no": "spaces"}}
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS built_a_document FROM t4 ORDER BY id;
+id	built_a_document
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+# a NULL value is spliced as the JSON null, not as the document
+INSERT INTO t4 VALUES (8, NULL);
+SELECT id, JSON_ARRAY(j) AS v FROM t4 WHERE id = 8;
+id	v
+8	[null]
+SELECT id, JSON_OBJECT('k', j) AS v FROM t4 WHERE id = 8;
+id	v
+8	{"k": null}
+#
+# 7. Whether what the constructors build is already in the loose
+#    form, or would still be changed by reformatting it.
+#
+# A value that is spliced is copied exactly as it was written, so
+# the spacing of the result is the spacing the value arrived with.
+# A constructor is therefore only in the loose form when the
+# documents given to it are.
+#
+CREATE TABLE t5 (id INT, j JSON);
+INSERT INTO t5 VALUES (1, '{"a": 1, "b": [1, 2]}');
+INSERT INTO t5 VALUES (2, '{"a":1,"b":[1,2]}');
+INSERT INTO t5 VALUES (3, '[ 1 ,2, 3 ]');
+# with nothing spliced, and with a document spliced in
+SELECT JSON_ARRAY(1, 'a', TRUE, NULL) AS built,
+JSON_ARRAY(1, 'a', TRUE, NULL) = JSON_LOOSE(JSON_ARRAY(1, 'a', TRUE, NULL))
+AS already_loose;
+built	already_loose
+[1, "a", true, null]	1
+SELECT JSON_OBJECT('a', 1, 'b', 'x') AS built,
+JSON_OBJECT('a', 1, 'b', 'x') = JSON_LOOSE(JSON_OBJECT('a', 1, 'b', 'x'))
+AS already_loose;
+built	already_loose
+{"a": 1, "b": "x"}	1
+SELECT id, JSON_ARRAY(j) AS built,
+JSON_ARRAY(j) = JSON_LOOSE(JSON_ARRAY(j)) AS already_loose
+FROM t5 ORDER BY id;
+id	built	already_loose
+1	[{"a": 1, "b": [1, 2]}]	1
+2	[{"a":1,"b":[1,2]}]	0
+3	[[ 1 ,2, 3 ]]	0
+SELECT id, JSON_OBJECT('k', j) AS built,
+JSON_OBJECT('k', j) = JSON_LOOSE(JSON_OBJECT('k', j)) AS already_loose
+FROM t5 ORDER BY id;
+id	built	already_loose
+1	{"k": {"a": 1, "b": [1, 2]}}	1
+2	{"k": {"a":1,"b":[1,2]}}	0
+3	{"k": [ 1 ,2, 3 ]}	0
+# the aggregates write their own separators, which are not the
+# loose ones.  A group of one never writes a separator at all, so
+# both a single row and several are recorded here.
+INSERT INTO t5 VALUES (4, '{"c": 3}');
+SELECT JSON_ARRAYAGG(j) AS built,
+JSON_ARRAYAGG(j) = JSON_LOOSE(JSON_ARRAYAGG(j)) AS already_loose
+FROM t5 WHERE id = 1;
+built	already_loose
+[{"a": 1, "b": [1, 2]}]	1
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS built,
+JSON_ARRAYAGG(j ORDER BY id) = JSON_LOOSE(JSON_ARRAYAGG(j ORDER BY id))
+AS already_loose
+FROM t5 WHERE id IN (1, 4);
+built	already_loose
+[{"a": 1, "b": [1, 2]},{"c": 3}]	0
+SELECT JSON_OBJECTAGG(id, j) AS built,
+JSON_OBJECTAGG(id, j) = JSON_LOOSE(JSON_OBJECTAGG(id, j)) AS already_loose
+FROM t5 WHERE id = 1;
+built	already_loose
+{"1":{"a": 1, "b": [1, 2]}}	0
+SELECT JSON_OBJECTAGG(id, j) AS built,
+JSON_OBJECTAGG(id, j) = JSON_LOOSE(JSON_OBJECTAGG(id, j)) AS already_loose
+FROM t5 WHERE id IN (1, 4);
+built	already_loose
+{"1":{"a": 1, "b": [1, 2]}, "4":{"c": 3}}	0
+# a mutator reads back everything it built, so its spacing is its
+# own regardless of what was spliced
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS built,
+JSON_SET('{"x": 0}', '$.k', j) = JSON_LOOSE(JSON_SET('{"x": 0}', '$.k', j))
+AS already_loose
+FROM t5 ORDER BY id;
+id	built	already_loose
+1	{"x": 0, "k": {"a": 1, "b": [1, 2]}}	1
+2	{"x": 0, "k": {"a": 1, "b": [1, 2]}}	1
+3	{"x": 0, "k": [1, 2, 3]}	1
+4	{"x": 0, "k": {"c": 3}}	1
+#
+# 8. What the aggregates do with a row they cannot write out.
+#
+# An aggregate writes the separator before it asks for the element,
+# so a row that yields nothing leaves a separator with nothing on
+# one side of it.  There are two reasons a row can yield nothing
+# and they are not reported alike.  A character that cannot be
+# written into a document at all is a property of the data, and
+# gets a note naming the row; a buffer that would not grow is not,
+# and has already stopped the statement by the time it is noticed.
+# Either way what is left is a group with a gap in it, which is not
+# a document and is not returned.
+#
+# A KEY that cannot be written is neither of those.  It goes in as
+# the empty key with its pair finished round it, so the object is a
+# document whose keys are not the ones that were asked for, and the
+# note is the whole of what is said about it.
+#
+# cp1250 is used here because it admits every byte, so a column can
+# hold one that stands for no character at all.
+#
+CREATE TABLE t6 (id INT, c VARCHAR(16) CHARACTER SET cp1250);
+INSERT INTO t6 VALUES (1, X'81'), (2, 'ok'), (3, X'8881');
+SELECT id, HEX(c) AS stored FROM t6 ORDER BY id;
+id	stored
+1	81
+2	6F6B
+3	8881
+SELECT JSON_ARRAYAGG(c) AS v FROM t6;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+SELECT JSON_OBJECTAGG(id, c) AS v FROM t6;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_objectagg' at position 0
+Note	4035	Broken JSON string in argument 2 to function 'json_objectagg' at position 0
+# and where it is the key that cannot be written
+SELECT JSON_OBJECTAGG(c, id) AS v FROM t6;
+v
+{"":1, "ok":2, "":3}
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_objectagg' at position 0
+Note	4035	Broken JSON string in argument 1 to function 'json_objectagg' at position 0
+# a group with no such row is untouched
+SELECT JSON_ARRAYAGG(c) AS v FROM t6 WHERE id = 2;
+v
+["ok"]
+# the same rows through the tree path, which writes the elements out
+# when the group is asked for rather than as they arrive
+SELECT JSON_ARRAYAGG(c ORDER BY id) AS v FROM t6;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+SELECT JSON_ARRAYAGG(DISTINCT c) AS v FROM t6;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+Note	4035	Broken JSON string in argument 1 to function 'json_arrayagg' at position 0
+# a copy of the aggregate, which is made without fixing it again.
+# The values here are valid, so nothing should be said about them.
+SELECT id, HEX(JSON_ARRAYAGG(JSON_ARRAY(CONVERT('x' USING ucs2)))) AS v
+FROM t6 GROUP BY id WITH ROLLUP;
+id	v
+1	005B005B002200780022005D005D
+2	005B005B002200780022005D005D
+3	005B005B002200780022005D005D
+NULL	005B005B002200780022005D002C005B002200780022005D002C005B002200780022005D005D
+SELECT id, HEX(JSON_ARRAYAGG(JSON_ARRAY(CONVERT('x' USING ucs2)))) AS v
+FROM t6 GROUP BY id;
+id	v
+1	005B005B002200780022005D005D
+2	005B005B002200780022005D005D
+3	005B005B002200780022005D005D
+# nesting composed by the aggregate itself, which puts each value
+# inside one array or object of its own
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
+JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
+FROM t2 WHERE id = 31;
+wrapped_once	wrapped_once_obj
+NULL	NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_objectagg' at position 63
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_arrayagg' at position 63
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
+JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
+FROM t2 WHERE id = 30;
+wrapped_once	wrapped_once_obj
+1	1
+#
+# 9. The same character in a key of a constructor.
+#
+# A key is written by the same routine that writes one for the
+# aggregate, and a character no document can carry stops it the
+# same way.  The constructors read nothing back, so a key and a
+# value alike throw the whole result away here; all that is left
+# of either is what is said about it, and both sides say which
+# argument it was.
+#
+# Said at note level, where the same constructor refusing a value
+# that did not parse says it at warning level.  Both answer NULL.
+# The difference is that refusing a character is what a released
+# server did and refusing an unparsed value is not, so only the
+# second is raised to where strict mode can act on it.
+#
+# the value side, which has always been named
+SELECT JSON_ARRAY(c) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_array' at position 0
+SELECT JSON_OBJECT('k', c) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 2 to function 'json_object' at position 0
+# the key side, in the first pair and in a later one
+SELECT JSON_OBJECT(c, 1) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_object' at position 0
+SELECT JSON_OBJECT('a', 1, c, 2) AS v FROM t6 WHERE id = 3;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 3 to function 'json_object' at position 0
+# a key and a value of the same row, which stops at the key
+SELECT JSON_OBJECT(c, c) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_object' at position 0
+# a row whose key can be written says nothing
+SELECT JSON_OBJECT(c, 1) AS v FROM t6 WHERE id = 2;
+v
+{"ok": 1}
+#
+# 10. The same character through JSON_QUOTE, which writes a value out
+#     with the routine the constructors use but is not building a
+#     document of its own.
+#
+# It has always answered NULL for a character it cannot write and
+# still does.  What it never did was say so, and it was the only
+# caller of that routine which did not.
+#
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_quote' at position 0
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 3;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_quote' at position 0
+# a row it can write says nothing
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 2;
+v
+"ok"
+# the same value reaching a constructor instead, which has always
+# named the argument
+SELECT JSON_ARRAY(c) AS v FROM t6 WHERE id = 1;
+v
+NULL
+Warnings:
+Note	4035	Broken JSON string in argument 1 to function 'json_array' at position 0
+#
+# 11. What a constructor or an aggregate returns when what it put
+#     together is not a document.
+#
+# These four have no closing pass over what they built, so whatever
+# went in wrong is in the answer, and every way that can happen is
+# above: a value typed as JSON that does not parse, one that parses
+# as nothing at all, a nesting that only goes over the limit once
+# the value is wrapped, and a character no document can carry, which
+# leaves an aggregate's separator with nothing beside it.
+#
+# None of the four is a document and none of them is returned.  The
+# complaint saying what was wrong is raised where it always was;
+# what follows it is NULL rather than the bytes.
+#
+# Two cases that look like these and are not stay as they were.  A
+# KEY that could not be written leaves the pair around it whole, so
+# the object is a document whose keys are not the ones asked for.
+# A group cut to fit its length limit is cut back to the last whole
+# element, so the brackets go round a document as well.
+#
+# a value typed as JSON that does not parse, and one that parses as
+# nothing at all
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+JSON_OBJECT('k', j) IS NULL AS refused_obj
+FROM t1 WHERE id >= 10 ORDER BY id;
+id	refused	refused_obj
+10	1	1
+11	1	1
+12	1	1
+20	1	1
+21	1	1
+22	1	1
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+FROM t1 WHERE id >= 10;
+refused	refused_obj
+1	1
+# a nesting that only goes over the limit once the value is wrapped
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+JSON_OBJECT('k', j) IS NULL AS refused_obj
+FROM t2 ORDER BY id;
+id	refused	refused_obj
+30	0	0
+31	1	1
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+FROM t2 WHERE id = 31;
+refused	refused_obj
+1	1
+# a character no document can carry, in a value
+SELECT JSON_ARRAYAGG(c) IS NULL AS refused,
+JSON_OBJECTAGG(id, c) IS NULL AS refused_obj FROM t6;
+refused	refused_obj
+1	1
+# the same character in a KEY, which leaves a document behind
+SELECT JSON_OBJECTAGG(c, id) AS v FROM t6;
+v
+{"":1, "ok":2, "":3}
+# a group cut to fit its length limit
+SET SESSION group_concat_max_len= 28;
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+v
+[{"a": 1, "b": [1, 2]}]
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+v
+{"1":{"a": 1, "b": [1, 2]}}
+SET SESSION group_concat_max_len= DEFAULT;
+# and what IS a document comes back as it always did
+SELECT id, JSON_ARRAY(j) AS v FROM t4 WHERE id <= 2 ORDER BY id;
+id	v
+1	[{"a": 1, "b": [1, 2]}]
+2	[[1, 2, 3]]
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+v
+[{"a": 1, "b": [1, 2]},[1, 2, 3]]
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+v
+{"1":{"a": 1, "b": [1, 2]}, "2":[1, 2, 3]}
+DROP TABLE t1, t2, t3, t4, t5, t6;
