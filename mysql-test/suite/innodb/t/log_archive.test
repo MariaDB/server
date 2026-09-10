@@ -148,6 +148,8 @@ DROP TABLE mysql.innodb_index_stats;
 ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
 --error ER_OPEN_AS_READONLY
 TRUNCATE TABLE mysql.innodb_table_stats;
+--error ER_INNODB_READ_ONLY
+SET GLOBAL innodb_log_archive=!@@GLOBAL.innodb_log_archive;
 
 --source include/shutdown_mysqld.inc
 --move_file $DATADIR/ib_logfile0 $DATADIR/ib_ffffffffff803000.log
