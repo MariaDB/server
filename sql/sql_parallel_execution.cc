@@ -1350,7 +1350,9 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
   /* the table array, plus the ANALYZE counters this worker will fill in */
   if (!(worker->exec.tables= thd->alloc<TABLE*>(exec.n_tables)) ||
       !(worker->exec.tab_stats= thd->calloc<Table_access_tracker>(exec.n_tables)) ||
-      !(worker->exec.tab_hstats= thd->calloc<ha_handler_stats>(exec.n_tables)))
+      !(worker->exec.tab_hstats= thd->calloc<ha_handler_stats>(exec.n_tables)) ||
+      !(worker->exec.tab_trackers=
+          thd->calloc<Exec_time_tracker>(exec.n_tables)))
     return true;
 
   for (uint t= 0; t < exec.n_tables; t++)
@@ -1374,6 +1376,13 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
     }
     st->in_use= worker->thd;
     st->file->ha_handler_stats_reset();
+    /*
+      The manager's tables have the ANALYZE time trackers the optimizer hung
+      off the plan; these copies are opened after the plan was made and have
+      none, so the handler would time nothing. Give each one a tracker of its
+      own, which snapshot_table_stats() folds into this worker's engine_time.
+    */
+    st->file->set_time_tracker(&worker->exec.tab_trackers[t]);
     /*
       Give the copy the manager table's place in the join: its bit in the table
       map and its join position. Items cloned onto this table take used_tables()
@@ -1424,8 +1433,22 @@ err:
 void pwt_worker::snapshot_table_stats()
 {
   for (uint i= 0; i < exec.n_tables; i++)
-    if (ha_handler_stats *hs= exec.tables[i]->file->handler_stats)
-      exec.tab_hstats[i].add(hs);
+  {
+    handler *file= exec.tables[i]->file;
+    ha_handler_stats *hs= file->handler_stats;
+    if (!hs)
+      continue;
+    /*
+      Time in the engine is normally folded in from the handler's tracker when
+      the table is closed, by close_thread_table(), and a worker's tables are
+      closed after this snapshot and without going through that path. So fold
+      it in here, or the worker's engine_time would always be zero.
+    */
+    if (hs->active)
+      if (Exec_time_tracker *tracker= file->get_time_tracker())
+        hs->engine_time+= tracker->get_cycles();
+    exec.tab_hstats[i].add(hs);
+  }
 }
 
 

@@ -51,6 +51,8 @@ ANALYZE
           "rows": 4001,
           "r_rows": 4001,
           "r_rows_per_worker": REPLACED,
+          "r_engine_time_per_worker_ms": REPLACED,
+          "r_peak_to_average_ratio": "REPLACED",
           "r_chunks": "REPLACED",
           "r_chunks_resplit": "REPLACED",
           "cost": "REPLACED",
