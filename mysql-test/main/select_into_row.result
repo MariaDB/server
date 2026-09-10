@@ -1,0 +1,140 @@
+#
+# MDEV-40790 SELECT INTO row_type_of.field crashes the server
+#
+# Into an explicit ROW variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+SELECT a,b INTO r0 FROM t1;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into an explicit ROW field variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+SELECT a,b INTO r0.a,r0.b FROM t1;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into an explicit ROW field variable - non-existing field
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW (a INT, b VARCHAR(10));
+SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+END;
+$$
+ERROR HY000: Row variable 'r0' does not have a field 'b1_non_existing'
+DROP TABLE t1;
+# Into a `ROW TYPE OF table1` variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+SELECT a,b INTO r0 FROM t1;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into a `ROW TYPE OF table1` field variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+SELECT a,b INTO r0.a,r0.b FROM t1;
+SELECT r0.a, r0.b;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into a `ROW TYPE OF table1` field variable - non-existing field
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE r0 ROW TYPE OF t1;
+SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+END;
+$$
+CALL p1;
+ERROR HY000: Row variable 'r0' does not have a field 'b1_non_existing'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into a `ROW TYPE OF cursor1` variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+SELECT a,b INTO r0 FROM t1;
+SELECT r0.a, r0.b;
+END;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into a `ROW TYPE OF cursor1` field variable
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+SELECT a,b INTO r0.a,r0.b FROM t1;
+SELECT r0.a, r0.b;
+END;
+END;
+$$
+CALL p1;
+r0.a	r0.b
+10	b10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# Into a `ROW TYPE OF cursor1` field variable - non-existing field
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE r0 ROW TYPE OF c1;
+SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+END;
+END;
+$$
+CALL p1;
+ERROR HY000: Row variable 'r0' does not have a field 'b1_non_existing'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 12.3 tests

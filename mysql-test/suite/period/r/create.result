@@ -132,9 +132,9 @@ drop table t2;
 select "yes" from information_schema.tables where engine="innodb" limit 1;
 yes
 yes
-select plugin_status from information_schema.all_plugins where plugin_name = "innodb";
-plugin_status
-DISABLED
+select SUPPORT from information_schema.engines where ENGINE='InnoDB';
+SUPPORT
+NO
 select * from information_schema.periods;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PERIOD	START_COLUMN_NAME	END_COLUMN_NAME
 select * from information_schema.key_period_usage;

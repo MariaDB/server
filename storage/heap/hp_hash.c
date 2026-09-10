@@ -18,6 +18,7 @@
 /* The hash functions used for saveing keys */
 
 #include "heapdef.h"
+#include "my_compare.h"
 #include <m_ctype.h>
 
 

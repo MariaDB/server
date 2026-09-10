@@ -1,0 +1,13 @@
+--source include/have_csv.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-40636 CSV crashes on DELETE
+--echo #
+create table t1 (id int not null, pad char(10) not null) engine=csv;
+insert t1 select seq,'AAAAAAAAAA' from seq_1_to_2048;
+delete from t1 where id % 2 = 0;
+select count(*), sum(id) from t1;
+drop table t1;
+
+--echo # End of 10.6 tests

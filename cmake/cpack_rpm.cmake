@@ -155,9 +155,8 @@ SET(ignored
   "%ignore /etc/systemd"
   "%ignore /etc/systemd/system"
   "%ignore /lib"
-  "%ignore /lib/security"
   "%ignore /lib64"
-  "%ignore /lib64/security"
+  "%ignore ${INSTALL_PAMDIR_RPM}"
   "%ignore ${CMAKE_INSTALL_PREFIX}"
   "%ignore ${CMAKE_INSTALL_PREFIX}/bin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/include"
@@ -270,12 +269,12 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "MariaDB-client >= 11.0.0")
 
 IF(WITH_WSREP)
-  SETA(CPACK_RPM_server_galera_PACKAGE_REQUIRES
+  SETA(CPACK_RPM_server-galera_PACKAGE_REQUIRES
     "MariaDB-server >= ${SERVER_VERSION}"
     "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  SETA(CPACK_RPM_server_galera_PACKAGE_RECOMMENDS "lsof" "socat" "pv")
-  SETA(CPACK_RPM_server_galera_PACKAGE_CONFLICTS
+  SETA(CPACK_RPM_server-galera_PACKAGE_RECOMMENDS "lsof" "socat" "pv" "stunnel")
+  SETA(CPACK_RPM_server-galera_PACKAGE_CONFLICTS
     "MariaDB-server <= 12.3.2")
 ENDIF()
 

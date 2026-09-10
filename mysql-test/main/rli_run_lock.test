@@ -1,0 +1,43 @@
+# MDEV-40298
+# Use-After-Free when SQL Thread stops in the middle of SHOW SLAVE STATUS
+#
+# Test that the correct synchronization is performed
+
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc # No actual replication required
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root'; # basic setup
+
+START SLAVE SQL_THREAD;
+--source include/wait_for_slave_sql_to_start.inc
+
+
+SET @@SESSION.debug_sync=
+  'hold_sss_with_run_lock SIGNAL sss_got_run_lock WAIT_FOR sss_continue';
+--send SHOW SLAVE STATUS
+
+--connect (stopper, 127.0.0.1, root, , , $SERVER_MYPORT_1)
+  SET @@SESSION.debug_sync= 'now WAIT_FOR sss_got_run_lock';
+  --send STOP SLAVE SQL_THREAD
+  # Wait a bit for the thread to "shut down"
+  # (It should not shut down, but block waiting for the ongoing SSS;
+  #  the tested bug instead pulled this carpet under the SSS's feet.)
+  --sleep 1
+
+  --connect (continuer, 127.0.0.1, root, , , $SERVER_MYPORT_1)
+    SET @@SESSION.debug_sync= 'now SIGNAL sss_continue';
+  --connection stopper
+  --disconnect continuer
+
+  --reap
+--connection default
+--disconnect stopper
+
+
+--disable_result_log
+  --reap
+--enable_result_log
+
+# Clean-up
+SET @@SESSION.debug_sync= RESET;
+--source include/wait_for_slave_sql_to_stop.inc
+RESET SLAVE ALL;

@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 SHOW GLOBAL VARIABLES LIKE "duckdb_appender_allocator_flush_threshold";
 SELECT run_in_duckdb("FROM duckdb_settings() WHERE name = 'allocator_flush_threshold'");

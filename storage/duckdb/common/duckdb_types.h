@@ -34,6 +34,22 @@ public:
 };
 
 /**
+  Quote an SQL identifier for DuckDB.
+
+  DuckDB (SQL standard) delimits identifiers with double quotes and escapes
+  an embedded double quote by doubling it. MariaDB identifiers (column names
+  in particular) may contain arbitrary characters, so failing to escape lets
+  a crafted name break out of the quoted identifier and inject DuckDB SQL
+  (MDEV-40653). Returns the name wrapped in double quotes with any embedded
+  double quote doubled.
+*/
+std::string quote_duckdb_identifier(const char *name, size_t length);
+inline std::string quote_duckdb_identifier(const std::string &name)
+{
+  return quote_duckdb_identifier(name.data(), name.size());
+}
+
+/**
   Utility class to extract the database name from a path like "./db/".
 */
 class Databasename

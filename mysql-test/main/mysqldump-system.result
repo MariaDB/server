@@ -40,6 +40,7 @@ CREATE SERVER s1 FOREIGN DATA WRAPPER mysql
 OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
 CREATE SERVER `s'2` FOREIGN DATA WRAPPER 'my''sql'
   OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
+create server `s``3` foreign data wrapper mysql options (host 'value');
 CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 CREATE AGGREGATE FUNCTION avgcost RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
 #
@@ -95,8 +96,9 @@ DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
 CREATE FUNCTION `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
 CREATE AGGREGATE FUNCTION `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
-CREATE SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
+CREATE SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (`HOST` 'h2', `DATABASE` 'db2', `USER` 'u2');
+CREATE SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (`HOST` 'localhost', `DATABASE` 'd''b', `USER` 'o''brien', `PASSWORD` 'pw''d');
+CREATE SERVER `s``3` FOREIGN DATA WRAPPER `mysql` OPTIONS (`host` 'value');
 
 USE mysql;
 
@@ -718,8 +720,9 @@ DROP ROLE mariadb_dump_import_role;
 CREATE /*M!100103 OR REPLACE */ FUNCTION `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
 /*!50701 DROP FUNCTION IF EXISTS `avgcost` */;
 CREATE /*M!100103 OR REPLACE */ AGGREGATE FUNCTION `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
-CREATE /*M!100103 OR REPLACE */ SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
-CREATE /*M!100103 OR REPLACE */ SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
+CREATE /*M!100103 OR REPLACE */ SERVER `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (`HOST` 'h2', `DATABASE` 'db2', `USER` 'u2');
+CREATE /*M!100103 OR REPLACE */ SERVER `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (`HOST` 'localhost', `DATABASE` 'd''b', `USER` 'o''brien', `PASSWORD` 'pw''d');
+CREATE /*M!100103 OR REPLACE */ SERVER `s``3` FOREIGN DATA WRAPPER `mysql` OPTIONS (`host` 'value');
 
 USE mysql;
 
@@ -1317,8 +1320,9 @@ DROP ROLE mariadb_dump_import_role;
 /*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;
 CREATE FUNCTION IF NOT EXISTS `metaphon` RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
 CREATE AGGREGATE FUNCTION IF NOT EXISTS `avgcost` RETURNS REAL SONAME 'UDF_EXAMPLE_LIB';
-CREATE SERVER /*M!100103 IF NOT EXISTS */ `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (HOST 'h2', DATABASE 'db2', USER 'u2');
-CREATE SERVER /*M!100103 IF NOT EXISTS */ `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (HOST 'localhost', DATABASE 'd''b', USER 'o''brien', PASSWORD 'pw''d');
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s'2` FOREIGN DATA WRAPPER `my'sql` OPTIONS (`HOST` 'h2', `DATABASE` 'db2', `USER` 'u2');
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s1` FOREIGN DATA WRAPPER `mysql` OPTIONS (`HOST` 'localhost', `DATABASE` 'd''b', `USER` 'o''brien', `PASSWORD` 'pw''d');
+CREATE SERVER /*M!100103 IF NOT EXISTS */ `s``3` FOREIGN DATA WRAPPER `mysql` OPTIONS (`host` 'value');
 
 USE mysql;
 
@@ -1876,7 +1880,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	1109359608
+mysql.servers	3351805004
 mysql.func	2140302938
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388
@@ -1897,6 +1901,7 @@ DROP FUNCTION IF EXISTS metaphon;
 DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
 DROP SERVER `s'2`;
+DROP SERVER `s``3`;
 set time_zone= @@global.time_zone;
 # Restore from mysqldump
 DROP USER mariadb_test_restore;
@@ -1913,7 +1918,7 @@ Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3719776009
 mysql.plugin	1587119305
-mysql.servers	1109359608
+mysql.servers	3351805004
 mysql.func	2140302938
 mysql.innodb_table_stats	1972297402
 mysql.table_stats	1911089388
@@ -1921,6 +1926,7 @@ DROP FUNCTION IF EXISTS metaphon;
 DROP FUNCTION IF EXISTS avgcost;
 DROP SERVER s1;
 DROP SERVER `s'2`;
+DROP SERVER `s``3`;
 DELETE FROM mysql.column_stats WHERE db_name='mysql';
 DELETE FROM mysql.index_stats  WHERE db_name='mysql';
 DELETE FROM mysql.table_stats  WHERE db_name='mysql';

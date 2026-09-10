@@ -1,4 +1,5 @@
 /* Copyright (c) 2000-2008 MySQL AB, 2009 Sun Microsystems, Inc.
+   Copyright (c) 2026, MariaDB plc.
    Use is subject to license terms.
 
    This program is free software; you can redistribute it and/or modify
@@ -18,9 +19,9 @@
 
 #include "ftdefs.h"
 
-ulong ft_min_word_len= 4;
-ulong ft_max_word_len= HA_FT_MAXCHARLEN;
-ulong ft_query_expansion_limit= 5;
+READ_ONLY_SYSVAR ulong ft_min_word_len= 4;
+READ_ONLY_SYSVAR ulong ft_max_word_len= HA_FT_MAXCHARLEN;
+READ_ONLY_SYSVAR ulong ft_query_expansion_limit= 5;
 const char *ft_boolean_syntax= DEFAULT_FTB_SYNTAX;
 
 const HA_KEYSEG ft_keysegs[FT_SEGS]= {
@@ -55,7 +56,7 @@ const struct _ft_vft _ft_vft_boolean= {
   ft_boolean_get_relevance,  ft_boolean_reinit_search
 };
 
-const char *ft_stopword_file= 0;
+READ_ONLY_SYSVAR const char *ft_stopword_file= 0;
 const char *ft_precompiled_stopwords[]= {
 
 #ifdef COMPILE_STOPWORDS_IN

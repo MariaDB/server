@@ -130,8 +130,7 @@ bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 /* Variables */
 
 extern const Lex_ident_db_normalized any_db;
-extern cf_flags_t sql_command_flags[];
-extern uint server_command_flags[];
+/* sql_command_flags[] is declared in sql_class.h, where cf_flags_t is defined */
 extern const LEX_CSTRING command_name[];
 extern uint server_command_flags[];
 

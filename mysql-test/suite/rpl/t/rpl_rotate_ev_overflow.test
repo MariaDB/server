@@ -1,0 +1,54 @@
+# MDEV-40647 OOB read in IO Thread if the FDEv does not support Rotate Events
+
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc # should be format-agnostic
+
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,truncate_fde_post_header_len';
+--let $rpl_skip_start_slave= 1
+# This setup will also RESET MASTER ...
+--source include/master-slave.inc
+# ... which means the binlog file is consistent.
+--let $binlog_file= master-bin.000001
+
+# Use a specific binlog position to avoid the
+# test failing early from other metadata events
+--let $binlog_start= query_get_value(SHOW BINLOG STATUS, Position, 1)
+# Generate the Rotate Event
+FLUSH BINARY LOGS;
+
+
+# Control: SHOW BINLOG EVENTS fails as expected.
+CALL mtr.add_suppression('Found invalid event in binary log');
+--disable_query_log
+  --error ER_ERROR_WHEN_EXECUTING_COMMAND
+  --eval SHOW BINLOG EVENTS IN '$binlog_file' FROM $binlog_start
+--enable_query_log
+
+--connection slave
+--disable_query_log
+  eval CHANGE MASTER TO master_use_gtid=NO,
+    master_log_file='$binlog_file', master_log_pos=$binlog_start;
+--enable_query_log
+START SLAVE IO_THREAD;
+CALL mtr.add_suppression('Slave I/O: Relay log write failure');
+# ER_SLAVE_RELAY_LOG_WRITE_FAILURE
+--let $slave_io_errno= 1595
+# Experiment: The IO thread should fail.
+--source include/wait_for_slave_io_error.inc
+
+# Clean-up
+--connection master
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+# The dump thread of the failed IO thread can still hang around, which would
+# make RESET MASTER fail with ER_BINLOG_IN_USE.
+--source include/kill_binlog_dump_threads.inc
+RESET MASTER;
+
+--connection slave
+CHANGE MASTER TO master_use_gtid=SLAVE_POS; # restore the default
+--disable_warnings
+  SET @@GLOBAL.gtid_slave_pos=''; # for good measure
+--enable_warnings
+--source include/start_slave.inc
+--source include/rpl_end.inc

@@ -1,0 +1,22 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+log_bin
+log_slave_updates=ON
+
+[mysqld.1]
+server_id=11
+
+[mysqld.2]
+server_id=12
+
+[mysqld.3]
+server_id=13
+# Force node_3 to always SST from node_1.
+wsrep_sst_donor=node1
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream

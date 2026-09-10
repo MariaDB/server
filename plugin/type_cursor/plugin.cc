@@ -185,7 +185,7 @@ class Field_sys_refcursor final :public Field_short,
       DBUG_RETURN(false); // Weak cursor (no RETURN clause)
 
     sp_cursor *sc= ref < thd->statement_cursors()->size() ?
-                   &thd->statement_cursors()->at(ref) :
+                   thd->statement_cursors()->at(ref) :
                    nullptr;
     if (!sc)
     {

@@ -153,20 +153,125 @@ static std::string get_default_expr_from_vcol_defs(const TABLE_SHARE *share,
 }
 
 /**
+  Does a default expression reference a MariaDB sequence?
+
+  NEXT VALUE FOR s, PREVIOUS VALUE FOR s and SETVAL() are printed by
+  Item_func_nextval::print() as nextval(`db`.`seq`), lastval(...) and
+  setval(...) (sql/item_func.cc). DuckDB binds the quoted argument as a
+  column reference and rejects the whole DDL with "DEFAULT value cannot
+  contain column names" (MDEV-40266).
+
+  The sequence lives in MariaDB and has no DuckDB counterpart, so such a
+  default can never be forwarded. It is omitted instead: MariaDB evaluates
+  column defaults into record[0] before write_row(), and both write paths
+  always send the value, so only writes that bypass MariaDB entirely (i.e.
+  run_in_duckdb) would ever consult the DuckDB-side default.
+
+  This matches on the printed function name because the Item tree in
+  field->default_value->expr is unusable at ha_duckdb::create() time.
+*/
+static bool has_mariadb_sequence_func(const std::string &expr)
+{
+  static const char *const funcs[]= {"nextval(", "lastval(", "setval("};
+
+  for (const char *func : funcs)
+  {
+    size_t len= strlen(func);
+    for (size_t pos= 0; pos + len <= expr.length(); pos++)
+    {
+      if (strncasecmp(expr.c_str() + pos, func, len) != 0)
+        continue;
+      /* Ignore a match that is only the tail of a longer identifier. */
+      char prev= pos ? expr[pos - 1] : ' ';
+      if (!isalnum((uchar) prev) && prev != '_')
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
+  Expression default text of a field, or "" if it has none or the text is
+  not available in this share.
+*/
+static std::string get_expr_default_text(const Field *field)
+{
+  if (!field->default_value)
+    return "";
+  return get_default_expr_from_vcol_defs(field->table->s, field->field_index);
+}
+
+/** Does this field carry a default expression referencing a sequence? */
+static bool is_sequence_default(const Field *field)
+{
+  return has_mariadb_sequence_func(get_expr_default_text(field));
+}
+
+static void note_sequence_default_omitted(const char *column)
+{
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR,
+                      "DuckDB: sequence default of column '%s' is not "
+                      "forwarded to DuckDB; MariaDB supplies the value",
+                      column);
+}
+
+std::string autoinc_sequence_name(const std::string &table_name)
+{
+  return "mdb_autoinc_" + table_name;
+}
+
+Field *find_autoinc_field(const TABLE *table)
+{
+  for (Field **ptr= table->field; *ptr; ptr++)
+  {
+    if ((*ptr)->flags & AUTO_INCREMENT_FLAG)
+      return *ptr;
+  }
+  return nullptr;
+}
+
+/** Reference to the auto-increment sequence usable as a nextval() argument. */
+static std::string autoinc_nextval_expr(const std::string &schema_name,
+                                        const std::string &table_name)
+{
+  /*
+    The qualified sequence name is a quoted identifier nested inside a
+    single-quoted string literal argument to nextval(). Escape the inner
+    identifiers (doubling ") and then escape the resulting string for the
+    enclosing literal (doubling ').
+  */
+  std::string qualified=
+      quote_duckdb_identifier(schema_name) + "." +
+      quote_duckdb_identifier(autoinc_sequence_name(table_name));
+  std::string escaped;
+  escaped.reserve(qualified.size());
+  for (char c : qualified)
+  {
+    if (c == '\'')
+      escaped.push_back('\'');
+    escaped.push_back(c);
+  }
+  return "nextval('" + escaped + "')";
+}
+
+/**
   Read the literal default value of a field from the default record and
   return it as a string suitable for DuckDB SQL.
 
-  BIT fields are converted to DuckDB blob literal format: '\xHH...'::BLOB.
-  Other fields use standard quoted literal format: 'value'.
+  BIT fields are converted to DuckDB blob literal format, optionally with an
+  explicit BLOB cast. Other fields use standard quoted literal format.
 
   @param field    Field whose default value to read (must not be at offset)
   @param offset   Offset from record[0] to default_values (s->default_values -
                   record[0])
+  @param cast_bit Add an explicit BLOB cast for BIT fields
   @return         Default value string, or "NULL" if field is null at default
                   record
 */
 static std::string get_field_default_for_duckdb(Field *field,
-                                                my_ptrdiff_t offset)
+                                                my_ptrdiff_t offset,
+                                                bool cast_bit= true)
 {
   field->move_field_offset(offset);
 
@@ -192,7 +297,9 @@ static std::string get_field_default_for_duckdb(Field *field,
         ss << hx;
       }
     }
-    ss << "'::BLOB";
+    ss << "'";
+    if (cast_bit)
+      ss << "::BLOB";
     default_value= ss.str();
   }
   else
@@ -200,8 +307,25 @@ static std::string get_field_default_for_duckdb(Field *field,
     char buf[MAX_FIELD_WIDTH];
     String str(buf, sizeof(buf), system_charset_info);
     String *val= field->val_str(&str);
-    if (val && val->length() > 0)
-      default_value= "'" + std::string(val->ptr(), val->length()) + "'";
+    if (val)
+    {
+      /*
+        Escape the literal by doubling any embedded single quote so a crafted
+        DEFAULT string cannot terminate the generated DuckDB literal and inject
+        further DuckDB statements (MDEV-40610). escape_quotes_for_mysql() is
+        charset aware and performs exactly this doubling.
+      */
+      std::string escaped(2 * val->length(), '\0');
+      if (val->length())
+      {
+        my_bool overflow;
+        size_t escaped_len= escape_quotes_for_mysql(
+            val->charset(), &escaped[0], 0, val->ptr(), val->length(),
+            &overflow);
+        escaped.resize(escaped_len);
+      }
+      default_value= "'" + escaped + "'";
+    }
     else
       default_value= "NULL";
   }
@@ -233,8 +357,8 @@ static void append_stmt_alter_table(std::ostringstream &output,
                                     const std::string &schema_name,
                                     const std::string &table_name)
 {
-  output << "USE \"" << schema_name << "\";";
-  output << ALTER_TABLE_OP_STR << '"' << table_name << '"';
+  output << "USE " << quote_duckdb_identifier(schema_name) << ";";
+  output << ALTER_TABLE_OP_STR << quote_duckdb_identifier(table_name);
 }
 
 static void append_stmt_column_add(std::ostringstream &output,
@@ -248,7 +372,7 @@ static void append_stmt_column_add(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !column_type.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ADD_COLUMN_OP_STR << '"' << column_name << '"' << " "
+  output << ADD_COLUMN_OP_STR << quote_duckdb_identifier(column_name) << " "
          << column_type;
   if (has_default)
     output << DEFINE_DEFAULT_STR << default_value;
@@ -262,7 +386,7 @@ static void append_stmt_column_drop(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << DROP_COLUMN_OP_STR << '"' << column_name << '"' << ";";
+  output << DROP_COLUMN_OP_STR << quote_duckdb_identifier(column_name) << ";";
 }
 
 static void append_stmt_column_change_type(std::ostringstream &output,
@@ -274,7 +398,7 @@ static void append_stmt_column_change_type(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !column_type.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << SET_DATA_TYPE_STR << column_type << ";";
 }
 
@@ -287,8 +411,8 @@ static void append_stmt_column_rename(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() &&
          !old_column_name.empty() && !new_column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << RENAME_COLUMN_OP_STR << '"' << old_column_name << '"' << " TO "
-         << '"' << new_column_name << '"' << ";";
+  output << RENAME_COLUMN_OP_STR << quote_duckdb_identifier(old_column_name)
+         << " TO " << quote_duckdb_identifier(new_column_name) << ";";
 }
 
 static void append_stmt_column_set_default(std::ostringstream &output,
@@ -300,8 +424,8 @@ static void append_stmt_column_set_default(std::ostringstream &output,
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty() &&
          !default_value.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"' << SET_DEFAULT_STR
-         << default_value << ";";
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
+         << SET_DEFAULT_STR << default_value << ";";
 }
 
 static void append_stmt_column_drop_default(std::ostringstream &output,
@@ -311,7 +435,7 @@ static void append_stmt_column_drop_default(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << DROP_DEFAULT_STR << ";";
 }
 
@@ -322,7 +446,7 @@ static void append_stmt_column_set_not_null(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << SET_NOT_NULL_STR << ";";
 }
 
@@ -333,7 +457,7 @@ static void append_stmt_column_drop_not_null(std::ostringstream &output,
 {
   assert(!schema_name.empty() && !table_name.empty() && !column_name.empty());
   append_stmt_alter_table(output, schema_name, table_name);
-  output << ALTER_COLUMN_OP_STR << '"' << column_name << '"'
+  output << ALTER_COLUMN_OP_STR << quote_duckdb_identifier(column_name)
          << DROP_NOT_NULL_STR << ";";
 }
 
@@ -348,18 +472,29 @@ static void append_stmt_table_rename(std::ostringstream &output,
          !new_schema_name.empty() && !new_table_name.empty());
   assert(old_schema_name == new_schema_name);
   append_stmt_alter_table(output, old_schema_name, old_table_name);
-  output << RENAME_TABLE_OP_STR << '"' << new_table_name << '"' << ";";
+  output << RENAME_TABLE_OP_STR << quote_duckdb_identifier(new_table_name)
+         << ";";
 }
 
 /* ----- FieldConvertor ----- */
 
 bool FieldConvertor::check()
 {
-  /* not support auto_increment */
-  if (m_field->flags & AUTO_INCREMENT_FLAG)
-    return report_duckdb_table_struct_error(
-        "AUTO_INCREMENT", "removing AUTO_INCREMENT from column",
-        m_field->field_name.str, m_ctx);
+  /*
+    AUTO_INCREMENT is supported by CREATE TABLE only. Adding it to an
+    existing table would require seeding the sequence from the current
+    column maximum, which is not implemented yet.
+  */
+  if ((m_field->flags & AUTO_INCREMENT_FLAG) &&
+      m_ctx != ddl_error_context::CREATE)
+  {
+    /*
+      Same error the server raised while HA_NO_AUTO_INCREMENT was set, so
+      that the rejection stays indistinguishable from before.
+    */
+    my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), "DUCKDB");
+    return true;
+  }
 
   /* No support for INVISIBLE columns. */
   if (m_field->invisible >= INVISIBLE_USER)
@@ -397,7 +532,9 @@ std::string FieldConvertor::translate()
 
   std::ostringstream result;
 
-  result << '"' << field->field_name.str << '"' << " ";
+  result << quote_duckdb_identifier(field->field_name.str,
+                                    field->field_name.length)
+         << " ";
   result << convert_type(m_field);
 
   if (field->flags & NOT_NULL_FLAG)
@@ -419,7 +556,9 @@ std::string FieldConvertor::translate()
       */
       std::string expr_str=
           get_default_expr_from_vcol_defs(field->table->s, field->field_index);
-      if (!expr_str.empty())
+      if (has_mariadb_sequence_func(expr_str))
+        note_sequence_default_omitted(field->field_name.str);
+      else if (!expr_str.empty())
         result << " DEFAULT (" << expr_str << ")";
     }
     else if (field->table->s->default_values && field->table->record[0])
@@ -436,8 +575,6 @@ std::string FieldConvertor::translate()
         result << " DEFAULT " << def;
     }
   }
-
-  assert(!(field->flags & AUTO_INCREMENT_FLAG));
 
   return result.str();
 }
@@ -567,6 +704,20 @@ bool CreateTableConvertor::check()
       return true;
   }
 
+  /*
+    An ALTER using ALGORITHM=COPY builds a shadow table through create(), so
+    it arrives here rather than through the ALTER convertors. Reject
+    AUTO_INCREMENT on that path: the new sequence would start at 1 while the
+    copied rows already hold larger ids, silently handing out duplicates.
+    Seeding from the current column maximum is not implemented.
+  */
+  if (m_thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
+      find_autoinc_field(m_table))
+  {
+    my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), "DUCKDB");
+    return true;
+  }
+
   /* Check PK. */
   TABLE_SHARE *share= m_table->s;
 
@@ -608,17 +759,36 @@ std::string CreateTableConvertor::translate()
   std::ostringstream result;
   assert((m_create_info->options & HA_LEX_CREATE_TMP_TABLE) == 0);
 
-  result << "CREATE SCHEMA IF NOT EXISTS " << '"' << m_schema_name << '"'
-         << ";";
+  result << "CREATE SCHEMA IF NOT EXISTS "
+         << quote_duckdb_identifier(m_schema_name) << ";";
 
-  result << "USE " << '"' << m_schema_name << '"' << ";";
+  result << "USE " << quote_duckdb_identifier(m_schema_name) << ";";
+
+  /*
+    The sequence must exist before the table, because the AUTO_INCREMENT
+    column default resolves it at CREATE TABLE bind time.
+  */
+  if (find_autoinc_field(m_table))
+  {
+    ulonglong start= m_create_info->auto_increment_value
+                         ? m_create_info->auto_increment_value
+                         : 1;
+    /* A DuckDB sequence counter is int64; never emit an unrepresentable start. */
+    if (start > (ulonglong) INT64_MAX)
+      start= (ulonglong) INT64_MAX;
+
+    result << "CREATE SEQUENCE IF NOT EXISTS "
+           << quote_duckdb_identifier(m_schema_name) << "."
+           << quote_duckdb_identifier(autoinc_sequence_name(m_table_name))
+           << " START WITH " << start << ";";
+  }
 
   result << CREATE_TABLE_STR;
   /* MariaDB: IF NOT EXISTS is handled at the SQL layer, not in HA_CREATE_INFO.
      Always use IF NOT EXISTS for safety in DuckDB. */
   result << IF_NOT_EXISTS_STR;
 
-  result << '"' << m_table_name << '"';
+  result << quote_duckdb_identifier(m_table_name);
   result << " (";
 
   append_column_definition(result);
@@ -635,7 +805,16 @@ void CreateTableConvertor::append_column_definition(std::ostringstream &output)
   {
     if (ptr != first_field)
       output << ",";
-    output << FieldConvertor(field).translate();
+    output << FieldConvertor(field, ddl_error_context::CREATE).translate();
+
+    /*
+      The AUTO_INCREMENT column draws from a DuckDB sequence. Keeping the
+      default in DuckDB lets writes that bypass MariaDB still obtain a
+      non-colliding id from the same counter.
+    */
+    if (field->flags & AUTO_INCREMENT_FLAG)
+      output << " DEFAULT "
+             << autoinc_nextval_expr(m_schema_name, m_table_name);
   }
 }
 
@@ -676,7 +855,11 @@ void AddColumnConvertor::prepare_columns()
     m_columns_to_add.emplace_back(new_field, field);
 
     if ((new_field->flags & NOT_NULL_FLAG) != 0)
+    {
       m_columns_to_set_not_null.emplace_back(new_field, field);
+      if ((field->flags & NO_DEFAULT_VALUE_FLAG) != 0)
+        m_columns_to_drop_default.emplace_back(new_field, field);
+    }
   }
 }
 
@@ -712,10 +895,27 @@ std::string AddColumnConvertor::translate()
     }
     else if (!(field->flags & NO_DEFAULT_VALUE_FLAG))
     {
+      /*
+        A sequence default must not be forwarded. Every other default,
+        including a constant-foldable expression, keeps using the value
+        MariaDB already materialised in default_values.
+      */
+      if (is_sequence_default(field))
+        note_sequence_default_omitted(field->field_name.str);
+      else
+      {
+        my_ptrdiff_t offset=
+            field->table->s->default_values - field->table->record[0];
+        has_default= true;
+        default_value= get_field_default_for_duckdb(field, offset, false);
+      }
+    }
+    else if (field->flags & NOT_NULL_FLAG)
+    {
       my_ptrdiff_t offset=
           field->table->s->default_values - field->table->record[0];
       has_default= true;
-      default_value= get_field_default_for_duckdb(field, offset);
+      default_value= get_field_default_for_duckdb(field, offset, false);
     }
 
     append_stmt_column_add(result, m_schema_name, m_table_name,
@@ -728,6 +928,13 @@ std::string AddColumnConvertor::translate()
     Create_field *new_field= pair.first;
     assert((new_field->flags & NOT_NULL_FLAG) != 0);
     append_stmt_column_set_not_null(result, m_schema_name, m_table_name,
+                                    new_field->field_name.str);
+  }
+
+  for (auto &pair : m_columns_to_drop_default)
+  {
+    Create_field *new_field= pair.first;
+    append_stmt_column_drop_default(result, m_schema_name, m_table_name,
                                     new_field->field_name.str);
   }
 
@@ -884,10 +1091,39 @@ void ChangeColumnDefaultConvertor::prepare_columns()
     else if (new_has_default && !old_has_default)
     {
       /* Default was added */
-      m_columns_to_set_default.emplace_back(nullptr, new_field);
+      if (is_sequence_default(new_field))
+      {
+        note_sequence_default_omitted(new_field->field_name.str);
+        m_columns_to_drop_default.emplace_back(nullptr, new_field);
+      }
+      else
+        m_columns_to_set_default.emplace_back(nullptr, new_field);
     }
     else if (old_has_default && new_has_default)
     {
+      std::string old_expr= get_expr_default_text(old_field);
+      std::string new_expr= get_expr_default_text(new_field);
+
+      if (!old_expr.empty() || !new_expr.empty())
+      {
+        /*
+          Expression default. It is not materialised in default_values, so
+          the byte comparison below would be meaningless — compare the
+          expression text instead.
+        */
+        if (old_expr != new_expr)
+        {
+          if (has_mariadb_sequence_func(new_expr))
+          {
+            note_sequence_default_omitted(new_field->field_name.str);
+            m_columns_to_drop_default.emplace_back(nullptr, new_field);
+          }
+          else
+            m_columns_to_set_default.emplace_back(nullptr, new_field);
+        }
+        continue;
+      }
+
       /* Both have default — check if value changed */
       my_ptrdiff_t old_off=
           old_field->table->s->default_values - old_field->table->record[0];
@@ -951,9 +1187,24 @@ std::string ChangeColumnDefaultConvertor::translate()
   {
     Field *field= pair.second;
 
-    my_ptrdiff_t offset=
-        field->table->s->default_values - field->table->record[0];
-    std::string default_value= get_field_default_for_duckdb(field, offset);
+    std::string default_value;
+    std::string expr= get_expr_default_text(field);
+    if (!expr.empty())
+    {
+      /*
+        Expression default: forward the expression text. It is not
+        materialised in default_values, so the byte path below would
+        produce a meaningless literal. Sequence defaults never reach
+        here — prepare_columns() diverts them to drop-default.
+      */
+      default_value= "(" + expr + ")";
+    }
+    else
+    {
+      my_ptrdiff_t offset=
+          field->table->s->default_values - field->table->record[0];
+      default_value= get_field_default_for_duckdb(field, offset);
+    }
 
     append_stmt_column_set_default(result, m_schema_name, m_table_name,
                                    field->field_name.str, default_value);
@@ -1060,9 +1311,40 @@ std::string ChangeColumnConvertor::translate()
     if (!field || (field->flags & NO_DEFAULT_VALUE_FLAG))
       continue;
 
-    my_ptrdiff_t offset=
-        field->table->s->default_values - field->table->record[0];
-    std::string default_value= get_field_default_for_duckdb(field, offset);
+    std::string new_expr= get_expr_default_text(field);
+    if (has_mariadb_sequence_func(new_expr))
+    {
+      /*
+        A sequence default is never forwarded to DuckDB. Act only when the
+        sequence default is newly introduced by this ALTER: drop whatever
+        default DuckDB had for the column. An unchanged sequence default
+        needs no statement (DuckDB never had one) and no repeated note.
+      */
+      if (new_expr != get_expr_default_text(new_field->field))
+      {
+        note_sequence_default_omitted(new_field->field_name.str);
+        append_stmt_column_drop_default(result, m_schema_name, m_table_name,
+                                        new_field->field_name.str);
+      }
+      continue;
+    }
+
+    std::string default_value;
+    if (!new_expr.empty())
+    {
+      /*
+        Expression default: forward the expression text. It is not
+        materialised in default_values, so the byte path below would
+        produce a meaningless literal.
+      */
+      default_value= "(" + new_expr + ")";
+    }
+    else
+    {
+      my_ptrdiff_t offset=
+          field->table->s->default_values - field->table->record[0];
+      default_value= get_field_default_for_duckdb(field, offset);
+    }
 
     append_stmt_column_set_default(result, m_schema_name, m_table_name,
                                    new_field->field_name.str, default_value);

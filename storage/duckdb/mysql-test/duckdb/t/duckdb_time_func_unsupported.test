@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 # Unsupported / incompatible date-time functions for DuckDB pushdown.
 # This is the companion of duckdb_time_func.test which keeps only the

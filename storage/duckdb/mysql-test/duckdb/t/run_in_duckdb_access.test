@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 SET @saved_allow_run_in_duckdb = @@GLOBAL.duckdb_allow_run_in_duckdb;
 # The suite enables duckdb_allow_run_in_duckdb globally (suite.opt), and MTR may

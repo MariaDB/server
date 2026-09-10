@@ -1933,7 +1933,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
             resize_target= (offset + 4095) & ~off_t{4095};
             sql_print_warning("InnoDB: Adjusting innodb_log_file_size="
                               LSN_PF "k", resize_target >> 10);
-            ut_a(os_file_set_size(get_archive_path().c_str(), resize_log.m_file,
+            ut_a(os_file_set_size(get_archive_path().c_str(), log.m_file,
                                   resize_target, false));
           }
         }
@@ -1942,7 +1942,6 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         archive_header_was_reset= first_lsn + capacity();
         ut_ad(current_lsn >= first_lsn);
         ut_ad(current_lsn < archive_header_was_reset);
-        circular_recovery_from_sequence_bit_0= false;
         next_checkpoint_no= uint16_t(4 * is_encrypted());
 
         if (is_encrypted())
@@ -1951,8 +1950,18 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 #ifdef HAVE_PMEM
         c= checkpoint_buf;
 #endif
+
+        goto all_sequence_bit_1;
       }
     }
+    else
+    all_sequence_bit_1:
+      /*
+        All log records starting with this checkpoint in the
+        innodb_log_archive=ON format will have been
+        written with the sequence bit 1.
+      */
+      circular_recovery_from_sequence_bit_0= false;
 
     ut_ad(end_lsn >= first_lsn);
     offset= next_checkpoint_no * 8;
@@ -2213,6 +2222,7 @@ static lsn_t log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn) noexcept
   if (oldest_lsn == log_sys.last_checkpoint_lsn ||
       (oldest_lsn == end_lsn &&
        !log_sys.resize_in_progress() &&
+       (!log_sys.archive || !log_sys.circular_recovery_from_0()) &&
        oldest_lsn == log_sys.last_checkpoint_lsn +
        log_sys.is_encrypted() * 8 + SIZE_OF_FILE_CHECKPOINT))
     if (oldest_lsn != log_sys.get_first_lsn())
@@ -2327,6 +2337,7 @@ ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
   lsn_t oldest_lsn;
   if (!checkpoint);
   else if (lsn == log_sys.get_lsn() &&
+           (!log_sys.archive || !log_sys.circular_recovery_from_0()) &&
            lsn == log_sys.last_checkpoint_lsn +
            SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted());
   else if (buf_flush_sync_lsn < lsn)
@@ -2361,7 +2372,8 @@ ATTRIBUTE_COLD void buf_flush_wait(lsn_t lsn, bool checkpoint) noexcept
     {
       lsn= log_sys.get_lsn();
       if (lsn != log_sys.last_checkpoint_lsn +
-          SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted())
+          SIZE_OF_FILE_CHECKPOINT + 8 * log_sys.is_encrypted() ||
+          (log_sys.archive && log_sys.circular_recovery_from_0()))
       {
         buf_flush_sync_lsn= lsn;
         log_sys.set_check_for_checkpoint(true);

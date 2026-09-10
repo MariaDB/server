@@ -373,7 +373,8 @@ static bool parse_mysql_scalar_or_value(String *buffer, const uchar *data,
   if (type_is_stored_inline(value_type, large))
   {
     const size_t value_start = value_type_offset + 1;
-    if (parse_mysql_scalar(buffer, value_type, data + value_start,
+    if (value_start >= len ||
+        parse_mysql_scalar(buffer, value_type, data + value_start,
                            len - value_start))
       return true;
   }
@@ -383,7 +384,8 @@ static bool parse_mysql_scalar_or_value(String *buffer, const uchar *data,
        of the Object / Array */
     const size_t value_start= read_offset_or_size(
                                       data + value_type_offset + 1, large);
-    if (parse_mysql_json_value(buffer, value_type, data + value_start,
+    if (value_start >= len ||
+        parse_mysql_json_value(buffer, value_type, data + value_start,
                                len - value_start, depth))
       return true;
   }
@@ -453,7 +455,7 @@ static bool parse_array_or_object(String *buffer, const uchar *data, size_t len,
                                       i * value_size(large));
 
       /* First print the key. */
-      if (buffer->append('"') ||
+      if (key_start + key_len > bytes || buffer->append('"') ||
           append_string_json(buffer, data + key_start, key_len) ||
           buffer->append(STRING_WITH_LEN("\": ")))
       {

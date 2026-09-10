@@ -1,0 +1,174 @@
+--echo #
+--echo # MDEV-40790 SELECT INTO row_type_of.field crashes the server
+--echo #
+
+
+--echo # Into an explicit ROW variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW (a INT, b VARCHAR(10));
+  SELECT a,b INTO r0 FROM t1;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into an explicit ROW field variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW (a INT, b VARCHAR(10));
+  SELECT a,b INTO r0.a,r0.b FROM t1;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into an explicit ROW field variable - non-existing field
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW (a INT, b VARCHAR(10));
+  SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF table1` variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  SELECT a,b INTO r0 FROM t1;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF table1` field variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  SELECT a,b INTO r0.a,r0.b FROM t1;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF table1` field variable - non-existing field
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF cursor1` variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    SELECT a,b INTO r0 FROM t1;
+    SELECT r0.a, r0.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF cursor1` field variable
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    SELECT a,b INTO r0.a,r0.b FROM t1;
+    SELECT r0.a, r0.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Into a `ROW TYPE OF cursor1` field variable - non-existing field
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    SELECT a,b INTO r0.a,r0.b1_non_existing FROM t1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 12.3 tests

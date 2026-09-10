@@ -330,3 +330,28 @@ DELIMITER ;$$
 CALL p1.p1;
 DROP PACKAGE p1;
 DROP USER xxx@localhost;
+
+
+--echo #
+--echo # MDEV-40722 DROP PACKAGE leaves PACKAGE BODY grant in mysql.procs_priv
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  FUNCTION f RETURN VARCHAR2(64);
+END
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f RETURN VARCHAR2(64) AS
+    BEGIN RETURN 'f';
+  END;
+END$$
+DELIMITER ;$$
+
+CREATE USER reader@localhost;
+GRANT EXECUTE ON PACKAGE test.pkg1 TO reader@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO reader@localhost;
+SELECT host,db,user,routine_name,routine_type,proc_priv FROM mysql.procs_priv ORDER BY routine_type;
+DROP PACKAGE pkg1;
+SELECT host,db,user,routine_name,routine_type,proc_priv FROM mysql.procs_priv ORDER BY routine_type;
+DROP USER reader@localhost;

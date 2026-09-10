@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -203,9 +203,11 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                         "Please include the information from the server start above, to the end of the\n"
                         "information below.\n\n");
 
-  set_server_version(server_version, sizeof(server_version));
+  /* print the real version on crash */
+  char real_version[SERVER_VERSION_LENGTH];
+  set_server_version(real_version, sizeof(real_version));
   my_safe_printf_stderr("Server version: %s source revision: %s\n\n",
-                        server_version, SOURCE_REVISION);
+                        real_version, SOURCE_REVISION);
 
 #ifdef WITH_WSREP
   Wsrep_server_state::handle_fatal_signal();

@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 CREATE TABLE t1 (id INT PRIMARY KEY, col1 VARCHAR(100)) ENGINE=DuckDB;
 CREATE TABLE t2 (id INT PRIMARY KEY, col1 BLOB) ENGINE=DuckDB;

@@ -1,0 +1,18 @@
+#
+# MDEV-40341 store read-only sysvars in a read-only root and a read-only segment
+#
+call mtr.add_suppression('mariadbd(.exe)? got (exception 0xc0000005|signal 11)');
+select @@global.skip_name_resolve;
+@@global.skip_name_resolve
+0
+set @@global.skip_name_resolve=0;
+ERROR HY000: Variable 'skip_name_resolve' is a read only variable
+set @@debug_dbug='d,set_skip_name_resolve';
+Got one of the listed errors
+select @@global.version;
+@@global.version
+12.11.10-fake-version-for-the-test
+set @@global.version=0;
+ERROR HY000: Variable 'version' is a read only variable
+set @@debug_dbug='d,set_version_buf';
+Got one of the listed errors

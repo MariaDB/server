@@ -17,6 +17,7 @@
 /* Check that heap-structure is ok */
 
 #include "heapdef.h"
+#include "my_compare.h"
 
 static int check_one_key(HP_KEYDEF *, uint, ulong, ulong, my_bool);
 static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);

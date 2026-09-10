@@ -157,7 +157,7 @@ int insert_setup_object(enum_object_type object_type, const String *schema,
   PFS_setup_object *pfs;
   pfs_dirty_state dirty_state;
 
-  pfs= global_setup_object_container.allocate(& dirty_state);
+  pfs= global_setup_object_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     set_setup_object_key(&pfs->m_key, object_type,

@@ -5,11 +5,3 @@ drop table mdev9949;
 Warnings:
 Warning	1017	Can't find file: 'DATADIR/test/mdev9949.dos' (errno: 2 "No such file or directory")
 drop table t1;
-select @@secure_file_priv 'must be NULL';
-must be NULL
-NULL
-create table t1 (a char(16)) engine=myisam;
-insert into t1 values('Hello World!');
-create table t2 engine=connect file_name='foo/bar.txt' as select * from t1;
-ERROR HY000: Got error 174 'Open(a+b) error 2 on foo/bar.txt: No such file or directory' from CONNECT
-drop table t1;

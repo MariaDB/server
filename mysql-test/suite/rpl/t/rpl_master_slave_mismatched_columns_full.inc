@@ -116,6 +116,10 @@ eval INSERT INTO t1 (pk, a, b, c) VALUES($master_pk, $master_a_pre, $master_b, $
 eval UPDATE t1 set a = $master_a WHERE pk = $master_pk;
 --source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+
 --connection server_3
 --source include/sync_with_master_gtid.inc
 
@@ -193,6 +197,10 @@ if (!$can_convert) {
 
 --connection server_1
 drop table t1;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
 --source include/save_master_gtid.inc
 
 --connection server_3

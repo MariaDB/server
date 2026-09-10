@@ -1,0 +1,85 @@
+--source ../include/have_duckdb.inc
+--source include/not_msan.inc
+
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS db_autoinc CHARACTER SET utf8mb4;
+USE db_autoinc;
+--enable_query_log
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-40266: AUTO_INCREMENT backed by a DuckDB sequence
+--echo #
+
+--echo # --- CREATE TABLE creates the sequence -------------------------------
+CREATE TABLE t (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT) ENGINE=DuckDB;
+
+SHOW CREATE TABLE t;
+
+--echo # The sequence must exist in DuckDB, named after the table.
+SELECT run_in_duckdb("SELECT schema_name, sequence_name, start_value FROM duckdb_sequences() WHERE schema_name = 'db_autoinc' ORDER BY sequence_name");
+
+--echo # The column default must reference that sequence, so that writes which
+--echo # bypass MariaDB still draw a non-colliding id from the same counter.
+SELECT run_in_duckdb("SELECT column_name, column_default FROM information_schema.columns WHERE table_schema = 'db_autoinc' AND table_name = 't' ORDER BY column_name");
+
+--echo # --- an insert bypassing MariaDB uses the sequence --------------------
+SELECT run_in_duckdb("INSERT INTO db_autoinc.t(a) VALUES(10)");
+SELECT run_in_duckdb("INSERT INTO db_autoinc.t(a) VALUES(20)");
+SELECT id, a FROM t ORDER BY id;
+
+--echo # --- MariaDB-side inserts draw from the same sequence ------------------
+INSERT INTO t(a) VALUES(30);
+SELECT LAST_INSERT_ID();
+INSERT INTO t(a) VALUES(40);
+SELECT LAST_INSERT_ID();
+
+--echo # A multi-row insert reserves its ids in one go.
+INSERT INTO t(a) VALUES(50),(60),(70);
+SELECT LAST_INSERT_ID();
+SELECT id, a FROM t ORDER BY id;
+
+--echo # A DuckDB-side insert after MariaDB ones must not collide: the block
+--echo # reservation advanced the shared counter past the cached ids.
+SELECT run_in_duckdb("INSERT INTO db_autoinc.t(a) VALUES(80)");
+SELECT count(*), count(DISTINCT id) FROM t;
+
+--echo # --- START WITH honours CREATE TABLE ... AUTO_INCREMENT=N -------------
+CREATE TABLE t2 (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT) ENGINE=DuckDB AUTO_INCREMENT=100;
+SELECT run_in_duckdb("SELECT sequence_name, start_value FROM duckdb_sequences() WHERE schema_name = 'db_autoinc' AND sequence_name = 'mdb_autoinc_t2'");
+SELECT run_in_duckdb("INSERT INTO db_autoinc.t2(a) VALUES(1)");
+INSERT INTO t2(a) VALUES(2);
+SELECT id, a FROM t2 ORDER BY id;
+
+--echo # --- a table without AUTO_INCREMENT gets no sequence ------------------
+CREATE TABLE t3 (id INT PRIMARY KEY, a INT) ENGINE=DuckDB;
+SELECT run_in_duckdb("SELECT count(*) FROM duckdb_sequences() WHERE schema_name = 'db_autoinc' AND sequence_name = 'mdb_autoinc_t3'");
+
+--echo # AUTO_INCREMENT is accepted by CREATE TABLE only; seeding an existing
+--echo # column from its current maximum is not implemented.
+--error ER_TABLE_CANT_HANDLE_AUTO_INCREMENT
+ALTER TABLE t3 MODIFY COLUMN id INT AUTO_INCREMENT;
+--error ER_TABLE_CANT_HANDLE_AUTO_INCREMENT
+ALTER TABLE t3 ADD COLUMN b INT AUTO_INCREMENT UNIQUE;
+--echo # The rejected ALTER must leave the table untouched.
+SHOW CREATE TABLE t3;
+
+--echo # --- setval() is available (local backport of DuckDB PR #24061) --------
+SELECT run_in_duckdb("CREATE SEQUENCE db_autoinc.check_setval");
+SELECT run_in_duckdb("SELECT setval('db_autoinc.check_setval', 42)");
+SELECT run_in_duckdb("SELECT nextval('db_autoinc.check_setval')");
+SELECT run_in_duckdb("SELECT setval('db_autoinc.check_setval', 100, false)");
+SELECT run_in_duckdb("SELECT nextval('db_autoinc.check_setval')");
+SELECT run_in_duckdb("DROP SEQUENCE db_autoinc.check_setval");
+
+--echo # --- DROP TABLE removes the sequence ----------------------------------
+DROP TABLE t;
+SELECT run_in_duckdb("SELECT count(*) FROM duckdb_sequences() WHERE schema_name = 'db_autoinc' AND sequence_name = 'mdb_autoinc_t'");
+
+DROP TABLE t2;
+DROP TABLE t3;
+SELECT run_in_duckdb("SELECT count(*) FROM duckdb_sequences() WHERE schema_name = 'db_autoinc'");
+
+--disable_query_log
+DROP DATABASE db_autoinc;
+--enable_query_log

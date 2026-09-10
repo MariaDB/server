@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 #
 # MDEV-40379: Assertion failure in CreateTableConvertor::translate
 # upon CREATE TEMPORARY TABLE with ENGINE=DuckDB

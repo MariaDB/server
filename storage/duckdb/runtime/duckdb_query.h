@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -30,6 +31,20 @@ class THD;
 
 namespace myduck
 {
+
+enum class SqlRegionType
+{
+  NONE,
+  COMMENT,
+  QUOTED,
+  UNTERMINATED
+};
+
+SqlRegionType scan_sql_region(const std::string &sql, size_t start,
+                              bool backslash_escapes, size_t &end);
+
+bool mariadb_query_has_unsafe_quote_escape(THD *thd, const char *query,
+                                            size_t length);
 
 duckdb::unique_ptr<duckdb::MaterializedQueryResult>
 duckdb_query(duckdb::Connection &connection, const std::string &query);

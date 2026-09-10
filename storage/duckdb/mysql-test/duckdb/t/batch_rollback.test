@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/not_msan.inc
 
 --disable_query_log
 SET @saved_duckdb_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;

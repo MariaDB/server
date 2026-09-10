@@ -23,7 +23,7 @@ test2@localhost	test2@%	1
 # mysql -utest2 -ppwd --disable-ssl-verify-server-cert -e "call test.checkme()"
 ERROR 1045 (28000): Access denied for user 'test2'@'localhost' (using password: YES)
 # mysql -utest1 -ppwd --ssl-verify-server-cert -e "call test.checkme()"
-ERROR 2026 (HY000): TLS/SSL error: Certificate verification failure: The certificate is NOT trusted.
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
 drop procedure checkme;
 drop user test1@'%';
 drop user test2@'%';

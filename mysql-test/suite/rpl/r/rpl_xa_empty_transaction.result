@@ -13,6 +13,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -37,6 +40,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -45,6 +51,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -77,6 +86,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -85,6 +97,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -110,6 +125,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -118,6 +136,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -149,6 +170,9 @@ FLUSH LOGS;
 include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -162,6 +186,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -188,6 +215,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -196,6 +226,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -230,6 +263,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -238,6 +274,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -265,6 +304,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -273,6 +315,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -306,6 +351,9 @@ FLUSH LOGS;
 include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -323,6 +371,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -349,6 +400,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -357,6 +411,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -391,6 +448,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -399,6 +459,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -428,6 +491,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -436,6 +502,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -470,6 +539,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -485,6 +557,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -513,6 +588,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -521,6 +599,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -557,6 +638,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -565,6 +649,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -594,6 +681,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -602,6 +692,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -637,6 +730,9 @@ FLUSH LOGS;
 include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -655,6 +751,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -683,6 +782,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -691,6 +793,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -727,6 +832,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -735,6 +843,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -766,6 +877,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -774,6 +888,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -809,6 +926,9 @@ FLUSH LOGS;
 include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -830,6 +950,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -858,6 +981,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -866,6 +992,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -902,6 +1031,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -910,6 +1042,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -941,6 +1076,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -949,6 +1087,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -984,6 +1125,9 @@ FLUSH LOGS;
 include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1004,6 +1148,9 @@ connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -1032,6 +1179,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -1040,6 +1190,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1076,6 +1229,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -1084,6 +1240,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1115,6 +1274,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -1123,6 +1285,9 @@ connection server_3;
 connection server_1;
 CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
 CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
@@ -1159,6 +1324,9 @@ include/assert_grep.inc [server_3 should not binlog XA transaction]
 connection server_1;
 DROP TABLE ti,tm;
 include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc
 connection server_1;
@@ -1172,6 +1340,9 @@ connection server_1;
 create database db1;
 create database db2;
 create table db1.t1 (a int) engine=innodb;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/save_master_gtid.inc
 connection server_3;
 include/sync_with_master_gtid.inc

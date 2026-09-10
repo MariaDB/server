@@ -1,0 +1,25 @@
+CREATE TABLE t (c1 INT KEY) ENGINE=DuckDB;
+INSERT INTO t VALUES (1),(1);
+ALTER TABLE t ADD c2 INT NOT NULL;
+SELECT * FROM t ORDER BY c1, c2;
+c1	c2
+1	0
+1	0
+INSERT INTO t (c1) VALUES (2);
+ERROR HY000: Field 'c2' doesn't have a default value
+ALTER TABLE t PARTITION BY HASH (c1) (PARTITION p1, PARTITION p2);
+ERROR HY000: Engine cannot be used in partitioned tables
+SELECT * FROM t ORDER BY c1, c2;
+c1	c2
+1	0
+1	0
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, c1 INT) ENGINE=DuckDB;
+INSERT INTO t VALUES (1, NULL);
+ALTER TABLE t ADD c2 INT, MODIFY c1 INT NOT NULL;
+ERROR HY000: Got error 168 'Constraint Error: NOT NULL constraint failed: t.c1' from DuckDB
+ALTER TABLE t ADD c2 INT;
+SELECT * FROM t ORDER BY id;
+id	c1	c2
+1	NULL	NULL
+DROP TABLE t;

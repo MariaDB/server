@@ -1,0 +1,68 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Error in Log_event::read_log_event.*Found invalid event");
+call mtr.add_suppression("Relay log read failure");
+#
+# Initialize test data
+#
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+connection master;
+set @saved_dbug= @@global.debug_dbug;
+#
+# Test Case: a Table_map event naming a table with an oversized name
+#
+connection master;
+set @@global.debug_dbug= "+d,binlog_sender_oversized_table_name";
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+insert into t1 values (2);
+# Waiting for the SQL thread to reject the oversized Table_map event
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1594]
+# Ensure the SQL thread rejected the oversized Table_map event
+include/assert_grep.inc [The SQL thread reported the oversized Table_map event as invalid]
+# Ensure the rejected event delivered nothing to the replica
+include/assert.inc [The replica has not applied the insert the event carried]
+connection master;
+set @@global.debug_dbug= @saved_dbug;
+#
+# Ensure the replica holds the row once it refetches the relay log
+#
+connection slave;
+include/stop_slave_io.inc
+include/start_slave.inc
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Ensure replication works after the rejected event
+#
+connection master;
+insert into t1 values (3);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Cleanup
+#
+connection master;
+drop table t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_table_map_name_overflow.test

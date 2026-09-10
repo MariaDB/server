@@ -1,4 +1,4 @@
-/* Copyright (c) 2025, MariaDB
+/* Copyright (c) 2025, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,12 +24,13 @@
 extern "C" {
 #endif
 
-#ifdef _WIN32
+enum my_vmem_prot { MY_VMEM_READONLY= 0, MY_VMEM_READWRITE };
+
 char *my_virtual_mem_reserve(size_t *size);
-#endif
 char *my_virtual_mem_commit(char *ptr, size_t size);
 void my_virtual_mem_decommit(char *ptr, size_t size);
 void my_virtual_mem_release(char *ptr, size_t size);
+void my_virtual_mem_protect(void *ptr, size_t size, enum my_vmem_prot prot);
 
 #ifdef __cplusplus
 }

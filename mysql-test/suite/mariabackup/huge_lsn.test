@@ -76,6 +76,10 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
 INSERT INTO t VALUES(1);
 
+if (!$MTR_COMBINATION_STRICT_CRC32) {
+SET GLOBAL innodb_log_archive=ON, innodb_log_archive=OFF;
+}
+
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log

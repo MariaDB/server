@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2016, MariaDB
+   Copyright (c) 2012, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,7 +115,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *db_name,
                            const DDL_options_st &options);
 bool mysql_show_create_server(THD *thd, LEX_CSTRING *name);
 
-void mysqld_list_processes(THD *thd,const char *user,bool verbose);
+void mysqld_list_processes(THD *thd, bool verbose);
 int mysqld_show_status(THD *thd);
 int mysqld_show_variables(THD *thd,const char *wild);
 bool mysqld_show_storage_engines(THD *thd);

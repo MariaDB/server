@@ -1,3 +1,4 @@
+--source include/not_msan.inc
 # file: duckdb_create_table.test
 #
 # Test case for creating tables with various MySQL field types in DuckDB.

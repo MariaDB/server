@@ -65,8 +65,9 @@ void DuckdbThdContext::config_duckdb_env(const std::string &schema)
   if (schema.empty() || schema == m_current_schema)
     return;
 
-  std::string sql1= "CREATE SCHEMA IF NOT EXISTS \"" + schema + "\"";
-  std::string sql2= "USE \"" + schema + "\"";
+  std::string sql1= "CREATE SCHEMA IF NOT EXISTS " +
+                    quote_duckdb_identifier(schema);
+  std::string sql2= "USE " + quote_duckdb_identifier(schema);
   m_current_schema= schema;
 
   for (auto &sql : {sql1, sql2})

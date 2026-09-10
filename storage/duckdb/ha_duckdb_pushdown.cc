@@ -106,6 +106,8 @@ static bool is_query_token(const std::string &sql, size_t start, size_t length)
 static bool extract_source_query(THD *thd, std::string &source)
 {
   const std::string sql(thd->query(), thd->query_length());
+  if (myduck::mariadb_query_has_unsafe_quote_escape(thd, sql.data(), sql.size()))
+    return false;
   const bool strip_prefix= thd->lex->sql_command == SQLCOM_INSERT_SELECT;
   const bool backslash_escapes= thd->backslash_escapes();
   size_t i= 0;
@@ -119,48 +121,21 @@ static bool extract_source_query(THD *thd, std::string &source)
       i++;
       continue;
     }
-    if (c == '/' && i + 1 < sql.size() && sql[i + 1] == '*')
+    size_t end;
+    myduck::SqlRegionType region=
+        myduck::scan_sql_region(sql, i, backslash_escapes, end);
+    if (region == myduck::SqlRegionType::UNTERMINATED)
+      return false;
+    if (region == myduck::SqlRegionType::COMMENT)
     {
-      size_t end= sql.find("*/", i + 2);
-      if (end == std::string::npos)
-        return false;
-      i= end + 2;
+      i= end;
       continue;
     }
-    if (c == '#' ||
-        (c == '-' && i + 1 < sql.size() && sql[i + 1] == '-' &&
-         (i + 2 == sql.size() || isspace((unsigned char) sql[i + 2]))))
-    {
-      size_t end= sql.find('\n', i + (c == '#' ? 1 : 2));
-      i= end == std::string::npos ? sql.size() : end + 1;
-      continue;
-    }
-    if (c == '\'' || c == '"' || c == '`')
+    if (region == myduck::SqlRegionType::QUOTED)
     {
       if (!strip_prefix && depth == 0)
         return false;
-      const char quote= (char) c;
-      bool closed= false;
-      for (i++; i < sql.size(); i++)
-      {
-        if (sql[i] == '\\' && backslash_escapes && i + 1 < sql.size())
-        {
-          i++;
-          continue;
-        }
-        if (sql[i] != quote)
-          continue;
-        if (i + 1 < sql.size() && sql[i + 1] == quote)
-        {
-          i++;
-          continue;
-        }
-        i++;
-        closed= true;
-        break;
-      }
-      if (!closed)
-        return false;
+      i= end;
       continue;
     }
     if (c == '(')
