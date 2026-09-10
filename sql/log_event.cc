@@ -3928,16 +3928,16 @@ static void parse_default_charset(Table_map_log_event::Optional_metadata_fields:
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  default_charset.default_charset= net_field_length(&p);
-  if (unlikely(p > end))
+  default_charset.default_charset= (uint)safe_net_field_length_ll(&p, length);
+  if (unlikely(!p))
     return;
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
-    unsigned int col_charset= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_charset= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
 
     default_charset.charset_pairs.push_back(std::make_pair(col_index,
@@ -3960,8 +3960,8 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
 
   while (p < end)
   {
-    unsigned int charset= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int charset= (uint)safe_net_field_length_ll(&p, length);
+    if (unlikely(!p))
       return;
     vec.push_back(charset);
   }
@@ -3982,8 +3982,8 @@ static void parse_column_name(std::vector<std::string> &vec,
 
   while (p < end)
   {
-    unsigned len= net_field_length(&p);
-    if (unlikely(p + len > end))
+    unsigned len= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p || len > end - p))
       return;
     vec.push_back(std::string(reinterpret_cast<char *>(p), len));
     p+= len;
@@ -4009,15 +4009,15 @@ static void parse_set_str_value(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int count= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int count= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
 
     vec.push_back(std::vector<std::string>());
     for (unsigned int i= 0; i < count; i++)
     {
-      unsigned len1= net_field_length(&p);
-      if (unlikely(p + len1 > end))
+      unsigned len1= (uint)safe_net_field_length_ll(&p, end - p);
+      if (unlikely(!p || len1 > end - p))
         return;
       vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
       p+= len1;
@@ -4040,8 +4040,8 @@ static void parse_geometry_type(std::vector<unsigned int> &vec,
 
   while (p < end)
   {
-    unsigned int geom_type= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int geom_type= (uint)safe_net_field_length_ll(&p, end - p);
+      if (unlikely(!p))
       return;
     vec.push_back(geom_type);
   }
@@ -4066,8 +4066,8 @@ static void parse_simple_pk(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
     vec.push_back(std::make_pair(col_index, (unsigned int) 0));
   }
@@ -4092,11 +4092,11 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
-    unsigned int col_prefix= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_prefix= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
     vec.push_back(std::make_pair(col_index, col_prefix));
   }
@@ -4111,7 +4111,8 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   if (optional_metadata == NULL)
     return;
 
-  while (field < optional_metadata + optional_metadata_len)
+  uchar *metadata_end= optional_metadata + optional_metadata_len;
+  while (field < metadata_end)
   {
     unsigned int len;
     Optional_metadata_field_type type=
@@ -4119,7 +4120,9 @@ Optional_metadata_fields(unsigned char* optional_metadata,
 
     // Get length and move field to the value.
     field++;
-    len= net_field_length(&field);
+    len= (uint)safe_net_field_length_ll(&field, metadata_end - field);
+    if (unlikely(!field || metadata_end - field < len))
+      break;
 
     switch(type)
     {
