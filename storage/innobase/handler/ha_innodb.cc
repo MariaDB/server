@@ -15188,7 +15188,7 @@ int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)
 				/* Clamp the scan to this chunk inside the engine, so
 				the prefetch cache stops exactly at the boundary and
 				never reads into the next chunk. NULL == +infinity. */
-				m_prebuilt->set_pscan_end_tuple(
+				m_prebuilt->pscan_chunk_clamp.reset_to(
 					chunk.m_range.second->m_tuple,
 					chunk.m_end_inclusive);
 
@@ -15262,7 +15262,7 @@ int ha_innobase::parallel_end_worker()
 		m_prebuilt->search_tuple = m_pscan_saved_search_tuple;
 		m_pscan_saved_search_tuple = nullptr;
 	}
-	m_prebuilt->set_pscan_end_tuple(nullptr);
+	m_prebuilt->pscan_chunk_clamp.reset_to(nullptr, false);
 
 	/* Drop what pscan_adopt_scan_params() borrowed, so nothing points into
 	the master handler's range heap once this scan is over. A handler that

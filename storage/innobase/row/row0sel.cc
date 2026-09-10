@@ -4407,7 +4407,7 @@ struct InnoDBPolicy
 };
 
 /** Parallel scan: check whether the record the cursor is on has reached the
-exclusive upper bound of the chunk that is being scanned.
+upper bound of the chunk that is being scanned.
 
 The straightforward check is one cmp_dtuple_rec() per fetched record, which
 is pure overhead for every record except the last one of the chunk. Records
@@ -4424,22 +4424,22 @@ been inserted onto the page after the verdict was taken (a plain insert does
 not bump modify_clock), and an old version built in the heap is not covered
 by the verdict of any page.
 
-@param prebuilt	row fetch struct with a non-NULL m_pscan_end_tuple
+@param prebuilt	row fetch struct with a non-NULL pscan_chunk_clamp.end_tuple
 @param rec	the record the cursor is positioned on. Must belong to the
-		index being scanned - m_pscan_end_tuple is a key of that
+		index being scanned - pscan_chunk_clamp.end_tuple is a key of that
 		index, and cmp_dtuple_rec() pairs fields by ordinal.
 @param index	the index that rec belongs to
 @param offsets	rec_get_offsets(rec, index)
 @return whether rec is past the upper bound of the chunk. The bound itself
-counts as past it unless m_pscan_end_inclusive is set. */
+counts as past it unless pscan_chunk_clamp.is_inclusive is set. */
 static bool row_pscan_reached_chunk_end(
 	row_prebuilt_t*		prebuilt,
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	const rec_offs*		offsets)
 {
-	const dtuple_t*	end_tuple = prebuilt->m_pscan_end_tuple;
-	const bool	inclusive = prebuilt->m_pscan_end_inclusive;
+	const dtuple_t*	end_tuple = prebuilt->pscan_chunk_clamp.end_tuple;
+	const bool	inclusive = prebuilt->pscan_chunk_clamp.is_end_inclusive;
 	const btr_pcur_t* pcur = prebuilt->pcur;
 
 	ut_ad(end_tuple != NULL);
@@ -4450,9 +4450,10 @@ static bool row_pscan_reached_chunk_end(
 		const buf_block_t*	block = btr_pcur_get_block(pcur);
 		const uint32_t		page_no = block->page.id().page_no();
 
-		if (prebuilt->m_pscan_clamp_page == page_no
-		    && prebuilt->m_pscan_clamp_clock == block->modify_clock) {
-			if (prebuilt->m_pscan_clamp_in_range) {
+		if (prebuilt->pscan_chunk_clamp.page_no == page_no
+		    && prebuilt->pscan_chunk_clamp.page_modify_clock
+				== block->modify_clock) {
+			if (prebuilt->pscan_chunk_clamp.is_whole_page_in_range) {
 				return false;
 			}
 			/* The boundary lies on this page: fall through to
@@ -4484,9 +4485,10 @@ static bool row_pscan_reached_chunk_end(
 				}
 			}
 
-			prebuilt->m_pscan_clamp_page = page_no;
-			prebuilt->m_pscan_clamp_clock = block->modify_clock;
-			prebuilt->m_pscan_clamp_in_range = in_range;
+			prebuilt->pscan_chunk_clamp.page_no = page_no;
+			prebuilt->pscan_chunk_clamp.page_modify_clock
+				= block->modify_clock;
+			prebuilt->pscan_chunk_clamp.is_whole_page_in_range = in_range;
 
 			if (in_range) {
 				return false;
@@ -5277,7 +5279,7 @@ wrong_offs:
 	/* Parallel scan: stop at the upper bound of this chunk. Checked here,
 	on the record the cursor is on, because the boundary is a position in
 	`index`. */
-	if (UNIV_UNLIKELY(prebuilt->m_pscan_end_tuple != NULL)
+	if (UNIV_UNLIKELY(prebuilt->pscan_chunk_clamp.end_tuple != NULL)
 	    && row_pscan_reached_chunk_end(prebuilt, rec, index, offsets)) {
 		err = DB_RECORD_NOT_FOUND;
 		goto idx_cond_failed;

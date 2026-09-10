@@ -457,6 +457,45 @@ struct mysql_row_templ_t {
 #define ROW_PREBUILT_ALLOCATED	78540783
 #define ROW_PREBUILT_FREED	26423527
 
+/** Parallel scan: the upper bound clamping the chunk being scanned.
+ *  Allows row_search_mvcc() to stop (return DB_RECORD_NOT_FOUND) as soon as
+ *  it reaches a record past the bound, before that record is prefetched. */
+struct pscan_chunk_clamp_t {
+	const dtuple_t*	end_tuple;	/*!< upper bound of the current chunk:
+					a key of the index being scanned (for a secondary index,
+					the key columns with the PK suffix), or NULL for an
+					unbounded scan */
+	bool		is_end_inclusive;	/*!< whether records equal to
+					end_tuple belong to the chunk. Chunk boundaries tile as
+					[start, end) and are exclusive; only the last chunk
+					of a scan can be inclusive, when the caller's own upper
+					bound is ("a <= 5", "a BETWEEN 1 AND 5", "a = 5") */
+	bool		is_whole_page_in_range; /*!< whether every user record of page_no
+					is below end_tuple. If it is, the per-record boundary
+					comparison can be skipped on that whole page */
+	uint32_t	page_no;	/*!< leaf page the cached boundary verdict
+					"is_whole_page_in_range" applies to -- the page most recently
+					checked against the chunk end, i.e. the one the cursor
+					was on. FIL_NULL when nothing is cached */
+	uint64_t	page_modify_clock;	/*!< modify_clock of page_no when
+					the verdict "is_whole_page_in_range" was taken. Any change
+					to the page invalidates that verdict */
+
+	/** Discard the previously cached boundary verdict and set new upper bound
+	 *  of the chunk that is about to be scanned.
+	 *  @param end_tuple	chunk end tuple in the format of the index key,
+	 *  					or NULL for an unbounded scan
+	 *  @param is_inclusive whether records equal to 'end_tuple' belong
+	 * 						to the chunk */
+	void reset_to(const dtuple_t* end_tuple, bool is_inclusive)
+	{
+		this->end_tuple = end_tuple;
+		this->is_end_inclusive = is_inclusive;
+		this->page_no = FIL_NULL;
+		this->is_whole_page_in_range = false;
+	}
+};
+
 /** A struct for (sometimes lazily) prebuilt structures in an Innobase table
 handle used within MySQL; these are used to save CPU time. */
 
@@ -563,41 +602,8 @@ struct row_prebuilt_t {
 	que_fork_t*	sel_graph;	/*!< dummy query graph used in
 					selects */
 	dtuple_t*	search_tuple;	/*!< prebuilt dtuple used in selects */
-	const dtuple_t*	m_pscan_end_tuple;
-					/*!< parallel scan: upper bound of the
-					current chunk, in clustered-index key
-					format, or NULL for an unbounded scan.
-					When set, row_search_mvcc() stops
-					(returns DB_RECORD_NOT_FOUND) as soon
-					as it reaches a record past the bound,
-					before that record is prefetched.
-					@see m_pscan_end_inclusive */
-	bool		m_pscan_end_inclusive;
-					/*!< parallel scan: whether records
-					equal to m_pscan_end_tuple belong to
-					the chunk. Chunk boundaries tile as
-					[start, end) and are exclusive; only
-					the last chunk of a scan can be
-					inclusive, when the caller's own upper
-					bound is ("a <= 5", "a BETWEEN 1 AND
-					5", "a = 5"). */
-	uint32_t	m_pscan_clamp_page;
-					/*!< parallel scan: page number of the
-					leaf page the cached boundary verdict
-					m_pscan_clamp_in_range was taken for,
-					or FIL_NULL if there is none.
-					@see row_pscan_reached_chunk_end() */
-	uint64_t	m_pscan_clamp_clock;
-					/*!< parallel scan: modify_clock of
-					m_pscan_clamp_page when the verdict
-					was taken. Any change to the page
-					invalidates the verdict. */
-	bool		m_pscan_clamp_in_range;
-					/*!< parallel scan: whether every user
-					record of m_pscan_clamp_page is below
-					m_pscan_end_tuple. If it is, the
-					per-record boundary comparison can be
-					skipped on that whole page. */
+	pscan_chunk_clamp_t pscan_chunk_clamp; /*!< parallel scan: the upper bound
+					clamping the chunk being scanned */
 	byte		row_id[DATA_ROW_ID_LEN];
 					/*!< if the clustered index was
 					generated, the row id of the
@@ -738,23 +744,6 @@ struct row_prebuilt_t {
 	A locking read will acquire a table-level lock (X or S) instead
 	of acquiring row-level locks. */
 	bool		full_table_scan;
-
-	/** Parallel scan: set the exclusive upper bound of the chunk that is
-	about to be scanned, discarding the boundary verdict that was cached
-	for the previous chunk.
-	@param tuple	chunk end tuple in clustered-index key format,
-			or NULL for an unbounded scan
-	@param inclusive whether records equal to 'tuple' belong to the chunk.
-			Set here rather than assigned separately: the cached
-			verdict is interpreted under this flag, so the two must
-			never be out of step. */
-	void set_pscan_end_tuple(const dtuple_t* tuple, bool inclusive= false)
-	{
-		m_pscan_end_tuple = tuple;
-		m_pscan_end_inclusive = inclusive;
-		m_pscan_clamp_page = FIL_NULL;
-		m_pscan_clamp_in_range = false;
-	}
 
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
