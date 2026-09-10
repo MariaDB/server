@@ -334,6 +334,8 @@ struct rpl_binlog_state : public rpl_binlog_state_base
 };
 
 
+class Domain_id_filter;
+
 /*
   Represent the GTID state that a slave connection to a master requests
   the master to start sending binlog events from.
@@ -356,6 +358,23 @@ struct slave_connection_state
 
   /* Auxiliary buffer to sort gtid list. */
   DYNAMIC_ARRAY gtid_sort_array;
+
+#ifdef HAVE_REPLICATION
+  /*
+    The IGNORE_DOMAIN_IDS / DO_DOMAIN_IDS filter that the connecting slave
+    sent us, or NULL if it sent none (or is too old to send any), in which
+    case no domain is filtered. Owned here, deleted in the destructor.
+  */
+  Domain_id_filter *domain_filter;
+
+  /*
+    True if the connecting slave told us that it will throw away all events
+    in this domain anyway.
+  */
+  bool is_domain_filtered(uint32 domain_id);
+#else
+  bool is_domain_filtered(uint32) { return false; }
+#endif
 
   slave_connection_state();
   ~slave_connection_state();

@@ -1,0 +1,141 @@
+--source include/have_innodb.inc
+--let $rpl_topology= 1->2->3
+--source include/rpl_init.inc
+
+# MDEV-28213: the use case for not validating a filtered domain at connect.
+#
+#   A -> B -> C
+#
+# B and C both filter away domain 2 with IGNORE_DOMAIN_IDS.  B therefore never
+# writes anything from domain 2 into its own binlog, so C never learns any
+# position in domain 2 at all -- not because C is behind, but because that
+# domain simply does not exist anywhere on C's replication path.
+#
+# When B is lost and C has to be re-pointed at A, A still has domain 2 in the
+# binlog state.  Without this fix A rejects C with ER_MASTER_FATAL_ERROR_READING_BINLOG
+# ("Could not find GTID state requested by slave in any binlog files"), even
+# though C is perfectly up to date in every domain it actually replicates.
+
+--connection server_3
+# The test first shows what A answers when C does not filter the domain.
+call mtr.add_suppression("Got fatal error 1236 from master when reading data from binary log");
+
+--connection server_1
+# Both tables are created in domain 1, so that domain 2 is completely unknown
+# to B and C once they start filtering it.
+SET SESSION gtid_domain_id= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo *** Let B and C filter away domain 2 ***
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (1);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (2);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--echo *** C is up to date in domain 1 and has never heard of domain 2 ***
+--connection server_3
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--echo # C is not behind -- it simply has no position in domain 2, because
+--echo # B filtered that domain away and so never binlogged anything from it.
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)2-' AS has_domain_2_pos;
+
+--echo *** B is lost; A rotates and purges its old binlogs ***
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+FLUSH LOGS;
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (3);
+--let $purge_binlogs_to= query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/wait_for_purge.inc
+# Sync on domain 1 only: the domain 2 events are gone from the binlog, so C
+# will never see them and its position in that domain stays empty.
+--let $master_pos= `SELECT @@SESSION.last_gtid`
+
+--echo *** Re-point C directly at A ***
+--connection server_3
+--source include/stop_slave.inc
+--let $rpl_topology= 1->2,1->3
+--source include/rpl_change_topology.inc
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$MASTER_MYPORT,
+                      MASTER_USE_GTID=slave_pos;
+
+--echo # Dropping the filter shows what A would otherwise answer: C has no
+--echo # position in domain 2, and A no longer has the start of that domain.
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
+START SLAVE;
+--let $slave_io_errno= 1236
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_sql.inc
+
+--echo # With the domain filtered away again, C connects and catches up.
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2);
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo *** New transactions in the filtered domain do not disturb C ***
+--connection server_1
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (2);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Cleanup ***
+--connection server_3
+--source include/stop_slave.inc
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
+--source include/start_slave.inc
+
+--connection server_2
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
+--source include/start_slave.inc
+
+--connection server_1
+SET SESSION gtid_domain_id= 0;
+DROP TABLE t1, t2;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--connection server_3
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc

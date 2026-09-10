@@ -1,0 +1,12 @@
+# For the test description, see suite/rpl/t/rpl_gtid_ignored_domain_ids.inc
+# This runs the same cases with the binary log stored inside the engine, which
+# looks up the slave start position in gtid_find_engine_pos() rather than by
+# scanning binlog files.
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--source suite/rpl/t/rpl_gtid_ignored_domain_ids.inc
+
+--source include/rpl_end.inc
+--echo # End of binlog_in_engine.rpl_gtid_ignored_domain_ids
