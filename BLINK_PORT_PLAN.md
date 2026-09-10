@@ -699,7 +699,20 @@ blink_backward_scan
 
 The visibility tests exercise committed leaf-split publication before parent installation and separator ownership across a forced right-page reorganization. The backward-scan test exposed unguarded structural high-key child reads in rightmost descent and range cardinality estimation; these paths now step to the preceding real node pointer instead of following `FIL_NULL`. Debug validation also now treats structural high keys as node-pointer-shaped records during page reorganization and free-list reuse.
 
-Batch 2 and the existing B-link regression set pass together in the Debug build (20 tests). The next migration batches are internal retry/KILL scenarios, allocator lifecycle races, and crash recovery.
+Batch 2 and the existing B-link regression set pass together in the Debug build (20 tests).
+
+Deterministic Batch 3 was migrated on 2026-09-10:
+
+```text
+blink_cascade_root_raise
+blink_is_on_target_retry
+blink_cascade_kill
+blink_cascade_kill_big_rec
+```
+
+The retry test verifies that `DB_BLINK_RETRY` remains internal after durable leaf publication. The KILL tests verify interruption, statement rollback, abandoned-split completion, and external-field integrity. Fresh-insert rollback exposed a missing synchronous B-link undo bridge; its pessimistic delete now takes `X(index)` and descends with `BTR_MODIFY_TREE_ALREADY_LATCHED`, matching the existing update and modify undo paths.
+
+Batch 3 and the existing B-link regression set pass together in the Debug build (24 tests). The next migration batches are allocator lifecycle races and crash recovery.
 
 ## Phase 16: Functional workload
 

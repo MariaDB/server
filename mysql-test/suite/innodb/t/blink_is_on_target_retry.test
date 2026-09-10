@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb_16k.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id VARBINARY(2500) NOT NULL PRIMARY KEY,
+  b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=1;
+while ($i <= 250) {
+  eval INSERT INTO t VALUES (LPAD(CAST($i * 10 AS CHAR),2500,'0'),$i * 10);
+  inc $i;
+}
+--enable_query_log
+--connect(con1,localhost,root,,test)
+--connect(con2,localhost,root,,test)
+--connection con1
+SET DEBUG_SYNC='blink_after_cascade_mtr SIGNAL is_durable WAIT_FOR con1_resume EXECUTE 1';
+--disable_query_log
+let $stmt=INSERT INTO t VALUES (LPAD(CAST(2510 AS CHAR),2500,'0'),2510);
+let $i=252;
+while ($i <= 300) {
+  let $stmt=$stmt, (LPAD(CAST($i * 10 AS CHAR),2500,'0'),$i * 10);
+  inc $i;
+}
+--send_eval $stmt
+--enable_query_log
+--connection con2
+SET DEBUG_SYNC='now WAIT_FOR is_durable TIMEOUT 10';
+SET DEBUG_SYNC='blink_is_on_target_observed SIGNAL retry_seen WAIT_FOR con2_resume EXECUTE 1';
+--disable_query_log
+let $stmt=INSERT INTO t VALUES (LPAD(CAST(11 AS CHAR),2500,'0'),11);
+let $gap=10;
+while ($gap <= 2470) {
+  let $k=$gap;
+  let $j=0;
+  while ($j < 8) {
+    inc $k;
+    if ($k != 11) {
+      let $stmt=$stmt, (LPAD(CAST($k AS CHAR),2500,'0'),$k);
+    }
+    inc $j;
+  }
+  let $gap=`SELECT $gap + 30`;
+}
+--send_eval $stmt
+--enable_query_log
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR retry_seen TIMEOUT 10';
+SET DEBUG_SYNC='now SIGNAL con2_resume';
+SET DEBUG_SYNC='now SIGNAL con1_resume';
+--connection con1
+--reap
+--disconnect con1
+--connection con2
+--reap
+--disconnect con2
+--connection default
+SET DEBUG_SYNC='RESET';
+SELECT COUNT(*),SUM(b) FROM t;
+SELECT b FROM t WHERE id=LPAD(CAST(2510 AS CHAR),2500,'0');
+SELECT b FROM t WHERE id=LPAD(CAST(2478 AS CHAR),2500,'0');
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

@@ -1,0 +1,40 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+id VARBINARY(2500) NOT NULL PRIMARY KEY,
+b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+connect con1,localhost,root,,test;
+connect con2,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC='blink_after_cascade_mtr SIGNAL is_durable WAIT_FOR con1_resume EXECUTE 1';
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR is_durable TIMEOUT 10';
+SET DEBUG_SYNC='blink_is_on_target_observed SIGNAL retry_seen WAIT_FOR con2_resume EXECUTE 1';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR retry_seen TIMEOUT 10';
+connection con1;
+disconnect con1;
+connection con2;
+ERROR 70100: Query execution was interrupted
+disconnect con2;
+connection default;
+SET DEBUG_SYNC='RESET';
+FOUND 1 /Completed an abandoned B-link tree page split/ in mysqld.1.err
+SELECT COUNT(*),SUM(b) FROM t;
+COUNT(*)	SUM(b)
+300	451500
+SELECT COUNT(*) FROM t WHERE b BETWEEN 11 AND 2478 AND MOD(b,10) <> 0;
+COUNT(*)
+0
+SELECT b FROM t WHERE id=LPAD(CAST(2510 AS CHAR),2500,'0');
+b
+2510
+SELECT b FROM t WHERE id=LPAD(CAST(3000 AS CHAR),2500,'0');
+b
+3000
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

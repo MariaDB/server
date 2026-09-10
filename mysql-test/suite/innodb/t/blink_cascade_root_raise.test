@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id VARBINARY(2500) NOT NULL PRIMARY KEY,
+  b INT NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=1;
+while ($i <= 200) {
+  eval INSERT INTO t VALUES (LPAD(CAST($i AS CHAR),2500,'0'),$i);
+  inc $i;
+}
+--enable_query_log
+SELECT COUNT(*),SUM(b) FROM t;
+SELECT b FROM t WHERE id=LPAD(CAST(1 AS CHAR),2500,'0');
+SELECT b FROM t WHERE id=LPAD(CAST(50 AS CHAR),2500,'0');
+SELECT b FROM t WHERE id=LPAD(CAST(125 AS CHAR),2500,'0');
+SELECT b FROM t WHERE id=LPAD(CAST(200 AS CHAR),2500,'0');
+SELECT COUNT(*),MIN(b),MAX(b) FROM t
+WHERE id >= LPAD(CAST(40 AS CHAR),2500,'0')
+  AND id <= LPAD(CAST(160 AS CHAR),2500,'0');
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

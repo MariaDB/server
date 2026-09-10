@@ -33,6 +33,7 @@ Created 2/25/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0roll.h"
 #include "btr0btr.h"
+#include "btr0blink.h"
 #include "mach0data.h"
 #include "row0undo.h"
 #include "row0vers.h"
@@ -70,6 +71,7 @@ row_undo_ins_remove_clust_rec(
 	ulint		n_tries	= 0;
 	mtr_t		mtr{node->trx};
 	dict_index_t*	index	= node->pcur.index();
+	btr_latch_mode restore_mode= BTR_PURGE_TREE;
 	table_id_t table_id = 0;
 	const bool dict_locked = node->trx->dict_operation_lock_mode;
 restart:
@@ -204,7 +206,11 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-	ut_a(node->pcur.restore_position(BTR_PURGE_TREE, &mtr)
+	if (use_blink_path(index)) {
+		mtr_x_lock_index(index, &mtr);
+		restore_mode= BTR_MODIFY_TREE_ALREADY_LATCHED;
+	}
+	ut_a(node->pcur.restore_position(restore_mode, &mtr)
 	     == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,

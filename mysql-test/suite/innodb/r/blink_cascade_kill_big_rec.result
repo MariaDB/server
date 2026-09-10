@@ -1,0 +1,45 @@
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+id VARBINARY(2500) NOT NULL PRIMARY KEY,
+b INT NOT NULL,
+c LONGBLOB
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+connect con1,localhost,root,,test;
+connect con2,localhost,root,,test;
+connection con1;
+SET DEBUG_SYNC='blink_after_cascade_mtr SIGNAL is_durable WAIT_FOR con1_resume EXECUTE 1';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR is_durable TIMEOUT 10';
+connection con2;
+SET DEBUG_SYNC='blink_is_on_target_observed SIGNAL retry_seen WAIT_FOR con2_resume EXECUTE 1';
+INSERT INTO t VALUES (LPAD(CAST(2501 AS CHAR),2500,'0'),2501,REPEAT('x',8000));
+connection default;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC='RESET';
+BEGIN;
+INSERT INTO t VALUES (LPAD(CAST(9990 AS CHAR),2500,'0'),9990,REPEAT('y',8000));
+ROLLBACK;
+SELECT COUNT(*) FROM t WHERE b=9990;
+COUNT(*)
+0
+SELECT COUNT(*) BETWEEN 300 AND 301 FROM t;
+COUNT(*) BETWEEN 300 AND 301
+1
+SELECT COUNT(*) FROM t
+WHERE id=LPAD(CAST(2501 AS CHAR),2500,'0')
+AND (c IS NULL OR LENGTH(c) <> 8000 OR c <> REPEAT('x',8000));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE b BETWEEN 2510 AND 3000;
+COUNT(*)
+50
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;

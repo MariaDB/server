@@ -986,6 +986,9 @@ static dberr_t blink_insert_into_level(ulint flags, dtuple_t *node_ptr,
     buf_block_t *parent_block= parent.block();
     if (page_has_incomplete_split(parent_block->page.frame)) {
       ++blink_incomplete_retries;
+      if (thr)
+        DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
+                            "blink_is_on_target_observed");
       if (!thr) {
         const uint32_t parent_page= parent_block->page.id().page_no();
         mtr.commit();
@@ -1487,7 +1490,9 @@ void blink_pending_splits_process() noexcept
   const dberr_t err= task.left_page == FIL_NULL
     ? blink_scan_incomplete_splits(task.index)
     : blink_finish_incomplete_split(task.index, task.left_page, nullptr);
-  if (err == DB_BLINK_RETRY || err == DB_BLINK_RETRY_POOL_EMPTY)
+  if (err == DB_SUCCESS && task.left_page != FIL_NULL)
+    ib::info() << "Completed an abandoned B-link tree page split";
+  else if (err == DB_BLINK_RETRY || err == DB_BLINK_RETRY_POOL_EMPTY)
     blink_pending_split_requeue(task.index, task.left_page,
                                 task.attempts + 1);
   blink_page_pool_unpin(pin);

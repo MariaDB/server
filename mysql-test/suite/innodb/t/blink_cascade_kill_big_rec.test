@@ -1,0 +1,86 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb_16k.inc
+
+SET @blink_save=@@global.innodb_blink_enabled;
+SET GLOBAL innodb_blink_enabled=ON;
+CREATE TABLE t (
+  id VARBINARY(2500) NOT NULL PRIMARY KEY,
+  b INT NOT NULL,
+  c LONGBLOB
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--sleep 1
+--disable_query_log
+let $i=1;
+while ($i <= 250) {
+  eval INSERT INTO t VALUES (LPAD(CAST($i * 10 AS CHAR),2500,'0'),$i * 10,'');
+  inc $i;
+}
+--enable_query_log
+--connect(con1,localhost,root,,test)
+--connect(con2,localhost,root,,test)
+--connection con1
+SET DEBUG_SYNC='blink_after_cascade_mtr SIGNAL is_durable WAIT_FOR con1_resume EXECUTE 1';
+--disable_query_log
+let $stmt=INSERT INTO t VALUES (LPAD(CAST(2510 AS CHAR),2500,'0'),2510,'');
+let $i=252;
+while ($i <= 300) {
+  let $stmt=$stmt, (LPAD(CAST($i * 10 AS CHAR),2500,'0'),$i * 10,'');
+  inc $i;
+}
+--send_eval $stmt
+--enable_query_log
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR is_durable TIMEOUT 10';
+--connection con2
+let $con2_id=`SELECT CONNECTION_ID()`;
+SET DEBUG_SYNC='blink_is_on_target_observed SIGNAL retry_seen WAIT_FOR con2_resume EXECUTE 1';
+--send
+INSERT INTO t VALUES (LPAD(CAST(2501 AS CHAR),2500,'0'),2501,REPEAT('x',8000));
+--connection default
+--disable_query_log
+--disable_warnings
+SET DEBUG_SYNC='now WAIT_FOR retry_seen TIMEOUT 2';
+--enable_warnings
+let $window_missed=`SELECT @@warning_count`;
+eval KILL QUERY $con2_id;
+SET DEBUG_SYNC='now SIGNAL con2_resume';
+SET DEBUG_SYNC='now SIGNAL con1_resume';
+--enable_query_log
+--connection con1
+--reap
+--disconnect con1
+--connection con2
+--disable_result_log
+--error 0,ER_QUERY_INTERRUPTED
+--reap
+--enable_result_log
+let $reap_errno=$mysql_errno;
+if (!$window_missed) {
+  if ($reap_errno != 1317) {
+    die parked B-link insert was not interrupted;
+  }
+}
+--disconnect con2
+--connection default
+SET DEBUG_SYNC='RESET';
+if (!$window_missed) {
+  --let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+  --let SEARCH_PATTERN=Completed an abandoned B-link tree page split
+  --let SEARCH_WAIT=FOUND
+  --let SEARCH_TIMEOUT=10
+  --source include/search_pattern_in_file.inc
+}
+BEGIN;
+INSERT INTO t VALUES (LPAD(CAST(9990 AS CHAR),2500,'0'),9990,REPEAT('y',8000));
+ROLLBACK;
+SELECT COUNT(*) FROM t WHERE b=9990;
+SELECT COUNT(*) BETWEEN 300 AND 301 FROM t;
+SELECT COUNT(*) FROM t
+WHERE id=LPAD(CAST(2501 AS CHAR),2500,'0')
+  AND (c IS NULL OR LENGTH(c) <> 8000 OR c <> REPEAT('x',8000));
+SELECT COUNT(*) FROM t WHERE b BETWEEN 2510 AND 3000;
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_blink_enabled=@blink_save;
