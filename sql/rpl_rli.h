@@ -962,6 +962,14 @@ struct rpl_group_info
     logic remains the same.
   */
   Rows_log_event_assembler *assembler;
+  /*
+    Flat array for O(1) table lookup when sequential table IDs are in use.
+    m_table_array[table_id - 1] maps the 1-based sequential ID to a TABLE*.
+    Dynamically resized via my_realloc as needed; freed in destructor.
+  */
+  TABLE **m_table_array;
+  uint m_table_array_size;
+  bool m_use_sequential_table_ids;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
