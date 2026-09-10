@@ -37,7 +37,8 @@ innodb_index_stats	CREATE TABLE `innodb_index_stats` (
   `stat_value` bigint(20) unsigned NOT NULL,
   `sample_size` bigint(20) unsigned DEFAULT NULL,
   `stat_description` varchar(1024) NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`),
+  CONSTRAINT `innodb_index_stats_stat_value_defined` CHECK (`stat_value` <> 18446744073709551615)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
 SET @@global.innodb_stats_persistent=1;
 CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
@@ -68,7 +69,8 @@ innodb_index_stats	CREATE TABLE `innodb_index_stats` (
   `stat_value` bigint(20) unsigned NOT NULL,
   `sample_size` bigint(20) unsigned DEFAULT NULL,
   `stat_description` varchar(1024) NOT NULL,
-  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`),
+  CONSTRAINT `innodb_index_stats_stat_value_defined` CHECK (`stat_value` <> 18446744073709551615)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0
 SET @@global.innodb_stats_persistent=1;
 #
