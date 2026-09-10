@@ -100,6 +100,64 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                     CHARSET_INFO *cs, String *buf);
 
 /*
+  The maximum length of one encoded key: a key image of at most 42 bytes,
+  in hex. Also the maximum size of a fulltext token.
+*/
+#define MVI_ENCODED_KEY_MAX_LEN 84
+
+/*
+  What walk_mvi_json_array() found. Anything but MVI_WALK_OK means it did
+  not reach the end of the array.
+*/
+enum Mvi_walk_result
+{
+  MVI_WALK_OK,          /* The whole array was walked */
+  MVI_WALK_ABORTED,     /* A visitor callback asked to stop */
+  MVI_WALK_NOT_ARRAY,   /* The document is not an array. *je holds the value */
+  MVI_WALK_BAD_FORMAT,  /* The document is not a JSON we can make sense of */
+  MVI_WALK_JSON_ERROR   /* Malformed JSON. The error is in je->s.error */
+};
+
+/*
+  What walk_mvi_json_array() reports about the array it is walking. Every
+  callback returns true to stop the walk, which makes the walk return
+  MVI_WALK_ABORTED.
+*/
+class Mvi_json_array_visitor
+{
+public:
+  virtual ~Mvi_json_array_visitor() {}
+
+  /* An element of the array that is in the index, encoded into `key' */
+  virtual bool on_key(String *key)= 0;
+
+  /*
+    An element that has no key in the index: an object, or a value that
+    cannot be encoded in the index datatype.
+  */
+  virtual bool on_element_without_key() { return false; }
+
+  /*
+    An element that is an array was opened / closed. `depth' is the depth of
+    that array: 2 for an element of the array being walked, more for one
+    nested deeper.
+  */
+  virtual bool on_nested_array_start(int) { return false; }
+  virtual bool on_nested_array_end(int) { return false; }
+};
+
+/*
+  Walk a JSON array, encoding its elements for a multi-valued index of the
+  cast_th datatype, and report them to `visitor'. Shared by the two sides of
+  the index: MVI_ENCODE, which turns them into the tokens of a row, and the
+  optimizer, which turns them into the keys to search for.
+*/
+Mvi_walk_result walk_mvi_json_array(json_engine_t *je, CHARSET_INFO *cs,
+                                    const uchar *start, const uchar *end,
+                                    const Type_handler *cast_th,
+                                    Mvi_json_array_visitor *visitor);
+
+/*
   Is `field' the internal column that holds the keys of a multi-valued index?
 */
 bool is_mvi_vcol(const Field *field);

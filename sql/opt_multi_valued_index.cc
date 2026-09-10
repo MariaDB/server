@@ -218,6 +218,113 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 
 /*
   @brief
+    Walk a JSON array and report its elements, encoded for a multi-valued
+    index, to `visitor'.
+
+  @detail
+    An element that is an array is walked too, so that the keys of a nested
+    array are the keys of its elements. An element that is an object, and
+    one that cannot be encoded in the index datatype, has no key of its own;
+    the visitor decides what that means for it.
+
+    TODO: deduplicate, so that ["34567", "34567"] yield only one key
+
+  @return
+    See Mvi_walk_result. Only MVI_WALK_OK means the array was walked to its
+    end.
+*/
+
+Mvi_walk_result walk_mvi_json_array(json_engine_t *je, CHARSET_INFO *cs,
+                                    const uchar *start, const uchar *end,
+                                    const Type_handler *cast_th,
+                                    Mvi_json_array_visitor *visitor)
+{
+  StringBuffer<MVI_ENCODED_KEY_MAX_LEN> key;
+  int depth= 0;
+
+  key.set_charset(&my_charset_latin1_bin);
+
+  if (json_scan_start(je, cs, start, end) || json_read_value(je))
+    return MVI_WALK_JSON_ERROR;
+
+  if (je->value_type != JSON_VALUE_ARRAY)
+    return MVI_WALK_NOT_ARRAY;
+
+  do {
+    switch (je->state)
+    {
+      case JST_ARRAY_START:
+        /* The array we are walking. A nested one is opened below */
+        depth++;
+        break;
+      case JST_ARRAY_END:
+        if (--depth == 0)
+          return MVI_WALK_OK;   /* Trailing junk ignored */
+        if (visitor->on_nested_array_end(depth + 1))
+          return MVI_WALK_ABORTED;
+        break;
+      case JST_VALUE:
+      {
+        if (json_read_value(je))
+          return MVI_WALK_JSON_ERROR;
+        if (je->value_type == JSON_VALUE_ARRAY)
+        {
+          if (visitor->on_nested_array_start(++depth))
+            return MVI_WALK_ABORTED;
+          break;
+        }
+        if (je->value_type == JSON_VALUE_OBJECT)
+        {
+          if (json_skip_level(je))
+            return MVI_WALK_JSON_ERROR;
+          if (visitor->on_element_without_key())
+            return MVI_WALK_ABORTED;
+          break;
+        }
+        key.length(0);
+        if (encode_mvi_key(je, cast_th, cs, &key))
+        {
+          if (visitor->on_element_without_key())
+            return MVI_WALK_ABORTED;
+          break;
+        }
+        if (visitor->on_key(&key))
+          return MVI_WALK_ABORTED;
+        break;
+      }
+      default:
+        return MVI_WALK_BAD_FORMAT;
+    }
+  } while (json_scan_next(je) == 0);
+
+  /* The scan ended before the array was closed */
+  return MVI_WALK_JSON_ERROR;
+}
+
+
+/*
+  The visitor MVI_ENCODE walks the array with: the keys, separated by a
+  space, are the fulltext document of the row.
+*/
+
+class Mvi_key_appender : public Mvi_json_array_visitor
+{
+  String * const out;
+public:
+  Mvi_key_appender(String *out_arg) : out(out_arg) {}
+  bool on_key(String *key) override
+  {
+    if (out->length())
+      out->append(' ');
+    out->append(*key);
+    /* An append failure is not worth giving up a whole document for */
+    return false;
+  }
+};
+
+
+/*
+  @brief
     Parse the JSON array argument and return a string that will be fed to the
     fulltext index.
 */
@@ -225,71 +332,33 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 String *Item_func_mvi_encode::val_str_ascii(String *buf)
 {
   String *value= args[0]->val_json(&tmp_js);
+  Mvi_key_appender appender(buf);
+  DBUG_ASSERT(fixed());
   if ((null_value= !value))
     return nullptr;
-  CHARSET_INFO *cs= value->charset();
-  const Type_handler *cast_th= m_cast_type.type_handler();
-  bool at_least_one= false;
-  const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
-  const uchar *end= start + value->length();
-  int depth= 0;
-  DBUG_ASSERT(fixed());
   buf->length(0);
   buf->set_charset(&my_charset_latin1_bin);
 
-  if (json_scan_start(&je, cs, start, end) || json_read_value(&je))
-    goto json_error;
+  switch (walk_mvi_json_array(&je, value->charset(),
+                              reinterpret_cast<const uchar *>(value->ptr()),
+                              reinterpret_cast<const uchar *>(value->end()),
+                              m_cast_type.type_handler(), &appender))
+  {
+    case MVI_WALK_OK:
+      break;
+    case MVI_WALK_NOT_ARRAY:
+    case MVI_WALK_BAD_FORMAT:
+      goto error_format;
+    case MVI_WALK_ABORTED:  /* Mvi_key_appender never asks to stop */
+    case MVI_WALK_JSON_ERROR:
+      goto json_error;
+  }
 
-  if (je.value_type != JSON_VALUE_ARRAY)
-    goto error_format;
-
-  /* TODO: deduplicate, so that ["34567", "34567"] yield only one token */
-  do {
-    switch (je.state)
-    {
-      case JST_ARRAY_START:
-        depth++;
-        continue;
-      case JST_ARRAY_END:
-        if (--depth == 0)
-          goto array_done;
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(&je))
-          goto json_error;
-        if (je.value_type == JSON_VALUE_ARRAY)
-        {
-          depth++;
-          break;
-        }
-        if (je.value_type == JSON_VALUE_OBJECT)
-        {
-          if (json_skip_level(&je))
-            goto json_error;
-          break;
-        }
-        if (!encode_mvi_key(&je, cast_th, cs, buf))
-        {
-          buf->append(' ');
-          at_least_one= true;
-        }
-        break;
-      }
-      default:
-        goto error_format;
-    }
-  } while (json_scan_next(&je) == 0);
-  goto json_error;
-
-array_done:
   /*
     TODO: do something different when an empty string is
-    returned, i.e. at_least_one == false to avoid wasting index
-    space?
+    returned, i.e. the document has no key at all, to avoid wasting
+    index space?
   */
-  if (at_least_one)
-    buf->length(buf->length() - 1);
   return buf;
 
 error_format:

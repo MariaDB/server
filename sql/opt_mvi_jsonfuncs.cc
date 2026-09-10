@@ -159,6 +159,59 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
 
 
 /*
+  The visitor collect_mvi_keys() walks the JSON literal with: it turns the
+  elements into the keys of an access. Stopping the walk means giving up on
+  the access, see collect_mvi_keys() for when we have to.
+*/
+
+class Mvi_key_collector : public Mvi_json_array_visitor
+{
+  THD * const thd;
+  Mv_index * const index;
+  const bool conjunctive;
+  /*
+    The number of keys we had collected when the depth-2 array element we
+    are inside of was opened. Only used for an OR / JSON_OVERLAPS.
+  */
+  uint keys_before_level2_array;
+
+  uint key_count() const { return access ? access->encoded.elements : 0; }
+public:
+  /* What we are collecting into. NULL until the first key */
+  Mvi_access *access;
+
+  Mvi_key_collector(THD *thd_arg, Mv_index *index_arg, bool conjunctive_arg)
+   : thd(thd_arg), index(index_arg), conjunctive(conjunctive_arg),
+     keys_before_level2_array(0), access(NULL) {}
+
+  bool on_key(String *key) override
+  {
+    if (!access &&
+        !(access= new (thd->mem_root) Mvi_access(index, conjunctive)))
+      return true;
+    return access->add_key(thd->mem_root, key);
+  }
+
+  /* Only an AND of the keys tolerates a missing one */
+  bool on_element_without_key() override { return !conjunctive; }
+
+  bool on_nested_array_start(int depth) override
+  {
+    if (depth == 2)
+      keys_before_level2_array= key_count();
+    return false;
+  }
+
+  /* An element that is an array and yielded no key at all */
+  bool on_nested_array_end(int depth) override
+  {
+    return depth == 2 && !conjunctive &&
+           key_count() == keys_before_level2_array;
+  }
+};
+
+
+/*
   @brief
     Collect the element keys to search `index' for from a JSON literal.
 
@@ -194,6 +247,10 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
     would find that row. Give up in this case, as for a failed
     encoding.
 
+    Anything the walk itself does not like -- malformed JSON, an object
+    where an array should be -- means no access either. The predicate is
+    still there to parse the literal and raise whatever it raises.
+
   @return
     The access descriptor, or NULL if the predicate cannot use this MVI.
 */
@@ -202,101 +259,33 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
                                     CHARSET_INFO *cs, const String *json,
                                     bool conjunctive, json_engine_t *je)
 {
-  Mvi_access *access= NULL;
-  StringBuffer<256> buf;
-  const uchar *start= reinterpret_cast<const uchar *>(json->ptr());
-  const uchar *end= start + json->length();
   Item_func_mvi_encode *mvitem=
     (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
   const Type_handler *cast_th= mvitem->cast_type().type_handler();
-  int depth= 0;
-  /*
-    The number of keys collected when inside a current depth-2 array
-    element. Only used for an OR / JSON_OVERLAPS
-  */
-  uint keys_before_level2_array= 0;
+  Mvi_key_collector collector(thd, index, conjunctive);
+  StringBuffer<MVI_ENCODED_KEY_MAX_LEN> buf;
 
-  buf.length(0);
-  buf.set_charset(&my_charset_latin1_bin);
-
-  if (json_scan_start(je, cs, start, end) || json_read_value(je))
-    return NULL;
-
-  if (je->value_type == JSON_VALUE_UNINITIALIZED ||
-      je->value_type == JSON_VALUE_OBJECT)
-    return NULL;
-
-  if (je->value_type != JSON_VALUE_ARRAY)
+  switch (walk_mvi_json_array(je, cs,
+                              reinterpret_cast<const uchar *>(json->ptr()),
+                              reinterpret_cast<const uchar *>(json->end()),
+                              cast_th, &collector))
   {
-    /* A scalar: JSON_CONTAINS(expr, '123') */
-    if (encode_mvi_key(je, cast_th, cs, &buf))
+    case MVI_WALK_OK:
+      return collector.access;
+    case MVI_WALK_NOT_ARRAY:
+      break;
+    default:
       return NULL;
-    if (!(access= new (thd->mem_root) Mvi_access(index, conjunctive)) ||
-        access->add_key(thd->mem_root, &buf))
-      return NULL;
-    return access;
   }
-  // JSON_VALUE_ARRAY
 
-  /* TODO: deduplicate? */
-  /*
-    TODO: the logic here parallels
-    Item_func_mvi_encode::val_str_ascii. A refactoring is called for
-  */
-  do {
-    buf.length(0);
-    switch (je->state)
-    {
-      case JST_ARRAY_START:
-        depth++;
-        break;
-      case JST_ARRAY_END:
-        if (--depth == 0)
-          return access;
-        /*
-          Closed a top-level element that was an array. See above: for an OR
-          it has to have contributed at least one key.
-        */
-        if (depth == 1 && !conjunctive &&
-            (access ? access->encoded.elements : 0) == keys_before_level2_array)
-          return NULL;
-        break;
-      case JST_VALUE:
-      {
-        if (json_read_value(je))
-          return NULL;
-        if (je->state == JST_ARRAY_START)
-        {
-          if (++depth == 2)
-            keys_before_level2_array= access ? access->encoded.elements : 0;
-          break;
-        }
-        if (je->value_type == JSON_VALUE_OBJECT)
-        {
-          if (json_skip_level(je) || !conjunctive)
-            return NULL;
-          break;
-        }
-        if (encode_mvi_key(je, cast_th, cs, &buf))
-        {
-          /* See above: only an AND of the keys tolerates a missing one */
-          if (!conjunctive)
-            return NULL;
-          break;
-        }
-        if (!access &&
-            !(access= new (thd->mem_root) Mvi_access(index, conjunctive)))
-          return NULL;
-        if (access->add_key(thd->mem_root, &buf))
-          return NULL;
-        break;
-      }
-      default:
-        return NULL;
-    }
-  } while (json_scan_next(je) == 0);
-
-  return depth > 0 ? NULL : access;
+  /* A scalar: JSON_CONTAINS(expr, '123'). It is in *je */
+  buf.set_charset(&my_charset_latin1_bin);
+  if (je->value_type == JSON_VALUE_UNINITIALIZED ||
+      je->value_type == JSON_VALUE_OBJECT ||
+      encode_mvi_key(je, cast_th, cs, &buf) ||
+      collector.on_key(&buf))
+    return NULL;
+  return collector.access;
 }
 
 
