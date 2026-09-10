@@ -3764,16 +3764,16 @@ static void parse_default_charset(Table_map_log_event::Optional_metadata_fields:
   unsigned char* p= field;
   unsigned char* end= field + length;
 
-  default_charset.default_charset= net_field_length(&p);
-  if (unlikely(p > end))
+  default_charset.default_charset= (uint)safe_net_field_length_ll(&p, length);
+  if (unlikely(!p))
     return;
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
-    unsigned int col_charset= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_charset= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
 
     default_charset.charset_pairs.push_back(std::make_pair(col_index,
@@ -3796,8 +3796,8 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
 
   while (p < end)
   {
-    unsigned int charset= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int charset= (uint)safe_net_field_length_ll(&p, length);
+    if (unlikely(!p))
       return;
     vec.push_back(charset);
   }
@@ -3812,12 +3812,14 @@ static void parse_column_charset(std::vector<unsigned int> &vec,
    @param[in]  length  length of the field
  */
 static bool parse_column_name(MEM_ROOT *root, LEX_CSTRING *name,
-                              unsigned char *field, unsigned int length)
+                              unsigned char *field, unsigned int length,
+                              uint num_columns)
 {
-  for (uchar *end= field+length; field < end ; name++)
+  LEX_CSTRING *name_end= name + num_columns;
+  for (uchar *end= field+length; field < end && name < name_end; name++)
   {
-    uint name_length= net_field_length(&field);
-    if (unlikely(field + name_length > end))
+    uint name_length= (uint)safe_net_field_length_ll(&field, end - field);
+    if (unlikely(!field || field + name_length > end))
       return 1;
     if (!(name->str= strmake_root(root, (char*) field, name_length)))
       return 1;
@@ -3848,15 +3850,15 @@ static void parse_set_str_value(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int count= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int count= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
 
     vec.push_back(std::vector<std::string>());
     for (unsigned int i= 0; i < count; i++)
     {
-      unsigned len1= net_field_length(&p);
-      if (unlikely(p + len1 > end))
+      unsigned len1= (uint)safe_net_field_length_ll(&p, end - p);
+      if (unlikely(!p || p + len1 > end))
         return;
       vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
       p+= len1;
@@ -3879,8 +3881,8 @@ static void parse_geometry_type(std::vector<unsigned int> &vec,
 
   while (p < end)
   {
-    unsigned int geom_type= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int geom_type= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
     vec.push_back(geom_type);
   }
@@ -3905,8 +3907,8 @@ static void parse_simple_pk(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
     vec.push_back(std::make_pair(col_index, (unsigned int) 0));
   }
@@ -3931,11 +3933,11 @@ static void parse_pk_with_prefix(std::vector<Table_map_log_event::
 
   while (p < end)
   {
-    unsigned int col_index= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_index= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
-    unsigned int col_prefix= net_field_length(&p);
-    if (unlikely(p > end))
+    unsigned int col_prefix= (uint)safe_net_field_length_ll(&p, end - p);
+    if (unlikely(!p))
       return;
     vec.push_back(std::make_pair(col_index, col_prefix));
   }
@@ -3963,7 +3965,9 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
 
     // Get length and move field to the value.
     field++;
-    len= net_field_length(&field);
+    len= (uint)safe_net_field_length_ll(&field, metadata_end - field);
+    if (unlikely(!field || metadata_end - field < len ))
+      goto error;
     if (only_column_names && type != COLUMN_NAME)
       continue;
 
@@ -3982,7 +3986,7 @@ Optional_metadata_fields(MEM_ROOT *root, uint master_columns,
                                                      sizeof(LEX_CSTRING) *
                                                      (master_columns +1 ))))
         goto error;
-      if (parse_column_name(root, m_column_name, field, len))
+      if (parse_column_name(root, m_column_name, field, len, master_columns))
         goto error;
       break;
     case SET_STR_VALUE:
