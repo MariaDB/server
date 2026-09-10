@@ -33,9 +33,18 @@
     "authors": [
       {
         "email": "info@mariadb.com",
-        "name": "MariaDB"
+        "name": "MariaDB Plc"
       }
     ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "generate_sbom.cmake",
+          "version": "@CPACK_PACKAGE_VERSION@"
+        }
+      ]
+    },
     "properties": [
       {
         "name": "package_name",
