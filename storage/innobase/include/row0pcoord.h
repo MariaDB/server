@@ -317,9 +317,6 @@ private:
   /** Counter for allocating scan context IDs. */
   size_t m_scan_ctx_id{};
 
-  /** Context ID. Monotonically increasing ID. */
-  std::atomic_size_t m_ctx_id{};
-
   /** Error during parallel read. */
   std::atomic<dberr_t> m_err{DB_SUCCESS};
 
@@ -525,16 +522,13 @@ class Parallel_coordinator::Exec_ctx {
   @param[in]    id              Thread ID.
   @param[in]    scan_ctx        Scan context.
   @param[in]    range           Range that the thread has to read. */
-  Exec_ctx(size_t id, Scan_ctx *scan_ctx, const Scan_ctx::Range &range)
-      : m_range(range), m_scan_ctx(scan_ctx), m_id(id) {}
+  Exec_ctx(Scan_ctx *scan_ctx, const Scan_ctx::Range &range)
+      : m_range(range), m_scan_ctx(scan_ctx) {}
 
   /** Destructor. */
   ~Exec_ctx() = default;
 
  public:
-  /** @return the context ID. */
-  [[nodiscard]] size_t id() const { return m_id; }
-
   /** The scan ID of the scan context this belongs to. */
   [[nodiscard]] size_t scan_id() const { return m_scan_ctx->id(); }
 
@@ -579,9 +573,6 @@ private:
   }
 
  private:
-  /** Context ID. */
-  size_t m_id{std::numeric_limits<size_t>::max()};
-
   /** If true then re-split the context into smaller chunks. */
   bool m_to_be_resplit{};
 
