@@ -112,7 +112,17 @@ int Parallel_scan_coordinator::init(size_t n_threads, uint keynr,
 		prebuilt->trx->read_view.open(prebuilt->trx);
 	}
 
-	m_coordinator.initialize(n_threads);
+	m_partitioner.initialize(n_threads);
+
+	/* One context per worker, for the SQL layer to collect and hand back
+	to the worker it belongs to. */
+	m_worker_ctxs.reserve(n_threads);
+	for (size_t i = 0; i < n_threads; i++) {
+		Pscan_worker_ctx *wctx = UT_NEW_NOKEY(Pscan_worker_ctx());
+		if (wctx == nullptr)
+			return HA_ERR_OUT_OF_MEM;
+		m_worker_ctxs.push_back(wctx);
+	}
 
 	dberr_t err = DB_SUCCESS;
 	m_params.m_keynr = keynr;
@@ -124,9 +134,10 @@ int Parallel_scan_coordinator::init(size_t n_threads, uint keynr,
 		m_params.m_ranges = nullptr;
 		m_params.m_n_ranges = 0;
 
-		const Parallel_coordinator::Scan_range FULL_SCAN;
-		err = m_coordinator.add_scan(
-			prebuilt->trx, Parallel_coordinator::Config(FULL_SCAN, index));
+		const Parallel_scan_partitioner::Scan_range FULL_SCAN;
+		err = m_partitioner.add_scan(
+			prebuilt->trx,
+			Parallel_scan_partitioner::Config(FULL_SCAN, index));
 	} else {
 		const size_t n_ranges = ranges.size();
 
@@ -161,11 +172,12 @@ int Parallel_scan_coordinator::init(size_t n_threads, uint keynr,
 			const bool end_inclusive =
 				max_key != nullptr && max_key->flag == HA_READ_AFTER_KEY;
 
-			Parallel_coordinator::Scan_range scan_range(
+			Parallel_scan_partitioner::Scan_range scan_range(
 				start, end, end_inclusive);
-			err = m_coordinator.add_scan(
+			err = m_partitioner.add_scan(
 				prebuilt->trx,
-				Parallel_coordinator::Config(scan_range, index));
+				Parallel_scan_partitioner::Config(
+					scan_range, index));
 		}
 	}
 
@@ -233,7 +245,7 @@ const key_range* Parallel_scan_worker::get_start_key(size_t scan_id) const
 	return r.start_key.keypart_map ? &r.start_key : NULL;
 }
 
-void Parallel_scan_worker::begin_chunk(Parallel_coordinator::Worker_ctx *wctx)
+void Parallel_scan_worker::begin_chunk(Pscan_worker_ctx *wctx)
 {
 	wctx->m_first_call = true;
 
@@ -254,7 +266,7 @@ void Parallel_scan_worker::begin_chunk(Parallel_coordinator::Worker_ctx *wctx)
 }
 
 bool Parallel_scan_worker::before_range_start(
-	Parallel_coordinator::Worker_ctx *wctx)
+	Pscan_worker_ctx *wctx)
 {
 	/* A chunk is entered with PAGE_CUR_GE, which cannot express an
 	exclusive lower bound ("a > 5"). Skip such rows rather than hand them
@@ -277,7 +289,7 @@ bool Parallel_scan_worker::before_range_start(
 }
 
 const dtuple_t *Parallel_scan_worker::exclusive_start(
-	const Parallel_coordinator::Exec_ctx &exec_ctx) const
+	const Parallel_scan_partitioner::Exec_ctx &exec_ctx) const
 {
 	/* A chunk is opened at its own first record, and that record belongs to
 	the chunk, so the open has to be PAGE_CUR_GE. That cannot express an
@@ -357,6 +369,7 @@ dtuple_t* Parallel_scan_coordinator::convert_key(const key_range *kr,
 }
 
 int Parallel_scan_worker::init(Parallel_worker_ctx *wctx,
+			       Parallel_scan_coordinator *coord,
 			       const Pscan_params &params)
 {
 	/* This handler may still carry state from a previous execution of the
@@ -372,10 +385,11 @@ int Parallel_scan_worker::init(Parallel_worker_ctx *wctx,
 	coordinator's range heap, which it frees only after every worker has
 	been joined. */
 	m_params = params;
+	m_coord = coord;
 
-	auto worker_ctx= static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
-	DBUG_ASSERT(worker_ctx && worker_ctx->m_pcoordinator);
-	auto exec_ctx= worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
+	auto worker_ctx= static_cast<Pscan_worker_ctx*>(wctx);
+	DBUG_ASSERT(worker_ctx);
+	auto exec_ctx = m_coord->get_next_chunk();
 	if (exec_ctx == nullptr)
           return HA_ERR_END_OF_FILE; // No more data
 
@@ -403,10 +417,10 @@ int Parallel_scan_worker::init(Parallel_worker_ctx *wctx,
 
 int Parallel_scan_worker::get_next_row(Parallel_worker_ctx *wctx)
 {
-	auto worker_ctx = static_cast<Parallel_coordinator::Worker_ctx*>(wctx);
+	auto worker_ctx = static_cast<Pscan_worker_ctx*>(wctx);
 	row_prebuilt_t*	prebuilt = m_owner->m_prebuilt;
 
-	/* Loop: when a chunk is exhausted we pull the next job */
+	/* Loop: when a chunk is exhausted we pull the next chunk */
 	for (;;) {
 		const auto& chunk = *worker_ctx->m_exec_ctx;
 		dberr_t err;
@@ -475,8 +489,7 @@ int Parallel_scan_worker::get_next_row(Parallel_worker_ctx *wctx)
 			return convert_error_code_to_mysql(err, prebuilt->table->flags,
 											   m_owner->m_user_thd);
 
-		auto exec_ctx =
-		  worker_ctx->m_pcoordinator->get_job_for_worker(worker_ctx);
+		auto exec_ctx = m_coord->get_next_chunk();
 		if (exec_ctx == nullptr)
 			return HA_ERR_END_OF_FILE; // No more data
 
@@ -500,12 +513,17 @@ int Parallel_scan_worker::end()
 	/* Drop what init() borrowed, so nothing points into the coordinator's
 	range heap once this scan is over. */
 	m_params = Pscan_params();
+	m_coord = nullptr;
 	return 0;
 }
 
 int Parallel_scan_coordinator::end()
 {
-	m_coordinator.cleanup();
+	for (Pscan_worker_ctx *wctx : m_worker_ctxs)
+		UT_DELETE(wctx);
+	m_worker_ctxs.clear();
+
+	m_partitioner.cleanup();
 	if (m_range_heap) {
 		mem_heap_free(m_range_heap);
 		m_range_heap = nullptr;
@@ -593,7 +611,8 @@ int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx,
 			return HA_ERR_OUT_OF_MEM;
 	}
 
-	return m_pscan_worker->init(wctx, master->m_pscan_coord->params());
+	return m_pscan_worker->init(wctx, master->m_pscan_coord,
+				    master->m_pscan_coord->params());
 }
 
 int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)

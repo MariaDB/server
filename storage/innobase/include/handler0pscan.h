@@ -33,9 +33,30 @@ KEY_MULTI_RANGE, key_range) already being visible there. */
 #ifndef handler0pscan_h
 #define handler0pscan_h
 
-#include "row0pcoord.h"
+#include "btr0pscan.h"
 
 class ha_innobase;
+class Parallel_scan_coordinator;
+
+/** What one worker thread keeps between reads: the chunk it is on and where
+it is within it. Allocated one per worker by Parallel_scan_coordinator::init(),
+handed to the SQL layer, and given back to Parallel_scan_worker::init(). */
+struct Pscan_worker_ctx : public Parallel_worker_ctx
+{
+	/** The chunk being read, held by shared_ptr because its boundary
+	tuples live in it. */
+	std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> m_exec_ctx{};
+
+	/** Whether m_exec_ctx still has to be positioned. Cleared by the first
+	read of the chunk, set again when the next chunk is picked up. */
+	bool m_first_call{};
+
+	/** Whether the interval's lower bound still has to be checked. A chunk
+	is entered inclusively, so an exclusive bound needs the first rows
+	filtered; rows arrive in ascending key order, so this clears as soon as
+	one row clears the bound. */
+	bool m_check_start{};
+};
 
 /** Parallel scan parameters recorded by Parallel_scan_coordinator::init()
 and then copied to each Parallel_scan_worker.
@@ -97,15 +118,23 @@ public:
 	safe to call on a coordinator that never got as far as init(). */
 	int end();
 
-	Parallel_worker_ctx *get_worker_context(size_t worker_idx)
+	/** @return the pre-allocated context of worker 'worker_idx' */
+	Parallel_worker_ctx *get_worker_context(size_t worker_idx) const
 	{
-		return m_coordinator.get_worker_ctx(worker_idx);
+		ut_a(worker_idx < m_worker_ctxs.size());
+		return m_worker_ctxs[worker_idx];
+	}
+
+	/** @return the next chunk to scan, or nullptr when there is none */
+	std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> get_next_chunk()
+	{
+		return m_partitioner.get_next_chunk();
 	}
 
 	void get_chunk_stats(ulonglong *chunks_created,
 			     ulonglong *chunks_resplit) const
 	{
-		m_coordinator.get_chunk_stats(chunks_created, chunks_resplit);
+		m_partitioner.get_chunk_stats(chunks_created, chunks_resplit);
 	}
 
 	/** What a worker has to adopt before it can read a chunk. */
@@ -134,14 +163,16 @@ private:
 	/** What init() decided; handed to every worker. */
 	Pscan_params m_params;
 
-	/** The partitioner proper: cuts the index into chunks and serves them
-	to the workers. Distinct from this class, which is only its
-	handler-side half. */
-	Parallel_coordinator m_coordinator;
+	/** Cuts the index into chunks and serves them to the workers. */
+	Parallel_scan_partitioner m_partitioner;
 
-	/** Holds the key tuples handed to m_coordinator for a range scan, and
+	/** Holds the key tuples handed to m_partitioner for a range scan, and
 	the copy of the intervals m_params points into. */
 	mem_heap_t *m_range_heap{};
+
+	/** One context per worker, allocated by init() and freed by end(). */
+	std::vector<Pscan_worker_ctx *, ut_allocator<Pscan_worker_ctx *>>
+		m_worker_ctxs;
 };
 
 
@@ -169,13 +200,16 @@ public:
 	/** Take the first chunk and get ready to read it.
 	@param wctx    this worker's context, from
 	               Parallel_scan_coordinator::get_worker_context()
+	@param coord   the coordinator to take chunks from; it outlives every
+	               worker of the scan
 	@param params  the coordinator's scan parameters. m_keynr says which
 	               index the chunk boundaries were computed on, so it
 	               decides which index this handler must open; without it
 	               the worker would search the wrong tree - MAX_KEY, the
 	               clustered index - with the right boundaries.
 	@return 0, HA_ERR_END_OF_FILE if no chunk was left, or an error */
-	int init(Parallel_worker_ctx *wctx, const Pscan_params &params);
+	int init(Parallel_worker_ctx *wctx, Parallel_scan_coordinator *coord,
+		 const Pscan_params &params);
 
 	int get_next_row(Parallel_worker_ctx *wctx);
 
@@ -190,20 +224,23 @@ private:
 	const key_range *get_start_key(size_t scan_id) const;
 
 	/** Prepare to read the chunk wctx has just picked up. */
-	void begin_chunk(Parallel_coordinator::Worker_ctx *wctx);
+	void begin_chunk(Pscan_worker_ctx *wctx);
 
 	/** Whether the row in table->record[0] falls short of the lower bound
 	of the interval wctx is currently reading. Clears wctx->m_check_start
 	once a row clears the bound. */
-	bool before_range_start(Parallel_coordinator::Worker_ctx *wctx);
+	bool before_range_start(Pscan_worker_ctx *wctx);
 
 	/** The bound to open 'chunk' on so that an exclusive lower bound costs
 	no wasted reads, or NULL to open on the chunk's own first record. */
 	const dtuple_t *exclusive_start(
-		const Parallel_coordinator::Exec_ctx &chunk) const;
+		const Parallel_scan_partitioner::Exec_ctx &chunk) const;
 
 	/** The handler this instance belongs to. */
 	ha_innobase *const m_owner;
+
+	/** The coordinator this worker takes its chunks from. */
+	Parallel_scan_coordinator *m_coord{};
 
 	/** Borrowed from the coordinator by init(); never freed here. */
 	Pscan_params m_params;
