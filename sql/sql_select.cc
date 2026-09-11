@@ -19478,7 +19478,7 @@ static void update_const_equal_items(THD *thd, COND *cond, JOIN_TAB *tab,
                         into "target" instead of "expr".
 */
 static bool
-can_change_cond_ref_to_const(Item_bool_func2 *target,
+can_change_cond_ref_to_const(Item_bool_func *target,
                              Item *target_expr, Item *target_value,
                              Item_bool_func2 *source,
                              Item *source_expr, Item *source_const)
@@ -19488,6 +19488,55 @@ can_change_cond_ref_to_const(Item_bool_func2 *target,
          target->compare_type_handler()->
            can_change_cond_ref_to_const(target, target_expr, target_value,
                                         source, source_expr, source_const);
+}
+
+
+/**
+  Check if
+    WHERE expr IN (value1, ..., valueN) AND expr=const
+  can be rewritten as:
+    WHERE const IN (value1, ..., valueN) AND expr=const
+
+  The predicant is compared against every value of the list, so the rewrite
+  is allowed only when it is allowed for each list member separately.
+
+  Only a predicant whose arguments were all aggregated to one comparison
+  data type is considered.  Otherwise the values are compared to the
+  predicant one by one, each through its own comparator.
+
+  The comparison collation and data type of the target are unchanged by the
+  replacement, so the value list built at fix time remains usable.
+  A constant that stands in for another item is refused.
+
+  @param target       - the IN predicate whose predicant will be replaced
+                        to "const".
+  @param source       - the equality that can be used to rewrite the target.
+  @param source_expr  - the source's "expr".  It should be exactly equal to
+                        the target's predicant to make the rewrite possible.
+  @param source_const - the source's "const" argument, it will be inserted
+                        into the target instead of the predicant.
+*/
+static bool
+can_change_in_ref_to_const(Item_func_in *target, Item_bool_func2 *source,
+                           Item *source_expr, Item *source_const)
+{
+  Item **args= target->arguments();
+
+  // Can't change the IN ref to a const.
+  if (!target->arg_types_compatible || args[0]->const_item() ||
+      source_const->real_item() != source_const)
+    return false;
+
+  // Recurse.
+  for (uint i= 1; i < target->argument_count(); i++)
+  {
+    if (!can_change_cond_ref_to_const(target, args[0], args[i],
+                                      source, source_expr, source_const))
+      return false;
+  }
+
+  // OK we can change the IN ref to a const.
+  return true;
 }
 
 
@@ -19513,6 +19562,30 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
 			       field_value_owner, field, value);
     return;
   }
+
+  /*
+    Optimization for
+      WHERE const IN (item0, ..., itemN) AND const = itemX
+    where X is in (0, ..., N).
+  */
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func*) cond)->functype() == Item_func::IN_FUNC)
+  {
+    Item_func_in *in_func= (Item_func_in*) cond;
+    if (!can_change_in_ref_to_const(in_func, field_value_owner, field, value))
+      return;
+
+    Item *tmp= value->clone_constant(thd);
+    if (!tmp)
+      return;
+
+    Item **args= in_func->arguments();
+    tmp->collation.set(args[0]->collation);
+    thd->change_item_tree(args, tmp);
+    in_func->update_used_tables();
+    return;
+  }
+
   if (cond->eq_cmp_result() == Item::COND_OK)
     return;					// Not a boolean function
 

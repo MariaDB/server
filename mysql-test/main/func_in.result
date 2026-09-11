@@ -1276,3 +1276,133 @@ drop table t1;
 #
 # End of 10.6 tests
 #
+#
+# MDEV-35845 WHERE COL IN (item0, item1, ..., itemN) AND COL = item1
+# Optimization
+#
+create table t1 (v varchar(64), t text, c char(32));
+insert into t1 values ('a','a','a'),('b','b','b');
+explain extended select * from t1 where v in ('a','b') and v = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`t` AS `t`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`v` = 'b'
+explain extended select * from t1 where t in ('a','b') and t = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`t` AS `t`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`t` = 'b'
+explain extended select * from t1 where c in ('a','b') and c = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`t` AS `t`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`c` = 'b'
+explain extended select * from t1 where v not in ('a','b') and v = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`t` AS `t`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 0
+select * from t1 where v in ('a','b') and v = 'b';
+v	t	c
+b	b	b
+select * from t1 where v in ('a','x') and v = 'b';
+v	t	c
+select * from t1 where v not in ('a','b') and v = 'b';
+v	t	c
+drop table t1;
+# The predicant is left alone when the IN predicate and the equality
+# compare with different collations.  Under utf8mb3_german2_ci the
+# o-umlaut row matches 'oe', under utf8mb3_general_ci it does not, so
+# the two predicates ask different questions and neither one answers
+# for the other.
+# Each list holds two values because a one value list is parsed as an
+# equality and never becomes an IN predicate.
+set names utf8mb3 collate utf8mb3_german2_ci;
+create table t1 (a char(10) character set utf8mb3);
+insert into t1 values (_utf8mb3 0xC3B6),('oe');
+explain extended select * from t1
+where a in ('oe','xx') and a = 'oe' collate utf8mb3_german2_ci;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` in ('oe','xx') and `test`.`t1`.`a` = 'oe'
+select hex(a) from t1
+where a in ('oe','xx') and a = 'oe' collate utf8mb3_german2_ci;
+hex(a)
+6F65
+# Only the first value of the next list carries the other collation, so
+# the second value on its own would allow the rewrite.  Refusing the
+# whole predicate shows the check runs per value.
+explain extended select * from t1
+where a in ('oe' collate utf8mb3_german2_ci,'xx') and a = 'oe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` in (<cache>('oe' collate utf8mb3_german2_ci),'xx') and `test`.`t1`.`a` = 'oe'
+select hex(a) from t1
+where a in ('oe' collate utf8mb3_german2_ci,'xx') and a = 'oe';
+hex(a)
+6F65
+# With one collation throughout, the same rows let the rewrite happen.
+# The equality on its own matches both rows, so keeping the IN above is
+# what holds the o-umlaut row back.
+explain extended select * from t1 where a in ('oe','xx') and a = 'oe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'oe'
+select hex(a) from t1 where a in ('oe','xx') and a = 'oe';
+hex(a)
+6F65
+select hex(a) from t1 where a = 'oe' collate utf8mb3_german2_ci;
+hex(a)
+C3B6
+6F65
+drop table t1;
+set names default;
+# A constant that stands in for another item is refused.  Comparing the
+# literal 1 against a YEAR column turns it into the value the column
+# would hold, 2001, and the value list is converted the same way.  A
+# clone of that constant carries the literal 1, which matches nothing in
+# the converted list, so the predicant keeps the column.
+# The equality is <=> rather than = so that the multiple equality
+# machinery leaves the condition to this rewrite.
+create table t1 (y year);
+insert into t1 values (2001),(2002),(2003);
+explain extended select * from t1 where y in (1,2) and y <=> 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`y` AS `y` from `test`.`t1` where `test`.`t1`.`y` in (2001,2002) and `test`.`t1`.`y` <=> 2001
+select * from t1 where y in (1,2) and y <=> 1;
+y
+2001
+select * from t1 where y in (1,2) and y <=> 2;
+y
+2002
+select * from t1 where y in (1,2) and y <=> 3;
+y
+drop table t1;
+# A NULL in the list leaves the predicant alone.  A column in the list
+# does not, and the rewritten predicate still answers correctly.
+create table t1 (v varchar(64), w varchar(64));
+insert into t1 values ('a','a'),('b','b');
+explain extended select * from t1 where v in ('a',NULL) and v = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`w` AS `w` from `test`.`t1` where `test`.`t1`.`v` in ('a',NULL) and `test`.`t1`.`v` = 'b'
+select * from t1 where v in ('a',NULL) and v = 'b';
+v	w
+explain extended select * from t1 where v in ('a',w) and v = 'b';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`v` AS `v`,`test`.`t1`.`w` AS `w` from `test`.`t1` where 'b' in ('a',`test`.`t1`.`w`) and `test`.`t1`.`v` = 'b'
+select * from t1 where v in ('a',w) and v = 'b';
+v	w
+b	b
+drop table t1;
+#
+# End of 11.8 tests
+#
