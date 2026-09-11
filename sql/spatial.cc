@@ -2393,6 +2393,80 @@ int Gis_multi_point::store_shapes(Gcalc_shape_transporter *trn) const
 }
 
 
+int Gis_multi_point::count_shapes_in_mbr(const MBR *filter,
+                                         uint32 *n_shapes) const
+{
+  uint32 n_points;
+  uint32 n_matching= 0;
+  Gis_point pt;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_points= uint4korr(data);
+  data+= 4;
+
+  while (n_points--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    pt.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (pt.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+      n_matching++;
+    data+= pt.get_data_size();
+  }
+  *n_shapes= n_matching;
+  return 0;
+}
+
+
+int Gis_multi_point::store_shapes_in_mbr(Gcalc_shape_transporter *trn,
+                                         const MBR *filter,
+                                         uint32 n_filtered) const
+{
+  uint32 n_points;
+  uint32 n_stored= 0;
+  Gis_point pt;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_points= uint4korr(data);
+  data+= 4;
+
+  if (trn->start_collection(n_filtered))
+    return 1;
+
+  while (n_points--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    pt.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (pt.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+    {
+      if (pt.store_shapes(trn))
+        return 1;
+      n_stored++;
+    }
+    data+= pt.get_data_size();
+  }
+  DBUG_ASSERT(n_stored == n_filtered);
+  return 0;
+}
+
+
 const Geometry::Class_info *Gis_multi_point::get_class_info() const
 {
   return &multipoint_class;
@@ -2882,6 +2956,80 @@ int Gis_multi_line_string::store_shapes(Gcalc_shape_transporter *trn) const
 }
 
 
+int Gis_multi_line_string::count_shapes_in_mbr(const MBR *filter,
+                                               uint32 *n_shapes) const
+{
+  uint32 n_lines;
+  uint32 n_matching= 0;
+  Gis_line_string ls;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_lines= uint4korr(data);
+  data+= 4;
+
+  while (n_lines--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    ls.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (ls.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+      n_matching++;
+    data+= ls.get_data_size();
+  }
+  *n_shapes= n_matching;
+  return 0;
+}
+
+
+int Gis_multi_line_string::store_shapes_in_mbr(Gcalc_shape_transporter *trn,
+                                               const MBR *filter,
+                                               uint32 n_filtered) const
+{
+  uint32 n_lines;
+  uint32 n_stored= 0;
+  Gis_line_string ls;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_lines= uint4korr(data);
+  data+= 4;
+
+  if (trn->start_collection(n_filtered))
+    return 1;
+
+  while (n_lines--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    ls.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (ls.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+    {
+      if (ls.store_shapes(trn))
+        return 1;
+      n_stored++;
+    }
+    data+= ls.get_data_size();
+  }
+  DBUG_ASSERT(n_stored == n_filtered);
+  return 0;
+}
+
+
 const Geometry::Class_info *Gis_multi_line_string::get_class_info() const
 {
   return &multilinestring_class;
@@ -3335,6 +3483,80 @@ int Gis_multi_polygon::store_shapes(Gcalc_shape_transporter *trn) const
       return 1;
     data+= p.get_data_size();
   }
+  return 0;
+}
+
+
+int Gis_multi_polygon::count_shapes_in_mbr(const MBR *filter,
+                                           uint32 *n_shapes) const
+{
+  uint32 n_polygons;
+  uint32 n_matching= 0;
+  Gis_polygon p;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_polygons= uint4korr(data);
+  data+= 4;
+
+  while (n_polygons--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    p.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (p.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+      n_matching++;
+    data+= p.get_data_size();
+  }
+  *n_shapes= n_matching;
+  return 0;
+}
+
+
+int Gis_multi_polygon::store_shapes_in_mbr(Gcalc_shape_transporter *trn,
+                                           const MBR *filter,
+                                           uint32 n_filtered) const
+{
+  uint32 n_polygons;
+  uint32 n_stored= 0;
+  Gis_polygon p;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_polygons= uint4korr(data);
+  data+= 4;
+
+  if (trn->start_collection(n_filtered))
+    return 1;
+
+  while (n_polygons--)
+  {
+    MBR part_mbr;
+    const char *mbr_end;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    data+= WKB_HEADER_SIZE;
+    p.set_data_ptr(data, (uint32) (m_data_end - data));
+    if (p.get_mbr(&part_mbr, &mbr_end))
+      return 1;
+    if (part_mbr.intersects(filter))
+    {
+      if (p.store_shapes(trn))
+        return 1;
+      n_stored++;
+    }
+    data+= p.get_data_size();
+  }
+  DBUG_ASSERT(n_stored == n_filtered);
   return 0;
 }
 
@@ -3906,6 +4128,115 @@ int Gis_geometry_collection::store_shapes(Gcalc_shape_transporter *trn) const
 
     data+= geom->get_data_size();
   }
+  return 0;
+}
+
+
+/*
+  A child of a collection takes part in the scan when its bounding box
+  reaches the filter and it still holds a shape once its own parts are
+  filtered.  The pass that counts the children and the pass that stores
+  them have to agree on that.
+*/
+
+static int count_child_shapes_in_mbr(Geometry *geom, const MBR *filter,
+                                     uint32 *n_shapes)
+{
+  MBR child_mbr;
+  const char *mbr_end;
+
+  if (geom->get_mbr(&child_mbr, &mbr_end))
+    return 1;
+  if (!child_mbr.intersects(filter))
+  {
+    *n_shapes= 0;
+    return 0;
+  }
+  return geom->count_shapes_in_mbr(filter, n_shapes);
+}
+
+
+int Gis_geometry_collection::count_shapes_in_mbr(const MBR *filter,
+                                                 uint32 *n_shapes) const
+{
+  uint32 n_objects;
+  uint32 n_matching= 0;
+  const char *data= m_data;
+  Geometry_buffer buffer;
+  Geometry *geom;
+
+  if (no_data(data, 4))
+    return 1;
+  n_objects= uint4korr(data);
+  data+= 4;
+
+  while (n_objects--)
+  {
+    uint32 wkb_type;
+    uint32 n_child;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    wkb_type= uint4korr(data + 1);
+    data+= WKB_HEADER_SIZE;
+    if (!(geom= create_by_typeid(&buffer, wkb_type)))
+      return 1;
+    geom->set_data_ptr(data, (uint32) (m_data_end - data));
+    if (count_child_shapes_in_mbr(geom, filter, &n_child))
+      return 1;
+    if (n_child)
+      n_matching++;
+    data+= geom->get_data_size();
+  }
+  *n_shapes= n_matching;
+  return 0;
+}
+
+
+int Gis_geometry_collection::store_shapes_in_mbr(Gcalc_shape_transporter *trn,
+                                                 const MBR *filter,
+                                                 uint32 n_filtered) const
+{
+  uint32 n_objects;
+  uint32 n_stored= 0;
+  const char *data= m_data;
+  Geometry_buffer buffer;
+  Geometry *geom;
+
+  if (no_data(data, 4))
+    return 1;
+  n_objects= uint4korr(data);
+  data+= 4;
+
+  if (!n_filtered)
+    return trn->empty_shape();
+
+  if (trn->start_collection(n_filtered))
+    return 1;
+
+  while (n_objects--)
+  {
+    uint32 wkb_type;
+    uint32 n_child;
+
+    if (no_data(data, WKB_HEADER_SIZE))
+      return 1;
+    wkb_type= uint4korr(data + 1);
+    data+= WKB_HEADER_SIZE;
+    if (!(geom= create_by_typeid(&buffer, wkb_type)))
+      return 1;
+    geom->set_data_ptr(data, (uint32) (m_data_end - data));
+    if (count_child_shapes_in_mbr(geom, filter, &n_child))
+      return 1;
+    if (n_child)
+    {
+      if (geom->store_shapes_in_mbr(trn, filter, n_child))
+        return 1;
+      n_stored++;
+    }
+    data+= geom->get_data_size();
+  }
+  DBUG_ASSERT(n_stored == n_filtered);
   return 0;
 }
 
