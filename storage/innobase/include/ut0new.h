@@ -867,6 +867,7 @@ constexpr const char* const auto_event_names[] =
   "innodb_binlog",
   "ha_innodb",
   "handler0alter",
+  "handler0pscan",
   "hash0hash",
   "i_s",
   "lexyy",
