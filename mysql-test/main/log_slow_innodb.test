@@ -95,7 +95,10 @@ SET SESSION long_query_time=0;
 
 --disable_ps_protocol
 --source include/log_slow_start.inc
-SELECT c, count(*) from t1 group by c order by 2 limit 700,10;
+# Every group has the same count, so ordering by it alone leaves the rows
+# the LIMIT window selects undefined.  c breaks the tie; what this case
+# checks is the slow log the sort writes, not which rows come back.
+SELECT c, count(*) from t1 group by c order by 2, 1 limit 700,10;
 --source include/log_slow_stop.inc
 --enable_ps_protocol
 

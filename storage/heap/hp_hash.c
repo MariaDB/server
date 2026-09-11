@@ -367,10 +367,19 @@ static my_bool hp_varchar_seg_data(HP_INFO *info, const HA_KEYSEG *rec_seg,
 
   if ((rec_seg->flag & HA_BLOB_PART) && len)
   {
-    const uchar *chain;
-    DBUG_ASSERT(info);          /* Only a stored segment is out of line */
-    memcpy(&chain, pos + pack_length, sizeof(chain));
-    if (!(*data= hp_materialize_one_blob(info, chain, (uint32) len)))
+    const uchar *out_of_line;
+    memcpy(&out_of_line, pos + pack_length, sizeof(out_of_line));
+    if (!info)
+    {
+      /*
+        An SQL record.  Its pointer addresses the value itself, laid out
+        contiguously, because nothing has packed it into a continuation
+        chain yet.
+      */
+      *data= out_of_line;
+    }
+    else if (!(*data= hp_materialize_one_blob(info, out_of_line,
+                                              (uint32) len)))
       return TRUE;
   }
   else
@@ -380,18 +389,68 @@ static my_bool hp_varchar_seg_data(HP_INFO *info, const HA_KEYSEG *rec_seg,
 }
 
 
+/*
+  The width of a VARCHAR segment's value that takes part in a key.
+
+  An inline value is capped at the segment's declared width, which is what
+  sql_seg->length carries: a key over a VARCHAR(N) compares at most N
+  characters' worth of bytes.
+
+  An out-of-line value is fetched whole by hp_varchar_seg_data(), and the
+  same cap applies to it: a user table's key part may be a prefix of the
+  column -- KEY (t(200)) over a VARCHAR(2000) -- and the SQL layer moves
+  that column's payload out of the record whatever its key parts look
+  like.  A key part that takes the whole column is capped at a width the
+  value cannot exceed, so the cap costs it nothing.
+
+  sql_seg must come from the SQL segments, as the name says.  Only there
+  does HA_BLOB_PART mean "the SQL record holds a length and a pointer":
+  hp_make_stored_keysegs() also sets it on a stored segment whose column
+  the engine itself packed out of line, where the SQL record still holds
+  the value inline.
+*/
+
+static size_t hp_varchar_seg_width(const HA_KEYSEG *sql_seg,
+                                   const uchar *data, size_t length)
+{
+  CHARSET_INFO *cs= sql_seg->charset;
+
+  if (cs->mbmaxlen > 1)
+  {
+    size_t char_length= sql_seg->length / cs->mbmaxlen;
+    /*
+      Only a value holding more bytes than the segment takes characters
+      can reach past the cap, and only then is the value worth walking:
+      below that hp_charpos() would walk to its end and hand back the
+      length it was given.
+    */
+    if (length > char_length)
+      char_length= hp_charpos(cs, data, data + length, char_length);
+    set_if_smaller(length, char_length);
+  }
+  else
+    set_if_smaller(length, sql_seg->length);
+  return length;
+}
+
+
 ulong hp_rec_hashnr(HP_INFO *info, HP_KEYDEF *keydef, const uchar *rec)
 {
   my_hasher_st hasher= my_hasher_mysql5x();
-  HA_KEYSEG *store_seg,*endseg;
+  HA_KEYSEG *store_seg,*endseg,*sql_seg;
 
   /*
     A stored record is addressed by the stored segments: promotion has
     compacted the record, moving everything after the first promoted
     column.  Without promotion the two arrays are the same pointer.
+    sql_seg walks the SQL segments in step, for the one decision that
+    describes the column rather than the record being hashed.
   */
   store_seg= info ? keydef->seg_stored : keydef->seg;
-  for (endseg= store_seg + keydef->keysegs ; store_seg < endseg ; store_seg++)
+  sql_seg= keydef->seg;
+  for (endseg= store_seg + keydef->keysegs ;
+       store_seg < endseg ;
+       store_seg++, sql_seg++)
   {
     const uchar *pos= rec+store_seg->start;
     const uchar *end= pos+store_seg->length;
@@ -424,15 +483,7 @@ ulong hp_rec_hashnr(HP_INFO *info, HP_KEYDEF *keydef, const uchar *rec)
       if (hp_varchar_seg_data(info, store_seg, rec, &data, &length))
         return 0;
 
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length;
-        char_length= hp_charpos(cs, data, data + length,
-                                store_seg->length/cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
-      else
-        set_if_smaller(length, store_seg->length);
+      length= hp_varchar_seg_width(sql_seg, data, length);
       my_ci_hash_sort(&hasher, cs, data, length);
     }
     else if (store_seg->type == HA_KEYTYPE_VARTEXT4 ||
@@ -628,24 +679,9 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2,
       }
       else
       {
-        size_t char_length1= len1;
-        size_t char_length2= len2;
+        size_t char_length1= hp_varchar_seg_width(sql_seg, pos1, len1);
+        size_t char_length2= hp_varchar_seg_width(sql_seg, pos2, len2);
 
-        if (cs->mbmaxlen > 1)
-        {
-          size_t safe_length1= char_length1;
-          size_t safe_length2= char_length2;
-          size_t char_length= sql_seg->length / cs->mbmaxlen;
-          char_length1= hp_charpos(cs, pos1, pos1 + char_length1, char_length);
-          set_if_smaller(char_length1, safe_length1);
-          char_length2= hp_charpos(cs, pos2, pos2 + char_length2, char_length);
-          set_if_smaller(char_length2, safe_length2);
-        }
-        else
-        {
-          set_if_smaller(char_length1, sql_seg->length);
-          set_if_smaller(char_length2, sql_seg->length);
-        }
         if (my_ci_strnncollsp(sql_seg->charset,
                               pos1, char_length1,
                               pos2, char_length2))
@@ -791,15 +827,11 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key,
       {
         if (cs->mbmaxlen > 1)
         {
-          size_t char_length1, char_length2;
-          char_length1= char_length2= sql_seg->length / cs->mbmaxlen; 
-          char_length1= hp_charpos(cs, key, key + char_length_key, char_length1);
+          size_t char_length1= hp_charpos(cs, key, key + char_length_key,
+                                          sql_seg->length / cs->mbmaxlen);
           set_if_smaller(char_length_key, char_length1);
-          char_length2= hp_charpos(cs, pos, pos + char_length_rec, char_length2);
-          set_if_smaller(char_length_rec, char_length2);
         }
-        else
-          set_if_smaller(char_length_rec, sql_seg->length);
+        char_length_rec= hp_varchar_seg_width(sql_seg, pos, char_length_rec);
 
         if (my_ci_strnncollsp(sql_seg->charset,
                               pos, char_length_rec,
@@ -838,6 +870,19 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
     CHARSET_INFO *cs= seg->charset;
     size_t char_length= seg->length;
     uchar *pos= (uchar*) rec + seg->start;
+    /*
+      This builds a key from the SQL record buffer, where a column whose
+      data is out of line holds a length and a pointer rather than the
+      value.  The VARTEXT4 branch below is the only one that reads a
+      segment that way, so a segment marked HA_BLOB_PART has to be one.
+
+      A promoted VARCHAR keeps its VARTEXT1 or VARTEXT2 type and would be
+      keyed on the pointer bytes by the branches below.  Nothing builds a
+      key over one today: hp_make_key() is reached from heap_rsame(),
+      which ha_heap never calls.
+    */
+    DBUG_ASSERT(!(seg->flag & HA_BLOB_PART) ||
+                seg->type == HA_KEYTYPE_VARTEXT4);
     if (seg->null_bit)
       *key++= MY_TEST(rec[seg->null_pos] & seg->null_bit);
     if (seg->type == HA_KEYTYPE_VARTEXT4)
@@ -952,20 +997,23 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 
     if (seg->flag & HA_VAR_LENGTH_PART)
     {
-      uchar *pos=      (uchar*) rec + seg->start;
-      size_t length=     seg->length;
-      size_t pack_length= seg->bit_start;
-      size_t tmp_length= (pack_length == 1 ? (uint) *(uchar*) pos :
-                        uint2korr(pos));
-      CHARSET_INFO *cs= seg->charset;
-      char_length= length/cs->mbmaxlen;
+      const uchar *pos;
+      size_t length;
+      /*
+        BTREE builds its keys from the SQL record, where a column stored
+        out of line holds a length prefix and a pointer to the value
+        rather than the value.  Resolving the segment is what the hash
+        path does as well, and it cannot fail here: only a stored record
+        needs materializing, and rec is never one.
+      */
+      my_bool failed __attribute__((unused))=
+        hp_varchar_seg_data(NULL, seg, rec, &pos, &length);
+      DBUG_ASSERT(!failed);
 
-      pos+= pack_length;			/* Skip VARCHAR length */
-      set_if_smaller(length,tmp_length);
-      FIX_LENGTH(cs, pos, length, char_length);
-      store_key_length_inc(key,char_length);
-      memcpy((uchar*) key,(uchar*) pos,(size_t) char_length);
-      key+= char_length;
+      length= hp_varchar_seg_width(seg, pos, length);
+      store_key_length_inc(key, length);
+      memcpy((uchar*) key, pos, length);
+      key+= length;
       continue;
     }
 
@@ -1033,9 +1081,14 @@ uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
       }
       continue;
     }
-    DBUG_ASSERT(!(seg->flag & HA_BLOB_PART));
     if (seg->flag & (HA_VAR_LENGTH_PART | HA_BLOB_PART))
     {
+      /*
+        A key tuple carries the value itself behind a two-byte length,
+        whatever the record it was built from keeps at that column.  So
+        HA_BLOB_PART, which says the record holds a pointer, says nothing
+        here and the two flags are read the same way.
+      */
       /* Length of key-part used with heap_rkey() always 2 */
       size_t tmp_length=uint2korr(old);
       size_t length= seg->length;

@@ -23,27 +23,43 @@
 --disable_ps2_protocol
 
 --echo #
---echo # Setup: 1000 distinct pairs of ~1 KB values, each pair present twice,
---echo # with the two copies of a pair adjacent, so that the write which
---echo # overflows a deduplicating temporary table is always a duplicate of a
---echo # row the conversion has already copied.
+--echo # Setup: 1000 distinct rows, each present twice, with the two copies
+--echo # adjacent, so that the write which overflows a deduplicating
+--echo # temporary table is always a duplicate of a row the conversion has
+--echo # already copied.
 --echo #
---echo # The columns are wide enough that the deduplicating key does not fit
---echo # into a key of the on-disk temporary engine, so deduplication goes
---echo # through a unique constraint rather than through a unique index.
+--echo # k is what makes the rows distinct. v and w are wide enough that the
+--echo # deduplicating key does not fit into a key of the on-disk temporary
+--echo # engine, so deduplication goes through a unique constraint rather
+--echo # than through a unique index, and they are left empty because that
+--echo # is all they are here for.
+--echo #
+--echo # Empty is also what keeps the overflow where this test needs it. A
+--echo # column that wide is stored out of line, so a row holding a value in
+--echo # one takes a record slot and a place for the value as well, and the
+--echo # write that finds the table full is then as likely to be the one
+--echo # storing the value as the duplicate that follows it. With nothing to
+--echo # store out of line a row costs one record slot, the table fills at
+--echo # the end of a write that stored a row, and the write that finds it
+--echo # full is the duplicate of that row.
+--echo #
+--echo # The limit is chosen so that the table holds well over the hundred
+--echo # rows the path above needs by the time it fills.
 --echo #
 
 set @save_tmp_memory_table_size=@@tmp_memory_table_size;
 set @save_max_heap_table_size=@@max_heap_table_size;
+# The limit the converting runs use, and what count_distinct_converted.inc
+# puts back after it has read the counter under the restored one.
+set @small_heap=16384;
 
-CREATE TABLE t1 (id INT, v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+CREATE TABLE t1 (id INT, k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
 INSERT INTO t1
-SELECT (seq+1) DIV 2,
-       CONCAT('v', LPAD((seq+1) DIV 2, 6, '0')),
-       CONCAT('w', LPAD((seq+1) DIV 2, 6, '0'))
+SELECT (seq+1) DIV 2, LPAD((seq+1) DIV 2, 6, '0'), '', ''
 FROM seq_1_to_2000;
 
-SELECT COUNT(*), COUNT(DISTINCT v, w) FROM t1;
+SELECT COUNT(*), COUNT(DISTINCT k, v, w) FROM t1;
 
 --echo #
 --echo # ================================================================
@@ -51,50 +67,41 @@ SELECT COUNT(*), COUNT(DISTINCT v, w) FROM t1;
 --echo # ================================================================
 --echo #
 
-set @@tmp_memory_table_size=1024*1024*2;
-set @@max_heap_table_size=1024*1024*2;
+set @@tmp_memory_table_size=@small_heap;
+set @@max_heap_table_size=@small_heap;
 
 --echo # --- SELECT DISTINCT (end_write path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1) dt;
-SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
-FROM INFORMATION_SCHEMA.SESSION_STATUS
-WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1) dt;
+--source count_distinct_converted.inc
 
 --echo # --- SELECT DISTINCT with ORDER BY ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
-SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
-FROM INFORMATION_SCHEMA.SESSION_STATUS
-WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1 ORDER BY k, v, w) dt;
+--source count_distinct_converted.inc
 
 --echo # --- GROUP BY (end_update path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
-SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
-FROM INFORMATION_SCHEMA.SESSION_STATUS
-WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT k, v, w FROM t1 GROUP BY k, v, w) dt;
+--source count_distinct_converted.inc
 
 --echo # --- UNION DISTINCT (select_unit::write_record path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
-SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
-FROM INFORMATION_SCHEMA.SESSION_STATUS
-WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM ((SELECT k, v, w FROM t1) UNION (SELECT k, v, w FROM t1)) dt;
+--source count_distinct_converted.inc
 
 --echo # --- INSERT SELECT DISTINCT: the duplicate reaches a user table ---
 FLUSH STATUS;
-CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
-INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
-SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+CREATE TABLE t2 (k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT k, v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
 FROM t2;
-SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
-FROM INFORMATION_SCHEMA.SESSION_STATUS
-WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+--source count_distinct_converted.inc
 DROP TABLE t2;
 
 --echo #
@@ -107,27 +114,74 @@ set @@tmp_memory_table_size=1024*1024*512;
 set @@max_heap_table_size=1024*1024*512;
 
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1) dt;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
-CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
-INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
-SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1 ORDER BY k, v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT k, v, w FROM t1 GROUP BY k, v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM ((SELECT k, v, w FROM t1) UNION (SELECT k, v, w FROM t1)) dt;
+CREATE TABLE t2 (k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT k, v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
 FROM t2;
+# Read the counter directly rather than through count_distinct_converted.inc:
+# the limit this run uses is large enough that the read cannot convert a
+# temporary table of its own, so there is nothing to take precautions against,
+# and the .inc would leave the shrunken limit behind for the run below.
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
 FROM INFORMATION_SCHEMA.SESSION_STATUS
 WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+
+--echo #
+--echo # ================================================================
+--echo # Run 3: the same conversion with the wide columns carrying values
+--echo # ================================================================
+--echo #
+--echo # Runs 1 and 2 leave v and w empty, which is what pins the overflow
+--echo # to a duplicate write. With values in them the overflow point moves
+--echo # with the data, so this run asserts only what does not depend on it:
+--echo # that the conversion happens, and that deduplication over columns
+--echo # whose payload is stored out of line still returns each distinct row
+--echo # exactly once. Without this the branch's own storage layout never
+--echo # meets the conversion path.
+--echo #
+
+CREATE TABLE t3 (id INT, v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+INSERT INTO t3
+SELECT (seq+1) DIV 2,
+       CONCAT('v', LPAD((seq+1) DIV 2, 6, '0')),
+       CONCAT('w', LPAD((seq+1) DIV 2, 6, '0'))
+FROM seq_1_to_2000;
+
+set @@tmp_memory_table_size=@small_heap;
+set @@max_heap_table_size=@small_heap;
+
+--echo # --- SELECT DISTINCT (end_write path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t3) dt;
+--source count_distinct_converted.inc
+
+--echo # --- GROUP BY (end_update path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT v, w FROM t3 GROUP BY v, w) dt;
+--source count_distinct_converted.inc
+
+--echo # --- UNION DISTINCT (select_unit::write_record path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM ((SELECT v, w FROM t3) UNION (SELECT v, w FROM t3)) dt;
+--source count_distinct_converted.inc
 
 --echo # Clean up
 
 set @@tmp_memory_table_size=@save_tmp_memory_table_size;
 set @@max_heap_table_size=@save_max_heap_table_size;
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
 
 --enable_ps2_protocol
 --enable_ps_protocol

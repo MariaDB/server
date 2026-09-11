@@ -1,0 +1,138 @@
+DROP TABLE IF EXISTS t1, t2, t3, t_below, t_above;
+#
+# The record is reshaped, and only above the threshold.
+#
+# AVG_ROW_LENGTH is the width the engine lays a row out in.  A
+# column left inline reserves what it was declared as; one moved
+# out of the record reserves a length prefix and a pointer, so a
+# table whose declared width dwarfs its row width is one whose
+# payload is not in the row.
+#
+CREATE TABLE t_below (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_above (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1;
+SELECT TABLE_NAME,
+AVG_ROW_LENGTH >= 32 AS at_least_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_below';
+TABLE_NAME	at_least_declared_width
+t_below	1
+SELECT TABLE_NAME,
+AVG_ROW_LENGTH < 100 AS far_below_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_above';
+TABLE_NAME	far_below_declared_width
+t_above	1
+DROP TABLE t_below, t_above;
+#
+# Every column after a promoted one moves, so each of these reads
+# the wrong bytes if the record was reshaped and the column was
+# not told.  Two promoted columns with narrow ones between and
+# after them is the arrangement that catches a single delta
+# applied where a running one was needed.
+#
+CREATE TABLE t1 (
+a INT,
+b VARCHAR(2000),
+c INT,
+d VARCHAR(3000),
+e CHAR(10),
+f INT
+) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t1 VALUES (1, REPEAT('b',100), 2, REPEAT('d',200), 'tail', 3);
+INSERT INTO t1 VALUES (4, '',             5, NULL,             '',     6);
+INSERT INTO t1 VALUES (7, REPEAT('x',1999), 8, REPEAT('y',3000), 'z',  9);
+SELECT a, LENGTH(b), LEFT(b,1), c, LENGTH(d), LEFT(d,1), e, f
+FROM t1 ORDER BY a;
+a	LENGTH(b)	LEFT(b,1)	c	LENGTH(d)	LEFT(d,1)	e	f
+1	100	b	2	200	d	tail	3
+4	0		5	NULL	NULL		6
+7	1999	x	8	3000	y	z	9
+#
+# A row read while another is being read: the second read must not
+# take the first row's payload with it.
+#
+SELECT x.a, LENGTH(x.b), y.a, LENGTH(y.b)
+FROM t1 AS x, t1 AS y WHERE x.a < y.a ORDER BY x.a, y.a;
+a	LENGTH(x.b)	a	LENGTH(y.b)
+1	100	4	0
+1	100	7	1999
+4	0	7	1999
+UPDATE t1 SET b = b, d = CONCAT(d, d) WHERE a = 1;
+SELECT a, LENGTH(b), LENGTH(d) FROM t1 WHERE a = 1;
+a	LENGTH(b)	LENGTH(d)
+1	100	400
+DELETE FROM t1 WHERE a = 4;
+SELECT a, LENGTH(b), LENGTH(d), f FROM t1 ORDER BY a;
+a	LENGTH(b)	LENGTH(d)	f
+1	100	400	3
+7	1999	3000	9
+DROP TABLE t1;
+#
+# A DEFAULT is stored inline in the frm, where the slot now holds
+# a pointer, so it has to be moved somewhere the slot can point.
+#
+CREATE TABLE t2 (
+a INT DEFAULT 7,
+b VARCHAR(2000) DEFAULT 'a default wider than the threshold',
+c VARCHAR(2000) DEFAULT '',
+d VARCHAR(2000),
+e INT DEFAULT 9
+) ENGINE=MEMORY CHARACTER SET latin1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT 7,
+  `b` varchar(2000) DEFAULT 'a default wider than the threshold',
+  `c` varchar(2000) DEFAULT '',
+  `d` varchar(2000) DEFAULT NULL,
+  `e` int(11) DEFAULT 9
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t2 () VALUES ();
+INSERT INTO t2 () VALUES ();
+SELECT a, b, LENGTH(c), d IS NULL AS d_is_null, e FROM t2;
+a	b	LENGTH(c)	d_is_null	e
+7	a default wider than the threshold	0	1	9
+7	a default wider than the threshold	0	1	9
+# The default outlives the statement that first read it, and is
+# not disturbed by a row that stores over the column.
+UPDATE t2 SET b = 'stored' WHERE a = 7 LIMIT 1;
+INSERT INTO t2 () VALUES ();
+SELECT b, COUNT(*) FROM t2 GROUP BY b ORDER BY b;
+b	COUNT(*)
+a default wider than the threshold	2
+stored	1
+DROP TABLE t2;
+#
+# A key over a promoted column reads it through the pointer.
+#
+CREATE TABLE t3 (
+a VARCHAR(2000),
+b INT,
+KEY USING BTREE (a(200)),
+KEY (b)
+) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t3 SELECT CONCAT(REPEAT('k', 300), seq), seq FROM seq_1_to_20;
+SELECT COUNT(*), COUNT(DISTINCT a) FROM t3;
+COUNT(*)	COUNT(DISTINCT a)
+20	20
+SELECT b, LENGTH(a) FROM t3 WHERE a = CONCAT(REPEAT('k',300), 7);
+b	LENGTH(a)
+7	301
+SELECT b FROM t3 WHERE a > CONCAT(REPEAT('k',300), 8) ORDER BY a LIMIT 3;
+b
+9
+DROP TABLE t3;
+#
+# A promoted column still fills the table by bytes, not by its
+# declared width: inline a VARCHAR(60000) row reserves 60000
+# bytes whether or not it holds any.
+#
+SET @save_max_heap_table_size = @@max_heap_table_size;
+SET @@max_heap_table_size = 1024*1024;
+CREATE TABLE t_cap (a VARCHAR(60000)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_cap SELECT '' FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_cap;
+rows_held
+200
+DROP TABLE t_cap;
+SET @@max_heap_table_size = @save_max_heap_table_size;

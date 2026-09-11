@@ -918,7 +918,9 @@ protected:
     DBUG_ASSERT(!param->make_copy_field());
     DBUG_ASSERT(!is_result_field());
     DBUG_ASSERT(type() != NULL_ITEM);
-    return tmp_table_field_from_field_type(root, table, param);
+    return heap_move_out_of_line(root, table,
+                                 tmp_table_field_from_field_type(root, table,
+                                                                 param));
   }
   Field *create_tmp_field_int(MEM_ROOT *root, TABLE *table,
                               uint convert_int_length);

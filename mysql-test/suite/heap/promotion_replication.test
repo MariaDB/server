@@ -1,0 +1,238 @@
+#
+# Row-based replication of a MEMORY table whose wide VARCHARs keep
+# their payload outside the record.
+#
+# Where a column's payload sits is the engine's arrangement, and the
+# binary log describes the column the user declared.  So a promoted
+# column has to be written to the log as the VARCHAR it is, and a
+# master and a slave that disagree about promotion have to agree about
+# the rows: the two ends of a replication link need not even be running
+# the same engine, let alone the same threshold.
+#
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # The row events describe the columns as declared.
+--echo #
+--echo # The annotations below come from the table map event, which is
+--echo # what a slave builds its idea of the master's table from.  A
+--echo # promoted column must appear there as VARSTRING of its declared
+--echo # width; were promotion to reach the log, it would read as BLOB
+--echo # and every slave would store it as one.
+--echo #
+
+--connection master
+
+CREATE TABLE t1 (
+  pk INT PRIMARY KEY,
+  a VARCHAR(100) CHARACTER SET latin1,
+  b VARCHAR(2000) CHARACTER SET latin1,
+  c VARCHAR(20) CHARACTER SET latin1,
+  d BLOB
+) ENGINE=MEMORY;
+
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir= `SELECT @@datadir`
+
+# Short values: what is being read here is the type each column is
+# described with, and a long one would only fill the log with itself.
+INSERT INTO t1 VALUES (1, 'narrow', 'wide', 'inline', 'blob');
+UPDATE t1 SET b = 'changed' WHERE pk = 1;
+DELETE FROM t1 WHERE pk = 1;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /^\# at .*// /.*SET (@@|TIMESTAMP).*// /.* end_log_pos .*// /xid=\d*/xid=<xid>/
+--exec $MYSQL_BINLOG --force-if-open --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
+
+--sync_slave_with_master
+
+--echo #
+--echo # A promoted column survives the round trip, at every length the
+--echo # record can hold and in both length-prefix widths.  A VARCHAR
+--echo # declared narrow enough to stay inline rides along as a control,
+--echo # and so does a declared blob.
+--echo #
+
+--connection master
+
+CREATE TABLE t2 (
+  pk INT PRIMARY KEY,
+  one VARCHAR(100) CHARACTER SET latin1,
+  two VARCHAR(2000) CHARACTER SET latin1,
+  utf VARCHAR(50) CHARACTER SET utf8mb4,
+  small VARCHAR(20) CHARACTER SET latin1,
+  blb BLOB
+) ENGINE=MEMORY;
+
+INSERT INTO t2 VALUES
+  (1, REPEAT('a', 100), REPEAT('b', 2000), REPEAT('e', 50), 'short', REPEAT('f', 3000)),
+  (2, '',               '',                '',              '',      ''),
+  (3, NULL,             NULL,              NULL,            NULL,    NULL),
+  (4, 'x',              REPEAT('y', 33),   _utf8mb4 0xF09F9880, 'z',  'w'),
+  (5, REPEAT('g', 99),  REPEAT('h', 1999), REPEAT(_utf8mb4 0xC3A9, 50), 'q', 'r');
+
+--sync_slave_with_master
+
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+
+--echo # The before image of an UPDATE carries the promoted column, so
+--echo # the row the slave changes is found by comparing what the master
+--echo # read out of a record that does not hold it.
+
+--connection master
+UPDATE t2 SET two = CONCAT(two, two) WHERE pk = 4;
+UPDATE t2 SET one = NULL, two = NULL WHERE pk = 1;
+UPDATE t2 SET one = REPEAT('n', 100) WHERE pk = 3;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+
+--echo # A DELETE sends the before image alone.
+
+--connection master
+DELETE FROM t2 WHERE pk IN (2, 5);
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+
+--echo #
+--echo # A master that promotes and a slave that does not.
+--echo #
+--echo # The slave's copy is moved to an engine that keeps every VARCHAR
+--echo # in the record, so the master packs from a record holding a
+--echo # pointer and the slave unpacks into one holding the bytes.
+--echo #
+
+--connection master
+
+CREATE TABLE t3 (
+  pk INT PRIMARY KEY,
+  a VARCHAR(100) CHARACTER SET latin1,
+  b VARCHAR(2000) CHARACTER SET latin1
+) ENGINE=MEMORY;
+
+INSERT INTO t3 VALUES (1, 'seed', 'seed');
+--sync_slave_with_master
+
+--connection slave
+ALTER TABLE t3 ENGINE=MyISAM;
+SELECT ENGINE FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't3';
+
+--connection master
+INSERT INTO t3 VALUES
+  (2, REPEAT('a', 100), REPEAT('b', 2000)),
+  (3, '',               NULL),
+  (4, NULL,             REPEAT('c', 33));
+UPDATE t3 SET b = REPEAT('d', 77) WHERE pk = 2;
+DELETE FROM t3 WHERE pk = 3;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t3, slave:test.t3
+--source include/diff_tables.inc
+
+--echo #
+--echo # A master that does not promote and a slave that does.
+--echo #
+--echo # This is the same link read the other way round: the master
+--echo # packs from a record holding the bytes and the slave unpacks
+--echo # into one holding a pointer.
+--echo #
+
+--connection master
+
+CREATE TABLE t4 (
+  pk INT PRIMARY KEY,
+  a VARCHAR(100) CHARACTER SET latin1,
+  b VARCHAR(2000) CHARACTER SET latin1
+) ENGINE=MyISAM;
+
+INSERT INTO t4 VALUES (1, 'seed', 'seed');
+--sync_slave_with_master
+
+--connection slave
+ALTER TABLE t4 ENGINE=MEMORY;
+SELECT ENGINE FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't4';
+
+--connection master
+INSERT INTO t4 VALUES
+  (2, REPEAT('a', 100), REPEAT('b', 2000)),
+  (3, '',               NULL),
+  (4, NULL,             REPEAT('c', 33));
+UPDATE t4 SET b = REPEAT('d', 77) WHERE pk = 2;
+UPDATE t4 SET a = NULL WHERE pk = 2;
+DELETE FROM t4 WHERE pk = 3;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t4, slave:test.t4
+--source include/diff_tables.inc
+
+--echo #
+--echo # binlog_row_image chooses columns by what they were declared as,
+--echo # not by where their payload is kept.
+--echo #
+--echo # NOBLOB drops blob columns from the image.  A promoted VARCHAR is
+--echo # not one, so it stays -- were it dropped, the engine's storage
+--echo # decision would silently change what replication carries.
+--echo #
+
+--connection master
+SET @save_row_image= @@binlog_row_image;
+SET binlog_row_image = 'NOBLOB';
+
+CREATE TABLE t5 (
+  pk INT PRIMARY KEY,
+  a VARCHAR(2000) CHARACTER SET latin1,
+  blb BLOB
+) ENGINE=MEMORY;
+
+INSERT INTO t5 VALUES (1, REPEAT('a', 500), REPEAT('z', 500));
+UPDATE t5 SET a = REPEAT('b', 600) WHERE pk = 1;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t5, slave:test.t5
+--source include/diff_tables.inc
+
+--connection master
+SET binlog_row_image = 'MINIMAL';
+UPDATE t5 SET a = REPEAT('c', 700) WHERE pk = 1;
+INSERT INTO t5 VALUES (2, REPEAT('d', 800), NULL);
+DELETE FROM t5 WHERE pk = 1;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t5, slave:test.t5
+--source include/diff_tables.inc
+
+--connection master
+SET binlog_row_image = @save_row_image;
+
+--echo #
+--echo # A table with no primary key makes the slave find its row by
+--echo # comparing whole records, promoted column included.
+--echo #
+
+CREATE TABLE t6 (
+  a VARCHAR(2000) CHARACTER SET latin1,
+  n INT
+) ENGINE=MEMORY;
+
+INSERT INTO t6 VALUES (REPEAT('a', 100), 1), (REPEAT('a', 100), 2),
+                      ('', 3), (NULL, 4);
+UPDATE t6 SET a = REPEAT('b', 2000) WHERE n = 2;
+DELETE FROM t6 WHERE n = 1;
+
+--sync_slave_with_master
+--let $diff_tables= master:test.t6, slave:test.t6
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t1, t2, t3, t4, t5, t6;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

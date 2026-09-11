@@ -148,8 +148,12 @@ void Expression_cache_tmptable::init()
     value would not affect the key. However, it matches the pre-blob
     behavior where blobs forced Aria, which failed the heap_hton check
     above and disabled the cache anyway.
+
+    A VARCHAR whose payload sits outside the record is not one of these:
+    make_new_field() gives the key field its payload back in the record,
+    so the key format is the one the SQL layer expects.
   */
-  if (cache_table->s->blob_fields)
+  if (cache_table->has_unbounded_blob_field())
   {
     DBUG_PRINT("error", ("blob fields not supported in heap expression cache"));
     goto error;
