@@ -11,6 +11,13 @@ INSERT INTO at1 VALUES (2), (3), (5), (7);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
 
+# Create a table that must be copied and renamed during the backup
+CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
+# Because log checkpoint will complete before BACKUP SERVER,
+# the above CREATE TABLE must lead to copying the data file,
+# instead of recovering it via a FILE_CREATE record.
+SET GLOBAL innodb_log_checkpoint_now=ON;
+
 CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
 ENGINE=INNODB;
 BEGIN;
@@ -56,6 +63,10 @@ send_eval BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
 if ($have_debug) {
 SET DEBUG_SYNC='now WAIT_FOR start';
 }
+--connect rename,localhost,root
+RENAME TABLE rt TO rtt;
+--disconnect rename
+--connection default
 INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
 if ($have_debug) {
 SET DEBUG_SYNC='now SIGNAL resume';
@@ -65,9 +76,17 @@ SET DEBUG_SYNC='now SIGNAL resume';
 --disconnect backup
 --connection default
 ROLLBACK;
+SELECT * FROM rtt;
 SELECT * FROM t;
 DELETE FROM t;
 DROP TABLE at0, at1;
+
+if (!$have_debug) {
+# Without involving DEBUG_SYNC, the RENAME TABLE could have been
+# executed before InnoDB_backup::init() collected the file names.
+--replace_result rtt.ibd rt.ibd
+}
+--list_files $target_directory/test rt*
 
 if ($MARIADB_UPGRADE_EXE) {
 let target_directory=$target_directory;
@@ -85,6 +104,7 @@ if (!$MARIADB_UPGRADE_EXE) {
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
 --source include/restart_mysqld.inc
 
+SELECT * FROM rtt;
 SELECT * FROM t;
 # A nonzero innodb_log_recovery_target makes InnoDB read-only.
 --error ER_OPEN_AS_READONLY
@@ -103,5 +123,7 @@ SELECT * FROM at1;
 --source include/restart_mysqld.inc
 SELECT * FROM t;
 DROP TABLE t;
+SELECT * FROM rtt;
+DROP TABLE rtt;
 
 --rmdir $target_directory

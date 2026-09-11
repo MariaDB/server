@@ -62,6 +62,23 @@ inline void buf_page_t::write_unfix_try() noexcept
                                         std::memory_order_relaxed));
 }
 
+inline void fil_node_t::set_backup_name() noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  if (backup_name != name)
+    ut_free(backup_name);
+  backup_name= name;
+}
+
+inline const char *fil_node_t::get_backup_name(char *&backup_name) noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_ad(this->backup_name);
+  backup_name= this->backup_name;
+  this->backup_name= nullptr;
+  return name;
+}
+
 /**
    Ensure that there are no page writes in progress.
    @param end        array of fil_space_t::BACKUP_BATCH_SIZE block descriptors
@@ -341,12 +358,12 @@ private:
         log_sys.latch.rd_lock();
         const lsn_t current_first_lsn{log_sys.get_first_lsn()};
         log_sys.latch.rd_unlock();
+        ut_ad(hl != current_first_lsn || sink.stream == sink.NO_STREAM);
 
-        if (hl == current_first_lsn)
-        {
-          ut_ad(sink.stream == sink.NO_STREAM);
+        if (hl == current_first_lsn ||
+            (last_lsn < current_first_lsn && sink.stream == sink.NO_STREAM))
           fail= de_hardlink(target, hl);
-        }
+
         if (!fail)
           fail= write_config(target, sink);
       }
@@ -434,6 +451,8 @@ public:
       no matter which name was used by step(). */
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
+      {
+        UT_LIST_GET_FIRST(space.chain)->set_backup_name();
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
             !space.is_being_imported() && !space.is_stopping() &&
             space.create_lsn <= start) try
@@ -454,6 +473,7 @@ public:
             (uint64_t{space.id} |
              uint64_t{std::min(space.size, space.free_limit)} << 32);
         } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
+      }
       mysql_mutex_unlock(&fil_system.mutex);
       non_log= queue.size();
     }
@@ -523,99 +543,32 @@ public:
       if (replicate(id_limit, target, sink, id_limit < first))
         return -1;
     }
-    else if (fil_space_t *space= fil_space_t::get(uint32_t(id_limit)))
+    else
     {
-      ut_ad(ctx.state == PROCESSING);
       ut_ad(phase == BACKUP_PHASE_START);
-      int res= -1;
-      uint32_t start{0}, limit{uint32_t(id_limit >> 32)};
-#ifdef _WIN32
-      if (sink.stream == sink.NO_STREAM)
+      mysql_mutex_lock(&fil_system.mutex);
+      if (fil_space_t *space{fil_space_get_by_id(uint32_t(id_limit))})
       {
-        for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain);;)
-        {
-          if ((res= backup(target.path, node, start, limit)))
-            break;
-          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-          if (!next)
-            break;
-          const uint32_t size{node->size};
-          start+= size;
-          if (limit >= size)
-            limit-= size;
-          else
-            limit= 0;
-          node= next;
-        }
-      }
-      else
-      {
-        for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain);;)
-        {
-          if ((res= stream(sink.stream, node, start, limit)))
-            break;
-          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-          if (!next)
-            break;
-          const uint32_t size{node->size};
-          start+= size;
-          if (limit >= size)
-            limit-= size;
-          else
-            limit= 0;
-          node= next;
-        }
-      }
-#else
-      int fd;
-      int (*method)(int, fil_node_t *, uint32_t, uint32_t);
-      if (sink.stream == sink.NO_STREAM)
-      {
-        fd= target.fd;
-        method= backup;
-      }
-      else
-      {
-        fd= sink.stream;
-        method= stream;
-      }
-      for (fil_node_t *node= UT_LIST_GET_FIRST(space->chain);;)
-      {
-# ifdef HAVE_POSIX_FALLOCATE
-        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
-        {
-          const uint32_t page_size{space->physical_size()};
-          if ((limit * page_size) & 4095)
-            /* os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
-            multiples of 4096 bytes. There may be up to 3 pages
-            (of 1024 bytes) that have not been written out yet.
-            We must cap the limit to the actual file size. */
-            limit=
-              std::min(limit,
-                       uint32_t(os_file_get_size(node->handle) / page_size));
-        }
-# endif
-        res= (*method)(fd, node, start, limit);
-#ifdef POSIX_FADV_DONTNEED
-        std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
-#endif
+        char *backup_name;
+        const char *const name=
+          UT_LIST_GET_FIRST(space->chain)->get_backup_name(backup_name);
+        const bool acquired{space->acquire_if_not_stopped()};
+        mysql_mutex_unlock(&fil_system.mutex);
+
+        const int res= acquired
+          ? backup_space(target, *space, sink, backup_name,
+                         uint32_t(id_limit >> 32))
+          : 0;
+        ut_ad(res <= 0);
+
+        if (backup_name != name)
+          ut_free(backup_name);
+
         if (res)
-          break;
-        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-        if (!next)
-          break;
-        const uint32_t size{node->size};
-        start+= size;
-        if (limit >= size)
-          limit-= size;
-        else
-          limit= 0;
-        node= next;
+          return res;
       }
-#endif
-      space->release();
-      if (res)
-        return res;
+      else
+        mysql_mutex_unlock(&fil_system.mutex);
     }
 
     ut_ad(size > 0);
@@ -815,6 +768,113 @@ public:
 
 private:
   /**
+     Process a tablespace that was collected at init().
+     This may be invoked from multiple concurrent threads.
+     @param target  backup target
+     @param space   tablespace
+     @param sink    backup worker context
+     @param name    tablespace file name as it was at init()
+     @return error code (non-positive)
+     @retval 0 on completion
+  */
+  int backup_space(const backup_target &target, fil_space_t &space,
+                   const backup_sink &sink, const char *name,
+                   uint32_t limit) noexcept
+  {
+    ut_ad(ctx.state == PROCESSING);
+    int res= -1;
+    uint32_t start{0};
+#ifdef _WIN32
+    if (sink.stream == sink.NO_STREAM)
+    {
+      for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+      {
+        if ((res= backup(target.path, node, name, start, limit)))
+          break;
+        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+        if (!next)
+          break;
+        const uint32_t size{node->size};
+        start+= size;
+        if (limit >= size)
+          limit-= size;
+        else
+          limit= 0;
+        node= next;
+      }
+    }
+    else
+    {
+      for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+      {
+        if ((res= stream(sink.stream, node, name, start, limit)))
+          break;
+        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+        if (!next)
+          break;
+        const uint32_t size{node->size};
+        start+= size;
+        if (limit >= size)
+          limit-= size;
+        else
+          limit= 0;
+        node= next;
+      }
+    }
+#else
+    int fd;
+    int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
+    if (sink.stream == sink.NO_STREAM)
+    {
+      fd= target.fd;
+      method= backup;
+    }
+    else
+    {
+      fd= sink.stream;
+      method= stream;
+    }
+    for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+    {
+# ifdef HAVE_POSIX_FALLOCATE
+      if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+      {
+        const uint32_t page_size{space.physical_size()};
+        if ((limit * page_size) & 4095)
+          /*
+            os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+            multiples of 4096 bytes. There may be up to 3 pages
+            (of 1024 bytes) that have not been written out yet.
+            We must cap the limit to the actual file size.
+          */
+          limit=
+            std::min(limit,
+                     uint32_t(os_file_get_size(node->handle) / page_size));
+      }
+# endif
+      res= (*method)(fd, node, name, start, limit);
+#ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
+#endif
+      if (res)
+        break;
+      fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+      if (!next)
+        break;
+      const uint32_t size{node->size};
+      start+= size;
+      if (limit >= size)
+        limit-= size;
+      else
+        limit= 0;
+      node= next;
+    }
+#endif
+    space.release();
+    return res;
+  }
+
+  /**
      Safely start backing up a tablespace file.
      @param end      array of fil_space_t::BACKUP_BATCH_SIZE block descriptors
      @param space    tablespace that is being backed up
@@ -889,7 +949,7 @@ private:
                                     buf_page_t **blocks)
     noexcept
   {
-# if 0
+# if 1
     return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
     for (uint32_t page{0};;)
@@ -926,20 +986,21 @@ private:
      Back up a persistent InnoDB data file.
      @param target backup target directory
      @param node   InnoDB data file
+     @param name   node->name at init()
      @param start  the page number at the start of the file
      @param limit  the size of the file at init()
      @return error code (non-positive)
      @retval 0 on success
   */
   static int backup(IF_WIN(const char *,int) target, fil_node_t *node,
-                    uint32_t start, uint32_t limit) noexcept
+                    const char *name, uint32_t start, uint32_t limit) noexcept
   {
     for (bool tried_mkdir{false};;)
     {
 #ifdef _WIN32
       std::string path{target};
       path.push_back('/');
-      path.append(node->name);
+      path.append(name);
       HANDLE f= CreateFile(path.c_str(), GENERIC_WRITE, 0,
                            my_win_file_secattr(), CREATE_NEW,
                            FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -970,7 +1031,7 @@ private:
       this assumption be invalid, some data files in the backup may be
       corrupted. This corruption can be fixed by either removing this
       special handling, or by implementing file-level locking. */
-      f= fclonefileat(node->handle, target, node->name, 0);
+      f= fclonefileat(node->handle, target, name, 0);
       if (!f)
         break;
       switch (errno) {
@@ -982,8 +1043,7 @@ private:
         goto fail;
       }
 # endif
-      f= openat(target, node->name,
-                O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      f= openat(target, name, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
       if (f < 0)
       {
         if (errno == ENOENT)
@@ -995,11 +1055,11 @@ private:
               !srv_is_undo_tablespace(node->space->id))
           {
             tried_mkdir= true;
-            const char *sep= strchr(node->name, '/');
+            const char *sep= strchr(name, '/');
             ut_ad(sep);
             sep= strchr(sep + 1, '/');
             ut_ad(sep);
-            std::string dir{node->name, size_t(sep - node->name)};
+            std::string dir{name, size_t(sep - name)};
             if (!mkdirat(target, dir.c_str(), 0777) || errno == EEXIST)
               continue;
           }
@@ -1126,7 +1186,7 @@ private:
     }
     return 0;
   fail:
-    my_error(ER_CANT_CREATE_FILE, MYF(0), node->name, errno);
+    my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
     return -1;
   }
 
@@ -1134,12 +1194,13 @@ private:
      Stream a persistent InnoDB data file.
      @param stream backup target stream
      @param node   InnoDB data file
+     @param name   node->name at init()
      @param start  the page number at the start of the file
      @param limit  the size of the file at init()
      @return error code (non-positive)
      @retval 0 on success
   */
-  static int stream(backup_fd stream, fil_node_t *node,
+  static int stream(backup_fd stream, fil_node_t *node, const char *name,
                     uint32_t start, uint32_t limit) noexcept
   {
     const uint32_t page_size{node->space->physical_size()},
@@ -1178,7 +1239,7 @@ private:
       chunk[1].length-= chunk[1].offset;
     }
 
-    int err= backup_stream_start(stream, node->name, 0644,
+    int err= backup_stream_start(stream, name, 0644,
                                  physical_size, chunk, n_chunk);
     if (err)
       limit= 0;

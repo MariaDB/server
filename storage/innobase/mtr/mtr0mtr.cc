@@ -792,20 +792,21 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
   log_sys.latch.wr_unlock();
   m_latch_ex= false;
 
-  char *old_name= space.chain.start->name;
   bool success= true;
 
   if (name)
   {
     char *new_name= mem_strdup(name);
     mysql_mutex_lock(&fil_system.mutex);
-    success= os_file_rename(innodb_data_file_key, old_name, name);
+    success=
+      os_file_rename(innodb_data_file_key, space.chain.start->name, name);
     if (success)
-      space.chain.start->name= new_name;
-    else
-      old_name= new_name;
+    {
+      space.chain.start->rename(new_name);
+      new_name= nullptr;
+    }
     mysql_mutex_unlock(&fil_system.mutex);
-    ut_free(old_name);
+    ut_free(new_name);
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);

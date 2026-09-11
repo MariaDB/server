@@ -567,7 +567,7 @@ public:
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference.
   @return whether a tablespace reference was successfully acquired */
-  inline bool acquire_if_not_stopped();
+  bool acquire_if_not_stopped();
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference for I/O.
@@ -1125,6 +1125,10 @@ struct fil_node_t final
   fil_space_t *space;
   /** file name; protected by fil_system.mutex and exclusive log_sys.latch */
   char *name;
+private:
+  /** file name at InnoDB_backup::init() */
+  char *backup_name;
+public:
   /** file handle */
   pfs_os_file_t handle;
   /** whether the file is on non-rotational media (SSD) */
@@ -1141,19 +1145,21 @@ struct fil_node_t final
   recovery due to missing file or incompletely written page 0 */
   unsigned deferred:1;
 
+  /** whether the file is currently being extended */
+  Atomic_relaxed<bool> being_extended;
+
   /** size of the file in database pages (0 if not known yet);
   the possible last incomplete megabyte may be ignored if space->id == 0 */
   uint32_t size;
   /** maximum size of the file in database pages (0 if unlimited) */
   uint32_t max_size;
-  /** whether the file is currently being extended */
-  Atomic_relaxed<bool> being_extended;
+  /** Filesystem block size */
+  uint32_t block_size;
   /** link to other files in this tablespace */
   UT_LIST_NODE_T(fil_node_t) chain;
 
-  /** Filesystem block size */
-  ulint block_size;
-
+  /** Destructor */
+  ~fil_node_t();
   /** @return whether this file is open */
   bool is_open() const noexcept { return handle != OS_FILE_CLOSED; }
 
@@ -1173,6 +1179,17 @@ struct fil_node_t final
   @param detach_handle whether to detach instead of closing a handle
   @return detached handle or OS_FILE_CLOSED */
   inline pfs_os_file_t close_to_free(bool detach_handle= false) noexcept;
+
+  /** Rename the file.
+  @param path   new file name, allocated in ut_free() compatible way */
+  void rename(char *path) noexcept;
+  /** Refresh the backup_name from name. */
+  inline void set_backup_name() noexcept;
+  /** Consume the name that had been sampled by set_backup_name().
+  @param backup_name  the name that was sampled by set_backup_name()
+  @return the current name; if different from backup_name,
+  the caller must invoke ut_free(backup_name) */
+  inline const char *get_backup_name(char *&backup_name) noexcept;
 
 private:
   /** Does stuff common for close() and detach() */

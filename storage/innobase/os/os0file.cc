@@ -3616,7 +3616,7 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
   struct stat statbuf;
   if (!fstat(file, &statbuf))
   {
-    block_size= statbuf.st_blksize;
+    block_size= uint32_t(statbuf.st_blksize);
 # ifdef __linux__
     on_ssd= fil_system.is_ssd(statbuf.st_dev);
 # endif

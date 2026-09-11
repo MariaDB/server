@@ -1,6 +1,6 @@
 --- backup_innodb.result
 +++ backup_innodb,debug.result
-@@ -22,10 +22,13 @@
+@@ -24,13 +24,16 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
@@ -8,9 +8,12 @@
  BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
  connection default;
 +SET DEBUG_SYNC='now WAIT_FOR start';
+ connect rename,localhost,root;
+ RENAME TABLE rt TO rtt;
+ disconnect rename;
+ connection default;
  INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
 +SET DEBUG_SYNC='now SIGNAL resume';
  connection backup;
  disconnect backup;
  connection default;
- ROLLBACK;
