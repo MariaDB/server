@@ -36,3 +36,27 @@ CREATE TABLE t2 (b SET('South Carolina', 'Vermont', 'Texas', 'New Mexico', 'Wisc
 INSERT INTO t2 SELECT * FROM t1;
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo #
+--echo # MDEV-40422: MSAN use-of-uninitialized-value in my_convert
+--echo #
+
+SET @old_collation_database= @@collation_database;
+SET @@time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
+
+SET collation_database= 'latin1_swedish_ci';
+SET CHARACTER SET DEFAULT;
+SELECT CAST(MD5(NOW()) AS CHAR),COUNT(*);
+
+SET NAMES latin1;
+SELECT CAST(MD5(NOW()) AS CHAR),COUNT(*);
+SELECT CAST(MD5(NOW()) AS CHAR(5)),COUNT(*);
+SELECT RIGHT(CAST(MD5(NOW()) AS CHAR),1),COUNT(*);
+
+SET @@collation_database= @old_collation_database;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests
