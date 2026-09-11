@@ -1367,6 +1367,11 @@ public:
   }
   int store_shapes(Gcalc_shape_transporter *trn) const
   { return geom->store_shapes(trn); }
+  int store_shapes_in_mbr(Gcalc_shape_transporter *trn, const MBR *filter,
+                          uint32 n_filtered) const
+  { return geom->store_shapes_in_mbr(trn, filter, n_filtered); }
+  int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const
+  { return geom->count_shapes_in_mbr(filter, n_shapes); }
   int shape_type() const
   { return geom->get_class_info()->m_type_id; }
 };
@@ -1441,6 +1446,87 @@ static void handle_sp_crosses_func_case(Gcalc_function &func,
 }
 
 
+/*
+  Returns false when the bounding boxes intersect, so that no scan is
+  needed, and also on a malformed operand, which null_value tells apart.
+*/
+
+static bool filter_operands_for_intersection(
+                                  Geometry_ptr_with_buffer_and_mbr &g1,
+                                  Geometry_ptr_with_buffer_and_mbr &g2,
+                                  MBR *g2_filter,
+                                  uint32 *n1, uint32 *n2,
+                                  bool &null_value)
+{
+  *g2_filter= g2.mbr;
+
+  if (!g1.mbr.intersects(&g2.mbr))
+    return false;
+
+  /* g1.mbr carries the tolerance already, g2.mbr does not. */
+  g2_filter->buffer(1e-5);
+
+  if ((null_value= g1.count_shapes_in_mbr(g2_filter, n1) ||
+                   g2.count_shapes_in_mbr(&g1.mbr, n2)))
+    return false;
+
+  return *n1 && *n2;
+}
+
+
+/*
+  Returns false when the operands cannot intersect, leaving the caller to
+  answer from the bounding boxes alone.
+*/
+
+static bool build_intersects_scan(Gcalc_function &func,
+                                  Gcalc_operation_transporter &trn,
+                                  Geometry_ptr_with_buffer_and_mbr &g1,
+                                  Geometry_ptr_with_buffer_and_mbr &g2,
+                                  bool &null_value)
+{
+  MBR g2_filter;
+  uint32 n1, n2;
+
+  if (!filter_operands_for_intersection(g1, g2, &g2_filter, &n1, &n2,
+                                        null_value))
+    return false;
+
+  func.add_operation(Gcalc_function::v_find_t |
+                     Gcalc_function::op_intersection, 2);
+  null_value= g1.store_shapes_in_mbr(&trn, &g2_filter, n1) ||
+              g2.store_shapes_in_mbr(&trn, &g1.mbr, n2);
+  return true;
+}
+
+
+/*
+  Returns false when the operands cannot intersect, which makes them
+  disjoint.
+*/
+
+static bool build_disjoint_scan(Gcalc_function &func,
+                                Gcalc_operation_transporter &trn,
+                                Geometry_ptr_with_buffer_and_mbr &g1,
+                                Geometry_ptr_with_buffer_and_mbr &g2,
+                                bool &null_value)
+{
+  MBR g2_filter;
+  uint32 n1, n2;
+
+  if (!filter_operands_for_intersection(g1, g2, &g2_filter, &n1, &n2,
+                                        null_value))
+    return false;
+
+  func.add_operation(Gcalc_function::v_find_f |
+                     Gcalc_function::op_not |
+                     Gcalc_function::op_intersection, 2);
+  null_value= g1.store_shapes_in_mbr(&trn, &g2_filter, n1) ||
+              g2.store_shapes_in_mbr(&trn, &g1.mbr, n2);
+  return true;
+}
+
+
 bool Item_func_spatial_precise_rel::val_bool()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
@@ -1489,17 +1575,15 @@ bool Item_func_spatial_precise_rel::val_bool()
       null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_DISJOINT_FUNC:
-      func.add_operation(Gcalc_function::v_find_f |
-                         Gcalc_function::op_not |
-                         Gcalc_function::op_intersection, 2);
-      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
+      if (!build_disjoint_scan(func, trn, g1, g2, null_value))
+      {
+        result= 1;
+        goto exit;
+      }
       break;
     case SP_INTERSECTS_FUNC:
-      if (!g1.mbr.intersects(&g2.mbr))
+      if (!build_intersects_scan(func, trn, g1, g2, null_value))
         goto exit;
-      func.add_operation(Gcalc_function::v_find_t |
-                         Gcalc_function::op_intersection, 2);
-      null_value= g1.store_shapes(&trn) || g2.store_shapes(&trn);
       break;
     case SP_CROSSES_FUNC:
       if (g1.shape_type() == Geometry::wkb_polygon ||
