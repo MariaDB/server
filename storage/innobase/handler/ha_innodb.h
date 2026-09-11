@@ -22,7 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #endif /* WITH_WSREP */
 
 #include "table.h"
-#include "row0pcoord.h"
 #include "handler0pscan.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */

@@ -137,6 +137,7 @@ SET(INNOBASE_SOURCES
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
+	btr/btr0pscan.cc
 	btr/btr0sea.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
@@ -194,6 +195,7 @@ SET(INNOBASE_SOURCES
 	include/btr0cur.inl
 	include/btr0pcur.h
 	include/btr0pcur.inl
+	include/btr0pscan.h
 	include/btr0sea.h
 	include/btr0types.h
 	include/buf0buddy.h
@@ -399,7 +401,6 @@ SET(INNOBASE_SOURCES
 	row/row0merge.cc
 	row/row0mysql.cc
 	row/row0log.cc
-	row/row0pcoord.cc
 	row/row0purge.cc
 	row/row0row.cc
 	row/row0sel.cc
