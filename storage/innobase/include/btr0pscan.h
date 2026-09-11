@@ -26,13 +26,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
-/** @file include/row0pcoord.h
-Parallel coordinator interface.
+/** @file include/btr0pscan.h
+Parallel scan partitioner interface.
 
 Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 
-#ifndef row0par_coord_h
-#define row0par_coord_h
+#ifndef btr0pscan_h
+#define btr0pscan_h
 
 #include <functional>
 #include <vector>
@@ -43,7 +43,6 @@ Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 #include "db0err.h"
 #include "fil0fil.h"
 #include "rem0types.h"
-#include "parallel_worker_ctx.h"
 
 /** The core idea is to find the left and right paths down the B+Tree.These
 paths correspond to the scan start and scan end search. Follow the links
@@ -60,26 +59,27 @@ execution context (Exec_ctx). The Scan_ctx has the index  and transaction
 information and the Exec_ctx keeps track of the cursor for a specific thread
 during the scan.
 
-To start a scan we need to instantiate a Parallel_coordinator. A parallel
-coordinator can contain several Scan_ctx instances and a Scan_ctx can contain
+To start a scan we need to instantiate a Parallel_scan_partitioner. A
+partitioner can contain several Scan_ctx instances and a Scan_ctx can contain
 several Exec_ctx instances. Its' the Exec_ctx instances that are
 eventually executed.
 
-This design allows for a single Parallel_coordinator to scan multiple indexes
-at once.  Each index range scan has to be added via its add_scan() method.
+This design allows for a single Parallel_scan_partitioner to scan multiple
+indexes at once.  Each index range scan has to be added via its add_scan()
+method.
 This functionality is required to handle parallel partition scans because
 partitions are separate indexes. This can be used to scan completely
-different indexes and tables by one instance of a Parallel_coordinator.
+different indexes and tables by one instance of a Parallel_scan_partitioner.
 
 To solve the imbalance problem we dynamically split the sub-trees as and
 when required. e.g., If you have 5 sub-trees to scan and 4 threads then
 it will tag the 5th sub-tree as "to_be_split" during phase I (add_scan()),
 the first thread that finishes scanning the first set of 4 partitions will
 then dynamically split the 5th sub-tree and add the newly created sub-trees
-to the execution context (Ctx) run queue in the Parallel_coordinator. As the
-other threads complete their sub-tree scans they will pick up more execution
-contexts (Ctx) from the Parallel_coordinator run queue and start scanning the
-sub-partitions as normal.
+to the execution context (Ctx) run queue in the Parallel_scan_partitioner. As
+the other threads complete their sub-tree scans they will pick up more
+execution contexts (Ctx) from the Parallel_scan_partitioner run queue and
+start scanning the sub-partitions as normal.
 
 Note: The Exec_ctx instances are in a virtual list. Each Exec_ctx instance
 has arange to scan. The start point of this range instance is the end point
@@ -99,13 +99,12 @@ struct dict_table_t;
 /** Page number */
 typedef uint32_t page_no_t;
 
-class Parallel_coordinator
+class Parallel_scan_partitioner
 {
  public:
   // Forward declaration.
   class Exec_ctx;
   class Scan_ctx;
-  struct Worker_ctx;
 
   /** Specifies the range from where to start the scan and where to end it. */
   struct Scan_range
@@ -150,12 +149,9 @@ class Parallel_coordinator
     /** Constructor.
     @param[in] scan_range     Range to scan.
     @param[in] index          Cluster index to scan.
-    @param[in] read_level     Btree level from which records need to be read.
-    @param[in] partition_id   Partition id if the index to be scanned.
-                              belongs to a partitioned table. */
+    @param[in] read_level     Btree level from which records need to be read. */
     Config(const Scan_range &scan_range, dict_index_t *index,
-           uint16_t read_level = 0,
-           size_t partition_id = std::numeric_limits<size_t>::max())
+           uint16_t read_level = 0)
         : m_scan_range(scan_range),
           m_index(index),
           m_is_compact(dict_table_is_comp(index->table)),
@@ -182,34 +178,13 @@ class Parallel_coordinator
     uint16_t m_read_level{0};
   };
 
-  struct Worker_ctx : public Parallel_worker_ctx
-  {
-    Worker_ctx(size_t idx, Parallel_coordinator *pc)
-      : m_worker_idx(idx), m_pcoordinator(pc) {}
-
-    size_t m_worker_idx;
-    Parallel_coordinator *m_pcoordinator;
-    std::shared_ptr<Parallel_coordinator::Exec_ctx> m_exec_ctx{};
-
-    /** Whether m_exec_ctx still has to be positioned. Cleared by the first
-    read of the chunk, set again when the next chunk is picked up. */
-    bool m_first_call{};
-
-    /** Whether the interval's lower bound still has to be checked. A chunk
-    is entered inclusively, so an exclusive bound needs the first rows
-    filtered; rows arrive in ascending key order, so this clears as soon as
-    one row clears the bound. */
-    bool m_check_start{};
-  };
-
   /** Constructor */
-  Parallel_coordinator() = default;
+  Parallel_scan_partitioner() = default;
 
-  /** @return pre-allocated worker context for the given worker index. */
-  Worker_ctx *get_worker_ctx(size_t worker_idx) const;
-
-  std::shared_ptr<Parallel_coordinator::Exec_ctx>
-  get_job_for_worker(Worker_ctx *wctx);
+  /** Take the next chunk to scan off the queue, re-splitting chunks flagged
+  for it until a scannable one turns up.
+  @return the chunk, or nullptr when the scan is over or has failed */
+  std::shared_ptr<Exec_ctx> get_next_chunk();
 
   /** Initialization.
     @param[in]  n_workers Number of worker threads expected to be used
@@ -221,7 +196,7 @@ class Parallel_coordinator
   void cleanup();
 
   /** Destructor. */
-  ~Parallel_coordinator()
+  ~Parallel_scan_partitioner()
   {
     cleanup();
   }
@@ -251,10 +226,11 @@ class Parallel_coordinator
   }
 
   // Disable copying.
-  Parallel_coordinator(const Parallel_coordinator &) = delete;
-  Parallel_coordinator(const Parallel_coordinator &&) = delete;
-  Parallel_coordinator &operator=(Parallel_coordinator &&) = delete;
-  Parallel_coordinator &operator=(const Parallel_coordinator &) = delete;
+  Parallel_scan_partitioner(const Parallel_scan_partitioner &) = delete;
+  Parallel_scan_partitioner(const Parallel_scan_partitioner &&) = delete;
+  Parallel_scan_partitioner &operator=(Parallel_scan_partitioner &&) = delete;
+  Parallel_scan_partitioner &operator=(const Parallel_scan_partitioner &) =
+      delete;
 
  private:
   /** Add an execution context to the run queue.
@@ -272,8 +248,8 @@ public:
 
 private:
 
-  /** Fetch the next job execute.
-  @return job to execute or nullptr. */
+  /** Take the next chunk off the queue.
+  @return the chunk, or nullptr if the queue is empty. */
   [[nodiscard]] std::shared_ptr<Exec_ctx> dequeue();
 
  private:
@@ -288,7 +264,7 @@ private:
   /** Number of worker threads expected to use. */
   size_t m_n_workers{};
 
-  /** Indicates the status of the coordinator */
+  /** Indicates the status of the partitioner */
   bool m_is_initialized{false};
 
   /** Mutex protecting m_ctxs and m_n_resplitting. */
@@ -319,23 +295,19 @@ private:
 
   /** Error during parallel read. */
   std::atomic<dberr_t> m_err{DB_SUCCESS};
-
-  /** Per-worker context exposed to the SQL layer via the handler API.
-  Pre-allocated in initialize(N) and freed in cleanup(). */
-  std::vector<Worker_ctx *, ut_allocator<Worker_ctx *>> m_worker_ctxs;
 };
 
-/** Parallel coordinator context. */
-class Parallel_coordinator::Scan_ctx {
+/** Parallel scan partitioner context. */
+class Parallel_scan_partitioner::Scan_ctx {
  public:
   /** Constructor.
-  @param[in]  coordinator     Parallel coordinator that owns this context.
+  @param[in]  partitioner     Partitioner that owns this context.
   @param[in]  id              ID of this scan context.
   @param[in]  trx             Transaction covering the scan.
   @param[in]  config          Range scan config.
   @param[in]  f               Callback function. */
-  Scan_ctx(Parallel_coordinator *coordinator, size_t id, trx_t *trx,
-           const Parallel_coordinator::Config &config);
+  Scan_ctx(Parallel_scan_partitioner *partitioner, size_t id, trx_t *trx,
+           const Parallel_scan_partitioner::Config &config);
 
   /** Destructor. */
   ~Scan_ctx() = default;
@@ -422,11 +394,13 @@ class Parallel_coordinator::Scan_ctx {
                                        Savepoints &savepoints,
                                        dberr_t *err) const;
 
-  /** Create and add the range to the scan ranges.
-  @param[in,out]  ranges        Ranges to scan.
-  @param[in,out]  leaf_page_cursor Leaf page cursor on the range's
-                                   first record. */
-  void create_range(Ranges &ranges, page_cur_t &leaf_page_cursor) const;
+  /** Add a range boundary at the cursor's record: close the range that is
+  currently open, if any, and open a new one starting at that record. The
+  newly opened range has no end until the next call, or until partition()
+  stamps the scan's upper bound onto it.
+  @param[in,out]  ranges        Ranges to scan; one is appended.
+  @param[in,out]  leaf_page_cursor Leaf page cursor on the boundary record. */
+  void add_range_boundary(Ranges &ranges, page_cur_t &leaf_page_cursor) const;
 
   /** Find the subtrees to scan in a block.
   @param[in]      scan_range    Partition based on this scan range.
@@ -452,7 +426,7 @@ class Parallel_coordinator::Scan_ctx {
       const page_cur_t &page_cursor) const;
 
   /** Create an execution context for a range and add it to
-  the Parallel_coordinator's run queue.
+  the Parallel_scan_partitioner's run queue.
   @param[in] range              Range for which to create the context.
   @param[in] resplit            true if the sub-tree should be split further.
   @param[in] end_inclusive      true if records equal to the range's end
@@ -469,7 +443,7 @@ class Parallel_coordinator::Scan_ctx {
 
   /** @return the maximum number of worker thread configured. */
   [[nodiscard]] size_t num_workers() const {
-     return m_coordinator->num_workers();
+     return m_partitioner->num_workers();
   }
 
   /** S lock the index. */
@@ -484,7 +458,7 @@ class Parallel_coordinator::Scan_ctx {
   }
 
  private:
-  using Config = Parallel_coordinator::Config;
+  using Config = Parallel_scan_partitioner::Config;
 
   /** Context ID. */
   size_t m_id{std::numeric_limits<size_t>::max()};
@@ -498,8 +472,8 @@ class Parallel_coordinator::Scan_ctx {
   /** Depth of the Btree. */
   size_t m_depth{};
 
-  /** The parallel coordinator. */
-  Parallel_coordinator *m_coordinator{};
+  /** The partitioner that owns this context. */
+  Parallel_scan_partitioner *m_partitioner{};
 
   /** Error during parallel read. */
   mutable std::atomic<dberr_t> m_err{DB_SUCCESS};
@@ -507,7 +481,7 @@ class Parallel_coordinator::Scan_ctx {
   /** Number of threads that have S locked the index. */
   std::atomic_size_t m_s_locks{};
 
-  friend class Parallel_coordinator;
+  friend class Parallel_scan_partitioner;
 
   Scan_ctx(Scan_ctx &&) = delete;
   Scan_ctx(const Scan_ctx &) = delete;
@@ -515,8 +489,8 @@ class Parallel_coordinator::Scan_ctx {
   Scan_ctx &operator=(const Scan_ctx &) = delete;
 };
 
-/** Parallel coordinator execution context. */
-class Parallel_coordinator::Exec_ctx {
+/** Parallel scan partitioner execution context. */
+class Parallel_scan_partitioner::Exec_ctx {
  public:
   /** Constructor.
   @param[in]    id              Thread ID.
@@ -568,7 +542,7 @@ private:
 
   /** @return true if in error state. */
   [[nodiscard]] bool is_error_set() const {
-    return m_scan_ctx->m_coordinator->is_error_set() ||
+    return m_scan_ctx->m_partitioner->is_error_set() ||
            m_scan_ctx->is_error_set();
   }
 
@@ -576,7 +550,7 @@ private:
   /** If true then re-split the context into smaller chunks. */
   bool m_to_be_resplit{};
 
-  friend class Parallel_coordinator;
+  friend class Parallel_scan_partitioner;
 };
 
-#endif /* !row0par_coord_h */
+#endif /* !btr0pscan_h */
