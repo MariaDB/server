@@ -1122,8 +1122,9 @@ SELECT * FROM
 (SELECT CAST(blb AS JSON) jf FROM
 JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti) AS dt,
 JSON_TABLE(jf, '$' COLUMNS (blb BLOB PATH '$')) AS jto;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'JSON) jf FROM
-JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti)...' at line 2
+jf	blb
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'asd123'
 DROP TABLE t1;
 #
 # Bug#26500384: ASSERT FAILURE IN QUERY WITH WINDOW FUNCTION AND

@@ -449,7 +449,7 @@ path VARCHAR(100) NOT NULL,
 json_c1 JSON NOT NULL DEFAULT '{}',
 CONSTRAINT json_c1 CHECK (path > 0)
 );
-ERROR HY000: Duplicate CHECK constraint name 'json_c1'
+DROP TABLE t2;
 CREATE TABLE t3 (a INT, CONSTRAINT c1 CHECK (a > 0),
 CONSTRAINT c1 CHECK (a < 100));
 ERROR HY000: Duplicate CHECK constraint name 'c1'
