@@ -3047,6 +3047,25 @@ static void innodb_ahi_enable(dict_table_t *innodb_table,
 }
 #endif
 
+/** Copy the query cache usage flag from MariaDB table definition.
+Query is never cached if it uses that is not plain user table
+(temporary table) or that was created with SQL_CACHE=0
+@param innodb_table InnoDB table
+@param table MariaDB table definition */
+static void innobase_copy_query_cache_flag(dict_table_t *innodb_table,
+                                           const TABLE *table) noexcept
+{
+  const bool query_cache= table->s->query_cache != HA_CHOICE_NO &&
+    !innodb_table->is_temporary() && query_cache_available();
+
+  if (query_cache && !innodb_table->query_cache)
+  {
+    innodb_table->query_cache_inv_trx_id= trx_sys.get_max_trx_id();
+    innodb_table->query_cache= query_cache;
+  }
+}
+
+
 /*********************************************************************//**
 Copy table flags from MySQL's HA_CREATE_INFO into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
@@ -3068,6 +3087,7 @@ innobase_copy_frm_flags_from_create_info(
     innodb_ahi_enable(innodb_table, create_info->option_struct, table);
 #endif
   }
+  innobase_copy_query_cache_flag(innodb_table, table);
 }
 
 /**
@@ -3090,6 +3110,7 @@ void innobase_copy_frm_flags_from_table(dict_table_t *innodb_table,
     innodb_ahi_enable(innodb_table, table_share->option_struct_table, table);
 #endif
   }
+  innobase_copy_query_cache_flag(innodb_table, table);
 }
 
 /*********************************************************************//**

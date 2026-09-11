@@ -334,11 +334,12 @@ void _ma_update_status(void* param)
     DBUG_ASSERT(!info->s->base.born_transactional);
     share->state.state= *info->state;
     info->state= &share->state.state;
-    DBUG_PRINT("info", ("invalidator... '%s' (status update)",
-                        info->s->data_file_name.str));
-    DBUG_ASSERT(info->s->chst_invalidator != NULL);
-    (*info->s->chst_invalidator)((const char *)info->s->data_file_name.str);
-
+    if (info->s->chst_invalidator)
+    {
+      DBUG_PRINT("info", ("invalidator... '%s' (status update)",
+                          info->s->data_file_name.str));
+      (*info->s->chst_invalidator)((const char *)info->s->data_file_name.str);
+    }
   }
   info->append_insert_at_end= 0;
 }

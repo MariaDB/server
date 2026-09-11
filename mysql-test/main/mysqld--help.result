@@ -1229,7 +1229,8 @@ The following specify which files/extra groups are read (specified before remain
  SQL_CACHE' at start of query (to avoid locks that ON and
  DEMAND have to take). TABLES = Cache only queries marked
  with SQL_CACHE or queries where all tables are created
- with SQL_CACHE=1
+ with SQL_CACHE=1. ALWAYS_OFF = query cache is permanently
+ OFF and cannot be enabled
  --query-cache-wlock-invalidate 
  Invalidate queries in query cache on LOCK for write
  --query-prealloc-size=# 

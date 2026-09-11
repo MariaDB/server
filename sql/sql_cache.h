@@ -55,6 +55,7 @@ typedef struct st_changed_table_list CHANGED_TABLE_LIST;
 #define QUERY_CACHE_TYPE_DEMAND        2
 #define QUERY_CACHE_TYPE_DEMAND_STRICT 3
 #define QUERY_CACHE_TYPE_TABLES        4
+#define QUERY_CACHE_TYPE_ALWAYS_OFF    5
 
 /* memory bins size spacing (see at Query_cache::init_cache (sql_cache.cc)) */
 #define QUERY_CACHE_MEM_BIN_FIRST_STEP_PWR2	4
@@ -265,6 +266,7 @@ extern "C"
                                          my_bool);
   const uchar *query_cache_table_get_key(const void *record, size_t *length,
                                          my_bool);
+  my_bool query_cache_available();
 }
 extern "C" void query_cache_invalidate_by_MyISAM_filename(const char* filename);
 
@@ -580,7 +582,6 @@ struct Query_cache_query_flags
 };
 #define QUERY_CACHE_FLAGS_SIZE sizeof(Query_cache_query_flags)
 #define QUERY_CACHE_DB_LENGTH_SIZE 2
-#include "sql_cache.h"
 #define query_cache_abort(A,B) query_cache.abort(A,B)
 #define query_cache_end_of_result(A) query_cache.end_of_result(A)
 #define query_cache_store_query(A, B) query_cache.store_query(A, B)
@@ -600,6 +601,8 @@ struct Query_cache_query_flags
   (T->variables.query_cache_type == QUERY_CACHE_TYPE_OFF || query_cache.query_cache_size == 0)
 #define query_cache_is_cacheable_query(L) \
   (((L)->sql_command == SQLCOM_SELECT) && (L)->safe_to_cache_query)
+
+extern void fix_local_query_cache_mode(THD *thd);
 
 /* See also sql_class.h for some inline query cache functions */
 

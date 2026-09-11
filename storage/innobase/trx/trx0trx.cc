@@ -1313,13 +1313,15 @@ inline void trx_t::commit_tables()
 {
   if (undo_no && !mod_tables.empty())
   {
-    const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
+    trx_id_t max_trx_id= 0;
     const auto now= start_time;
 
     for (const auto &p : mod_tables)
     {
       dict_table_t *table= p.first;
       table->update_time= now;
+      if (!table->query_cache) continue;
+      if (!max_trx_id) max_trx_id= trx_sys.get_max_trx_id();
       table->query_cache_inv_trx_id= max_trx_id;
     }
   }
