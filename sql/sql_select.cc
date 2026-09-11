@@ -26343,9 +26343,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	  {
 	    if (join->do_send_rows)
             {
+              if (empty_set_send_rollup_total)
+                join->rollup_set_level(0);
 	      error= join->result->send_data_with_check(*fields,
                                                         join->unit,
                                                         join->send_records);
+              if (empty_set_send_rollup_total)
+                join->rollup_set_level(join->send_group_parts);
               if (unlikely(error < 0))
               {
                 /* Duplicate row, don't count */
@@ -26702,7 +26706,11 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                        join->sum_funcs_end[send_group_parts]);
 	if (!join_tab->having || join_tab->having->val_bool())
 	{
+          if (empty_set_send_rollup_total)
+            join->rollup_set_level(0);
           int error= table->file->ha_write_tmp_row(table->record[0]);
+          if (empty_set_send_rollup_total)
+            join->rollup_set_level(join->send_group_parts);
           if (unlikely(error) &&
               create_internal_tmp_table_from_heap(join->thd, table,
                                           join_tab->tmp_table_param->start_recinfo,
