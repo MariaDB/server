@@ -993,7 +993,7 @@ struct backup_target_phase
   */
   int step() const noexcept
   {
-    if (phase == BACKUP_PHASE_NO_DDL)
+    if (phase == BACKUP_PHASE_NO_COMMIT)
       return context.step(target, sink);
     return 0;
   }
