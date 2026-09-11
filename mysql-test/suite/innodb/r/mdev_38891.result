@@ -1,0 +1,15 @@
+#
+# MDEV-38891 Innodb crash at shutdown/dict_stats
+#
+SET GLOBAL debug_dbug="+d,mdev_38891_sleep_in_bg_thread";
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO t1 VALUES (1),(2),(3);
+# restart
+DROP TABLE t1;
+#
+# Warning when the background statistics THD cannot be created
+#
+call mtr.add_suppression("Failed to create background THD for statistics");
+# restart: --debug=d,mdev_38891_fail_stats_thd
+FOUND 1 /Failed to create background THD for statistics. Automatic statistics recalculation will be disabled;/ in mysqld.1.err
