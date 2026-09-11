@@ -644,6 +644,14 @@ public:
   /** @return whether this block is read fixed */
   bool is_read_fixed() const noexcept { return is_read_fixed(state()); }
 
+  /** Try to write-fix a block.
+  @param s  expected state()
+  @return new s (right before potentially setting the write-fix);
+  a write-fix was acquired if !is_freed(s) && !is_io_fixed(s) holds */
+  inline uint32_t write_fix_try(uint32_t s) noexcept;
+  /** Try to undo a successful write_fix_try(). */
+  inline void write_unfix_try() noexcept;
+
   /** @return if this belongs to buf_pool.unzip_LRU */
   bool belongs_to_unzip_LRU() const noexcept
   { return UNIV_LIKELY_NULL(zip.data) && frame; }
@@ -653,13 +661,8 @@ public:
   bool is_freed() const noexcept { return is_freed(state()); }
   bool is_reinit() const { return !(~state() & REINIT); }
 
-  void set_reinit(uint32_t prev_state) noexcept
-  {
-    ut_ad(prev_state < READ_FIX);
-    ut_d(const auto s=) zip.fix.fetch_add(REINIT - prev_state);
-    ut_ad(s > prev_state);
-    ut_ad(s < prev_state + UNFIXED);
-  }
+  /** Mark the block as reinitialized in the file. @see set_freed() */
+  void set_reinit() noexcept;
 
   uint32_t read_unfix(uint32_t s) noexcept
   {
@@ -671,14 +674,8 @@ public:
     return old_state + (s - READ_FIX);
   }
 
-  void set_freed(uint32_t prev_state, uint32_t count= 0) noexcept
-  {
-    ut_ad(lock.is_write_locked());
-    ut_ad(prev_state >= UNFIXED);
-    ut_ad(prev_state < READ_FIX);
-    ut_d(auto s=) zip.fix.fetch_sub((prev_state & LRU_MASK) - FREED - count);
-    ut_ad(!((prev_state ^ s) & LRU_MASK));
-  }
+  /** Mark an X-latched block as freed in the tablespace. @see set_reinit() */
+  void set_freed() noexcept;
 
   inline void set_state(uint32_t s) noexcept;
   inline void set_corrupt_id() noexcept;

@@ -10,6 +10,7 @@ call mtr.add_suppression("InnoDB: Renaming ib_ffffffffff803000\\.log to ib_logfi
 call mtr.add_suppression("InnoDB: ignoring .*ib_ffffffffffc00000\\.log");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("mariadbd.*: Out of memory");
 
 let DATADIR= `select @@datadir`;
 --source include/shutdown_mysqld.inc
@@ -150,6 +151,13 @@ ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
 TRUNCATE TABLE mysql.innodb_table_stats;
 --error ER_INNODB_READ_ONLY
 SET GLOBAL innodb_log_archive=!@@GLOBAL.innodb_log_archive;
+--let $target_directory=$MYSQLTEST_VARDIR/log_archive_backup
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+--error ER_INNODB_READ_ONLY
+evalp BACKUP SERVER TO '$target_directory';
+--rmdir $target_directory
 
 --source include/shutdown_mysqld.inc
 --move_file $DATADIR/ib_logfile0 $DATADIR/ib_ffffffffff803000.log

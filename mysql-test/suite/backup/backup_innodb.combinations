@@ -1,0 +1,4 @@
+[archived]
+innodb_log_archive=ON
+[circular]
+innodb_log_archive=OFF

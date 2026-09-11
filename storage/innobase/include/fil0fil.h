@@ -409,6 +409,9 @@ private:
   /** Whether any corruption of this tablespace has been reported */
   mutable std::atomic_flag is_corrupted= ATOMIC_FLAG_INIT;
 
+  /** first page number that is not yet being backed up, or 0 */
+  std::atomic<uint32_t> backup_end{0};
+
 public:
   /** mutex to protect freed_ranges and last_freed_lsn */
   std::mutex freed_range_mutex;
@@ -418,9 +421,6 @@ private:
 
   /** LSN of freeing last page; protected by freed_range_mutex */
   lsn_t last_freed_lsn= 0;
-
-  /** LSN of undo tablespace creation or 0; protected by latch */
-  lsn_t create_lsn= 0;
 
 public:
   /** Check if tablespace size exceeds warning threshold and emit warning.
@@ -448,6 +448,10 @@ private:
   uint8_t m_last_warning_pct{0};
 
 public:
+  /** LSN of tablespace creation or undo tablespace reinitialization;
+  protected by fil_system.mutex and (is_stopped() or log_sys.latch) */
+  Atomic_relaxed<lsn_t> create_lsn{0};
+
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
   { return UNIV_UNLIKELY(id == SRV_TMP_SPACE_ID); }
@@ -460,12 +464,6 @@ public:
 
   /** @return whether a page has been freed */
   inline bool is_freed(uint32_t page) noexcept;
-
-  /** Set create_lsn. */
-  inline void set_create_lsn(lsn_t lsn) noexcept;
-
-  /** @return the latest tablespace rebuild LSN, or 0 */
-  lsn_t get_create_lsn() const noexcept { return create_lsn; }
 
   /** Apply freed_ranges to the file.
   @param writable whether the file is writable
@@ -569,7 +567,7 @@ public:
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference.
   @return whether a tablespace reference was successfully acquired */
-  inline bool acquire_if_not_stopped();
+  bool acquire_if_not_stopped();
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference for I/O.
@@ -1085,6 +1083,19 @@ public:
     VALIDATE_IMPORT
   };
 
+  /** Note that we backing up some pages of the underlying files.
+  @param last_page   the last page that is being backed up (0=stop backup) */
+  void backup_start(uint32_t last_page) noexcept
+  { backup_end.store(last_page, std::memory_order_release); }
+  /** Note that we are not currently backing up the underlying files. */
+  void backup_stop() noexcept { backup_start(0); }
+  /** @return the first page number that is not being backed up */
+  uint32_t backup_page_end() const noexcept
+  { return backup_end.load(std::memory_order_acquire); }
+
+  /** The size of a backup::copy() batch in pages */
+  static constexpr uint32_t BACKUP_BATCH_SIZE{64};
+
   /** Update the data structures on write completion */
   void complete_write() noexcept;
 
@@ -1114,6 +1125,10 @@ struct fil_node_t final
   fil_space_t *space;
   /** file name; protected by fil_system.mutex and exclusive log_sys.latch */
   char *name;
+private:
+  /** file name at InnoDB_backup::init() */
+  char *backup_name;
+public:
   /** file handle */
   pfs_os_file_t handle;
   /** whether the file is on non-rotational media (SSD) */
@@ -1130,19 +1145,21 @@ struct fil_node_t final
   recovery due to missing file or incompletely written page 0 */
   unsigned deferred:1;
 
+  /** whether the file is currently being extended */
+  Atomic_relaxed<bool> being_extended;
+
   /** size of the file in database pages (0 if not known yet);
   the possible last incomplete megabyte may be ignored if space->id == 0 */
   uint32_t size;
   /** maximum size of the file in database pages (0 if unlimited) */
   uint32_t max_size;
-  /** whether the file is currently being extended */
-  Atomic_relaxed<bool> being_extended;
+  /** Filesystem block size */
+  uint32_t block_size;
   /** link to other files in this tablespace */
   UT_LIST_NODE_T(fil_node_t) chain;
 
-  /** Filesystem block size */
-  ulint block_size;
-
+  /** Destructor */
+  ~fil_node_t();
   /** @return whether this file is open */
   bool is_open() const noexcept { return handle != OS_FILE_CLOSED; }
 
@@ -1162,6 +1179,17 @@ struct fil_node_t final
   @param detach_handle whether to detach instead of closing a handle
   @return detached handle or OS_FILE_CLOSED */
   inline pfs_os_file_t close_to_free(bool detach_handle= false) noexcept;
+
+  /** Rename the file.
+  @param path   new file name, allocated in ut_free() compatible way */
+  void rename(char *path) noexcept;
+  /** Refresh the backup_name from name. */
+  inline void set_backup_name() noexcept;
+  /** Consume the name that had been sampled by set_backup_name().
+  @param backup_name  the name that was sampled by set_backup_name()
+  @return the current name; if different from backup_name,
+  the caller must invoke ut_free(backup_name) */
+  inline const char *get_backup_name(char *&backup_name) noexcept;
 
 private:
   /** Does stuff common for close() and detach() */
@@ -1490,6 +1518,8 @@ public:
   my_bool buffered;
   /** whether fdatasync() is needed on data files */
   Atomic_relaxed<bool> need_unflushed_spaces;
+  /** whether dict_load_tablespaces(nullptr, true) is unnecessary */
+  Atomic_relaxed<bool> have_all_spaces;
 
   /** Try to enable or disable write-through of data files */
   void set_write_through(bool write_through);

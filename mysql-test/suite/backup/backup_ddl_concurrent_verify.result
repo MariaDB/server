@@ -1,0 +1,53 @@
+CREATE TABLE t_myisam (a INT) ENGINE=MyISAM;
+INSERT INTO t_myisam VALUES (1), (2), (3);
+CREATE TABLE t_aria (a INT) ENGINE=Aria TRANSACTIONAL=0;
+INSERT INTO t_aria VALUES (1), (2), (3);
+CREATE TABLE t_arch (a INT) ENGINE=ARCHIVE;
+INSERT INTO t_arch VALUES (1), (2), (3);
+CREATE PROCEDURE reader_churn(IN iterations INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < iterations DO
+SELECT SLEEP(0.002) INTO @discard
+FROM t_myisam, t_aria, t_arch LIMIT 1;
+SET i = i + 1;
+END WHILE;
+END|
+CREATE PROCEDURE ddl_churn(IN iterations INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < iterations DO
+ALTER TABLE t_myisam ADD INDEX ix (a);
+ALTER TABLE t_myisam DROP INDEX ix;
+ALTER TABLE t_myisam FORCE, ALGORITHM=COPY;
+SET i = i + 1;
+END WHILE;
+END|
+connect  r1,localhost,root,,;
+CALL reader_churn(800);
+connect  r2,localhost,root,,;
+CALL reader_churn(800);
+connect  d1,localhost,root,,;
+CALL ddl_churn(400);
+connection default;
+connection r1;
+connection r2;
+connection d1;
+connection default;
+disconnect r1;
+disconnect r2;
+disconnect d1;
+# restart: --datadir=MYSQLTEST_VARDIR/backup_ddl_concurrent_verify
+SELECT COUNT(*) FROM t_myisam;
+COUNT(*)
+3
+SELECT COUNT(*) FROM t_aria;
+COUNT(*)
+3
+SELECT COUNT(*) FROM t_arch;
+COUNT(*)
+3
+# restart
+DROP PROCEDURE reader_churn;
+DROP PROCEDURE ddl_churn;
+DROP TABLE t_myisam, t_aria, t_arch;

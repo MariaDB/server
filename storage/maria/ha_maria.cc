@@ -3728,7 +3728,82 @@ void maria_end_backup()
   translog_enable_purge();
 }
 
+/* A C++ function pointer compatible wrapper of a C function */
+static void *
+maria_backup_start(THD *, const backup_target *target,
+                   backup_phase phase, const backup_sink *sink) noexcept
+{
+  if (phase == BACKUP_PHASE_NO_COMMIT)
+  {
+    const size_t prefix{strlen(maria_data_root) + 1};
+    const size_t size{prefix + sizeof "aria_log.00000001"};
+    const TRANSLOG_ADDRESS horizon{translog_get_horizon()};
+    translog_flush(horizon);
+    const uint32 last{LSN_FILE_NO(horizon)};
+    bool fail{false};
 
+    maria_prepare_for_backup();
+
+    /* FIXME: copy one log file per thread */
+    char *filename= static_cast<char*>(malloc(size));
+    if (!filename)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      goto fail;
+    }
+    memcpy(filename, maria_data_root, prefix - 1);
+    filename[prefix - 1]= '/';
+
+    for (uint32 i{translog_get_first_file(horizon)}; i <= last; i++)
+    {
+      snprintf(filename + prefix, size - prefix, "aria_log.%08" PRIu32, i);
+      if (backup::copy_or_stream(*target, *sink, filename, prefix))
+        goto fail;
+    }
+
+    strcpy(filename + prefix, "aria_log_control");
+
+    if (backup::copy_or_stream(*target, *sink, filename, prefix))
+    fail:
+      fail= true;
+    maria_end_backup();
+    free(filename);
+    if (fail)
+      return reinterpret_cast<void*>(-1);
+  }
+  return nullptr;
+}
+
+/**
+   Check if a file needs to included by BACKUP SERVER.
+
+   @param phase    the last phase on which aria_backup_start() was called
+   @param name     candidate file name
+   @return whether the file should be backed up
+*/
+static bool maria_backup_file(backup_phase phase, const LEX_CSTRING name)
+  noexcept
+{
+  if (phase == BACKUP_PHASE_NO_COMMIT)
+  {
+    if (name.length >= 4)
+    {
+      uint32_t suffix;
+      memcpy(&suffix, name.str + name.length - 4, 4);
+      switch (suffix) {
+#ifdef WORDS_BIGENDIAN
+      case 0x2e4d4144: /* .MAD ENGINE=Aria data heap */
+      case 0x2e4d4149: /* .MAI ENGINE=Aria indexes */
+#else
+      case 0x44414d2e: /* .MAD ENGINE=Aria data heap */
+      case 0x49414d2e: /* .MAI ENGINE=Aria indexes */
+#endif
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 #define SHOW_MSG_LEN (FN_REFLEN + 20)
 /**
@@ -3942,6 +4017,8 @@ static int ha_maria_init(void *p)
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;
   maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
+  maria_hton->backup_start= maria_backup_start;
+  maria_hton->backup_file= maria_backup_file;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
