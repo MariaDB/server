@@ -55,17 +55,20 @@ using JOIN_TAB= struct st_join_table;
 
   The idea is to catch arrays that can be printed on one line:
 
-    arrayName : [ "boo", 123, 456 ] 
+    arrayName : [ "boo", 123, 456 ]
 
   and actually print them on one line. Arrays that occupy too much space on
   the line, or have nested members, cannot be printed on one line.
-  
+
   We hook into JSON printing functions and try to detect the pattern. While
   detecting the pattern, we will accumulate "boo", 123, 456 as strings.
+  For each accumulated element we also remember whether it has to be quoted
+  when it is printed: JSON strings are quoted, while numbers, booleans and
+  nulls are not.
 
-  Then, 
-   - either the pattern is broken, and we print the elements out, 
-   - or the pattern lasts till the end of the array, and we print the 
+  Then,
+   - either the pattern is broken, and we print the elements out,
+   - or the pattern lasts till the end of the array, and we print the
      array on one line.
 */
 
@@ -100,15 +103,31 @@ class Single_line_formatting_helper
   */
   enum enum_state state;
   enum { MAX_LINE_LEN= 80 };
+  /*
+    Every accumulated array element takes at least 4 bytes of the line length
+    budget (see on_add_str()), so this is the maximum number of elements we
+    can ever accumulate. on_add_str() also enforces this limit explicitly, so
+    that quoted[] stays in bounds even if the budget accounting is changed.
+  */
+  enum { MAX_ELEMENTS= MAX_LINE_LEN / 4 };
   char buffer[80];
 
   /* The data in the buffer is located between buffer[0] and buf_ptr */
   char *buf_ptr;
   uint line_len;
 
+  /*
+    For each array element accumulated in the buffer, tells whether it is a
+    JSON string (and so has to be printed inside quotes) or not.
+  */
+  bool quoted[MAX_ELEMENTS];
+  /* Number of array elements accumulated in the buffer */
+  uint n_elements;
+
   Json_writer *owner;
 public:
-  Single_line_formatting_helper() : state(INACTIVE), buf_ptr(buffer) {}
+  Single_line_formatting_helper()
+   : state(INACTIVE), buf_ptr(buffer), n_elements(0) {}
 
   void init(Json_writer *owner_arg) { owner= owner_arg; }
 
@@ -119,7 +138,7 @@ public:
   void on_start_object();
   // on_end_object() is not needed.
 
-  bool on_add_str(const char *str, size_t num_bytes);
+  bool on_add_str(const char *str, size_t num_bytes, bool quoted_str);
 
   /*
     Returns true if the helper is flushing its buffer and is probably
@@ -265,7 +284,7 @@ private:
   void add_unquoted_str(const char* val);
   void add_unquoted_str(const char* val, size_t len);
 
-  bool on_add_str(const char *str, size_t num_bytes);
+  bool on_add_str(const char *str, size_t num_bytes, bool quoted_str);
   void on_start_object();
 
 public:
@@ -669,7 +688,7 @@ public:
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
-      context.add_ll(static_cast<longlong>(value));
+      my_writer->add_ull(value);
     return *this;
   }
   Json_writer_array& add(longlong value)
@@ -686,12 +705,18 @@ public:
       context.add_double(value);
     return *this;
   }
+  /*
+    On _WIN64, size_t is the same type as ulonglong, so the overload above
+    already covers it. Everywhere else size_t needs its own overload, which
+    must print unsigned, just like the ulonglong one, so that the output does
+    not depend on the platform.
+  */
   #ifndef _WIN64
   Json_writer_array& add(size_t value)
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
-      context.add_ll(static_cast<longlong>(value));
+      my_writer->add_ull(static_cast<ulonglong>(value));
     return *this;
   }
   #endif
