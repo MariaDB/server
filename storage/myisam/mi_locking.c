@@ -335,8 +335,8 @@ void mi_update_status(void* param)
     info->s->state.state= *info->state;
     DBUG_PRINT("info", ("invalidator... '%s' (status update)",
                         info->filename));
-    DBUG_ASSERT(info->s->chst_invalidator != NULL);
-    (*info->s->chst_invalidator)((const char *)info->filename);
+    if (info->s->chst_invalidator)
+      (*info->s->chst_invalidator)((const char *)info->filename);
   }
 
   info->state= &info->s->state.state;

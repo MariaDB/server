@@ -2521,6 +2521,7 @@ public:
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
 				performance_schema) */
+	bool		query_cache; /* 1 if query cache is in use */
 	dict_frm_t	dict_frm_mismatch;
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and

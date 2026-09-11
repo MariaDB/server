@@ -1,1 +1,3 @@
 --query-cache-size=1355776
+--query-cache-type=ON
+

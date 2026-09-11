@@ -813,7 +813,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   if (!(file=mi_open(name, mode, test_if_locked | HA_OPEN_FROM_SQL_LAYER)))
     return (my_errno ? my_errno : -1);
 
-  file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
+  if (table->s->query_cache != HA_CHOICE_NO && query_cache_available())
+    file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For mi_killed()
 

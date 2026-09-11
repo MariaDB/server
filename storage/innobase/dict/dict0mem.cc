@@ -150,6 +150,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->name.m_name= mem_strdupl(name.data(), name.size());
   table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
+  table->query_cache= query_cache_available();
   table->space= space;
   table->space_id= space ? space->id : UINT32_MAX;
   table->n_t_cols= static_cast<unsigned>(n_cols + DATA_N_SYS_COLS) &

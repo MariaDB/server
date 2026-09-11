@@ -1022,7 +1022,8 @@ row_ins_foreign_check_on_constraint(
 	the mutex rank above the lock_sys.latch. The query cache mutex
 	has a rank just above the lock_sys.latch. */
 
-	row_ins_invalidate_query_cache(thr, table->name.m_name);
+        if (table->query_cache)
+		row_ins_invalidate_query_cache(thr, table->name.m_name);
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 

@@ -1436,6 +1436,7 @@ void THD::init()
   backup_commit_lock= 0;
   num_of_strings_sorted_on_truncated_length= 0;
   query_cache_is_applicable= 0;
+  fix_local_query_cache_mode(this);
 #ifdef WITH_WSREP
   wsrep_last_query_id= 0;
   wsrep_xid.null();
