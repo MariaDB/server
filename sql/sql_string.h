@@ -461,6 +461,21 @@ public:
     return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->Alloced_length);
   }
 
+  /*
+    Move "from_length" bytes starting at "from_pos" to the beginning of our
+    buffer and adjust str_length accordingly. Unlike copy(), this never
+    allocates: the caller must ensure that "from_length" bytes fit into this
+    buffer. "from_pos" itself can point anywhere, including our own buffer at
+    some offset; the regions may overlap.
+  */
+  void bmove_from(const char *from_pos, size_t from_length)
+  {
+    DBUG_ASSERT(from_length < Alloced_length);
+    if ((str_length= (uint32) from_length))
+      bmove(Ptr, from_pos, from_length);          // May be overlapping
+    Ptr[str_length]= 0;
+  }
+
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(Binary_string &s)
   {
@@ -936,6 +951,7 @@ public:
   bool copy_aligned(const char *s, size_t arg_length, size_t offset,
 		    CHARSET_INFO *cs);
   bool set_or_copy_aligned(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool copy_maybe_substring(const String &s);
   bool can_be_safely_converted_to(CHARSET_INFO *tocs) const
   {
     if (charset() == &my_charset_bin)

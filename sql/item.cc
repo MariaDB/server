@@ -5441,7 +5441,10 @@ void Item_copy_string::copy()
 {
   String *res=item->val_str(&str_value);
   if (res && res != &str_value)
-    str_value.copy(*res);
+  {
+    /* item->val_str() can return a String that reuses the buffer of str_value */
+    str_value.copy_maybe_substring(*res);
+  }
   null_value=item->null_value;
 #ifndef DBUG_OFF
   copied_in= 1;
