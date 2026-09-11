@@ -210,4 +210,35 @@ id	LENGTH(c)	LEFT(c,1)
 6	200	z
 SET sql_mode= @save_sql_mode;
 DROP TABLE t1;
+#
+# The record itself is reshaped, and only above the threshold.
+#
+# AVG_ROW_LENGTH is the width the engine lays a row out in.  A
+# column left in the record reserves what it was declared as; one
+# addressed through the record reserves a length prefix and a
+# pointer.
+#
+# A compressed column carries its header inside the declared
+# width the threshold is read against, so VARCHAR(31) COMPRESSED
+# is the widest one the record still holds and VARCHAR(32)
+# COMPRESSED the narrowest one it does not.
+#
+CREATE TABLE t_narrow (a VARCHAR(31) COMPRESSED) ENGINE=MEMORY
+CHARACTER SET latin1;
+CREATE TABLE t_wide (a VARCHAR(32) COMPRESSED) ENGINE=MEMORY
+CHARACTER SET latin1;
+CREATE TABLE t_plain (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+SELECT TABLE_NAME, AVG_ROW_LENGTH >= 32 AS at_least_32_bytes
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_narrow','t_plain')
+ORDER BY TABLE_NAME;
+TABLE_NAME	at_least_32_bytes
+t_narrow	1
+t_plain	1
+SELECT TABLE_NAME, AVG_ROW_LENGTH < 32 AS below_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_wide';
+TABLE_NAME	below_declared_width
+t_wide	1
+DROP TABLE t_narrow, t_wide, t_plain;
 SET max_heap_table_size= @save_max_heap_table_size;

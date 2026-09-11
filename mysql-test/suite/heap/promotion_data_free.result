@@ -1,0 +1,41 @@
+CREATE TABLE narrow (id INT PRIMARY KEY, a VARCHAR(20))
+ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE wide (id INT PRIMARY KEY, a VARCHAR(3000))
+ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE declared (id INT PRIMARY KEY, a TEXT)
+ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO narrow SELECT seq, REPEAT('x', 20) FROM seq_1_to_100;
+INSERT INTO wide SELECT seq, REPEAT('x', 3000) FROM seq_1_to_100;
+INSERT INTO declared SELECT seq, REPEAT('x', 3000) FROM seq_1_to_100;
+#
+# A wide VARCHAR is stored the way the declared TEXT beside it is,
+# so the two must report their free space the same way.  Both are
+# read against the narrow column, which is stored in the row.
+#
+DELETE FROM narrow WHERE id <= 50;
+DELETE FROM wide WHERE id <= 50;
+DELETE FROM declared WHERE id <= 50;
+SELECT TABLE_NAME, DATA_FREE <= DATA_LENGTH AS free_space_fits
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME IN ('narrow','wide','declared')
+ORDER BY TABLE_NAME;
+TABLE_NAME	free_space_fits
+declared	1
+narrow	1
+wide	1
+#
+# Emptying the table frees every record it held, so the free space
+# it then reports is the whole of what it allocated.
+#
+DELETE FROM narrow;
+DELETE FROM wide;
+DELETE FROM declared;
+SELECT TABLE_NAME, DATA_FREE <= DATA_LENGTH AS free_space_fits
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME IN ('narrow','wide','declared')
+ORDER BY TABLE_NAME;
+TABLE_NAME	free_space_fits
+declared	1
+narrow	1
+wide	1
+DROP TABLE narrow, wide, declared;

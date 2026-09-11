@@ -34,29 +34,6 @@ C_MODE_START
 #define HP_MIN_RECORDS_IN_BLOCK 16
 #define HP_MAX_RECORDS_IN_BLOCK 8192
 
-/*
-  A VARCHAR whose declared payload is wider than this many bytes is
-  stored as a blob instead of inline.
-
-  Heap records are fixed width, so an inline VARCHAR(N) reserves its full
-  declared width in every row whether or not the row uses it.  N counts
-  characters, so that width is between N and 4N bytes depending on the
-  character set: the same VARCHAR(100) reserves 100 bytes in latin1 and
-  400 in utf8mb4.  A blob costs a length prefix and a pointer in the row,
-  and only the bytes actually present in a continuation run.  The
-  threshold is therefore compared against the byte width, not N.
-
-  Below the threshold promotion loses: a non-empty promoted value costs
-  at least one whole continuation record, so a narrow column pays more
-  for the run than it saves on the row.
-
-  It must also stay at or above the width of a pointer: a column
-  narrower than one is made larger by the move, and the record
-  arithmetic that gives back the declared width and spends a pointer
-  would wrap.
-*/
-#define HEAP_CONVERT_IF_BIGGER_TO_BLOB 32
-
 /* Flags stored in the 'visible' byte at end of each record */
 #define HP_ROW_ACTIVE    1   /* Bit 0: record is active (not deleted) */
 #define HP_ROW_HAS_CONT  2   /* Bit 1: primary record has continuation chain(s) */

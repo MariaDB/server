@@ -1,0 +1,144 @@
+#
+# A wide VARCHAR in a partitioned MEMORY table keeps its payload
+# outside the record, the same way one in an unpartitioned MEMORY table
+# does.
+#
+# The partition handler stores no rows itself, so the engine that
+# decides how a record is laid out is the one the partitions use.  All
+# partitions of a table share it, so there is a single answer, and the
+# partitions read the share's record as it stands.
+#
+--source include/have_partition.inc
+--source include/have_sequence.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2, t_wide, t_narrow, t_blob;
+--enable_warnings
+
+--echo #
+--echo # The record of a partitioned table is reshaped, and only above
+--echo # the threshold.
+--echo #
+--echo # A partition's AVG_ROW_LENGTH is the width that partition lays a
+--echo # row out in.  A column left inline reserves what it was declared
+--echo # as; one moved out of the record reserves a length prefix and a
+--echo # pointer instead, which is what a declared blob reserves.  The
+--echo # three tables below differ in nothing else, so the widths they
+--echo # report say where each one keeps its payload.
+--echo #
+--echo # The aggregate in information_schema.TABLES is a whole-table
+--echo # figure computed from the data the partitions have allocated, so
+--echo # it says nothing about the layout.  Read the partitions.
+--echo #
+
+CREATE TABLE t_narrow (id INT, a VARCHAR(32)) ENGINE=MEMORY
+  CHARACTER SET latin1
+  PARTITION BY HASH(id) PARTITIONS 2;
+
+CREATE TABLE t_wide (id INT, a VARCHAR(3000)) ENGINE=MEMORY
+  CHARACTER SET latin1
+  PARTITION BY HASH(id) PARTITIONS 2;
+
+CREATE TABLE t_blob (id INT, a BLOB) ENGINE=MEMORY
+  CHARACTER SET latin1
+  PARTITION BY HASH(id) PARTITIONS 2;
+
+INSERT INTO t_narrow SELECT seq, 'x' FROM seq_1_to_10;
+INSERT INTO t_wide   SELECT seq, 'x' FROM seq_1_to_10;
+INSERT INTO t_blob   SELECT seq, 'x' FROM seq_1_to_10;
+
+--echo # 38 = null byte + INT + one length byte + the declared 32.
+--echo # 15 = null byte + INT + two length bytes + a pointer.
+SELECT TABLE_NAME, PARTITION_NAME, AVG_ROW_LENGTH
+FROM information_schema.PARTITIONS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_narrow','t_wide','t_blob')
+ORDER BY TABLE_NAME, PARTITION_NAME;
+
+DROP TABLE t_narrow, t_wide, t_blob;
+
+--echo #
+--echo # Rows reach the partition they belong in, and come back whole.
+--echo # Two promoted columns with narrow ones between and after them is
+--echo # the arrangement that catches an offset delta applied where a
+--echo # running one was needed.
+--echo #
+
+CREATE TABLE t1 (
+  id INT,
+  b VARCHAR(2000),
+  c INT,
+  d VARCHAR(3000),
+  e CHAR(10)
+) ENGINE=MEMORY CHARACTER SET latin1
+  PARTITION BY HASH(id) PARTITIONS 4;
+
+INSERT INTO t1 VALUES (1, REPEAT('b',100), 11, REPEAT('d',200), 'one');
+INSERT INTO t1 VALUES (2, '',              22, NULL,            '');
+INSERT INTO t1 VALUES (3, REPEAT('x',1999), 33, REPEAT('y',3000), 'three');
+INSERT INTO t1 VALUES (4, REPEAT('z',40),  44, REPEAT('w',40),  'four');
+INSERT INTO t1 VALUES (5, NULL,            55, REPEAT('v',2999), 'five');
+
+SELECT id, LENGTH(b), LEFT(b,1), c, LENGTH(d), LEFT(d,1), e
+FROM t1 ORDER BY id;
+
+--echo # Pruning to one partition reads that partition's records only.
+SELECT id, LENGTH(b), LENGTH(d) FROM t1 PARTITION (p1) ORDER BY id;
+SELECT id, LENGTH(b), LENGTH(d) FROM t1 WHERE id = 3;
+
+--echo # Rows per partition, which is what says the promoted column did
+--echo # not disturb the partitioning function's view of the record.
+SELECT PARTITION_NAME, TABLE_ROWS
+FROM information_schema.PARTITIONS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1'
+ORDER BY PARTITION_NAME;
+
+--echo #
+--echo # An ordered index scan merges the partitions through a buffer of
+--echo # whole records, so it reads a promoted column through whatever
+--echo # the record holds for it.
+--echo #
+
+CREATE TABLE t2 (
+  id INT,
+  b VARCHAR(2000),
+  KEY USING BTREE (id)
+) ENGINE=MEMORY CHARACTER SET latin1
+  PARTITION BY HASH(id) PARTITIONS 4;
+
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(64 + seq), seq * 10)
+FROM seq_1_to_20;
+
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 ORDER BY id;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 ORDER BY id DESC LIMIT 5;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id BETWEEN 8 AND 12
+ORDER BY id;
+
+--echo #
+--echo # UPDATE and DELETE across partitions.  An UPDATE that changes the
+--echo # partitioning column moves the row between partitions, writing it
+--echo # to one and deleting it from another.
+--echo #
+
+UPDATE t2 SET b = CONCAT(b, b) WHERE id <= 3;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id <= 3 ORDER BY id;
+
+UPDATE t2 SET id = id + 100 WHERE id = 7;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id > 100;
+
+DELETE FROM t2 WHERE id > 15;
+SELECT COUNT(*), SUM(LENGTH(b)) FROM t2;
+
+--echo #
+--echo # A partitioned table's capacity is per partition, so a promoted
+--echo # column buys room there as well.
+--echo #
+
+CREATE TABLE t_wide (id INT, a VARCHAR(60000)) ENGINE=MEMORY
+  CHARACTER SET latin1
+  MAX_ROWS = 1000
+  PARTITION BY HASH(id) PARTITIONS 2;
+
+INSERT INTO t_wide SELECT seq, REPEAT('q', 100) FROM seq_1_to_200;
+SELECT COUNT(*) FROM t_wide;
+
+DROP TABLE t1, t2, t_wide;

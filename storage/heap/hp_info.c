@@ -42,6 +42,15 @@ int heap_info(reg1 HP_INFO *info,reg2 HEAPINFO *x, int flag )
   x->deleted_entries = info->s->deleted_entries;
   x->reclength       = info->s->reclength;
   x->data_length     = info->s->data_length;
+  /*
+    The free space, in the bytes data_length counts.  A free record is a
+    slot of the stored row width, which is the SQL row width only while
+    nothing is stored out of line; multiplying the free record count by
+    reclength once a wide VARCHAR is promoted reports more free space
+    than the table has ever allocated.
+  */
+  x->delete_length   = (ulonglong) info->s->deleted *
+                       info->s->block.recbuffer;
   x->index_length    = info->s->index_length;
   /*
     The ceiling data_length counts toward, in the bytes data_length is
@@ -53,15 +62,15 @@ int heap_info(reg1 HP_INFO *info,reg2 HEAPINFO *x, int flag )
     A row limit binds first where the rows it admits cannot reach that
     ceiling.  declared_reclength is the widest a row can be whatever its
     columns are stored as, so max_rows times it bounds the rows -- except
-    where a blob leaves a row with no width at all, and then there is
-    nothing for a row limit to bound bytes by.
+    where a declared blob leaves a row with no width at all, and then
+    there is nothing for a row limit to bound bytes by.
 
     Deliberately not the expected record count times reclength: that
     count is record slots, and a slot holds a whole row only while
-    nothing is stored out of line.
-    Multiplying the two once a wide VARCHAR is promoted reports a table's
-    ceiling as its slot count times a row width it no longer stores,
-    which overstates it by the promotion ratio.
+    nothing is stored out of line.  Multiplying the two once a wide
+    VARCHAR is promoted reports a table's ceiling as its slot count
+    times a row width it no longer stores, which overstates it by the
+    promotion ratio.
   */
   x->max_data_length = info->s->max_table_size;
   if (info->s->max_rows != NO_LIMIT_ROWS && info->s->declared_reclength &&

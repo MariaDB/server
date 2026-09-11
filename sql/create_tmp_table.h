@@ -45,8 +45,16 @@ protected:
   uint m_field_count[2];
   // counter for distinct/other fields which can be NULL
   uint m_null_count[2];
-  // counter for distinct/other  blob fields
-  uint m_blobs_count[2];
+  /*
+    Whether any distinct column is declared as a blob.  A declared blob
+    has no maximum width, so a unique index over one has to be a hash.  A
+    column whose data is out of line only because it was promoted keeps
+    its declared width and can be indexed normally.
+
+    Unlike the counters beside it this is not wanted per counter: nothing
+    asks how many there are, and nothing asks about the other columns.
+  */
+  bool m_distinct_has_unbounded_blob;
   // counter for "tails" of bit fields which do not fit in a byte
   uint m_uneven_bit[2];
 
