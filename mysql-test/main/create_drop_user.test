@@ -44,3 +44,64 @@ DROP USER IF EXISTS u1, u2;
 
 --error ER_CANNOT_USER
 DROP USER u2;
+
+# MDEV-37214: CREATE OR REPLACE USER with invalid plugin must not drop
+# the existing user and must not leave master/replica in diverged state.
+CREATE USER u3@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+SELECT User FROM mysql.user WHERE user='u3';
+DROP USER u3@localhost;
+
+# MDEV-37214: CREATE OR REPLACE USER must wipe old privileges from other
+# grant tables (mysql.db, mysql.tables_priv, etc.) before updating mysql.user.
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u3';
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER with no IDENTIFIED clause must
+# not lose/expire the existing password_last_changed. Since the OR REPLACE
+# path now UPDATEs the existing mysql.user/global_priv row in place (instead
+# of DROP+recreate), password_last_changed must be explicitly carried over
+# when auth isn't being changed, otherwise a restored/replaced account can
+# read back with password_last_changed unset, which is indistinguishable
+# from "manually expired".
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+SELECT password_expired FROM mysql.user WHERE user='u3';
+CREATE OR REPLACE USER u3@localhost;
+SELECT password_expired FROM mysql.user WHERE user='u3';
+DROP USER u3@localhost;
+
+# Failed OR REPLACE must not touch privileges either (all-or-nothing per account).
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+SELECT User FROM mysql.user WHERE user='u3';
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER must not let the replaced
+# account keep its old GLOBAL privileges. Since OR REPLACE now UPDATEs the
+# existing mysql.global_priv row in place, User_table::set_access()'s additive
+# merge (access |= rights) would otherwise leave old global privilege bits
+# set even though the OR REPLACE statement itself grants nothing.
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT RELOAD ON *.* TO u3@localhost;
+SHOW GRANTS FOR u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SHOW GRANTS FOR u3@localhost;
+DROP USER u3@localhost;

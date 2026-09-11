@@ -41,3 +41,66 @@ Warnings:
 Note	1974	Can't drop user 'u1'@'%'; it doesn't exist
 DROP USER u2;
 ERROR HY000: Operation DROP USER failed for 'u2'@'%'
+CREATE USER u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+SELECT User FROM mysql.user WHERE user='u3';
+User
+u3
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+u3	test
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+test	t1
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u3';
+plugin	authentication_string
+mysql_native_password	*B27918D2D9402882CEADA0EF687D35FBDC137D72
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+SELECT password_expired FROM mysql.user WHERE user='u3';
+password_expired
+N
+CREATE OR REPLACE USER u3@localhost;
+SELECT password_expired FROM mysql.user WHERE user='u3';
+password_expired
+N
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+SELECT User FROM mysql.user WHERE user='u3';
+User
+u3
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+u3	test
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+test	t1
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT RELOAD ON *.* TO u3@localhost;
+SHOW GRANTS FOR u3@localhost;
+Grants for u3@localhost
+GRANT RELOAD ON *.* TO `u3`@`localhost` IDENTIFIED BY PASSWORD '*2B602296A79E0A8784ACC5C88D92E46588CCA3C3'
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SHOW GRANTS FOR u3@localhost;
+Grants for u3@localhost
+GRANT USAGE ON *.* TO `u3`@`localhost` IDENTIFIED BY PASSWORD '*B27918D2D9402882CEADA0EF687D35FBDC137D72'
+DROP USER u3@localhost;

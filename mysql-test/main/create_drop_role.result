@@ -85,4 +85,5 @@ GRANT r TO foo;
 CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
 ERROR HY000: Plugin 'non_existing_plugin' is not loaded
 DROP ROLE r;
+DROP USER foo;
 DROP USER bar;
