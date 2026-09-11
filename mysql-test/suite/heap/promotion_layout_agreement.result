@@ -1,0 +1,47 @@
+CREATE TABLE ft (b VARCHAR(64), FULLTEXT(b)) ENGINE=MyISAM;
+INSERT INTO ft VALUES ('alpha'),('beta');
+WITH RECURSIVE seq AS (
+SELECT 1 AS n, REPEAT('a', 100) AS wide
+UNION ALL
+SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT n, LEFT(wide, 8) AS head, CHAR_LENGTH(wide) AS len FROM seq ORDER BY n;
+n	head	len
+1	aaaaaaaa	100
+2	bbbbbbbb	100
+3	bbbbbbbb	100
+WITH RECURSIVE seq AS (
+SELECT 1 AS n, REPEAT('a', 100) AS wide
+UNION ALL
+SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT s1.n, LEFT(s1.wide, 8) AS head, CHAR_LENGTH(s2.wide) AS len
+FROM seq s1, seq s2, ft
+WHERE s1.n = s2.n AND MATCH(ft.b) AGAINST ('alpha' IN BOOLEAN MODE)
+ORDER BY s1.n;
+n	head	len
+1	aaaaaaaa	100
+2	bbbbbbbb	100
+3	bbbbbbbb	100
+PREPARE stmt FROM "
+WITH RECURSIVE seq AS (
+  SELECT 1 AS n, REPEAT('a', 100) AS wide
+  UNION ALL
+  SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT s1.n, LEFT(s1.wide, 8) AS head, CHAR_LENGTH(s2.wide) AS len
+FROM seq s1, seq s2, ft
+WHERE s1.n = s2.n AND MATCH(ft.b) AGAINST ('alpha' IN BOOLEAN MODE)
+ORDER BY s1.n";
+EXECUTE stmt;
+n	head	len
+1	aaaaaaaa	100
+2	bbbbbbbb	100
+3	bbbbbbbb	100
+EXECUTE stmt;
+n	head	len
+1	aaaaaaaa	100
+2	bbbbbbbb	100
+3	bbbbbbbb	100
+DEALLOCATE PREPARE stmt;
+DROP TABLE ft;

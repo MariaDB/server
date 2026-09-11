@@ -60,6 +60,8 @@ typedef struct st_heapinfo		/* Struct from heap_info */
   ulonglong data_length;
   /* Ceiling data_length counts toward; see heap_info() */
   ulonglong max_data_length;
+  /* Free space, in the bytes data_length counts; see heap_info() */
+  ulonglong delete_length;
   ulonglong index_length;
   uint reclength;			/* Length of one record */
   int errkey;
@@ -252,11 +254,12 @@ typedef struct st_heap_share
   uint stored_reclength;
   /*
     The widest a row can be, in the bytes data_length counts, or 0 where
-    a row has no such width.  A blob keeps a length prefix and a pointer
-    in the record while its payload lives in continuation records, so
-    reclength counts the pointer rather than the value and says nothing
-    about how wide a row can grow.  A table holding a blob therefore has
-    no row width at all, and only max_table_size bounds it.
+    a row has no such width.  A column stored out of the record holds a
+    length prefix and a pointer there while its payload lives in
+    continuation records, so reclength stops counting those bytes; this
+    counts them, at the width the column was declared with.  A declared
+    blob has no declared width, so a table holding one has no row width
+    at all and only max_table_size bounds it.
   */
   uint declared_reclength;
   uint visible;     /* Offset to the flags byte (active/deleted/continuation) */

@@ -1327,13 +1327,13 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
     CACHE_FIELD **copy_ptr_end= copy_ptr+blobs;
     for ( ; copy_ptr < copy_ptr_end; copy_ptr++)
     {
-      Field_blob *blob_field= (Field_blob *) (*copy_ptr)->field;
+      Field *blob_field= (*copy_ptr)->field;
       if (!blob_field->is_null())
       {
-        uint blob_len= blob_field->get_length();
+        uint blob_len= blob_field->out_of_line_length();
         (*copy_ptr)->blob_length= blob_len;
         len+= blob_len;
-        (*copy_ptr)->str= blob_field->get_ptr();
+        (*copy_ptr)->str= (uchar*) blob_field->out_of_line_data();
       }
     }
   }
@@ -1408,7 +1408,7 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
     switch (copy->type) {
     case CACHE_BLOB:
     {
-      Field_blob *blob_field= (Field_blob *) copy->field;
+      Field *blob_field= copy->field;
       if (last_record)
       {
         last_rec_blob_data_is_in_rec_buff= 1;
@@ -1877,7 +1877,7 @@ uint JOIN_CACHE::read_record_field(CACHE_FIELD *copy, bool blob_in_rec_buff)
   switch (copy->type) {
   case CACHE_BLOB:
     {
-      Field_blob *blob_field= (Field_blob *) copy->field;
+      Field *blob_field= copy->field;
       /*
         Copy the length and the pointer to data but not the blob data
         itself to the record buffer
@@ -1890,8 +1890,8 @@ uint JOIN_CACHE::read_record_field(CACHE_FIELD *copy, bool blob_in_rec_buff)
       }
       else
       {
-        blob_field->set_ptr(pos, pos+copy->length);
-        len= copy->length + blob_field->get_length();
+        blob_field->set_out_of_line_image(pos);
+        len= copy->length + blob_field->out_of_line_length();
       }
     }
     break;
