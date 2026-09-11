@@ -60,12 +60,14 @@ set @small_heap=65536;
 # it has to handle is gone. Rows added past the overflow do not move
 # it: it happens once the table is full, whatever follows.
 #
-CREATE TABLE t1 (id INT PRIMARY KEY, v TEXT, w TEXT, s VARCHAR(64))
+CREATE TABLE t1 (id INT PRIMARY KEY, v TEXT, w TEXT, s VARCHAR(64),
+n VARCHAR(6))
 ENGINE=MyISAM;
 INSERT INTO t1
 SELECT seq,
 LPAD((seq+1) DIV 2, 6, 'x'),
 LPAD((seq+1) DIV 2, 10, 'y'),
+LPAD((seq+1) DIV 2, 6, 'z'),
 LPAD((seq+1) DIV 2, 6, 'z')
 FROM seq_1_to_8000;
 SELECT COUNT(*) AS rows_stored FROM t1;
@@ -108,7 +110,7 @@ FROM INFORMATION_SCHEMA.SESSION_STATUS
 WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
 CONVERTED
 ON
-# --- a blob and a non-blob argument ---
+# --- a blob and a VARCHAR argument ---
 FLUSH STATUS;
 SELECT COUNT(DISTINCT v, s) AS distinct_values FROM t1;
 distinct_values
@@ -118,9 +120,30 @@ FROM INFORMATION_SCHEMA.SESSION_STATUS
 WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
 CONVERTED
 ON
-# --- control: no blob argument, deduplicated by the in-memory tree ---
+# --- a VARCHAR wide enough to be stored out of line ---
+#
+# A VARCHAR this wide is kept outside the record of a heap table, so
+# the record holds a pointer to it just as it does for a blob. The
+# aggregate reaches the same conclusion from the same evidence and
+# takes the same path, the writes rather than the tree.
+#
 FLUSH STATUS;
 SELECT COUNT(DISTINCT s) AS distinct_values FROM t1;
+distinct_values
+4000
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
+# --- control: every value inside the record, deduplicated by the
+# --- in-memory tree
+#
+# n holds the same values as s and differs only in being declared
+# narrow enough to stay inside the record.
+#
+FLUSH STATUS;
+SELECT COUNT(DISTINCT n) AS distinct_values FROM t1;
 distinct_values
 4000
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
@@ -168,6 +191,9 @@ SELECT COUNT(DISTINCT v, s) AS distinct_values FROM t1;
 distinct_values
 4000
 SELECT COUNT(DISTINCT s) AS distinct_values FROM t1;
+distinct_values
+4000
+SELECT COUNT(DISTINCT n) AS distinct_values FROM t1;
 distinct_values
 4000
 SELECT id MOD 2 AS g, COUNT(DISTINCT v) AS distinct_values

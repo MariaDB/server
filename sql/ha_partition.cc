@@ -7184,8 +7184,14 @@ void ha_partition::swap_blobs(uchar * rec_buf, Ordered_blob_storage ** storage, 
        ptr != end; ++ptr, ++blob_n)
   {
     DBUG_ASSERT(*ptr < table->s->fields);
-    Field_blob *blob= (Field_blob*) table->field[*ptr];
-    DBUG_ASSERT(blob->flags & BLOB_FLAG);
+    /*
+      blob_field[] lists the columns whose payload sits outside the
+      record, which is not the same set as the columns declared as
+      blobs: a wide VARCHAR in a MEMORY table is stored that way too.
+      What matters here is where the payload is, so ask that.
+    */
+    Field *blob= table->field[*ptr];
+    DBUG_ASSERT(blob->data_is_out_of_line());
     DBUG_ASSERT(blob->field_index == *ptr);
     if (!bitmap_is_set(table->read_set, *ptr) || blob->is_null())
       continue;

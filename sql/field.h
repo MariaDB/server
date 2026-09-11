@@ -527,7 +527,9 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 /*
   Only needed for calc_group_buffer(), where we have an
   enum_field_types but no Field object.
-  In all other cases use field->flags & BLOB_FLAG.
+  In all other cases ask the Field: `flags & BLOB_FLAG' for whether the
+  column is declared as a blob, data_is_out_of_line() for where its
+  payload lives.
 */
 static inline bool is_any_blob_field_type(enum_field_types type)
 {
@@ -931,6 +933,15 @@ public:
   Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
         uchar null_bit_arg, utype unireg_check_arg,
         const LEX_CSTRING *field_name_arg);
+  /*
+    Declared explicitly because Field_varstring::make_promoted() copies a
+    Field to build the same column in a different class.  A class with a
+    destructor of its own gets an implicit copy constructor that is
+    deprecated, so the default is requested here instead.  The members
+    are the column's description and copy by value; none of them owns
+    memory that a second owner would free.
+  */
+  Field(const Field &)= default;
   virtual ~Field() = default;
 
   virtual Type_numeric_attributes type_numeric_attributes() const
@@ -1228,6 +1239,21 @@ public:
   */
   virtual uint32 pack_length_in_rec() const { return pack_length(); }
   /*
+    True when the payload does not live inside the record buffer: the
+    record holds a length and a pointer to the bytes instead.  A record
+    copied wholesale therefore shares the payload rather than owning a
+    copy of it, and code that saves a row for longer than the reading
+    handler keeps its buffer alive must materialise the bytes first.
+
+    Ask this, not `flags & BLOB_FLAG', wherever the question is where the
+    data lives.  BLOB_FLAG answers a different question -- whether the
+    column is declared as a blob -- and `sql_select.cc' asserts that it
+    agrees with type(), so it cannot be set on anything reported as a
+    VARCHAR.
+  */
+  virtual bool data_is_out_of_line() const
+  { return (flags & BLOB_FLAG) != 0; }
+  /*
     Whether this column's payload can be kept outside the record at all.
 
     This is the CAPABILITY and nothing else: whether the column's type
@@ -1256,6 +1282,11 @@ public:
     column is asked rather than its type.
   */
   virtual bool worth_storing_out_of_line() const { return true; }
+  /*
+    Width of the length prefix the record holds in front of the payload,
+    zero for a column that has none.
+  */
+  virtual uint length_size() const { return 0; }
   virtual bool compatible_field_size(uint metadata, const Relay_log_info *rli,
                                      uint16 mflags, int *order) const;
   virtual uint pack_length_from_metadata(uint field_metadata) const
@@ -1655,6 +1686,80 @@ public:
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
+  /*
+    For a field whose data is out of line: replace whatever the record
+    points at with a copy this Field owns, so that the value outlives the
+    buffer it was read from.  Returns true on out-of-memory.  A field
+    that keeps its data in the record has nothing to do.
+  */
+  virtual bool copy() { return false; }
+
+  /*
+    A field whose data is out of line keeps a length and a pointer to
+    the payload in the record.  The first two read that pair out of any
+    image of this field's record slot -- record[0], another record
+    buffer, or a key -- and reach the payload it names.  The third takes
+    such an image, the length prefix followed by the payload, and writes
+    the pair into record[0], pointing it at the payload where it already
+    lies rather than copying it.
+
+    A field that keeps its data in the record answers none of them, so
+    ask data_is_out_of_line() first.
+  */
+  virtual const uchar *out_of_line_data(const uchar *rec) const
+  { DBUG_ASSERT(0); return NULL; }
+  /*
+    Whether this record slot holds a payload address at all.  A slot
+    never stored into holds none, and Blob_mem_storage writes its cut
+    mark in front of an address that storage handed out, so a reader of
+    the mark has to ask this first.  out_of_line_data() above does not
+    answer it: where a promoted VARCHAR holds no address that returns an
+    empty string, its own readers going on to call collation functions
+    that require one.
+  */
+  virtual bool has_out_of_line_data(const uchar *rec) const
+  { return out_of_line_data(rec) != NULL; }
+  virtual uint32 out_of_line_length(const uchar *rec) const
+  { DBUG_ASSERT(0); return 0; }
+  virtual void set_out_of_line_image(const uchar *image)
+  { DBUG_ASSERT(0); }
+  const uchar *out_of_line_data() const { return out_of_line_data(ptr); }
+  uint32 out_of_line_length() const { return out_of_line_length(ptr); }
+  /*
+    The image itself: how many bytes one takes, and writing this field's
+    value out as one.  set_out_of_line_image() above reads back exactly
+    what this writes, so the two stay one description of the layout
+    rather than two.
+  */
+  uint32 out_of_line_image_length() const
+  { return length_size() + out_of_line_length(); }
+  uint32 store_out_of_line_image(uchar *to) const
+  {
+    uint32 length= out_of_line_length();
+    memcpy(to, ptr, length_size());
+    memcpy(to + length_size(), out_of_line_data(), length);
+    return length_size() + length;
+  }
+  /*
+    The buffer this field owns its payload in, when the record's pointer
+    is the one naming it, and the way to give that buffer to a caller
+    holding such a record.
+
+    ha_partition reads a record from every partition before it returns
+    the first of them, so a buffer the field would otherwise reuse for
+    the next row has to travel with the record that points into it.
+
+    A field whose payload is in the record has no such buffer, and one
+    whose pointer names memory the engine owns has not lent anything
+    out; both answer NULL.
+  */
+  virtual String *cached(bool *set_read_value) { return NULL; }
+  virtual void swap(String &inout, bool set_read_value) { DBUG_ASSERT(0); }
+  /*
+    How much that buffer is holding on to.  A field with no buffer has
+    nothing to reclaim and answers 0.
+  */
+  virtual uint32 get_field_buffer_size() { return 0; }
 
   /*
     Creates a copy of this field which can be added to any table, and the
@@ -2370,7 +2475,6 @@ public:
   bool val_bool() override { return val_real() != 0e0; }
   bool str_needs_quotes() const override { return true; }
   bool eq_cmp_as_binary() override { return MY_TEST(flags & BINARY_FLAG); }
-  virtual uint length_size() const { return 0; }
   double pos_in_interval(Field *min, Field *max) override
   {
     return pos_in_interval_val_str(min, max, length_size());
@@ -2432,6 +2536,7 @@ protected:
                uint max_length,
                uint *out_length,
                CHARSET_INFO *cs, size_t nchars);
+
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length) const;
 public:
@@ -4318,6 +4423,19 @@ public:
   }
   const uchar *get_data(const uchar *ptr_arg) const
   {
+    if (promoted)
+    {
+      const uchar *data= *((uchar* const *) (ptr_arg + length_bytes));
+      /*
+        A record slot that has not been stored into holds a null
+        pointer, beside the zero length reset() left there.  An inline
+        VARCHAR always has an address to offer for an empty value, and
+        the collation functions a reader goes on to call require one,
+        so offer an address here too.  Field_blob::val_str() takes the
+        same precaution.
+      */
+      return data ? data : (const uchar*) "";
+    }
     return ptr_arg + length_bytes;
   }
   uint get_length() const
@@ -4328,6 +4446,16 @@ public:
   {
     return length_bytes == 1 ? (uint) *ptr_arg : uint2korr(ptr_arg);
   }
+  /*
+    Take bytes that are already this column's own: same type, same
+    charset and no wider than it was declared.  There is nothing to
+    convert and nothing to cut, so this does what store() would minus
+    the checking, and the record ends up holding what store() would have
+    left there.
+
+    @return  true out of memory, the field reset
+  */
+  virtual bool store_exact(const char *from, uint length);
 protected:
   void store_length(uint32 number) const
   {
@@ -4345,6 +4473,23 @@ public:
   static const uint MAX_SIZE;
   /* Store number of bytes used to store length (1 or 2) */
   uint32 length_bytes;
+  /*
+    Promotion moves the payload out of the record: the slot holds the
+    length prefix followed by a pointer, the same shape a blob has, and
+    the bytes live in the storage engine's memory or in the promoted
+    subclass's own buffer.  Only the storage geometry changes.  type(),
+    type_handler() and sql_type() keep answering VARCHAR, so nothing
+    above the Field can tell the difference.
+
+    This says which shape the record slot has, and the accessors below
+    read it on every row, so it stays a test on a member rather than a
+    virtual call.  What a promoted column has to *do* differently is not
+    here: that belongs to Field_varstring_promoted, and only its
+    constructor sets this.  A subclass therefore cannot inherit a
+    storage mode it has not implemented -- it has to be derived from,
+    not switched on.
+  */
+  bool promoted;
   Field_varstring(uchar *ptr_arg,
                   uint32 len_arg, uint length_bytes_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -4352,7 +4497,7 @@ public:
 		  TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                    unireg_check_arg, field_name_arg, collation),
-     length_bytes(length_bytes_arg)
+     length_bytes(length_bytes_arg), promoted(false)
   {
     share->varchar_fields++;
   }
@@ -4361,7 +4506,7 @@ public:
                   TABLE_SHARE *share, const DTCollation &collation)
     :Field_longstr((uchar*) 0,len_arg, maybe_null_arg ? (uchar*) "": 0, 0,
                    NONE, field_name_arg, collation),
-     length_bytes(len_arg < 256 ? 1 :2)
+     length_bytes(len_arg < 256 ? 1 :2), promoted(false)
   {
     share->varchar_fields++;
   }
@@ -4369,22 +4514,112 @@ public:
   const Type_handler *type_handler() const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
-    return FIELD_VARCHAR;
+    /*
+      What the engine must think the column is, which is not what the
+      user is told it is.  A promoted record slot holds a length and a
+      pointer, so an engine handed FIELD_VARCHAR would read the pointer
+      as though it were the value.
+    */
+    return promoted ? FIELD_BLOB : FIELD_VARCHAR;
   }
   enum ha_base_keytype key_type() const override;
-  uint16 key_part_flag() const override { return HA_VAR_LENGTH_PART; }
+  uint16 key_part_flag() const override
+  {
+    /*
+      A promoted column reaches the engine's key code as a length prefix
+      followed by a pointer, which is what HA_BLOB_PART announces.  The
+      prefix is still the VARCHAR's own one or two bytes, not a blob's
+      four, so the segment keeps its VARTEXT type alongside the flag.
+    */
+    return promoted ? (HA_VAR_LENGTH_PART | HA_BLOB_PART)
+                    : HA_VAR_LENGTH_PART;
+  }
   uint16 key_part_length_bytes() const override { return HA_KEY_BLOB_LENGTH; }
   uint row_pack_length() const override { return field_length; }
   bool zero_pack() const override { return false; }
-  int  reset() override { bzero(ptr,field_length+length_bytes); return 0; }
+  int  reset() override { bzero(ptr, pack_length()); return 0; }
+  bool data_is_out_of_line() const override { return promoted; }
   bool can_store_data_out_of_line() const override { return true; }
+  /*
+    This column with its payload moved out of the record, or NULL if
+    there is no such thing for it.
+
+    Answering NULL is how a Field_varstring subclass says it has not
+    implemented the moved-payload form, and it is the only thing that
+    has to be written to say so: a subclass that is silent about
+    promotion does not get promoted, rather than inheriting a store()
+    written for a record shape it does not produce.
+
+    The copy is made through the base copy constructor, so the new
+    field keeps every decision already taken about this one -- its
+    flags, its record address, its null bit -- and differs only in
+    class.  Both callers promote while the record layout is still being
+    computed, so pack_length() answers for the new shape before anything
+    measures it.
+  */
+  virtual Field_varstring *make_promoted(MEM_ROOT *root) const;
+  /*
+    Point a promoted record slot at bytes the field does not own.
+
+    The slot is portable_sizeof_char_ptr wide, the width pack_length()
+    reserves and a blob's slot has too, but what goes into it is an
+    ordinary pointer and only sizeof(char*) of it exists to copy.  The
+    two are the same on a 64-bit build and are not on a 32-bit one,
+    where taking the width from the slot reads past the pointer.
+    Field_blob::set_ptr() moves its own pointer the same way.
+  */
+  void set_data_ptr(uchar *rec, const uchar *data)
+  {
+    DBUG_ASSERT(promoted);
+    memcpy(rec + length_bytes, &data, sizeof(char*));
+  }
+  void set_data_ptr(const uchar *data) { set_data_ptr(ptr, data); }
+  const uchar *out_of_line_data(const uchar *rec) const override
+  {
+    DBUG_ASSERT(promoted);
+    return get_data(rec);
+  }
+  bool has_out_of_line_data(const uchar *rec) const override
+  {
+    DBUG_ASSERT(promoted);
+    return *((uchar* const *) (rec + length_bytes)) != NULL;
+  }
+  uint32 out_of_line_length(const uchar *rec) const override
+  {
+    DBUG_ASSERT(promoted);
+    return get_length(rec);
+  }
+  void set_out_of_line_image(const uchar *image) override
+  {
+    DBUG_ASSERT(promoted);
+    memcpy(ptr, image, length_bytes);
+    set_data_ptr(image + length_bytes);
+  }
   uint32 max_data_length() const override
   {
     return field_length + (field_length > 255 ? 2 : 1);
   }
+  /* What the record slot costs while it holds the value inline. */
+  uint32 inline_pack_length() const
+  { return (uint32) field_length + length_bytes; }
   uint32 pack_length() const override
-  { return (uint32) field_length+length_bytes; }
+  {
+    return promoted ? (uint32) length_bytes + portable_sizeof_char_ptr
+                    : inline_pack_length();
+  }
   uint32 key_length() const override { return (uint32) field_length; }
+  uint32 key_pack_length() const override
+  {
+    /*
+      A key part holds the value inline whether or not the record does,
+      so it stays as wide as the column was declared.  The default is
+      pack_length(), which for a promoted field describes the pointer in
+      the record instead.  Field_blob_key overrides it too, its key part
+      being four bytes of length and a pointer whatever its record slot
+      costs.
+    */
+    return inline_pack_length();
+  }
   uint32 sort_length() const override
   {
     return (uint32) field_length + sort_suffix_length();
@@ -4395,8 +4630,28 @@ public:
   }
   Copy_func *get_copy_func(const Field *from) const override;
   bool memcpy_field_possible(const Field *from) const override;
+  bool eq_def(const Field *field) const override
+  {
+    /*
+      Field::eq_def asks whether two columns hold the same values and
+      answers with pack_length(), which for a promoted field describes
+      the pointer in the record instead.  Two VARCHARs hold the same
+      values when they are declared the same width and carry the same
+      length prefix, wherever either one keeps its bytes.
+    */
+    return real_type() == field->real_type() &&
+           charset() == field->charset() &&
+           field_length == field->field_length &&
+           length_bytes == ((const Field_varstring*) field)->length_bytes;
+  }
   void update_data_type_statistics(Data_type_statistics *st) const override
   {
+    /*
+      A promoted field occupies a slot in blob_field[], so it has to be
+      counted where that array's length comes from.
+    */
+    if (promoted)
+      st->m_blob_count++;
     st->m_variable_string_count++;
     st->m_variable_string_total_length+= pack_length();
   }
@@ -4445,7 +4700,128 @@ public:
 };
 
 
-class Field_varstring_compressed final :public Field_varstring {
+/*
+  What a column of type BASE gains by keeping its payload outside the
+  record, and nothing that depends on what BASE converts values into.
+
+  The record slot holds the column's own length prefix followed by a
+  pointer, which is the shape a blob already has, so the engine stores
+  and reads it the way it stores and reads one.  Everything a reader can
+  ask -- type(), type_handler(), sql_type() -- still answers VARCHAR.
+
+  What is here rather than on Field_varstring is the part a column has
+  to implement before it can be stored this way: a buffer of its own,
+  and a store() that fills it and points the record at it.
+  Field_varstring answers make_promoted() with such a class, and a
+  subclass that has not written its own says so by answering NULL.
+
+  This is a template because the two things a promoted column varies in
+  are independent: where the payload lives, and what is written there.
+  A compressed VARCHAR promotes exactly as a plain one does, and the
+  alternative to saying so once is either a second copy of this buffer
+  and the two helpers beneath it, or re-deriving the whole compression
+  surface, where one missed override is a wrong answer rather than a
+  compile error.
+*/
+
+template <class BASE>
+class Field_varstring_out_of_line :public BASE
+{
+public:
+  /*
+    Where a value stored through this Field is kept while the record
+    points at it.  A value read from the engine points into the engine's
+    own memory instead, until copy() below is asked to give the record a
+    copy it owns.  This is the same arrangement Field_blob has, and it
+    carries the same rule: one buffer per Field, so a caller that needs
+    two rows alive at once must take its copy of the first before
+    reading the second.
+  */
+  String value;
+  /*
+    Promote an existing column.  The base copy constructor carries over
+    every decision already taken about it, so the two differ in class
+    and in nothing else; value starts empty because the column being
+    copied had nowhere to keep one.
+  */
+  Field_varstring_out_of_line(const BASE &from) :BASE(from)
+  {
+    this->promoted= true;
+    value.set_charset(Field_str::charset());
+  }
+  Field_varstring *make_promoted(MEM_ROOT *) const override
+  {
+    DBUG_ASSERT(0);                             // Already promoted
+    return NULL;
+  }
+  bool store_exact(const char *from, uint length) override;
+  /*
+    Give the record a copy of the value it currently points at, so that
+    it survives the engine moving on to the next row.
+  */
+  bool copy() override;
+  void free() override { value.free(); }
+  /*
+    copy() above is the only thing that points a record at this buffer,
+    so the record names it only while it holds what copy() put there.
+    A value read from the engine points into the engine's memory and has
+    nothing to lend out.  There is one buffer rather than the two
+    Field_blob keeps, so the answer is never the read value.
+  */
+  String *cached(bool *set_read_value) override
+  {
+    if (value.is_empty() || (const char*) this->get_data() != value.ptr())
+      return NULL;
+    *set_read_value= false;
+    return &value;
+  }
+  void swap(String &inout, bool set_read_value) override
+  {
+    DBUG_ASSERT(!set_read_value);
+    value.swap(inout);
+  }
+  uint32 get_field_buffer_size() override { return value.alloced_length(); }
+  /*
+    A field made with make_new_field() gets this one's bytes, the
+    pointer inside value among them, but must not inherit the buffer:
+    the field it was copied from is still using it.  Forget the buffer
+    without freeing it.  Field_blob resets its own value here for the
+    same reason.
+  */
+  void reset_fields() override
+  {
+    bzero((uchar*) &value, sizeof value);
+    value.set_charset(Field_str::charset());
+  }
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
+                        const Tmp_field_param *param) override;
+protected:
+  /*
+    The two halves of a promoted store that do not depend on what the
+    value is converted into, so that a plain column and a compressed one
+    share them: make the buffer, then give the record the bytes the
+    conversion left in it.
+  */
+  const char *alloc_promoted_buffer(const char *from, size_t length,
+                                    CHARSET_INFO *cs, size_t buffer_length,
+                                    String *tmp);
+  bool publish_promoted_value(uint length);
+};
+
+
+class Field_varstring_promoted final
+  :public Field_varstring_out_of_line<Field_varstring>
+{
+public:
+  Field_varstring_promoted(const Field_varstring &from)
+   :Field_varstring_out_of_line<Field_varstring>(from) {}
+  int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  using Field_str::store;
+  uint size_of() const override { return sizeof *this; }
+};
+
+
+class Field_varstring_compressed :public Field_varstring {
 public:
   Field_varstring_compressed(uchar *ptr_arg,
                              uint32 len_arg, uint length_bytes_arg,
@@ -4460,7 +4836,13 @@ public:
     compression_method_ptr(compression_method_arg) { DBUG_ASSERT(len_arg > 0); }
   Compression_method *compression_method() const override
   { return compression_method_ptr; }
-private:
+  Field_varstring *make_promoted(MEM_ROOT *root) const override;
+protected:
+  /*
+    Field_varstring_compressed_promoted below is this column with its
+    payload moved out of the record, so it reaches for the compression
+    here rather than restating any of it.
+  */
   Compression_method *compression_method_ptr;
   void val_str_from_ptr(String *val, const uchar *ptr) const override;
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
@@ -4504,6 +4886,18 @@ private:
   Binlog_type_info binlog_type_info() const override;
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type,
                         const Tmp_field_param *param) override;
+};
+
+
+class Field_varstring_compressed_promoted final
+  :public Field_varstring_out_of_line<Field_varstring_compressed>
+{
+public:
+  Field_varstring_compressed_promoted(const Field_varstring_compressed &from)
+   :Field_varstring_out_of_line<Field_varstring_compressed>(from) {}
+  int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  using Field_str::store;
+  uint size_of() const override { return sizeof *this; }
 };
 
 
@@ -4741,7 +5135,7 @@ public:
     bzero((uchar*) &value, sizeof value);
     bzero((uchar*) &read_value, sizeof read_value);
   }
-  uint32 get_field_buffer_size() { return value.alloced_length(); }
+  uint32 get_field_buffer_size() override { return value.alloced_length(); }
   void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number) const;
   void store_length(size_t number) const
   {
@@ -4765,6 +5159,12 @@ public:
     memcpy(ptr,length,packlength);
     memcpy(ptr+packlength, &data,sizeof(char*));
   }
+  const uchar *out_of_line_data(const uchar *rec) const override
+  { return get_ptr(rec); }
+  uint32 out_of_line_length(const uchar *rec) const override
+  { return get_length(rec); }
+  void set_out_of_line_image(const uchar *image) override
+  { set_ptr((uchar*) image, (uchar*) image + packlength); }
   void set_ptr_offset(my_ptrdiff_t ptr_diff, uint32 length, const uchar *data)
   {
     uchar *ptr_ofs= ADD_TO_PTR(ptr,ptr_diff,uchar*);
@@ -4795,7 +5195,7 @@ public:
      @retval true     Memory allocation error
      @retval false    Success
   */
-  bool copy()
+  bool copy() override
   {
     uchar *tmp= get_ptr();
     if (value.copy((char*) tmp, get_length(), charset()))
@@ -4807,7 +5207,7 @@ public:
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
   }
-  void swap(String &inout, bool set_read_value)
+  void swap(String &inout, bool set_read_value) override
   {
     if (set_read_value)
       read_value.swap(inout);
@@ -4817,7 +5217,7 @@ public:
   /**
      Return pointer to blob cache or NULL if not cached.
   */
-  String * cached(bool *set_read_value)
+  String * cached(bool *set_read_value) override
   {
     char *tmp= (char *) get_ptr();
     if (!value.is_empty() && tmp == value.ptr())
@@ -6257,6 +6657,91 @@ inline
 bool TABLE::vers_implicit() const
 {
   return vers_end_field()->invisible == INVISIBLE_SYSTEM;
+}
+
+/*
+  Does a HEAP table gain from keeping this column's payload outside the
+  record rather than inline?  See HEAP_CONVERT_IF_BIGGER_TO_BLOB for why
+  the threshold is what it is.
+
+  Three places move a column out of line and all ask this: the SQL
+  layer for an internal temporary table (heap_move_out_of_line()), the
+  frm parse for a user ENGINE=MEMORY table
+  (promote_heap_record_layout()), and the engine for whatever neither
+  has moved (heap_prepare_hp_create_info()).  They act on disjoint
+  columns, since each skips what an earlier one has already moved, but
+  they have to agree on which columns are worth moving.
+
+  Three separate questions, and they are asked in this order because
+  only the first says whether the rest are meaningful: can the column be
+  stored that way at all, would storing it that way reclaim anything,
+  and is there enough here to be worth reclaiming.  Field answers the
+  first no by default, so a column that has not said otherwise is left
+  where it is; Field_vector answers the second no, because its store()
+  refuses anything but the declared width and a row is therefore that
+  wide whatever is in it.
+*/
+static inline bool heap_wants_out_of_line(const Field *field)
+{
+  /*
+    A moved column gives back its declared width and spends a pointer in
+    its place, so one narrower than a pointer would be made larger by the
+    move and the record arithmetic that subtracts the one and adds the
+    other would wrap.  The threshold is what keeps such a column from
+    ever being offered, so it is checked here rather than defended at
+    each place that does the arithmetic.
+  */
+  static_assert(HEAP_CONVERT_IF_BIGGER_TO_BLOB >= portable_sizeof_char_ptr,
+                "a promoted column must not be narrower than a pointer");
+  return field->can_store_data_out_of_line() &&
+         field->worth_storing_out_of_line() &&
+         field->field_length > HEAP_CONVERT_IF_BIGGER_TO_BLOB;
+}
+
+
+/*
+  The form of a temporary table column that the table should hold.
+
+  A wide VARCHAR costs its full declared width in every record of a heap
+  table, so its payload is better kept outside the record.  The column
+  stays a VARCHAR to everything above the Field; only where the bytes
+  live changes.
+
+  A column keeping its payload out of the record is a different class
+  rather than a flag on one, so this hands back a different object where
+  it applies.  Every caller is therefore a point where the column has
+  just been made and has not been handed to anything yet: the item is
+  bound to what these return, and a table holding one form while an item
+  names the other is a record the item cannot read.
+
+  This decides the record layout, so it may read the column list and
+  nothing else.  Two temporary tables built from one column list are
+  written from each other's record buffer -- a recursive CTE fills its
+  increment table that way -- and they agree on the layout only while
+  every column decides the same way in both.
+
+  root is the one the column passed in was made on, so that the two
+  forms of a column are always as long-lived as each other.
+
+  @return  the column to use, which is the one passed in wherever the
+           payload stays in the record
+*/
+
+static inline Field *heap_move_out_of_line(MEM_ROOT *root, TABLE *table,
+                                           Field *field)
+{
+  if (!field || !table->heap_expected || field->data_is_out_of_line() ||
+      !heap_wants_out_of_line(field))
+    return field;
+  /*
+    A column that has no out-of-line form says so by answering NULL and
+    keeps its payload where it is.  heap_wants_out_of_line() above asks
+    the same question first, so this is the second reader of one answer
+    rather than a case it does not cover.
+  */
+  Field_varstring *moved= ((Field_varstring*) field)->make_promoted(root);
+
+  return moved ? moved : field;
 }
 
 double pos_in_interval_for_string(CHARSET_INFO *cset,

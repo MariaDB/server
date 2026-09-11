@@ -1,0 +1,107 @@
+#
+# Two different questions are asked of the same counter today: whether a
+# column is declared as a blob, and whether its payload sits outside the
+# record.  A wide VARCHAR answers no to the first and yes to the second,
+# and the decisions below turn on the first one -- a value with no
+# maximum width is what they cannot handle.  Reading the second instead
+# would silently cost a wide VARCHAR an optimization a narrow one keeps.
+#
+--source include/have_sequence.inc
+
+SET @save_os= @@optimizer_switch;
+
+--echo #
+--echo # SELECT DISTINCT deduplicates with a hash of the row where it can,
+--echo # and rescans the table once per surviving row where it cannot.  The
+--echo # hash key needs a bounded width, which a VARCHAR has and a blob has
+--echo # not.
+--echo #
+CREATE TABLE narrow (a VARCHAR(20), b INT) CHARACTER SET latin1;
+CREATE TABLE wide (a VARCHAR(100), b INT) CHARACTER SET latin1;
+CREATE TABLE declared (a TEXT, b INT) CHARACTER SET latin1;
+INSERT INTO narrow SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+INSERT INTO wide SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+INSERT INTO declared SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+FLUSH STATUS;
+--disable_result_log
+SELECT DISTINCT a, SUM(b) OVER () FROM narrow;
+--enable_result_log
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT DISTINCT a, SUM(b) OVER () FROM wide;
+--enable_result_log
+--echo # must read the same number of rows as the narrow column
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+
+FLUSH STATUS;
+--disable_result_log
+SELECT DISTINCT a, SUM(b) OVER () FROM declared;
+--enable_result_log
+--echo # a column with no maximum width rescans, which is why the
+--echo # fallback exists
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE narrow, wide, declared;
+
+--echo #
+--echo # A correlated subquery caches its answers in a MEMORY table keyed
+--echo # on the outer values.  The cache is turned off for a column with no
+--echo # maximum width, because the key such a column would need is not the
+--echo # one the SQL layer builds.
+--echo #
+SET optimizer_switch='subquery_cache=on';
+CREATE TABLE outer_narrow (a VARCHAR(20)) CHARACTER SET latin1;
+CREATE TABLE outer_wide (a VARCHAR(100)) CHARACTER SET latin1;
+CREATE TABLE outer_declared (a TEXT) CHARACTER SET latin1;
+CREATE TABLE inner_tab (b VARCHAR(100), c INT) CHARACTER SET latin1;
+INSERT INTO outer_narrow SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO outer_wide SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO outer_declared SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO inner_tab SELECT CONCAT('v', seq MOD 5), seq FROM seq_1_to_50;
+
+--disable_ps_protocol
+--disable_ps2_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+  WHERE VARIABLE_NAME='Subquery_cache_hit';
+--disable_result_log
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_narrow.a) FROM outer_narrow;
+--enable_result_log
+SELECT VARIABLE_VALUE - @h0 > 0 AS narrow_was_cached
+  FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+  WHERE VARIABLE_NAME='Subquery_cache_hit';
+--disable_result_log
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_wide.a) FROM outer_wide;
+--enable_result_log
+SELECT VARIABLE_VALUE - @h0 > 0 AS wide_was_cached
+  FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+  WHERE VARIABLE_NAME='Subquery_cache_hit';
+--disable_result_log
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_declared.a)
+FROM outer_declared;
+--enable_result_log
+SELECT VARIABLE_VALUE - @h0 > 0 AS declared_was_cached
+  FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps2_protocol
+--enable_ps_protocol
+
+DROP TABLE outer_narrow, outer_wide, outer_declared, inner_tab;
+SET optimizer_switch= @save_os;

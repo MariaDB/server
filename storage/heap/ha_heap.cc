@@ -508,7 +508,7 @@ int ha_heap::info(uint flag)
   stats.data_file_length=     hp_info.data_length;
   stats.index_file_length=    hp_info.index_length;
   stats.max_data_file_length= hp_info.max_data_length;
-  stats.delete_length=        hp_info.deleted * hp_info.reclength;
+  stats.delete_length=        hp_info.delete_length;
   stats.create_time=          (ulong) hp_info.create_time;
   if (flag & HA_STATUS_AUTO)
     stats.auto_increment_value= hp_info.auto_increment;
@@ -763,39 +763,21 @@ ha_rows ha_heap::records_in_range(uint inx, const key_range *min_key,
 
 
 /*
-  Should this column be stored as a blob rather than inline?
+  Should the engine store this column as a blob rather than inline?
 
-  Only a VARCHAR is a candidate, and the field says so rather than its
-  type: a VECTOR reports MYSQL_TYPE_VARCHAR as well, and holds one length
-  and no other.  Heap rows are fixed width, so an inline
-  VARCHAR(N) reserves its full declared width in every row whether or not
-  the row uses it, while a blob costs a length prefix and a chain pointer
-  in the row plus the bytes actually present in a continuation run.
+  heap_wants_out_of_line() decides which columns are worth moving; what
+  is left here is that a column the SQL layer has already moved is not
+  moved again.
 
-  N counts characters, so the declared width is between N and 4N bytes
-  depending on the character set: the same VARCHAR(100) reserves 100 of
-  them in latin1 and 400 in utf8mb4.  The threshold is compared against
-  field_length, which is that width already in bytes, because the waste
-  is in bytes.
-
-  This is invisible to the SQL layer.  The Field stays a VARCHAR, the
-  record buffer keeps its shape, and nothing about the column's type,
-  metadata or comparison semantics changes -- only where the engine puts
-  the bytes.
+  Promoting here is invisible to the SQL layer.  The Field stays a
+  VARCHAR, the record buffer keeps its shape, and nothing about the
+  column's type, metadata or comparison semantics changes -- only where
+  the engine puts the bytes.
 */
 
 static bool hp_promote_to_blob(const Field *field)
 {
-  /*
-    The threshold is what keeps a column narrower than a chain pointer
-    from ever being offered, so the record arithmetic below can give back
-    a declared width and spend a pointer without checking for a wrap.
-  */
-  static_assert(HEAP_CONVERT_IF_BIGGER_TO_BLOB >= portable_sizeof_char_ptr,
-                "a promoted column must not be narrower than a pointer");
-  return (field->can_store_data_out_of_line() &&
-          field->worth_storing_out_of_line() &&
-          field->field_length > HEAP_CONVERT_IF_BIGGER_TO_BLOB);
+  return !field->data_is_out_of_line() && heap_wants_out_of_line(field);
 }
 
 
@@ -819,8 +801,11 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   uint stored_reclength= share->reclength;
   /*
     What bounds a row where reclength no longer does -- see
-    HP_SHARE::declared_reclength.  It starts as reclength and is given up
-    entirely by a blob, whose payload the record does not measure.
+    HP_SHARE::declared_reclength.  It starts as reclength and is corrected
+    below for each column the SQL layer has already moved out of the
+    record, reclength counting only that column's prefix and pointer.  A
+    declared blob gives it up entirely, its payload having no declared
+    width to bound a row by.
   */
   uint declared_reclength= share->reclength;
   uint auto_key= 0, auto_key_type= 0;
@@ -898,7 +883,21 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       DBUG_ASSERT((seg->flag & HA_BLOB_PART) ==
                   (field->key_part_flag() & HA_BLOB_PART));
 
-      if (seg->flag & HA_BLOB_PART)
+      /*
+        A promoted VARCHAR.  Its record slot is the column's own one or
+        two byte length prefix followed by the chain pointer, so the
+        segment keeps the VARTEXT type it already has and heap_create()
+        derives the prefix width from that.  Only the indirection, which
+        HA_BLOB_PART carries, is new.
+      */
+      DBUG_ASSERT(!(seg->flag & HA_BLOB_PART) ||
+                  field->type() != MYSQL_TYPE_VARCHAR ||
+                  seg->type == HA_KEYTYPE_VARTEXT1 ||
+                  seg->type == HA_KEYTYPE_VARTEXT2 ||
+                  seg->type == HA_KEYTYPE_VARBINARY1 ||
+                  seg->type == HA_KEYTYPE_VARBINARY2);
+
+      if (seg->flag & HA_BLOB_PART && field->type() != MYSQL_TYPE_VARCHAR)
       {
         /*
           Blob key segment: 4-byte length + pointer to data.
@@ -930,7 +929,7 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
           DBUG_ASSERT(seg->type == HA_KEYTYPE_VARBINARY4 ||
                       seg->type == HA_KEYTYPE_VARTEXT4);
         }
-        seg->bit_start= ((Field_blob*) field)->length_size();
+        seg->bit_start= field->length_size();
       }
       if (field->flags & (ENUM_FLAG | SET_FLAG))
         seg->charset= &my_charset_bin;
@@ -990,12 +989,22 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       Field *field= table_arg->field[i];
       if (hp_promote_to_blob(field))
       {
+        /*
+          The engine moves this one, so the SQL record still holds its
+          payload and reclength still counts it.
+        */
         promoted++;
         stored_reclength-= field->field_length;
         stored_reclength+= (uint) sizeof(uchar*);
       }
-      else if (field->flags & BLOB_FLAG)
-        declared_reclength= 0;                  /* No declared width */
+      else if (field->data_is_out_of_line() && declared_reclength)
+      {
+        if (field->flags & BLOB_FLAG)
+          declared_reclength= 0;                /* No declared width */
+        else
+          declared_reclength+= field->field_length -
+                               (uint) portable_sizeof_char_ptr;
+      }
     }
     desc_count= share->blob_fields + promoted;
 
@@ -1019,24 +1028,23 @@ int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       {
         Field *field= table_arg->field[i];
 
-        if (field->flags & BLOB_FLAG)
+        if (field->data_is_out_of_line())
         {
-          Field_blob *blob= (Field_blob*) field;
-
-          DBUG_ASSERT(field->type() == MYSQL_TYPE_BLOB ||
-                      field->type() == MYSQL_TYPE_GEOMETRY);
-
-          blob_descs[n].offset= (uint) blob->offset(table_arg->record[0]);
-          blob_descs[n].packlength= blob->length_size();
+          /*
+            A declared blob, or a VARCHAR the SQL layer has already moved
+            out of the record.  Both hold a length prefix followed by a
+            pointer, so the engine reads them the same way and neither
+            needs the record reshaped underneath it.
+          */
+          blob_descs[n].offset= (uint) field->offset(table_arg->record[0]);
+          blob_descs[n].packlength= field->length_size();
           blob_descs[n].promoted= FALSE;
           n++;
         }
         else if (hp_promote_to_blob(field))
         {
           blob_descs[n].offset= (uint) field->offset(table_arg->record[0]);
-          /* A VARCHAR's length prefix is one byte up to 255, else two */
-          blob_descs[n].packlength= (field->pack_length() -
-                                     field->field_length);
+          blob_descs[n].packlength= field->length_size();
           blob_descs[n].length= field->field_length;
           blob_descs[n].promoted= TRUE;
           n++;

@@ -364,11 +364,13 @@ static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
   /*
     The rb-tree holds pointers to stored records, while hp_rb_make_key()
     reads a record in the SQL layer's layout.  The two are the same when
-    nothing is promoted; otherwise the stored record has to be expanded
-    first, which also materializes the promoted values the key is built
-    from.
+    no column is stored out of line; otherwise the stored record has to be
+    expanded first, which also turns each out-of-line column's
+    continuation chain into the value the key is built from.  A column the
+    SQL layer moved needs that as much as one the engine moved: only the
+    record's shape is already right, not what its pointer addresses.
   */
-  if (share->promoted_count &&
+  if (share->blob_count &&
       !(unpacked= (uchar*) my_safe_alloca(share->reclength)))
     return 1;
 

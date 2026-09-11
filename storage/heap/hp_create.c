@@ -129,6 +129,16 @@ static void hp_make_stored_keysegs(HP_SHARE *share, HA_KEYSEG *sql_seg,
   {
     store_seg[i].start= hp_stored_offset(share, sql_seg[i].start);
     store_seg[i].bit_pos= hp_stored_offset(share, sql_seg[i].bit_pos);
+    /*
+      null_pos needs no translation, and gets none: the null bitmap sits
+      at the front of the record, ahead of every field, so no promoted
+      column can precede it and compaction cannot move it.  hp_hash.c
+      reads a stored record at this offset, so assert what that relies on
+      rather than leaving the one untranslated offset unexplained.
+    */
+    DBUG_ASSERT(!sql_seg[i].null_bit ||
+                hp_stored_offset(share, sql_seg[i].null_pos) ==
+                sql_seg[i].null_pos);
     for (j= 0; j < share->blob_count; j++)
     {
       const HP_BLOB_DESC *desc= share->blob_descs + j;
@@ -139,6 +149,33 @@ static void hp_make_stored_keysegs(HP_SHARE *share, HA_KEYSEG *sql_seg,
       }
     }
   }
+}
+
+
+/*
+  Whether a key segment starting at this record offset reads its value
+  through the SQL record rather than from it.
+
+  A segment says so with HA_BLOB_PART, and hp_varchar_seg_data() then
+  reads a pointer where the value would be, so a segment carrying the flag
+  with no descriptor behind it dereferences whatever the record holds.
+  A VARCHAR the SQL layer moved out of the record sets the flag
+  legitimately, so what drives the strip is whether a descriptor stands
+  behind the segment rather than how wide its prefix is.
+
+  A descriptor the engine promoted does not count: there the SQL record
+  still holds the value inline and only the stored record is indirect.
+*/
+
+static my_bool hp_seg_reads_out_of_line(const HP_CREATE_INFO *create_info,
+                                        uint start)
+{
+  uint i;
+  for (i= 0; i < create_info->blob_count; i++)
+    if (create_info->blob_descs[i].offset == start &&
+        !create_info->blob_descs[i].promoted)
+      return TRUE;
+  return FALSE;
 }
 
 
@@ -308,12 +345,25 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
-            Real blob fields always enter as VARTEXT4/VARBINARY4, never
-            as VARTEXT1/VARBINARY1. Strip any spurious HA_BLOB_PART
-            (e.g. from uninitialized key_part_flag in SJ weedout tables).
+            A real blob always enters as VARTEXT4 or VARBINARY4, so on a
+            one-byte-prefix VARCHAR segment HA_BLOB_PART is a stray bit --
+            unless the SQL layer moved the column out of the record, which
+            sets the flag deliberately and keeps the one-byte prefix, a
+            VARCHAR(200) in a single-byte charset being such a segment.
+            The flag is therefore stripped from the segments that have no
+            descriptor behind them rather than from all of them.
+
+            The strip stays a release-build action, not an assertion.
+            key_part_flag reaches here from a .frm byte that nothing masks
+            (sql/table.cc), and hp_varchar_seg_data() reads the record as a
+            pointer wherever the flag is set, so a stray bit that survives
+            is a dereference of record contents.
           */
-          DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
-          keyseg->flag&= ~HA_BLOB_PART;
+          if (!hp_seg_reads_out_of_line(create_info, keyseg->start))
+          {
+            DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
+            keyseg->flag&= ~HA_BLOB_PART;
+          }
           /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
@@ -424,6 +474,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->copy_spans= (HP_COPY_SPAN*) tail;
     share->copy_span_count= copy_spans;
     share->promoted_count= promoted;
+    share->declared_reclength= create_info->declared_reclength;
     hp_setup_record_layout(share, reclength, stored_reclength);
     init_block(&share->block, hp_memory_needed_per_row(stored_reclength),
                min_records, block_max_records);
@@ -480,7 +531,6 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->data_length= share->index_length= 0;
     share->deleted_entries= 0;
     share->reclength= reclength;
-    share->declared_reclength= create_info->declared_reclength;
     share->visible= visible_offset;
     share->blength= 1;
     share->keys= keys;

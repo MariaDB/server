@@ -9766,7 +9766,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         }
         else
         {
-          bool was_blob= field->flags & BLOB_FLAG;
+          bool was_out_of_line= field->data_is_out_of_line();
           field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
                                 field->null_bit, Field::NONE,
                                 &field->field_name, field->dtcollation());
@@ -9774,7 +9774,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
           field->field_index= i;
           DBUG_ASSERT(field->pack_length_in_rec() == 0);
           table->field[i]= field;
-          if (was_blob)
+          if (was_out_of_line)
             remove_field_from_blob_list(table, i);
         }
       }
