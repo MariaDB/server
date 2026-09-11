@@ -1151,8 +1151,8 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
   }
   if (aria_readonly)
     file->s->options|= HA_OPTION_READ_ONLY_DATA;
-
-  file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
+  if (table->s->query_cache != HA_CHOICE_NO && query_cache_available())
+    file->s->chst_invalidator= query_cache_invalidate_by_MyISAM_filename_ref;
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For ma_killed()
 
@@ -3108,10 +3108,10 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
       If table has changed by this statement, invalidate it from the query
       cache
     */
-    if (table->row_changes != table->start_row_changes)
+    if (table->s->chst_invalidator &&
+        table->row_changes != table->start_row_changes)
     {
       table->start_row_changes= table->row_changes;
-      DBUG_ASSERT(table->s->chst_invalidator != NULL);
       (*table->s->chst_invalidator)(table->s->data_file_name.str);
     }
   }

@@ -571,9 +571,10 @@ insert_space:
   @param thd             thread handle
 */
 
-void inline fix_local_query_cache_mode(THD *thd)
+void fix_local_query_cache_mode(THD *thd)
 {
-  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
+  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF ||
+      global_system_variables.query_cache_type == QUERY_CACHE_TYPE_ALWAYS_OFF)
     thd->variables.query_cache_type= QUERY_CACHE_TYPE_OFF;
 }
 
@@ -1285,6 +1286,16 @@ void mysql_query_cache_invalidate4(THD *thd,
   query_cache.invalidate(thd, key, (uint32) key_length, (my_bool) using_trx);
 }
 
+extern "C"
+{
+  /* Return 1 if query cache is on or could be enabled later */
+  my_bool query_cache_available()
+  {
+    return (global_system_variables.query_cache_type !=
+            QUERY_CACHE_TYPE_ALWAYS_OFF);
+  }
+}
+
 
 /*****************************************************************************
    Query_cache methods
@@ -1361,13 +1372,14 @@ size_t Query_cache::resize(size_t query_cache_size_arg)
     will not be reflected on global_system_variables.query_cache_type
   */
   if (new_query_cache_size &&
-      global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF)
+      global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF &&
+      global_system_variables.query_cache_type != QUERY_CACHE_TYPE_ALWAYS_OFF)
   {
     DBUG_EXECUTE("check_querycache",check_integrity(1););
-    m_cache_status= OK;                         // size > 0 => enable cache
+    m_cache_status= OK;             // size > 0 => resize cache
   }
   else
-    m_cache_status= DISABLED;                   // size 0 means the cache disabled
+    m_cache_status= DISABLED;       // size 0 means the cache disabled
 
   unlock();
   DBUG_RETURN(new_query_cache_size);
@@ -1423,7 +1435,6 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     DBUG_VOID_RETURN;
   }
 #endif //EMBEDDED_LIBRARY
-
 
   /* The following assert fails if we haven't called send_result_to_client */
   DBUG_ASSERT(thd->base_query.is_alloced() ||
@@ -1498,33 +1509,6 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.in_trans,
                           (int)flags.autocommit));
 
-    /*
-      A table- or a full flush operation can potentially take a long time to
-      finish. We choose not to wait for them and skip caching statements
-      instead.
-
-      In case the wait time can't be determined there is an upper limit which
-      causes try_lock() to abort with a time out.
-
-      The 'TIMEOUT' parameter indicate that the lock is allowed to timeout
-
-    */
-    if (try_lock(thd, Query_cache::TIMEOUT))
-      DBUG_VOID_RETURN;
-    if (query_cache_size == 0)
-    {
-      unlock();
-      DBUG_VOID_RETURN;
-    }
-    DUMP(this);
-
-    if (ask_handler_allowance(thd, tables_used))
-    {
-      refused++;
-      unlock();
-      DBUG_VOID_RETURN;
-    }
-
     query=        thd->base_query.ptr();
     query_length= thd->base_query.length();
 
@@ -1548,6 +1532,34 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
     */
     memcpy((void*) (query + (tot_length - QUERY_CACHE_FLAGS_SIZE)),
 	   &flags, QUERY_CACHE_FLAGS_SIZE);
+
+    /*
+      A table- or a full flush operation can potentially take a long time to
+      finish. We choose not to wait for them and skip caching statements
+      instead.
+
+      In case the wait time can't be determined there is an upper limit which
+      causes try_lock() to abort with a time out.
+
+      The 'TIMEOUT' parameter indicate that the lock is allowed to timeout
+
+    */
+    if (try_lock(thd, Query_cache::TIMEOUT))
+      DBUG_VOID_RETURN;
+
+    if (query_cache_size == 0)                  // Recheck under lock
+    {
+      unlock();
+      DBUG_VOID_RETURN;
+    }
+    DUMP(this);
+
+    if (ask_handler_allowance(thd, tables_used))
+    {
+      refused++;
+      unlock();
+      DBUG_VOID_RETURN;
+    }
 
     /* Check if another thread is processing the same query? */
     Query_cache_block *competitor = (Query_cache_block *)
@@ -1913,21 +1925,6 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       goto err;
     }
   }
-  /*
-    Try to obtain an exclusive lock on the query cache. If the cache is
-    disabled or if a full cache flush is in progress, the attempt to
-    get the lock is aborted.
-
-    The TIMEOUT parameter indicate that the lock is allowed to timeout.
-  */
-  if (try_lock(thd, Query_cache::TIMEOUT))
-    goto err;
-
-  if (query_cache_size == 0)
-  {
-    thd->query_cache_is_applicable= 0;            // Query can't be cached
-    goto err_unlock;
-  }
 
   Query_cache_block *query_block;
   if (thd->variables.query_cache_strip_comments)
@@ -1960,8 +1957,6 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   {
     DBUG_PRINT("qcache", ("No active database"));
   }
-
-  THD_STAGE_INFO(thd, stage_checking_query_cache_for_query);
 
   // fill all gaps between fields with 0 to get repeatable key
   bzero(&flags, QUERY_CACHE_FLAGS_SIZE);
@@ -2018,6 +2013,24 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.autocommit));
   memcpy((uchar *)(sql + (tot_length - QUERY_CACHE_FLAGS_SIZE)),
 	 (uchar*) &flags, QUERY_CACHE_FLAGS_SIZE);
+
+  /*
+    Try to obtain an exclusive lock on the query cache. If the cache is
+    disabled or if a full cache flush is in progress, the attempt to
+    get the lock is aborted.
+
+    The TIMEOUT parameter indicate that the lock is allowed to timeout.
+  */
+  if (try_lock(thd, Query_cache::TIMEOUT))
+    goto err;
+
+  if (query_cache_size == 0)
+  {
+    thd->query_cache_is_applicable= 0;            // Query can't be cached
+    goto err_unlock;
+  }
+
+  THD_STAGE_INFO(thd, stage_checking_query_cache_for_query);
 
 #ifdef WITH_WSREP
   bool once_more;
@@ -2617,7 +2630,8 @@ void Query_cache::init()
     time. This is because we want to avoid locking the QC specific
     mutex if query cache isn't going to be used.
   */
-  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
+  if (global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF ||
+      global_system_variables.query_cache_type == QUERY_CACHE_TYPE_ALWAYS_OFF)
   {
     m_cache_status= DISABLE_REQUEST;
     free_cache();
@@ -4093,8 +4107,8 @@ void Query_cache::double_linked_list_join(Query_cache_block *head_tail,
                     are defined with SQL_CACHE=1
 
   RETURN
-    0   error
-    >0  number of tables
+    0   error.
+    >0  number of tables ; *tables_type is up to date
 
   Notes:
     MERGE TABLE childs are not tested for SQL_CACHE=1.
@@ -4139,8 +4153,7 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
     {
       DBUG_PRINT("qcache", ("Don't cache statement as it refers to "
                             "tables with column privileges."));
-      thd->query_cache_is_applicable= 0;        // Query can't be cached
-      thd->lex->safe_to_cache_query= 0;         // For prepared statements
+      goto not_cacheable;
       DBUG_RETURN(0);
     }
 #endif
@@ -4167,27 +4180,34 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
                           table->s->table_name.str,
                           table->s->db.str,
                           table->s->db_type()->db_type));
+    if (table->s->table_category != TABLE_CATEGORY_USER ||
+        table->s->query_cache == HA_CHOICE_NO)
+      goto not_cacheable;
+
     cache_type= table->file->table_cache_type();
     *tables_type|= cache_type;
 
     table_count+= table->file->count_query_cache_dependant_tables(tables_type);
 
-    if ((no_cache= ((cache_type & HA_CACHE_TBL_NOCACHE) ||
-                    table->s->table_category != TABLE_CATEGORY_USER ||
-                    table->s->query_cache == HA_CHOICE_NO)) ||
+    if ((no_cache= (cache_type & HA_CACHE_TBL_NOCACHE)) ||
         (only_sqlcache_tables && table->s->query_cache != HA_CHOICE_YES))
     {
       DBUG_PRINT("qcache",
                  ("select not cacheable: temporary, system or "
                   "other non-cacheable table(s)"));
-      thd->query_cache_is_applicable= 0;        // Query can't be cached
       /* For prepared statements */
       if (no_cache)
         thd->lex->safe_to_cache_query= 0;
+      thd->query_cache_is_applicable= 0;        // Query can't be cached
       DBUG_RETURN(0);
     }
   }
   DBUG_RETURN(table_count);
+
+not_cacheable:
+  thd->lex->safe_to_cache_query= 0;         // For prepared statements
+  thd->query_cache_is_applicable= 0;        // Query can't be cached
+  DBUG_RETURN(0);
 }
 
 

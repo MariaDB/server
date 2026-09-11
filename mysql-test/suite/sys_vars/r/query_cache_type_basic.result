@@ -99,8 +99,8 @@ SELECT @@global.query_cache_type;
 DEMAND
 SET @@global.query_cache_type = 0.4;
 ERROR 42000: Incorrect argument type to variable 'query_cache_type'
-SET @@global.query_cache_type = 5;
-ERROR 42000: Variable 'query_cache_type' can't be set to the value of '5'
+SET @@global.query_cache_type = 6;
+ERROR 42000: Variable 'query_cache_type' can't be set to the value of '6'
 '#---------------------FN_DYNVARS_134_08----------------------#'
 SET @@global.query_cache_type = TRUE;
 SELECT @@global.query_cache_type;
@@ -120,11 +120,24 @@ SET global query_cache_type = 0;
 SELECT @@global.query_cache_type;
 @@global.query_cache_type
 OFF
-SET @@global.query_cache_type = @global_start_value;
+SET global query_cache_type = ON;
 SELECT @@global.query_cache_type;
 @@global.query_cache_type
+ON
+SET @@query_cache_type = ALWAYS_OFF;
+select @@query_cache_type;
+@@query_cache_type
 OFF
-SET @@session.query_cache_type = @session_start_value;
-SELECT @@session.query_cache_type;
-@@session.query_cache_type
+SET @@query_cache_type= ON;
+SET @@global.query_cache_type = ALWAYS_OFF;
+SELECT @@global.query_cache_type;
+@@global.query_cache_type
+ALWAYS_OFF
+select @@query_cache_type;
+@@query_cache_type
 OFF
+SET @@global.query_cache_type = ON;
+ERROR HY000: Query cache is globally disabled and you can't enable it only for this session
+SET @@session.query_cache_type = ON;
+ERROR HY000: Query cache is globally disabled and you can't enable it only for this session
+# restart

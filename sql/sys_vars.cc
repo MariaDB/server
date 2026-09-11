@@ -3542,26 +3542,42 @@ static Sys_var_ulong Sys_query_cache_min_res_unit(
        ON_UPDATE(fix_qcache_min_res_unit));
 
 static const char *query_cache_type_names[]=
-{ "OFF", "ON", "DEMAND", "DEMAND_STRICT", "TABLES", 0};
+{ "OFF", "ON", "DEMAND", "DEMAND_STRICT", "TABLES", "ALWAYS_OFF", NullS};
 
 static bool check_query_cache_type(sys_var *self, THD *thd, set_var *var)
 {
+  int global_query_cache_type= global_system_variables.query_cache_type;
+
   if (query_cache.is_disable_in_progress())
   {
     my_error(ER_QUERY_CACHE_IS_DISABLED, MYF(0));
     return true;
   }
-
-  if (var->type != OPT_GLOBAL &&
-      global_system_variables.query_cache_type == QUERY_CACHE_TYPE_OFF)
+  if (global_query_cache_type == QUERY_CACHE_TYPE_ALWAYS_OFF)
   {
-    if (var->value)
+    my_error(ER_QUERY_CACHE_IS_GLOBALY_DISABLED, MYF(0));
+    return true;
+  }
+
+  if (var->type != OPT_GLOBAL)
+  {
+    if (global_query_cache_type == QUERY_CACHE_TYPE_OFF ||
+        global_query_cache_type == QUERY_CACHE_TYPE_ALWAYS_OFF)
     {
-      if (var->save_result.ulonglong_value != 0)
+      if (var->value)
       {
-        my_error(ER_QUERY_CACHE_IS_GLOBALY_DISABLED, MYF(0));
-        return true;
+        if (var->save_result.ulonglong_value != 0)
+        {
+          my_error(ER_QUERY_CACHE_IS_GLOBALY_DISABLED, MYF(0));
+          return true;
+        }
       }
+    }
+    else if (var->value &&
+             var->save_result.ulonglong_value == QUERY_CACHE_TYPE_ALWAYS_OFF)
+    {
+      /* session should never be QUERY_CACHE_TYPE_ALWAYS_OFF */
+      var->save_result.ulonglong_value= QUERY_CACHE_TYPE_OFF;
     }
   }
   return false;
@@ -3573,7 +3589,8 @@ static bool fix_query_cache_type(sys_var *self, THD *thd, enum_var_type type)
   if (type != OPT_GLOBAL)
     return false;
 
-  if (global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF)
+  if (global_system_variables.query_cache_type != QUERY_CACHE_TYPE_OFF &&
+      global_system_variables.query_cache_type != QUERY_CACHE_TYPE_ALWAYS_OFF)
   {
     if (query_cache.is_disabled())
     {
@@ -3596,7 +3613,8 @@ static Sys_var_enum Sys_query_cache_type(
        "DEMAND_STRICT = Like DEMAND but only check for 'SELECT SQL_CACHE' "
        "at start of query (to avoid locks that ON and DEMAND have to take). "
        "TABLES = Cache only queries marked with SQL_CACHE or queries where all "
-       "tables are created with SQL_CACHE=1",
+       "tables are created with SQL_CACHE=1. "
+       "ALWAYS_OFF = query cache is permanently OFF and cannot be enabled",
        NO_SET_STMT SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
        query_cache_type_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_query_cache_type),

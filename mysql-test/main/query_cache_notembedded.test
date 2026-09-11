@@ -5,6 +5,7 @@
 #
 # Tests with query cache
 #
+select @@query_cache_type;
 set @sql_mode_save=@@global.sql_mode;
 set @query_cache_type_save=@@global.query_cache_type;
 set @query_cache_size_save=@@global.query_cache_size;
