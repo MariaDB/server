@@ -133,3 +133,36 @@ Query OK, 0 rows affected
 MariaDB [test]> exit
 Bye
 # End of 11.8 tests
+#
+# MDEV-40551 Copy/Paste friendly output format for MariaDB Command Line Client
+#
+select 1 as a,
+2 as b\S
+^P
+select 3 as c;
+exit
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is X
+Server version: Y
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Help others discover MariaDB. Star it on GitHub: https://github.com/MariaDB/server
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [test]> select 1 as a,
+    -> 2 as b\S
+1	2
+MariaDB [test]> MariaDB [test]> select 1 as a, 2 as b\S
+1	2
+MariaDB [test]> select 3 as c;
++---+
+| c |
++---+
+| 3 |
++---+
+1 row in set
+
+MariaDB [test]> exit
+Bye
+# End of 13.1 tests
