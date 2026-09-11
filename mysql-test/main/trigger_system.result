@@ -319,3 +319,12 @@ RENAME TABLE mysql.ev_bk TO mysql.event;
 # Restart server in order to reload a defintion of
 # the table mysql.event in memory
 # restart
+#
+# MDEV-40067: mysqldump --sys-triggers creates unloadable dump
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+DROP TRIGGER trg1;
+SHOW CREATE TRIGGER trg1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 AFTER STARTUP SET @x=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+DROP TRIGGER trg1;

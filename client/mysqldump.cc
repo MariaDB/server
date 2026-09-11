@@ -7614,19 +7614,28 @@ free_buf_and_exit:
   DBUG_VOID_RETURN;
 }
 
+static int init_dumping_sys_triggers(char *qdatabase __attribute__((unused)))
+{
+    return 0;
+}
+
 static void dump_sys_triggers()
 {
   char query_buff[QUERY_LENGTH];
   MYSQL_RES *triggers_list_rs= nullptr;
 
   my_snprintf(query_buff, sizeof(query_buff),
-              "SELECT name FROM mysql.event WHERE kind IN "
+              "SELECT db, name FROM mysql.event WHERE kind IN "
               "('STARTUP', 'SHUTDOWN')");
-  if (mysql_query_with_error_report(mysql, &triggers_list_rs, query_buff))
+  if (mysql_query_with_error_report(mysql, &triggers_list_rs, query_buff) ||
+      switch_character_set_results(mysql, "binary"))
   {
     mysql_free_result(triggers_list_rs);
     return;
   }
+
+  my_bool opt_databases_saved= opt_databases;
+  opt_databases= true;
 
   if (mysql_num_rows(triggers_list_rs))
   {
@@ -7635,20 +7644,52 @@ static void dump_sys_triggers()
     {
       MYSQL_RES *show_create_trigger_rs;
       char       name_buff[NAME_LEN*4+3];
+      char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
+      char      *db_name;
 
       my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
-                  quote_name(row[0], name_buff, true));
+                  quote_name(row[1], name_buff, true));
+
+      db_name= row[0];
+
+      if (init_dumping(db_name, init_dumping_sys_triggers))
+      {
+        mysql_free_result(triggers_list_rs);
+        maybe_exit(EX_MYSQLERR);
+        return;
+      }
+
+      if (fetch_db_collation(db_name, db_cl_name, sizeof (db_cl_name)))
+      {
+        mysql_free_result(triggers_list_rs);
+        maybe_exit(EX_MYSQLERR);
+        return;
+      }
 
       if (mysql_query_with_error_report(mysql, &show_create_trigger_rs,
                                         query_buff))
       {
         mysql_free_result(triggers_list_rs);
         maybe_exit(EX_MYSQLERR);
+        return;
       }
-      dump_trigger(md_result_file, show_create_trigger_rs, "", "");
+
+      if (dump_trigger(md_result_file, show_create_trigger_rs,
+                       db_name, db_cl_name))
+      {
+        mysql_free_result(triggers_list_rs);
+        mysql_free_result(show_create_trigger_rs);
+        maybe_exit(EX_MYSQLERR);
+        return;
+      }
+
       mysql_free_result(show_create_trigger_rs);
     }
   }
+
+  (void)switch_character_set_results(mysql, default_charset);
+  opt_databases= opt_databases_saved;
+
   mysql_free_result(triggers_list_rs);
 }
 

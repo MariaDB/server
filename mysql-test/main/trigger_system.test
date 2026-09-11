@@ -382,3 +382,16 @@ RENAME TABLE mysql.ev_bk TO mysql.event;
 --echo # Restart server in order to reload a defintion of
 --echo # the table mysql.event in memory
 --source include/restart_mysqld.inc
+
+--echo #
+--echo # MDEV-40067: mysqldump --sys-triggers creates unloadable dump
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+--exec $MYSQL_DUMP --sys-triggers test > $MYSQLTEST_VARDIR/tmp/dump.sql
+DROP TRIGGER trg1;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dump.sql
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+DROP TRIGGER trg1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dump.sql
