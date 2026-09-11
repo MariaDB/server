@@ -183,6 +183,7 @@ SET(INNOBASE_SOURCES
 	fts/fts0plugin.cc
 	handler/ha_innodb.cc
 	handler/handler0alter.cc
+	handler/handler0pscan.cc
 	handler/innodb_binlog.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
@@ -263,6 +264,7 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.h
 	include/ha0storage.inl
 	include/handler0alter.h
+	include/handler0pscan.h
 	include/innodb_binlog.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h

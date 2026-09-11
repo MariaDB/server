@@ -2918,7 +2918,7 @@ bool can_parallel_scan_jointab_access(JOIN_TAB *join_tab, bool trace)
       Which of the two bits is asked for is decided by whether the index is the
       clustered one, because that is what the engine is really being asked to
       divide. The engine then decides whether it can partition this particular
-      index -- see ha_innobase::pscan_resolve_index(), which declines spatial,
+      index -- see Parallel_scan_coordinator::resolve_index(), which declines spatial,
       FTS, virtual-column and descending indexes -- and we fall back to the
       serial reader on HA_ERR_UNSUPPORTED.
     */

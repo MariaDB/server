@@ -23,6 +23,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "table.h"
 #include "row0pcoord.h"
+#include "handler0pscan.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -514,7 +515,7 @@ protected:
 
 public:
 	/** Implementation of handler API for parallel scans */
-        uint32 parallel_scan_support() const override
+	uint32 parallel_scan_support() const override
 	{
 		return 	PSCAN_TABLE_FULL |
 				PSCAN_TABLE_RANGE |
@@ -522,54 +523,37 @@ public:
 				PSCAN_INDEX_RANGE;
 	}
 
-        /* Parallel work, coordinator thread methods */
+	/* Parallel work, coordinator thread methods */
+
 	int parallel_init_coordinator(size_t n_threads, uint keynr,
 				      const Dynamic_array<KEY_MULTI_RANGE> &ranges) override;
 
-        /* Get the work assignment for worker number worker_idx. */
+	/* Get the work assignment for worker number worker_idx. */
 	Parallel_worker_ctx*
 		parallel_get_worker_context(size_t worker_idx) override;
-	int parallel_end_coordinator() override;
-	void parallel_get_chunk_stats(ulonglong *chunks_created,
-				      ulonglong *chunks_resplit) const override
-	{
-		m_parallel_coordinator.get_chunk_stats(chunks_created,
-						       chunks_resplit);
-	}
-        /* Parallel worker methods: */
 
-        /*
-          Start as worker doing *wcx
-          (TODO: coordinator can be hidden in *wctx)
-        */
+	int parallel_end_coordinator() override;
+
+	void parallel_get_chunk_stats(ulonglong *chunks_created,
+				      ulonglong *chunks_resplit) const override;
+
+	/* Parallel worker methods: */
+
+	/*
+	  Start as worker doing *wctx
+	  (TODO: coordinator can be hidden in *wctx)
+	*/
 	int parallel_init_worker(Parallel_worker_ctx *wctx,
 				 handler *coordinator) override;
+
 	int parallel_end_worker() override;
+
 protected:
 	int parallel_get_next_row(Parallel_worker_ctx *wctx) override;
 
-	/** Convert one MySQL-format key endpoint into an InnoDB tuple.
-	@param kr       endpoint, or NULL for an unbounded one
-	@param index    index the key belongs to
-	@param heap     heap to allocate the tuple and its data from
-	@return the tuple, or NULL if kr was NULL */
-	dtuple_t* pscan_convert_key(const key_range *kr,
-				    const dict_index_t *index,
-				    mem_heap_t *heap);
-
-	/** Take the scan parameters recorded by parallel_init_coordinator()
-	on the master's handler. m_pscan_keynr says which index the chunk
-	boundaries were computed on, so it decides which index this handler
-	must open; m_pscan_ranges is what re-arms an interval's lower bound
-	when a worker moves between intervals. Both are left at their
-	"nothing to scan" defaults on a worker's own handler, which for
-	m_pscan_keynr is MAX_KEY -- the clustered index -- so without this a
-	worker searches the wrong tree with the right boundaries.
-	The ranges are borrowed, not copied: they live in the master
-	handler's m_pscan_range_heap, which parallel_end_coordinator() frees
-	only after every worker has been joined.
-	@param coordinator  the handler parallel_init_coordinator() ran on */
-	void pscan_adopt_scan_params(const ha_innobase *coordinator);
+	/** Drop whatever is left of a parallel scan when the handler itself
+	goes away. */
+	void parallel_scan_free();
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;
@@ -608,55 +592,16 @@ protected:
 	the engine is intialized for making rnd_pos() calls */
 	bool                    m_disable_rowid_filter;
 
-	/** Coordinator of a parallel scan responsible for partitioning the table
-	 into chunks and distribution of the work between multiple workers
-	*/
-	Parallel_coordinator m_parallel_coordinator;
-
-	/** Values used during parallel scans. */
-	dtuple_t *m_pscan_saved_search_tuple{};
-
-	/** Holds the key tuples handed to the coordinator for a range scan. */
-	mem_heap_t *m_pscan_range_heap{};
-
-	/** The scanned key intervals, indexed the same way as the
-	coordinator's scan ids, or NULL for a full scan. Used to re-arm the
-	lower bound whenever a worker moves to a chunk of another interval.
-	Allocated from m_pscan_range_heap. */
-	const KEY_MULTI_RANGE *m_pscan_ranges{};
-	uint m_pscan_n_ranges{};
-
-	/** table->key_info[] number of the index being scanned in parallel, as
-	passed to parallel_init_coordinator(). MAX_KEY means the clustered
-	index; the range helpers below only run when there are intervals, which
-	always name a real key. */
-	uint m_pscan_keynr{MAX_KEY};
-
-	/** Resolve the index a parallel scan was asked for and check that the
-	partitioner can handle it.
-	@param keynr  table->key_info[] number, or MAX_KEY for the clustered
-	              index
-	@return the index, or NULL if it does not exist or is not supported -
-	        the caller declines the scan and the serial path runs instead */
-	dict_index_t* pscan_resolve_index(uint keynr);
-
-	/** Lower bound of interval 'scan_id', or NULL if it is unbounded or
-	this is a full table scan. The upper bound needs no handler-side state:
-	it is enforced by the chunk clamp inside row_search_mvcc(). */
-	const key_range *pscan_get_start_key(size_t scan_id) const;
-
-	/** Prepare to read the chunk wctx has just picked up. */
-	void pscan_begin_chunk(Parallel_coordinator::Worker_ctx *wctx);
-
-	/** Whether the row in table->record[0] falls short of the lower bound
-	of the interval wctx is currently reading. Clears wctx->m_check_start
-	once a row clears the bound. */
-	bool pscan_before_range_start(Parallel_coordinator::Worker_ctx *wctx);
-
-	/** The bound to open 'chunk' on so that an exclusive lower bound costs
-	no wasted reads, or NULL to open on the chunk's own first record. */
-	const dtuple_t *pscan_exclusive_start(
-		const Parallel_coordinator::Exec_ctx &chunk) const;
+	/** The two sides of a parallel scan. Both read this handler's private
+	parts (m_prebuilt, table, the index cursor), hence the friendship.
+	A handler plays one side or the other, never both, and only for as
+	long as a scan lasts: the object is allocated by the parallel_init_*()
+	that needs it and released by the matching parallel_end_*(), so a
+	handler outside a parallel scan holds two null pointers. */
+	friend class Parallel_scan_coordinator;
+	friend class Parallel_scan_worker;
+	Parallel_scan_coordinator *m_pscan_coord{};
+	Parallel_scan_worker *m_pscan_worker{};
 };
 
 
