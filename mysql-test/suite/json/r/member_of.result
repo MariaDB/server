@@ -1,0 +1,307 @@
+#
+# MDEV-38591: MEMBER OF operator
+#
+# 1. Simple member checks (should succeed)
+SELECT 1 MEMBER OF ('[1,2,3]');
+1 MEMBER OF ('[1,2,3]')
+1
+SELECT 2 MEMBER OF ('[1,2,3]');
+2 MEMBER OF ('[1,2,3]')
+1
+# 2. Non-member checks (should return 0)
+SELECT 4 MEMBER OF ('[1,2,3]');
+4 MEMBER OF ('[1,2,3]')
+0
+# 3. Type-strict checks (string "2" must NOT match number 2, should return 0)
+SELECT '2' MEMBER OF ('[1,2,3]');
+'2' MEMBER OF ('[1,2,3]')
+0
+SELECT 2 MEMBER OF ('["1","2","3"]');
+2 MEMBER OF ('["1","2","3"]')
+0
+# 4. SQL NULL propagation checks
+SELECT NULL MEMBER OF ('[1,2,3]');
+NULL MEMBER OF ('[1,2,3]')
+0
+SELECT NULL MEMBER OF ('[1,2,3]') IS NULL;
+NULL MEMBER OF ('[1,2,3]') IS NULL
+0
+SELECT 1 MEMBER OF (NULL);
+1 MEMBER OF (NULL)
+NULL
+SELECT 1 MEMBER OF (NULL) IS NULL;
+1 MEMBER OF (NULL) IS NULL
+1
+# 5. Error/Warning handling for malformed JSON
+SELECT 1 MEMBER OF ('[1,2');
+1 MEMBER OF ('[1,2')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
+# 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
+SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
+JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
+1
+SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
+'[1,2]' MEMBER OF ('[[1,2],[3,4]]')
+0
+SELECT JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]') AS expr;
+expr
+1
+SELECT '{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]');
+'{"name":"John"}' MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+0
+# 7. MEMBER OF with scalar/object as container (acting as 1-element array)
+SELECT 2 MEMBER OF ('2');
+2 MEMBER OF ('2')
+1
+SELECT 2 MEMBER OF ('3');
+2 MEMBER OF ('3')
+0
+SELECT 2 MEMBER OF ('"2"');
+2 MEMBER OF ('"2"')
+0
+# 8. Test using table columns and row evaluations
+CREATE TABLE t1 (id INT, val JSON);
+INSERT INTO t1 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]'), (3, NULL);
+SELECT id, val, 2 MEMBER OF (val) FROM t1;
+id	val	2 MEMBER OF (val)
+1	[1, 2, 3]	1
+2	[4, 5, 6]	0
+3	NULL	NULL
+SELECT id, val, NULL MEMBER OF (val) FROM t1;
+id	val	NULL MEMBER OF (val)
+1	[1, 2, 3]	0
+2	[4, 5, 6]	0
+3	NULL	NULL
+CREATE TABLE t2 (candidate INT);
+INSERT INTO t2 VALUES (2), (4), (NULL);
+SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
+candidate	val	candidate MEMBER OF (val)
+NULL	[1, 2, 3]	0
+2	[1, 2, 3]	1
+4	[1, 2, 3]	0
+NULL	[4, 5, 6]	0
+2	[4, 5, 6]	0
+4	[4, 5, 6]	1
+NULL	NULL	NULL
+2	NULL	NULL
+4	NULL	NULL
+DROP TABLE t1, t2;
+# 9. Prepared Statements twice execution test
+PREPARE stmt1 FROM 'SELECT ? MEMBER OF (?)';
+SET @candidate = 2;
+SET @container = '[1,2,3]';
+EXECUTE stmt1 USING @candidate, @container;
+? MEMBER OF (?)
+1
+SET @candidate = 4;
+SET @container = '[1,2,3]';
+EXECUTE stmt1 USING @candidate, @container;
+? MEMBER OF (?)
+0
+DEALLOCATE PREPARE stmt1;
+# 10. Prepared Statements with JSON_COMPACT
+PREPARE stmt2 FROM 'SELECT JSON_COMPACT(?) MEMBER OF (?)';
+SET @candidate_json = '[1,2]';
+SET @container_nested = '[[1,2],[3,4]]';
+EXECUTE stmt2 USING @candidate_json, @container_nested;
+JSON_COMPACT(?) MEMBER OF (?)
+1
+EXECUTE stmt2 USING @candidate_json, @container_nested;
+JSON_COMPACT(?) MEMBER OF (?)
+1
+DEALLOCATE PREPARE stmt2;
+# 11. Malformed LONGTEXT candidate test
+CREATE TABLE t3 (val LONGTEXT);
+INSERT INTO t3 VALUES ('[1,2');
+SELECT val MEMBER OF ('[1,2,3]') FROM t3;
+val MEMBER OF ('[1,2,3]')
+0
+DROP TABLE t3;
+# 12. JSON scalar candidate test (type-strictness in passthrough branch)
+CREATE TABLE t4 (val JSON);
+INSERT INTO t4 VALUES ('2'), ('"2"');
+SELECT val, val MEMBER OF ('[1,2,3]') FROM t4;
+val	val MEMBER OF ('[1,2,3]')
+2	1
+"2"	0
+DROP TABLE t4;
+# 13. NOT MEMBER OF tests
+# 13.1 1 NOT MEMBER OF ('[1,2,3]') -> 0 (1 IS a member)
+SELECT 1 NOT MEMBER OF ('[1,2,3]');
+1 NOT MEMBER OF ('[1,2,3]')
+0
+# 13.2 4 NOT MEMBER OF ('[1,2,3]') -> 1
+SELECT 4 NOT MEMBER OF ('[1,2,3]');
+4 NOT MEMBER OF ('[1,2,3]')
+1
+# 13.3 '2' NOT MEMBER OF ('[1,2,3]') -> 1 (type-strict comparison)
+SELECT '2' NOT MEMBER OF ('[1,2,3]');
+'2' NOT MEMBER OF ('[1,2,3]')
+1
+# 13.4 NULL NOT MEMBER OF ('[1,2,3]') -> 1
+SELECT NULL NOT MEMBER OF ('[1,2,3]');
+NULL NOT MEMBER OF ('[1,2,3]')
+1
+SELECT NULL NOT MEMBER OF ('[1,2,3]') IS NULL;
+NULL NOT MEMBER OF ('[1,2,3]') IS NULL
+0
+# 13.5 1 NOT MEMBER OF (NULL) -> NULL (and IS NULL -> 1)
+SELECT 1 NOT MEMBER OF (NULL);
+1 NOT MEMBER OF (NULL)
+NULL
+SELECT 1 NOT MEMBER OF (NULL) IS NULL;
+1 NOT MEMBER OF (NULL) IS NULL
+1
+# 13.6 Malformed JSON with NOT MEMBER OF (returns NULL with warning)
+SELECT 1 NOT MEMBER OF ('not_json');
+1 NOT MEMBER OF ('not_json')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_contains' at position 1
+# 13.7 EXPLAIN EXTENDED round-trip print check
+EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 not member of ('[1,2,3]') AS `1 NOT MEMBER OF ('[1,2,3]')`
+# 14. Prepared Statements twice execution for Section 6 nested cases
+PREPARE stmt3 FROM 'SELECT JSON_COMPACT(\'[1,2]\') MEMBER OF (\'[[1,2],[3,4]]\')';
+EXECUTE stmt3;
+JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
+1
+EXECUTE stmt3;
+JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
+1
+DEALLOCATE PREPARE stmt3;
+PREPARE stmt4 FROM 'SELECT JSON_COMPACT(\'{"name":"John"}\') MEMBER OF (\'[{"name":"John"},{"name":"Joe"}]\')';
+EXECUTE stmt4;
+JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+1
+EXECUTE stmt4;
+JSON_COMPACT('{"name":"John"}') MEMBER OF ('[{"name":"John"},{"name":"Joe"}]')
+1
+DEALLOCATE PREPARE stmt4;
+#
+# 15. null literal vs JSON null — type-strict distinctions
+#
+# SQL string 'null' inside a JSON string-array ["null"] -> 1 (matches the string)
+select 'null' member of ('["null"]');
+'null' member of ('["null"]')
+1
+# SQL NULL inside an array containing JSON null literal [null] -> 1
+select null member of ('[null]');
+null member of ('[null]')
+1
+# SQL string 'null' inside an array containing JSON null literal [null] -> 0 (type mismatch)
+select 'null' member of ('[null]');
+'null' member of ('[null]')
+0
+# SQL NULL inside a JSON string-array ["null"] -> 0 (type mismatch)
+select null member of ('["null"]');
+null member of ('["null"]')
+0
+#
+# 16. Regression test for Item 1 root-cause fix (stale a2_parsed cache bug)
+# Before the fix, cross-join with non-constant candidate produced wrong results:
+#   NULL  MEMBER OF ([1,2,3]) returned 1  (should be NULL)
+#   4     MEMBER OF ([1,2,3]) returned 1  (should be 0)
+#   NULL  MEMBER OF ([4,5,6]) returned 0  (should be NULL)
+# Verify each combination individually to prevent any future regression.
+#
+CREATE TABLE t5 (id INT, val JSON);
+INSERT INTO t5 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]'), (3, NULL);
+CREATE TABLE t6 (candidate INT);
+INSERT INTO t6 VALUES (2), (4), (NULL);
+# Exact results expected after fix:
+# (NULL, [1,2,3]) -> 0, (2, [1,2,3]) -> 1, (4, [1,2,3]) -> 0
+# (NULL, [4,5,6]) -> 0, (2, [4,5,6]) -> 0, (4, [4,5,6]) -> 1
+# (NULL, NULL)    -> NULL, (2, NULL)    -> NULL, (4, NULL)  -> NULL
+SELECT candidate, val, candidate MEMBER OF (val) FROM t5, t6 ORDER BY id, candidate;
+candidate	val	candidate MEMBER OF (val)
+NULL	[1, 2, 3]	0
+2	[1, 2, 3]	1
+4	[1, 2, 3]	0
+NULL	[4, 5, 6]	0
+2	[4, 5, 6]	0
+4	[4, 5, 6]	1
+NULL	NULL	NULL
+2	NULL	NULL
+4	NULL	NULL
+# Cross-check with JSON_CONTAINS(val, JSON_QUOTE(candidate)) - results must match
+SELECT candidate, val,
+candidate MEMBER OF (val)                    AS member_of_result,
+JSON_CONTAINS(val, JSON_QUOTE(candidate))     AS json_contains_result
+FROM t5, t6
+WHERE candidate IS NOT NULL AND val IS NOT NULL
+ORDER BY id, candidate;
+candidate	val	member_of_result	json_contains_result
+2	[1, 2, 3]	1	1
+4	[1, 2, 3]	0	0
+2	[4, 5, 6]	0	0
+4	[4, 5, 6]	1	1
+DROP TABLE t5, t6;
+#
+# 17. Item 6 test: Multi-column ROW_RESULT error path
+# Multi-column row as argument disallows multi-column operands
+#
+SELECT JSON_QUOTE((1,2));
+Got one of the listed errors
+SELECT (1,2) MEMBER OF ('[1,2,3]');
+Got one of the listed errors
+#
+# 18. Item 10 regression test: Equality propagation / ref substitution
+# Verify that optimizer equality substitution (t7.a = t8.b) properly evaluates
+# MEMBER OF across join rows without stale candidate/container values.
+#
+CREATE TABLE t7 (a INT, j JSON);
+CREATE TABLE t8 (b INT, k JSON);
+INSERT INTO t7 VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+INSERT INTO t8 VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+SELECT t7.a, t7.j, t8.k, t7.a MEMBER OF (t8.k) FROM t7, t8
+WHERE t7.a = t8.b AND t7.a MEMBER OF (t8.k)
+ORDER BY t7.a;
+a	j	k	t7.a MEMBER OF (t8.k)
+1	[1,2,3]	[1,2,3]	1
+DROP TABLE t7, t8;
+#
+# 19. Stored function tests (VARCHAR and JSON return types)
+#
+CREATE FUNCTION f() RETURNS VARCHAR(30) RETURN 'pony';
+SELECT f() MEMBER OF ('["sheep", "lamb", "pony"]');
+f() MEMBER OF ('["sheep", "lamb", "pony"]')
+1
+SELECT JSON_QUOTE(f());
+JSON_QUOTE(f())
+"pony"
+DROP FUNCTION f;
+CREATE FUNCTION j_row_result() RETURNS JSON RETURN JSON_OBJECT('value', 2, 'key', 'golden');
+SELECT j_row_result() MEMBER OF ('[{"key": "golden", "value": 2E0}]');
+j_row_result() MEMBER OF ('[{"key": "golden", "value": 2E0}]')
+0
+DROP FUNCTION j_row_result;
+#
+# 20. TIME_RESULT tests
+# Verify that TIME values are quoted as JSON string literals without escaping.
+#
+SELECT JSON_QUOTE(CAST('12:30:00' AS TIME));
+JSON_QUOTE(CAST('12:30:00' AS TIME))
+"12:30:00"
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["12:30:00"]');
+CAST('12:30:00' AS TIME) MEMBER OF ('["12:30:00"]')
+1
+SELECT CAST('12:30:00' AS TIME) MEMBER OF ('["10:00:00", "12:30:00"]');
+CAST('12:30:00' AS TIME) MEMBER OF ('["10:00:00", "12:30:00"]')
+1
+#
+# 21. Literal ROW() constructor / RETURNS ROW rejection tests
+# Confirms literal multi-column ROW() constructors and RETURNS ROW(...) functions
+# are rejected by check_cols(1) during fix_fields() at bind time.
+#
+CREATE FUNCTION f1_row() RETURNS ROW(a INT) RETURN (SELECT 42);
+SELECT JSON_QUOTE(f1_row());
+ERROR 21000: Operand should contain 1 column(s)
+SELECT f1_row() MEMBER OF ('[42]');
+ERROR 21000: Operand should contain 1 column(s)
+DROP FUNCTION f1_row;
