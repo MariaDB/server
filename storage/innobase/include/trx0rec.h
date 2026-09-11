@@ -148,9 +148,21 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index; NULL if insert */
 	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+	roll_ptr_t*	roll_ptr,	/*!< out: DB_ROLL_PTR to the
 					undo log record */
+	mtr_t*		caller_mtr)	/*!< in/out: the mini-transaction
+					that is going to modify rec, so
+					that the undo log record and the
+					modification of rec cannot be
+					separated by a crash; NULL to use
+					a separate mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
+
+/** Determine how large an undo log record may be. An undo log record
+is never split between pages, so a record that does not fit on an empty
+undo log page cannot be written at all.
+@return the maximum size of an undo log record, in bytes */
+ulint trx_undo_max_rec_size();
 
 /** status bit used for trx_undo_prev_version_build() */
 
