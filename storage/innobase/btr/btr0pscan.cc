@@ -26,8 +26,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
-/** @file row/row0pcoord.cc
-Parallel coordinator implementation
+/** @file btr/btr0pscan.cc
+Parallel scan partitioner implementation
 
 Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 
@@ -36,7 +36,7 @@ Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 #include "btr0pcur.h"
 #include "dict0dict.h"
 #include "row0mysql.h"
-#include "row0pcoord.h"
+#include "btr0pscan.h"
 #include "row0row.h"
 #include "row0vers.h"
 #include "ut0new.h"
@@ -60,7 +60,7 @@ static dberr_t pread_page_cur_search(buf_block_t *block,
            : DB_SUCCESS;
 }
 
-Parallel_coordinator::Scan_ctx::Iter::~Iter()
+Parallel_scan_partitioner::Scan_ctx::Iter::~Iter()
 {
   if (m_heap == nullptr) {
     return;
@@ -70,19 +70,19 @@ Parallel_coordinator::Scan_ctx::Iter::~Iter()
   m_heap = nullptr;
 }
 
-void Parallel_coordinator::Scan_ctx::index_s_lock()
+void Parallel_scan_partitioner::Scan_ctx::index_s_lock()
 {
   m_config.m_index->lock.s_lock(SRW_LOCK_CALL);
   m_s_locks.fetch_add(1, std::memory_order_release);
 }
 
-void Parallel_coordinator::Scan_ctx::index_s_unlock()
+void Parallel_scan_partitioner::Scan_ctx::index_s_unlock()
 {
   m_s_locks.fetch_sub(1, std::memory_order_release);
   m_config.m_index->lock.s_unlock();
 }
 
-dberr_t Parallel_coordinator::Exec_ctx::split()
+dberr_t Parallel_scan_partitioner::Exec_ctx::split()
 {
   /*
     Twice the worker count, not once: the pieces this split produces are never
@@ -108,7 +108,7 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
   figuring out the sub-trees to scan. */
   m_scan_ctx->index_s_lock();
 
-  Parallel_coordinator::Scan_ctx::Ranges ranges{};
+  Parallel_scan_partitioner::Scan_ctx::Ranges ranges{};
   m_scan_ctx->partition(scan_range, ranges, 1);
 
   if (!ranges.empty())
@@ -137,12 +137,12 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
       too few large ones: the whole point of this split is idle workers.
     */
     const size_t m= std::max(ranges.size() / target, size_t{1});
-    Parallel_coordinator::Scan_ctx::Ranges merged{};
+    Parallel_scan_partitioner::Scan_ctx::Ranges merged{};
 
     for (size_t i= 0; i < ranges.size(); i+= m)
     {
       const size_t last= std::min(i + m, ranges.size()) - 1;
-      merged.push_back(Parallel_coordinator::Scan_ctx::Range(
+      merged.push_back(Parallel_scan_partitioner::Scan_ctx::Range(
           ranges[i].first, ranges[last].second));
     }
     ranges.swap(merged);
@@ -176,13 +176,13 @@ dberr_t Parallel_coordinator::Exec_ctx::split()
   return err;
 }
 
-Parallel_coordinator::Scan_ctx::Scan_ctx(Parallel_coordinator *coordinator, size_t id,
-                                    trx_t *trx,
-                                    const Parallel_coordinator::Config &config)
-    : m_id(id), m_config(config), m_trx(trx), m_coordinator(coordinator)
+Parallel_scan_partitioner::Scan_ctx::Scan_ctx(
+    Parallel_scan_partitioner *partitioner, size_t id, trx_t *trx,
+    const Parallel_scan_partitioner::Config &config)
+    : m_id(id), m_config(config), m_trx(trx), m_partitioner(partitioner)
 {}
 
-buf_block_t *Parallel_coordinator::Scan_ctx::block_get_s_latched(
+buf_block_t *Parallel_scan_partitioner::Scan_ctx::block_get_s_latched(
     const page_id_t &page_id, mtr_t *mtr, size_t line) const
 {
   /* We never scan undo tablespaces. */
@@ -196,7 +196,8 @@ buf_block_t *Parallel_coordinator::Scan_ctx::block_get_s_latched(
 }
 
 
-void Parallel_coordinator::Scan_ctx::copy_row(const rec_t *rec, Iter *iter) const
+void Parallel_scan_partitioner::Scan_ctx::copy_row(const rec_t *rec,
+                                                   Iter *iter) const
 {
   const ulint n_core = page_rec_is_leaf(rec) ? m_config.m_index->n_core_fields : 0;
   iter->m_offsets = rec_get_offsets(rec, m_config.m_index, nullptr,
@@ -225,8 +226,8 @@ void Parallel_coordinator::Scan_ctx::copy_row(const rec_t *rec, Iter *iter) cons
   iter->m_tuple = tuple;
 }
 
-std::shared_ptr<Parallel_coordinator::Scan_ctx::Iter>
-Parallel_coordinator::Scan_ctx::create_iter(
+std::shared_ptr<Parallel_scan_partitioner::Scan_ctx::Iter>
+Parallel_scan_partitioner::Scan_ctx::create_iter(
     const page_cur_t &page_cursor) const
 {
   ut_a(m_config.m_read_level == 0);
@@ -259,7 +260,7 @@ Parallel_coordinator::Scan_ctx::create_iter(
   return (iter);
 }
 
-void Parallel_coordinator::enqueue(std::shared_ptr<Exec_ctx> ctx)
+void Parallel_scan_partitioner::enqueue(std::shared_ptr<Exec_ctx> ctx)
 {
   mysql_mutex_lock(&m_mutex);
   m_ctxs.push_back(ctx);
@@ -270,7 +271,8 @@ void Parallel_coordinator::enqueue(std::shared_ptr<Exec_ctx> ctx)
   mysql_mutex_unlock(&m_mutex);
 }
 
-std::shared_ptr<Parallel_coordinator::Exec_ctx> Parallel_coordinator::dequeue()
+std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>
+Parallel_scan_partitioner::dequeue()
 {
   mysql_mutex_lock(&m_mutex);
 
@@ -296,20 +298,20 @@ std::shared_ptr<Parallel_coordinator::Exec_ctx> Parallel_coordinator::dequeue()
   return (ctx);
 }
 
-std::shared_ptr<Parallel_coordinator::Exec_ctx>
-Parallel_coordinator::get_job_for_worker(Worker_ctx *worker_ctx)
+std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>
+Parallel_scan_partitioner::get_next_chunk()
 {
   /* Pull the next scannable context. A context flagged m_to_be_resplit is not
   itself scanned: split() re-partitions its sub-tree one level deeper and
   enqueues the finer sub-contexts (for this worker and others), then we
-  pull again. This is the pull-based equivalent of the m_to_be_resplit handling
-  in Parallel_coordinator::worker() (which we don't use here) — it is what
-  turns the few coarse root-subtree ranges into one-leaf-page chunks on deep
-  trees. Without it, a deep B-tree with a narrow root yields only a handful
-  of huge chunks and almost no worker parallelism. */
+  pull again. This is the pull-based equivalent of the m_to_be_resplit
+  handling in Parallel_scan_partitioner::worker() (which we don't use here) —
+  it is what turns the few coarse root-subtree ranges into one-leaf-page
+  chunks on deep trees. Without it, a deep B-tree with a narrow root yields
+  only a handful of huge chunks and almost no worker parallelism. */
   for (;;)
   {
-    std::shared_ptr<Parallel_coordinator::Exec_ctx> ctx = dequeue();
+    std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> ctx = dequeue();
 
     if (ctx == nullptr)
       return nullptr;
@@ -347,9 +349,9 @@ Parallel_coordinator::get_job_for_worker(Worker_ctx *worker_ctx)
   }
 }
 
-page_no_t Parallel_coordinator::Scan_ctx::search(buf_block_t *block,
-                                                 const dtuple_t *key,
-                                                 dberr_t *err) const
+page_no_t Parallel_scan_partitioner::Scan_ctx::search(buf_block_t *block,
+                                                      const dtuple_t *key,
+                                                      dberr_t *err) const
 {
   ut_ad(index_s_own());
   *err = DB_SUCCESS;
@@ -405,7 +407,7 @@ page_no_t Parallel_coordinator::Scan_ctx::search(buf_block_t *block,
   return (page_no);
 }
 
-page_cur_t Parallel_coordinator::Scan_ctx::start_range(
+page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
     page_no_t page_no, mtr_t *mtr, const dtuple_t *key,
     Savepoints &savepoints, dberr_t *err) const {
   ut_ad(index_s_own());
@@ -512,27 +514,25 @@ page_cur_t Parallel_coordinator::Scan_ctx::start_range(
   }
 }
 
-void Parallel_coordinator::Scan_ctx::create_range(
+void Parallel_scan_partitioner::Scan_ctx::add_range_boundary(
   Ranges &ranges, page_cur_t &leaf_page_cursor) const {
   leaf_page_cursor.index = m_config.m_index;
 
   auto iter = create_iter(leaf_page_cursor);
 
-  /* Setup the previous range (next) to point to the current range. */
+  /* This boundary ends the range that is still open. */
   if (!ranges.empty()) {
     ut_a(ranges.back().second->m_heap == nullptr);
     ranges.back().second = iter;
   }
 
+  /* Open the next range here; its end is filled in by the next boundary. */
   ranges.push_back(Range(iter, std::make_shared<Iter>()));
 }
 
-dberr_t
-Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
-                                              page_no_t page_no,
-                                              size_t depth,
-                                              const size_t split_level,
-                                              Ranges &ranges, mtr_t *mtr) {
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
+    const Scan_range &scan_range, page_no_t page_no, size_t depth,
+    const size_t split_level, Ranges &ranges, mtr_t *mtr) {
   ut_ad(index_s_own());
   ut_a(page_no != FIL_NULL);
 
@@ -709,7 +709,7 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
 
     if (!page_rec_is_supremum(page_cur_get_rec(&level_page_cursor)))
     {
-      create_range(ranges, level_page_cursor);
+      add_range_boundary(ranges, level_page_cursor);
     }
 
     /* We've created the range, safe to release S latches on
@@ -744,9 +744,9 @@ Parallel_coordinator::Scan_ctx::create_ranges(const Scan_range &scan_range,
   return (DB_SUCCESS);
 }
 
-dberr_t Parallel_coordinator::Scan_ctx::partition(
+dberr_t Parallel_scan_partitioner::Scan_ctx::partition(
     const Scan_range &scan_range,
-    Parallel_coordinator::Scan_ctx::Ranges &ranges,
+    Parallel_scan_partitioner::Scan_ctx::Ranges &ranges,
     size_t split_level)
 {
   ut_ad(index_s_own());
@@ -782,13 +782,13 @@ dberr_t Parallel_coordinator::Scan_ctx::partition(
   return (err);
 }
 
-dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
-                                                       bool resplit,
-                                                       bool end_inclusive)
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_context(const Range &range,
+                                                            bool resplit,
+                                                            bool end_inclusive)
 {
-  auto ctx = std::shared_ptr<Parallel_coordinator::Exec_ctx>(
-    UT_NEW_NOKEY(Parallel_coordinator::Exec_ctx(this, range)),
-    [](Parallel_coordinator::Exec_ctx *ctx) { UT_DELETE(ctx); });
+  auto ctx = std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>(
+    UT_NEW_NOKEY(Parallel_scan_partitioner::Exec_ctx(this, range)),
+    [](Parallel_scan_partitioner::Exec_ctx *ctx) { UT_DELETE(ctx); });
 
   dberr_t err{DB_SUCCESS};
 
@@ -800,13 +800,14 @@ dberr_t Parallel_coordinator::Scan_ctx::create_context(const Range &range,
   {
     ctx->m_to_be_resplit = resplit;
     ctx->m_end_inclusive = end_inclusive;
-    m_coordinator->enqueue(ctx);
+    m_partitioner->enqueue(ctx);
   }
 
   return (err);
 }
 
-dberr_t Parallel_coordinator::Scan_ctx::create_contexts(const Ranges &ranges)
+dberr_t
+Parallel_scan_partitioner::Scan_ctx::create_contexts(const Ranges &ranges)
 {
   size_t split_point{};
 
@@ -842,9 +843,8 @@ dberr_t Parallel_coordinator::Scan_ctx::create_contexts(const Ranges &ranges)
   return DB_SUCCESS;
 }
 
-dberr_t
-Parallel_coordinator::add_scan(trx_t *trx,
-                               const Parallel_coordinator::Config &config)
+dberr_t Parallel_scan_partitioner::add_scan(
+    trx_t *trx, const Parallel_scan_partitioner::Config &config)
 {
   auto scan_ctx = std::shared_ptr<Scan_ctx>(
     UT_NEW_NOKEY(Scan_ctx(this, m_scan_ctx_id, trx, config)),
@@ -862,7 +862,7 @@ Parallel_coordinator::add_scan(trx_t *trx,
 
   scan_ctx->index_s_lock();
 
-  Parallel_coordinator::Scan_ctx::Ranges ranges{};
+  Parallel_scan_partitioner::Scan_ctx::Ranges ranges{};
   dberr_t err{DB_SUCCESS};
 
   /* Split at the root node (level == 0). */
@@ -882,7 +882,7 @@ Parallel_coordinator::add_scan(trx_t *trx,
   return (err);
 }
 
-int Parallel_coordinator::initialize(size_t n_workers)
+int Parallel_scan_partitioner::initialize(size_t n_workers)
 {
   DBUG_ASSERT(!m_is_initialized);
   m_n_workers= n_workers;
@@ -896,38 +896,13 @@ int Parallel_coordinator::initialize(size_t n_workers)
   m_chunks_created= 0;
   m_chunks_resplit= 0;
 
-  m_worker_ctxs.reserve(n_workers);
-  for (size_t i = 0; i < n_workers; ++i)
-  {
-    Worker_ctx *wctx = UT_NEW_NOKEY(Worker_ctx(i, this));
-    if (wctx == nullptr)
-    {
-      for (auto *p : m_worker_ctxs) UT_DELETE(p);
-      m_worker_ctxs.clear();
-      mysql_cond_destroy(&m_cond);
-      mysql_mutex_destroy(&m_mutex);
-      return HA_ERR_OUT_OF_MEM;
-    }
-    m_worker_ctxs.push_back(wctx);
-  }
-
   m_is_initialized= true;
   return 0;
 }
 
-Parallel_coordinator::Worker_ctx*
-Parallel_coordinator::get_worker_ctx(size_t worker_idx) const
-{
-  ut_a(worker_idx < m_worker_ctxs.size());
-  return m_worker_ctxs[worker_idx];
-}
-
-void Parallel_coordinator::cleanup()
+void Parallel_scan_partitioner::cleanup()
 {
   if (!m_is_initialized) return;
-
-  for (auto *p : m_worker_ctxs) UT_DELETE(p);
-  m_worker_ctxs.clear();
 
   m_ctxs.clear();
   m_scan_ctxs.clear();
