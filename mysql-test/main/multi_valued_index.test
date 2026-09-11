@@ -6,6 +6,10 @@ create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))e
 SHOW CREATE TABLE t1;
 show index from t1;
 
+# TODO: the following would result in
+# mysqltest: At line 9: query 'alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)))' failed: ER_DUP_FIELDNAME (1060): Duplicate column name 'DB_MVI_1'
+# alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)));
+
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
 

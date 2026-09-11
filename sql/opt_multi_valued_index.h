@@ -99,12 +99,18 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
   image longer than that is cut down to it, making the key a prefix key:
   see encode_mvi_key().
 
-  TODO: innodb_ft_max_token_size can be set lower than its default, and
-  innodb_ft_min_token_size higher, and then the engine drops keys we
-  consider valid. Validate both against the index at DDL time.
+  An engine whose token size limits are narrower than what an index can
+  produce cannot hold that index: see mvi_keys_fit_fulltext().
 */
 #define MVI_KEY_IMAGE_MAX_LEN 42
 #define MVI_ENCODED_KEY_MAX_LEN (MVI_KEY_IMAGE_MAX_LEN * 2)
+
+/*
+  The shortest a key can be. An image of one byte, or of none at all, is
+  padded out to this, so that the engine's minimum token size -- 3 for
+  InnoDB, 4 for MyISAM and Aria, by default -- does not drop it.
+*/
+#define MVI_ENCODED_KEY_MIN_LEN 4
 
 /*
   Encode one JSON value into the form it has in the index, appending it to
@@ -201,6 +207,21 @@ private:
 
 inline bool mvi_walk_stopped(Mvi_array_iterator::Event event)
 { return event >= Mvi_array_iterator::MVI_WALK_END; }
+
+/*
+  Will `file' index every key an MVI of the cast_th datatype produces? A
+  key the engine drops for being too short or too long is one we would
+  search the index for and never find, which makes the index unusable.
+*/
+bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
+                           bool report_error_if_unfit= false);
+
+/*
+  DDL: the same as mvi_keys_fit_fulltext, raising
+  ER_MVI_KEY_TOKEN_SIZE when they do not fit. Returns true if an error
+  was raised.
+*/
+bool check_mvi_token_size(const handler *file, const Create_field *column);
 
 /*
   Is `field' the internal column that holds the keys of a multi-valued index?

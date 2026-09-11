@@ -14868,6 +14868,24 @@ ha_innobase::fulltext_estimate(
 	DBUG_RETURN((ha_rows) std::min<uint64_t>(n_docs, HA_ROWS_MAX - 1));
 }
 
+/** The range of token lengths a fulltext index holds, in characters.
+Both bounds are inclusive: fts_check_token() takes a token whose character
+count is >= fts_min_token_size and <= fts_max_token_size.
+@param[out]	min_chars	shortest token that is indexed
+@param[out]	max_chars	longest token that is indexed
+@return false */
+
+bool
+ha_innobase::fulltext_token_size_limits(
+/*====================================*/
+	uint*	min_chars,
+	uint*	max_chars) const
+{
+	*min_chars = (uint) fts_min_token_size;
+	*max_chars = (uint) fts_max_token_size;
+	return false;
+}
+
 /*********************************************************************//**
 Gives an UPPER BOUND to the number of rows in a table. This is used in
 filesort.cc.

@@ -4589,6 +4589,22 @@ public:
                                     uint word_len)
     { return HA_POS_ERROR; }
 
+  /**
+    The range of token lengths, in characters, this engine's fulltext
+    indexes hold. Both bounds are inclusive.
+
+    A token outside the range is dropped, and dropped silently: on the DML
+    path and on the index build path alike. Whoever puts something in a
+    fulltext index expecting to find it again has to stay inside it.
+
+    @retval true   the engine does not say. The caller cannot tell whether
+                   what it wants indexed will be, and *min_chars and
+                   *max_chars are untouched.
+  */
+  virtual bool fulltext_token_size_limits(uint *min_chars,
+                                          uint *max_chars) const
+    { return true; }
+
   /*
     If HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is set, then it sets ref
     (reference to the row, aka position, with the primary key given in

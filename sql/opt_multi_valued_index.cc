@@ -423,6 +423,80 @@ static Item_func_mvi_encode *mvi_expr(field_visibility_t invisible,
 }
 
 
+/*
+  @brief
+    The range of key lengths, in characters, an MVI of the cast_th
+    datatype can produce.
+
+  @return
+    true  It produces no keys at all, and *min_chars and *max_chars are
+          untouched. encode_mvi_key() has no image for the datatype, so
+          nothing is ever stored or searched for.
+*/
+
+static bool mvi_key_length_range(const Type_handler *cast_th,
+                                 uint *min_chars, uint *max_chars)
+{
+  switch (cast_th->field_type())
+  {
+    case MYSQL_TYPE_LONGLONG:
+      /* Always the 8 byte image of the integer, in hex */
+      *min_chars= *max_chars= 8 * 2;
+      return false;
+    case MYSQL_TYPE_LONG_BLOB:
+      /* Anything from the empty string to a key image that is cut short */
+      *min_chars= MVI_ENCODED_KEY_MIN_LEN;
+      *max_chars= MVI_ENCODED_KEY_MAX_LEN;
+      return false;
+    default:
+      return true;
+  }
+}
+
+
+/*
+  @brief
+    Does `file' hold every key an MVI of the cast_th datatype produces?
+
+  @detail
+    A key outside the engine's token size limits is dropped, and dropped
+    silently, when the row is written and when the index is built. It is
+    then a key the query side would search for and not find, so a row is
+    lost -- the one thing the index must never do. An index that can
+    produce such a key is refused at DDL time and ignored by the optimizer
+    if it is there anyway, which it can be: the limits are settings, and a
+    server can be restarted with different ones, or the table copied to a
+    server that has them.
+
+    An engine that does not report its limits is taken at its word.
+
+  @param cast_th  The datatype of the ARRAY cast, which is what decides
+                  how long the keys are, see mvi_key_length_range()
+*/
+
+bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
+                           bool report_error_if_unfit)
+{
+  uint key_min, key_max, ft_min, ft_max;
+  bool fit= mvi_key_length_range(cast_th, &key_min, &key_max) ||
+            file->fulltext_token_size_limits(&ft_min, &ft_max) ||
+            (key_min >= ft_min && key_max <= ft_max);
+  if (!fit && report_error_if_unfit)
+    my_error(ER_MVI_KEY_TOKEN_SIZE, MYF(0), key_min, key_max,
+             file->table_type(), ft_min, ft_max);
+  return fit;
+}
+
+
+bool check_mvi_token_size(const handler *file, const Create_field *column)
+{
+  Item_func_mvi_encode *mvi= mvi_expr(column->invisible, column->vcol_info);
+  DBUG_ASSERT(mvi);
+  return !mvi_keys_fit_fulltext(file, mvi->cast_type().type_handler(),
+                                /*report_error_if_unfit=*/true);
+}
+
+
 bool is_mvi_vcol(const Field *field)
 {
   return mvi_expr(field->invisible, field->vcol_info) != NULL;
@@ -554,7 +628,10 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
   if (unlikely(check_mvi_key_type(key)))
     return NULL;
 
-  /* TODO: check fts_min_token_size is 4, warn if not */
+  /*
+    The engine's fulltext token size limits are checked once the engine is
+    known, in init_key_part_spec(): the statement has not named it yet.
+  */
   Create_field *f= new (thd->mem_root) Create_field();
   Item *vcol_expr=
     new (thd->mem_root) Item_func_mvi_encode(thd, expr, cast_type);
@@ -602,6 +679,15 @@ bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
     {
       Field *field= key->key_part[kp].field;
       if (!is_mvi_vcol(field))
+        continue;
+      /*
+        The engine's token size limits are checked at DDL time, but they
+        are settings: this table may have been created when they were
+        wider, or on another server.
+      */
+      Item_func_mvi_encode *mvi= mvi_expr(field->invisible, field->vcol_info);
+      DBUG_ASSERT(mvi);
+      if (!mvi_keys_fit_fulltext(table->file, mvi->cast_type().type_handler()))
         continue;
       Mv_index *index= new (thd->mem_root) Mv_index(field, i);
       if (indexes->push_back(index))

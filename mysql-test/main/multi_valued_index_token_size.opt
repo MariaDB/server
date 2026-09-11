@@ -1,0 +1,2 @@
+--innodb-ft-min-token-size=8 --innodb-ft-max-token-size=20
+--ft-min-word-len=8 --ft-max-word-len=20

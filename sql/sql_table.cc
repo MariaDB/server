@@ -2979,10 +2979,21 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     them has no defining expression to show in SHOW CREATE TABLE, and no
     syntax of its own that would read it back in.
   */
-  if (is_mvi_vcol(column) && key.columns.elements != 1)
+  if (is_mvi_vcol(column))
   {
-    my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
-    DBUG_RETURN(TRUE);
+    if (key.columns.elements != 1)
+    {
+      my_error(ER_TOO_MANY_KEY_PARTS, MYF(0), 1);
+      DBUG_RETURN(TRUE);
+    }
+    /*
+      Now that the engine is known, is it one that will hold the keys?
+      This runs for a table being rebuilt too, so an ALTER of a table
+      whose index the settings no longer allow fails here rather than
+      (re)building an index that cannot be used.
+    */
+    if (check_mvi_token_size(file, column))
+      DBUG_RETURN(TRUE);
   }
 
   const Type_handler *type_handler= column->type_handler();

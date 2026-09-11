@@ -90,6 +90,18 @@ class ha_myisam final : public handler
                           table->record[0]);
   }
   int ft_read(uchar *buf) override;
+  /*
+    ft_parser.c indexes a word of `length >= ft_min_word_len && length <
+    ft_max_word_len' characters, so the upper bound is one below the
+    variable.
+  */
+  bool fulltext_token_size_limits(uint *min_chars,
+                                  uint *max_chars) const override
+  {
+    *min_chars= (uint) ft_min_word_len;
+    *max_chars= (uint) ft_max_word_len - 1;
+    return false;
+  }
   int rnd_init(bool scan) override;
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar * buf, uchar *pos) override;

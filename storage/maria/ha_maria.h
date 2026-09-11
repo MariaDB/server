@@ -98,6 +98,18 @@ public:
   }
   FT_INFO *ft_init_ext(uint flags, uint inx, String * key) override final;
   int ft_read(uchar * buf) override final;
+  /*
+    ma_ft_parser.c indexes a word of `length >= ft_min_word_len && length <
+    ft_max_word_len' characters, so the upper bound is one below the
+    variable.
+  */
+  bool fulltext_token_size_limits(uint *min_chars,
+                                  uint *max_chars) const override final
+  {
+    *min_chars= (uint) ft_min_word_len;
+    *max_chars= (uint) ft_max_word_len - 1;
+    return false;
+  }
   int index_init(uint idx, bool sorted) override final;
   int index_end() override final;
   int rnd_init(bool scan) override final;

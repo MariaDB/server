@@ -1,0 +1,79 @@
+#
+# A multi-valued index is a fulltext index over the encoded elements, so
+# every key has to be a token the engine will hold. One that is too short
+# or too long is dropped silently, on the DML path and on the index build
+# path alike, and a key that is not in the index is a row the query side
+# would not find.
+#
+# The server runs with narrowed token size limits, see the .opt file.
+#
+--source include/have_innodb.inc
+--source include/have_maria.inc
+--source include/not_embedded.inc
+
+select @@innodb_ft_min_token_size=8, @@innodb_ft_max_token_size=20,
+       @@ft_min_word_len=8, @@ft_max_word_len=20;
+
+--echo # A CHAR array has keys of 4 to 84 characters. Neither bound is
+--echo # within what these settings index, whichever engine holds it.
+--error ER_MVI_KEY_TOKEN_SIZE
+create table t1 (j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+--error ER_MVI_KEY_TOKEN_SIZE
+create table t1 (j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=myisam;
+--error ER_MVI_KEY_TOKEN_SIZE
+create table t1 (j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=aria;
+
+--echo # An INT array has keys of exactly 16 characters, which do fit
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.n' AS INT ARRAY))))engine=innodb;
+insert into t1 values (1,'{"n": [1, 42]}'),(2,'{"n": [42, 43]}'),
+                      (3,'{"n": [7]}');
+--replace_column 9 #
+explain select * from t1 where json_contains(j->'$.n', '42');
+select * from t1 where json_contains(j->'$.n', '42') order by c;
+--echo # the same rows without the index:
+select * from t1 ignore index(idx)
+ where json_contains(j->'$.n', '42') order by c;
+# TODO: fix MVI column name generation so that we no longer have to
+# drop the index here and add it back later
+alter table t1 drop index idx;
+
+--echo # Adding one whose keys do not fit is refused, and so is an ALTER
+--echo # that would rebuild it.
+--error ER_MVI_KEY_TOKEN_SIZE
+alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+alter table t1 add column x int;
+alter table t1 drop column x;
+
+alter table t1 add key idx ((CAST(j->'$.n' AS INT ARRAY)));
+
+--echo # The same index under limits it no longer fits is one the
+--echo # optimizer has to leave alone, or it
+--echo # could be searching for keys the engine may have dropped. The
+--echo # rows must not change.
+let $restart_parameters= --innodb-ft-max-token-size=10;
+--source include/restart_mysqld.inc
+
+select @@innodb_ft_max_token_size=10;
+--replace_column 9 #
+explain select * from t1 where json_contains(j->'$.n', '42');
+select c from t1 where json_contains(j->'$.n', '42') order by c;
+
+# TODO: this should fail to prevent false negatives in a future, e.g.
+# when server is restarted with --innodb-ft-max-token-size=20, see
+# below which shows the false negative
+insert into t1 values (4, '{"n": [55]}');
+select c from t1 where json_contains(j->'$.n', '55') order by c;
+
+let $restart_parameters= --innodb-ft-max-token-size=20;
+--source include/restart_mysqld.inc
+select @@innodb_ft_max_token_size=20;
+
+explain
+select c from t1 where json_contains(j->'$.n', '55') order by c;
+select c from t1 where json_contains(j->'$.n', '55') order by c;
+
+drop table t1;
