@@ -5595,6 +5595,80 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+/**
+  Compare two Item_cond expressions for equality.
+
+  Distinct AND/OR items are normally not considered equal, preserving their
+  execution order. Some metadata comparisons can explicitly request a set
+  comparison because table definitions may be serialized with their
+  arguments reordered.
+
+  @param item   The other Item to compare with
+  @param config Comparison configuration
+
+  @return true if expressions are equivalent, false otherwise
+*/
+bool Item_cond::eq(const Item *item, const Eq_config &config) const
+{
+  if (this == item)
+    return true;
+
+  if (item->type() != COND_ITEM || (used_tables() & RAND_TABLE_BIT))
+    return false;
+
+  const Item_cond *item_cond= (const Item_cond *) item;
+  if (functype() != item_cond->functype())
+    return false;
+
+  if (!config.unordered_conditions)
+    return false;
+
+  /*
+    Treat the argument lists as sets. Checking both directions deliberately
+    ignores duplicate terms: A OR B and A OR B OR A are equivalent here.
+  */
+  List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+  Item *arg1;
+  while ((arg1= li1++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+    Item *arg2;
+    while ((arg2= li2++))
+    {
+      if (arg1->eq(arg2, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+
+  List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+  Item *arg2;
+  while ((arg2= li2++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+    Item *arg1;
+    while ((arg1= li1++))
+    {
+      if (arg2->eq(arg1, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
