@@ -764,6 +764,7 @@ static void test_no_key_read_guard()
   keydefs[1].seg=       &segs[2];
   keydefs[1].algorithm= HA_KEY_ALG_HASH;
 
+  memset(&blob_desc, 0, sizeof(blob_desc));
   blob_desc.offset=     blob_offset;
   blob_desc.packlength= blob_packlen;
 

@@ -2530,7 +2530,7 @@ uint Field::fill_cache_field(CACHE_FIELD *copy)
   copy->str= ptr;
   copy->length= pack_length_in_rec();
   copy->field= this;
-  if (flags & BLOB_FLAG)
+  if (data_is_out_of_line())
   {
     copy->type= CACHE_BLOB;
     copy->length-= portable_sizeof_char_ptr;
@@ -8152,26 +8152,214 @@ bool Field_varstring::memcpy_field_possible(const Field *from) const
 {
   return (Field_str::memcpy_field_possible(from) &&
           !compression_method() == !from->compression_method() &&
+          !data_is_out_of_line() && !from->data_is_out_of_line() &&
           length_bytes == ((Field_varstring*) from)->length_bytes &&
           (table->file && !(table->file->ha_table_flags() &
                             HA_RECORD_MUST_BE_CLEAN_ON_WRITE)));
 }
 
 
+template <class BASE>
+bool Field_varstring_out_of_line<BASE>::copy()
+{
+  if (value.copy((const char*) this->get_data(), this->get_length(),
+                 this->charset()))
+  {
+    Field_varstring::reset();
+    return true;
+  }
+  this->set_data_ptr((const uchar*) value.ptr());
+  return false;
+}
+
+
+/*
+  Make value a buffer of buffer_length bytes for a promoted store to
+  convert into, and answer with the address that store should read from.
+
+  That is not always the address it was given.  The payload of a
+  promoted field lives in value, and that is also where a reader of this
+  field is pointed, so a statement that stores what it just read from
+  this same column -- UPDATE t SET c = c -- has its source and its
+  destination in one buffer.  Such a source is moved into tmp first, the
+  way Field_blob::store() moves it.
+
+  @return  where to read the value from, or NULL out of memory
+*/
+
+template <class BASE>
+const char *
+Field_varstring_out_of_line<BASE>::alloc_promoted_buffer(const char *from,
+                                                         size_t length,
+                                                         CHARSET_INFO *cs,
+                                                         size_t buffer_length,
+                                                         String *tmp)
+{
+  if (from >= value.ptr() && from <= value.ptr() + value.length())
+  {
+    if (tmp->copy(from, length, cs))
+      return NULL;
+    from= tmp->ptr();
+  }
+  return value.alloc(buffer_length) ? NULL : from;
+}
+
+
+/*
+  Give the record the length bytes a promoted store left in value, and
+  an address to read them at.
+
+  @return  true out of memory
+*/
+
+template <class BASE>
+bool Field_varstring_out_of_line<BASE>::publish_promoted_value(uint length)
+{
+  const uchar *data;
+
+  value.length(length);
+
+  if (this->table && this->table->blob_storage)
+  {
+    /*
+      GROUP_CONCAT with ORDER BY or DISTINCT keeps many rows alive at
+      once and sorts them afterwards, so each row needs bytes of its own:
+      value is one buffer per Field and would leave every row pointing at
+      whichever value was stored last.
+
+      Field_blob::store() sends its values through
+      Field_blob::handle_group_concat(), which first cuts them to
+      group_concat_max_len, because a blob has no declared width and the
+      storage would otherwise grow without bound.  This column does have
+      one and the store has already applied it, so the value is stored
+      whole and its cut mark is clear.  Cutting here as well would
+      change what a wide VARCHAR reports: the answer is assembled from
+      values that were never shortened, so the row at which the answer
+      overflows, and whether any value in it was cut, both stay what they
+      were before the column's payload moved out of the record.
+    */
+    data= (const uchar*) this->table->blob_storage->store(value.ptr(), length,
+                                                          false);
+    if (!data)
+      return true;
+  }
+  else
+    data= (const uchar*) value.ptr();
+
+  this->store_length(length);
+  this->set_data_ptr(data);
+  return false;
+}
+
+
+/*
+  Store bytes this column could have produced itself.
+
+  The caller has established that the value comes from a column of the
+  same type and charset and that this one is at least as wide, so no
+  conversion can happen and the value cannot be cut.  What store() does
+  beyond moving the bytes is find that out, and it walks the value to do
+  it; there is nothing here for that walk to find, because the bytes
+  were already checked on their way into the column they came from.
+
+  @return  true out of memory, the field reset
+*/
+
+bool Field_varstring::store_exact(const char *from, uint length)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  DBUG_ASSERT(length <= field_length);
+  DBUG_ASSERT(!promoted);
+
+  /*
+    The source is a payload kept outside some record and the destination
+    is this record's own slot, so they do not overlap.  The caller is
+    only here because one side of the copy is out of line, and this is
+    the side that is not.
+  */
+  memcpy(ptr + length_bytes, from, length);
+  store_length(length);
+  return false;
+}
+
+
+template <class BASE>
+bool Field_varstring_out_of_line<BASE>::store_exact(const char *from,
+                                                    uint length)
+{
+  DBUG_ASSERT(this->marked_for_write_or_computed());
+  DBUG_ASSERT(length <= this->field_length);
+  char buff[STRING_BUFFER_USUAL_SIZE];
+  String tmpstr(buff, sizeof(buff), &my_charset_bin);
+
+  if (!(from= alloc_promoted_buffer(from, length, this->field_charset(),
+                                    length, &tmpstr)))
+  {
+    this->reset();
+    return true;
+  }
+  memcpy((char*) value.ptr(), from, length);
+  if (publish_promoted_value(length))
+  {
+    this->reset();
+    return true;
+  }
+  return false;
+}
+
+
 int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  DBUG_ASSERT(!promoted);
   uint copy_length;
   int rc;
 
-  rc= well_formed_copy_with_check((char*) get_data(), field_length,
+  rc= well_formed_copy_with_check((char*) ptr + length_bytes, field_length,
                                   cs, from, length,
                                   Field_varstring::char_length(),
                                   true, &copy_length);
-
   store_length(copy_length);
-
   return rc;
+}
+
+
+int Field_varstring_promoted::store(const char *from, size_t length,
+                                    CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  char buff[STRING_BUFFER_USUAL_SIZE];
+  String tmpstr(buff, sizeof(buff), &my_charset_bin);
+  uint copy_length;
+  size_t new_length;
+  int rc;
+
+  /*
+    Size the buffer to the value rather than to the declared width: a
+    conversion produces at most mbmaxlen bytes per source byte, and the
+    column cannot hold more than it was declared to.
+  */
+  new_length= MY_MIN((size_t) field_length, mbmaxlen() * length);
+  if (!(from= alloc_promoted_buffer(from, length, cs, new_length, &tmpstr)))
+    goto oom_error;
+
+  rc= well_formed_copy_with_check((char*) value.ptr(), new_length,
+                                  cs, from, length,
+                                  Field_varstring::char_length(),
+                                  true, &copy_length);
+  if (publish_promoted_value(copy_length))
+    goto oom_error;
+  return rc;
+
+oom_error:
+  reset();
+  return -1;
+}
+
+
+Field_varstring *Field_varstring::make_promoted(MEM_ROOT *root) const
+{
+  return new (root) Field_varstring_promoted(*this);
 }
 
 
@@ -8247,6 +8435,13 @@ bool Field_varstring::send(Protocol *protocol)
 
 void Field_varstring::mark_unused_memory_as_defined()
 {
+  /*
+    A promoted field has no slack: the record holds a pointer, and the
+    bytes it points at are the engine's, of which only the value itself
+    is ours to reason about.
+  */
+  if (promoted)
+    return;
   uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
@@ -8270,8 +8465,8 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   }
   set_if_smaller(a_length, field_length);
   set_if_smaller(b_length, field_length);
-  diff= field_charset()->strnncollsp(a_ptr + length_bytes, a_length,
-                                     b_ptr + length_bytes, b_length);
+  diff= field_charset()->strnncollsp(get_data(a_ptr), a_length,
+                                     get_data(b_ptr), b_length);
   return diff;
 }
 
@@ -8297,9 +8492,9 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
     b_length= uint2korr(b_ptr);
   }
   return field_charset()->coll->strnncollsp_nchars(field_charset(),
-                                                   a_ptr + length_bytes,
+                                                   get_data(a_ptr),
                                                    a_length,
-                                                   b_ptr + length_bytes,
+                                                   get_data(b_ptr),
                                                    b_length,
                                                    prefix_char_len,
                                                    0);
@@ -8316,11 +8511,11 @@ int Field_varstring::key_cmp(const uchar *key_ptr, uint max_key_length) const
   size_t length=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
   size_t local_char_length= max_key_length / mbmaxlen();
 
-  local_char_length= field_charset()->charpos(ptr + length_bytes,
-                                              ptr + length_bytes + length,
+  local_char_length= field_charset()->charpos(get_data(),
+                                              get_data() + length,
                                               local_char_length);
   set_if_smaller(length, local_char_length);
-  return field_charset()->strnncollsp(ptr + length_bytes,
+  return field_charset()->strnncollsp(get_data(),
                                       length,
                                       key_ptr + HA_KEY_BLOB_LENGTH,
                                       uint2korr(key_ptr));
@@ -8449,7 +8644,7 @@ uchar *Field_varstring::pack(uchar *to, const uchar *from) const
 
   /* Store bytes of string */
   if (length > 0)
-    memcpy(to, from+length_bytes, length);
+    memcpy(to, get_data(from), length);
   return to+length;
 }
 
@@ -8493,12 +8688,30 @@ Field_varstring::unpack(uchar *to, const uchar *from, const uchar *from_end,
     to[0]= *from++;
     to[1]= *from++;
   }
-  if (length)
+  if (from + length > from_end || length > field_length)
+    return 0;                                   // Error in data
+  if (promoted)
   {
-    if (from + length > from_end || length > field_length)
-      return 0;                                 // Error in data
-    memcpy(to+ length_bytes, from, length);
+    /*
+      A promoted record slot holds a pointer where an inline one holds
+      the value, and has no room for the value at all.  Point it at the
+      row being unpacked, the way Field_blob::unpack() points a blob at
+      it: the row outlives the read, and a caller that needs the bytes
+      for longer asks copy() for a set of its own.  A zero length leaves
+      nothing to point at, so the slot takes a null pointer, which
+      get_data() reads as the empty string.
+    */
+    const uchar *data= length ? from : NULL;
+    /*
+      A reader takes the length and the pointer from the same slot, so
+      the prefix written above has to describe the bytes pointed at
+      here, whichever width the row carried its own prefix in.
+    */
+    DBUG_ASSERT(get_length(to) == length);
+    set_data_ptr(to, data);
   }
+  else if (length)
+    memcpy(to+ length_bytes, from, length);
   return from+length;
 }
 
@@ -8513,6 +8726,16 @@ uint Field_varstring::packed_col_length() const
 
 uint Field_varstring::max_packed_col_length(uint max_length) const
 {
+  /*
+    pack() writes a length prefix and then the value itself, wherever
+    the record keeps the value.  Callers ask this question with
+    pack_length(), which for a promoted field describes the pointer in
+    the record instead, so answer a promoted field from its declared
+    width, which is what pack() is bounded by and what pack_length()
+    reports for every other VARCHAR.
+  */
+  if (promoted)
+    max_length= inline_pack_length();
   return (max_length > 255 ? 2 : 1)+max_length;
 }
 
@@ -8572,7 +8795,7 @@ int Field_varstring::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
   set_if_smaller(b_length, max_length);
   if (a_length != b_length)
     return 1;
-  return memcmp(a_ptr+length_bytes, b_ptr+length_bytes, a_length);
+  return memcmp(get_data(a_ptr), get_data(b_ptr), a_length);
 }
 
 
@@ -8587,6 +8810,40 @@ Field *Field_varstring::make_new_field(MEM_ROOT *root, TABLE *new_table,
   if (res)
     res->length_bytes= length_bytes;
   return res;
+}
+
+
+/*
+  The new field describes the new table's record, and promotion belongs
+  to the table whose record layout was computed with it, so the new
+  table decides for itself and starts from the inline form.
+
+  Field::make_new_field() cannot be asked it directly: it copies these
+  bytes, and these bytes carry a vtable that says promoted.  Slice a
+  copy down to the inline class first -- which also leaves the value
+  buffer behind rather than handing out a second pointer to it -- and
+  let that class make the field, so that everything BASE does for one
+  still happens.  BASE is where the length prefix is carried over, and
+  for a compressed column it is also where a unique key gets an
+  uncompressed substitute instead of a copy.
+*/
+
+template <class BASE>
+Field *Field_varstring_out_of_line<BASE>::make_new_field(
+                                            MEM_ROOT *root, TABLE *new_table,
+                                            bool keep_type,
+                                            const Tmp_field_param *param)
+{
+  BASE inline_form(*static_cast<const BASE*>(this));
+
+  inline_form.promoted= false;
+  /*
+    Asked through Field, which is where this method is public; BASE may
+    narrow it for its own callers.  The call is virtual either way and
+    lands on BASE's.
+  */
+  return static_cast<Field&>(inline_form).make_new_field(root, new_table,
+                                                         keep_type, param);
 }
 
 
@@ -8661,6 +8918,15 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
   {
     /* Keys length prefixes are always packed with 2 bytes */
     res->length_bytes= 2;
+    /*
+      The field this makes describes the key buffer rather than the
+      column, so it is as wide as the key part.  That matters where the
+      column's own field is wider: a key part over a column stored out of
+      the record is described by the column's field, there being no
+      narrower one to describe it with.  Field_blob::new_key_field() sizes
+      its field from the same argument for the same reason.
+    */
+    res->field_length= length;
   }
   return res;
 }
@@ -8680,7 +8946,7 @@ void Field_varstring::hash_not_null(Hasher *hasher)
   DBUG_ASSERT(marked_for_read());
   DBUG_ASSERT(!is_null());
   uint len=  length_bytes == 1 ? (uint) *ptr : uint2korr(ptr);
-  hasher->add(charset(), ptr + length_bytes, len);
+  hasher->add(charset(), get_data(), len);
 }
 
 
@@ -8822,6 +9088,7 @@ int Field_varstring_compressed::store(const char *from, size_t length,
                                       CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  DBUG_ASSERT(!promoted);
   uint compressed_length;
   int rc= compress((char*) get_data(), field_length, from, (uint) length,
                    Field_varstring_compressed::max_display_length(),
@@ -8829,6 +9096,46 @@ int Field_varstring_compressed::store(const char *from, size_t length,
                    Field_varstring_compressed::char_length());
   store_length(compressed_length);
   return rc;
+}
+
+
+Field_varstring *Field_varstring_compressed::make_promoted(MEM_ROOT *root) const
+{
+  return new (root) Field_varstring_compressed_promoted(*this);
+}
+
+
+int Field_varstring_compressed_promoted::store(const char *from, size_t length,
+                                               CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  char buff[STRING_BUFFER_USUAL_SIZE];
+  String tmpstr(buff, sizeof(buff), &my_charset_bin);
+  uint compressed_length;
+  size_t to_length;
+  int rc;
+
+  /*
+    Size the buffer to the value rather than to the declared width.
+    compress() writes at most as many bytes as it was given, plus the
+    one header byte it prepends when it stores the value uncompressed,
+    and the column cannot hold more than it was declared to.
+  */
+  to_length= MY_MIN((size_t) field_length, mbmaxlen() * length + 1);
+  if (!(from= alloc_promoted_buffer(from, length, cs, to_length, &tmpstr)))
+    goto oom_error;
+
+  rc= compress((char*) value.ptr(), (uint) to_length, from, (uint) length,
+               Field_varstring_compressed::max_display_length(),
+               &compressed_length, cs,
+               Field_varstring_compressed::char_length());
+  if (publish_promoted_value(compressed_length))
+    goto oom_error;
+  return rc;
+
+oom_error:
+  reset();
+  return -1;
 }
 
 void Field_varstring_compressed::val_str_from_ptr(String *val, const uchar *ptr) const
@@ -8871,21 +9178,15 @@ int Field_varstring_compressed::cmp(const uchar *a_ptr,
                                     const uchar *b_ptr) const
 {
   String a, b;
-  uint a_length, b_length;
 
-  if (length_bytes == 1)
-  {
-    a_length= (uint) *a_ptr;
-    b_length= (uint) *b_ptr;
-  }
-  else
-  {
-    a_length= uint2korr(a_ptr);
-    b_length= uint2korr(b_ptr);
-  }
-
-  uncompress(&a, &a, a_ptr + length_bytes, a_length);
-  uncompress(&b, &b, b_ptr + length_bytes, b_length);
+  /*
+    Where the compressed bytes are is what get_data() answers: a
+    promoted record slot holds a pointer to them rather than the bytes
+    themselves, so reading past the length prefix would uncompress the
+    pointer.
+  */
+  uncompress(&a, &a, get_data(a_ptr), get_length(a_ptr));
+  uncompress(&b, &b, get_data(b_ptr), get_length(b_ptr));
 
   return sortcmp(&a, &b, field_charset());
 }
@@ -9272,22 +9573,9 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 }
 
 
-#ifndef DBUG_OFF
-/*
-  Helper to assert that the union, defined in table.h, still holds
-  only a bool-sized value, no pointer has been stored
-*/
-static struct blob_storage_check
-{
-  union { bool b; intptr p; } val;
-  blob_storage_check() { val.p= -1; val.b= false; }
-} blob_storage_check;
-#endif
-
 Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type,
                                   const Tmp_field_param *param)
 {
-  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
   if (param && param->part_of_unique_key())
   {
     /*
@@ -12079,3 +12367,12 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   return dst;
 };
+
+
+/*
+  The two forms of a column that keeps its payload out of the record.
+  Both bodies are in this file, so they are instantiated here rather
+  than wherever a caller happens to name one.
+*/
+template class Field_varstring_out_of_line<Field_varstring>;
+template class Field_varstring_out_of_line<Field_varstring_compressed>;

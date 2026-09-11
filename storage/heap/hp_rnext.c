@@ -128,7 +128,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
       my_errno=HA_ERR_END_OF_FILE;
     DBUG_RETURN(my_errno);
   }
-  memcpy(record,pos,(size_t) share->reclength);
+  hp_unpack_record(share, record, pos);
   if (share->blob_count && hp_read_blobs(info, record, pos))
     DBUG_RETURN(my_errno);
   info->update=HA_STATE_AKTIV | HA_STATE_NEXT_FOUND;

@@ -1,0 +1,146 @@
+#
+# A VECTOR column is a VARCHAR to type() but is not moved out of the
+# record
+#
+# Field_vector derives from Field_varstring, and Type_handler_vector
+# derives from Type_handler_varchar without overriding field_type(), so
+# a VECTOR column answers MYSQL_TYPE_VARCHAR.  It is nevertheless left
+# inline, for two separate reasons.  Its length is the only length it
+# can have, store() rejecting anything else, so there is no declared
+# width to reclaim.  And it could not be moved in any case: reset()
+# writes the whole field_length into the length prefix, and the copy
+# functions get_copy_func() returns address the value at a fixed offset
+# in the record.
+#
+# Both columns below are wider than the threshold, so a decision taken
+# on width alone would move them.
+#
+CREATE TABLE t1 (id INT, v VECTOR(10), w VECTOR(64));
+INSERT INTO t1 (id, v, w) VALUES
+(1, vec_fromtext('[1,2,3,4,5,6,7,8,9,10]'),
+vec_fromtext(CONCAT('[1', REPEAT(',1', 63), ']'))),
+(2, vec_fromtext('[10,9,8,7,6,5,4,3,2,1]'),
+vec_fromtext(CONCAT('[2', REPEAT(',2', 63), ']')));
+# A row with no value stored is the one a moved payload is fatal for:
+# the length prefix advertises the declared width while the slot holds
+# only a pointer, and nothing has pointed it anywhere.
+INSERT INTO t1 (id) VALUES (3);
+#
+# A derived table over UNION ALL is materialized in an internal
+# temporary table, which is where the SQL layer takes the decision.
+#
+FLUSH STATUS;
+SELECT id, vec_totext(v) AS v, vec_totext(w) = CONCAT('[1', REPEAT(',1', 63), ']') AS w_is_1
+FROM (SELECT id, v, w FROM t1 UNION ALL SELECT id, v, w FROM t1) dt
+ORDER BY id, v;
+id	v	w_is_1
+1	[1,2,3,4,5,6,7,8,9,10]	1
+1	[1,2,3,4,5,6,7,8,9,10]	1
+2	[10,9,8,7,6,5,4,3,2,1]	0
+2	[10,9,8,7,6,5,4,3,2,1]	0
+3	NULL	NULL
+3	NULL	NULL
+# The temporary table has to have been created, and to have stayed in
+# memory, or the query above covers nothing.
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	1
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+#
+# Same columns reached through Copy_field rather than a whole-record
+# write.  Field_vector::get_copy_func() overrides Field_varstring's and
+# addresses the record directly.
+#
+FLUSH STATUS;
+SELECT id, vec_totext(v) AS v FROM (SELECT id, v FROM t1 GROUP BY id, v) dt
+ORDER BY id;
+id	v
+1	[1,2,3,4,5,6,7,8,9,10]
+2	[10,9,8,7,6,5,4,3,2,1]
+3	NULL
+SHOW STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	2
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+DROP TABLE t1;
+#
+# The same column in a table the user asked for, where the engine takes
+# the decision instead of the SQL layer
+#
+# Both routes ask one question, so a VECTOR column is left inline here
+# too.  Both widths below are over the threshold, and w is wide enough
+# that its bytes would not fit in one continuation record had it been
+# moved.
+#
+CREATE TABLE t2 (id INT, v VECTOR(10), w VECTOR(64)) ENGINE=MEMORY;
+INSERT INTO t2 (id, v, w) VALUES
+(1, vec_fromtext('[1,2,3,4,5,6,7,8,9,10]'),
+vec_fromtext(CONCAT('[1', REPEAT(',1', 63), ']'))),
+(2, vec_fromtext('[10,9,8,7,6,5,4,3,2,1]'),
+vec_fromtext(CONCAT('[2', REPEAT(',2', 63), ']')));
+INSERT INTO t2 (id) VALUES (3);
+SELECT id, vec_totext(v) AS v,
+vec_totext(w) = CONCAT('[1', REPEAT(',1', 63), ']') AS w_is_1
+FROM t2 ORDER BY id;
+id	v	w_is_1
+1	[1,2,3,4,5,6,7,8,9,10]	1
+2	[10,9,8,7,6,5,4,3,2,1]	0
+3	NULL	NULL
+# Growing a value from NULL and shrinking one back to NULL both rewrite
+# the stored record, which is where a moved payload would be answered.
+UPDATE t2 SET w = vec_fromtext(CONCAT('[3', REPEAT(',3', 63), ']')) WHERE id = 3;
+UPDATE t2 SET w = NULL WHERE id = 1;
+SELECT id, vec_totext(w) = CONCAT('[3', REPEAT(',3', 63), ']') AS w_is_3,
+w IS NULL AS w_is_null
+FROM t2 ORDER BY id;
+id	w_is_3	w_is_null
+1	NULL	1
+2	0	0
+3	1	0
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DELETE FROM t2 WHERE id = 2;
+SELECT COUNT(*), COUNT(v), COUNT(w) FROM t2;
+COUNT(*)	COUNT(v)	COUNT(w)
+2	1	1
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2;
+#
+# That the column stayed inline, read as capacity
+#
+# Everything above would pass just as well if the engine had moved the
+# payload out of the record, since moving it is meant to be invisible.
+# This is the check that it did not, and it is also what the decision
+# rests on.  A VECTOR claims its whole declared width in the length
+# prefix whether a value was stored or not, so moving the payload out
+# copies all of it into continuation records and pays their per-record
+# overhead on top of bytes it was already paying inline.  At a 1MB
+# ceiling the column below holds 30 rows inline and 17 moved out.
+#
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+CREATE TABLE t_vec (v VECTOR(16383)) ENGINE=MEMORY;
+INSERT INTO t_vec (v) SELECT NULL FROM seq_1_to_200;
+ERROR HY000: The table 't_vec' is full
+SELECT COUNT(*) > 20 AS stayed_inline FROM t_vec;
+stayed_inline
+1
+# The control, which is what makes the count above mean anything: a
+# VARBINARY of the same declared width is moved out of the record, and
+# there a row storing nothing costs a length prefix and a pointer
+# rather than the declared width, so all 200 rows fit.  Capacity does
+# detect the move where there is one.
+CREATE TABLE t_bin (v VARBINARY(65532)) ENGINE=MEMORY;
+INSERT INTO t_bin (v) SELECT NULL FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_bin;
+rows_held
+200
+DROP TABLE t_vec, t_bin;
+SET max_heap_table_size= @save_max_heap_table_size;

@@ -498,8 +498,14 @@ static void test_tail_reclaim_cross_block(void)
   last_alloc_before= (ulong) share->block.last_allocated;
   first_block= share->block.level_info[0].last_blocks;
 
-  /* Allow exactly 2 blocks, fail at 3rd */
-  share->max_records= (ulong)(2 * rib - 1);
+  /*
+    Allow exactly one more block, so the blob fills the second and is
+    refused the third.  The memory ceiling is the only gate on record
+    allocation: a record limit could not express this, because the
+    records a blob needs depend on its length.
+  */
+  share->max_table_size= (share->data_length + share->index_length +
+                          share->block.alloc_size);
 
   /*
     Blob large enough to need more than 4 + rib continuation records.
@@ -601,8 +607,9 @@ static void test_tail_reclaim_three_blocks(void)
   last_alloc_before= (ulong) share->block.last_allocated;
   first_block= share->block.level_info[0].last_blocks;
 
-  /* Allow exactly 3 blocks, fail at 4th */
-  share->max_records= (ulong)(3 * rib - 1);
+  /* Allow exactly two more blocks, so the 4th is refused */
+  share->max_table_size= (share->data_length + share->index_length +
+                          2 * share->block.alloc_size);
 
   /*
     Blob needs more than 4 + 2*rib continuation records to span
@@ -695,8 +702,9 @@ static void test_block_reuse_after_reclaim(void)
 
   last_alloc_before= (ulong) share->block.last_allocated;
 
-  /* Allow exactly 3 blocks, fail at 4th */
-  share->max_records= (ulong)(3 * rib - 1);
+  /* Allow exactly two more blocks, so the 4th is refused */
+  share->max_table_size= (share->data_length + share->index_length +
+                          2 * share->block.alloc_size);
 
   /* Blob that spans 3 blocks then fails */
   blob_len= (uint32)((2 * rib + 20) * 16);
@@ -715,8 +723,8 @@ static void test_block_reuse_after_reclaim(void)
 
   data_len_after_shrink= share->data_length;
 
-  /* Remove max_records limit so we can fill freely */
-  share->max_records= NO_LIMIT_RECORDS;
+  /* Lift the memory ceiling so the tail can be refilled freely */
+  share->max_table_size= ~(ulonglong) 0;
 
   /*
     Insert 2*rib non-blob rows.  The first reuses the free-list slot
@@ -1868,11 +1876,154 @@ static void test_reclaim_over_ceiling(void)
 }
 
 
+/*
+  Test: hp_clear_dark_records() honours its contract at both record
+  lengths.
+
+  Short records are cleared contiguously and long ones at a stride, for
+  the performance reason given at HP_CLEAR_DARK_MEMSET_MAX.  The two
+  forms must leave the same three metadata fields cleared in every
+  record of the range, and must leave the records on either side of it
+  untouched, or free-list walking breaks.
+
+  The rest of the file exercises only the short-record branch, because
+  its tables are built with REC_LENGTH 15, giving a recbuffer of 16.
+*/
+
+static void check_dark_range(uint recbuffer, uint visible)
+{
+  const uint records= 6;
+  uchar *buf= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                 records * recbuffer, MYF(0));
+  uint i, cleared= 0, guarded= 0;
+
+  memset(buf, 0xff, records * recbuffer);
+
+  /* Clear records 1..4, leaving 0 and 5 as the untouched neighbours. */
+  hp_clear_dark_records(buf + recbuffer, buf + 5 * recbuffer,
+                        recbuffer, visible);
+
+  for (i= 1; i <= 4; i++)
+  {
+    uchar *pos= buf + i * recbuffer;
+    if (*((uchar**) pos) == NULL &&
+        pos[HP_DEL_FLAG_OFFSET] == 0 &&
+        pos[visible] == 0)
+      cleared++;
+  }
+  ok(cleared == 4,
+     "recbuffer %u: all 4 dark records cleared (got %u)", recbuffer,
+     cleared);
+
+  for (i= 0; i < records; i+= 5)
+  {
+    uchar *pos= buf + i * recbuffer;
+    if (pos[0] == 0xff && pos[HP_DEL_FLAG_OFFSET] == 0xff &&
+        pos[visible] == 0xff)
+      guarded++;
+  }
+  ok(guarded == 2,
+     "recbuffer %u: records outside the range untouched (got %u)",
+     recbuffer, guarded);
+
+  /* An empty range must clear nothing at all. */
+  memset(buf, 0xff, records * recbuffer);
+  hp_clear_dark_records(buf + recbuffer, buf + recbuffer, recbuffer,
+                        visible);
+  ok(buf[recbuffer] == 0xff,
+     "recbuffer %u: empty range is a no-op", recbuffer);
+
+  my_free(buf);
+}
+
+
+static void test_clear_dark_records(void)
+{
+  /* 16 takes the contiguous branch, 64 the strided one. */
+  check_dark_range(16, 15);
+  check_dark_range(64, 63);
+}
+
+
+/*
+  Test: share->deleted_entries counts free list entries, not records.
+
+  A scan reads a coalesced block's length from its first record and
+  steps over the whole block at once, so what the free records cost it
+  is the number of entries.  Taking part of a block therefore leaves the
+  entry standing; only taking its last record removes one.
+*/
+
+static void test_deleted_entries_counter(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  uchar rec[REC_LENGTH];
+  uchar blob_data_big[100];
+  uchar blob_data_small[50];
+  ulong deleted_after_block;
+  uint id;
+
+  memset(blob_data_big, 'G', sizeof(blob_data_big));
+  memset(blob_data_small, 'S', sizeof(blob_data_small));
+
+  if (create_and_open("test_del_entries", &share, &info))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(9, "setup failed");
+    return;
+  }
+
+  ok(share->deleted_entries == 0, "new table has no free list entries");
+
+  build_record(rec, 1, blob_data_big, sizeof(blob_data_big));
+  ok(heap_write(info, rec) == 0, "insert 100-byte blob");
+  build_record(rec, 2, (const uchar*) "", 0);
+  ok(heap_write(info, rec) == 0, "insert guard row");
+
+  {
+    uchar key[4];
+    int4store(key, 1);
+    ok(heap_rkey(info, rec, 0, key, 4, HA_READ_KEY_EXACT) == 0,
+       "found blob row");
+    ok(heap_delete(info, rec) == 0, "deleted blob row");
+  }
+  hp_flush_pending_blob_free(info);
+
+  deleted_after_block= (ulong) share->deleted;
+  ok(deleted_after_block > 1 && share->deleted_entries == 1,
+     "a run of %lu freed records is one entry", deleted_after_block);
+
+  /* Take part of the block: records drop, the entry stays */
+  build_record(rec, 3, blob_data_small, sizeof(blob_data_small));
+  ok(heap_write(info, rec) == 0, "insert 50-byte blob out of the block");
+  ok(share->deleted < deleted_after_block && share->deleted_entries == 1,
+     "partial take keeps the entry: deleted %lu, entries %lu",
+     (ulong) share->deleted, (ulong) share->deleted_entries);
+
+  ok(heap_check_heap(info, 0) == 0,
+     "heap_check_heap agrees with both free list counters");
+
+  /* Consume what is left of it one record at a time */
+  for (id= 4; share->deleted && id < 200; id++)
+  {
+    build_record(rec, id, (const uchar*) "", 0);
+    if (heap_write(info, rec))
+      break;
+  }
+  ok(share->deleted_entries == 0,
+     "entry is gone once its last record is taken");
+
+  heap_drop_table(info);
+  heap_close(info);
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_freelist");
-  plan(258);
+  plan(274);
 
   diag("Test 1: free-list contiguity detects groups > 2 records");
   test_freelist_contiguity_multirecord();
@@ -1939,6 +2090,12 @@ int main(int argc __attribute__((unused)),
 
   diag("Test 22: reclaimed leaf handed back over the memory ceiling");
   test_reclaim_over_ceiling();
+
+  diag("Test 23: dark-record clear, both record-length branches");
+  test_clear_dark_records();
+
+  diag("Test 24: deleted_entries counts free list entries, not records");
+  test_deleted_entries_counter();
 
   my_end(0);
   return exit_status();

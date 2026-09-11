@@ -1,0 +1,222 @@
+include/master-slave.inc
+[connection master]
+#
+# The row events describe the columns as declared.
+#
+# The annotations below come from the table map event, which is
+# what a slave builds its idea of the master's table from.  A
+# promoted column must appear there as VARSTRING of its declared
+# width; were promotion to reach the log, it would read as BLOB
+# and every slave would store it as one.
+#
+connection master;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+a VARCHAR(100) CHARACTER SET latin1,
+b VARCHAR(2000) CHARACTER SET latin1,
+c VARCHAR(20) CHARACTER SET latin1,
+d BLOB
+) ENGINE=MEMORY;
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (1, 'narrow', 'wide', 'inline', 'blob');
+UPDATE t1 SET b = 'changed' WHERE pk = 1;
+DELETE FROM t1 WHERE pk = 1;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# Warning: this binlog is either in use or was not closed properly.
+START TRANSACTION
+/*!*/;
+#Q> INSERT INTO t1 VALUES (1, 'narrow', 'wide', 'inline', 'blob')
+### INSERT INTO `test`.`t1`
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='narrow' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3='wide' /* VARSTRING(2000) meta=2000 nullable=1 is_null=0 */
+###   @4='inline' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+###   @5='blob' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
+/*!\C latin1 *//*!*/;
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> UPDATE t1 SET b = 'changed' WHERE pk = 1
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='narrow' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3='wide' /* VARSTRING(2000) meta=2000 nullable=1 is_null=0 */
+###   @4='inline' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+###   @5='blob' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+### SET
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='narrow' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3='changed' /* VARSTRING(2000) meta=2000 nullable=1 is_null=0 */
+###   @4='inline' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+###   @5='blob' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+START TRANSACTION
+/*!*/;
+#Q> DELETE FROM t1 WHERE pk = 1
+### DELETE FROM `test`.`t1`
+### WHERE
+###   @1=1 /* INT meta=0 nullable=0 is_null=0 */
+###   @2='narrow' /* VARSTRING(100) meta=100 nullable=1 is_null=0 */
+###   @3='changed' /* VARSTRING(2000) meta=2000 nullable=1 is_null=0 */
+###   @4='inline' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
+###   @5='blob' /* BLOB/TEXT meta=2 nullable=1 is_null=0 */
+# Number of rows: 1
+COMMIT
+/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+connection slave;
+#
+# A promoted column survives the round trip, at every length the
+# record can hold and in both length-prefix widths.  A VARCHAR
+# declared narrow enough to stay inline rides along as a control,
+# and so does a declared blob.
+#
+connection master;
+CREATE TABLE t2 (
+pk INT PRIMARY KEY,
+one VARCHAR(100) CHARACTER SET latin1,
+two VARCHAR(2000) CHARACTER SET latin1,
+utf VARCHAR(50) CHARACTER SET utf8mb4,
+small VARCHAR(20) CHARACTER SET latin1,
+blb BLOB
+) ENGINE=MEMORY;
+INSERT INTO t2 VALUES
+(1, REPEAT('a', 100), REPEAT('b', 2000), REPEAT('e', 50), 'short', REPEAT('f', 3000)),
+(2, '',               '',                '',              '',      ''),
+(3, NULL,             NULL,              NULL,            NULL,    NULL),
+(4, 'x',              REPEAT('y', 33),   _utf8mb4 0xF09F9880, 'z',  'w'),
+(5, REPEAT('g', 99),  REPEAT('h', 1999), REPEAT(_utf8mb4 0xC3A9, 50), 'q', 'r');
+connection slave;
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+# The before image of an UPDATE carries the promoted column, so
+# the row the slave changes is found by comparing what the master
+# read out of a record that does not hold it.
+connection master;
+UPDATE t2 SET two = CONCAT(two, two) WHERE pk = 4;
+UPDATE t2 SET one = NULL, two = NULL WHERE pk = 1;
+UPDATE t2 SET one = REPEAT('n', 100) WHERE pk = 3;
+connection slave;
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+# A DELETE sends the before image alone.
+connection master;
+DELETE FROM t2 WHERE pk IN (2, 5);
+connection slave;
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+#
+# A master that promotes and a slave that does not.
+#
+# The slave's copy is moved to an engine that keeps every VARCHAR
+# in the record, so the master packs from a record holding a
+# pointer and the slave unpacks into one holding the bytes.
+#
+connection master;
+CREATE TABLE t3 (
+pk INT PRIMARY KEY,
+a VARCHAR(100) CHARACTER SET latin1,
+b VARCHAR(2000) CHARACTER SET latin1
+) ENGINE=MEMORY;
+INSERT INTO t3 VALUES (1, 'seed', 'seed');
+connection slave;
+connection slave;
+ALTER TABLE t3 ENGINE=MyISAM;
+SELECT ENGINE FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't3';
+ENGINE
+MyISAM
+connection master;
+INSERT INTO t3 VALUES
+(2, REPEAT('a', 100), REPEAT('b', 2000)),
+(3, '',               NULL),
+(4, NULL,             REPEAT('c', 33));
+UPDATE t3 SET b = REPEAT('d', 77) WHERE pk = 2;
+DELETE FROM t3 WHERE pk = 3;
+connection slave;
+include/diff_tables.inc [master:test.t3, slave:test.t3]
+#
+# A master that does not promote and a slave that does.
+#
+# This is the same link read the other way round: the master
+# packs from a record holding the bytes and the slave unpacks
+# into one holding a pointer.
+#
+connection master;
+CREATE TABLE t4 (
+pk INT PRIMARY KEY,
+a VARCHAR(100) CHARACTER SET latin1,
+b VARCHAR(2000) CHARACTER SET latin1
+) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1, 'seed', 'seed');
+connection slave;
+connection slave;
+ALTER TABLE t4 ENGINE=MEMORY;
+SELECT ENGINE FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't4';
+ENGINE
+MEMORY
+connection master;
+INSERT INTO t4 VALUES
+(2, REPEAT('a', 100), REPEAT('b', 2000)),
+(3, '',               NULL),
+(4, NULL,             REPEAT('c', 33));
+UPDATE t4 SET b = REPEAT('d', 77) WHERE pk = 2;
+UPDATE t4 SET a = NULL WHERE pk = 2;
+DELETE FROM t4 WHERE pk = 3;
+connection slave;
+include/diff_tables.inc [master:test.t4, slave:test.t4]
+#
+# binlog_row_image chooses columns by what they were declared as,
+# not by where their payload is kept.
+#
+# NOBLOB drops blob columns from the image.  A promoted VARCHAR is
+# not one, so it stays -- were it dropped, the engine's storage
+# decision would silently change what replication carries.
+#
+connection master;
+SET @save_row_image= @@binlog_row_image;
+SET binlog_row_image = 'NOBLOB';
+CREATE TABLE t5 (
+pk INT PRIMARY KEY,
+a VARCHAR(2000) CHARACTER SET latin1,
+blb BLOB
+) ENGINE=MEMORY;
+INSERT INTO t5 VALUES (1, REPEAT('a', 500), REPEAT('z', 500));
+UPDATE t5 SET a = REPEAT('b', 600) WHERE pk = 1;
+connection slave;
+include/diff_tables.inc [master:test.t5, slave:test.t5]
+connection master;
+SET binlog_row_image = 'MINIMAL';
+UPDATE t5 SET a = REPEAT('c', 700) WHERE pk = 1;
+INSERT INTO t5 VALUES (2, REPEAT('d', 800), NULL);
+DELETE FROM t5 WHERE pk = 1;
+connection slave;
+include/diff_tables.inc [master:test.t5, slave:test.t5]
+connection master;
+SET binlog_row_image = @save_row_image;
+#
+# A table with no primary key makes the slave find its row by
+# comparing whole records, promoted column included.
+#
+CREATE TABLE t6 (
+a VARCHAR(2000) CHARACTER SET latin1,
+n INT
+) ENGINE=MEMORY;
+INSERT INTO t6 VALUES (REPEAT('a', 100), 1), (REPEAT('a', 100), 2),
+('', 3), (NULL, 4);
+UPDATE t6 SET a = REPEAT('b', 2000) WHERE n = 2;
+DELETE FROM t6 WHERE n = 1;
+connection slave;
+include/diff_tables.inc [master:test.t6, slave:test.t6]
+connection master;
+DROP TABLE t1, t2, t3, t4, t5, t6;
+connection slave;
+include/rpl_end.inc

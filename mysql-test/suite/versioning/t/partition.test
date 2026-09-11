@@ -999,8 +999,11 @@ create or replace table t1 (
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
---echo # fill the table until full
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+--echo # fill the table until full.  The rows must carry their full width
+--echo # as data: an engine that stores a wide VARCHAR out of line charges
+--echo # for the bytes present, so rows left at the default would occupy
+--echo # almost nothing and the table would never fill.
+insert into t1 (f) select repeat('a', 45000) from seq_1_to_21;
 --error ER_RECORD_FILE_FULL
 insert into t1 (f) select f from t1;
 --echo # leave space for exactly one record in current partition
@@ -1018,7 +1021,7 @@ create or replace table t1 (
   partition by system_time interval 1 year (partition p1 history,
                                             partition pn current);
 
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 (f) select repeat('a', 45000) from seq_1_to_18;
 
 select * into outfile 'MDEV-17891.data' from t1;
 load data infile 'MDEV-17891.data' replace into table t1;

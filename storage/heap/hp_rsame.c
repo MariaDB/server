@@ -50,7 +50,7 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
 	DBUG_RETURN(my_errno);
       }
     }
-    memcpy(record,info->current_ptr,(size_t) share->reclength);
+    hp_unpack_record(share, record, info->current_ptr);
     if (share->blob_count && hp_read_blobs(info, record, info->current_ptr))
       DBUG_RETURN(my_errno);
     DBUG_RETURN(0);

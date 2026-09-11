@@ -136,6 +136,30 @@ public:
   { return &type_handler_vector; }
   void sql_type(String &str) const override;
   int reset() override;
+  /*
+    A VECTOR has one possible length: store() below rejects anything that
+    is not exactly field_length bytes.  Moving a payload out of the
+    record pays where a declared width overestimates the stored one, so
+    there is nothing to gain here, and a length prefix, a chain pointer
+    and a continuation record to lose.  reset() writes that width into
+    the length prefix of a row that stored nothing, so every row would
+    ship its whole declared width into the chain regardless.
+
+    The SQL layer's route could not move it in any case, that route
+    rewriting the record layout: the length prefix would advertise
+    the declared width while the slot held only a pointer, and the three
+    copy functions get_copy_func() returns address the value at a fixed
+    offset in the record.  A row storing no value would be read through
+    a pointer nothing had pointed anywhere.
+  */
+  bool worth_storing_out_of_line() const override { return false; }
+  /*
+    Nothing asks this column for an out-of-line form once it has
+    answered no above, and there is none to hand back either:
+    Field_varstring's would slice a VECTOR into a plain VARCHAR, which
+    is why this answers for itself rather than inheriting.
+  */
+  Field_varstring *make_promoted(MEM_ROOT *) const override { return NULL; }
   Copy_func *get_copy_func(const Field *from) const override;
   int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
   int  store(double nr) override;

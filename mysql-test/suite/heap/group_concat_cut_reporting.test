@@ -1,0 +1,36 @@
+#
+# GROUP_CONCAT with ORDER BY or DISTINCT keeps every row alive at once, so
+# a column whose payload is kept outside the record is copied into the
+# table's own storage on the way in.  A declared blob is cut to
+# group_concat_max_len there, because it has no declared width of its own
+# and the storage would otherwise grow without bound; a VARCHAR has one
+# and is stored whole.
+#
+# What a query reports about the cut therefore has to follow the declared
+# type and not the storage: a wide VARCHAR must report what a narrow one
+# reports, whatever the temporary table does with its payload.
+#
+CREATE TABLE narrow (a VARCHAR(20)) CHARACTER SET latin1;
+CREATE TABLE wide (a VARCHAR(100)) CHARACTER SET latin1;
+CREATE TABLE declared (a TEXT) CHARACTER SET latin1;
+INSERT INTO narrow VALUES (REPEAT('a', 20)), (REPEAT('b', 20));
+INSERT INTO wide VALUES (REPEAT('a', 50)), (REPEAT('b', 50));
+INSERT INTO declared VALUES (REPEAT('a', 50)), (REPEAT('b', 50));
+
+SET @save_gcml= @@group_concat_max_len;
+SET group_concat_max_len= 10;
+
+--echo # A narrow VARCHAR keeps its payload in the record
+SELECT GROUP_CONCAT(a ORDER BY a) FROM narrow;
+SELECT GROUP_CONCAT(DISTINCT a) FROM narrow;
+
+--echo # A wide VARCHAR does not, and must report the same cut
+SELECT GROUP_CONCAT(a ORDER BY a) FROM wide;
+SELECT GROUP_CONCAT(DISTINCT a) FROM wide;
+
+--echo # A declared blob is cut on the way in, and says so
+SELECT GROUP_CONCAT(a ORDER BY a) FROM declared;
+SELECT GROUP_CONCAT(DISTINCT a) FROM declared;
+
+SET group_concat_max_len= @save_gcml;
+DROP TABLE narrow, wide, declared;

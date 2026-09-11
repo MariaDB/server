@@ -52,6 +52,19 @@ int heap_write(HP_INFO *info, const uchar *record)
   */
   if (info->has_pending_blob_free)
     hp_flush_unaliased_blob_free(info, record);
+  /*
+    The row limit is tested here, where rows are counted, and not in the
+    record allocator.  A row occupies one record plus however many its
+    blob data needs, so the number of records a table has allocated says
+    nothing about the number of rows it holds.  Memory is bounded
+    separately, against max_table_size, in hp_alloc_from_tail().
+  */
+  if (share->records >= share->max_rows)
+  {
+    DBUG_PRINT("error", ("row limit reached. records: %lu  max_rows: %lu",
+                         share->records, share->max_rows));
+    DBUG_RETURN(my_errno= HA_ERR_RECORD_FILE_FULL);
+  }
   if (!(pos=next_free_record_pos(share)))
     DBUG_RETURN(my_errno);
   info->changed= share->changed= 1;
@@ -63,7 +76,7 @@ int heap_write(HP_INFO *info, const uchar *record)
       goto err;
   }
 
-  memcpy(pos,record,(size_t) share->reclength);
+  hp_pack_record(share, pos, record);
   if (share->blob_count)
   {
     if (hp_write_blobs(info, record, pos))
@@ -117,7 +130,7 @@ err_delete_written_keys:
 
   /*
     Do NOT call hp_free_blobs here: the err: label is reached when a key
-    write fails (line 52), which is BEFORE memcpy(pos, record, reclength)
+    write fails, which is BEFORE hp_pack_record()
     and hp_write_blobs(). The slot at pos still contains stale data from the
     delete list, so hp_free_blobs would chase garbage chain pointers.
   */
@@ -183,6 +196,12 @@ int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record,
       total_records + deleted == block.last_allocated
   by incrementing both last_allocated and total_records by the
   allocated count.  heap_scan() relies on this invariant.
+
+  The only ceiling tested here is the table's memory ceiling, because
+  records are the unit memory is spent in.  The row limit belongs to
+  heap_write(), which is where rows are counted; a row can need any
+  number of records, so a limit expressed in rows cannot be enforced by
+  counting them.
 */
 
 uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
@@ -196,15 +215,6 @@ uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
   if (!(block_pos= (uint)(info->block.last_allocated %
                            info->block.records_in_block)))
   {
-    if (info->block.last_allocated > info->max_records)
-    {
-      DBUG_PRINT("error",
-                 ("record file full. last_allocated: %lu  max_records: %lu",
-                  info->block.last_allocated, info->max_records));
-      my_errno= HA_ERR_RECORD_FILE_FULL;
-      DBUG_RETURN(NULL);
-    }
-
     if (info->block.last_allocated < info->block.high_water_allocated)
     {
       /* Block was freed by shrink_tail(). Reclaim block */
@@ -215,11 +225,12 @@ uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
     {
       /*
         The table memory ceiling gates memory the table does not hold
-        yet, so it belongs here and not beside the max_records test.
-        The reclaim branch hands back a leaf that data_length already
-        counts, and hp_shrink_tail() reaches it whenever it empties the
-        tail of a table that has been over its ceiling since its first
-        row: index leaves are allocated without consulting the ceiling.
+        yet, so it belongs on this arm rather than above the reclaim
+        test.  The reclaim branch hands back a leaf that data_length
+        already counts, and hp_shrink_tail() reaches it whenever it
+        empties the tail of a table that has been over its ceiling since
+        its first row: index leaves are allocated without consulting the
+        ceiling.
         Testing the ceiling there as well would make such a table refuse
         a row it held a moment earlier.
       */
@@ -282,8 +293,9 @@ uchar *hp_take_free_block(HP_SHARE *share, uint16 count)
 
   if (remaining == 0)
   {
-    /* Block fully consumed */
+    /* Block fully consumed: this is the only branch that ends an entry */
     share->del_link= *((uchar**) first);
+    share->deleted_entries--;
   }
   else if (remaining == 1)
   {

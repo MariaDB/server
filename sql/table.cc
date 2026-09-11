@@ -1840,6 +1840,253 @@ static bool change_to_partiton_engine(plugin_ref *se_plugin)
   Also, there're few unused bytes in forminfo.
 */
 
+/*
+  What a promoted column stops reserving in a MEMORY table's record: its
+  declared width, less the pointer that takes the payload's place.  The
+  length prefix stays where it was, so it is not part of the difference.
+*/
+
+static uint heap_promotion_saving(const Field *field)
+{
+  DBUG_ASSERT(field->field_length > portable_sizeof_char_ptr);
+  return (uint) field->field_length - portable_sizeof_char_ptr;
+}
+
+
+/*
+  Whether this column's payload is worth keeping outside a MEMORY
+  table's record.  Asked both before and after the column is moved, so
+  it must not read anything the move changes.
+*/
+
+static bool heap_record_promotes(const Field *field)
+{
+  /*
+    A column the engine does not store has no payload in the record to
+    reclaim, and moving one would put a promoted column outside the
+    range stored_rec_length covers.
+  */
+  return field->stored_in_db() && heap_wants_out_of_line(field);
+}
+
+
+/*
+  Where a byte of the record ends up once the columns ahead of it have
+  given their payloads back.  offsets[] holds each column's position
+  before the move, which is what the columns ahead of it are measured by
+  while they are themselves moving.
+*/
+
+static uint heap_moved_offset(TABLE_SHARE *share, const uint *offsets,
+                              uint offset)
+{
+  uint moved= offset, i;
+
+  for (i= 0; i < share->fields; i++)
+    if (offsets[i] < offset && heap_record_promotes(share->field[i]))
+      moved-= heap_promotion_saving(share->field[i]);
+  return moved;
+}
+
+
+/*
+  Move a MEMORY table's wide VARCHAR payloads out of its record.
+
+  A heap record is fixed width, so an inline VARCHAR(N) reserves its
+  declared width in every row whether the row uses it or not.
+  heap_move_out_of_line() moves such a column out of the record
+  for an internal temporary table, where the layout is accumulated from
+  pack_length() and the move therefore costs nothing.  A table read from
+  an frm has its layout read out of the image instead, so here the move
+  has to rewrite it: the column's slot becomes its own length prefix
+  followed by a pointer, every column after it shifts down by what it
+  gave back, and the record ends that much sooner.
+
+  The frm is a source rather than a constraint.  Of what the parse
+  establishes, reclength and each column's offset are numbers this
+  recomputes, and default_values is data it translates; nothing
+  downstream requires the record in memory to match the image.  The
+  decision is therefore never written back, so a build whose threshold
+  differs from the one that created the table reads the frm exactly as
+  that build did.
+
+  Called once per TABLE_SHARE, after every Field exists and before the
+  key parts are given the offsets they take from the record.
+
+  @return true on allocation failure, leaving the share to be discarded.
+*/
+
+static bool promote_heap_record_layout(TABLE_SHARE *share)
+{
+  uchar *record= share->default_values;
+  uchar *image= NULL;
+  uint *offsets;
+  uint shrink= 0, promoted= 0, i;
+  ulong old_reclength= share->reclength;
+
+  /*
+    The null bytes have to stay where they are, and on the frm format
+    this reads they do: they sit at the front of the record, ahead of
+    every column.  Only a table whose frm predates MySQL 3.23 puts them
+    at the record's end, where they would move with it and leave every
+    address already taken of them pointing at a column.
+
+    is_binary_frm_header() refuses an frm that old, so this is a guard
+    on an impossible share rather than a case with tables in it.  It
+    stays because it costs one test and because the alternative, if one
+    ever did arrive, is a record silently laid out wrong.
+  */
+  if (!share->null_field_first)
+    return false;
+
+  for (i= 0; i < share->fields; i++)
+    if (heap_record_promotes(share->field[i]))
+    {
+      promoted++;
+      shrink+= heap_promotion_saving(share->field[i]);
+    }
+
+  if (!promoted)
+    return false;
+
+  /*
+    The record is rewritten in place, so each column is read out of a
+    copy of it rather than out of bytes another column may already have
+    been moved onto.  The offsets are captured for the same reason: a
+    column's new position is measured from where the columns ahead of it
+    were, and they are moving too.
+  */
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+                       &image, (size_t) old_reclength,
+                       &offsets, (size_t) share->fields * sizeof(uint),
+                       NULL))
+    return true;
+
+  memcpy(image, record, (size_t) old_reclength);
+  for (i= 0; i < share->fields; i++)
+    offsets[i]= (uint) (share->field[i]->ptr - record);
+
+  for (i= 0; i < share->fields; i++)
+  {
+    Field *field= share->field[i];
+    uint moved= heap_moved_offset(share, offsets, offsets[i]);
+
+    if (!heap_record_promotes(field))
+    {
+      memcpy(record + moved, image + offsets[i], field->pack_length_in_rec());
+      field->move_field(record + moved);
+      continue;
+    }
+
+    {
+      Field_varstring *varstring= static_cast<Field_varstring*>(field);
+      uint32 length= varstring->get_length(image + offsets[i]);
+      const uchar *data= NULL;
+
+      DBUG_ASSERT(offsets[i] + field->pack_length_in_rec() <=
+                  share->stored_rec_length);
+
+      /*
+        A DEFAULT is stored inline in the frm's image, where the slot now
+        holds a pointer.  Give those bytes a place on the share's own
+        memory, which outlives every statement that reads the default,
+        and point the slot at it.  A column defaulting to the empty
+        string points nowhere, which is what a row that stored nothing
+        holds as well.
+      */
+      if (length &&
+          !(data= (const uchar*) memdup_root(&share->mem_root,
+                                             image + offsets[i] +
+                                             varstring->length_bytes,
+                                             length)))
+        goto err;                               /* purecov: inspected */
+
+      /*
+        Which column this is becomes a different class, so the share is
+        given the new one.  heap_record_promotes() above has already
+        asked whether there is one, and it reads nothing the swap
+        changes, so the answers it gives the rest of this loop do not
+        move underneath it.
+      */
+      Field_varstring *out_of_line= varstring->make_promoted(&share->mem_root);
+
+      if (!out_of_line)
+        goto err;                               /* purecov: inspected */
+      share->field[i]= out_of_line;
+
+      memcpy(record + moved, image + offsets[i], out_of_line->length_bytes);
+      out_of_line->set_data_ptr(record + moved, data);
+      out_of_line->move_field(record + moved);
+
+      /*
+        The engine reads a promoted column exactly where it reads a
+        declared blob, so it has to be listed with them.
+      */
+      share->blob_fields++;
+    }
+  }
+
+  /*
+    A key part's offset into the record is read out of the frm and never
+    derived from its column again, so it moves with the column.  The
+    hidden key part a long unique index adds is not among these: it is
+    given its offset below, from the reclength this is about to set.
+  */
+  if (share->key_parts)
+  {
+    KEY_PART_INFO *key_part= share->key_info->key_part;
+    KEY_PART_INFO *key_part_end= key_part + share->ext_key_parts;
+
+    for ( ; key_part < key_part_end; key_part++)
+      key_part->offset= heap_moved_offset(share, offsets, key_part->offset);
+  }
+
+  share->reclength-= shrink;
+  share->stored_rec_length-= shrink;
+  share->rec_buff_length= ALIGN_SIZE(share->reclength + 1);
+  /* Mark the bytes the record gave back to catch a reader at the old layout */
+  MEM_NOACCESS(record + share->reclength,
+               (size_t) (old_reclength - share->reclength));
+  my_free(image);
+  return false;
+
+err:
+  my_free(image);                               /* purecov: inspected */
+  return true;                                  /* purecov: inspected */
+}
+
+
+/*
+  Whether the MEMORY engine is what stores this share's rows, and so
+  whether its record is the one promotion reshapes.
+
+  A partitioned table answers the question twice.  Its own engine is the
+  partition handler, which stores nothing itself; the rows sit in the
+  partitions, which all share one engine -- a table whose partitions
+  name different ones is refused with ER_MIX_HANDLER_ERROR -- and that
+  is the engine the record has to suit.  The partitions read the share's
+  record as it stands, so reshaping it reaches all of them at once.
+
+  @param share       the share being parsed
+  @param se_plugin   its engine, read where the parse holds it:
+                     share->db_plugin is not assigned until the parse
+                     succeeds, so share->db_type() is still NULL here
+*/
+
+static bool heap_lays_out_record(const TABLE_SHARE *share,
+                                 plugin_ref se_plugin)
+{
+  if (plugin_hton(se_plugin) == heap_hton)
+    return true;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (plugin_hton(se_plugin) == partition_hton)
+    return share->default_part_plugin &&
+           plugin_hton(share->default_part_plugin) == heap_hton;
+#endif
+  return false;
+}
+
+
 int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                             const uchar *frm_image,
                                             size_t frm_length,
@@ -2904,6 +3151,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
   }
 
+  /*
+    Move the wide VARCHARs out of the record before anything reads where
+    a column sits: the key parts below take their offsets from it.  The
+    engine is read where handler_file above read it, share->db_plugin
+    not being assigned until the parse succeeds.
+  */
+  if (heap_lays_out_record(share, se_plugin) &&
+      promote_heap_record_layout(share))
+    goto err;
+
   share->primary_key= MAX_KEY;
 
   /* Fix key->name and key_part->field */
@@ -3522,7 +3779,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
     for (k=0, ptr= share->field ; *ptr ; ptr++, k++)
     {
-      if ((*ptr)->flags & BLOB_FLAG)
+      if ((*ptr)->data_is_out_of_line())
 	(*save++)= k;
     }
   }
@@ -4322,11 +4579,20 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
         if (field->key_length() != key_part->length &&
-            !(field->flags & BLOB_FLAG))
+            !field->data_is_out_of_line())
         {
           /*
             We are using only a prefix of the column as a key:
             Create a new field for the key part that matches the index
+
+            The question is where the payload sits rather than whether
+            the column is declared as a blob, and a wide VARCHAR stored
+            out of the record answers the first without the second.
+            A column whose record slot holds a length and a pointer is
+            read through that pointer by the key code, which takes the
+            prefix from key_part->length, so it needs no field of its
+            own -- and a field of its own would own a value buffer that
+            nothing frees, this one not being among the table's.
           */
           field= key_part->field=field->make_new_field(root, outparam, 0, 0);
           field->field_length= key_part->length;
@@ -4974,7 +5240,7 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
        ptr != end ;
        ptr++)
   {
-    Field_blob *blob= (Field_blob*) table->field[*ptr];
+    Field *blob= table->field[*ptr];
     if (blob->get_field_buffer_size() > size)
         blob->free();
   }
@@ -8557,6 +8823,15 @@ void TABLE::restore_blob_values(String *blob_storage)
 }
 
 
+bool TABLE::has_unbounded_blob_field() const
+{
+  for (uint *bf= s->blob_field, *end= bf + s->blob_fields; bf < end; bf++)
+    if (field[*bf]->flags & BLOB_FLAG)
+      return true;
+  return false;
+}
+
+
 /**
   @brief
   Allocate space for keys
@@ -9198,8 +9473,14 @@ size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data)
     if (bitmap_is_set(cols, field->field_index) &&
         !field->is_null(rec_offset))
     {
-      Field_blob * const blob= (Field_blob*) field;
-      length+= blob->get_length(rec_offset) + 8; /* max blob store length */
+      /*
+        blob_field[] lists the columns stored outside the record, and a
+        wide VARCHAR in a MEMORY table is one of them without being
+        declared a blob, so the length is read through the interface
+        both kinds answer.
+      */
+      length+= field->out_of_line_length(field->ptr + rec_offset) + 8;
+                                                /* max blob store length */
     }
   }
   DBUG_PRINT("exit", ("length: %lld", (longlong) length));
@@ -9948,6 +10229,20 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
   int write_err= 0;
 
   DBUG_ENTER("TABLE::insert_all_rows_into_tmp_table");
+
+  /*
+    This table's handler reads straight into the destination's record
+    buffer below, with no conversion step, so the two have to agree on
+    the record layout.  They are built from one column list, but from
+    two calls with their own options, and the options decide which
+    engine is expected and so whether a wide VARCHAR keeps its payload
+    in the record.  A column that disagrees costs at least the width
+    that put it over HEAP_CONVERT_IF_BIGGER_TO_BLOB, so the record
+    lengths cannot match if any column does.
+    select_union_recursive::send_data() asserts the same thing for the
+    other direction of the same copy.
+  */
+  DBUG_ASSERT(s->reclength == tmp_table->s->reclength);
 
   if (with_cleanup)
   {

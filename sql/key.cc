@@ -225,7 +225,28 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
         used_uneven_bits= 1;
       }
     }
-    if (key_part->key_part_flag & HA_BLOB_PART)
+    /*
+      A VARCHAR whose payload is kept outside the record announces both
+      HA_VAR_LENGTH_PART and HA_BLOB_PART: the first says what the value
+      is, the second says the record holds a pointer to it.  It is the
+      first that decides how to put the value back, so ask about it
+      first.  Only a column declared as a blob reaches the branch below,
+      and only it may be cast to Field_blob.
+    */
+    if (key_part->key_part_flag & HA_VAR_LENGTH_PART)
+    {
+      Field *field= key_part->field;
+      my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
+      field->move_field_offset(ptrdiff);
+      key_length-= HA_KEY_BLOB_LENGTH;
+      length= MY_MIN(key_length, key_part->length);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table, &field->table->write_set);
+      field->set_key_image(from_key, length);
+      dbug_tmp_restore_column_map(&field->table->write_set, old_map);
+      from_key+= HA_KEY_BLOB_LENGTH;
+      field->move_field_offset(-ptrdiff);
+    }
+    else if (key_part->key_part_flag & HA_BLOB_PART)
     {
       /*
         This in fact never happens, as we have only partial BLOB
@@ -241,19 +262,6 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
       field->set_ptr_offset(to_record - field->table->record[0],
                             (ulong) blob_length, from_key);
       length= key_part->length;
-    }
-    else if (key_part->key_part_flag & HA_VAR_LENGTH_PART)
-    {
-      Field *field= key_part->field;
-      my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
-      field->move_field_offset(ptrdiff);
-      key_length-= HA_KEY_BLOB_LENGTH;
-      length= MY_MIN(key_length, key_part->length);
-      MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table, &field->table->write_set);
-      field->set_key_image(from_key, length);
-      dbug_tmp_restore_column_map(&field->table->write_set, old_map);
-      from_key+= HA_KEY_BLOB_LENGTH;
-      field->move_field_offset(-ptrdiff);
     }
     else
     {

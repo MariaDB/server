@@ -15,37 +15,51 @@
 # therefore never reaches that path.
 #
 #
-# Setup: 1000 distinct pairs of ~1 KB values, each pair present twice,
-# with the two copies of a pair adjacent, so that the write which
-# overflows a deduplicating temporary table is always a duplicate of a
-# row the conversion has already copied.
+# Setup: 1000 distinct rows, each present twice, with the two copies
+# adjacent, so that the write which overflows a deduplicating
+# temporary table is always a duplicate of a row the conversion has
+# already copied.
 #
-# The columns are wide enough that the deduplicating key does not fit
-# into a key of the on-disk temporary engine, so deduplication goes
-# through a unique constraint rather than through a unique index.
+# k is what makes the rows distinct. v and w are wide enough that the
+# deduplicating key does not fit into a key of the on-disk temporary
+# engine, so deduplication goes through a unique constraint rather
+# than through a unique index, and they are left empty because that
+# is all they are here for.
+#
+# Empty is also what keeps the overflow where this test needs it. A
+# column that wide is stored out of line, so a row holding a value in
+# one takes a record slot and a place for the value as well, and the
+# write that finds the table full is then as likely to be the one
+# storing the value as the duplicate that follows it. With nothing to
+# store out of line a row costs one record slot, the table fills at
+# the end of a write that stored a row, and the write that finds it
+# full is the duplicate of that row.
+#
+# The limit is chosen so that the table holds well over the hundred
+# rows the path above needs by the time it fills.
 #
 set @save_tmp_memory_table_size=@@tmp_memory_table_size;
 set @save_max_heap_table_size=@@max_heap_table_size;
-CREATE TABLE t1 (id INT, v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+set @small_heap=16384;
+CREATE TABLE t1 (id INT, k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
 INSERT INTO t1
-SELECT (seq+1) DIV 2,
-CONCAT('v', LPAD((seq+1) DIV 2, 6, '0')),
-CONCAT('w', LPAD((seq+1) DIV 2, 6, '0'))
+SELECT (seq+1) DIV 2, LPAD((seq+1) DIV 2, 6, '0'), '', ''
 FROM seq_1_to_2000;
-SELECT COUNT(*), COUNT(DISTINCT v, w) FROM t1;
-COUNT(*)	COUNT(DISTINCT v, w)
+SELECT COUNT(*), COUNT(DISTINCT k, v, w) FROM t1;
+COUNT(*)	COUNT(DISTINCT k, v, w)
 2000	1000
 #
 # ================================================================
 # Run 1: the temporary tables overflow and are converted
 # ================================================================
 #
-set @@tmp_memory_table_size=1024*1024*2;
-set @@max_heap_table_size=1024*1024*2;
+set @@tmp_memory_table_size=@small_heap;
+set @@max_heap_table_size=@small_heap;
 # --- SELECT DISTINCT (end_write path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1) dt;
 rows_returned	distinct_rows
 1000	1000
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
@@ -55,8 +69,8 @@ CONVERTED
 ON
 # --- SELECT DISTINCT with ORDER BY ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1 ORDER BY k, v, w) dt;
 rows_returned	distinct_rows
 1000	1000
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
@@ -66,8 +80,8 @@ CONVERTED
 ON
 # --- GROUP BY (end_update path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT k, v, w FROM t1 GROUP BY k, v, w) dt;
 rows_returned	distinct_rows
 1000	1000
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
@@ -77,8 +91,8 @@ CONVERTED
 ON
 # --- UNION DISTINCT (select_unit::write_record path) ---
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM ((SELECT k, v, w FROM t1) UNION (SELECT k, v, w FROM t1)) dt;
 rows_returned	distinct_rows
 1000	1000
 SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
@@ -88,9 +102,10 @@ CONVERTED
 ON
 # --- INSERT SELECT DISTINCT: the duplicate reaches a user table ---
 FLUSH STATUS;
-CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
-INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
-SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+CREATE TABLE t2 (k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT k, v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
 FROM t2;
 rows_stored	distinct_rows
 1000	1000
@@ -108,25 +123,26 @@ DROP TABLE t2;
 set @@tmp_memory_table_size=1024*1024*512;
 set @@max_heap_table_size=1024*1024*512;
 FLUSH STATUS;
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1) dt;
 rows_returned	distinct_rows
 1000	1000
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT DISTINCT v, w FROM t1 ORDER BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT k, v, w FROM t1 ORDER BY k, v, w) dt;
 rows_returned	distinct_rows
 1000	1000
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM (SELECT v, w FROM t1 GROUP BY v, w) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM (SELECT k, v, w FROM t1 GROUP BY k, v, w) dt;
 rows_returned	distinct_rows
 1000	1000
-SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
-FROM ((SELECT v, w FROM t1) UNION (SELECT v, w FROM t1)) dt;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
+FROM ((SELECT k, v, w FROM t1) UNION (SELECT k, v, w FROM t1)) dt;
 rows_returned	distinct_rows
 1000	1000
-CREATE TABLE t2 (v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
-INSERT INTO t2 SELECT DISTINCT v, w FROM t1;
-SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+CREATE TABLE t2 (k VARCHAR(6), v VARCHAR(1024), w VARCHAR(1024))
+ENGINE=MyISAM;
+INSERT INTO t2 SELECT DISTINCT k, v, w FROM t1;
+SELECT COUNT(*) AS rows_stored, COUNT(DISTINCT CONCAT(k,'#',v,'#',w)) AS distinct_rows
 FROM t2;
 rows_stored	distinct_rows
 1000	1000
@@ -135,7 +151,61 @@ FROM INFORMATION_SCHEMA.SESSION_STATUS
 WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
 CONVERTED
 OFF
+#
+# ================================================================
+# Run 3: the same conversion with the wide columns carrying values
+# ================================================================
+#
+# Runs 1 and 2 leave v and w empty, which is what pins the overflow
+# to a duplicate write. With values in them the overflow point moves
+# with the data, so this run asserts only what does not depend on it:
+# that the conversion happens, and that deduplication over columns
+# whose payload is stored out of line still returns each distinct row
+# exactly once. Without this the branch's own storage layout never
+# meets the conversion path.
+#
+CREATE TABLE t3 (id INT, v VARCHAR(1024), w VARCHAR(1024)) ENGINE=MyISAM;
+INSERT INTO t3
+SELECT (seq+1) DIV 2,
+CONCAT('v', LPAD((seq+1) DIV 2, 6, '0')),
+CONCAT('w', LPAD((seq+1) DIV 2, 6, '0'))
+FROM seq_1_to_2000;
+set @@tmp_memory_table_size=@small_heap;
+set @@max_heap_table_size=@small_heap;
+# --- SELECT DISTINCT (end_write path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT DISTINCT v, w FROM t3) dt;
+rows_returned	distinct_rows
+1000	1000
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
+# --- GROUP BY (end_update path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM (SELECT v, w FROM t3 GROUP BY v, w) dt;
+rows_returned	distinct_rows
+1000	1000
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
+# --- UNION DISTINCT (select_unit::write_record path) ---
+FLUSH STATUS;
+SELECT COUNT(*) AS rows_returned, COUNT(DISTINCT CONCAT(v,'#',w)) AS distinct_rows
+FROM ((SELECT v, w FROM t3) UNION (SELECT v, w FROM t3)) dt;
+rows_returned	distinct_rows
+1000	1000
+SELECT IF(VARIABLE_VALUE > 0, 'ON', 'OFF') AS CONVERTED
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME = 'CREATED_TMP_DISK_TABLES';
+CONVERTED
+ON
 # Clean up
 set @@tmp_memory_table_size=@save_tmp_memory_table_size;
 set @@max_heap_table_size=@save_max_heap_table_size;
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;

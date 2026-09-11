@@ -1,0 +1,68 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # A MAX_ROWS limit counts rows.  A row whose value is held out of
+--echo # line occupies several storage records, and those records must not
+--echo # be charged against the row limit.
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 64*1024*1024;
+
+--echo # A wide VARCHAR, which the engine keeps out of line
+CREATE TABLE t1 (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1
+  MAX_ROWS=1000;
+INSERT INTO t1 SELECT REPEAT('z', 2900) FROM seq_1_to_1000;
+SELECT COUNT(*) AS rows_held FROM t1;
+DROP TABLE t1;
+
+--echo # A declared blob column
+CREATE TABLE t2 (b BLOB) ENGINE=MEMORY MAX_ROWS=1000;
+INSERT INTO t2 SELECT REPEAT('z', 60000) FROM seq_1_to_100;
+SELECT COUNT(*) AS rows_held FROM t2;
+DROP TABLE t2;
+
+--echo # A narrow inline column, where a row has always been one record
+CREATE TABLE t3 (a INT) ENGINE=MEMORY MAX_ROWS=1000;
+INSERT INTO t3 SELECT seq FROM seq_1_to_1000;
+SELECT COUNT(*) AS rows_held FROM t3;
+DROP TABLE t3;
+
+--echo #
+--echo # The limit is still a limit: the row past the last one is refused,
+--echo # whether or not the column is held out of line.
+--echo #
+
+CREATE TABLE t4 (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1
+  MAX_ROWS=10;
+INSERT INTO t4 SELECT REPEAT('z', 2900) FROM seq_1_to_10;
+SELECT COUNT(*) AS rows_held FROM t4;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t4 VALUES (REPEAT('z', 2900));
+SELECT COUNT(*) AS rows_held FROM t4;
+DROP TABLE t4;
+
+CREATE TABLE t5 (a INT) ENGINE=MEMORY MAX_ROWS=10;
+INSERT INTO t5 SELECT seq FROM seq_1_to_10;
+SELECT COUNT(*) AS rows_held FROM t5;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t5 VALUES (11);
+SELECT COUNT(*) AS rows_held FROM t5;
+DROP TABLE t5;
+
+--echo #
+--echo # A deleted row frees its place under the limit.
+--echo #
+
+CREATE TABLE t6 (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1
+  MAX_ROWS=10;
+INSERT INTO t6 SELECT REPEAT('z', 2900) FROM seq_1_to_10;
+DELETE FROM t6 LIMIT 4;
+SELECT COUNT(*) AS rows_held FROM t6;
+INSERT INTO t6 SELECT REPEAT('y', 2900) FROM seq_1_to_4;
+SELECT COUNT(*) AS rows_held FROM t6;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t6 VALUES (REPEAT('y', 2900));
+DROP TABLE t6;
+
+SET max_heap_table_size= @save_max_heap_table_size;

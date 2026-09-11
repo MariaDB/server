@@ -19,7 +19,7 @@
 #include "heapdef.h"
 
 static int check_one_key(HP_INFO *, HP_KEYDEF *, uint, ulong, ulong, my_bool);
-static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
+static int check_one_rb_key(HP_INFO *, uint, ulong, my_bool);
 
 
 /*
@@ -31,20 +31,23 @@ static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
     print_status	Prints some extra status
 
   NOTES
-    May allocate/reallocate the key_blob_buff scratch buffer in info
-    for blob key materialization; the logical table state is unchanged.
+    The logical table state is unchanged, but info is not const: reading
+    a record with columns stored out of line goes through
+    hp_read_blobs(), which reassembles them into the scratch buffer in
+    info and reports through info what it produced.  The signature says
+    so rather than casting the const away at each call below.
 
   RETURN VALUES
     0	ok
     1 error
 */
 
-int heap_check_heap(const HP_INFO *info, my_bool print_status)
+int heap_check_heap(HP_INFO *info, my_bool print_status)
 {
   int error;
   uint key;
   ulong records=0, deleted=0, cont_count=0, pos, next_block;
-  ulong del_link_count;
+  ulong del_link_count, del_entry_count;
   uchar *del_ptr;
   my_bool block_count_error_printed= FALSE;
   HP_SHARE *share=info->s;
@@ -58,7 +61,7 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     if (share->keydef[key].algorithm == HA_KEY_ALG_BTREE)
       error|= check_one_rb_key(info, key, share->records, print_status);
     else
-      error|= check_one_key((HP_INFO*) info, share->keydef + key, key,
+      error|= check_one_key(info, share->keydef + key, key,
                             share->records, share->blength, print_status);
   }
 
@@ -73,10 +76,16 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
     error= 1;
   }
 
-  /* Verify free list record count matches share->deleted */
-  del_link_count= 0;
+  /*
+    Verify both free list counts: records against share->deleted, and
+    entries against share->deleted_entries.  A block counts once as an
+    entry however many records it spans, which is what a scan pays for
+    it, so the two counters diverge as soon as anything coalesces.
+  */
+  del_link_count= del_entry_count= 0;
   for (del_ptr= share->del_link; del_ptr; )
   {
+    del_entry_count++;
     if (hp_is_free_block_end(del_ptr))
     {
       uchar *first= hp_free_block_first(del_ptr);
@@ -93,6 +102,13 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
   {
     DBUG_PRINT("error",("free list record count %lu != share->deleted %lu",
                         del_link_count, (ulong) share->deleted));
+    error= 1;
+  }
+  if (del_entry_count != share->deleted_entries)
+  {
+    DBUG_PRINT("error",("free list entry count %lu != "
+                        "share->deleted_entries %lu",
+                        del_entry_count, (ulong) share->deleted_entries));
     error= 1;
   }
 
@@ -215,11 +231,9 @@ int heap_check_heap(const HP_INFO *info, my_bool print_status)
              desc_end= desc + share->blob_count;
              desc < desc_end; desc++)
         {
-          if (hp_blob_length(desc, current_ptr) > 0)
+          if (hp_blob_stored_length(desc, current_ptr) > 0)
           {
-            uchar *chain;
-            memcpy(&chain, current_ptr + desc->offset + desc->packlength,
-                   sizeof(chain));
+            uchar *chain= hp_blob_get_chain(desc, current_ptr);
             if (chain)
             {
               has_any_chain= TRUE;
@@ -333,25 +347,52 @@ static int check_one_key(HP_INFO *info, HP_KEYDEF *keydef, uint keynr,
 }
 
 
-static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
+static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
 			    my_bool print_status)
 {
-  HP_KEYDEF *keydef= info->s->keydef + keynr;
+  HP_SHARE *share= info->s;
+  HP_KEYDEF *keydef= share->keydef + keynr;
   int error= 0;
   ulong found= 0;
-  uchar *key, *recpos;
+  uchar *key, *recpos, *unpacked= 0;
   uint key_length;
   uint not_used[2];
   TREE_ELEMENT **last_pos;
   TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
+  my_bool saved_zerocopy= info->has_zerocopy_blobs;
+
+  /*
+    The rb-tree holds pointers to stored records, while hp_rb_make_key()
+    reads a record in the SQL layer's layout.  The two are the same when
+    no column is stored out of line; otherwise the stored record has to be
+    expanded first, which also turns each out-of-line column's
+    continuation chain into the value the key is built from.  A column the
+    SQL layer moved needs that as much as one the engine moved: only the
+    record's shape is already right, not what its pointer addresses.
+  */
+  if (share->blob_count &&
+      !(unpacked= (uchar*) my_safe_alloca(share->reclength)))
+    return 1;
 
   if ((key= tree_search_edge(&keydef->rb_tree, parents,
 			     &last_pos, offsetof(TREE_ELEMENT, left))))
   {
     do
     {
+      uchar *rec;
       memcpy(&recpos, key + (*keydef->get_key_length)(keydef,key), sizeof(uchar*));
-      key_length= hp_rb_make_key(keydef, info->recbuf, recpos, 0);
+      rec= recpos;
+      if (unpacked)
+      {
+        hp_unpack_record(share, unpacked, recpos);
+        if (hp_read_blobs(info, unpacked, recpos))
+        {
+          error= 1;
+          break;
+        }
+        rec= unpacked;
+      }
+      key_length= hp_rb_make_key(keydef, info->recbuf, rec, 0);
       if (ha_key_cmp(keydef->seg, (uchar*) info->recbuf, (uchar*) key,
 		     key_length, SEARCH_FIND | SEARCH_SAME, not_used))
       {
@@ -371,6 +412,14 @@ static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
     DBUG_PRINT("error",("Found %lu of %lu records", found, records));
     error= 1;
   }
+  if (unpacked)
+    my_safe_afree(unpacked, share->reclength);
+  /*
+    hp_read_blobs() above reports whether the record it just produced
+    aliases heap memory.  That answer belongs to the caller's last read,
+    not to this check, so it is put back.
+  */
+  info->has_zerocopy_blobs= saved_zerocopy;
   if (print_status)
     printf("Key: %d  records: %ld\n", keynr, records);
   return error;

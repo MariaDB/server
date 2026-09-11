@@ -1,5 +1,5 @@
 CREATE TABLE t1 (a VARCHAR(100));
-INSERT INTO t1 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+INSERT INTO t1 SELECT LPAD(seq MOD 1000, 100, '0') FROM seq_1_to_2000;
 #
 # Starve the duplicate filter so that it spills and the walk has to
 # merge, then make the merging walk fail.
@@ -55,8 +55,8 @@ SET @@tmp_memory_table_size=DEFAULT;
 #
 SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
 gc_len
-20199
+100999
 SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
 ja_len
-200
+1000
 DROP TABLE t1;

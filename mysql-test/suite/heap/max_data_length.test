@@ -1,0 +1,72 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # The ceiling a MEMORY table reports must be the ceiling it
+--echo # enforces.  Rows are refused once the table's data and index
+--echo # together reach max_heap_table_size, so that is the number, and
+--echo # storing a column out of line does not move it.
+--echo #
+--echo # Every table below is CHARACTER SET latin1 so the declared width
+--echo # in characters equals the width in bytes.
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+
+CREATE TABLE t_inline (a VARCHAR(8)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_wide (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_blob (a BLOB) ENGINE=MEMORY CHARACTER SET latin1;
+
+--echo #
+--echo # 1. All three report the same ceiling, because they have one
+--echo #
+SELECT table_name, max_data_length = @@max_heap_table_size AS ceiling_exact
+FROM information_schema.tables
+WHERE table_schema='test' AND table_name IN ('t_inline','t_wide','t_blob')
+ORDER BY table_name;
+
+--echo #
+--echo # 2. A table said to hold N bytes must reach N before it refuses a
+--echo #    row.  A promoted column's rows occupy several records each, so
+--echo #    a ceiling derived from a record count times a row width would
+--echo #    be reported as barely touched at the point the table is full.
+--echo #
+--error ER_RECORD_FILE_FULL
+INSERT INTO t_wide SELECT REPEAT('a', 3000) FROM seq_1_to_1000;
+SELECT data_length + index_length >= max_data_length AS filled_to_ceiling
+FROM information_schema.tables
+WHERE table_schema='test' AND table_name='t_wide';
+
+--echo #
+--echo # 3. Where a row limit admits fewer bytes than the memory ceiling,
+--echo #    it is the row limit that is reported.  A row is at most as
+--echo #    wide as it is declared, whether or not it is stored inline.
+--echo #
+CREATE TABLE t_rows (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1
+  MAX_ROWS=10;
+SELECT max_data_length < @@max_heap_table_size AS row_limit_binds,
+       max_data_length
+FROM information_schema.tables
+WHERE table_schema='test' AND table_name='t_rows';
+
+--echo #
+--echo # 4. A blob has no declared width, so there is nothing for a row
+--echo #    limit to bound bytes by and the memory ceiling is reported
+--echo #    even where MAX_ROWS is small.  Bounding it by what the record
+--echo #    holds for a blob would report a few hundred bytes as the
+--echo #    ceiling of a table those rows can fill.
+--echo #
+CREATE TABLE t_blob_rows (a BLOB) ENGINE=MEMORY CHARACTER SET latin1
+  MAX_ROWS=10;
+SELECT max_data_length = @@max_heap_table_size AS memory_ceiling_reported
+FROM information_schema.tables
+WHERE table_schema='test' AND table_name='t_blob_rows';
+
+INSERT INTO t_blob_rows SELECT REPEAT('b', 60000) FROM seq_1_to_10;
+SELECT COUNT(*), SUM(LENGTH(a)) FROM t_blob_rows;
+SELECT data_length > max_data_length AS exceeds_reported_ceiling
+FROM information_schema.tables
+WHERE table_schema='test' AND table_name='t_blob_rows';
+
+DROP TABLE t_inline, t_wide, t_blob, t_rows, t_blob_rows;
+SET max_heap_table_size= @save_max_heap_table_size;

@@ -70,6 +70,24 @@
 #define MAX_FIELD_BLOBLENGTH UINT_MAX32         /* cf field_blob::get_length() */
 #define CONVERT_IF_BIGGER_TO_BLOB 512           /* Threshold *in characters*   */
 
+/*
+  A VARCHAR in a HEAP table whose declared width exceeds this many bytes
+  keeps its payload outside the record.
+
+  Heap records are fixed width, so an inline VARCHAR(N) reserves its full
+  declared width in every row whether or not the row uses it.  N counts
+  characters, so that width is between N and 4N bytes depending on the
+  character set: the same VARCHAR(100) reserves 100 bytes in latin1 and
+  400 in utf8mb4.  Out of line it costs a length prefix and a pointer in
+  the record, plus the bytes actually present.  The threshold is
+  therefore compared against the byte width, not against N.
+
+  Below it promotion loses: a non-empty out-of-line value costs at least
+  one whole continuation record in the engine, so a narrow column pays
+  more for the run than it saves on the record.
+*/
+#define HEAP_CONVERT_IF_BIGGER_TO_BLOB 32       /* Threshold *in bytes*        */
+
 /* Max column width +1 */
 #define MAX_FIELD_WIDTH		(MAX_FIELD_CHARLENGTH*MAX_MBWIDTH+1)
 
