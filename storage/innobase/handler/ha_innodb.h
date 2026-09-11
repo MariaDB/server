@@ -512,7 +512,9 @@ protected:
 
 	int info_low(uint, bool);
 
-	uint32 parallel_scan_support() const override
+public:
+	/** Implementation of handler API for parallel scans */
+        uint32 parallel_scan_support() const override
 	{
 		return 	PSCAN_TABLE_FULL |
 				PSCAN_TABLE_RANGE |
@@ -520,9 +522,31 @@ protected:
 				PSCAN_INDEX_RANGE;
 	}
 
-	/** Implementation of handler API for parallel scans */
+        /* Parallel work, coordinator thread methods */
 	int parallel_init_coordinator(size_t n_threads, uint keynr,
 				      const Dynamic_array<KEY_MULTI_RANGE> &ranges) override;
+
+        /* Get the work assignment for worker number worker_idx. */
+	Parallel_worker_ctx*
+		parallel_get_worker_context(size_t worker_idx) override;
+	int parallel_end_coordinator() override;
+	void parallel_get_chunk_stats(ulonglong *chunks_created,
+				      ulonglong *chunks_resplit) const override
+	{
+		m_parallel_coordinator.get_chunk_stats(chunks_created,
+						       chunks_resplit);
+	}
+        /* Parallel worker methods: */
+
+        /*
+          Start as worker doing *wcx
+          (TODO: coordinator can be hidden in *wctx)
+        */
+	int parallel_init_worker(Parallel_worker_ctx *wctx,
+				 handler *coordinator) override;
+	int parallel_end_worker() override;
+protected:
+	int parallel_get_next_row(Parallel_worker_ctx *wctx) override;
 
 	/** Convert one MySQL-format key endpoint into an InnoDB tuple.
 	@param kr       endpoint, or NULL for an unbounded one
@@ -532,21 +556,6 @@ protected:
 	dtuple_t* pscan_convert_key(const key_range *kr,
 				    const dict_index_t *index,
 				    mem_heap_t *heap);
-
-	int parallel_end_coordinator() override;
-
-	Parallel_worker_ctx*
-		parallel_get_worker_context(size_t worker_idx) override;
-
-	void parallel_get_chunk_stats(ulonglong *chunks_created,
-				      ulonglong *chunks_resplit) const override
-	{
-		m_parallel_coordinator.get_chunk_stats(chunks_created,
-						       chunks_resplit);
-	}
-
-	int parallel_init_worker(Parallel_worker_ctx *wctx,
-				 handler *coordinator) override;
 
 	/** Take the scan parameters recorded by parallel_init_coordinator()
 	on the master's handler. m_pscan_keynr says which index the chunk
@@ -561,10 +570,6 @@ protected:
 	only after every worker has been joined.
 	@param coordinator  the handler parallel_init_coordinator() ran on */
 	void pscan_adopt_scan_params(const ha_innobase *coordinator);
-
-	int parallel_get_next_row(Parallel_worker_ctx *wctx) override;
-
-	int parallel_end_worker() override;
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;
