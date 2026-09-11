@@ -423,7 +423,7 @@ select c from t1
 where json_contains(j->'$.tags', json_array(repeat('b',43))) order by c;
 c
 Warnings:
-Warning	4036	Character disallowed in JSON in argument 2 to function 'json_contains' at position 45
+Warning	4036	Character disallowed in JSON in argument 2 to function 'json_contains' at position 44
 # a value that is exactly as long as the key image can be
 explain select c from t1
 where json_overlaps(j->'$.tags', json_array(repeat('c',42)));
@@ -1029,13 +1029,13 @@ mvi_encode('[1]]', int)
 8000000000000001
 select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',42), '"]'), char(60))
-424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+4242424242424242424242424242424242424242424242424242424242424242424242424242424242
 select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',43), '"]'), char(60))
-424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+4242424242424242424242424242424242424242424242424242424242424242424242424242424242
 select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',100), '"]'), char(60))
-424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+4242424242424242424242424242424242424242424242424242424242424242424242424242424242
 select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
 mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60))
-414141 424242424242424242424242424242424242424242424242424242424242424242424242424242424242
+414141 4242424242424242424242424242424242424242424242424242424242424242424242424242424242

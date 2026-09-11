@@ -393,6 +393,7 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
                               &je.stack, sizeof(int), NULL,
                               JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
   decimals= 0;
+  /* TODO: length can be wrong when padding happens */
   fix_length_and_charset(args[0]->max_char_length() * 2,
                          &my_charset_latin1_bin);
   set_maybe_null();
@@ -494,6 +495,47 @@ bool check_mvi_token_size(const handler *file, const Create_field *column)
   DBUG_ASSERT(mvi);
   return !mvi_keys_fit_fulltext(file, mvi->cast_type().type_handler(),
                                 /*report_error_if_unfit=*/true);
+}
+
+
+/*
+  @brief
+    Is `field' the column of a multi-valued index whose keys the engine
+    will not hold?
+
+  @param report  Raise ER_MVI_KEY_TOKEN_SIZE if it is
+
+  @return
+    true   It is
+*/
+
+static bool mvi_field_keys_unfit(const TABLE *table, const Field *field,
+                                 bool report)
+{
+  Item_func_mvi_encode *mvi= mvi_expr(field->invisible, field->vcol_info);
+  return mvi && !mvi_keys_fit_fulltext(table->file,
+                                       mvi->cast_type().type_handler(),
+                                       report);
+}
+
+
+void mvi_set_keys_readonly(TABLE *table)
+{
+  table->mvi_keys_readonly= false;
+  for (Field **vf= table->vfield; vf && *vf; vf++)
+  {
+    if (mvi_field_keys_unfit(table, *vf, /*report=*/false))
+    {
+      table->mvi_keys_readonly= true;
+      return;
+    }
+  }
+}
+
+
+bool mvi_report_unfit_keys(const TABLE *table, const Field *field)
+{
+  return mvi_field_keys_unfit(table, field, /*report=*/true);
 }
 
 

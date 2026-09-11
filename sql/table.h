@@ -1621,6 +1621,12 @@ public:
   bool locked_by_name;
   bool fulltext_searched;
   bool no_cache;
+  /*
+    A multi-valued index of this table do not fit the engine's
+    fulltext token size limits. The corresponding columns will be
+    readonly.
+  */
+  bool mvi_keys_readonly;
   /* To signal that the table is associated with a HANDLER statement */
   bool open_by_handler;
   /*

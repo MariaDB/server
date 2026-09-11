@@ -4599,6 +4599,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     switch_defaults_to_nullable_trigger_fields(outparam);
 
     outparam->update_keypart_vcol_info();
+    mvi_set_keys_readonly(outparam);
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -9453,6 +9454,26 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       swap_values= 1;
       break;
     }
+
+    /*
+      A multi-valued index whose keys the engine drops must not have a
+      row written past it. The row would be missing from the index for
+      good -- the keys are dropped as they are written, not while they
+      are searched for -- so once the settings that drop them are wide
+      again, the index is used and that row is not found. In other
+      words, the index would be corrupted. Refuse the write instead, and
+      let the index be dropped or the settings put back.
+
+      Only when this column is one of those and is being computed: an
+      UPDATE that leaves the indexed expression alone does not touch the
+      index either. A DELETE computes the column too, to find the entry
+      to remove, and removing one cannot corrupt anything.
+    */
+    if (unlikely(mvi_keys_readonly) && update &&
+        (update_mode == VCOL_UPDATE_FOR_WRITE ||
+         update_mode == VCOL_UPDATE_FOR_REPLACE) &&
+        mvi_report_unfit_keys(this, vf))
+      break;             /* The exit below returns in_use->is_error() */
 
     if (update)
     {

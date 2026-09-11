@@ -99,10 +99,13 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
   image longer than that is cut down to it, making the key a prefix key:
   see encode_mvi_key().
 
+  Note however myisam and aria uses open upper bound which limits max
+  len to 41 instead of 42.
+
   An engine whose token size limits are narrower than what an index can
   produce cannot hold that index: see mvi_keys_fit_fulltext().
 */
-#define MVI_KEY_IMAGE_MAX_LEN 42
+#define MVI_KEY_IMAGE_MAX_LEN 41
 #define MVI_ENCODED_KEY_MAX_LEN (MVI_KEY_IMAGE_MAX_LEN * 2)
 
 /*
@@ -222,6 +225,19 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
   was raised.
 */
 bool check_mvi_token_size(const handler *file, const Create_field *column);
+
+/*
+  Open: does `table' have a multi-valued index whose keys the engine
+  would drop? Answered once, into table->mvi_keys_dropped, because every
+  write asks.
+*/
+void mvi_set_keys_readonly(TABLE *table);
+
+/*
+  Write: is `field' the column of a multi-valued index whose keys the
+  engine will not hold? Raises ER_MVI_KEY_TOKEN_SIZE when it is.
+*/
+bool mvi_report_unfit_keys(const TABLE *table, const Field *field);
 
 /*
   Is `field' the internal column that holds the keys of a multi-valued index?
