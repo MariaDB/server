@@ -2186,7 +2186,8 @@ Do not load any columns or indexes.
 @param[in]	rec		SYS_TABLES record
 @param[out,own]	table		table, or nullptr
 @return	error message
-@retval	nullptr on success */
+@retval	nullptr on success, or if the record is not visible, in
+which case *table will be nullptr */
 const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
                                 const rec_t *rec, dict_table_t **table)
 {
