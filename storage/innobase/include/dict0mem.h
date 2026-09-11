@@ -2521,7 +2521,7 @@ public:
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
 				performance_schema) */
-	bool		query_cache; /* 1 if query cache is in use */
+	Atomic_relaxed<bool>  query_cache; /* 1 if query cache is in use */
 	dict_frm_t	dict_frm_mismatch;
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
@@ -2696,7 +2696,8 @@ public:
   /** Timestamp of the last modification of this table. */
   Atomic_relaxed<time_t> update_time;
   /** Transactions whose view low limit is greater than this number are
-  not allowed to access the MariaDB query cache.
+  not allowed to access the MariaDB query cache. Maintained while
+  query_cache is set
   @see innobase_query_caching_table_check_low()
   @see trx_t::commit_tables() */
   Atomic_relaxed<trx_id_t> query_cache_inv_trx_id;
