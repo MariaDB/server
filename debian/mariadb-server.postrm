@@ -122,7 +122,7 @@ then
     # Remove /run/mysqld and mysql user if owned by us.
     if [ "$remove_mariadb_datadir" = "true" ] || [ "$remove_legacy_mariadb_datadir" = "true" ]
     then
-      rm -rf /run/mysqld # this directory is created by the init script, don't leave behind
+      rm -rf /run/mariadbd # this directory is created by the init script, don't leave behind
       userdel mysql || true
     fi
   fi

@@ -13,7 +13,7 @@
 #
 
 #user                    = mysql
-pid-file                = /run/mysqld/mysqld.pid
+pid-file                = /run/mariadbd/mysqld.pid
 basedir                 = /usr
 #datadir                 = /var/lib/mariadb  # Starting with MariaDB 13.2.0, /var/lib/mariadb is used by default instead of /var/lib/mysql.
 #tmpdir                  = /tmp
