@@ -361,6 +361,15 @@ ATTRIBUTE_COLD
 void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
                      const dict_foreign_t& foreign);
 
+/** Convert an InnoDB error code to a MySQL error code, telling MySQL about
+a possible transaction rollback inside InnoDB caused by a lock wait timeout
+or a deadlock. Defined in ha_innodb.cc.
+@param error  InnoDB error code
+@param flags  InnoDB table flags, or 0
+@param thd    user thread handle, or NULL
+@return MySQL error code */
+int convert_error_code_to_mysql(dberr_t error, ulint flags, THD *thd);
+
 /** Normalizes a table name string.
 A normalized name consists of the database name catenated to '/'
 and table name. For example: test/mytable.
