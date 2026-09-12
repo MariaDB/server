@@ -18,6 +18,7 @@ SET(CPACK_SOURCE_IGNORE_FILES
 \\\\.git$
 \\\\.gitignore$
 \\\\.gitattributes$
+/storage/duckdb/third_parties/duckdb/data/csv/glob/crawl/\\\\.symbolic_link/
 CMakeCache\\\\.txt$
 cmake_dist\\\\.cmake$
 CPackSourceConfig\\\\.cmake$
