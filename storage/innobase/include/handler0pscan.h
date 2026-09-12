@@ -50,9 +50,9 @@ struct Pscan_worker_ctx : public Parallel_worker_ctx
 
 	/** The chunk being read, held by shared_ptr because its boundary
 	tuples live in it. */
-	std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> m_exec_ctx{};
+	std::shared_ptr<Parallel_scan_partitioner::Chunk> m_chunk{};
 
-	/** Whether m_exec_ctx still has to be positioned. Cleared by the first
+	/** Whether m_chunk still has to be positioned. Cleared by the first
 	read of the chunk, set again when the next chunk is picked up. */
 	bool m_first_call{};
 
@@ -130,10 +130,14 @@ public:
 		return m_worker_ctxs[worker_idx];
 	}
 
-	/** @return the next chunk to scan, or nullptr when there is none */
-	std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> get_next_chunk()
+	/** Take the next chunk to scan off the partitioner's queue.
+	@param[out] chunk  the chunk to scan, or nullptr when the scan is
+	                   over. Only meaningful when DB_SUCCESS is returned.
+	@return DB_SUCCESS or the error that ended the scan. */
+	[[nodiscard]] dberr_t get_next_chunk(
+		std::shared_ptr<Parallel_scan_partitioner::Chunk> *chunk)
 	{
-		return m_partitioner.get_next_chunk();
+		return m_partitioner.get_next_chunk(chunk);
 	}
 
 	void get_chunk_stats(ulonglong *chunks_created,
@@ -232,7 +236,7 @@ private:
 	/** The bound to open 'chunk' on so that an exclusive lower bound costs
 	no wasted reads, or NULL to open on the chunk's own first record. */
 	const dtuple_t *exclusive_start(
-		const Parallel_scan_partitioner::Exec_ctx &chunk) const;
+		const Parallel_scan_partitioner::Chunk &chunk) const;
 
 	/** The handler this instance belongs to. */
 	ha_innobase *const m_owner;

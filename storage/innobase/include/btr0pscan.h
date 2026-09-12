@@ -44,49 +44,47 @@ Based on MySQL commit dbfc59ffaf80 created 2018-01-27 by Sunny Bains. */
 #include "fil0fil.h"
 #include "rem0types.h"
 
-/** The core idea is to find the left and right paths down the B+Tree.These
-paths correspond to the scan start and scan end search. Follow the links
-at the appropriate btree level from the left to right and split the scan
-on each of these sub-tree root nodes.
+/** The core idea is to find the path down the B+Tree to where the scan
+starts. Follow the links at the appropriate btree level from there to the
+right, splitting the scan on each of these sub-tree root nodes, and stop at
+the first node pointer that is past the end of the scan.
 
 If the user has set the maximum number of threads to use at say 4 threads
 and there are 5 sub-trees at the selected level then we will split the 5th
 sub-tree dynamically when it is ready for scan.
 
-We want to allow multiple parallel range scans on different indexes at the
-same time. To achieve this split out the scan  context (Scan_ctx) from the
-execution context (Exec_ctx). The Scan_ctx has the index  and transaction
-information and the Exec_ctx keeps track of the cursor for a specific thread
-during the scan.
+We want to allow several ranges to be divided at once. To achieve this
+the scan context (Scan_ctx) is split from the unit of work (Chunk).
+The Scan_ctx holds the index, the transaction and the range the caller
+asked for; a Chunk is one piece of that range, described by its two
+boundary keys. Chunks go on a queue, and a worker takes the next one
+whenever it needs work.
 
 To start a scan we need to instantiate a Parallel_scan_partitioner. A
-partitioner can contain several Scan_ctx instances and a Scan_ctx can contain
-several Exec_ctx instances. Its' the Exec_ctx instances that are
-eventually executed.
+partitioner can contain several Scan_ctx instances and a Scan_ctx is divided
+into several Chunk instances. It's the Chunk instances that are handed
+to the workers.
 
-This design allows for a single Parallel_scan_partitioner to scan multiple
-indexes at once.  Each index range scan has to be added via its add_scan()
-method.
-This functionality is required to handle parallel partition scans because
-partitions are separate indexes. This can be used to scan completely
-different indexes and tables by one instance of a Parallel_scan_partitioner.
+Each range to divide has to be added via add_scan(), which makes one Scan_ctx
+of it. A multiple-range scan therefore holds several Scan_ctx instances, all
+of them on the index the caller asked for.
 
 To solve the imbalance problem we dynamically split the sub-trees as and
 when required. e.g., If you have 5 sub-trees to scan and 4 threads then
-it will tag the 5th sub-tree as "to_be_split" during phase I (add_scan()),
-the first thread that finishes scanning the first set of 4 partitions will
-then dynamically split the 5th sub-tree and add the newly created sub-trees
-to the execution context (Ctx) run queue in the Parallel_scan_partitioner. As
-the other threads complete their sub-tree scans they will pick up more
-execution contexts (Ctx) from the Parallel_scan_partitioner run queue and
-start scanning the sub-partitions as normal.
+it will tag the 5th sub-tree as m_to_be_resplit during phase I (add_scan()),
+the worker that takes that Chunk off the queue will then dynamically split
+the 5th sub-tree and add the newly created sub-trees to the Chunk run queue
+in the Parallel_scan_partitioner, and pull again. As the other threads complete
+their sub-tree scans they will pick up more Chunk instances from the
+Parallel_scan_partitioner run queue and start scanning the sub-partitions as
+normal.
 
-Note: The Exec_ctx instances are in a virtual list. Each Exec_ctx instance
-has arange to scan. The start point of this range instance is the end point
-of the Exec_ctx instance scanning values less than its start point. An Exec_ctx
-will scan from [Start, End) rows. We use std::shared_ptr to manage the
-reference counting, this allows us to dispose of the Exec_ctx instances
-without worrying about dangling pointers.
+Note: The Chunk instances form a chain: the start point of one is the end
+point of the Chunk scanning values less than its start point. A Chunk
+will scan from [Start, End) rows - except the last one of a range scan, which
+takes End in too when the caller's own upper bound was inclusive. We use
+std::shared_ptr to manage the reference counting, this allows us to dispose of
+the Chunk instances without worrying about dangling pointers.
 
 */
 
@@ -103,7 +101,7 @@ class Parallel_scan_partitioner
 {
  public:
   // Forward declaration.
-  class Exec_ctx;
+  class Chunk;
   class Scan_ctx;
 
   /** Specifies the range from where to start the scan and where to end it. */
@@ -149,12 +147,12 @@ class Parallel_scan_partitioner
     /** Constructor.
     @param[in] scan_range     Range to scan.
     @param[in] index          Cluster index to scan.
-    @param[in] read_level     Btree level from which records need to be read. */
+    @param[in] read_level     Btree level from which records need to be
+                              read. */
     Config(const Scan_range &scan_range, dict_index_t *index,
            uint16_t read_level = 0)
         : m_scan_range(scan_range),
           m_index(index),
-          m_is_compact(dict_table_is_comp(index->table)),
           m_zip_size(index->table->space->zip_size()),
           m_read_level(read_level) {}
 
@@ -168,9 +166,6 @@ class Parallel_scan_partitioner
     /** (Cluster) Index in table to scan. */
     dict_index_t *m_index{};
 
-    /** Row format of table. */
-    const bool m_is_compact{};
-
     /** Tablespace page size. */
     const ulint m_zip_size;
 
@@ -183,8 +178,10 @@ class Parallel_scan_partitioner
 
   /** Take the next chunk to scan off the queue, re-splitting chunks flagged
   for it until a scannable one turns up.
-  @return the chunk, or nullptr when the scan is over or has failed */
-  std::shared_ptr<Exec_ctx> get_next_chunk();
+  @param[out] chunk  the chunk to scan, or nullptr when the scan is over.
+                     Only meaningful when DB_SUCCESS is returned.
+  @return DB_SUCCESS or the error that ended the scan. */
+  [[nodiscard]] dberr_t get_next_chunk(std::shared_ptr<Chunk> *chunk);
 
   /** Initialization.
     @param[in]  n_workers Number of worker threads expected to be used
@@ -233,9 +230,9 @@ class Parallel_scan_partitioner
       delete;
 
  private:
-  /** Add an execution context to the run queue.
-  @param[in] ctx                Execution context to add to the queue. */
-  void enqueue(std::shared_ptr<Exec_ctx> ctx);
+  /** Add a chunk to the run queue.
+  @param[in] chunk              Chunk to add to the queue. */
+  void enqueue(std::shared_ptr<Chunk> chunk);
 
 public:
   /** How the scan was divided; see m_chunks_created. Read after the workers
@@ -250,12 +247,12 @@ private:
 
   /** Take the next chunk off the queue.
   @return the chunk, or nullptr if the queue is empty. */
-  [[nodiscard]] std::shared_ptr<Exec_ctx> dequeue();
+  [[nodiscard]] std::shared_ptr<Chunk> dequeue();
 
  private:
-  using Exec_ctxs =
-      std::list<std::shared_ptr<Exec_ctx>,
-                ut_allocator<std::shared_ptr<Exec_ctx>>>;
+  using Chunks =
+      std::list<std::shared_ptr<Chunk>,
+                ut_allocator<std::shared_ptr<Chunk>>>;
 
   using Scan_ctxs =
       std::list<std::shared_ptr<Scan_ctx>,
@@ -267,15 +264,15 @@ private:
   /** Indicates the status of the partitioner */
   bool m_is_initialized{false};
 
-  /** Mutex protecting m_ctxs and m_n_resplitting. */
+  /** Mutex protecting m_chunk_queue and m_n_resplitting. */
   mutable mysql_mutex_t m_mutex;
 
-  /** Signalled when a context is added to m_ctxs and when a splitter
+  /** Signalled when a chunk is added to m_chunk_queue and when a splitter
   retires. Paired with m_mutex. */
   mysql_cond_t m_cond;
 
-  /** Contexts that must be executed. */
-  Exec_ctxs m_ctxs{};
+  /** Chunks waiting to be scanned. */
+  Chunks m_chunk_queue{};
 
   /** How many chunks this scan was divided into, counting the finer ones a
   re-split produced, and how many chunks were re-split rather than scanned.
@@ -283,8 +280,8 @@ private:
   size_t m_chunks_created{};
   size_t m_chunks_resplit{};
 
-  /** Contexts taken off m_ctxs that are being re-partitioned and have not
-  enqueued their sub-contexts yet. Protected by m_mutex. */
+  /** Chunks taken off m_chunk_queue that are being re-partitioned and
+  have not enqueued their sub-chunks yet. Protected by m_mutex. */
   size_t m_n_resplitting{};
 
   /** Scan contexts. */
@@ -312,10 +309,12 @@ class Parallel_scan_partitioner::Scan_ctx {
   /** Destructor. */
   ~Scan_ctx() = default;
 
-  /** Boundary of the range to scan. */
-  struct Iter {
+  /** One cut point between chunks: a copy of the index record the cut falls
+  on, taken so it outlives the page latch. An empty instance (m_tuple NULL)
+  means -infinity as a start and +infinity as an end. */
+  struct Boundary {
     /** Destructor. */
-    ~Iter();
+    ~Boundary();
 
     /** Heap used to allocate m_rec and m_tuple. */
     mem_heap_t *m_heap{};
@@ -323,11 +322,11 @@ class Parallel_scan_partitioner::Scan_ctx {
     /** m_rec column offsets. */
     rec_offs *m_offsets{};
 
-    /** Start scanning from this key. Raw data of the row. */
+    /** The boundary record itself, raw data of the row. */
     const rec_t *m_rec{};
 
-    /** Tuple representation inside m_rec, for two Iter instances in a range
-    m_tuple will be [first->m_tuple, second->m_tuple). */
+    /** Tuple representation inside m_rec, for two Boundary instances in a
+    range m_tuple will be [first->m_tuple, second->m_tuple). */
     const dtuple_t *m_tuple{};
   };
 
@@ -337,10 +336,12 @@ class Parallel_scan_partitioner::Scan_ctx {
   /** For releasing the S latches after processing the blocks. */
   using Savepoints = std::vector<Savepoint, ut_allocator<Savepoint>>;
 
-  /** The first cursor should read up to the second cursor [f, s). */
-  using Range = std::pair<std::shared_ptr<Iter>, std::shared_ptr<Iter>>;
+  /** The two boundaries of one chunk: [first, second). */
+  using Bounds =
+      std::pair<std::shared_ptr<Boundary>, std::shared_ptr<Boundary>>;
 
-  using Ranges = std::vector<Range, ut_allocator<Range>>;
+  /** The chunk boundaries one partitioning produced, in key order. */
+  using Bounds_list = std::vector<Bounds, ut_allocator<Bounds>>;
 
   /** @return the scan context ID. */
   [[nodiscard]] size_t id() const { return m_id; }
@@ -356,6 +357,11 @@ class Parallel_scan_partitioner::Scan_ctx {
     return m_err.load(std::memory_order_relaxed) != DB_SUCCESS;
   }
 
+  /** @return the error that ended this scan, DB_SUCCESS if none. */
+  [[nodiscard]] dberr_t get_error_state() const {
+    return m_err.load(std::memory_order_relaxed);
+  }
+
   /** Fetch a block from the buffer pool and acquire an S latch on it.
   @param[in]      page_id       Page ID.
   @param[in,out]  mtr           Mini-transaction covering the fetch.
@@ -366,21 +372,21 @@ class Parallel_scan_partitioner::Scan_ctx {
 
   /** Partition the B+Tree for parallel read.
   @param[in] scan_range Range for partitioning.
-  @param[in,out]  ranges        Ranges to scan.
+  @param[in,out]  bounds_list   Chunk boundaries produced by the walk.
   @param[in] split_level  Sub-range required level (0 == root).
-  @return the partition scan ranges. */
-  dberr_t partition(const Scan_range &scan_range, Ranges &ranges,
+  @return the partition scan bounds_list. */
+  dberr_t partition(const Scan_range &scan_range, Bounds_list &bounds_list,
                     size_t split_level);
 
   /** Find the page number of the node that contains the search key. If the
   key is null then we assume -infinity.
-  @param[in]  block             Page to look in.
-  @param[in] key                Key of the first record in the range.
-  @param[in,out]  err           Error code.
-  @return the left child page number. */
-  [[nodiscard]] page_no_t search(buf_block_t *block,
-                                 const dtuple_t *key,
-                                 dberr_t *err) const;
+  @param[in]      block         Page to look in.
+  @param[in]      key           Key of the first record in the range.
+  @param[out]     page_no       The left child page number. FIL_NULL on
+                                error.
+  @return DB_SUCCESS or error code. */
+  [[nodiscard]] dberr_t search(buf_block_t *block, const dtuple_t *key,
+                               page_no_t *page_no) const;
 
   /** Traverse from given sub-tree page number to start of the scan range
   from the given page number.
@@ -388,58 +394,61 @@ class Parallel_scan_partitioner::Scan_ctx {
   @param[in,out]  mtr           Mini-transaction.
   @param[in]      key           Key of the first record in the range.
   @param[in,out]  savepoints    Blocks S latched and accessed.
-  @return the leaf node page cursor. */
-  [[nodiscard]] page_cur_t start_range(page_no_t page_no, mtr_t *mtr,
-                                       const dtuple_t *key,
-                                       Savepoints &savepoints,
-                                       dberr_t *err) const;
+  @param[out]     cursor        The leaf node page cursor. Untouched on
+                                error.
+  @return DB_SUCCESS or error code. */
+  [[nodiscard]] dberr_t start_range(page_no_t page_no, mtr_t *mtr,
+                                    const dtuple_t *key,
+                                    Savepoints &savepoints,
+                                    page_cur_t *cursor) const;
 
   /** Add a range boundary at the cursor's record: close the range that is
   currently open, if any, and open a new one starting at that record. The
   newly opened range has no end until the next call, or until partition()
   stamps the scan's upper bound onto it.
-  @param[in,out]  ranges        Ranges to scan; one is appended.
+  @param[in,out]  bounds_list   Boundaries collected so far; one is appended.
   @param[in,out]  leaf_page_cursor Leaf page cursor on the boundary record. */
-  void add_range_boundary(Ranges &ranges, page_cur_t &leaf_page_cursor) const;
+  void add_boundary(Bounds_list &bounds_list,
+                    page_cur_t &leaf_page_cursor) const;
 
   /** Find the subtrees to scan in a block.
   @param[in]      scan_range    Partition based on this scan range.
   @param[in]      page_no       Page to partition at if at required level.
   @param[in]      depth         Sub-range current level.
   @param[in]      split_level   Sub-range starting level (0 == root).
-  @param[in,out]  ranges        Ranges to scan.
+  @param[in,out]  bounds_list   Chunk boundaries produced by the walk.
   @param[in,out]  mtr           Mini-transaction */
-  dberr_t create_ranges(const Scan_range &scan_range, page_no_t page_no,
-                        size_t depth, const size_t split_level, Ranges &ranges,
-                        mtr_t *mtr);
+  dberr_t create_bounds(const Scan_range &scan_range, page_no_t page_no,
+                        size_t depth, const size_t split_level,
+                        Bounds_list &bounds_list, mtr_t *mtr);
 
   /** Build a dtuple_t from rec_t.
   @param[in]      rec           Build the dtuple from this record.
-  @param[in,out]  iter          Build in this iterator. */
-  void copy_row(const rec_t *rec, Iter *iter) const;
+  @param[in,out]  boundary      Build in this boundary. */
+  void copy_row(const rec_t *rec, Boundary *boundary) const;
 
   /** Snapshot the record the cursor is on as a range boundary. The record is
   copied, so the result outlives the block latch.
   @param[in]      page_cursor   Leaf page cursor, on the boundary record
-  @return Boundary iterator; m_tuple is NULL if the page held no user record. */
-  [[nodiscard]] std::shared_ptr<Iter> create_iter(
+  @return the boundary; m_tuple is NULL if the page held no user record. */
+  [[nodiscard]] std::shared_ptr<Boundary> snapshot_boundary(
       const page_cur_t &page_cursor) const;
 
-  /** Create an execution context for a range and add it to
+  /** Create a chunk for one pair of boundaries and add it to
   the Parallel_scan_partitioner's run queue.
-  @param[in] range              Range for which to create the context.
+  @param[in] bounds             Boundaries of the chunk to create.
   @param[in] resplit            true if the sub-tree should be split further.
   @param[in] end_inclusive      true if records equal to the range's end
                                 belong to it. Only ever true for the chunk
                                 that ends at the caller's own upper bound.
   @return DB_SUCCESS or error code. */
-  [[nodiscard]] dberr_t create_context(const Range &range, bool resplit,
-                                       bool end_inclusive= false);
+  [[nodiscard]] dberr_t create_chunk(const Bounds &bounds, bool resplit,
+                                     bool end_inclusive= false);
 
-  /** Create the execution contexts based on the ranges.
-  @param[in]  ranges            Ranges for which to create the contexts.
+  /** Create the chunks, one per pair of boundaries.
+  @param[in]  bounds_list   Boundaries the tree walk produced.
   @return DB_SUCCESS or error code. */
-  [[nodiscard]] dberr_t create_contexts(const Ranges &ranges);
+  [[nodiscard]] dberr_t create_chunks(const Bounds_list &bounds_list);
 
   /** @return the maximum number of worker thread configured. */
   [[nodiscard]] size_t num_workers() const {
@@ -489,18 +498,17 @@ class Parallel_scan_partitioner::Scan_ctx {
   Scan_ctx &operator=(const Scan_ctx &) = delete;
 };
 
-/** Parallel scan partitioner execution context. */
-class Parallel_scan_partitioner::Exec_ctx {
+/** One chunk of a scan: the key interval a worker reads in one go. */
+class Parallel_scan_partitioner::Chunk {
  public:
   /** Constructor.
-  @param[in]    id              Thread ID.
-  @param[in]    scan_ctx        Scan context.
-  @param[in]    range           Range that the thread has to read. */
-  Exec_ctx(Scan_ctx *scan_ctx, const Scan_ctx::Range &range)
-      : m_range(range), m_scan_ctx(scan_ctx) {}
+  @param[in]    scan_ctx        Scan this chunk is a piece of.
+  @param[in]    bounds          Boundaries the chunk covers. */
+  Chunk(Scan_ctx *scan_ctx, const Scan_ctx::Bounds &bounds)
+      : m_bounds(bounds), m_scan_ctx(scan_ctx) {}
 
   /** Destructor. */
-  ~Exec_ctx() = default;
+  ~Chunk() = default;
 
  public:
   /** The scan ID of the scan context this belongs to. */
@@ -522,21 +530,21 @@ class Parallel_scan_partitioner::Exec_ctx {
     return m_scan_ctx->m_config.m_scan_range.m_start;
   }
 
-  /** Range to read in this context. */
-  Scan_ctx::Range m_range{};
+  /** The boundaries of this chunk. */
+  Scan_ctx::Bounds m_bounds{};
 
-  /** Whether a record equal to m_range.second belongs to this chunk.
+  /** Whether a record equal to m_bounds.second belongs to this chunk.
 
   Chunks tile as [start, end), so this is false for every chunk except the
   one ending at the caller's own inclusive upper bound. It reaches the row
   clamp through row_prebuilt_t::set_pscan_end_tuple(). */
   bool m_end_inclusive{};
 
-  /** Scanner context. */
+  /** The scan this chunk is a piece of. */
   Scan_ctx *m_scan_ctx{};
 
 private:
-  /** Split the context into sub-ranges and add them to the execution queue.
+  /** Split the chunk into sub-ranges and add them to the run queue.
   @return DB_SUCCESS or error code. */
   [[nodiscard]] dberr_t split();
 
@@ -546,8 +554,16 @@ private:
            m_scan_ctx->is_error_set();
   }
 
+  /** @return the error that ended the scan this chunk belongs to, whether it
+  was recorded on the scan or on the partitioner. DB_SUCCESS if none. */
+  [[nodiscard]] dberr_t get_error_state() const {
+    const dberr_t err = m_scan_ctx->get_error_state();
+    return err != DB_SUCCESS ? err
+                             : m_scan_ctx->m_partitioner->get_error_state();
+  }
+
  private:
-  /** If true then re-split the context into smaller chunks. */
+  /** If true then re-split this chunk into smaller ones. */
   bool m_to_be_resplit{};
 
   friend class Parallel_scan_partitioner;
