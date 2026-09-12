@@ -60,7 +60,7 @@ static dberr_t pread_page_cur_search(buf_block_t *block,
            : DB_SUCCESS;
 }
 
-Parallel_scan_partitioner::Scan_ctx::Iter::~Iter()
+Parallel_scan_partitioner::Scan_ctx::Boundary::~Boundary()
 {
   if (m_heap == nullptr) {
     return;
@@ -82,11 +82,11 @@ void Parallel_scan_partitioner::Scan_ctx::index_s_unlock()
   m_config.m_index->lock.s_unlock();
 }
 
-dberr_t Parallel_scan_partitioner::Exec_ctx::split()
+dberr_t Parallel_scan_partitioner::Chunk::split()
 {
   /*
     Twice the worker count, not once: the pieces this split produces are never
-    re-split again (create_context() below flags none of them), so if the rows
+    re-split again (create_chunk() below flags none of them), so if the rows
     inside this chunk are themselves skewed, the only slack for evening that
     out is having more pieces than workers. Twice keeps the piece count -- and
     with it the per-piece descent from the root -- small, while leaving a
@@ -94,25 +94,25 @@ dberr_t Parallel_scan_partitioner::Exec_ctx::split()
   */
   const size_t target= std::max(2 * m_scan_ctx->num_workers(), size_t{2});
 
-  ut_ad(m_range.first->m_tuple == nullptr ||
-        dtuple_validate(m_range.first->m_tuple));
-  ut_ad(m_range.second->m_tuple == nullptr ||
-        dtuple_validate(m_range.second->m_tuple));
+  ut_ad(m_bounds.first->m_tuple == nullptr ||
+        dtuple_validate(m_bounds.first->m_tuple));
+  ut_ad(m_bounds.second->m_tuple == nullptr ||
+        dtuple_validate(m_bounds.second->m_tuple));
 
   /* Setup the sub-range. Carry the inclusivity of this chunk's end so that
-  create_ranges() keeps the sub-tree holding the boundary key. */
-  Scan_range scan_range(m_range.first->m_tuple, m_range.second->m_tuple,
+  create_bounds() keeps the sub-tree holding the boundary key. */
+  Scan_range scan_range(m_bounds.first->m_tuple, m_bounds.second->m_tuple,
                         m_end_inclusive);
 
   /* S lock so that the tree structure doesn't change while we are
   figuring out the sub-trees to scan. */
   m_scan_ctx->index_s_lock();
 
-  Parallel_scan_partitioner::Scan_ctx::Ranges ranges{};
-  m_scan_ctx->partition(scan_range, ranges, 1);
+  Parallel_scan_partitioner::Scan_ctx::Bounds_list bounds_list{};
+  m_scan_ctx->partition(scan_range, bounds_list, 1);
 
-  if (!ranges.empty())
-    ranges.back().second = m_range.second;
+  if (!bounds_list.empty())
+    bounds_list.back().second = m_bounds.second;
 
   /* partition() at level 1 cuts this sub-tree at every child of its root, and
   for a tree of any depth that is one range per page at the level below --
@@ -124,10 +124,11 @@ dberr_t Parallel_scan_partitioner::Exec_ctx::split()
 
   Keep the boundaries the partitioning found and use only every m'th one.
 
-  Adjacent ranges are contiguous intervals that share an endpoint, so merging a
-  run of them is just taking the first one's start and the last one's end. */
+  Adjacent chunks are contiguous intervals that share an endpoint, so
+  merging a run of them is just taking the first one's start and the last
+  one's end. */
 
-  if (ranges.size() > target)
+  if (bounds_list.size() > target)
   {
     /*
       Floor, not ceiling: rounding m up makes ceil(size/m) groups, which for a
@@ -136,30 +137,30 @@ dberr_t Parallel_scan_partitioner::Exec_ctx::split()
       bounded by twice the target, and too many small pieces costs less than
       too few large ones: the whole point of this split is idle workers.
     */
-    const size_t m= std::max(ranges.size() / target, size_t{1});
-    Parallel_scan_partitioner::Scan_ctx::Ranges merged{};
+    const size_t m= std::max(bounds_list.size() / target, size_t{1});
+    Parallel_scan_partitioner::Scan_ctx::Bounds_list merged{};
 
-    for (size_t i= 0; i < ranges.size(); i+= m)
+    for (size_t i= 0; i < bounds_list.size(); i+= m)
     {
-      const size_t last= std::min(i + m, ranges.size()) - 1;
-      merged.push_back(Parallel_scan_partitioner::Scan_ctx::Range(
-          ranges[i].first, ranges[last].second));
+      const size_t last= std::min(i + m, bounds_list.size()) - 1;
+      merged.push_back(Parallel_scan_partitioner::Scan_ctx::Bounds(
+          bounds_list[i].first, bounds_list[last].second));
     }
-    ranges.swap(merged);
+    bounds_list.swap(merged);
   }
 
   dberr_t err{DB_SUCCESS};
 
-  /* Create the partitioned scan execution contexts. Only the last sub-chunk
+  /* Create the chunks of the partitioned scan. Only the last sub-chunk
   ends where this chunk ended, so only it inherits the inclusivity. */
   size_t i{};
 
-  for (auto &range : ranges)
+  for (auto &bounds : bounds_list)
   {
-    const bool last = (++i == ranges.size());
+    const bool last = (++i == bounds_list.size());
 
-    err = m_scan_ctx->create_context(range, false,
-                                     last && m_end_inclusive);
+    err = m_scan_ctx->create_chunk(bounds, false,
+                                   last && m_end_inclusive);
 
     if (err != DB_SUCCESS) {
       break;
@@ -197,45 +198,47 @@ buf_block_t *Parallel_scan_partitioner::Scan_ctx::block_get_s_latched(
 
 
 void Parallel_scan_partitioner::Scan_ctx::copy_row(const rec_t *rec,
-                                                   Iter *iter) const
+                                                   Boundary *boundary) const
 {
   const ulint n_core = page_rec_is_leaf(rec) ? m_config.m_index->n_core_fields : 0;
-  iter->m_offsets = rec_get_offsets(rec, m_config.m_index, nullptr,
-                                    n_core, ULINT_UNDEFINED, &iter->m_heap);
+  boundary->m_offsets = rec_get_offsets(rec, m_config.m_index, nullptr, n_core,
+                                        ULINT_UNDEFINED, &boundary->m_heap);
 
-  // Copy the raw record bytes into the iter's heap.
-  ulint rec_len = rec_offs_size(iter->m_offsets);
-  rec_t *copy_rec = static_cast<rec_t *>(mem_heap_alloc(iter->m_heap, rec_len));
+  // Copy the raw record bytes into the boundary's heap.
+  ulint rec_len = rec_offs_size(boundary->m_offsets);
+  rec_t *copy_rec =
+      static_cast<rec_t *>(mem_heap_alloc(boundary->m_heap, rec_len));
   memcpy(copy_rec, rec, rec_len);
-  iter->m_rec = copy_rec;
+  boundary->m_rec = copy_rec;
 
   // Build a key-only dtuple (just the unique-in-tree fields).
   const ulint n_unique = dict_index_get_n_unique_in_tree(m_config.m_index);
 
-  dtuple_t *tuple = dtuple_create(iter->m_heap, n_unique);
+  dtuple_t *tuple = dtuple_create(boundary->m_heap, n_unique);
   dict_index_copy_types(tuple, m_config.m_index, n_unique);
 
   for (ulint i = 0; i < n_unique; ++i) {
     ulint len;
-    const byte *data = rec_get_nth_field(iter->m_rec, iter->m_offsets, i, &len);
+    const byte *data =
+        rec_get_nth_field(boundary->m_rec, boundary->m_offsets, i, &len);
     dfield_t *dfield = dtuple_get_nth_field(tuple, i);
     dfield_set_data(dfield, data, len);
   }
   dtuple_set_n_fields_cmp(tuple, n_unique);
 
-  iter->m_tuple = tuple;
+  boundary->m_tuple = tuple;
 }
 
-std::shared_ptr<Parallel_scan_partitioner::Scan_ctx::Iter>
-Parallel_scan_partitioner::Scan_ctx::create_iter(
+std::shared_ptr<Parallel_scan_partitioner::Scan_ctx::Boundary>
+Parallel_scan_partitioner::Scan_ctx::snapshot_boundary(
     const page_cur_t &page_cursor) const
 {
   ut_a(m_config.m_read_level == 0);
   ut_ad(index_s_own());
 
-  std::shared_ptr<Iter> iter = std::make_shared<Iter>();
+  std::shared_ptr<Boundary> boundary = std::make_shared<Boundary>();
 
-  iter->m_heap = mem_heap_create(srv_page_size / 16);
+  boundary->m_heap = mem_heap_create(srv_page_size / 16);
 
   auto rec = page_cursor.rec;
 
@@ -249,21 +252,21 @@ Parallel_scan_partitioner::Scan_ctx::create_iter(
     /* Empty page, only root page can be empty. */
     ut_a(!is_infimum ||
          page_cursor.block->page.id().page_no() == m_config.m_index->page);
-    return (iter);
+    return (boundary);
   }
 
   /* Make a copy of the rec. The tuple built from it points into that copy,
-  so the boundary stays valid once create_ranges() releases the block
+  so the boundary stays valid once create_bounds() releases the block
   latches. */
-  copy_row(rec, iter.get());
+  copy_row(rec, boundary.get());
 
-  return (iter);
+  return (boundary);
 }
 
-void Parallel_scan_partitioner::enqueue(std::shared_ptr<Exec_ctx> ctx)
+void Parallel_scan_partitioner::enqueue(std::shared_ptr<Chunk> chunk)
 {
   mysql_mutex_lock(&m_mutex);
-  m_ctxs.push_back(ctx);
+  m_chunk_queue.push_back(chunk);
   /* Every chunk that becomes work passes through here, the ones a re-split
   produced along with the ones the first partitioning did. */
   ++m_chunks_created;
@@ -271,61 +274,66 @@ void Parallel_scan_partitioner::enqueue(std::shared_ptr<Exec_ctx> ctx)
   mysql_mutex_unlock(&m_mutex);
 }
 
-std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>
+std::shared_ptr<Parallel_scan_partitioner::Chunk>
 Parallel_scan_partitioner::dequeue()
 {
   mysql_mutex_lock(&m_mutex);
 
-  /* An empty queue does not always mean the scan is finished: a context
-  flagged m_to_be_resplit may not have yet enqueued its sub-contexts,
+  /* An empty queue does not always mean the scan is finished: a chunk
+  flagged m_to_be_resplit may not have yet enqueued its sub-chunks,
   so wait until the re-split is finished. */
-  while (m_ctxs.empty() && m_n_resplitting > 0 && !is_error_set())
+  while (m_chunk_queue.empty() && m_n_resplitting > 0 && !is_error_set())
     mysql_cond_wait(&m_cond, &m_mutex);
 
-  if (m_ctxs.empty() || is_error_set()) {
+  if (m_chunk_queue.empty() || is_error_set()) {
     mysql_mutex_unlock(&m_mutex);
     return (nullptr);
   }
 
-  auto ctx = m_ctxs.front();
-  m_ctxs.pop_front();
+  auto chunk = m_chunk_queue.front();
+  m_chunk_queue.pop_front();
 
-  if (ctx->m_to_be_resplit)
+  if (chunk->m_to_be_resplit)
     ++m_n_resplitting;
 
   mysql_mutex_unlock(&m_mutex);
 
-  return (ctx);
+  return (chunk);
 }
 
-std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>
-Parallel_scan_partitioner::get_next_chunk()
+dberr_t
+Parallel_scan_partitioner::get_next_chunk(std::shared_ptr<Chunk> *chunk_out)
 {
-  /* Pull the next scannable context. A context flagged m_to_be_resplit is not
+  /* Pull the next scannable chunk. A chunk flagged m_to_be_resplit is not
   itself scanned: split() re-partitions its sub-tree one level deeper and
-  enqueues the finer sub-contexts (for this worker and others), then we
+  enqueues the finer sub-chunks (for this worker and others), then we
   pull again. This is the pull-based equivalent of the m_to_be_resplit
   handling in Parallel_scan_partitioner::worker() (which we don't use here) —
   it is what turns the few coarse root-subtree ranges into one-leaf-page
   chunks on deep trees. Without it, a deep B-tree with a narrow root yields
   only a handful of huge chunks and almost no worker parallelism. */
+  *chunk_out = nullptr;
+
   for (;;)
   {
-    std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> ctx = dequeue();
+    std::shared_ptr<Parallel_scan_partitioner::Chunk> chunk = dequeue();
 
-    if (ctx == nullptr)
-      return nullptr;
-
-    if (ctx->m_scan_ctx->is_error_set())
-      return nullptr;
-
-    if (ctx->m_to_be_resplit)
+    if (chunk == nullptr)
     {
-      const dberr_t err = ctx->split();
+      /* Either the scan is over or it has failed; m_err says which. */
+      return get_error_state();
+    }
+
+    if (chunk->is_error_set())
+      return chunk->get_error_state();
+
+    if (chunk->m_to_be_resplit)
+    {
+      const dberr_t err = chunk->split();
 
       if (err != DB_SUCCESS)
       {
-        ctx->m_scan_ctx->set_error_state(err);
+        chunk->m_scan_ctx->set_error_state(err);
         set_error_state(err);
       }
 
@@ -339,35 +347,32 @@ Parallel_scan_partitioner::get_next_chunk()
       mysql_mutex_unlock(&m_mutex);
 
       if (err != DB_SUCCESS)
-        return nullptr;
+        return err;
 
-      /* The sub-contexts are now queued; pull one for this worker. */
+      /* The sub-chunks are now queued; pull one for this worker. */
       continue;
     }
 
-    return ctx;
+    *chunk_out = chunk;
+    return DB_SUCCESS;
   }
 }
 
-page_no_t Parallel_scan_partitioner::Scan_ctx::search(buf_block_t *block,
-                                                      const dtuple_t *key,
-                                                      dberr_t *err) const
+dberr_t Parallel_scan_partitioner::Scan_ctx::search(buf_block_t *block,
+                                                    const dtuple_t *key,
+                                                    page_no_t *page_no) const
 {
   ut_ad(index_s_own());
-  *err = DB_SUCCESS;
+  *page_no = FIL_NULL;
 
   page_cur_t page_cursor;
   const auto index = m_config.m_index;
 
   if (key != nullptr)
   {
-    auto ps_err = pread_page_cur_search(block, index, key,
-                                        PAGE_CUR_L, &page_cursor);
-    if (ps_err != DB_SUCCESS)
-    {
-      *err = ps_err;
-      return page_no_t{FIL_NULL};
-    }
+    if (dberr_t ps_err = pread_page_cur_search(block, index, key,
+                                               PAGE_CUR_L, &page_cursor))
+      return ps_err;
   }
   else
   {
@@ -378,10 +383,7 @@ page_no_t Parallel_scan_partitioner::Scan_ctx::search(buf_block_t *block,
   {
     rec_t *next = page_cur_move_to_next(&page_cursor);
     if (!next)
-    {
-      *err = DB_CORRUPTION;
-      return page_no_t{FIL_NULL};
-    }
+      return DB_CORRUPTION;
   }
 
   const auto rec = page_cur_get_rec(&page_cursor);
@@ -397,21 +399,20 @@ page_no_t Parallel_scan_partitioner::Scan_ctx::search(buf_block_t *block,
   offsets = rec_get_offsets(rec, index, offsets, n_core,
                             ULINT_UNDEFINED, &heap);
 
-  auto page_no = btr_node_ptr_get_child_page_no(rec, offsets);
+  *page_no = btr_node_ptr_get_child_page_no(rec, offsets);
 
   if (heap != nullptr)
   {
     mem_heap_free(heap);
   }
 
-  return (page_no);
+  return DB_SUCCESS;
 }
 
-page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
+dberr_t Parallel_scan_partitioner::Scan_ctx::start_range(
     page_no_t page_no, mtr_t *mtr, const dtuple_t *key,
-    Savepoints &savepoints, dberr_t *err) const {
+    Savepoints &savepoints, page_cur_t *cursor) const {
   ut_ad(index_s_own());
-  *err = DB_SUCCESS;
 
   auto index = m_config.m_index;
   page_id_t page_id(index->table->space_id, page_no);
@@ -425,8 +426,7 @@ page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
 
     if (!block) {
       /* Page fetch failed — typically tablespace corruption. */
-      *err = DB_CORRUPTION;
-      return page_cur_t{};
+      return DB_CORRUPTION;
     }
 
     height = btr_page_get_level(buf_block_get_frame(block));
@@ -435,10 +435,11 @@ page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
 
     if (height != 0 && height != m_config.m_read_level)
     {
-      page_id.set_page_no(search(block, key, err));
-      if (*err != DB_SUCCESS) {
-        return page_cur_t{};
-      }
+      page_no_t child_no;
+      if (dberr_t s_err = search(block, key, &child_no))
+        return s_err;
+
+      page_id.set_page_no(child_no);
       continue;
     }
 
@@ -447,12 +448,9 @@ page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
 
     if (key != nullptr)
     {
-      auto ps_err = pread_page_cur_search(block, index, key, PAGE_CUR_GE, &page_cursor);
-      if (ps_err != DB_SUCCESS)
-      {
-        *err = ps_err;
-        return page_cur_t{};
-      }
+      if (dberr_t ps_err = pread_page_cur_search(block, index, key,
+                                                 PAGE_CUR_GE, &page_cursor))
+        return ps_err;
     }
     else
     {
@@ -463,10 +461,7 @@ page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
     {
       rec_t *next = page_cur_move_to_next(&page_cursor);
       if (!next)
-      {
-        *err = DB_CORRUPTION;
-        return page_cur_t{};
-      }
+        return DB_CORRUPTION;
     }
 
     /* search() descends with the strict PAGE_CUR_L, which can stop one
@@ -494,53 +489,48 @@ page_cur_t Parallel_scan_partitioner::Scan_ctx::start_range(
       block = block_get_s_latched(page_id, mtr, __LINE__);
 
       if (!block)
-      {
-        *err = DB_CORRUPTION;
-        return page_cur_t{};
-      }
+        return DB_CORRUPTION;
 
       savepoints.push_back({savepoint, block});
 
       page_cur_set_before_first(block, &page_cursor);
 
       if (!page_cur_move_to_next(&page_cursor))
-      {
-        *err = DB_CORRUPTION;
-        return page_cur_t{};
-      }
+        return DB_CORRUPTION;
     }
 
-    return (page_cursor);
+    *cursor = page_cursor;
+    return DB_SUCCESS;
   }
 }
 
-void Parallel_scan_partitioner::Scan_ctx::add_range_boundary(
-  Ranges &ranges, page_cur_t &leaf_page_cursor) const {
+void Parallel_scan_partitioner::Scan_ctx::add_boundary(
+  Bounds_list &bounds_list, page_cur_t &leaf_page_cursor) const {
   leaf_page_cursor.index = m_config.m_index;
 
-  auto iter = create_iter(leaf_page_cursor);
+  auto boundary = snapshot_boundary(leaf_page_cursor);
 
   /* This boundary ends the range that is still open. */
-  if (!ranges.empty()) {
-    ut_a(ranges.back().second->m_heap == nullptr);
-    ranges.back().second = iter;
+  if (!bounds_list.empty()) {
+    ut_a(bounds_list.back().second->m_heap == nullptr);
+    bounds_list.back().second = boundary;
   }
 
   /* Open the next range here; its end is filled in by the next boundary. */
-  ranges.push_back(Range(iter, std::make_shared<Iter>()));
+  bounds_list.push_back(Bounds(boundary, std::make_shared<Boundary>()));
 }
 
-dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_bounds(
     const Scan_range &scan_range, page_no_t page_no, size_t depth,
-    const size_t split_level, Ranges &ranges, mtr_t *mtr) {
+    const size_t split_level, Bounds_list &bounds_list, mtr_t *mtr) {
   ut_ad(index_s_own());
   ut_a(page_no != FIL_NULL);
 
   /* Do a breadth first traversal of the B+Tree using recursion. We want to
-  set up the scan ranges in one pass. This guarantees that the tree structure
-  cannot change while we are creating the scan sub-ranges.
+  set up the chunk boundaries in one pass. This guarantees that the tree
+  structure cannot change while we are creating the sub-ranges.
 
-  Once we create the persistent cursor (Range) for a sub-tree we can release
+  Once we have the boundaries of a sub-tree we can release
   the latches on all blocks traversed for that sub-tree. */
 
   const auto index = m_config.m_index;
@@ -662,7 +652,8 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
       if (depth < split_level)
       {
         /* Need to create a range starting at a lower level in the tree. */
-        create_ranges(scan_range, page_no, depth + 1, split_level, ranges, mtr);
+        create_bounds(scan_range, page_no, depth + 1, split_level,
+                      bounds_list, mtr);
 
         rec_t *next = page_cur_move_to_next(&page_cursor);
         if (!next)
@@ -672,11 +663,9 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
       }
 
       /* Find the range start in the leaf node. */
-      dberr_t sr_err = DB_SUCCESS;
-      level_page_cursor = start_range(page_no, mtr, start, savepoints, &sr_err);
-      if (sr_err != DB_SUCCESS) {
+      if (dberr_t sr_err = start_range(page_no, mtr, start, savepoints,
+                                       &level_page_cursor))
         return sr_err;
-      }
     }
     else
     {
@@ -709,7 +698,7 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
 
     if (!page_rec_is_supremum(page_cur_get_rec(&level_page_cursor)))
     {
-      add_range_boundary(ranges, level_page_cursor);
+      add_boundary(bounds_list, level_page_cursor);
     }
 
     /* We've created the range, safe to release S latches on
@@ -746,7 +735,7 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_ranges(
 
 dberr_t Parallel_scan_partitioner::Scan_ctx::partition(
     const Scan_range &scan_range,
-    Parallel_scan_partitioner::Scan_ctx::Ranges &ranges,
+    Parallel_scan_partitioner::Scan_ctx::Bounds_list &bounds_list,
     size_t split_level)
 {
   ut_ad(index_s_own());
@@ -757,24 +746,25 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::partition(
 
   dberr_t err{DB_SUCCESS};
 
-  err = create_ranges(scan_range, m_config.m_index->page, 0, split_level,
-                      ranges, &mtr);
+  err = create_bounds(scan_range, m_config.m_index->page, 0, split_level,
+                      bounds_list, &mtr);
 
   /* Stamp the scan's own upper bound onto the last chunk. Whether the bound
-  itself belongs to the scan travels separately, on the Exec_ctx built from
+  itself belongs to the scan travels separately, on the Chunk built from
   this range, and reaches the clamp via pscan_chunk_clamp.reset_to(). */
-  if (err == DB_SUCCESS && scan_range.m_end != nullptr && !ranges.empty()) {
-    auto &iter = ranges.back().second;
+  if (err == DB_SUCCESS && scan_range.m_end != nullptr &&
+      !bounds_list.empty()) {
+    auto &boundary = bounds_list.back().second;
 
-    ut_a(iter->m_heap == nullptr);
+    ut_a(boundary->m_heap == nullptr);
 
-    iter->m_heap = mem_heap_create(srv_page_size / 16);
+    boundary->m_heap = mem_heap_create(srv_page_size / 16);
 
-    iter->m_tuple = dtuple_copy(scan_range.m_end, iter->m_heap);
+    boundary->m_tuple = dtuple_copy(scan_range.m_end, boundary->m_heap);
 
     /* Do a deep copy. */
-    for (size_t i = 0; i < dtuple_get_n_fields(iter->m_tuple); ++i) {
-      dfield_dup(&iter->m_tuple->fields[i], iter->m_heap);
+    for (size_t i = 0; i < dtuple_get_n_fields(boundary->m_tuple); ++i) {
+      dfield_dup(&boundary->m_tuple->fields[i], boundary->m_heap);
     }
   }
 
@@ -782,40 +772,40 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::partition(
   return (err);
 }
 
-dberr_t Parallel_scan_partitioner::Scan_ctx::create_context(const Range &range,
-                                                            bool resplit,
-                                                            bool end_inclusive)
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunk(const Bounds &bounds,
+                                                          bool resplit,
+                                                          bool end_inclusive)
 {
-  auto ctx = std::shared_ptr<Parallel_scan_partitioner::Exec_ctx>(
-    UT_NEW_NOKEY(Parallel_scan_partitioner::Exec_ctx(this, range)),
-    [](Parallel_scan_partitioner::Exec_ctx *ctx) { UT_DELETE(ctx); });
+  auto chunk = std::shared_ptr<Parallel_scan_partitioner::Chunk>(
+    UT_NEW_NOKEY(Parallel_scan_partitioner::Chunk(this, bounds)),
+    [](Parallel_scan_partitioner::Chunk *chunk) { UT_DELETE(chunk); });
 
   dberr_t err{DB_SUCCESS};
 
-  if (ctx.get() == nullptr)
+  if (chunk.get() == nullptr)
   {
     return (DB_OUT_OF_MEMORY);
   }
   else
   {
-    ctx->m_to_be_resplit = resplit;
-    ctx->m_end_inclusive = end_inclusive;
-    m_partitioner->enqueue(ctx);
+    chunk->m_to_be_resplit = resplit;
+    chunk->m_end_inclusive = end_inclusive;
+    m_partitioner->enqueue(chunk);
   }
 
   return (err);
 }
 
-dberr_t
-Parallel_scan_partitioner::Scan_ctx::create_contexts(const Ranges &ranges)
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks(
+    const Bounds_list &bounds_list)
 {
   size_t split_point{};
 
   {
     const auto n = std::max(num_workers(), size_t{1});
 
-    if (ranges.size() > n) {
-      split_point = (ranges.size() / n) * n;
+    if (bounds_list.size() > n) {
+      split_point = (bounds_list.size() / n) * n;
     } else if (m_depth < SPLIT_THRESHOLD) {
       /* If the tree is not very deep then don't split. For smaller tables
       it is more expensive to split because we end up traversing more blocks*/
@@ -825,13 +815,13 @@ Parallel_scan_partitioner::Scan_ctx::create_contexts(const Ranges &ranges)
 
   size_t i{};
 
-  for (auto range : ranges) {
+  for (auto bounds : bounds_list) {
     /* Only the last chunk ends at the caller's upper bound, so only it can
     be inclusive. */
-    const bool last = (i + 1 == ranges.size());
+    const bool last = (i + 1 == bounds_list.size());
 
-    auto err = create_context(range, i >= split_point,
-                              last && m_config.m_scan_range.m_end_inclusive);
+    auto err = create_chunk(bounds, i >= split_point,
+                            last && m_config.m_scan_range.m_end_inclusive);
 
     if (err != DB_SUCCESS) {
       return (err);
@@ -862,20 +852,20 @@ dberr_t Parallel_scan_partitioner::add_scan(
 
   scan_ctx->index_s_lock();
 
-  Parallel_scan_partitioner::Scan_ctx::Ranges ranges{};
+  Parallel_scan_partitioner::Scan_ctx::Bounds_list bounds_list{};
   dberr_t err{DB_SUCCESS};
 
   /* Split at the root node (level == 0). */
-  err = scan_ctx->partition(config.m_scan_range, ranges, 0);
+  err = scan_ctx->partition(config.m_scan_range, bounds_list, 0);
 
-  if (ranges.empty() || err != DB_SUCCESS)
+  if (bounds_list.empty() || err != DB_SUCCESS)
   {
     /* Table is empty. */
     scan_ctx->index_s_unlock();
     return (err);
   }
 
-  err = scan_ctx->create_contexts(ranges);
+  err = scan_ctx->create_chunks(bounds_list);
 
   scan_ctx->index_s_unlock();
 
@@ -904,7 +894,7 @@ void Parallel_scan_partitioner::cleanup()
 {
   if (!m_is_initialized) return;
 
-  m_ctxs.clear();
+  m_chunk_queue.clear();
   m_scan_ctxs.clear();
   m_scan_ctx_id = 0;
   m_n_workers = 0;

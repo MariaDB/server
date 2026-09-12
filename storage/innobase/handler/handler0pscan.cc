@@ -253,7 +253,7 @@ void Parallel_scan_worker::begin_chunk(Pscan_worker_ctx *wctx)
 	wctx->m_first_call = true;
 
 	const key_range* start_key =
-		get_start_key(wctx->m_exec_ctx->scan_id());
+		get_start_key(wctx->m_chunk->scan_id());
 	wctx->m_check_start = start_key != NULL;
 
 	if (start_key) {
@@ -276,7 +276,7 @@ bool Parallel_scan_worker::before_range_start(
 	up: get_next_row() must only return rows inside the
 	interval. */
 	const key_range* start_key =
-		get_start_key(wctx->m_exec_ctx->scan_id());
+		get_start_key(wctx->m_chunk->scan_id());
 	const int cmp = key_cmp(m_owner->range_key_part, start_key->key,
 				start_key->length);
 
@@ -292,7 +292,7 @@ bool Parallel_scan_worker::before_range_start(
 }
 
 const dtuple_t *Parallel_scan_worker::exclusive_start(
-	const Parallel_scan_partitioner::Exec_ctx &exec_ctx) const
+	const Parallel_scan_partitioner::Chunk &chunk) const
 {
 	/* A chunk is opened at its own first record, and that record belongs to
 	the chunk, so the open has to be PAGE_CUR_GE. That cannot express an
@@ -304,17 +304,17 @@ const dtuple_t *Parallel_scan_worker::exclusive_start(
 	HA_READ_AFTER_KEY into PAGE_CUR_G and the descent lands past them.
 
 	So do the same here, for as long as the chunk still holds the bound. */
-	const key_range *start_key = get_start_key(exec_ctx.scan_id());
+	const key_range *start_key = get_start_key(chunk.scan_id());
 	if (start_key == nullptr || start_key->flag != HA_READ_AFTER_KEY) {
 		return nullptr;
 	}
 
 	// Start bound as requested by the caller, not the actual chunk start:
-	const dtuple_t *start_bound = exec_ctx.scan_start();
+	const dtuple_t *start_bound = chunk.scan_start();
 	if (!start_bound)
 		return nullptr;
 
-	const dtuple_t *chunk_start = exec_ctx.m_range.first->m_tuple;
+	const dtuple_t *chunk_start = chunk.m_bounds.first->m_tuple;
 	const ulint n_cmp = dtuple_get_n_fields_cmp(start_bound);
 
 	ut_ad(n_cmp > 0);
@@ -392,9 +392,13 @@ int Parallel_scan_worker::init(Parallel_worker_ctx *wctx)
 	been joined. */
 	m_params = m_coord->params();
 
-	auto exec_ctx = m_coord->get_next_chunk();
-	if (exec_ctx == nullptr)
-          return HA_ERR_END_OF_FILE; // No more data
+	std::shared_ptr<Parallel_scan_partitioner::Chunk> chunk;
+	if (dberr_t err = m_coord->get_next_chunk(&chunk))
+		return convert_error_code_to_mysql(
+			err, m_owner->m_prebuilt->table->flags,
+			m_owner->m_user_thd);
+	if (chunk == nullptr)
+		return HA_ERR_END_OF_FILE; // No more data
 
 	/* Save the prebuilt-owned search_tuple: get_next_row() points
 	  m_prebuilt->search_tuple at a chunk boundary key owned by the
@@ -410,8 +414,8 @@ int Parallel_scan_worker::init(Parallel_worker_ctx *wctx)
 		     : m_owner->ha_index_init(m_params.m_keynr, /*sorted*/ false))
 		return err; // preserve HA_ERR_* (e.g. HA_ERR_TABLE_DEF_CHANGED)
 
-	worker_ctx->m_exec_ctx= exec_ctx;
-	ut_ad(exec_ctx->m_range.first->m_tuple != nullptr);
+	worker_ctx->m_chunk= chunk;
+	ut_ad(chunk->m_bounds.first->m_tuple != nullptr);
 	begin_chunk(worker_ctx);
 
 	return 0;
@@ -425,7 +429,7 @@ int Parallel_scan_worker::get_next_row(Parallel_worker_ctx *wctx)
 
 	/* Loop: when a chunk is exhausted we pull the next chunk */
 	for (;;) {
-		const auto& chunk = *worker_ctx->m_exec_ctx;
+		const auto& chunk = *worker_ctx->m_chunk;
 		dberr_t err;
 		{
 			mariadb_set_stats temp(prebuilt->trx,
@@ -437,11 +441,11 @@ int Parallel_scan_worker::get_next_row(Parallel_worker_ctx *wctx)
 				the prefetch cache stops exactly at the boundary and
 				never reads into the next chunk. NULL == +infinity. */
 				prebuilt->pscan_chunk_clamp.reset_to(
-					chunk.m_range.second->m_tuple,
+					chunk.m_bounds.second->m_tuple,
 					chunk.m_end_inclusive);
 
 				const dtuple_t *open_tuple =
-					chunk.m_range.first->m_tuple;
+					chunk.m_bounds.first->m_tuple;
 				page_cur_mode_t open_mode = PAGE_CUR_GE;
 
 				if (open_tuple == NULL) {
@@ -492,12 +496,16 @@ int Parallel_scan_worker::get_next_row(Parallel_worker_ctx *wctx)
 			return convert_error_code_to_mysql(err, prebuilt->table->flags,
 											   m_owner->m_user_thd);
 
-		auto exec_ctx = m_coord->get_next_chunk();
-		if (exec_ctx == nullptr)
+		std::shared_ptr<Parallel_scan_partitioner::Chunk> next_chunk;
+		if (dberr_t nc_err = m_coord->get_next_chunk(&next_chunk))
+			return convert_error_code_to_mysql(
+				nc_err, prebuilt->table->flags,
+				m_owner->m_user_thd);
+		if (next_chunk == nullptr)
 			return HA_ERR_END_OF_FILE; // No more data
 
-		worker_ctx->m_exec_ctx = exec_ctx;
-		ut_ad(exec_ctx->m_range.first->m_tuple != nullptr);
+		worker_ctx->m_chunk = next_chunk;
+		ut_ad(next_chunk->m_bounds.first->m_tuple != nullptr);
 		begin_chunk(worker_ctx);
 		// loop: re-enter the search for the new chunk
 	}
