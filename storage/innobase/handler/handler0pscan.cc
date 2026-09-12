@@ -115,12 +115,15 @@ int Parallel_scan_coordinator::init(size_t n_threads, uint keynr,
 	m_partitioner.initialize(n_threads);
 
 	/* One context per worker, for the SQL layer to collect and hand back
-	to the worker it belongs to. */
+	to the worker it belongs to. Each names this coordinator, which is how
+	the worker finds the scan it is joining: its own handler knows nothing
+	of the scan, and the context is the only thing it is given. */
 	m_worker_ctxs.reserve(n_threads);
 	for (size_t i = 0; i < n_threads; i++) {
 		Pscan_worker_ctx *wctx = UT_NEW_NOKEY(Pscan_worker_ctx());
 		if (wctx == nullptr)
 			return HA_ERR_OUT_OF_MEM;
+		wctx->m_coord = this;
 		m_worker_ctxs.push_back(wctx);
 	}
 
@@ -368,14 +371,17 @@ dtuple_t* Parallel_scan_coordinator::convert_key(const key_range *kr,
 	return tuple;
 }
 
-int Parallel_scan_worker::init(Parallel_worker_ctx *wctx,
-			       Parallel_scan_coordinator *coord,
-			       const Pscan_params &params)
+int Parallel_scan_worker::init(Parallel_worker_ctx *wctx)
 {
 	/* This handler may still carry state from a previous execution of the
 	same plan (correlated subquery, stored procedure loop, ...).
 	Reset it before starting over */
 	(void) end();
+
+	auto worker_ctx= static_cast<Pscan_worker_ctx*>(wctx);
+	DBUG_ASSERT(worker_ctx);
+	ut_ad(worker_ctx->m_coord);
+	m_coord = worker_ctx->m_coord;
 
 	/* The parameters were recorded on the coordinator's handler; this one
 	has never seen them. Take them before anything below reads
@@ -384,11 +390,8 @@ int Parallel_scan_worker::init(Parallel_worker_ctx *wctx,
 	index. The ranges are borrowed, not copied - they live in the
 	coordinator's range heap, which it frees only after every worker has
 	been joined. */
-	m_params = params;
-	m_coord = coord;
+	m_params = m_coord->params();
 
-	auto worker_ctx= static_cast<Pscan_worker_ctx*>(wctx);
-	DBUG_ASSERT(worker_ctx);
 	auto exec_ctx = m_coord->get_next_chunk();
 	if (exec_ctx == nullptr)
           return HA_ERR_END_OF_FILE; // No more data
@@ -593,17 +596,12 @@ void ha_innobase::parallel_get_chunk_stats(ulonglong *chunks_created,
 		*chunks_created = *chunks_resplit = 0;
 }
 
-int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx,
-				      handler *coordinator)
+int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx)
 {
-	/* The scan parameters live on the coordinator's handler, which is
-	never this one: the SQL layer opens a private TABLE, and so a private
-	handler, per worker. */
-	ut_ad(coordinator != this);
+	/* A handler plays one side of a scan or the other, never both: the
+	SQL layer opens a private TABLE, and so a private handler, per worker,
+	and this is one of those. */
 	ut_ad(!m_pscan_coord);
-
-	const ha_innobase *master = static_cast<ha_innobase*>(coordinator);
-	ut_ad(master->m_pscan_coord);
 
 	if (!m_pscan_worker) {
 		m_pscan_worker = UT_NEW_NOKEY(Parallel_scan_worker(this));
@@ -611,8 +609,7 @@ int ha_innobase::parallel_init_worker(Parallel_worker_ctx *wctx,
 			return HA_ERR_OUT_OF_MEM;
 	}
 
-	return m_pscan_worker->init(wctx, master->m_pscan_coord,
-				    master->m_pscan_coord->params());
+	return m_pscan_worker->init(wctx);
 }
 
 int ha_innobase::parallel_get_next_row(Parallel_worker_ctx *wctx)

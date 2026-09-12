@@ -43,6 +43,11 @@ it is within it. Allocated one per worker by Parallel_scan_coordinator::init(),
 handed to the SQL layer, and given back to Parallel_scan_worker::init(). */
 struct Pscan_worker_ctx : public Parallel_worker_ctx
 {
+	/** The coordinator this context was made by, and the one the worker
+	holding it takes its chunks and scan parameters from. Borrowed: it
+	outlives every worker of the scan. */
+	Parallel_scan_coordinator *m_coord{};
+
 	/** The chunk being read, held by shared_ptr because its boundary
 	tuples live in it. */
 	std::shared_ptr<Parallel_scan_partitioner::Exec_ctx> m_exec_ctx{};
@@ -198,18 +203,11 @@ public:
 	~Parallel_scan_worker() { end(); }
 
 	/** Take the first chunk and get ready to read it.
-	@param wctx    this worker's context, from
-	               Parallel_scan_coordinator::get_worker_context()
-	@param coord   the coordinator to take chunks from; it outlives every
-	               worker of the scan
-	@param params  the coordinator's scan parameters. m_keynr says which
-	               index the chunk boundaries were computed on, so it
-	               decides which index this handler must open; without it
-	               the worker would search the wrong tree - MAX_KEY, the
-	               clustered index - with the right boundaries.
+	@param wctx  this worker's context, from
+	             Parallel_scan_coordinator::get_worker_context(). It names
+	             the coordinator to take chunks and scan parameters from.
 	@return 0, HA_ERR_END_OF_FILE if no chunk was left, or an error */
-	int init(Parallel_worker_ctx *wctx, Parallel_scan_coordinator *coord,
-		 const Pscan_params &params);
+	int init(Parallel_worker_ctx *wctx);
 
 	int get_next_row(Parallel_worker_ctx *wctx);
 
