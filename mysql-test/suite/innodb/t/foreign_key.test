@@ -1094,18 +1094,25 @@ BEGIN;
 --error ER_NO_REFERENCED_ROW_2
 INSERT INTO child SET a=1;
 connection default;
---error ER_TRUNCATE_ILLEGAL_FK
+# MDEV-37365: DML on a child table now acquires MDL_SHARED_READ on the FK
+# parent as part of prelocking. Even though the INSERT above failed, the
+# transaction in con1 is still open, so its MDL_SHARED_READ on parent is
+# held until COMMIT/ROLLBACK. All DDL on parent (which needs MDL_EXCLUSIVE)
+# is now blocked at the MDL layer, resulting in ER_LOCK_WAIT_TIMEOUT
+# instead of the FK-specific errors (ER_TRUNCATE_ILLEGAL_FK,
+# ER_ROW_IS_REFERENCED_2) that were returned before MDEV-37365.
+SET lock_wait_timeout=0, innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
---error ER_ROW_IS_REFERENCED_2
+--error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE parent;
-SET innodb_lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 RENAME TABLE parent TO transparent;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
-SET innodb_lock_wait_timeout=0, foreign_key_checks=0;
+SET foreign_key_checks=0;
 --error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
 --error ER_LOCK_WAIT_TIMEOUT
@@ -1119,8 +1126,7 @@ ALTER TABLE parent ADD COLUMN b INT, ALGORITHM=INSTANT;
 connection con1;
 COMMIT;
 connection default;
-# Restore the timeout to avoid occasional races with purge.
-SET innodb_lock_wait_timeout=DEFAULT;
+SET lock_wait_timeout=DEFAULT, innodb_lock_wait_timeout=DEFAULT;
 TRUNCATE TABLE parent;
 ALTER TABLE parent FORCE, ALGORITHM=COPY;
 ALTER TABLE parent FORCE, ALGORITHM=INPLACE;
