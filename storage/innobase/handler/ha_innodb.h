@@ -513,7 +513,8 @@ protected:
 	int info_low(uint, bool);
 
 public:
-	/** Implementation of handler API for parallel scans */
+	/** Implementation of handler API for parallel scans. See description
+	of methods in handler.h */
 	uint32 parallel_scan_support() const override
 	{
 		return 	PSCAN_TABLE_FULL |
@@ -538,12 +539,8 @@ public:
 
 	/* Parallel worker methods: */
 
-	/*
-	  Start as worker doing *wctx
-	  (TODO: coordinator can be hidden in *wctx)
-	*/
-	int parallel_init_worker(Parallel_worker_ctx *wctx,
-				 handler *coordinator) override;
+	/* Start as worker doing *wctx */
+	int parallel_init_worker(Parallel_worker_ctx *wctx) override;
 
 	int parallel_end_worker() override;
 

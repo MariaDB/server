@@ -2226,8 +2226,7 @@ int pwt_worker::execute_scan_only()
   if ((err= src->file->ha_external_lock(thd, F_RDLCK)))
     DBUG_RETURN(err);
 
-  if ((err= src->file->parallel_init_worker(exec.handler_ctx,
-                                    manager->exec.scan_tab->table->file)))
+  if ((err= src->file->parallel_init_worker(exec.handler_ctx)))
     goto scan_exit;
 
   for (;;)
@@ -2387,11 +2386,10 @@ int pwt_worker::execute_and_handoff()
   /*
     src is this worker's own copy of the driving table, opened from the share by
     open_worker_tables(), so its handler is not the one the coordinator was
-    initialised on. The master's is, and it is where the scan parameters live;
-    hand it over so the worker's handler can take what it needs of them.
+    initialised on. The scan parameters live on the master's handler, and reach
+    this one through exec.handler_ctx, which the master made.
   */
-  if ((err= src->file->parallel_init_worker(exec.handler_ctx,
-                                           manager->exec.scan_tab->table->file)))
+  if ((err= src->file->parallel_init_worker(exec.handler_ctx)))
     goto exec_exit;
 
   {
