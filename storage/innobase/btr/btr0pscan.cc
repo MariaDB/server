@@ -478,19 +478,31 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::start_range(
       if (next_no == FIL_NULL)
         break;
 
+      /* Pages 0 and 1 are the tablespace header and the insert buffer bitmap,
+      never index pages, and a page cannot be its own right sibling: reject
+      both. Same check as btr_pcur_move_to_next_page(). */
+      if (next_no <= 1 || next_no == block->page.id().page_no())
+        return DB_CORRUPTION;
+
+      savepoint = mtr->get_savepoint();
+      page_id.set_page_no(next_no);
+
+      buf_block_t *next_block = block_get_s_latched(page_id, mtr, __LINE__);
+
+      if (!next_block)
+        return DB_CORRUPTION;
+
+      /* What we latched must still call this page its left sibling. */
+      if (memcmp_aligned<4>(buf_block_get_frame(next_block) + FIL_PAGE_PREV,
+                            buf_block_get_frame(block) + FIL_PAGE_OFFSET, 4))
+        return DB_CORRUPTION;
+
       /* Drop the page we are leaving: the record we want is further right */
       ut_ad(!savepoints.empty() && savepoints.back().second == block);
       mtr->release(*block);
       savepoints.pop_back();
 
-      savepoint = mtr->get_savepoint();
-      page_id.set_page_no(next_no);
-
-      block = block_get_s_latched(page_id, mtr, __LINE__);
-
-      if (!block)
-        return DB_CORRUPTION;
-
+      block = next_block;
       savepoints.push_back({savepoint, block});
 
       page_cur_set_before_first(block, &page_cursor);
