@@ -3020,6 +3020,12 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
   sum_func->setup_window_func(current_thd, win_func->window_spec);
 
   Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
+  if (type == Item_sum::PLUGIN_SUM_FUNC && sum_func->has_with_distinct())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "plugin aggregate with DISTINCT as window function");
+    return true;
+  }
 
   switch (type)
   {

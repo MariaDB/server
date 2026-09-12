@@ -513,6 +513,30 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
 }
 
 
+bool Item_sum_plugin::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+
+  if (init_sum_func_check(thd))
+    return true;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
+      return true;
+    with_flags|= args[i]->with_flags & ~item_with_t::FIELD;
+  }
+  result_field= NULL;
+  if (fix_length_and_dec(thd) || check_sum_func(thd, ref))
+    return true;
+
+  if (arg_count)
+    memcpy(orig_args, args, sizeof(Item *) * arg_count);
+  base_flags|= item_base_t::FIXED;
+  return false;
+}
+
+
 void Item_sum::mark_as_sum_func()
 {
   SELECT_LEX *cur_select= current_thd->lex->current_select;
@@ -770,8 +794,9 @@ bool Aggregator_distinct::setup(THD *thd)
 
   if (item_sum->setup(thd))
     return TRUE;
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+  if (item_sum->sum_func() == Item_sum::COUNT_FUNC ||
+      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC ||
+      item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC)
   {
     List<Item> list;
     SELECT_LEX *select_lex= thd->lex->current_select;
@@ -807,6 +832,17 @@ bool Aggregator_distinct::setup(THD *thd)
       return TRUE;
     table->file->extra(HA_EXTRA_NO_ROWS);		// Don't update rows
     table->no_rows=1;
+    if (item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC)
+    {
+      if (!(distinct_args= thd->alloc<Item *>(item_sum->get_arg_count())))
+        return TRUE;
+      for (uint i= 0; i < item_sum->get_arg_count(); i++)
+      {
+        if (!(distinct_args[i]= new (thd->mem_root)
+                                Item_field(thd, table->field[i])))
+          return TRUE;
+      }
+    }
 
     if (table->s->db_type() == heap_hton)
     {
@@ -949,8 +985,9 @@ void Aggregator_distinct::clear()
   if (tree)
     tree->reset();
   /* tree and table can be both null only if always_null */
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+  if (item_sum->sum_func() == Item_sum::COUNT_FUNC ||
+      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC ||
+      item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC)
   {
     if (!tree && table)
     {
@@ -987,8 +1024,9 @@ bool Aggregator_distinct::add()
   if (always_null)
     return 0;
 
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+  if (item_sum->sum_func() == Item_sum::COUNT_FUNC ||
+      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC ||
+      item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC)
   {
     int error;
     copy_fields(tmp_table_param);
@@ -1075,6 +1113,27 @@ void Aggregator_distinct::endup()
       sum->count= table->file->stats.records;
       endup_done= TRUE;
     }
+  }
+
+  if (!tree && table &&
+      item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC && !endup_done)
+  {
+    int error;
+    bool add_error= false;
+    use_distinct_values= true;
+    if (!(error= table->file->ha_rnd_init_with_error(true)))
+    {
+      while (!(error= table->file->ha_rnd_next(table->record[0])))
+      {
+        if ((add_error= item_sum->add()))
+          break;
+      }
+      if (!add_error && error != HA_ERR_END_OF_FILE)
+        table->file->print_error(error, MYF(0));
+      table->file->ha_rnd_end();
+    }
+    use_distinct_values= false;
+    endup_done= true;
   }
 
  /*
@@ -1900,6 +1959,13 @@ bool Aggregator_distinct::arg_is_null(bool use_null_value)
   return use_null_value ?
     item_sum->args[0]->null_value :
     (item_sum->args[0]->maybe_null() && item_sum->args[0]->is_null());
+}
+
+
+Item *Aggregator_distinct::arg_item(uint i)
+{
+  DBUG_ASSERT(i < item_sum->get_arg_count());
+  return use_distinct_values ? distinct_args[i] : item_sum->get_arg(i);
 }
 
 

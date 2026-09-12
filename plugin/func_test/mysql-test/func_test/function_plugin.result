@@ -1,0 +1,188 @@
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1), (2, 1), (NULL, 1), (3, 2);
+SELECT test_plugin_count(a) FROM t1;
+test_plugin_count(a)
+3
+SELECT b, test_plugin_count(a) FROM t1 GROUP BY b ORDER BY b;
+b	test_plugin_count(a)
+1	2
+2	1
+SELECT test_plugin_count(DISTINCT a) FROM
+(SELECT 1 AS a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT NULL) dt;
+test_plugin_count(DISTINCT a)
+2
+SELECT test_plugin_count(a) FROM t1 WHERE FALSE;
+test_plugin_count(a)
+0
+SELECT test_plugin_count(a) FROM t1 WHERE a IS NULL;
+test_plugin_count(a)
+0
+CREATE TABLE t_empty (a INT);
+SELECT test_plugin_count(a) AS count_value,
+test_plugin_first(a) AS first_value
+FROM t_empty;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					count_value	8	21	1	N	32897	0	63
+def					first_value	3	11	0	Y	32896	0	63
+count_value	first_value
+0	NULL
+CREATE TABLE t_empty_result AS
+SELECT test_plugin_count(a) AS count_value,
+test_plugin_first(a) AS first_value
+FROM t_empty;
+SHOW CREATE TABLE t_empty_result;
+Table	Create Table
+t_empty_result	CREATE TABLE `t_empty_result` (
+  `count_value` bigint(21) NOT NULL,
+  `first_value` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT count_value, first_value,
+count_value IS NULL, first_value IS NULL
+FROM t_empty_result;
+count_value	first_value	count_value IS NULL	first_value IS NULL
+0	NULL	0	1
+DROP TABLE t_empty_result, t_empty;
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT b, test_plugin_count(a)
+FROM (SELECT a, b FROM t1) AS dt
+GROUP BY b ORDER BY b;
+b	test_plugin_count(a)
+1	2
+2	1
+SET optimizer_switch= @save_optimizer_switch;
+PREPARE stmt FROM
+'SELECT test_plugin_count(a) FROM t1 WHERE b = ?';
+SET @b= 1;
+EXECUTE stmt USING @b;
+test_plugin_count(a)
+2
+SET @b= 2;
+EXECUTE stmt USING @b;
+test_plugin_count(a)
+1
+SET @b= 3;
+EXECUTE stmt USING @b;
+test_plugin_count(a)
+0
+DEALLOCATE PREPARE stmt;
+SELECT a, test_plugin_count(a) OVER (ORDER BY a) FROM t1 ORDER BY a;
+a	test_plugin_count(a) OVER (ORDER BY a)
+NULL	0
+1	1
+2	2
+3	3
+CREATE TABLE t_window (id INT, part INT, value INT);
+INSERT INTO t_window VALUES
+(1, 1, 10), (2, 1, NULL), (3, 1, 30), (4, 1, 40),
+(5, 2, NULL), (6, 2, 60);
+SELECT id, part, value,
+test_plugin_count(value) OVER (
+PARTITION BY part ORDER BY id
+ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS cnt
+FROM t_window ORDER BY id;
+id	part	value	cnt
+1	1	10	1
+2	1	NULL	2
+3	1	30	2
+4	1	40	2
+5	2	NULL	1
+6	2	60	1
+SELECT test_plugin_count(DISTINCT a) OVER () FROM t1;
+ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with DISTINCT as window function'
+SELECT sysconst_test() OVER ();
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OVER ()' at line 1
+SELECT strnxfrm(DISTINCT 'a', 1, 1, 0);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+CREATE TABLE t_uuid (id INT, grp INT, value UUID);
+INSERT INTO t_uuid VALUES
+(1, 1, NULL),
+(2, 1, '00000000-0000-0000-0000-000000000001'),
+(3, 2, '00000000-0000-0000-0000-000000000002'),
+(4, 2, NULL),
+(5, 3, NULL);
+SELECT test_plugin_first(value) FROM t_uuid WHERE grp = 1;
+test_plugin_first(value)
+00000000-0000-0000-0000-000000000001
+SELECT grp, test_plugin_first(value) FROM t_uuid GROUP BY grp ORDER BY grp;
+grp	test_plugin_first(value)
+1	00000000-0000-0000-0000-000000000001
+2	00000000-0000-0000-0000-000000000002
+3	NULL
+SELECT id, grp, test_plugin_first(value) OVER (
+PARTITION BY grp ORDER BY id
+ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS value
+FROM t_uuid ORDER BY id;
+id	grp	value
+1	1	00000000-0000-0000-0000-000000000001
+2	1	00000000-0000-0000-0000-000000000001
+3	2	00000000-0000-0000-0000-000000000002
+4	2	NULL
+5	3	NULL
+SELECT test_plugin_count(DISTINCT value) FROM t_uuid;
+test_plugin_count(DISTINCT value)
+2
+SELECT test_plugin_first(DISTINCT value) FROM
+(SELECT value FROM t_uuid WHERE id = 2
+UNION ALL
+SELECT value FROM t_uuid WHERE id = 2) AS dt;
+test_plugin_first(DISTINCT value)
+00000000-0000-0000-0000-000000000001
+SELECT test_plugin_first(DISTINCT value) =
+(SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid WHERE grp = 1;
+test_plugin_first(DISTINCT value) =
+(SELECT value FROM t_uuid WHERE id = 2)
+1
+SELECT test_plugin_first(value) IS NULL FROM t_uuid WHERE FALSE;
+test_plugin_first(value) IS NULL
+1
+SELECT test_plugin_first(value) IS NULL FROM t_uuid WHERE grp = 3;
+test_plugin_first(value) IS NULL
+1
+SELECT test_plugin_first(value) =
+(SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid WHERE grp = 1;
+test_plugin_first(value) =
+(SELECT value FROM t_uuid WHERE id = 2)
+1
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'derived_merge=off';
+SELECT value, value = (SELECT value FROM t_uuid WHERE id = 3)
+FROM
+(SELECT test_plugin_first(value) AS value
+FROM t_uuid WHERE grp = 2) AS dt;
+value	value = (SELECT value FROM t_uuid WHERE id = 3)
+00000000-0000-0000-0000-000000000002	1
+SET optimizer_switch= @save_optimizer_switch;
+CREATE TABLE t_uuid_aggregate AS
+SELECT grp, test_plugin_first(value) AS value
+FROM t_uuid GROUP BY grp;
+SHOW CREATE TABLE t_uuid_aggregate;
+Table	Create Table
+t_uuid_aggregate	CREATE TABLE `t_uuid_aggregate` (
+  `grp` int(11) DEFAULT NULL,
+  `value` uuid DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t_uuid_aggregate ORDER BY grp;
+grp	value
+1	00000000-0000-0000-0000-000000000001
+2	00000000-0000-0000-0000-000000000002
+3	NULL
+CREATE TABLE t_uuid_result (value UUID);
+INSERT INTO t_uuid_result
+SELECT test_plugin_first(value) FROM t_uuid WHERE grp = 1;
+SELECT value, value = (SELECT value FROM t_uuid WHERE id = 2)
+FROM t_uuid_result;
+value	value = (SELECT value FROM t_uuid WHERE id = 2)
+00000000-0000-0000-0000-000000000001	1
+CREATE TABLE t_blob (value TEXT);
+INSERT INTO t_blob VALUES ('a'), ('a'), ('b'), (NULL);
+SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+test_plugin_count(DISTINCT value)
+2
+SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
+test_plugin_first(DISTINCT value) IS NOT NULL
+1
+DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
+DROP TABLE t1;
