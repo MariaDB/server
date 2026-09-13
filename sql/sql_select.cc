@@ -26011,12 +26011,11 @@ join_ft_read_first(JOIN_TAB *tab)
     while ((ifm= li++))
       if (ifm->key == (uint)tab->ref.key && ifm->table == table && !ifm->master)
         break;
-    if (unlikely(!ifm))
+    if (!ifm)
       return 1;
-    if (unlikely((error= table->hlindex_init(tab->ref.key, ifm,
-                                             tab->join->select_limit))))
+    if ((error= table->hlindex_init(tab->ref.key,ifm,tab->join->select_limit)))
       return report_error(table, error);
-    if (unlikely((error= table->hlindex_read_next())))
+    if ((error= table->hlindex_read_next()))
       return report_error(table, error);
     return 0;
   }
@@ -26043,12 +26042,12 @@ join_ft_read_next(READ_RECORD *info)
 
   if (table->hli && table->hli->reading())
   {
-    if (unlikely((error= table->hlindex_read_next())))
+    if ((error= table->hlindex_read_next()))
       return report_error(table, error);
     return 0;
   }
 
-  if (unlikely((error= table->file->ha_ft_read(info->record()))))
+  if ((error= table->file->ha_ft_read(info->record())))
     return report_error(table, error);
   return 0;
 }
