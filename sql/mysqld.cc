@@ -513,6 +513,7 @@ ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong test_flags;
 ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
+my_bool opt_query_cache_use_rw_lock= 0;
 ulong executed_events=0;
 Atomic_counter<query_id_t> global_query_id;
 ulong aborted_threads, aborted_connects, aborted_connects_preauth;
@@ -1115,7 +1116,7 @@ PSI_cond_key key_BINLOG_COND_binlog_use, key_BINLOG_COND_xid_list,
   key_BINLOG_COND_bin_log_updated, key_BINLOG_COND_relay_log_updated,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
-  key_COND_cache_status_changed, key_COND_manager,
+  key_COND_cache_status_changed, key_COND_cache_read_lock, key_COND_manager,
   key_COND_rpl_status, key_COND_server_started,
   key_delayed_insert_cond, key_delayed_insert_cond_client,
   key_item_func_sleep_cond, key_master_info_data_cond,
@@ -1159,6 +1160,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_wakeup_ready, "THD::COND_wakeup_ready", 0},
   { &key_COND_wait_commit, "wait_for_commit::COND_wait_commit", 0},
   { &key_COND_cache_status_changed, "Query_cache::COND_cache_status_changed", 0},
+  { &key_COND_cache_read_lock, "Query_cache::COND_cache_read_lock", 0},
   { &key_COND_manager, "COND_manager", PSI_FLAG_GLOBAL},
   { &key_COND_server_started, "COND_server_started", PSI_FLAG_GLOBAL},
   { &key_delayed_insert_cond, "Delayed_insert::cond", 0},

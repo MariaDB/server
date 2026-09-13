@@ -3626,6 +3626,13 @@ static Sys_var_mybool Sys_query_cache_wlock_invalidate(
        SESSION_VAR(query_cache_wlock_invalidate), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_query_cache_use_rw_lock(
+       "query_cache_use_rw_lock",
+       "Use a read lock for query cache lookups to allow them to run "
+       "concurrently. If not set, all query cache access is serialized",
+       GLOBAL_VAR(opt_query_cache_use_rw_lock), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
+
 static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var)
 {
 #ifndef _WIN32

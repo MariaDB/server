@@ -1231,6 +1231,10 @@ The following specify which files/extra groups are read (specified before remain
  with SQL_CACHE or queries where all tables are created
  with SQL_CACHE=1. ALWAYS_OFF = query cache is permanently
  OFF and cannot be enabled
+ --query-cache-use-rw-lock 
+ Use a read lock for query cache lookups to allow them to
+ run concurrently. If not set, all query cache access is
+ serialized
  --query-cache-wlock-invalidate 
  Invalidate queries in query cache on LOCK for write
  --query-prealloc-size=# 
@@ -2073,6 +2077,7 @@ query-cache-min-res-unit 4096
 query-cache-size 1048576
 query-cache-strip-comments FALSE
 query-cache-type OFF
+query-cache-use-rw-lock FALSE
 query-cache-wlock-invalidate FALSE
 query-prealloc-size 32768
 range-alloc-block-size 4096

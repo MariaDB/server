@@ -19,6 +19,9 @@
 #include "hash.h"
 #include "my_base.h"                            /* ha_rows */
 
+/* Allow concurrent query cache lookups (query_cache_use_rw_lock) */
+extern my_bool opt_query_cache_use_rw_lock;
+
 class MY_LOCALE;
 struct TABLE_LIST;
 class Time_zone;
@@ -319,7 +322,18 @@ private:
   my_thread_id m_cache_lock_thread_id;
 #endif
   mysql_cond_t COND_cache_status_changed;
+  mysql_cond_t COND_cache_read_lock;     /* Threads waiting for read lock */
   uint m_requests_in_progress;
+  uint m_readers;                        /* Threads holding a read lock */
+  uint m_waiting_writers;                /* Threads waiting for write lock */
+  /*
+    Status of the cache lock. A read lock does not change
+    m_cache_lock_status; readers are counted in m_readers instead.
+    The cache is thus only unused when m_cache_lock_status == UNLOCKED
+    and m_readers == 0.
+    LOCKED_NO_WAIT is set while the whole cache is flushed or destroyed.
+    Other threads should then bypass the cache instead of waiting.
+  */
   enum Cache_lock_status { UNLOCKED, LOCKED_NO_WAIT, LOCKED };
   Cache_lock_status m_cache_lock_status;
   enum Cache_staus {OK, DISABLE_REQUEST, DISABLED};
@@ -327,6 +341,20 @@ private:
 
   void free_query_internal(Query_cache_block *point);
   void invalidate_table_internal(uchar *key, size_t key_length);
+  void unlock_internal(void);
+
+  /*
+    Wake up threads waiting for the cache lock.
+    Waiting writers have priority and are woken up one at a time.
+    If there are no waiting writers, all waiting readers are woken up.
+  */
+  inline void wake_up_waiters()
+  {
+    if (m_waiting_writers)
+      mysql_cond_signal(&COND_cache_status_changed);
+    else
+      mysql_cond_broadcast(&COND_cache_read_lock);
+  }
 
 protected:
   /*
@@ -342,6 +370,12 @@ protected:
     if it is disabled, not waiting for reset to finish.  The exception
     is other threads that were going to do cache flush---they'll wait
     till the end of a flush operation.
+
+    If query_cache_use_rw_lock is set, lookups in send_result_to_client()
+    take a shared (read) lock and can run concurrently. A read lock is
+    held when m_readers > 0, in which case m_cache_lock_status is
+    UNLOCKED. All other operations take an exclusive lock. Threads
+    waiting for an exclusive lock have priority over new readers.
   */
   mysql_mutex_t structure_guard_mutex;
   size_t additional_data_size;
@@ -545,7 +579,13 @@ protected:
 				    uint32 *db_langth);
 
   enum Cache_try_lock_mode {WAIT, TIMEOUT, TRY};
-  bool try_lock(THD *thd, Cache_try_lock_mode mode= WAIT);
+  bool try_lock(THD *thd, Cache_try_lock_mode mode= WAIT,
+                bool read_lock= false);
+  /* Take a read lock if query_cache_use_rw_lock is set */
+  inline bool try_read_lock(THD *thd, Cache_try_lock_mode mode)
+  {
+    return try_lock(thd, mode, opt_query_cache_use_rw_lock);
+  }
   void lock(THD *thd);
   void lock_and_suspend(void);
   void unlock(void);
