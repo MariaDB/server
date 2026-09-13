@@ -7525,11 +7525,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
             table->field[13]->store(tmp, strlen(tmp), cs);
           }
           else
-          {
-            /* there are no others at the moment */
-            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_VECTOR);
-            table->field[13]->store(STRING_WITH_LEN("VECTOR"), cs);
-          }
+            table->field[13]->store(key_info->type(), cs);
         }
         if (key_info->algorithm != HA_KEY_ALG_FULLTEXT &&
             (key_part->field &&
