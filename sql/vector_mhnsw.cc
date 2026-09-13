@@ -602,6 +602,11 @@ public:
     use_subdist= vec_len >= subdist_part * 2;
   }
 
+  size_t cache_size()
+  {
+    return root_size(&root);
+  }
+
   static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
   static MHNSW_Share *get_from_share(TABLE_SHARE *share, TABLE *table);
 
@@ -1792,26 +1797,6 @@ int mhnsw_bulk_insert_begin(TABLE *table, KEY *keyinfo, ha_rows rows)
   if (err && err != HA_ERR_END_OF_FILE && err != HA_ERR_KEY_NOT_FOUND)
     return err;
 
-  if (ctx->vec_len == 0)
-    ctx->set_lengths(keyinfo->key_part->field->field_length);
-
-  size_t node_alloc_size= sizeof(FVectorNode) + ctx->gref_len + ctx->tref_len +
-                          FVector::alloc_size(ctx->vec_len);
-  size_t neighborhood_alloc_size= sizeof(Neighborhood) +
-                                  sizeof(BulkLink) * MY_ALIGN(ctx->M, 4) * 2;
-
-  ulonglong estimated_mem= rows * (sizeof(FVectorNode*) + node_alloc_size +
-                                   neighborhood_alloc_size);
-
-  if (estimated_mem > mhnsw_max_cache_size)
-  {
-    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_UNKNOWN_ERROR,
-                        "MHNSW: Bulk insert disabled because estimated memory usage (%llu) "
-                        "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
-                        (ulonglong)estimated_mem, (ulonglong)mhnsw_max_cache_size);
-    return 0;
-  }
 
   uint N= std::thread::hardware_concurrency();
   if (N <= 1)
@@ -1895,6 +1880,17 @@ static int mhnsw_bulk_insert_row(TABLE *table, KEY *keyinfo)
   if (insert_dynamic(&bulk->nodes, (uchar*)&node))
     return HA_ERR_OUT_OF_MEM;
 
+  const size_t memory_usage= ctx->cache_size();
+  if (memory_usage > mhnsw_max_cache_size)
+  {
+    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_UNKNOWN_ERROR,
+                        "MHNSW: Bulk insert disabled because memory usage (%llu) "
+                        "exceeds mhnsw_max_cache_size (%llu). Falling back to normal insert.",
+                        (ulonglong)memory_usage,
+                        (ulonglong)mhnsw_max_cache_size);
+    return mhnsw_bulk_insert_end(table, keyinfo);
+  }
   return 0;
 }
 
