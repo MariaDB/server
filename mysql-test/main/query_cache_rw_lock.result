@@ -1,0 +1,90 @@
+SET @save_query_cache_size= @@global.query_cache_size;
+SET @save_query_cache_type= @@global.query_cache_type;
+SET @save_use_rw_lock=     @@global.query_cache_use_rw_lock;
+SET GLOBAL query_cache_size= 1024*1024;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1;
+a
+1
+2
+3
+# Expect 1: the query must be cached or con1 below will not stop
+# at the debug sync point
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+#
+# query_cache_use_rw_lock=1: con2 is served from the cache while
+# con1 is inside the cache lookup
+#
+SET GLOBAL query_cache_use_rw_lock= 1;
+SELECT VARIABLE_VALUE INTO @hits FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'Qcache_hits';
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC= 'in_query_cache_hit SIGNAL parked WAIT_FOR go';
+SELECT * FROM t1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR parked';
+connect  con2,localhost,root,,test;
+SELECT * FROM t1;
+a
+1
+2
+3
+disconnect con2;
+connection default;
+# Expect 1: con2 was served from the query cache
+SELECT VARIABLE_VALUE - @hits AS hits FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'Qcache_hits';
+hits
+1
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+a
+1
+2
+3
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+#
+# query_cache_use_rw_lock=0: con2 has to bypass the cache as con1
+# holds the cache lock
+#
+SET GLOBAL query_cache_use_rw_lock= 0;
+SELECT VARIABLE_VALUE INTO @hits FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'Qcache_hits';
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC= 'in_query_cache_hit SIGNAL parked WAIT_FOR go';
+SELECT * FROM t1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR parked';
+connect  con2,localhost,root,,test;
+SELECT * FROM t1;
+a
+1
+2
+3
+disconnect con2;
+connection default;
+# Expect 0: con2 timed out on the lock and ran the query itself
+SELECT VARIABLE_VALUE - @hits AS hits FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'Qcache_hits';
+hits
+0
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+a
+1
+2
+3
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+SET GLOBAL query_cache_use_rw_lock= @save_use_rw_lock;
+SET GLOBAL query_cache_type= @save_query_cache_type;
+SET GLOBAL query_cache_size= @save_query_cache_size;

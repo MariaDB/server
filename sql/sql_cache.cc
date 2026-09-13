@@ -588,18 +588,21 @@ void fix_local_query_cache_mode(THD *thd)
   effect by another thread. This enables a quick path in execution to skip waits
   when the outcome is known.
 
-  @param mode TIMEOUT the lock can abort because of a timeout
-              TRY the lock can abort because it is locked now
-              WAIT wait for lock (default)
+  @param mode      TIMEOUT the lock can abort because of a timeout
+                   TRY the lock can abort because it is locked now
+                   WAIT wait for lock (default)
+  @param read_lock If set, take a shared lock that allows other readers.
+                   Otherwise take an exclusive lock.
 
   @note mode is optional and default value is WAIT.
 
   @return
-   @retval FALSE An exclusive lock was taken
+   @retval FALSE A lock was taken
    @retval TRUE The locking attempt failed
 */
 
-bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
+bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode,
+                           bool read_lock)
 {
   bool interrupt= TRUE;
   Query_cache_wait_state wait_state(thd, __func__, __FILE__, __LINE__);
@@ -617,14 +620,30 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
 
   while (1)
   {
+    mysql_cond_t *cond;
+    int res= 0;
+
     if (m_cache_lock_status == Query_cache::UNLOCKED)
     {
-      m_cache_lock_status= Query_cache::LOCKED;
+      if (likely(read_lock))
+      {
+        /* Waiting writers have priority over new readers */
+        if (!m_waiting_writers)
+        {
+          m_readers++;
+          interrupt= FALSE;
+          break;
+        }
+      }
+      else if (!m_readers)
+      {
+        m_cache_lock_status= Query_cache::LOCKED;
 #ifndef DBUG_OFF
-      m_cache_lock_thread_id= thd->thread_id;
+        m_cache_lock_thread_id= thd->thread_id;
 #endif
-      interrupt= FALSE;
-      break;
+        interrupt= FALSE;
+        break;
+      }
     }
     else if (m_cache_lock_status == Query_cache::LOCKED_NO_WAIT)
     {
@@ -634,38 +653,52 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
       */
       break;
     }
+    /* Locked exclusively, held by readers or wanted by a writer */
+    DBUG_ASSERT(m_cache_lock_status == Query_cache::LOCKED ||
+                m_readers || m_waiting_writers);
+
+    if (likely(read_lock))
+      cond= &COND_cache_read_lock;
     else
     {
-      DBUG_ASSERT(m_cache_lock_status == Query_cache::LOCKED);
+      cond= &COND_cache_status_changed;
+      m_waiting_writers++;
+    }
+    /*
+      To prevent send_result_to_client() and query_cache_insert() from
+      blocking execution for too long a timeout is put on the lock.
+    */
+    if (mode == WAIT)
+      mysql_cond_wait(cond, &structure_guard_mutex);
+    else if (mode == TIMEOUT)
+    {
+      struct timespec waittime;
+      set_timespec_nsec(waittime,50000000UL);  /* Wait for 50 msec */
+      res= mysql_cond_timedwait(cond, &structure_guard_mutex, &waittime);
+    }
+    else
+    {
       /*
-        To prevent send_result_to_client() and query_cache_insert() from
-        blocking execution for too long a timeout is put on the lock.
+        If we are here, then mode is == TRY and there was someone else
+        using the query cache. Handle it as an immediate timeout.
       */
-      if (mode == WAIT)
+      DBUG_ASSERT(m_requests_in_progress > 1);
+      DBUG_ASSERT(mode == TRY);
+      res= ETIMEDOUT;
+    }
+    if (!read_lock)
+    {
+      m_waiting_writers--;
+      if (res == ETIMEDOUT)
       {
-        mysql_cond_wait(&COND_cache_status_changed, &structure_guard_mutex);
-      }
-      else if (mode == TIMEOUT)
-      {
-        struct timespec waittime;
-        set_timespec_nsec(waittime,50000000UL);  /* Wait for 50 msec */
-        int res= mysql_cond_timedwait(&COND_cache_status_changed,
-                                      &structure_guard_mutex, &waittime);
-        if (res == ETIMEDOUT)
-          break;
-      }
-      else
-      {
-        /**
-          If we are here, then mode is == TRY and there was someone else using
-          the query cache. (m_cache_lock_status != Query_cache::UNLOCKED).
-          Signal that we didn't get a lock.
-        */
-        DBUG_ASSERT(m_requests_in_progress > 1);
-        DBUG_ASSERT(mode == TRY);
+        /* Readers may have been held back only because of this writer */
+        if (m_cache_lock_status == Query_cache::UNLOCKED)
+          wake_up_waiters();
         break;
       }
     }
+    else if (res == ETIMEDOUT)
+      break;
   }
   if (interrupt)
     m_requests_in_progress--;
@@ -694,8 +727,12 @@ void Query_cache::lock_and_suspend(void)
 
   mysql_mutex_lock(&structure_guard_mutex);
   m_requests_in_progress++;
-  while (m_cache_lock_status != Query_cache::UNLOCKED)
+  while (m_cache_lock_status != Query_cache::UNLOCKED || m_readers)
+  {
+    m_waiting_writers++;
     mysql_cond_wait(&COND_cache_status_changed, &structure_guard_mutex);
+    m_waiting_writers--;
+  }
   m_cache_lock_status= Query_cache::LOCKED_NO_WAIT;
 #ifndef DBUG_OFF
   /* Here thd may not be set during shutdown */
@@ -704,6 +741,7 @@ void Query_cache::lock_and_suspend(void)
 #endif
   /* Wake up everybody, a whole cache flush is starting! */
   mysql_cond_broadcast(&COND_cache_status_changed);
+  mysql_cond_broadcast(&COND_cache_read_lock);
   mysql_mutex_unlock(&structure_guard_mutex);
 
   DBUG_VOID_RETURN;
@@ -725,8 +763,12 @@ void Query_cache::lock(THD *thd)
   mysql_mutex_lock(&structure_guard_mutex);
   m_requests_in_progress++;
   fix_local_query_cache_mode(thd);
-  while (m_cache_lock_status != Query_cache::UNLOCKED)
+  while (m_cache_lock_status != Query_cache::UNLOCKED || m_readers)
+  {
+    m_waiting_writers++;
     mysql_cond_wait(&COND_cache_status_changed, &structure_guard_mutex);
+    m_waiting_writers--;
+  }
   m_cache_lock_status= Query_cache::LOCKED;
 #ifndef DBUG_OFF
   m_cache_lock_thread_id= thd->thread_id;
@@ -738,24 +780,49 @@ void Query_cache::lock(THD *thd)
 
 
 /**
-  Set the query cache to UNLOCKED and signal waiting threads.
+  Release the query cache lock and signal waiting threads.
 */
 
 void Query_cache::unlock(void)
 {
   DBUG_ENTER("Query_cache::unlock");
   mysql_mutex_lock(&structure_guard_mutex);
+  unlock_internal();
+  mysql_mutex_unlock(&structure_guard_mutex);
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Release a read or an exclusive query cache lock.
+  A read lock is held if m_cache_lock_status is UNLOCKED.
+
+  @note structure_guard_mutex must be locked by the caller.
+*/
+
+void Query_cache::unlock_internal(void)
+{
+  DBUG_ENTER("Query_cache::unlock_internal");
+  mysql_mutex_assert_owner(&structure_guard_mutex);
+  if (m_cache_lock_status == Query_cache::UNLOCKED)
+  {
+    /* Release of a read lock */
+    DBUG_ASSERT(m_readers > 0);
+    if (!--m_readers && m_waiting_writers)
+      mysql_cond_signal(&COND_cache_status_changed);
+  }
+  else
+  {
 #ifndef DBUG_OFF
-  /* Thd may not be set in resize() at mysqld start */
-  THD *thd= current_thd;
-  if (thd)
-    DBUG_ASSERT(m_cache_lock_thread_id == thd->thread_id);
+    /* Thd may not be set in resize() at mysqld start */
+    THD *thd= current_thd;
+    if (thd)
+      DBUG_ASSERT(m_cache_lock_thread_id == thd->thread_id);
 #endif
-  DBUG_ASSERT(m_cache_lock_status == Query_cache::LOCKED ||
-              m_cache_lock_status == Query_cache::LOCKED_NO_WAIT);
-  m_cache_lock_status= Query_cache::UNLOCKED;
-  DBUG_PRINT("Query_cache",("Sending signal"));
-  mysql_cond_signal(&COND_cache_status_changed);
+    m_cache_lock_status= Query_cache::UNLOCKED;
+    DBUG_PRINT("Query_cache",("Sending signal"));
+    wake_up_waiters();
+  }
   DBUG_ASSERT(m_requests_in_progress > 0);
   m_requests_in_progress--;
   if (m_requests_in_progress == 0 && m_cache_status == DISABLE_REQUEST)
@@ -764,7 +831,6 @@ void Query_cache::unlock(void)
     free_cache();
     m_cache_status= DISABLED;
   }
-  mysql_mutex_unlock(&structure_guard_mutex);
   DBUG_VOID_RETURN;
 }
 
@@ -1759,6 +1825,8 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   size_t tot_length;
   Query_cache_query_flags flags;
   const char *sql, *sql_end, *found_brace= 0, *cache_pos;
+  uchar invalidate_key[FN_REFLEN];
+  size_t invalidate_key_length= 0;
   DBUG_ENTER("Query_cache::send_result_to_client");
 
   /* Tested by caller */
@@ -2015,13 +2083,14 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
 	 (uchar*) &flags, QUERY_CACHE_FLAGS_SIZE);
 
   /*
-    Try to obtain an exclusive lock on the query cache. If the cache is
-    disabled or if a full cache flush is in progress, the attempt to
-    get the lock is aborted.
+    Try to obtain a lock on the query cache. This is a read lock if
+    query_cache_use_rw_lock is set, otherwise an exclusive lock.
+    If the cache is disabled or if a full cache flush is in progress,
+    the attempt to get the lock is aborted.
 
     The TIMEOUT parameter indicate that the lock is allowed to timeout.
   */
-  if (try_lock(thd, Query_cache::TIMEOUT))
+  if (try_read_lock(thd, Query_cache::TIMEOUT))
     goto err;
 
   if (query_cache_size == 0)
@@ -2056,7 +2125,7 @@ lookup:
     unlock();
     if (wsrep_sync_wait(thd))
       goto err;
-    if (try_lock(thd, Query_cache::TIMEOUT))
+    if (try_read_lock(thd, Query_cache::TIMEOUT))
       goto err;
     once_more= false;
     goto lookup;
@@ -2182,8 +2251,28 @@ lookup:
                      ("Handler require invalidation queries of %.*s %llu-%llu",
                       (int)qcache_se_key_len, qcache_se_key_name,
                       engine_data, table->engine_data()));
-          invalidate_table_internal((uchar *) table->db(),
-                                    table->key_length());
+          /*
+            m_cache_lock_status cannot change while we hold the lock:
+            it is UNLOCKED if we have a read lock.
+          */
+          if (m_cache_lock_status != Query_cache::UNLOCKED)
+          {
+            /* Exclusive lock, invalidate directly */
+            invalidate_table_internal((uchar *) table->db(),
+                                      table->key_length());
+          }
+          else
+          {
+            /*
+              A read lock does not allow us to change the cache.
+              Invalidate after unlock() in err_unlock. The key must be
+              copied as the table block can be freed or moved as soon
+              as we release the lock.
+            */
+            invalidate_key_length= table->key_length();
+            DBUG_ASSERT(invalidate_key_length <= sizeof(invalidate_key));
+            memcpy(invalidate_key, table->db(), invalidate_key_length);
+          }
         }
         else
         {
@@ -2207,10 +2296,30 @@ lookup:
       DBUG_PRINT("qcache", ("handler allow caching %s,%s",
 			    table_list.db.str, table_list.alias.str));
   }
-  move_to_query_list_end(query_block);
-  hits++;
-  query->increment_hits();
-  unlock();
+  DEBUG_SYNC(thd, "in_query_cache_hit");
+  if (m_cache_lock_status == Query_cache::UNLOCKED)
+  {
+    /*
+      We have a read lock and other readers may run here at the same
+      time. The query list and the statistics are therefore updated
+      under structure_guard_mutex, which is also needed to release the
+      lock.
+    */
+    mysql_mutex_lock(&structure_guard_mutex);
+    move_to_query_list_end(query_block);
+    hits++;
+    query->increment_hits();
+    unlock_internal();
+    mysql_mutex_unlock(&structure_guard_mutex);
+  }
+  else
+  {
+    /* We have a write lock; No other thread can be here */
+    move_to_query_list_end(query_block);
+    hits++;
+    query->increment_hits();
+    unlock();
+  }
 
   /*
     Send cached result to client
@@ -2264,6 +2373,13 @@ lookup:
 
 err_unlock:
   unlock();
+  /*
+    invalidate_key_length is only set if an engine told us, while we had
+    a read lock, that the cached queries for a table must be removed.
+    The invalidation is done here as it requires a write lock.
+  */
+  if (unlikely(invalidate_key_length))
+    invalidate_table(thd, invalidate_key, invalidate_key_length);
   MYSQL_QUERY_CACHE_MISS(thd->query());
   /*
     query_plan_flags doesn't have to be changed here as it contains
@@ -2571,9 +2687,11 @@ void Query_cache::destroy()
     unlock();
 
     mysql_cond_destroy(&COND_cache_status_changed);
+    mysql_cond_destroy(&COND_cache_read_lock);
     mysql_mutex_destroy(&structure_guard_mutex);
     initialized = 0;
     DBUG_ASSERT(m_requests_in_progress == 0);
+    DBUG_ASSERT(m_readers == 0 && m_waiting_writers == 0);
   }
   DBUG_VOID_RETURN;
 }
@@ -2598,9 +2716,11 @@ void Query_cache::init()
                    &structure_guard_mutex, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_cache_status_changed,
                   &COND_cache_status_changed, NULL);
+  mysql_cond_init(key_COND_cache_read_lock, &COND_cache_read_lock, NULL);
   m_cache_lock_status= Query_cache::UNLOCKED;
   m_cache_status= Query_cache::OK;
   m_requests_in_progress= 0;
+  m_readers= m_waiting_writers= 0;
   initialized = 1;
   /*
     Using state_map from latin1 should be fine in all cases:
