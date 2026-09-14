@@ -1,0 +1,50 @@
+replace_result InnoDB MyISAM;
+set sql_mode=oracle;
+
+--delimiter $$
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.getRootElement();
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.getRootElement();
+
+  x:= '<node1 aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</node1>';
+  SELECT x.getRootElement();
+END;
+$$
+
+--error ER_WRONG_VALUE
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= 'xxxx';
+  SELECT x.getRootElement();
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getRootElement();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getRootElement(1);
+END;
+$$
+
+--delimiter ;

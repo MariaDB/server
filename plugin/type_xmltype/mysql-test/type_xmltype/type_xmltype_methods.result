@@ -1,0 +1,48 @@
+set sql_mode=oracle;
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+x:= '<node1 aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</node1>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+x.getRootElement()
+node1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getRootElement();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: 'xxxx'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getRootElement ; expected 0, got 1
