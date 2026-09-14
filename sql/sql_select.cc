@@ -27393,7 +27393,8 @@ convert_heap_to_aria_update(JOIN *join, JOIN_TAB *join_tab,
   if (create_internal_tmp_table_from_heap(join->thd, table,
                                      join_tab->tmp_table_param->start_recinfo,
                                           &join_tab->tmp_table_param->recinfo,
-                                          error, 1, &is_duplicate, NULL))
+                                          error, 1, &is_duplicate, NULL,
+                                      join_tab->tmp_table_param->cross_thread))
     return -1;
   DBUG_ASSERT(is_duplicate);
   table->file->get_dup_key(HA_ERR_FOUND_DUPP_KEY);
@@ -27480,7 +27481,8 @@ enum_nested_loop_state end_update(JOIN *join, JOIN_TAB *join_tab,
     if (create_internal_tmp_table_from_heap(join->thd, table,
                                        join_tab->tmp_table_param->start_recinfo,
                                             &join_tab->tmp_table_param->recinfo,
-                                            error, 0, &is_duplicate, NULL))
+                                            error, 0, &is_duplicate, NULL,
+                                            join_tab->tmp_table_param->cross_thread))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
     if (unlikely((error= table->file->ha_index_init(0, 0))))

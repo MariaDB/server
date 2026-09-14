@@ -170,32 +170,33 @@ struct pwt_worker_execution
   uint                  n_tables;
   /*
     This worker's private result container: a tmp table whose columns are the
-    base-table columns the query reads (built in init_parallel_workers from the
-    manager's layout), and the column descriptions it was built from. What the
-    worker does with it is the transport's business: the batch transport uses
-    only its record buffer and fields, projecting the cloned column list into
-    record[0] with Item::save_in_field and shipping those bytes, while the
-    temporary-table transport keeps the row by writing it through the engine.
+    base-table columns the query reads, and the column descriptions it was
+    built from. The worker writes its finished rows into it through the engine
+    and the manager reads the table back.
+
+    Ordinarily the worker projects its cloned column list into record[0]
+    and writes a row per joined row.
+    When the query pre-aggregates, this is also the worker's grouping table,
+    keyed on the GROUP BY: the server's own end_update() writes it,
+    one row per group of this worker's chunk, and the aggregates accumulate
+    into its partial columns.
+
+    Either way the manager reads one container, so a pre-aggregating
+    worker has nothing to ship at the end, its rows are already where the
+    manager will look. Built in init_parallel_workers() from the manager's
+    layout, or by setup_worker_preagg() from the worker's own item list where
+    the two have to agree column for column.
   */
   pwt_row_container     result;
   /*
-    Pre-aggregation: this worker's own grouping table, keyed on the GROUP BY,
-    holding one row per group of its chunk rather than one per source row. The
-    projection goes here and the aggregates accumulate into its partial
-    columns; at end of records the worker scans it and ships a row per group
-    through 'result' like any other. Empty container when the query does not
-    pre-aggregate.
-  */
-  pwt_row_container     group_container;
-  /*
     This worker's clones of the query's aggregates, accumulating into the
-    partial columns of group_container rather than into themselves, the same
+    partial columns of 'result' rather than into themselves, the same
     binding create_tmp_table() makes for the query's own aggregates, and what
     reset_field() and update_field() read and write. layout.n_sums of them.
   */
   Item_sum              **sums;
   /*
-    Its own copy of the group key, pointed at group_container's columns,
+    Its own copy of the group key, pointed at the container's columns,
     and the key buffer create_tmp_table() built alongside.
     Every worker needs a copy: an ORDER entry carries the key field and its
     offset in that buffer, so an entry belongs to one table.
@@ -306,8 +307,6 @@ public:
   int execute_scan_only();
   int emit_scanned_row();
   // END PROTOTYPE
-  /* Ship one row per group once the chunk is done. */
-  int flush_groups();
 };
 
 
