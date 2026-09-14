@@ -30,20 +30,21 @@
 class hlindex : public Sql_alloc
 {
 public:
+  TABLE *table;
   hlindex(TABLE *t) : table(t) { }
+  virtual ~hlindex();
 
-  virtual int insert_row(TABLE *tbl, KEY *keyinfo) = 0;
   virtual int read_init(TABLE *tbl, KEY *keyinfo, Item *dist, ulonglong limit) = 0;
   virtual int read_next(TABLE *tbl) = 0;
   virtual int read_end(TABLE *tbl) = 0;
-  virtual int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) = 0;
-// XXX why delete_row needs rec? insert doesn't
-// because insert is always record[0], but update uses record[1]
-  virtual int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) = 0;
-  virtual bool reading() = 0;
-  virtual ~hlindex();
 
-  TABLE *table;
+  virtual int insert_row(TABLE *tbl, KEY *keyinfo) = 0;
+  virtual int delete_row(TABLE *tbl, const uchar *rec, KEY *keyinfo) = 0;
+  virtual int delete_all(TABLE *tbl, KEY *keyinfo, bool truncate) = 0;
+
+  virtual bool reading() = 0;
+  //virtual double get_current_row_value()         { return -1; }
+  //virtual double get_row_value(const uchar *rec) { return -1; }
 };
 
 class hlindex_share : public Sql_alloc

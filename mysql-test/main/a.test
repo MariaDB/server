@@ -6,10 +6,10 @@ create table t1 (a text, fulltext (a) using table);
 show create table t1;
 drop table t1;
 
-let collation=utf8mb3_unicode_ci;
+let collation=utf8mb4_unicode_ci;
 --source include/have_collation.inc
 
-set old_mode='UTF8_IS_UTF8MB3';
+set old_mode='';
 
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
@@ -18,7 +18,7 @@ create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a)
 --error ER_NOT_SUPPORTED_YET
 create table t1 (a text not null, b varchar(10) not null, fulltext(b), fulltext (a));
 
-#set old_mode='UTF8_IS_UTF8MB3,FULLTEXT_USING_ENGINE';
+#set old_mode='FULLTEXT_USING_ENGINE';
 
 create table t1 (a text not null, fulltext (a));
 show create table t1;

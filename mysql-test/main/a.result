@@ -14,7 +14,7 @@ t1	CREATE TABLE `t1` (
   FULLTEXT KEY `a` (`a`) USING TABLE
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
-set old_mode='UTF8_IS_UTF8MB3';
+set old_mode='';
 create table t1 (a text not null, b vector(10) not null, fulltext (a), vector(b));
 ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR/FULLTEXT indexes'
 create table t1 (a text not null, b vector(10) not null, vector(b), fulltext (a));
