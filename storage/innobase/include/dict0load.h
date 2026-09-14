@@ -90,6 +90,11 @@ dict_load_foreigns(
 	bool			check_charsets,	/*!< in: whether to check
 						charset compatibility */
 	dict_err_ignore_t	ignore_err,	/*!< in: error to be ignored */
+	mem_heap_t*		fk_heap,	/*!< in: heap on which the
+						names appended to fk_tables
+						are allocated; must remain
+						valid until fk_tables has
+						been drained by the caller */
 	dict_names_t&		fk_tables)	/*!< out: stack of table names
 						which must be loaded
 						subsequently to load all the
