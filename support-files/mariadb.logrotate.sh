@@ -45,9 +45,9 @@
   # has thanks to the default use of Unix socket authentication for the 'mysql'
   # (or root on Debian) account used everywhere since MariaDB 10.4.
   postrotate
-    if test -r /etc/mysql/debian.cnf
+    if test -r /etc/mariadb/debian.cnf
     then
-      EXTRAPARAM='--defaults-file=/etc/mysql/debian.cnf'
+      EXTRAPARAM='--defaults-file=/etc/mariadb/debian.cnf'
     fi
 
     if test -x @bindir@/mariadb-admin
