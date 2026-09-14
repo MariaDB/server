@@ -808,6 +808,74 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunk(const Bounds &bounds,
   return (err);
 }
 
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks_unsplit()
+{
+  size_t i{};
+
+  for (auto bounds : m_bounds_list) {
+    const bool last = (i + 1 == m_bounds_list.size());
+
+    if (dberr_t err= create_chunk(bounds, false,
+                                  last && m_config.m_scan_range.m_end_inclusive))
+      return err;
+
+    ++i;
+  }
+
+  m_bounds_list.clear();
+  m_bounds_list.shrink_to_fit();
+
+  return DB_SUCCESS;
+}
+
+
+dberr_t Parallel_scan_partitioner::Scan_ctx::partition_deeper()
+{
+  if (m_bounds_list.empty())
+    return DB_SUCCESS;
+
+  Bounds_list deeper{};
+
+  index_s_lock();
+  dberr_t err= partition(m_config.m_scan_range, deeper, 1);
+  index_s_unlock();
+
+  if (err != DB_SUCCESS)
+    return err;
+  if (deeper.empty())
+    return DB_SUCCESS;                /* keep what level 0 found */
+
+  /* partition() stamps the range's own upper bound onto the last boundary it
+  produces, so the deeper walk ends exactly where the shallower one did. */
+  m_bounds_list.swap(deeper);
+  return DB_SUCCESS;
+}
+
+
+void Parallel_scan_partitioner::Scan_ctx::coalesce_bounds(size_t target)
+{
+  if (target < 1)
+    target= 1;
+  if (m_bounds_list.size() <= target)
+    return;
+
+  /* Floor, not ceiling: rounding the stride up makes ceil(size/stride) runs,
+  which for a size just over the target collapses to half of it. Rounding down
+  overshoots instead, bounded by twice the target. */
+  const size_t m= std::max(m_bounds_list.size() / target, size_t{1});
+  Bounds_list merged{};
+
+  for (size_t i= 0; i < m_bounds_list.size(); i+= m)
+  {
+    const size_t last= std::min(i + m, m_bounds_list.size()) - 1;
+    merged.push_back(Bounds(m_bounds_list[i].first,
+                            m_bounds_list[last].second));
+  }
+
+  m_bounds_list.swap(merged);
+}
+
+
 dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks()
 {
   size_t split_point{};
@@ -890,23 +958,65 @@ dberr_t Parallel_scan_partitioner::add_scan(
 
 dberr_t Parallel_scan_partitioner::create_chunks()
 {
-  /* Turn every range's boundaries into chunks, in the order the ranges were
-  added, which is key order.
+  /* A scan of one range keeps the lazy division it has always had: level 0
+  finds a sub-tree or two, they are tagged, and the worker that takes one
+  splits it when it gets there. Nothing about that is wrong for one range --
+  there is only one thing to divide and it gets the whole worker count.
 
-  This is where the split of a multiple-range scan should be decided as a
-  whole, and it is not yet: each range still decides for itself, in
-  Scan_ctx::create_chunks(), exactly as it did when that call was made from
-  add_scan(). Splitting the two phases apart is what makes the decision
-  possible to move; moving it needs a measure of how much work a range holds,
-  and the boundaries a level-0 walk produces are not one. A range narrower
-  than a sub-tree of the root -- which is most range scans -- yields a single
-  boundary whether it covers ten rows or a hundred thousand, so counting
-  boundaries says nothing about size, and dividing the scan by that count
-  either leaves a large range on one worker or cuts small ranges into pieces
-  that cost more to hand out than to scan. Both were measured. */
+  A scan of several ranges cannot be divided that way, because each range
+  would answer for itself and none of them can see the others. Ranges are not
+  the same size and there is no reason they should be: ten of them are ten
+  pieces of one scan, not ten scans. Asked separately, each compares itself
+  against the worker count, finds itself short, and tags what it has; the
+  splits that follow are per range as well, so the queue ends up holding
+  several times the chunks the scan needed, without dividing the work any more
+  evenly than one range does.
+
+  So for those, the work is measured first and divided afterwards. Walking one
+  level further down gives a boundary per page, and a page is the unit the
+  measure needs: how many of them a range covers is how much work it holds,
+  which the sub-trees a level-0 walk finds cannot say -- a range narrower than
+  one of those yields a single boundary whether it holds ten rows or a hundred
+  thousand. With every range measured in the same unit, the chunks the scan
+  should have are shared out in proportion, and each range coalesces its own
+  boundaries down to its share. Nothing is tagged: the division is already
+  done, and it was done knowing the sizes. */
+
+  if (m_scan_ctxs.size() < 2)
+  {
+    for (auto &scan_ctx : m_scan_ctxs) {
+      if (dberr_t err = scan_ctx->create_chunks())
+        return err;
+    }
+    return DB_SUCCESS;
+  }
+
+  size_t total_pages{};
+  for (auto &scan_ctx : m_scan_ctxs) {
+    if (dberr_t err = scan_ctx->partition_deeper())
+      return err;
+    total_pages += scan_ctx->n_bounds();
+  }
+
+  if (total_pages == 0)
+    return DB_SUCCESS;
+
+  /* Twice the worker count, as a whole-scan budget rather than a target each
+  range aims at on its own. Twice, because a chunk is never divided again
+  here, so the slack for a range whose rows are skewed inside it has to come
+  from having more chunks than workers. */
+  const size_t budget= std::max(2 * num_workers(), size_t{2});
 
   for (auto &scan_ctx : m_scan_ctxs) {
-    if (dberr_t err = scan_ctx->create_chunks())
+    const size_t pages= scan_ctx->n_bounds();
+
+    /* Its share, rounded up so that a range too small for one is still given
+    one -- it has rows in it, and they have to be scanned by somebody. */
+    const size_t share= (pages * budget + total_pages - 1) / total_pages;
+
+    scan_ctx->coalesce_bounds(std::max(share, size_t{1}));
+
+    if (dberr_t err = scan_ctx->create_chunks_unsplit())
       return err;
   }
 
