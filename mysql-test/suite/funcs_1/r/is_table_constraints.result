@@ -74,6 +74,7 @@ def	mysql	PRIMARY	mysql	help_relation
 def	mysql	name	mysql	help_topic
 def	mysql	PRIMARY	mysql	help_topic
 def	mysql	PRIMARY	mysql	index_stats
+def	mysql	innodb_index_stats_stat_value_defined	mysql	innodb_index_stats
 def	mysql	PRIMARY	mysql	innodb_index_stats
 def	mysql	PRIMARY	mysql	innodb_table_stats
 def	mysql	PRIMARY	mysql	plugin
