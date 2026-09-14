@@ -1466,7 +1466,6 @@ void pwt_manager::free_containers(THD *thd)
   for (uint i= 0; i < nworkers(); i++)
   {
     layout.free_container(thd, &workers[i]->exec.result);
-    layout.free_container(thd, &workers[i]->exec.group_container);
   }
   /*
     The sort result reads through the container, so it goes first. Both are
@@ -1905,12 +1904,13 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   }
 
   /*
-    Then this worker's own aggregates. Cloned, and their argument cloned and
-    rebound separately, by the same route the row transport rebinds any
-    expression: the aggregate must not go through fix_fields() again, because
+    Then this worker's own aggregate Items. Cloned, and their arguments
+    cloned and rebound separately, by the same route the row transport
+    rebinds any expression.
+    The aggregate must not go through fix_fields() again, because
     Item_sum::fix_fields() registers it with the select_lex the manager is also
     using. So the shell is copied, the rebound argument is grafted in, and
-    setup_caches() rebuilds whatever the shell derived from the old argument --
+    setup_caches() rebuilds whatever the shell derived from the old argument
     for MIN and MAX the Item_cache pair and the comparator bound to them.
   */
   if (!(worker->exec.sums= thd->alloc<Item_sum*>(layout.n_sums + 1)))
@@ -1922,13 +1922,14 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
     Item *item_clone= layout.mgr_sums[i]->deep_copy_with_checks(thd);
     if (!item_clone)
       return true;
-    Item_sum *item_sum= (Item_sum *) item_clone;
 
+    Item_sum *item_sum= (Item_sum *) item_clone;
     Item *arg= pwt_clone_rebind(thd, layout.mgr_sums[i]->get_arg(0),
                                 exec.tables, worker->exec.tables,
                                 exec.n_tables);
     if (!arg)
       return true;
+
     item_sum->arguments()[0]= arg;
     item_sum->get_orig_args()[0]= arg;
     item_sum->setup_caches(thd);
@@ -1939,8 +1940,10 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
     */
     if (item_sum->set_aggregator(thd, Aggregator::SIMPLE_AGGREGATOR))
       return true;
+
     if (defn.push_back(item_sum, thd->mem_root))
       return true;
+
     worker->exec.sums[i]= item_sum;
   }
 
@@ -1953,37 +1956,39 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   ORDER *group= thd->calloc<ORDER>(layout.n_group);
   if (!group)
     return true;
+
+  for (uint k= 0; k < layout.n_group; k++)
   {
-    for (uint k= 0; k < layout.n_group; k++)
-    {
-      List_iterator_fast<Item> di(defn);
-      Item *it= nullptr;
-      for (uint j= 0; j <= layout.group_pos[k]; j++)
-        it= di++;
-      group[k].item_ptr=  it;
-      group[k].item=      &group[k].item_ptr;
-      group[k].direction= ORDER::ORDER_ASC;
-      group[k].next=      k + 1 < layout.n_group ? &group[k + 1] : nullptr;
-    }
+    List_iterator_fast<Item> di(defn);
+    Item *it= nullptr;
+    for (uint j= 0; j <= layout.group_pos[k]; j++)
+      it= di++;
+    group[k].item_ptr=  it;
+    group[k].item=      &group[k].item_ptr;
+    group[k].direction= ORDER::ORDER_ASC;
+    group[k].next=      k + 1 < layout.n_group ? &group[k + 1] : nullptr;
   }
 
-  if (layout.make_container_from(thd, defn, &worker->exec.group_container,
-                                 group))
+
+  /*
+    Aggregates accumulate into this table which the manager reads.
+    A pre-aggregating worker produces one row per group.
+  */
+  if (layout.make_container_from(thd, defn, &worker->exec.result, group))
     return true;
 
   /*
-    flush_groups() copies a row of this table straight into the shipping
-    container, so the two layouts have to agree. They are built from different
-    item lists -- this one from the worker's, that one from the manager's --
-    so they agree by both deriving from the same columns, not by construction.
+    The manager reads it as its own recv container, so the two layouts have to
+    agree. They are built from different item lists -- this one from the
+    worker's, that one from the manager's -- so they agree by both deriving
+    from the same columns, not by construction.
   */
-  DBUG_ASSERT(worker->exec.group_container.table->s->reclength ==
-              layout.reclength);
-  DBUG_ASSERT(worker->exec.group_container.table->s->fields ==
+  DBUG_ASSERT(worker->exec.result.table->s->reclength == layout.reclength);
+  DBUG_ASSERT(worker->exec.result.table->s->fields ==
               layout.recv.table->s->fields);
 
   /*
-    And the aggregation tab itself: the JOIN_TAB end_update() is called with.
+    Aggregation JOIN_TAB send to end_update().
     It reads the table, the param (for the key buffer, the Copy_field pairs and
     items_to_copy), the aggregate list off the JOIN, and its own AGGR_OP for
     the one branch that switches write function. Everything else it touches is
@@ -1993,8 +1998,8 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   if (!aggr_tab)
     return true;
   aggr_tab->join=             worker->exec.join;
-  aggr_tab->table=            worker->exec.group_container.table;
-  aggr_tab->tmp_table_param=  worker->exec.group_container.param;
+  aggr_tab->table=            worker->exec.result.table;
+  aggr_tab->tmp_table_param=  worker->exec.result.param;
   if (!(aggr_tab->aggr= new (thd->mem_root) AGGR_OP(aggr_tab)))
     return true;
   aggr_tab->aggr->set_write_func(end_update);
@@ -2003,56 +2008,6 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   /* The aggregates end_update() folds into are the JOIN's, so they are ours. */
   worker->exec.join->sum_funcs= worker->exec.sums;
   return false;
-}
-
-
-/**
-  @brief
-    Ship one row per group, once this worker's chunk is done with.
-
-  @description
-    Each row of the grouping table is a group's base columns and this worker's
-    partial for it, in the layout every container shares, so shipping one is
-    the same copy the ungrouped transport makes -- through the transport's own
-    container, which is what the manager reads.
-
-  @return  pwt_emit_result.
-*/
-
-int pwt_worker::flush_groups()
-{
-  DBUG_ENTER("pwt_worker::flush_groups");
-  TABLE *table= exec.group_container.table;
-  const uint reclength= manager->row_layout().reclength;
-  int rc= PWT_EMIT_OK, error;
-
-  table->file->ha_index_or_rnd_end();
-  if ((error= table->file->ha_rnd_init(true)))
-  {
-    table->file->print_error(error, MYF(0));
-    DBUG_RETURN(PWT_EMIT_ERROR);
-  }
-  while (!(error= table->file->ha_rnd_next(table->record[0])) ||
-         error == HA_ERR_RECORD_DELETED)
-  {
-    if (error)
-      continue;
-    if (manager->is_fatal_error())
-    {
-      rc= PWT_EMIT_ERROR;
-      break;
-    }
-    memcpy(exec.result.record(), table->record[0], reclength);
-    if ((rc= sink->emit_row(exec.result.record())) != PWT_EMIT_OK)
-      break;
-  }
-  table->file->ha_rnd_end();
-  if (rc == PWT_EMIT_OK && error != HA_ERR_END_OF_FILE)
-  {
-    table->file->print_error(error, MYF(0));
-    rc= PWT_EMIT_ERROR;
-  }
-  DBUG_RETURN(rc);
 }
 
 
@@ -2155,7 +2110,19 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
     the enum this function returns.
   */
   if (pwt_self->manager->row_layout().grouped)
-    DBUG_RETURN(pwt_self->exec.aggr_tab->aggr->put_record());
+  {
+    THD *thd= pwt_self->thd;
+    // record local memory used so that if a HEAP->Aria conversion happens...
+    const int64 before= thd->status_var.local_memory_used;
+    const enum_nested_loop_state rc= pwt_self->exec.aggr_tab->aggr->put_record();
+    const int64 owed= thd->status_var.local_memory_used - before;
+    if (unlikely(owed))                 // we can account for it here
+    {
+      thd->status_var.local_memory_used= before;
+      pwt_self->sink->account_spilled_memory(owed);
+    }
+    DBUG_RETURN(rc);
+  }
 
   switch (pwt_self->emit_joined_row()) {
   case PWT_EMIT_OK:   DBUG_RETURN(NESTED_LOOP_OK);
@@ -2368,18 +2335,6 @@ int pwt_worker::execute_and_handoff()
       break;
   }
 
-  /*
-    The grouping table is ours to write for the length of this chunk. Its index
-    is not opened here: AGGR_OP::put_record() does that on its first call, the
-    same lazy preparation the serial plan gets.
-  */
-  if (manager->row_layout().grouped)
-  {
-    exec.group_container.table->in_use= thd;
-    exec.group_container.table->file->rebind_to_thread();
-    exec.group_container.table->use_all_columns();
-  }
-
   if (err)
     goto exec_exit;
 
@@ -2414,12 +2369,23 @@ int pwt_worker::execute_and_handoff()
   }
   src->file->parallel_end_worker();
 
-  // flush our grouping table
-  if (!err && !killed && !manager->is_fatal_error() &&
-      manager->row_layout().grouped && flush_groups() == PWT_EMIT_ERROR)
-    err= thd->is_error() ? thd->get_stmt_da()->sql_errno() : HA_ERR_GENERIC;
+  /*
+    Close the container's index before the transport is told this producer is
+    finished. A pre-aggregating worker leaves it open -- AGGR_OP::put_record()
+    opened it and nothing since has closed it -- and the manager scans the
+    container as soon as it is marked done, which it does on another thread and
+    with a handler that asserts nothing else has the table open. So this has to
+    happen on this side of the hand-off, not in the tidy-up below.
+  */
+  if (manager->row_layout().grouped && exec.result.table)
+    exec.result.table->file->ha_index_or_rnd_end();
 
-  // hand over whatever the transport is still holding for us
+  /*
+    Nothing to flush for a pre-aggregating worker: the rows it aggregated are
+    already in the container the manager reads.
+
+    hand over whatever the transport is still holding for us
+  */
   if (!err && !killed)
     sink->flush();
 
@@ -2430,8 +2396,9 @@ exec_exit:
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
   for (i= 1; i < nt; i++)
     exec.jointabs[i].table->file->ha_index_or_rnd_end();
-  if (manager->row_layout().grouped && exec.group_container.table)
-    exec.group_container.table->file->ha_index_or_rnd_end();
+  /* Again for the paths that reach here without having handed anything over. */
+  if (manager->row_layout().grouped && exec.result.table)
+    exec.result.table->file->ha_index_or_rnd_end();
   for (i= 0; i < nt; i++)
     exec.tables[i]->file->ha_external_lock(thd, F_UNLCK);
 

@@ -361,12 +361,16 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       agree on, which for a grouped plan means the shape create_tmp_table()
       gives a table that has a group key: Item_sum_avg::create_tmp_field() is
       the one aggregate whose field differs between the two, packing its count
-      beside its sum only for the keyed form. flush_groups() copies a group
-      container record into this one by reclength, and the manager reads it
-      back as its own recv container -- both keyed -- so a container built
-      unkeyed here would be written past and read short, one AVG's worth of
-      bytes at a time. The key itself costs nothing: a worker ships one row per
-      group, so there is nothing for it to collapse.
+      beside its sum only for the keyed form. The manager reads the container
+      back as its own recv container, which is keyed, so a container built
+      unkeyed here would be read short, one AVG's worth of bytes at a time.
+      The key costs nothing: a worker ships one row per group, so there is
+      nothing for it to collapse.
+
+      A worker that pre-aggregates does not get its container from here at all.
+      setup_worker_preagg() builds it, because the same table is the one the
+      aggregates accumulate into, and that has to be described by the worker's
+      own items rather than the manager's.
     */
     ORDER *ship_group= nullptr;
     if (layout.grouped && !(ship_group= layout.clone_group_defn(thd)))
@@ -387,11 +391,12 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
       }
     }
     else if (setup_worker_join(thd, worker) ||
-        setup_worker_jointabs(thd, worker) ||
-        layout.make_container(thd, &worker->exec.result, ship_group) ||
-        setup_worker_preagg(thd, worker) ||
-        !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
-        clone_worker_exprs(thd, worker))
+             setup_worker_jointabs(thd, worker) ||
+             (!layout.grouped &&
+              layout.make_container(thd, &worker->exec.result, ship_group)) ||
+             setup_worker_preagg(thd, worker) ||
+             !(worker->sink= source->make_sink(thd, i, &worker->exec.result)) ||
+             clone_worker_exprs(thd, worker))
     {
       my_error(ER_INTERNAL_ERROR, MYF(0),
                "init_parallel_workers: failed to set up worker execution");

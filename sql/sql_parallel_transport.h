@@ -372,6 +372,17 @@ public:
   virtual int emit_row(const uchar *rec)= 0;
 
   /*
+    Thread-specific memory a producer allocated into the store this transport
+    hands over, and that the consumer will free. Charged to the producer's THD
+    by whoever allocated it, owed to the consumer's; this moves the charge so
+    that each ~THD finds its books square. Called when the rows are written by
+    something other than emit_row() -- a pre-aggregating worker's end_update()
+    spilling its container to disk -- which is the one path that allocates
+    without passing through the transport.
+  */
+  virtual void account_spilled_memory(int64 bytes) {}
+
+  /*
     This producer has no more rows. Anything held back for batching goes now.
     Returns true on error.
   */
@@ -621,6 +632,10 @@ public:
   int  emit_row(const uchar *rec) override;
   bool flush() override;
   void cleanup() override;
+  void account_spilled_memory(int64 bytes) override
+  {
+    spilled_memory+= bytes;
+  }
 
   friend class pwt_tmp_table_source;
 };
