@@ -1,5 +1,6 @@
 ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 RESET MASTER;
+SET @old_metadata= @@GLOBAL.binlog_row_metadata;
 SET GLOBAL binlog_row_metadata = FULL;
 #
 # Test 1: Non-numeric column between two numeric columns does not
@@ -73,5 +74,5 @@ INSERT INTO t1(c_signed) VALUES(-1);
 #         `c_unsigned` INT UNSIGNED)
 DROP TABLE t1;
 RESET MASTER;
-SET GLOBAL binlog_row_metadata = NO_LOG;
+SET GLOBAL binlog_row_metadata = @old_metadata;
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
