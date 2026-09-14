@@ -4,6 +4,12 @@
 wsrep_sst_method=rsync
 
 [sst]
+# This is a backward-compatibility test: SSL SST must be enabled purely by the
+# presence of tkey/tcert (no ssl-mode). galera_2nodes.cnf sets ssl-mode=DISABLED
+# for SST by default; clear it here (empty value overrides the inherited one) so
+# the ssl-mode is derived from tkey/tcert (-> REQUIRED) rather than forced by the
+# explicit ssl-mode setting.
+ssl-mode=
 tkey=@ENV.MYSQL_TEST_DIR/std_data/server-key.pem
 tcert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
 
