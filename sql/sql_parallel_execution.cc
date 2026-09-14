@@ -393,17 +393,17 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
 
 /*
   @brief
-    Whether this query's aggregates can be computed per group by the workers
-    and merged by the manager.
+    Whether every aggregate in this query is one a worker can compute a partial
+    of and the manager can merge.
 
   @description
     Merging a partial is not adding a row: COUNT has to add a count rather than
     increment, and MIN and MAX have to reach the Item_cache their add() reads
     rather than args[0]. Item_sum::direct_add() does exactly that, and exists
-    on Item_sum_count, Item_sum_sum -- a decimal and a real overload -- and
-    Item_sum_min_max. Those four are what this accepts, and they are also the
-    four whose reset_field() and update_field() honour a direct value, which is
-    what a merge per group needs.
+    on Item_sum_count, Item_sum_sum -- a decimal and a real overload --
+    Item_sum_min_max and Item_sum_avg. Those are what this accepts, and they
+    are also the ones whose reset_field() and update_field() honour a direct
+    value, which is what a merge needs.
 
     What is refused, and why:
 
@@ -414,6 +414,75 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
       - The DISTINCT variants, whose set has to be complete before it can be
         counted. The server agrees: every merge path asserts the aggregator is
         not a DISTINCT one.
+      - An argument a worker cannot evaluate, since the partial is computed
+        from the worker's own copy of the row.
+
+    Asked of the aggregates alone, so it holds however the query groups them:
+    the same answer for a GROUP BY, where a worker keeps a partial per group,
+    and for aggregation over the whole table, where it keeps one.
+
+  @param what  what the caller is deciding, for the refusal it records.
+
+  @return true if the workers can compute these aggregates.
+*/
+
+static bool pwt_aggregates_can_be_merged(JOIN *join, const char *what,
+                                         bool trace)
+{
+  char why[256];
+  for (Item_sum **s= join->sum_funcs; *s; s++)
+  {
+    switch ((*s)->sum_func()) {
+    case Item_sum::COUNT_FUNC:
+    case Item_sum::SUM_FUNC:
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+    case Item_sum::AVG_FUNC:
+      break;
+    default:
+      my_snprintf(why, sizeof(why),
+                  "%s: an aggregate whose partial cannot be merged -- only "
+                  "COUNT, SUM, MIN, MAX and AVG can be", what);
+      return pwt_decline(join, trace, why);
+    }
+    if ((*s)->has_with_distinct())
+    {
+      my_snprintf(why, sizeof(why),
+                  "%s: a DISTINCT aggregate, whose partial is the set of "
+                  "values and not a running total", what);
+      return pwt_decline(join, trace, why);
+    }
+    if ((*s)->argument_count() != 1)
+    {
+      my_snprintf(why, sizeof(why),
+                  "%s: an aggregate of more than one argument", what);
+      return pwt_decline(join, trace, why);
+    }
+    if (!pwt_item_is_worker_safe(join, (*s)->get_arg(0)))
+    {
+      my_snprintf(why, sizeof(why),
+                  "%s: an aggregate's argument is not one a worker can "
+                  "evaluate", what);
+      return pwt_decline(join, trace, why);
+    }
+  }
+  return true;
+}
+
+
+/*
+  @brief
+    Whether this query's aggregates can be computed per group by the workers
+    and merged by the manager.
+
+  @description
+    Whether the aggregates themselves can be merged is
+    pwt_aggregates_can_be_merged()'s question. What is left here is what the
+    grouping asks for, and what is refused:
+
+      - WITH ROLLUP, which needs the groups in order.
+      - A plan whose terminal is not end_update(), so there is no group key a
+        partial can be merged through.
       - A key part that is not a plain column, or one too wide to key on.
       - A select-list item that is not an aggregate and not functionally
         dependent on the group, because the manager evaluates it once per group
@@ -460,33 +529,8 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
              "pwt_plan_group_key)");
   }
 
-  for (Item_sum **s= join->sum_funcs; *s; s++)
-  {
-    switch ((*s)->sum_func()) {
-    case Item_sum::COUNT_FUNC:
-    case Item_sum::SUM_FUNC:
-    case Item_sum::MIN_FUNC:
-    case Item_sum::MAX_FUNC:
-    case Item_sum::AVG_FUNC:
-      break;
-    default:
-      return pwt_decline(join, trace,
-                         "grouped: an aggregate whose partial cannot be "
-                         "merged -- only COUNT, SUM, MIN, MAX and AVG "
-                         "can be");
-    }
-    if ((*s)->has_with_distinct())
-      return pwt_decline(join, trace,
-                         "grouped: a DISTINCT aggregate, whose partial is "
-                         "the set of values and not a running total");
-    if ((*s)->argument_count() != 1)
-      return pwt_decline(join, trace,
-                         "grouped: an aggregate of more than one argument");
-    if (!pwt_item_is_worker_safe(join, (*s)->get_arg(0)))
-      return pwt_decline(join, trace,
-                         "grouped: an aggregate's argument is not one a "
-                         "worker can evaluate");
-  }
+  if (!pwt_aggregates_can_be_merged(join, "grouped", trace))
+    return false;
 
   uint key_length= 0;
   for (ORDER *k= g; k; k= k->next)
@@ -622,13 +666,85 @@ ORDER *pwt_manager_sort_order(JOIN *join)
   between.
 */
 
-ORDER *pwt_preagg_group(JOIN *join, bool trace)
+/*
+  @brief
+    Whether the workers can pre-aggregate a query that aggregates over the
+    whole table -- SELECT COUNT(*), SUM(b) FROM t, with no GROUP BY.
+
+  @description
+    The aggregates are the same question as for a GROUP BY, and
+    pwt_aggregates_can_be_merged() asks it. What differs is the shape around
+    them. There is no group, so there is no plan aggregation table either: the
+    server aggregates such a query in end_send_group(), straight off the last
+    join tab, with nothing materialised in between.
+
+    That is enough, because end_send_group() reaches Item_sum::add(), and add()
+    honours a value placed by direct_add() for every aggregate this accepts --
+    COUNT adds a count rather than incrementing, AVG takes a partial sum with
+    the number of rows behind it. So the manager merges partials through the
+    plan's own terminal here exactly as it does through end_update() there, and
+    the drain needs no case of its own.
+
+    What the workers accumulate into does need one, and it is borrowed rather
+    than built: the layout gives this shape a group of one constant, so a
+    worker keeps one partial in a keyed container and ships one row, which is
+    the grouped path with a single group in it. Beyond costing one column, that
+    is what keeps Item_sum_avg::create_tmp_field() packing the count beside the
+    sum -- it does that only for a container with a group -- so an average
+    survives the trip.
+
+    Refused: a select-list item that reads a column outside an aggregate. Its
+    value is whichever row the terminal happened to hold, and a worker would
+    hold a different one. Standard SQL does not allow it and ONLY_FULL_GROUP_BY
+    rejects it; without that mode the server returns an arbitrary row's value.
+
+  @return true if the workers can pre-aggregate.
+*/
+
+static bool pwt_whole_table_preagg_supported(JOIN *join, bool trace)
 {
-  ORDER *g= nullptr;
-  if (join->group_list || join->group ||
-      join->select_lex->agg_func_used() || join->select_lex->with_sum_func)
-    (void) pwt_grouped_preagg_supported(join, &g, trace);
-  return g;
+  if (!join->sum_funcs || !*join->sum_funcs)
+    return false;                     // nothing to pre-aggregate
+  if (!pwt_aggregates_can_be_merged(join, "whole-table", trace))
+    return false;
+
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *it;
+  while ((it= li++))
+  {
+    if (it->const_item())
+      continue;
+    if (pwt_ungrouped_outside_aggregates(it, nullptr))
+      return pwt_decline(join, trace,
+                         "whole-table: a select list item reads a column "
+                         "outside an aggregate, so its value is whichever "
+                         "row the terminal happened to hold");
+  }
+  return true;
+}
+
+
+pwt_preagg_kind pwt_preagg_shape(JOIN *join, ORDER **group, bool trace)
+{
+  *group= nullptr;
+  if (!join->group_list && !join->group &&
+      !join->select_lex->agg_func_used() && !join->select_lex->with_sum_func)
+    return PWT_PREAGG_NONE;           // not an aggregating query at all
+
+  /*
+    Which of the two shapes to ask about is the query's own grouping, not the
+    plan's. A query that names a GROUP BY is the grouped shape whatever the
+    optimizer then did with it -- if the plan has no group key to merge a
+    partial through, that is a refusal of this query and not an invitation to
+    treat it as aggregating over everything it reads, which would answer a
+    different question. Only a query that never grouped reaches the second.
+  */
+  if (join->group_list || join->group)
+    return pwt_grouped_preagg_supported(join, group, trace) ? PWT_PREAGG_GROUPED
+                                                            : PWT_PREAGG_NONE;
+
+  return pwt_whole_table_preagg_supported(join, trace) ? PWT_PREAGG_WHOLE
+                                                       : PWT_PREAGG_NONE;
 }
 
 
@@ -728,9 +844,11 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     allowed to want a temporary table, hold aggregates, and group. Everything
     below that would refuse those three is asked to let this one through.
   */
-  ORDER *preagg_group= pwt_preagg_group(join, trace);
+  ORDER *preagg_group= nullptr;
+  const bool preagg= pwt_preagg_shape(join, &preagg_group, trace) !=
+                     PWT_PREAGG_NONE;
 
-  if (join->need_tmp && !preagg_group)            // group/distinct/order/...
+  if (join->need_tmp && !preagg)                  // group/distinct/order/...
     DBUG_RETURN(pwt_decline(join, trace,
                  "the plan needs a temporary table and the workers cannot "
                  "pre-aggregate into it"));
@@ -759,7 +877,7 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     send_data_with_check(), which skips the offset but counts nothing -- so a
     capped query would send every row it drained.
   */
-  if (!join->unit->lim.is_unlimited() && !preagg_group)
+  if (!join->unit->lim.is_unlimited() && !preagg)
     DBUG_RETURN(pwt_decline(join, trace,
                  "the select has a row limit -- a LIMIT clause, or the "
                  "session's sql_select_limit -- which the drain does not "
@@ -779,12 +897,12 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
   if (sl->have_window_funcs())
     DBUG_RETURN(pwt_decline(join, trace,
                  "the select has window functions, which read across rows"));
-  if ((sl->agg_func_used() || sl->with_sum_func) && !preagg_group)
+  if ((sl->agg_func_used() || sl->with_sum_func) && !preagg)
     DBUG_RETURN(pwt_decline(join, trace,
                  "the select aggregates and the workers cannot pre-aggregate "
                  "this plan"));
 
-  if ((join->group_list || join->group) && !preagg_group)
+  if ((join->group_list || join->group) && !preagg)
     DBUG_RETURN(pwt_decline(join, trace,
                             "the select groups and the workers cannot "
                             "pre-aggregate this plan"));

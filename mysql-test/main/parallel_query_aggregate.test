@@ -151,6 +151,25 @@ set global debug_dbug= @save_dbug;
 --enable_query_log
 
 --echo #
+--echo # The same fall-back for a query that aggregates over the whole table.
+--echo # Its group is one constant column this layout adds, so it reaches the
+--echo # same question, and the answer is the same: ship rows instead, and the
+--echo # manager aggregates them in end_send_group() a row at a time.
+--echo #
+set global debug_dbug="+d,pwt_no_group_index";
+--disable_ps_protocol
+FLUSH STATUS;
+SELECT COUNT(col2), SUM(col2), MIN(col2), MAX(col2), AVG(col2) FROM t1;
+SELECT COUNT(col2), SUM(col2) FROM t1 WHERE col2 < 0;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+set global debug_dbug= @save_dbug;
+--echo # both still ran in the workers (expect 1)
+--disable_query_log
+--eval SELECT $pq = 2 AS still_ran_in_the_workers
+--enable_query_log
+
+--echo #
 --echo # AVG, whose partial is two numbers rather than one
 --echo #
 # An average does not compose out of averages, so a worker hands over the sum
