@@ -1,0 +1,148 @@
+set sql_mode=oracle;
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+x:= '<node1 aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</node1>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+x.getRootElement()
+node1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getRootElement();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: 'xxxx'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getRootElement(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getRootElement ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a> Value </a>';
+SELECT x.getSchemaURL();
+END;
+$$
+x.getSchemaURL()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a> Value </a>';
+SELECT x.getSchemaURL(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getSchemaURL ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getRootElement ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getStringVal();
+x:= NULL;
+SELECT x.getStringVal();
+END;
+$$
+x.getStringVal()
+<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>
+x.getStringVal()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getStringVal(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getStringVal ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>123.5</a>';
+SELECT x.getNumberVal();
+x:= '<a aa1="99">123.5</a>';
+SELECT x.getNumberVal();
+x:= NULL;
+SELECT x.getNumberVal();
+END;
+$$
+x.getNumberVal()
+123.5
+x.getNumberVal()
+123.5
+x.getNumberVal()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getNumberVal(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getNumberVal ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.isFragment();
+x:= NULL;
+SELECT x.isFragment();
+END;
+$$
+x.isFragment()
+0
+x.isFragment()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>1</a><b>2</b>';
+SELECT x.isFragment();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: '<a>1</a><b>2</b>'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.isFragment(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for isFragment ; expected 0, got 1

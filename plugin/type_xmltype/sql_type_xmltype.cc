@@ -19,6 +19,7 @@
 #include "my_xml.h"
 #include "sql_class.h"
 #include "sql_lex.h"
+#include "sp_rcontext.h"
 #include "sql_type_xmltype.h"
 
 
@@ -279,6 +280,329 @@ bool Type_handler_xmltype::
 }
 
 
+class Item_func_xml_method_str :public Item_str_func
+{
+protected:
+  THD *m_thd;
+  sp_rcontext_addr m_var_addr;
+  String tmp_str;
+
+public:
+  Item_func_xml_method_str(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_str_func(thd),
+    m_thd(thd),
+    m_var_addr(rcontext_handler, var_idx) {}
+
+  bool fix_length_and_dec(THD *thd) override
+  {
+    Item_field *i= m_thd->get_variable(m_var_addr);
+    
+    collation= i->collation;
+    return false;
+  }
+};
+
+
+class Item_func_xml_method_getRootElement :public Item_func_xml_method_str
+{
+public:
+  static LEX_CSTRING m_func_name;
+  Item_func_xml_method_getRootElement(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_func_xml_method_str(thd, var_idx, rcontext_handler) {}
+
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  String *val_str(String *str) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_getRootElement>(thd, this); }
+};
+
+
+class Item_func_xml_method_getNamespace
+  :public Item_func_xml_method_str
+{
+public:
+  static LEX_CSTRING m_func_name;
+  struct Parser_data
+  {
+    const char *name;
+    size_t len;
+    bool in_namespace;
+    int level;
+    int n_xmlns;
+  };
+  
+  Item_func_xml_method_getNamespace(THD *thd, uint var_idx,
+                           const Sp_rcontext_handler *rcontext_handler):
+     Item_func_xml_method_str(thd, var_idx, rcontext_handler) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  String *val_str(String *str) override;
+};
+
+
+class Item_func_xml_method_getSchemaURL :public Item_str_func
+{
+  THD *m_thd;
+  sp_rcontext_addr m_var_addr;
+
+public:
+  Item_func_xml_method_getSchemaURL(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_str_func(thd),
+    m_thd(thd),
+    m_var_addr(rcontext_handler, var_idx) {}
+
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  String *val_str(String *str) override
+  {
+    /*
+      We don't register the XML Schema yet,
+      so this function only returns NULL until it's done.
+    */
+    null_value= 1;
+    return NULL;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    Item_field *i= m_thd->get_variable(m_var_addr);
+    
+    collation= i->collation;
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("getSchemaURL") };
+    return name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_getSchemaURL>(thd, this); }
+};
+
+
+class Item_func_xml_method_getStringVal :public Item_func_xml_method_str
+{
+public:
+  static LEX_CSTRING m_func_name;
+  Item_func_xml_method_getStringVal(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_func_xml_method_str(thd, var_idx, rcontext_handler) {}
+
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  String *val_str(String *str) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_getStringVal>(thd, this); }
+};
+
+
+class Item_func_xml_method_getNumberVal :public Item_real_func
+{
+  THD *m_thd;
+  sp_rcontext_addr m_var_addr;
+  String tmp_str;
+
+public:
+  static LEX_CSTRING m_func_name;
+  struct Parser_data
+  {
+    bool in_attribute;
+    const char *str;
+    size_t length;
+  };
+
+  Item_func_xml_method_getNumberVal(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_real_func(thd),
+    m_thd(thd),
+    m_var_addr(rcontext_handler, var_idx) {}
+
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_getNumberVal>(thd, this); }
+};
+
+
+class Item_func_xml_method_isFragment :public Item_long_func
+{
+  THD *m_thd;
+  sp_rcontext_addr m_var_addr;
+  String tmp_str;
+
+public:
+  static LEX_CSTRING m_func_name;
+  Item_func_xml_method_isFragment(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_long_func(thd),
+    m_thd(thd),
+    m_var_addr(rcontext_handler, var_idx) {}
+
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_isFragment>(thd, this); }
+};
+
+
+static const LEX_CSTRING extract_funcname= {STRING_WITH_LEN("extract") };
+static const LEX_CSTRING existsNode_funcname= {STRING_WITH_LEN("existsNode") };
+static const LEX_CSTRING getSchemaURL_funcname=
+  {STRING_WITH_LEN("getSchemaURL") };
+
+Item *Type_handler_xmltype::create_item_method(
+    THD *thd, object_method_type_t type, const Lex_ident_sys &a,
+    const Lex_ident_sys &b, List<Item> *args,
+    const Lex_ident_cli_st &query_fragment) const
+{
+  Item *item= NULL;
+  sp_variable *spvar= NULL;
+  const Sp_rcontext_handler *rcontext_handler;
+
+  spvar= thd->lex->find_variable(&a, &rcontext_handler);
+
+  if (type != object_method_type_t::FUNCTION ||
+      spvar == NULL)
+    return NULL;
+
+
+  if (b.length == 7)
+  {
+    if (Lex_ident_routine(b).streq(extract_funcname))
+    {
+      if (!args ||(args->elements != 1 && args->elements != 2))
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "XMLTYPE::extract",
+            "", 1, args ? args->elements : 0);
+        return NULL;
+      }
+
+      Item_args iargs(thd, *args);
+      item= new (thd->mem_root) Item_func_xml_extractvalue(thd,
+          iargs.arguments()[0], iargs.arguments()[1]);
+    }
+    else if (Lex_ident_routine(b).streq(existsNode_funcname))
+    {
+    }
+  }
+  if (b.length == 10)
+  {
+    if (Lex_ident_routine(b).streq(
+          Item_func_xml_method_isFragment::m_func_name))
+    {
+      if (args && args->elements != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+            Item_func_xml_method_isFragment::m_func_name.str,
+            "", 0, args ? args->elements : 0);
+        return NULL;
+      }
+
+      item= new (thd->mem_root) Item_func_xml_method_isFragment(
+                                  thd, spvar->offset, rcontext_handler);
+    }
+  }
+  if (b.length == 12)
+  {
+    if (Lex_ident_routine(b).streq(getSchemaURL_funcname))
+    {
+      if (args && args->elements != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), getSchemaURL_funcname.str,
+            "", 0, args ? args->elements : 0);
+        return NULL;
+      }
+
+      item= new (thd->mem_root) Item_func_xml_method_getSchemaURL(
+                                  thd, spvar->offset, rcontext_handler);
+    }
+    else if (Lex_ident_routine(b).streq(
+               Item_func_xml_method_getNumberVal::m_func_name))
+    {
+      if (args && args->elements != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+            Item_func_xml_method_getNumberVal::m_func_name.str,
+            "", 0, args ? args->elements : 0);
+        return NULL;
+      }
+
+      item= new (thd->mem_root) Item_func_xml_method_getNumberVal(
+                                  thd, spvar->offset, rcontext_handler);
+    }
+    else if (Lex_ident_routine(b).streq(
+               Item_func_xml_method_getStringVal::m_func_name))
+    {
+      if (args && args->elements != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+            Item_func_xml_method_getStringVal::m_func_name.str,
+            "", 0, args ? args->elements : 0);
+        return NULL;
+      }
+
+      item= new (thd->mem_root) Item_func_xml_method_getStringVal(
+                                  thd, spvar->offset, rcontext_handler);
+    }
+  }
+  if (b.length == 14)
+  {
+    if (Lex_ident_routine(b).streq(
+          Item_func_xml_method_getRootElement::m_func_name))
+    {
+      if (args && args->elements != 0)
+      {
+        my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+            Item_func_xml_method_getRootElement::m_func_name.str,
+            "", 0, args ? args->elements : 0);
+        return NULL;
+      }
+
+      item= new (thd->mem_root) Item_func_xml_method_getRootElement(
+                                  thd, spvar->offset, rcontext_handler);
+    }
+  }
+
+  return item;
+}
+
 
 /*****************************************************************/
 void Field_xmltype::sql_type(String &res) const
@@ -422,7 +746,7 @@ String *Item_xmltype_typecast::val_str(String *to)
                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "xmltype",
                         ErrConvString(res->ptr(), res->length(),
                                       res->charset()).ptr());
-    null_value= TRUE;
+    null_value= 1;
     return NULL;
   }
 
@@ -439,3 +763,285 @@ void Item_xmltype_typecast::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+LEX_CSTRING Item_func_xml_method_getRootElement::m_func_name=
+  {STRING_WITH_LEN("getRootElement") };
+
+extern "C" {
+static int get_root_element_enter(MY_XML_PARSER *st,
+                                  const char *attr, size_t len)
+{
+  LEX_CSTRING *data= (LEX_CSTRING*) st->user_data;
+  data->str= attr;
+  data->length= len;
+  return MY_XML_ERROR;
+}
+} /*extern "C"*/
+
+String *Item_func_xml_method_getRootElement::val_str(String *str)
+{
+  MY_XML_PARSER p;
+  LEX_CSTRING user_data;
+
+  Item_field *i= m_thd->get_variable(m_var_addr);
+  String *xml= i->val_str(&tmp_str);
+
+  if (!xml)
+    goto err_ret;
+
+  user_data.str= NULL;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, get_root_element_enter);
+  my_xml_set_user_data(&p, (void*) &user_data);
+
+  /* Execute XML parser */
+  my_xml_parse(&p, xml->ptr(), xml->length());
+
+  if (user_data.str == NULL)
+  {
+    char buf[128];
+    my_snprintf(buf, sizeof(buf)-1,
+                "XML Schema parse error at line %d pos %lu: %s",
+                my_xml_error_lineno(&p) + 1,
+                (ulong) my_xml_error_pos(&p) + 1,
+                my_xml_error_string(&p));
+    my_printf_error(ER_WRONG_VALUE, ER_THD(m_thd, ER_WRONG_VALUE), MYF(0),
+                    "XMLTYPE", buf);
+    my_xml_parser_free(&p);
+    goto err_ret;
+  }
+
+  my_xml_parser_free(&p);
+
+  null_value= 0;
+  str->set(user_data.str, user_data.length, collation.collation);
+  return str;
+
+err_ret:
+  null_value= 1;
+  return NULL;
+}
+
+
+LEX_CSTRING Item_func_xml_method_getNamespace::m_func_name=
+  {STRING_WITH_LEN("getNamespace") };
+
+
+extern "C" {
+static int get_namespace_enter(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  Item_func_xml_method_getNamespace::Parser_data *data=
+    (Item_func_xml_method_getNamespace::Parser_data *) st->user_data;
+
+
+  if (st->current_node_type == MY_XML_NODE_TAG)
+  {
+    if (data->level > 0)
+    {
+      return MY_XML_ERROR;
+    }
+    data->level= 1;
+  }
+  else if (st->current_node_type == MY_XML_NODE_ATTR)
+  {
+    if ((len == 5 && memcmp(attr, "xmlns", 5)) ||
+        (len >=6 && memcmp(attr, "xmlns:", 6)))
+      data->in_namespace= true;
+  }
+
+  return MY_XML_OK;
+}
+
+
+static int get_namespace_value(MY_XML_PARSER *st,const char *attr, size_t len)
+{
+  Item_func_xml_method_getNamespace::Parser_data *data=
+    (Item_func_xml_method_getNamespace::Parser_data *) st->user_data;
+
+  if (data->in_namespace)
+  {
+    data->n_xmlns++;
+    data->name= attr;
+    data->len= len;
+  }
+  return MY_XML_OK;
+}
+} /*extern "C"*/
+
+
+String *Item_func_xml_method_getNamespace::val_str(String *str)
+{
+  MY_XML_PARSER p;
+  Item_func_xml_method_getNamespace::Parser_data user_data;
+
+  Item_field *i= m_thd->get_variable(m_var_addr);
+  String *xml= i->val_str(&tmp_str);
+
+  if (!xml)
+    goto err_ret;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, get_namespace_enter);
+  my_xml_set_value_handler(&p, get_namespace_value);
+  my_xml_set_user_data(&p, (void*) &user_data);
+
+  user_data.n_xmlns= 0;
+  user_data.level= 0;
+  user_data.in_namespace= false;
+
+  /* Execute XML parser */
+  my_xml_parse(&p, xml->ptr(), xml->length());
+
+  if (user_data.level == 0)
+  {
+    char buf[128];
+    my_snprintf(buf, sizeof(buf)-1,
+                "XML Schema parse error at line %d pos %lu: %s",
+                my_xml_error_lineno(&p) + 1,
+                (ulong) my_xml_error_pos(&p) + 1,
+                my_xml_error_string(&p));
+    my_printf_error(ER_WRONG_VALUE, ER_THD(m_thd, ER_WRONG_VALUE), MYF(0),
+                    "XMLTYPE", buf);
+    my_xml_parser_free(&p);
+    goto err_ret;
+  }
+
+  my_xml_parser_free(&p);
+
+  null_value= 0;
+  str->set(user_data.name, user_data.len, collation.collation);
+  return str;
+
+err_ret:
+  null_value= 1;
+  return NULL;
+}
+
+
+LEX_CSTRING Item_func_xml_method_getStringVal::m_func_name=
+  {STRING_WITH_LEN("getStringVal") };
+
+String *Item_func_xml_method_getStringVal::val_str(String *str)
+{
+  Item_field *i= m_thd->get_variable(m_var_addr);
+  String *xml= i->val_str(str);
+
+  null_value= i->null_value;
+  return xml;
+}
+
+
+LEX_CSTRING Item_func_xml_method_getNumberVal::m_func_name=
+  {STRING_WITH_LEN("getNumberVal") };
+
+extern "C" {
+static int get_number_val_enter(MY_XML_PARSER *st,
+                                const char *attr, size_t len)
+{
+  Item_func_xml_method_getNumberVal::Parser_data *data=
+    (Item_func_xml_method_getNumberVal::Parser_data *) st->user_data;
+
+  if (st->current_node_type == MY_XML_NODE_ATTR)
+    data->in_attribute= true;
+  return MY_XML_OK;
+}
+
+static int get_number_val_leave(MY_XML_PARSER *st,
+                                const char *attr, size_t len)
+{
+  Item_func_xml_method_getNumberVal::Parser_data *data=
+    (Item_func_xml_method_getNumberVal::Parser_data *) st->user_data;
+
+  data->in_attribute= false;
+  return MY_XML_OK;
+}
+
+static int get_number_val_value(MY_XML_PARSER *st,
+                                const char *val, size_t len)
+{
+  Item_func_xml_method_getNumberVal::Parser_data *data=
+    (Item_func_xml_method_getNumberVal::Parser_data *) st->user_data;
+
+  if (data->in_attribute)
+    return MY_XML_OK;
+
+  data->str= val;
+  data->length= len;
+  return MY_XML_ERROR;
+}
+} /*extern "C"*/
+
+double Item_func_xml_method_getNumberVal::val_real()
+{
+  MY_XML_PARSER p;
+  Parser_data user_data;
+
+  Item_field *i= m_thd->get_variable(m_var_addr);
+  String *xml= i->val_str(&tmp_str);
+
+  if (!xml)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  user_data.in_attribute= false;
+  user_data.str= NULL;
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+
+  my_xml_set_enter_handler(&p, get_number_val_enter);
+  my_xml_set_leave_handler(&p, get_number_val_leave);
+  my_xml_set_value_handler(&p, get_number_val_value);
+  my_xml_set_user_data(&p, (void*) &user_data);
+
+  /* Execute XML parser */
+  my_xml_parse(&p, xml->ptr(), xml->length());
+  my_xml_parser_free(&p);
+
+  null_value= 0;
+  if (user_data.str == NULL)
+    return 0;
+
+  return double_from_string_with_check(xml->charset(), user_data.str,
+                                       user_data.str + user_data.length);
+}
+
+
+LEX_CSTRING Item_func_xml_method_isFragment::m_func_name=
+  {STRING_WITH_LEN("isFragment") };
+
+longlong Item_func_xml_method_isFragment::val_int()
+{
+  MY_XML_PARSER p;
+
+  Item_field *i= m_thd->get_variable(m_var_addr);
+  String *xml= i->val_str(&tmp_str);
+
+  if (!xml)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  /* Prepare XML parser */
+  my_xml_parser_create(&p);
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION |
+           MY_XML_FLAG_ASSERT_WELL_FORMED;
+
+  /* Execute XML parser */
+  bool wellformed= my_xml_parse(&p, xml->ptr(), xml->length()) == MY_XML_OK;
+  my_xml_parser_free(&p);
+
+  null_value= 0;
+  return wellformed ? 0 : 1;
+}

@@ -1,0 +1,149 @@
+replace_result InnoDB MyISAM;
+set sql_mode=oracle;
+
+--delimiter $$
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.getRootElement();
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.getRootElement();
+
+  x:= '<node1 aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</node1>';
+  SELECT x.getRootElement();
+END;
+$$
+
+--error ER_WRONG_VALUE
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= 'xxxx';
+  SELECT x.getRootElement();
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getRootElement();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= 'xxxx';
+  SELECT x.getRootElement(1);
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a> Value </a>';
+  SELECT x.getSchemaURL();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a> Value </a>';
+  SELECT x.getSchemaURL(1);
+END;
+$$
+
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getRootElement(1);
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.getStringVal();
+
+  x:= NULL;
+  SELECT x.getStringVal();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getStringVal(1);
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a>123.5</a>';
+  SELECT x.getNumberVal();
+
+  x:= '<a aa1="99">123.5</a>';
+  SELECT x.getNumberVal();
+
+  x:= NULL;
+  SELECT x.getNumberVal();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.getNumberVal(1);
+END;
+$$
+
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+  SELECT x.isFragment();
+
+  x:= NULL;
+  SELECT x.isFragment();
+END;
+$$
+
+--error ER_WRONG_VALUE
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a>1</a><b>2</b>';
+  SELECT x.isFragment();
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= NULL;
+  SELECT x.isFragment(1);
+END;
+$$
+
+--delimiter ;
