@@ -541,6 +541,7 @@ my_decimal decimal_zero;
 long opt_secure_timestamp;
 uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
+ulonglong perf_conn_id;
 
 bool max_user_connections_checking=0;
 

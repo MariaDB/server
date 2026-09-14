@@ -414,6 +414,9 @@ constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_BINLOG_SIZE=
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_SYNC_BINLOG=
   BINLOG_ADMIN_ACL;
 
+constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_PERF_CONN_ID=
+  BINLOG_ADMIN_ACL;
+
 
 /* Privileges related to --read-only */
 // Was super prior to 10.5.2

@@ -308,6 +308,7 @@ extern const char *encryption_algorithm_names[];
 extern long opt_secure_timestamp;
 extern uint default_password_lifetime;
 extern my_bool disconnect_on_expired_password;
+extern ulonglong perf_conn_id;
 #ifndef DBUG_OFF
 extern bool is_in_ddl_recovery;
 #endif

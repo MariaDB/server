@@ -7790,3 +7790,10 @@ static Sys_var_path Sys_path(
         "path", "Comma-separated list of schema names that defines the search "
         "order for stored routines",
         SESSION_VAR(path), NO_CMD_LINE, NOT_IN_BINLOG);
+
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_PERF_CONN_ID>
+Sys_perf_conn_id(
+       "perf_conn_id", "The CONNECTION_ID() to measure with linux perf",
+       GLOBAL_VAR(perf_conn_id), NO_CMD_LINE,
+       VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));

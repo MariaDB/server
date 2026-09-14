@@ -92,6 +92,7 @@
 #include "sql_sequence.h"
 #include "opt_trace.h"
 #include "mysql/psi/mysql_sp.h"
+#include "my_perf.h"
 
 #include "my_json_writer.h"
 #include "opt_trace_ddl_info.h"
@@ -7941,7 +7942,12 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  0);
 
           int error __attribute__((unused));
+          my_bool do_perf= (perf_conn_id==thd->variables.pseudo_thread_id);
+          if (do_perf)
+            do_perf= !my_perf_start_record();
           error= mysql_execute_command(thd);
+          if (do_perf)
+            my_perf_end_record();
           MYSQL_QUERY_EXEC_DONE(error);
 	}
       }

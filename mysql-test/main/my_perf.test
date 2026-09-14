@@ -1,0 +1,26 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+
+delimiter |;
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE i INT;
+  BEGIN
+    SET i= 0;
+    SET i= i+1;
+    INSERT INTO t1 VALUES (1, i);
+    SET i= i+1;
+    SET i= i+1;
+    INSERT INTO t1 VALUES (2, i);
+    SET i= i+1;
+  END;
+END|
+delimiter ;|
+
+SET GLOBAL perf_conn_id= CONNECTION_ID();
+SET @a= 0;
+CALL p();
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL perf_conn_id= 0;
+
+DROP PROCEDURE p;
+DROP TABLE t1;
