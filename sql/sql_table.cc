@@ -8768,6 +8768,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   table->file->get_foreign_key_list(thd, &fk_list);
 
   /*
+    The internal columns of the multi-valued indexes this statement adds
+    were named in the parser, which could not see the columns of the table
+    being altered. Name them here, before the two lists are merged below and
+    a name the table already uses turns into a duplicate.
+  */
+  if (mvi_name_new_vcols(thd, table, alter_info))
+    DBUG_RETURN(1);
+
+  /*
     First collect all fields from table which isn't in drop_list
   */
   bitmap_clear_all(&table->tmp_set);

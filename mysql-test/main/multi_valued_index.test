@@ -6,9 +6,14 @@ create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))e
 SHOW CREATE TABLE t1;
 show index from t1;
 
-# TODO: the following would result in
-# mysqltest: At line 9: query 'alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)))' failed: ER_DUP_FIELDNAME (1060): Duplicate column name 'DB_MVI_1'
-# alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)));
+--echo # A second multi-valued index gets an internal column of its own:
+--echo # the name the parser picks is only unique among the columns the
+--echo # ALTER itself adds, so it is picked again in the altered table.
+alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)));
+show index from t1;
+--echo # dropping the key takes its column with it
+alter table t1 drop key idx2;
+show index from t1;
 
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
@@ -365,6 +370,33 @@ show create table t1;
 alter table t1 add key idx2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
 show create table t1;
 explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+
+--echo # add yet another MVI
+update t1 set j= '{"tags": ["aaa"], "n": [42]}' where c=1;
+update t1 set j= '{"tags": ["bbb"], "n": [43]}' where c=2;
+update t1 set j= '{"tags": ["aaa","bbb"], "n": [42,43]}' where c=3;
+alter table t1 add key idx3 ((CAST(j->'$.n' AS INT ARRAY)));
+show create table t1;
+--replace_column 7 #
+show index from t1;
+
+--echo # both indexes are usable, and each finds its own rows
+explain select * from t1 where json_contains(j->'$.tags','"aaa"');
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+explain select * from t1 where json_contains(j->'$.n','42');
+select c from t1 where json_contains(j->'$.n','42') order by c;
+--echo # the same rows without the indexes:
+select c from t1 ignore index(idx2,idx3)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+select c from t1 ignore index(idx2,idx3)
+ where json_contains(j->'$.n','42') order by c;
+
+--echo # ... and a third one, over a path neither of them indexes
+alter table t1 add key idx4 ((CAST(j->'$.s' AS CHAR(6) ARRAY)));
+--replace_column 7 #
+show index from t1;
+explain select * from t1 where json_contains(j->'$.n','42');
+select c from t1 where json_contains(j->'$.n','42') order by c;
 
 drop table t1;
 

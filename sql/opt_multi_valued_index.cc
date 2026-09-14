@@ -632,6 +632,17 @@ static bool check_mvi_key_type(const Key *key)
 
 
 /*
+  The name of the internal column that holds the keys of a multi-valued
+  index: this prefix and a number that makes it unique in the table. See
+  make_internal_field_name() for CREATE TABLE and mvi_name_new_vcols() for
+  ALTER TABLE.
+*/
+#define MVI_VCOL_NAME_PREFIX "DB_MVI_"
+/* The prefix, the number and the terminating NUL */
+static const size_t MVI_VCOL_NAME_LEN= sizeof(MVI_VCOL_NAME_PREFIX) + 10;
+
+
+/*
   @brief
     Handle a `(CAST(expr AS type ARRAY))' key part: turn the key being
     defined into a multi-valued index over a new internal column.
@@ -680,9 +691,18 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
   if (unlikely(!f || !vcol_expr))
     return NULL;
 
-  /* Has to run before `f' joins the list it looks for a free name in */
+  /*
+    Has to run before `f' joins the list it looks for a free name in.
+
+    The list is all this statement defines, which for CREATE TABLE is every
+    column of the table, but for ALTER TABLE is only the columns being
+    added: the name picked here can still collide with one the altered
+    table already has. mysql_prepare_alter_table() settles that, once the
+    table is known, in mvi_name_new_vcols().
+  */
   const Lex_ident_column fname=
-    make_internal_field_name(thd, "DB_MVI_", &lex->alter_info.create_list);
+    make_internal_field_name(thd, MVI_VCOL_NAME_PREFIX,
+                             &lex->alter_info.create_list);
 
   Virtual_column_info *v= add_virtual_expression(thd, vcol_expr);
   if (unlikely(!v))
@@ -700,6 +720,113 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
   key->invisible= true;
 
   return new (thd->mem_root) Key_part_spec(&fname, 0, /*gen=*/true);
+}
+
+
+/*
+  Is `name' taken, either by a column of `table' or by one this statement
+  defines? `self' is the column being named, which does not take its own
+  name.
+*/
+
+static bool mvi_vcol_name_taken(const TABLE *table,
+                                List<Create_field> *create_list,
+                                const Create_field *self,
+                                const LEX_CSTRING &name)
+{
+  for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
+    if ((*f_ptr)->field_name.streq(name))
+      return true;
+  List_iterator<Create_field> it(*create_list);
+  while (const Create_field *def= it++)
+    if (def != self && def->field_name.streq(name))
+      return true;
+  return false;
+}
+
+
+/*
+  The key part that names `fname', or NULL if there is none. Only a
+  multi-valued index has an invisible key, see add_mvi_key_part(), so this
+  will not pick up a key the user wrote.
+*/
+
+static Key_part_spec *mvi_key_part_for(Alter_info *alter_info,
+                                       const LEX_CSTRING &fname)
+{
+  List_iterator<Key> key_it(alter_info->key_list);
+  while (Key *key= key_it++)
+  {
+    if (!key->invisible || key->columns.elements != 1)
+      continue;
+    Key_part_spec *kp= key->columns.head();
+    if (kp->field_name.streq(fname))
+      return kp;
+  }
+  return NULL;
+}
+
+
+/*
+  @brief
+    Give the internal columns of the multi-valued indexes this ALTER
+    TABLE adds names that are free in the table being altered.
+
+  @detail
+    add_mvi_key_part() named the column in the parser, where the only
+    names it can see are the ones the statement itself introduces. For
+    CREATE TABLE that is every column of the new table, but for ALTER
+    TABLE it is just the columns being added, so
+
+      ALTER TABLE t ADD KEY ((CAST(j->'$.a' AS CHAR(6) ARRAY)))
+
+    asks for DB_MVI_1 on a table that may already have a DB_MVI_1, and
+    the two collide once the old columns are merged in.
+
+    Rename here instead, where the table is known. The key part to fix
+    up is found by the name the parser gave the column: a name is
+    unique within one Alter_info, so there is at most one repeat.
+
+    Note this runs on the copy of the Alter_info that ALTER TABLE
+    works on (see Alter_info::Alter_info()), not on the one the parser
+    filled in, so re-executing a prepared statement names the column
+    afresh.
+
+  @return
+    true if an error was raised
+*/
+
+bool mvi_name_new_vcols(THD *thd, TABLE *table, Alter_info *alter_info)
+{
+  List_iterator<Create_field> def_it(alter_info->create_list);
+  while (Create_field *def= def_it++)
+  {
+    if (!is_mvi_vcol(def) ||
+        !mvi_vcol_name_taken(table, &alter_info->create_list, def,
+                             def->field_name))
+      continue;                 /* Not an MVI or name already unique */
+
+    char buf[MVI_VCOL_NAME_LEN];
+    LEX_CSTRING name= { buf, 0 };
+    for (uint num= 1; ; num++)
+    {
+      name.length= my_snprintf(buf, sizeof(buf), "%s%u",
+                               MVI_VCOL_NAME_PREFIX, num);
+      if (!mvi_vcol_name_taken(table, &alter_info->create_list, def, name))
+        break;
+    }
+    const Lex_ident_column new_name(thd->strmake_lex_cstring(name));
+    if (unlikely(!new_name.str))
+      return true;                              // Out of memory
+
+    Key_part_spec *kp= mvi_key_part_for(alter_info, def->field_name);
+    DBUG_ASSERT(kp);                            // Its key is in the statement
+    if (unlikely(!kp))
+      continue;
+    kp->field_name= new_name;
+    def->field_name= new_name;
+  }
+  return false;
 }
 
 

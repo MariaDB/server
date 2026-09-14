@@ -14,6 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+class Alter_info;
 class Json_writer_object;
 
 /* An MVI index */
@@ -260,6 +261,13 @@ void print_mvi_key_expr(String *str, const TABLE *table, uint keyno);
 */
 Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
                                 const Lex_cast_type_st &cast_type);
+
+/*
+  DDL: name the internal columns of the multi-valued indexes this ALTER
+  TABLE adds, which the parser could only name provisionally. Returns true
+  if an error was raised.
+*/
+bool mvi_name_new_vcols(THD *thd, TABLE *table, Alter_info *alter_info);
 
 /*
   Analyze `cond' and pick the MVI access `tab' will use, if any, and let the
