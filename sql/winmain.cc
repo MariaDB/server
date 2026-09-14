@@ -56,6 +56,7 @@
 #include <string>
 #include <cassert>
 #include <winservice.h>
+#include "message.h"
 
 static SERVICE_STATUS svc_status{SERVICE_WIN32_OWN_PROCESS};
 static SERVICE_STATUS_HANDLE svc_status_handle;
@@ -110,12 +111,23 @@ static void report_svc_status(DWORD current_state, DWORD exit_code, DWORD wait_h
 }
 
 /* Report unexpected errors. */
-static void svc_report_event(const char *svc_name, const char *command)
+static void svc_report_event(const char *service_name, const char *command,
+                             DWORD error)
 {
-  char buffer[80];
-  sprintf_s(buffer, "mariadb service %s, %s failed with %d",
-      svc_name, command, GetLastError());
+  char buffer[160];
+  snprintf(buffer, sizeof(buffer),
+           "mariadb service %s, %s failed with error %lu",
+           service_name ? service_name : "", command, error);
   OutputDebugString(buffer);
+
+  HANDLE event= RegisterEventSource(NULL, "MariaDB");
+  if (event)
+  {
+    const char *strings[]= {buffer};
+    ReportEvent(event, EVENTLOG_ERROR_TYPE, 0, MSG_DEFAULT, NULL, 1, 0,
+                strings, NULL);
+    DeregisterEventSource(event);
+  }
 }
 
 /*
@@ -147,12 +159,13 @@ static void WINAPI svc_ctrl_handle(DWORD cntrl)
 static void WINAPI svc_main(DWORD svc_argc, char **svc_argv)
 {
   /* Register the handler function for the service */
-  char *name= svc_argv[0];
+  svc_name= svc_argv[0];
 
-  svc_status_handle= RegisterServiceCtrlHandler(name, svc_ctrl_handle);
+  svc_status_handle= RegisterServiceCtrlHandler(svc_name, svc_ctrl_handle);
   if (!svc_status_handle)
   {
-    svc_report_event(name, "RegisterServiceCtrlHandler");
+    DWORD error= GetLastError();
+    svc_report_event(svc_name, "RegisterServiceCtrlHandler", error);
     return;
   }
   report_svc_status(SERVICE_START_PENDING, NO_ERROR, 0);
@@ -161,7 +174,7 @@ static void WINAPI svc_main(DWORD svc_argc, char **svc_argv)
   mysqld_set_service_status_callback(report_svc_status);
 
   /* This would add service name entry to load_defaults.*/
-  mysqld_win_set_service_name(name);
+  mysqld_win_set_service_name(svc_name);
 
   /*
    Do not pass the service name parameter (last on the command line)
@@ -172,43 +185,22 @@ static void WINAPI svc_main(DWORD svc_argc, char **svc_argv)
 }
 
 /*
-  This start the service. Sometimes it will fail, because
-  currently we do not know for sure whether we run as service or not.
+  This start the service. We currently do not know for sure
+  whether we run as service or not.
   If this fails, the fallback is to run as normal process.
 */
-static int run_as_service(char *name)
+static int run_as_service()
 {
-  SERVICE_TABLE_ENTRY stb[]= {{name, svc_main}, {0, 0}};
+  char service_name[]= "";
+  SERVICE_TABLE_ENTRY stb[]= {{service_name, svc_main}, {0, 0}};
   if (!StartServiceCtrlDispatcher(stb))
   {
-    assert(GetLastError() == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT);
+    DWORD error= GetLastError();
+    if (error != ERROR_FAILED_SERVICE_CONTROLLER_CONNECT)
+      svc_report_event("", "StartServiceCtrlDispatcher", error);
     return -1;
   }
   return 0;
-}
-
-/*
-  Check for valid existing service name.
-  Part of our guesswork, whether we run as service or not.
-*/
-static bool is_existing_service(const char *name)
-{
-  if (strchr(name, '\\') || strchr(name, '/'))
-  {
-    /* Invalid characters in service name */
-    return false;
-  }
-
-  SC_HANDLE sc_service= 0, scm= 0;
-  bool ret= ((scm= OpenSCManager(0, 0, SC_MANAGER_ENUMERATE_SERVICE)) != 0) &&
-       ((sc_service= OpenService(scm, name, SERVICE_QUERY_STATUS)) != 0);
-
-  if (sc_service)
-    CloseServiceHandle(sc_service);
-  if (scm)
-    CloseServiceHandle(scm);
-
-  return ret;
 }
 
 /*
@@ -268,10 +260,8 @@ __declspec(dllexport) int mysqld_win_main(int argc, char **argv)
     return remove_service(get_svc_name(argv[2]));
 
   /* Try to run as service, and fallback to mysqld_main(), if this fails */
-  svc_name= argv[argc - 1];
-  if (is_existing_service(svc_name) && !run_as_service(svc_name))
+  if (!run_as_service())
     return 0;
-  svc_name= 0;
 
   /* Run as normal program.*/
   return mysqld_main(argc, argv);
