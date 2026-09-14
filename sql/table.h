@@ -1360,9 +1360,12 @@ public:
   }
   /*
     Whether the value at 'ptr' was cut on its way in. 'ptr' must be a
-    pointer this storage handed out, which is the case for every blob in
-    a table that has a Blob_mem_storage: Field_blob::store() sends all of
-    them through Field_blob::handle_group_concat().
+    pointer this storage handed out, which is the case for every column
+    kept out of the record in a table that has a Blob_mem_storage: a
+    declared blob through Field_blob::handle_group_concat(), and a
+    VARCHAR whose payload has moved out of the record directly from
+    Field_varstring::store().  Only the former is ever cut here, because
+    only it has no declared width of its own.
   */
   static bool was_cut(const char *ptr) { return ptr[-1] != 0; }
   void set_truncated_value(bool is_truncated_value)
@@ -1694,11 +1697,25 @@ public:
   List<Virtual_column_info> vcol_refix_list;
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
-  /* this is for temporary tables created inside Item_func_group_concat */
-  union {
-    bool group_concat;                  /* used during create_tmp_table() */
-    Blob_mem_storage *blob_storage;     /* used after create_tmp_table()  */
-  };
+  /*
+    Both of these are for temporary tables created inside
+    Item_func_group_concat.  They are separate members because
+    Field_varstring::store() asks the table for its blob storage once a
+    VARCHAR can keep its payload out of the record, and a union would
+    answer that question with the address 1.  The bool is read while the
+    columns are being created and the pointer only afterwards, so the
+    overlap would be safe by ordering alone; one extra member is cheaper
+    than maintaining that argument.
+  */
+  bool group_concat;                    /* read while creating columns */
+  /*
+    Whether this table is expected to be created in the HEAP engine.
+    Read while creating columns as well, for the same reason: it decides
+    which form of a wide VARCHAR the table holds, and that has to be
+    settled before the column is handed to anything.
+  */
+  bool heap_expected;
+  Blob_mem_storage *blob_storage;       /* set once the table exists */
   GRANT_INFO grant;
   /*
     The arena which the items for expressions from the table definition
@@ -1818,6 +1835,14 @@ public:
 
   bool init_expr_arena(MEM_ROOT *mem_root);
 
+  /*
+    Does this table hold a column the user declared as a blob, one with
+    no maximum width?  s->blob_fields counts those together with the
+    columns whose payload merely sits outside the record, and the two are
+    different questions: a decision taken because a value can be
+    arbitrarily wide must ask this one.
+  */
+  bool has_unbounded_blob_field() const;
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
                      uint (*next_field_no) (uchar *), uchar *arg);

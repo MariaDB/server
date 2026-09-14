@@ -39,7 +39,7 @@ int heap_rfirst(HP_INFO *info, uchar *record, int inx)
       memcpy(&pos, pos + (*keyinfo->get_key_length)(keyinfo, pos), 
 	     sizeof(uchar*));
       info->current_ptr = pos;
-      memcpy(record, pos, (size_t)share->reclength);
+      hp_unpack_record(share, record, pos);
       if (share->blob_count && hp_read_blobs(info, record, pos))
         DBUG_RETURN(my_errno);
       /*

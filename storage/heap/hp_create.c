@@ -23,6 +23,163 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 
 
 /*
+  Map an offset in the SQL record buffer to its position in a stored
+  record.
+
+  Defined for every offset outside a promoted column's reserved payload,
+  which is every offset the engine ever addresses: the null bytes, the
+  fixed-width columns, and each descriptor's length prefix.  An offset
+  inside a payload has no stored counterpart, because that is the space
+  promotion removes.
+*/
+
+static uint hp_stored_offset(const HP_SHARE *share, uint offset)
+{
+  const HP_COPY_SPAN *span, *span_end;
+
+  for (span= share->copy_spans, span_end= span + share->copy_span_count;
+       span < span_end; span++)
+  {
+    if (offset >= span->offset && offset < span->offset + span->length)
+      return span->store_offset + (offset - span->offset);
+  }
+  DBUG_ASSERT(0);                     /* Offset inside a promoted payload */
+  return offset;
+}
+
+
+/*
+  Build the map between the SQL record buffer and the stored record.
+
+  The spans are the ranges between promoted columns' reserved payloads.
+  A promoted column's length prefix rides along at the end of the span
+  before it, so only the payload is a gap, and the stored record spends
+  a chain pointer there instead.
+
+  Once the spans exist, every descriptor's stored position follows from
+  them -- including the native blobs', whose shape does not change but
+  whose position does, because compaction moves everything after the
+  first promoted column.
+
+  ha_heap.cc computes stored_reclength independently while deciding what
+  to promote.  Re-deriving it here and asserting the two agree is what
+  catches a promotion decision that does not match the layout it implies.
+*/
+
+static void hp_setup_record_layout(HP_SHARE *share, uint reclength,
+                                   uint stored_reclength)
+{
+  HP_COPY_SPAN *span= share->copy_spans;
+  uint i, sql_pos= 0, store_pos= 0;
+
+  for (i= 0; i < share->blob_count; i++)
+  {
+    HP_BLOB_DESC *desc= share->blob_descs + i;
+    uint gap;
+
+    if (!desc->promoted)
+      continue;
+    gap= desc->offset + desc->packlength;
+    DBUG_ASSERT(gap >= sql_pos);        /* Descriptors ascend by offset */
+    span->offset= sql_pos;
+    span->store_offset= store_pos;
+    span->length= gap - sql_pos;
+    store_pos+= span->length + (uint) sizeof(uchar*);
+    sql_pos= gap + desc->length;
+    span++;
+  }
+  span->offset= sql_pos;
+  span->store_offset= store_pos;
+  span->length= reclength - sql_pos;
+
+  DBUG_ASSERT((uint) (span - share->copy_spans) + 1 == share->copy_span_count);
+  DBUG_ASSERT(store_pos + span->length == stored_reclength);
+
+  for (i= 0; i < share->blob_count; i++)
+  {
+    HP_BLOB_DESC *desc= share->blob_descs + i;
+    desc->store_offset= hp_stored_offset(share, desc->offset);
+  }
+  share->stored_reclength= stored_reclength;
+}
+
+
+/*
+  Derive a key's stored segments from its SQL segments.
+
+  Mostly this is re-addressing: compaction has moved every segment that
+  follows the first promoted column.  A segment over a promoted column is
+  additionally marked HA_BLOB_PART, which in a stored segment means the
+  data is not inline but in a continuation chain, exactly as it is for a
+  native blob.
+
+  The segment keeps its VARCHAR type, so hashing and comparison keep
+  applying VARCHAR rules -- prefix truncation, PAD/NOPAD, the multi-byte
+  character position walk.  Only where the bytes are read from changes.
+  Promotion must not change what a key means.
+*/
+
+static void hp_make_stored_keysegs(HP_SHARE *share, HA_KEYSEG *sql_seg,
+                                   HA_KEYSEG *store_seg, uint keysegs)
+{
+  uint i, j;
+
+  memcpy(store_seg, sql_seg, sizeof(*store_seg) * keysegs);
+  for (i= 0; i < keysegs; i++)
+  {
+    store_seg[i].start= hp_stored_offset(share, sql_seg[i].start);
+    store_seg[i].bit_pos= hp_stored_offset(share, sql_seg[i].bit_pos);
+    /*
+      null_pos needs no translation, and gets none: the null bitmap sits
+      at the front of the record, ahead of every field, so no promoted
+      column can precede it and compaction cannot move it.  hp_hash.c
+      reads a stored record at this offset, so assert what that relies on
+      rather than leaving the one untranslated offset unexplained.
+    */
+    DBUG_ASSERT(!sql_seg[i].null_bit ||
+                hp_stored_offset(share, sql_seg[i].null_pos) ==
+                sql_seg[i].null_pos);
+    for (j= 0; j < share->blob_count; j++)
+    {
+      const HP_BLOB_DESC *desc= share->blob_descs + j;
+      if (desc->promoted && desc->offset == sql_seg[i].start)
+      {
+        store_seg[i].flag|= HA_BLOB_PART;
+        break;
+      }
+    }
+  }
+}
+
+
+/*
+  Whether a key segment starting at this record offset reads its value
+  through the SQL record rather than from it.
+
+  A segment says so with HA_BLOB_PART, and hp_varchar_seg_data() then
+  reads a pointer where the value would be, so a segment carrying the flag
+  with no descriptor behind it dereferences whatever the record holds.
+  A VARCHAR the SQL layer moved out of the record sets the flag
+  legitimately, so what drives the strip is whether a descriptor stands
+  behind the segment rather than how wide its prefix is.
+
+  A descriptor the engine promoted does not count: there the SQL record
+  still holds the value inline and only the stored record is indirect.
+*/
+
+static my_bool hp_seg_reads_out_of_line(const HP_CREATE_INFO *create_info,
+                                        uint start)
+{
+  uint i;
+  for (i= 0; i < create_info->blob_count; i++)
+    if (create_info->blob_descs[i].offset == start &&
+        !create_info->blob_descs[i].promoted)
+      return TRUE;
+  return FALSE;
+}
+
+
+/*
   In how many parts are we going to do allocations of memory and indexes
   If we assign 1M to the heap table memory, we will allocate roughly
   (1M/16) bytes per allocation
@@ -56,20 +213,32 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 {
   uint i, key_segs, max_length, length;
   HP_SHARE *share= 0;
-  HA_KEYSEG *keyseg;
+  HA_KEYSEG *keyseg, *stored_keyseg;
   HP_KEYDEF *keydef= create_info->keydef;
   uint reclength= create_info->reclength;
+  /*
+    Promoted columns make the stored record shorter than record[0].
+    Everything about the block geometry -- the record stride, the
+    visibility byte offset, the rows that fit in the table ceiling --
+    follows the stored length, which is the whole point of promoting.
+  */
+  uint stored_reclength= (create_info->stored_reclength ?
+                          create_info->stored_reclength : reclength);
+  uint copy_spans= 1, promoted= 0;
   uint keys= create_info->keys;
   ulong min_records= create_info->min_records;
   ulong max_records= create_info->max_records;
   uint visible_offset;
   /*
-    max_records is this function's row limit and 0 means "no limit".
-    The share stores an explicit ceiling instead, writing "no limit" as
-    NO_LIMIT_RECORDS, so hp_alloc_from_tail() tests one value with no
-    special case.  That leaves 0 free to mean what it says on the
-    share, a table that accepts no rows.  Block sizing needs a concrete
-    row count rather than the ceiling, so derive one here.
+    max_records is an expected record count used to size blocks, not a
+    limit; 0 means the caller has no expectation.  Block sizing needs a
+    concrete number, so derive one here.
+
+    The row limit is create_info->max_rows, where 0 still means "no
+    limit".  The share stores an explicit ceiling instead, writing "no
+    limit" as NO_LIMIT_ROWS, so heap_write() tests one value with no
+    special case.  That leaves 0 free to mean what it says on the share,
+    a table that accepts no rows.
   */
   ulong block_max_records= (max_records ? max_records :
                             MY_MAX(min_records, 1000));
@@ -94,6 +263,13 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   if (!share)
   {
     HP_KEYDEF *keyinfo;
+    /*
+      A second key segment array, describing the stored record, is
+      allocated only when something is promoted; without promotion the
+      stored segments are the SQL ones and stored_keyseg aliases keyseg.
+    */
+    uint stored_key_segs;
+    uchar *tail;
     DBUG_PRINT("info",("Initializing new table"));
     
     /*
@@ -103,7 +279,31 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       the flags byte at offset 'visible'.  This also satisfies the
       blob continuation header requirement (HP_CONT_HEADER_SIZE + 1).
     */
-    visible_offset= MY_MAX(reclength, HP_DEL_METADATA_SIZE);
+    visible_offset= MY_MAX(stored_reclength, HP_DEL_METADATA_SIZE);
+
+    /*
+      One verbatim range per promoted column's payload gap, plus the
+      trailing one.  A table with no promoted column keeps a single span
+      covering the whole record.
+    */
+    for (i= 0; i < create_info->blob_count; i++)
+    {
+      /*
+        The layout below is built by walking the descriptors in record
+        order, and hp_stored_offset() maps an offset by finding the span
+        it falls in, so this array has to ascend by offset.  ha_heap.cc
+        sorts it before calling; assert the precondition here, where the
+        contract is, so a caller that builds descriptors in field order
+        fails at its own mistake rather than on a wrapped span length.
+      */
+      DBUG_ASSERT(!i || create_info->blob_descs[i - 1].offset <
+                        create_info->blob_descs[i].offset);
+      if (create_info->blob_descs[i].promoted)
+      {
+        promoted++;
+        copy_spans++;
+      }
+    }
 
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
@@ -145,12 +345,25 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
-            Real blob fields always enter as VARTEXT4/VARBINARY4, never
-            as VARTEXT1/VARBINARY1. Strip any spurious HA_BLOB_PART
-            (e.g. from uninitialized key_part_flag in SJ weedout tables).
+            A real blob always enters as VARTEXT4 or VARBINARY4, so on a
+            one-byte-prefix VARCHAR segment HA_BLOB_PART is a stray bit --
+            unless the SQL layer moved the column out of the record, which
+            sets the flag deliberately and keeps the one-byte prefix, a
+            VARCHAR(200) in a single-byte charset being such a segment.
+            The flag is therefore stripped from the segments that have no
+            descriptor behind them rather than from all of them.
+
+            The strip stays a release-build action, not an assertion.
+            key_part_flag reaches here from a .frm byte that nothing masks
+            (sql/table.cc), and hp_varchar_seg_data() reads the record as a
+            pointer wherever the flag is set, so a stray bit that survives
+            is a dereference of record contents.
           */
-          DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
-          keyseg->flag&= ~HA_BLOB_PART;
+          if (!hp_seg_reads_out_of_line(create_info, keyseg->start))
+          {
+            DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
+            keyseg->flag&= ~HA_BLOB_PART;
+          }
           /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
@@ -232,12 +445,15 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           keyinfo->get_key_length= hp_rb_key_length;
       }
     }
+    stored_key_segs= promoted ? key_segs : 0;
     if (!(share= (HP_SHARE*) my_malloc(hp_key_memory_HP_SHARE,
                                        sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
 				       key_segs*sizeof(HA_KEYSEG)+
+                                       stored_key_segs*sizeof(HA_KEYSEG)+
 				       create_info->blob_count*
-                                       sizeof(HP_BLOB_DESC),
+                                       sizeof(HP_BLOB_DESC)+
+                                       copy_spans*sizeof(HP_COPY_SPAN),
 				       MYF(MY_ZEROFILL |
                                            (create_info->internal_table ?
                                             MY_THREAD_SPECIFIC : 0)))))
@@ -245,14 +461,22 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
+    stored_keyseg= keyseg + key_segs;
+    tail= (uchar*) (keyseg + key_segs + stored_key_segs);
     if (create_info->blob_count)
     {
-      share->blob_descs= (HP_BLOB_DESC*) (keyseg + key_segs);
+      share->blob_descs= (HP_BLOB_DESC*) tail;
       memcpy(share->blob_descs, create_info->blob_descs,
              create_info->blob_count * sizeof(HP_BLOB_DESC));
       share->blob_count= create_info->blob_count;
+      tail= (uchar*) (share->blob_descs + create_info->blob_count);
     }
-    init_block(&share->block, hp_memory_needed_per_row(reclength),
+    share->copy_spans= (HP_COPY_SPAN*) tail;
+    share->copy_span_count= copy_spans;
+    share->promoted_count= promoted;
+    share->declared_reclength= create_info->declared_reclength;
+    hp_setup_record_layout(share, reclength, stored_reclength);
+    init_block(&share->block, hp_memory_needed_per_row(stored_reclength),
                min_records, block_max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
@@ -261,7 +485,16 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       keyinfo->seg= keyseg;
       memcpy(keyseg, keydef[i].seg,
 	     (size_t) (sizeof(keyseg[0]) * keydef[i].keysegs));
+      if (promoted)
+      {
+        keyinfo->seg_stored= stored_keyseg;
+        hp_make_stored_keysegs(share, keyseg, stored_keyseg,
+                               keydef[i].keysegs);
+      }
+      else
+        keyinfo->seg_stored= keyseg;
       keyseg+= keydef[i].keysegs;
+      stored_keyseg+= keydef[i].keysegs;
 
       if (keydef[i].algorithm == HA_KEY_ALG_BTREE)
       {
@@ -271,6 +504,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	keyseg->flag=     0;
 	keyseg->null_bit= 0;
 	keyseg++;
+        stored_keyseg++;             /* Keep the two arrays in lockstep */
 
 	init_tree(&keyinfo->rb_tree, 0, 0, sizeof(uchar*),
 		  keys_compare, NULL, NULL,
@@ -291,9 +525,11 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         share->auto_key= i + 1;
     }
     share->min_records= min_records;
-    share->max_records= max_records ? max_records : NO_LIMIT_RECORDS;
+    share->max_rows= (create_info->max_rows ? create_info->max_rows :
+                      NO_LIMIT_ROWS);
     share->max_table_size= create_info->max_table_size;
     share->data_length= share->index_length= 0;
+    share->deleted_entries= 0;
     share->reclength= reclength;
     share->visible= visible_offset;
     share->blength= 1;

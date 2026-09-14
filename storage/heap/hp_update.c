@@ -65,7 +65,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     detect changes.  Unchanged blobs keep their existing chains.
     Changed blobs get new chains written before old ones are freed.
 
-    The bulk memcpy of heap_new into pos overwrites blob chain pointers
+    hp_pack_record() of heap_new into pos overwrites blob chain pointers
     with SQL-layer data pointers, so we save old chain pointers first
     and restore them for unchanged blobs afterward.
   */
@@ -86,10 +86,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     {
       uint32 old_len, cur_len;
 
-      saved_chains[i]= NULL;
-      if (had_cont)
-        memcpy(&saved_chains[i], pos + desc->offset + desc->packlength,
-               sizeof(saved_chains[i]));
+      saved_chains[i]= had_cont ? hp_blob_get_chain(desc, pos) : NULL;
 
       old_len= hp_blob_length(desc, old);
       cur_len= hp_blob_length(desc, heap_new);
@@ -101,17 +98,26 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       else
       {
         const uchar *old_data, *new_data;
-        memcpy(&old_data, old + desc->offset + desc->packlength,
-               sizeof(old_data));
-        memcpy(&new_data, heap_new + desc->offset + desc->packlength,
-               sizeof(new_data));
+        if (desc->promoted)
+        {
+          /* Value is inline in the record buffer, not behind a pointer */
+          old_data= old + desc->offset + desc->packlength;
+          new_data= heap_new + desc->offset + desc->packlength;
+        }
+        else
+        {
+          memcpy(&old_data, old + desc->offset + desc->packlength,
+                 sizeof(old_data));
+          memcpy(&new_data, heap_new + desc->offset + desc->packlength,
+                 sizeof(new_data));
+        }
         blob_changed[i]= (old_data != new_data &&
                            memcmp(old_data, new_data, old_len) != 0);
       }
       any_changed|= blob_changed[i];
     }
 
-    memcpy(pos, heap_new, (size_t) share->reclength);
+    hp_pack_record(share, pos, heap_new);
 
     /* Write new chains for changed blobs, restore old pointers for unchanged */
     for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
@@ -124,32 +130,34 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
           as this may have been allocated from a segmented blob.
 
           When there is no saved chain (zero-length blob with no continuation
-          data), NULL out the pointer that memcpy(pos, heap_new) left behind.
+          data), NULL out the pointer that hp_pack_record() left behind.
           Without this, a stale SQL-layer pointer (e.g. from replication event
           buffer) would be interpreted as a chain head by hp_free_blobs().
         */
         if (saved_chains[i])
         {
-          memcpy(pos + desc->offset + desc->packlength,
-                 &saved_chains[i], sizeof(saved_chains[i]));
+          hp_blob_set_chain(desc, pos, saved_chains[i]);
           has_blob_data= TRUE;
         }
         else
-          bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+          hp_blob_clear_chain(desc, pos);
         continue;
       }
 
       new_len= hp_blob_length(desc, heap_new);
       if (new_len == 0)
-        bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+        hp_blob_clear_chain(desc, pos);
       else
       {
         const uchar *data_ptr;
         uchar *first_run;
 
         has_blob_data= TRUE;
-        memcpy(&data_ptr, heap_new + desc->offset + desc->packlength,
-               sizeof(data_ptr));
+        if (desc->promoted)
+          data_ptr= heap_new + desc->offset + desc->packlength;
+        else
+          memcpy(&data_ptr, heap_new + desc->offset + desc->packlength,
+                 sizeof(data_ptr));
 
         if (hp_write_one_blob(share, data_ptr, new_len, &first_run))
         {
@@ -160,18 +168,18 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
             if (blob_changed[j])
             {
               uchar *chain;
-              memcpy(&chain, pos + share->blob_descs[j].offset +
+              memcpy(&chain, pos + share->blob_descs[j].store_offset +
                      share->blob_descs[j].packlength, sizeof(chain));
               if (chain)
                 hp_free_run_chain(share, chain);
             }
           }
           hp_shrink_tail(share);
-          memcpy(pos, old, (size_t) share->reclength);
+          hp_pack_record(share, pos, old);
           if (had_cont)
           {
             for (j= 0; j < share->blob_count; j++)
-              memcpy(pos + share->blob_descs[j].offset +
+              memcpy(pos + share->blob_descs[j].store_offset +
                      share->blob_descs[j].packlength,
                      &saved_chains[j], sizeof(saved_chains[j]));
             pos[share->visible]|= HP_ROW_HAS_CONT;
@@ -179,8 +187,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
           my_safe_afree(saved_chains, alloc_size);
           goto err;
         }
-        memcpy(pos + desc->offset + desc->packlength,
-               &first_run, sizeof(first_run));
+        hp_blob_set_chain(desc, pos, first_run);
       }
     }
 
@@ -238,7 +245,15 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
       for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
       {
         uchar *chain;
-        memcpy(&chain, pos + desc->offset + desc->packlength, sizeof(chain));
+        /*
+          A promoted column's record slot holds the value rather than a
+          pointer to it, so there is nothing here for a chain pointer to
+          occupy and writing one lands on the payload.  hp_read_blobs()
+          below takes the chain from the stored record either way.
+        */
+        if (desc->promoted)
+          continue;
+        chain= hp_blob_get_chain(desc, pos);
         memcpy((uchar*) heap_new + desc->offset + desc->packlength, &chain,
                sizeof(chain));
       }
@@ -249,7 +264,7 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
   }
   else
   {
-    memcpy(pos, heap_new, (size_t) share->reclength);
+    hp_pack_record(share, pos, heap_new);
   }
   if (++(share->records) == share->blength) share->blength+= share->blength;
 

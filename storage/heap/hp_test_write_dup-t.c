@@ -160,6 +160,7 @@ static int create_and_open(const char *name, uint keys, HP_KEYDEF *keydef,
   HP_BLOB_DESC blob_desc;
   my_bool unused;
 
+  memset(&blob_desc, 0, sizeof(blob_desc));
   blob_desc.offset=     BLOB_OFFSET;
   blob_desc.packlength= BLOB_PACKLEN;
 

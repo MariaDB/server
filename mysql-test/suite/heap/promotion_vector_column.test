@@ -1,0 +1,145 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # A VECTOR column is a VARCHAR to type() but is not moved out of the
+--echo # record
+--echo #
+--echo # Field_vector derives from Field_varstring, and Type_handler_vector
+--echo # derives from Type_handler_varchar without overriding field_type(), so
+--echo # a VECTOR column answers MYSQL_TYPE_VARCHAR.  It is nevertheless left
+--echo # inline, for two separate reasons.  Its length is the only length it
+--echo # can have, store() rejecting anything else, so there is no declared
+--echo # width to reclaim.  And it could not be moved in any case: reset()
+--echo # writes the whole field_length into the length prefix, and the copy
+--echo # functions get_copy_func() returns address the value at a fixed offset
+--echo # in the record.
+--echo #
+--echo # Both columns below are wider than the threshold, so a decision taken
+--echo # on width alone would move them.
+--echo #
+
+CREATE TABLE t1 (id INT, v VECTOR(10), w VECTOR(64));
+INSERT INTO t1 (id, v, w) VALUES
+  (1, vec_fromtext('[1,2,3,4,5,6,7,8,9,10]'),
+      vec_fromtext(CONCAT('[1', REPEAT(',1', 63), ']'))),
+  (2, vec_fromtext('[10,9,8,7,6,5,4,3,2,1]'),
+      vec_fromtext(CONCAT('[2', REPEAT(',2', 63), ']')));
+--echo # A row with no value stored is the one a moved payload is fatal for:
+--echo # the length prefix advertises the declared width while the slot holds
+--echo # only a pointer, and nothing has pointed it anywhere.
+INSERT INTO t1 (id) VALUES (3);
+
+--echo #
+--echo # A derived table over UNION ALL is materialized in an internal
+--echo # temporary table, which is where the SQL layer takes the decision.
+--echo #
+FLUSH STATUS;
+# Both counts below are exact, so both statements that move them have to
+# run the way they were counted.  Under ps2-protocol a bare SELECT is
+# executed twice; under cursor-protocol it is read through a cursor,
+# which materializes a temporary table of its own; and a prepared SHOW
+# STATUS counts the temporary table it makes for itself, which a SHOW in
+# the default protocol does not.
+--disable_ps2_protocol
+--disable_cursor_protocol
+SELECT id, vec_totext(v) AS v, vec_totext(w) = CONCAT('[1', REPEAT(',1', 63), ']') AS w_is_1
+FROM (SELECT id, v, w FROM t1 UNION ALL SELECT id, v, w FROM t1) dt
+ORDER BY id, v;
+--enable_cursor_protocol
+--enable_ps2_protocol
+--echo # The temporary table has to have been created, and to have stayed in
+--echo # memory, or the query above covers nothing.
+--disable_ps_protocol
+SHOW STATUS LIKE 'Created_tmp_tables';
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+--enable_ps_protocol
+
+--echo #
+--echo # Same columns reached through Copy_field rather than a whole-record
+--echo # write.  Field_vector::get_copy_func() overrides Field_varstring's and
+--echo # addresses the record directly.
+--echo #
+FLUSH STATUS;
+--disable_ps2_protocol
+--disable_cursor_protocol
+SELECT id, vec_totext(v) AS v FROM (SELECT id, v FROM t1 GROUP BY id, v) dt
+ORDER BY id;
+--enable_cursor_protocol
+--enable_ps2_protocol
+--disable_ps_protocol
+SHOW STATUS LIKE 'Created_tmp_tables';
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+--enable_ps_protocol
+
+DROP TABLE t1;
+
+--echo #
+--echo # The same column in a table the user asked for, where the engine takes
+--echo # the decision instead of the SQL layer
+--echo #
+--echo # Both routes ask one question, so a VECTOR column is left inline here
+--echo # too.  Both widths below are over the threshold, and w is wide enough
+--echo # that its bytes would not fit in one continuation record had it been
+--echo # moved.
+--echo #
+
+CREATE TABLE t2 (id INT, v VECTOR(10), w VECTOR(64)) ENGINE=MEMORY;
+INSERT INTO t2 (id, v, w) VALUES
+  (1, vec_fromtext('[1,2,3,4,5,6,7,8,9,10]'),
+      vec_fromtext(CONCAT('[1', REPEAT(',1', 63), ']'))),
+  (2, vec_fromtext('[10,9,8,7,6,5,4,3,2,1]'),
+      vec_fromtext(CONCAT('[2', REPEAT(',2', 63), ']')));
+INSERT INTO t2 (id) VALUES (3);
+
+SELECT id, vec_totext(v) AS v,
+       vec_totext(w) = CONCAT('[1', REPEAT(',1', 63), ']') AS w_is_1
+FROM t2 ORDER BY id;
+
+--echo # Growing a value from NULL and shrinking one back to NULL both rewrite
+--echo # the stored record, which is where a moved payload would be answered.
+UPDATE t2 SET w = vec_fromtext(CONCAT('[3', REPEAT(',3', 63), ']')) WHERE id = 3;
+UPDATE t2 SET w = NULL WHERE id = 1;
+SELECT id, vec_totext(w) = CONCAT('[3', REPEAT(',3', 63), ']') AS w_is_3,
+       w IS NULL AS w_is_null
+FROM t2 ORDER BY id;
+
+CHECK TABLE t2;
+
+DELETE FROM t2 WHERE id = 2;
+SELECT COUNT(*), COUNT(v), COUNT(w) FROM t2;
+CHECK TABLE t2;
+
+DROP TABLE t2;
+
+--echo #
+--echo # That the column stayed inline, read as capacity
+--echo #
+--echo # Everything above would pass just as well if the engine had moved the
+--echo # payload out of the record, since moving it is meant to be invisible.
+--echo # This is the check that it did not, and it is also what the decision
+--echo # rests on.  A VECTOR claims its whole declared width in the length
+--echo # prefix whether a value was stored or not, so moving the payload out
+--echo # copies all of it into continuation records and pays their per-record
+--echo # overhead on top of bytes it was already paying inline.  At a 1MB
+--echo # ceiling the column below holds 30 rows inline and 17 moved out.
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+
+CREATE TABLE t_vec (v VECTOR(16383)) ENGINE=MEMORY;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t_vec (v) SELECT NULL FROM seq_1_to_200;
+SELECT COUNT(*) > 20 AS stayed_inline FROM t_vec;
+
+--echo # The control, which is what makes the count above mean anything: a
+--echo # VARBINARY of the same declared width is moved out of the record, and
+--echo # there a row storing nothing costs a length prefix and a pointer
+--echo # rather than the declared width, so all 200 rows fit.  Capacity does
+--echo # detect the move where there is one.
+CREATE TABLE t_bin (v VARBINARY(65532)) ENGINE=MEMORY;
+INSERT INTO t_bin (v) SELECT NULL FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_bin;
+
+DROP TABLE t_vec, t_bin;
+SET max_heap_table_size= @save_max_heap_table_size;

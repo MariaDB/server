@@ -1,0 +1,55 @@
+#
+# A recursive CTE is computed in one temporary table and copied into one
+# more per reference to it, and the copy has no conversion step: the
+# source table's handler writes straight into the destination's record
+# buffer.  All of them are built from a single column list, so they agree
+# on the record layout only while every column is stored the same way in
+# each.
+#
+# A VARCHAR wider than the threshold keeps its payload outside the record
+# in a MEMORY table, and the record holds a length and a pointer instead.
+# The reference tables are created by a different call, with its own
+# options, than the table the recursion runs in; a fulltext function in
+# the query reading the CTE is what makes those options differ.
+#
+CREATE TABLE ft (b VARCHAR(64), FULLTEXT(b)) ENGINE=MyISAM;
+INSERT INTO ft VALUES ('alpha'),('beta');
+
+# No fulltext function: every table is built the same way.
+WITH RECURSIVE seq AS (
+  SELECT 1 AS n, REPEAT('a', 100) AS wide
+  UNION ALL
+  SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT n, LEFT(wide, 8) AS head, CHAR_LENGTH(wide) AS len FROM seq ORDER BY n;
+
+# The query reading the CTE carries a MATCH(), and reads it twice, so the
+# two reference tables are created by the two different calls.
+WITH RECURSIVE seq AS (
+  SELECT 1 AS n, REPEAT('a', 100) AS wide
+  UNION ALL
+  SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT s1.n, LEFT(s1.wide, 8) AS head, CHAR_LENGTH(s2.wide) AS len
+FROM seq s1, seq s2, ft
+WHERE s1.n = s2.n AND MATCH(ft.b) AGAINST ('alpha' IN BOOLEAN MODE)
+ORDER BY s1.n;
+
+# The same statement prepared and executed more than once: the reference
+# tables are created on one path the first time and on another one after
+# the specification has been prepared.
+PREPARE stmt FROM "
+WITH RECURSIVE seq AS (
+  SELECT 1 AS n, REPEAT('a', 100) AS wide
+  UNION ALL
+  SELECT n + 1, REPEAT('b', 100) FROM seq WHERE n < 3
+)
+SELECT s1.n, LEFT(s1.wide, 8) AS head, CHAR_LENGTH(s2.wide) AS len
+FROM seq s1, seq s2, ft
+WHERE s1.n = s2.n AND MATCH(ft.b) AGAINST ('alpha' IN BOOLEAN MODE)
+ORDER BY s1.n";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE ft;
