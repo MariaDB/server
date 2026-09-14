@@ -241,6 +241,24 @@ set global debug_dbug= @save_dbug;
 still_ran_in_the_workers	shipped_rows
 1	1
 #
+# The same fall-back for a query that aggregates over the whole table.
+# Its group is one constant column this layout adds, so it reaches the
+# same question, and the answer is the same: ship rows instead, and the
+# manager aggregates them in end_send_group() a row at a time.
+#
+set global debug_dbug="+d,pwt_no_group_index";
+FLUSH STATUS;
+SELECT COUNT(col2), SUM(col2), MIN(col2), MAX(col2), AVG(col2) FROM t1;
+COUNT(col2)	SUM(col2)	MIN(col2)	MAX(col2)	AVG(col2)
+5000	12502500	1	5000	2500.5000
+SELECT COUNT(col2), SUM(col2) FROM t1 WHERE col2 < 0;
+COUNT(col2)	SUM(col2)
+0	NULL
+set global debug_dbug= @save_dbug;
+# both still ran in the workers (expect 1)
+still_ran_in_the_workers
+1
+#
 # AVG, whose partial is two numbers rather than one
 #
 # ---- serial ----
