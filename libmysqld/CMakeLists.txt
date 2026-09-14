@@ -167,6 +167,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/scan_char.h
            ../sql/opt_hints.cc ../sql/opt_hints.h
            ../sql/opt_context_store_replay.cc ../sql/opt_context_store_replay.h
+           ../sql/opt_multi_valued_index.cc ../sql/opt_mvi_jsonfuncs.cc
            ../sql/sql_path.cc
            ../sql/sql_json_lib.cc ../sql/sql_json_lib.h
            ${GEN_SOURCES}
