@@ -33,9 +33,30 @@ extern "C" my_crc32_t crc32_pclmul_enabled();
 #elif defined HAVE_ARMV8_CRC
 extern "C" int crc32_aarch64_available();
 extern "C" unsigned int crc32_aarch64(unsigned int, const void *, size_t);
+#elif defined HAVE_RISCV_ZBC
+extern "C" int rv_zbc_supported(void *);
+extern "C" unsigned int crc32_riscv_zbc(unsigned int, const void *, size_t);
 #endif
 
+#ifdef __powerpc64__
+# error "my_checksum() is defined in mysys/crc32/crc32_ppc64.c"
+#endif
 
+#if defined HAVE_RISCV_ZBC
+/* my_checksum() is dispatched by an indirect function on RISC-V, mirroring
+   my_crc32c() in crc32c.cc. That file documents the two constraints on the
+   resolver: it runs at load time, so it may only call code that is safe
+   there, and it must not return NULL. */
+extern "C" { static my_crc32_t rv_my_checksum_resolver(unsigned long long,
+                                                      void *hwprobe,
+                                                      void *)
+{
+  return rv_zbc_supported(hwprobe) ? crc32_riscv_zbc : my_crc32_zlib;
+} }
+
+extern "C" uint32 my_checksum(uint32, const void *, size_t)
+  __attribute__((ifunc("rv_my_checksum_resolver")));
+#else
 static my_crc32_t init_crc32()
 {
 #if defined _M_IX86 || defined _M_X64 || defined __i386__ || defined __x86_64__
@@ -50,11 +71,9 @@ static my_crc32_t init_crc32()
 
 static const my_crc32_t my_checksum_func= init_crc32();
 
-#ifdef __powerpc64__
-# error "my_checksum() is defined in mysys/crc32/crc32_ppc64.c"
-#endif
 extern "C"
 uint32 my_checksum(uint32 crc, const void *data, size_t len)
 {
   return my_checksum_func(crc, data, len);
 }
+#endif
