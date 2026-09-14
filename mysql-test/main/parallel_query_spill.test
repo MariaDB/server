@@ -67,7 +67,43 @@ SELECT a, b FROM t1;
 --eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 20000 AS every_row_arrived, $dt > 0 AS rebuilt_on_disk
 --enable_query_log
 
+# A pre-aggregating worker aggregates into the very container the manager
+# reads, so its rows are written by the server's own end_update() and not by
+# the transport. When that table fills, end_update() is what rebuilds it on
+# disk, and the rebuild has to be the cross-thread kind the transport does --
+# the manager reads the table afterwards, and frees it, on another thread.
+# Enough distinct groups to overflow a 64K heap table. The group column is
+# not the primary key: grouping on that is answered from the index in order,
+# with no table to fill.
+CREATE TABLE t2 (a INT PRIMARY KEY, g INT, b VARCHAR(200)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq, CONCAT(REPEAT('x',180), seq) FROM seq_1_to_20000;
+SET SESSION tmp_memory_table_size=65536;
+SET SESSION max_heap_table_size=65536;
+FLUSH STATUS;
+--disable_ps_protocol
+--disable_result_log
+SELECT g, COUNT(*), SUM(LENGTH(b)) FROM t2 GROUP BY g;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers, a row per group, rebuilt on disk (expect 1 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 20000 AS every_group_arrived, $dt > 0 AS rebuilt_on_disk
+--enable_query_log
+
+# and the answer is the serial one, group for group
+SET SESSION parallel_worker_threads=0;
+--let $ser= `SELECT SUM(CRC32(CONCAT_WS('/',g,c,s))) FROM (SELECT g, COUNT(*) c, SUM(LENGTH(b)) s FROM t2 GROUP BY g) d`
+SET SESSION parallel_worker_threads=4;
+--let $par= `SELECT SUM(CRC32(CONCAT_WS('/',g,c,s))) FROM (SELECT g, COUNT(*) c, SUM(LENGTH(b)) s FROM t2 GROUP BY g) d`
+--echo # the parallel answer matches the serial one (expect 1)
+--disable_query_log
+--eval SELECT $ser = $par AS same_answer
+--enable_query_log
+
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 SET SESSION parallel_worker_threads=default;
-DROP TABLE t1;
+DROP TABLE t1, t2;

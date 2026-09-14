@@ -516,14 +516,14 @@ bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
                                          ORDER *group)
 {
   /*
-    A param of its own, per container. Two reasons, and the second is the one
-    that bites: create_tmp_table() overwrites param->func_count with the number
-    of items it actually has to copy, so a second table built from the same
-    param allocates fewer fields than the layout needs -- the assertion in
-    Create_tmp_table::finalize() catches that. And create_tmp_table() allocates
-    param->start_recinfo out of the table's own mem_root, so the column
-    descriptions belong to one container and die with it; sharing a param would
-    leave every container but the last describing a table that has been freed.
+    out needs it's own TMP_TABLE_PARAM because
+    1) create_tmp_table() overwrites param->func_count with the number
+       of items it actually has to copy, so a second table built from the same
+       param allocates fewer fields than the layout needs.
+    2) create_tmp_table() allocates param->start_recinfo out of the table's
+       own mem_root, so the column descriptions belong to one container and
+       die with it; sharing a param would leave every container but the last
+       describing a table that has been freed.
   */
   TMP_TABLE_PARAM *param= new (thd->mem_root) TMP_TABLE_PARAM;
   if (!param)
@@ -534,6 +534,13 @@ bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
   param->init();
   count_field_types(join->select_lex, param, defn, false);
   param->skip_create_table= true;
+  /*
+    This container is written by a worker and read by the manager, so it is
+    instantiated cross-thread below. A rebuild on disk has to be opened the
+    same way, and for a pre-aggregating worker that rebuild happens inside
+    end_update(), which reads the decision from here.
+  */
+  param->cross_thread= true;
   /* The key sizes measured once in build_aggregates(), not re-derived here. */
   param->group_parts=      group_parts;
   param->group_length=     group_length;
@@ -580,12 +587,6 @@ bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
 }
 
 
-/*
-  The param goes with it: start_recinfo lives in the table's mem_root, which
-  free_tmp_table() releases, so keeping the param would keep a description of
-  memory that is gone.
-*/
-
 void pwt_row_layout::free_container(THD *thd, pwt_row_container *c)
 {
   if (c->table)
@@ -593,7 +594,7 @@ void pwt_row_layout::free_container(THD *thd, pwt_row_container *c)
     free_tmp_table(thd, c->table);
     c->table= nullptr;
   }
-  c->param= nullptr;
+  c->param= nullptr;    // points into c->table
 }
 
 
@@ -863,6 +864,16 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
 
 bool pwt_tmp_table_sink::flush()
 {
+  /*
+    Past this the manager may scan the container, on its own thread, whenever
+    it gets to it. Anything this producer had open on the table has to be
+    closed by now: handler::ha_rnd_init() asserts that it is, and a worker that
+    aggregated into this container left its index open until something closed
+    it. Asserted here rather than left to the assert in the manager, which
+    fires only when the manager happens to win the race.
+  */
+  DBUG_ASSERT(!container || !container->table ||
+              container->table->file->inited == handler::NONE);
   mysql_mutex_lock(&manager->LOCK_data);
   done= true;
   mysql_cond_signal(&manager->COND_data_avail);
@@ -1094,32 +1105,15 @@ void pwt_tmp_table_source::release_position()
 
 /*
   @brief
-  Create our transport, which will be the temporary-table transport,
-  except where a test asks for the batch one.
+  Create our transport.  Only temporary table transport supported at this time
+  pwt_batch_source left commented out for now.
 */
 
 pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
                                      uint n_workers, uint reclength)
 {
-  bool use_batch= false;
-  DBUG_EXECUTE_IF("pwt_batch_transport", use_batch= true;);
-
-  pwt_row_source *src;
-  if (use_batch)
-  {
-    pwt_batch_source *b= new (thd->mem_root) pwt_batch_source;
-    src= b;
-    if (b && b->init(thd, mgr, n_workers, reclength))
-      src= nullptr;
-  }
-  else
-  {
-    pwt_tmp_table_source *t= new (thd->mem_root) pwt_tmp_table_source;
-    src= t;
-    if (t && t->init(thd, mgr, n_workers, reclength))
-      src= nullptr;
-  }
-  if (!src)
+  pwt_tmp_table_source *src= new (thd->mem_root) pwt_tmp_table_source;
+  if (!src || src->init(thd, mgr, n_workers, reclength))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(pwt_tmp_table_source));
     return nullptr;
@@ -1127,7 +1121,7 @@ pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
   return src;
 }
 
-
+#if 0
 /*
   pwt_batch* classes implement streaming from workers to the manager
   they may be useful in the future, so left here.
@@ -1374,3 +1368,4 @@ int pwt_batch_source::next_row(uchar *dst)
     // loop back and drain cur
   }
 }
+#endif

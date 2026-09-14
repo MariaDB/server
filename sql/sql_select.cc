@@ -26596,9 +26596,9 @@ enum_nested_loop_state end_update(JOIN *join, JOIN_TAB *join_tab,
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     if (create_internal_tmp_table_from_heap(join->thd, table,
-                                       join_tab->tmp_table_param->start_recinfo,
-                                            &join_tab->tmp_table_param->recinfo,
-                                            error, 0, NULL))
+               join_tab->tmp_table_param->start_recinfo,
+               &join_tab->tmp_table_param->recinfo,
+               error, 0, NULL, join_tab->tmp_table_param->cross_thread))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
     if (unlikely((error= table->file->ha_index_init(0, 0))))

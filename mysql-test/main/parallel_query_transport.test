@@ -1,13 +1,10 @@
 #
 # MDEV-39492 Parallel Query: the result-row transport.
 #
-# A worker's finished rows reach the manager through one of two transports
-# (sql_parallel_transport.h): the temporary-table one, where a worker
-# materialises its result set into its own container and the manager reads
-# those back, or the batch one, where rows travel as record images through a
-# buffer the worker blocks on. The temporary-table transport is what a query
-# gets; the batch one is reachable under a debug flag while the two are
-# compared, so that the code kept for that comparison stays exercised.
+# A worker's finished rows reach the manager through the temporary-table
+# transport (sql_parallel_transport.h): the worker materialises its result set
+# into its own container and the manager reads that container back. It is the
+# only transport a query can get.
 #
 # Everything here has to be a plain SELECT that really runs in the workers:
 # the gate declines aggregates and a derived table is materialised serially, so
@@ -19,11 +16,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
---source include/have_debug.inc
 
 --disable_service_connection
-
-set @save_dbug=@@global.debug_dbug;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq MOD 7, CONCAT('row', seq MOD 5)
@@ -33,9 +27,8 @@ INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_5000;
 SET SESSION parallel_worker_threads=4;
 
 # A worker writing its rows into a container is a temporary-table write,
-# which the session can see once the workers are reaped. So the transport
-# in use is visible: rows through tmp tables, none through batches.
---echo # tmp-table transport (expect 1 1)
+# which the session can see once the workers are reaped.
+--echo # rows go through tmp tables (expect 1 1)
 FLUSH STATUS;
 --sorted_result
 SELECT a, b, c FROM t1 WHERE a > 4995;
@@ -45,18 +38,6 @@ SELECT a, b, c FROM t1 WHERE a > 4995;
 --eval SELECT $pq > 0 AS ran_in_the_workers, $tw > 0 AS rows_went_through_tmp_tables
 --enable_query_log
 
---echo # batch transport, same rows (expect 1 1)
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
---sorted_result
-SELECT a, b, c FROM t1 WHERE a > 4995;
---let $tw= query_get_value(SHOW SESSION STATUS LIKE 'Handler_tmp_write', Value, 1)
---let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
---disable_query_log
---eval SELECT $pq > 0 AS ran_in_the_workers, $tw = 0 AS no_tmp_table_rows
---enable_query_log
-set global debug_dbug=@save_dbug;
-
 # A container is a temporary table, and a temporary table given a unique
 # key would silently collapse repeated rows. t3 has no unique column and
 # the query reads only its two low-cardinality ones, so all 2000 rows a
@@ -65,7 +46,7 @@ set global debug_dbug=@save_dbug;
 CREATE TABLE t3 (b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t3 SELECT seq MOD 3, CONCAT('v', seq MOD 2) FROM seq_1_to_2000;
 
---echo # tmp-table transport (expect 1 1)
+--echo # every duplicate arrives (expect 1 1)
 FLUSH STATUS;
 --disable_ps_protocol
 --disable_result_log
@@ -78,25 +59,9 @@ SELECT b, c FROM t3;
 --eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 2000 AS every_duplicate_arrived
 --enable_query_log
 
---echo # batch transport (expect 1 1)
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
---disable_ps_protocol
---disable_result_log
-SELECT b, c FROM t3;
---enable_result_log
---enable_ps_protocol
---let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
---let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
---disable_query_log
---eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 2000 AS every_duplicate_arrived
---enable_query_log
-set global debug_dbug=@save_dbug;
-
-# And over a join, the two transports agree row for row: the two blocks
-# below are the same query and must record identically.
+# And over a join.
 #
---echo # tmp-table transport
+--echo # a join runs in the workers
 --sorted_result
 SELECT t1.a, t1.c, t2.v FROM t1, t2
   WHERE t1.a = t2.k AND t1.b = 3 AND t1.a > 4900;
@@ -104,33 +69,20 @@ SELECT t1.a, t1.c, t2.v FROM t1, t2
 --disable_query_log
 --eval SELECT $pq > 0 AS ran_in_the_workers
 --enable_query_log
-
---echo # batch transport
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
---sorted_result
-SELECT t1.a, t1.c, t2.v FROM t1, t2
-  WHERE t1.a = t2.k AND t1.b = 3 AND t1.a > 4900;
---let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
---disable_query_log
---eval SELECT $pq > 0 AS ran_in_the_workers
---enable_query_log
-set global debug_dbug=@save_dbug;
 
 # A result set larger than the session's temporary-table limit. This used
 # to fail the statement: the container is a heap table and nothing moved
 # it to disk when it filled. It is now rebuilt on disk when it fills, so
-# both transports answer and neither is bounded by the limit. That the
-# rebuild really happens, and that the rows survive it, is
-# main.parallel_query_spill's business; here it only has to not be a
-# difference between the two transports.
+# the query answers and is not bounded by the limit. That the rebuild
+# really happens, and that the rows survive it, is
+# main.parallel_query_spill's business.
 --echo #
 CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
 INSERT INTO t4 SELECT seq, REPEAT('x',200) FROM seq_1_to_20000;
 SET SESSION tmp_memory_table_size=65536;
 SET SESSION max_heap_table_size=65536;
 
---echo # tmp-table transport: rebuilds on disk, and answers in full (expect 20000)
+--echo # rebuilds on disk, and answers in full (expect 20000)
 FLUSH STATUS;
 --disable_ps_protocol
 --disable_result_log
@@ -141,20 +93,6 @@ SELECT a, b FROM t4;
 --disable_query_log
 --eval SELECT $rs AS rows_sent
 --enable_query_log
-
-# batch transport keeps nothing, so the limit never applied to it
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
---disable_ps_protocol
---disable_result_log
-SELECT a, b FROM t4;
---enable_result_log
---enable_ps_protocol
---let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
---disable_query_log
---eval SELECT $rs AS rows_sent
---enable_query_log
-set global debug_dbug=@save_dbug;
 
 # and the server is unharmed: the same query fits once the limit does
 SET SESSION tmp_memory_table_size=default;

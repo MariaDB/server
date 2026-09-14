@@ -7040,6 +7040,16 @@ public:
     TRUE <=> create_tmp_table will create only the TABLE structure.
   */
   bool skip_create_table;
+  /*
+    Whether this table outlives the thread that writes it: more than one thread
+    uses it, and the one that frees it need not be the one that opened it. It
+    is passed to instantiate_tmp_table() by whoever creates the table, and read
+    again if the table has to be rebuilt on disk while it is being written, so
+    that the rebuilt table is opened the same way the original was. A parallel
+    worker's row container is the case that needs it; everything else leaves it
+    false.
+  */
+  bool cross_thread;
 
   TMP_TABLE_PARAM()
     :copy_field(0), group_parts(0),
@@ -7047,7 +7057,8 @@ public:
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
      precomputed_group_by(0), group_concat(0),
-     force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
+     force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0),
+     cross_thread(0)
   {
     init();
   }
