@@ -808,29 +808,37 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunk(const Bounds &bounds,
   return (err);
 }
 
-dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks(
-    const Bounds_list &bounds_list)
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks()
 {
   size_t split_point{};
+
+  /* Which of this range's chunks a worker may divide again when it takes it.
+
+  Beyond the last whole round of work, the chunks that will still be running
+  when there is nothing left to hand out; or, for a range with fewer chunks
+  than there are workers, all of them, since otherwise most workers would have
+  nothing. A tree too shallow to be worth dividing is left alone -- splitting a
+  small one costs more in blocks traversed than the imbalance does.
+
+  Asked of this range alone, which is not where the question belongs: see
+  Parallel_scan_partitioner::create_chunks(). */
 
   {
     const auto n = std::max(num_workers(), size_t{1});
 
-    if (bounds_list.size() > n) {
-      split_point = (bounds_list.size() / n) * n;
+    if (m_bounds_list.size() > n) {
+      split_point = (m_bounds_list.size() / n) * n;
     } else if (m_depth < SPLIT_THRESHOLD) {
-      /* If the tree is not very deep then don't split. For smaller tables
-      it is more expensive to split because we end up traversing more blocks*/
       split_point = n;
     }
   }
 
   size_t i{};
 
-  for (auto bounds : bounds_list) {
+  for (auto bounds : m_bounds_list) {
     /* Only the last chunk ends at the caller's upper bound, so only it can
     be inclusive. */
-    const bool last = (i + 1 == bounds_list.size());
+    const bool last = (i + 1 == m_bounds_list.size());
 
     auto err = create_chunk(bounds, i >= split_point,
                             last && m_config.m_scan_range.m_end_inclusive);
@@ -841,6 +849,9 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks(
 
     ++i;
   }
+
+  m_bounds_list.clear();
+  m_bounds_list.shrink_to_fit();
 
   return DB_SUCCESS;
 }
@@ -864,24 +875,42 @@ dberr_t Parallel_scan_partitioner::add_scan(
 
   scan_ctx->index_s_lock();
 
-  Parallel_scan_partitioner::Scan_ctx::Bounds_list bounds_list{};
-  dberr_t err{DB_SUCCESS};
-
-  /* Split at the root node (level == 0). */
-  err = scan_ctx->partition(config.m_scan_range, bounds_list, 0);
-
-  if (bounds_list.empty() || err != DB_SUCCESS)
-  {
-    /* Table is empty. */
-    scan_ctx->index_s_unlock();
-    return (err);
-  }
-
-  err = scan_ctx->create_chunks(bounds_list);
+  /* Split at the root node (level == 0). The boundaries stay on the Scan_ctx:
+  what to do with them is create_chunks()'s decision, and it needs every range
+  before it can make it. An empty list means this range has no rows, which is
+  not an error and leaves a Scan_ctx that produces no chunks. */
+  dberr_t err =
+      scan_ctx->partition(config.m_scan_range, scan_ctx->m_bounds_list, 0);
 
   scan_ctx->index_s_unlock();
 
   return (err);
+}
+
+
+dberr_t Parallel_scan_partitioner::create_chunks()
+{
+  /* Turn every range's boundaries into chunks, in the order the ranges were
+  added, which is key order.
+
+  This is where the split of a multiple-range scan should be decided as a
+  whole, and it is not yet: each range still decides for itself, in
+  Scan_ctx::create_chunks(), exactly as it did when that call was made from
+  add_scan(). Splitting the two phases apart is what makes the decision
+  possible to move; moving it needs a measure of how much work a range holds,
+  and the boundaries a level-0 walk produces are not one. A range narrower
+  than a sub-tree of the root -- which is most range scans -- yields a single
+  boundary whether it covers ten rows or a hundred thousand, so counting
+  boundaries says nothing about size, and dividing the scan by that count
+  either leaves a large range on one worker or cuts small ranges into pieces
+  that cost more to hand out than to scan. Both were measured. */
+
+  for (auto &scan_ctx : m_scan_ctxs) {
+    if (dberr_t err = scan_ctx->create_chunks())
+      return err;
+  }
+
+  return DB_SUCCESS;
 }
 
 int Parallel_scan_partitioner::initialize(size_t n_workers)
