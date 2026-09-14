@@ -58,11 +58,11 @@ INSERT INTO t3 values (4,'c4');
 SET @@session.gtid_seq_no= 7;
 BEGIN;
 INSERT INTO t2 values (3, 'b3');
-
+COMMIT;
 SET @@session.server_id= 1;
 BEGIN;
 INSERT INTO t1 values (2, 'a2');
-
+COMMIT; 
 FLUSH LOGS;
 
 --eval SET @@session.gtid_domain_id= $ORIG_GTID_DOMAIN_ID
