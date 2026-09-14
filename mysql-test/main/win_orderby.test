@@ -176,5 +176,86 @@ explain update t set c=1 where exists (
 drop table t;
 
 --echo #
+--echo # MDEV-36356 Server crash in Item::save_int_in_field and UBSAN null-pointer-use
+--echo #
+(SELECT 1 FROM dual LIMIT 5) ORDER BY ROW_NUMBER() OVER (PARTITION BY 1);
+(SELECT 1 FROM dual LIMIT 5) ORDER BY ROW_NUMBER() OVER ();
+(SELECT 5 a FROM dual LIMIT 1) ORDER BY AVG(a) OVER (ORDER BY 1);
+(SELECT CAST('1973' AS DATETIME) a FROM dual LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+(SELECT CAST('1973' AS CHAR) a FROM dual LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+(SELECT CAST('' AS CHAR) a LIMIT 1) ORDER BY FIRST_VALUE(a) OVER (ORDER BY 1);
+SET sql_mode= @save_sql_mode;
+((SELECT 1) FOR UPDATE WAIT + 1) ORDER BY PERCENTILE_DISC(COUNT(*)) WITHIN GROUP(ORDER BY 1) OVER();
+((SELECT 1) FOR UPDATE WAIT + 1) ORDER BY PERCENTILE_DISC(COUNT(*)) WITHIN GROUP(ORDER BY CURRENT_TIMESTAMP) OVER();
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(1),(2);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (3,1),(1,2),(2,1);
+
+SELECT * FROM ((SELECT a FROM t1 UNION SELECT 9 LIMIT 5) ORDER BY ROW_NUMBER() OVER ()) x ORDER BY x.a;
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY (SELECT MAX(a) FROM t1))) x ORDER BY x.a;
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER () + (SELECT MAX(a) FROM t1)) x ORDER BY x.a;
+
+--echo # This query used to crash, now it correctly fails with a bad field reference error
+--error ER_BAD_FIELD_ERROR
+(SELECT a FROM t1 LIMIT 5) ORDER BY (SELECT a FROM t2 WHERE t2.a = t1.a LIMIT 1);
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER ()) x, ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a)) y ORDER BY x.a, y.a;
+
+--echo # The value of the window function must be the one of the derived table form
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (PARTITION BY a)) x ORDER BY x.a;
+SELECT * FROM (SELECT * FROM (SELECT a FROM t1 LIMIT 5) dt ORDER BY ROW_NUMBER() OVER (PARTITION BY a)) x ORDER BY x.a;
+
+--echo # A query expression nested in the ORDER BY must not hide the window
+--echo # function that precedes it: all of these must sort descending
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 LIMIT 1) DESC;
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 ORDER BY a LIMIT 1) DESC;
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT MAX(d.a)*0 FROM (SELECT a FROM t1 ORDER BY a) d) DESC;
+(SELECT a FROM t1 LIMIT 5) ORDER BY ROW_NUMBER() OVER (ORDER BY a) + (SELECT 0 FROM t1 ORDER BY a LIMIT 1) + RANK() OVER (ORDER BY a) DESC;
+
+--echo # A window function referring to a window defined inside the parentheses
+--echo # is not visible from the ORDER BY that follows them
+--error ER_WRONG_WINDOW_SPEC_NAME
+(SELECT a FROM t1 WINDOW w AS (ORDER BY a) LIMIT 5) ORDER BY ROW_NUMBER() OVER w;
+
+--echo # A window function of a subquery of the ORDER BY stays in that subquery
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY (SELECT ROW_NUMBER() OVER () FROM t1 LIMIT 1)) x ORDER BY x.a;
+
+--echo # Correlated subqueries of the ORDER BY are re-registered in the wrapper
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY EXISTS (SELECT 1 FROM t2 WHERE t2.a=a AND t2.b=a)) x ORDER BY x.a;
+SELECT * FROM ((SELECT a FROM t1 LIMIT 5) ORDER BY a IN (SELECT b FROM t2 WHERE t2.a=a)) x ORDER BY x.a;
+
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (c1 INT, c2 TEXT);
+INSERT INTO t1 (c1, c2) VALUES (0, 'a');
+SELECT * FROM
+{
+  ta1 t1 AS ta2 NATURAL RIGHT OUTER JOIN
+  (
+    (
+      SELECT * FROM
+      {
+        ta3 t1 AS ta4 NATURAL STRAIGHT_JOIN t1 AS ta5
+      }
+      LIMIT 1234567890 ROWS EXAMINED 1234567890 LOCK IN SHARE MODE SKIP LOCKED
+    )
+    ORDER BY FALSE <=> + INTERVAL NOT FALSE=FALSE IN
+    (
+      SELECT FALSE <=> FALSE IN (SELECT 'string')
+    )
+    SECOND_MICROSECOND + TRUE <=> TRUE IN (SELECT 'string') << ROW_NUMBER () OVER
+    (
+      PARTITION BY NOT TRUE <=> FALSE IN (SELECT 'string') DESC
+    )
+    IN (SELECT 'string')
+  )=ta6
+  NATURAL JOIN t1 AS ta7
+};
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

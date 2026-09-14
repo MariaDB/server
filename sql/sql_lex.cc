@@ -10686,13 +10686,121 @@ SELECT_LEX_UNIT *LEX::add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
 }
 
 
+static bool order_list_contains(SQL_I_List<ORDER> *order_list, Item *item)
+{
+  for (ORDER *ord= order_list->first; ord; ord= ord->next)
+  {
+    if ((*ord->item)->walk(&Item::find_item_processor, FALSE, item))
+      return true;
+  }
+  return false;
+}
+
+
+static bool remove_window_spec(SELECT_LEX *sel, Window_spec *win_spec)
+{
+  List_iterator<Window_spec> it(sel->window_specs);
+  Window_spec *cur;
+  while ((cur= it++))
+  {
+    if (cur == win_spec)
+    {
+      it.remove();
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/*
+  Move to another select what the tail of a query expression registered
+
+  The tail (ORDER BY / LIMIT / locking clause) that follows a parenthesized
+  query expression is parsed while the select inside the parentheses is the
+  current one, so its window functions, their window specifications and its
+  subqueries all get registered there. When the query expression is wrapped
+  into a derived table the tail belongs to the wrapping select, and these
+  registrations have to follow it.
+
+  The tail's window functions are the ones its ORDER BY expressions contain:
+  they are looked up with Item::walk() and walk_subquery == FALSE, so a window
+  function that belongs to a subquery of the tail is not found and stays
+  registered in the select it was parsed in. Each of them takes along the
+  window specification it introduced; "OVER win_name" has none of its own, it
+  is looked up by name at fix_fields() time and never reaches window_specs.
+
+  The tail's subquery units are the ones registered in front of 'first_unit',
+  the first unit 'from' had when the tail started to be parsed. There is no
+  equivalent of the walk above for them: a unit records neither the clause it
+  came from nor its position in the parsed text.
+
+  Note that per-select parse state that is not a registration is deliberately
+  left behind on 'from', where it is merely over-counted: n_sum_items,
+  with_sum_func, with_rownum, ftfunc_list, uncacheable and the
+  select_n_where_fields of the tail's own fields.
+*/
+static bool move_tail_registrations(THD *thd, SELECT_LEX *from, SELECT_LEX *to,
+                                    SQL_I_List<ORDER> *order_list,
+                                    SELECT_LEX_UNIT *first_unit)
+{
+  if (order_list)
+  {
+    List_iterator<Item_window_func> it(from->window_funcs);
+    Item_window_func *win_func;
+    while ((win_func= it++))
+    {
+      if (!order_list_contains(order_list, win_func))
+        continue;
+      it.remove();
+      if (to->window_funcs.push_back(win_func, thd->mem_root))
+        return true;
+      to->fields_in_window_functions+=
+        win_func->window_func()->argument_count();
+
+      Window_spec *win_spec= win_func->window_spec;
+      if (!win_spec || !remove_window_spec(from, win_spec))
+        continue;
+      if (to->window_specs.push_back(win_spec, thd->mem_root))
+        return true;
+      to->fields_in_window_functions+= win_spec->partition_list->elements +
+                                       win_spec->order_list->elements;
+      /*
+        Item::walk() does not descend into a window specification, so the
+        items of these lists are not re-targeted by
+        Lex_order_limit_lock::set_to().
+      */
+      for (ORDER *o= win_spec->partition_list->first; o; o= o->next)
+        (*o->item)->walk(&Item::change_context_processor, FALSE, &to->context);
+      for (ORDER *o= win_spec->order_list->first; o; o= o->next)
+        (*o->item)->walk(&Item::change_context_processor, FALSE, &to->context);
+    }
+  }
+
+  st_select_lex_unit *next_unit;
+  for (st_select_lex_unit *unit= from->first_inner_unit();
+       unit != first_unit; unit= next_unit)
+  {
+    next_unit= unit->next_unit();
+    unit->exclude_from_tree();
+    unit->cut_next();                     // so add_statistics() stops here
+    to->add_statistics(unit);
+    to->register_unit(unit, &to->context);
+    if (unit->item)
+      unit->item->parent_select= to;
+  }
+  return false;
+}
+
+
 /**
   Add non-empty tail to a parenthesized query primary
 */
 
 SELECT_LEX_UNIT *
 LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-                                                  Lex_order_limit_lock *l)
+                                                  Lex_order_limit_lock *l,
+                                                  SELECT_LEX_UNIT *first_unit)
 {
   SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
                                                          unit->first_select();
@@ -10706,14 +10814,16 @@ LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
       l->order_list= &sel->order_list;
     else
     {
-      if (!unit)
-        return NULL;
+      SELECT_LEX *inner_sel= sel;
       sel= wrap_unit_into_derived(unit);
       if (!sel)
         return NULL;
-     if (!create_unit(sel))
-      return NULL;
-   }
+      if (!create_unit(sel))
+        return NULL;
+      if (move_tail_registrations(thd, inner_sel, sel, l->order_list,
+                                  first_unit))
+        return NULL;
+    }
   }
   l->set_to(sel);
   return sel->master_unit();

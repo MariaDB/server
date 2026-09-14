@@ -8742,12 +8742,21 @@ query_expression_body_ext:
           }
         | query_expression_body_ext_parens
           {
-            Lex->push_select(!$1->first_select()->next_select() ?
-                               $1->first_select() : $1->fake_select_lex);
+            SELECT_LEX *sel= !$1->first_select()->next_select() ?
+                               $1->first_select() : $1->fake_select_lex;
+            /*
+              Remember the subqueries this select already has: the ones the
+              tail registers in front of them have to follow it when the
+              query expression is wrapped into a derived table. See
+              LEX::add_tail_to_query_expression_body_ext_parens().
+            */
+            $<select_lex_unit>$= sel->first_inner_unit();
+            Lex->push_select(sel);
           }
           query_expression_tail
           {
-            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens($1, $3)))
+            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens(
+                        $1, $3, $<select_lex_unit>2)))
                MYSQL_YYABORT;
           }
         ;
