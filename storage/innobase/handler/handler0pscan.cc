@@ -184,6 +184,13 @@ int Parallel_scan_coordinator::init(size_t n_threads, uint keynr,
 		}
 	}
 
+	/* Every range is partitioned; now cut the whole scan up. One call for
+	all of them, so that what the split is decided against can become the
+	whole scan's work rather than each range's own. */
+	if (err == DB_SUCCESS) {
+		err = m_partitioner.create_chunks();
+	}
+
 	if (err != DB_SUCCESS) {
 		return convert_error_code_to_mysql(err, prebuilt->table->flags,
 						   m_owner->m_user_thd);

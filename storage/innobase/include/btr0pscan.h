@@ -66,12 +66,27 @@ into several Chunk instances. It's the Chunk instances that are handed
 to the workers.
 
 Each range to divide has to be added via add_scan(), which makes one Scan_ctx
-of it. A multiple-range scan therefore holds several Scan_ctx instances, all
-of them on the index the caller asked for.
+of it and walks the tree to find that range's boundaries. A multiple-range
+scan therefore holds several Scan_ctx instances, all of them on the index the
+caller asked for. add_scan() creates no chunks: the caller adds every range it
+has and then calls create_chunks() once, which is where the boundaries become
+chunks.
+
+Those are two calls rather than one so that the decision create_chunks() makes
+-- which chunks a worker may divide again -- can be made for the scan as a
+whole. It is not yet: each range still decides for itself, and this separation
+is what makes moving it possible. Ranges are not the same size and there is no
+reason they should be, so a range that measures itself against the worker
+count, finds itself short and tags everything it has is answering the wrong
+question; ten ranges then answer it ten times over and the queue fills with
+chunks nobody needed. What moving it needs is a measure of how much work a
+range holds, which the boundaries alone are not -- see
+Parallel_scan_partitioner::create_chunks().
 
 To solve the imbalance problem we dynamically split the sub-trees as and
 when required. e.g., If you have 5 sub-trees to scan and 4 threads then
-it will tag the 5th sub-tree as m_to_be_resplit during phase I (add_scan()),
+it will tag the 5th sub-tree as m_to_be_resplit during phase I
+(create_chunks()),
 the worker that takes that Chunk off the queue will then dynamically split
 the 5th sub-tree and add the newly created sub-trees to the Chunk run queue
 in the Parallel_scan_partitioner, and pull again. As the other threads complete
@@ -203,6 +218,12 @@ class Parallel_scan_partitioner
   @param[in]      config      Scan condfiguration.
   @return error. */
   [[nodiscard]] dberr_t add_scan(trx_t *trx, const Config &config);
+
+  /** Turn the boundaries every add_scan() found into chunks on the run queue,
+  and decide there which of them a worker may split again. Call once, after the
+  last add_scan() and before any worker asks for work.
+  @return DB_SUCCESS or error code. */
+  [[nodiscard]] dberr_t create_chunks();
 
   /** Get the error stored in the global error state.
   @return global error state. */
@@ -445,10 +466,13 @@ class Parallel_scan_partitioner::Scan_ctx {
   [[nodiscard]] dberr_t create_chunk(const Bounds &bounds, bool resplit,
                                      bool end_inclusive= false);
 
-  /** Create the chunks, one per pair of boundaries.
-  @param[in]  bounds_list   Boundaries the tree walk produced.
+  /** Create this range's chunks, one per pair of boundaries it found, and
+  decide which of them a worker may divide again.
   @return DB_SUCCESS or error code. */
-  [[nodiscard]] dberr_t create_chunks(const Bounds_list &bounds_list);
+  [[nodiscard]] dberr_t create_chunks();
+
+  /** @return how many chunks this range will produce. */
+  [[nodiscard]] size_t n_bounds() const { return m_bounds_list.size(); }
 
   /** @return the maximum number of worker thread configured. */
   [[nodiscard]] size_t num_workers() const {
@@ -480,6 +504,12 @@ class Parallel_scan_partitioner::Scan_ctx {
 
   /** Depth of the Btree. */
   size_t m_depth{};
+
+  /** This range's chunk boundaries, in key order, as add_scan()'s tree walk
+  found them. Held until create_chunks() turns them into chunks. A Boundary
+  owns its record and key in a heap of its own (see copy_row), so these carry
+  nothing that the index latch was protecting. */
+  Bounds_list m_bounds_list{};
 
   /** The partitioner that owns this context. */
   Parallel_scan_partitioner *m_partitioner{};
