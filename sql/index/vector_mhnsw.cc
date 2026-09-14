@@ -596,7 +596,7 @@ public:
   virtual void reset(TABLE_SHARE *share)
   {
     share->lock_share();
-    auto hlis= static_cast<mhnsw_share*>(share->hlindex);
+    auto hlis= static_cast<mhnsw_share*>(share->hls);
     if (hlis->ctx == this)
     {
       hlis->ctx= nullptr;
@@ -854,8 +854,8 @@ int MHNSW_Trx::do_commit(THD *thd, bool all)
       TABLE_SHARE *share= tdc_acquire_share(thd, &tl, GTS_TABLE, nullptr);
       if (share)
       {
-        auto ctx= share->hlindex ? MHNSW_Share::get_from_share(share, nullptr)
-                                 : nullptr;
+        auto ctx= share->hls ? MHNSW_Share::get_from_share(share, nullptr)
+                             : nullptr;
         if (ctx)
         {
           mysql_rwlock_wrlock(&ctx->commit_lock);
@@ -920,7 +920,7 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
 MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
 {
   share->lock_share();
-  auto hlis= static_cast<mhnsw_share*>(share->hlindex);
+  auto hlis= static_cast<mhnsw_share*>(share->hls);
   auto ctx= hlis->ctx;
   if (!ctx && table)
   {

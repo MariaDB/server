@@ -10127,7 +10127,7 @@ int TABLE::hlindex_open(uint nr)
     hlindexton *hliton= s->key_info[nr].hliton;
 
     s->lock_share();
-    if (!s->hlindex)
+    if (!s->hls)
     {
       size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
       TABLE_SHARE *share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof *share);
@@ -10154,9 +10154,9 @@ int TABLE::hlindex_open(uint nr)
       }
 
       s->lock_share();
-      if (!s->hlindex)
+      if (!s->hls)
       {
-        s->hlindex= hls;
+        s->hls= hls;
         s->unlock_share();
       }
       else
@@ -10169,9 +10169,9 @@ int TABLE::hlindex_open(uint nr)
       s->unlock_share();
 
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
-    if (!table || open_table_from_share(in_use, s->hlindex->s, &empty_clex_str,
+    if (!table || open_table_from_share(in_use, s->hls->s, &empty_clex_str,
                     db_stat, EXTRA_RECORD, in_use->open_options, table, 0)
-        || !(hli= s->hlindex->create(table, &mem_root)))
+        || !(hli= s->hls->create(table, &mem_root)))
       return 1;
     table->in_use= NULL;
   }

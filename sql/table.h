@@ -779,7 +779,7 @@ struct TABLE_SHARE
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
 
-  hlindex_share *hlindex;               /* for normal tables  */
+  hlindex_share *hls;
 
   /*
     EITS statistics data from the last time the table was opened or ANALYZE

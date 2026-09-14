@@ -1630,7 +1630,7 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
     {
       /* as of now: only one vector index can be here */
       DBUG_ASSERT(share->hlindexes() == 1);
-      TABLE_SHARE *s= share->hlindex->s;
+      TABLE_SHARE *s= share->hls->s;
       rm_temporary_table(s->db_type(), s->path.str);
     }
   }

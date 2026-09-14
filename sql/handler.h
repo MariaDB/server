@@ -1151,7 +1151,7 @@ class hli_ft_handler : public ft_handler
 {
 public:
   float relevance= 0;
-  float find_relevance(uchar *, uint) override { return relevance; }
+  float find_relevance(uchar *, uint) override { return relevance; } // XXX
   float get_relevance() override { return relevance; }
 };
 

@@ -506,8 +506,8 @@ void TABLE_SHARE::destroy()
   }
   delete sequence;
 
-  if (hlindex)
-    delete hlindex;
+  if (hls)
+    delete hls;
 
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
