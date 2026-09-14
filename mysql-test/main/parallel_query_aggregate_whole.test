@@ -1,0 +1,126 @@
+#
+# MDEV-39492 Parallel Query: the workers aggregate the whole table.
+#
+# A query with aggregates and no GROUP BY aggregates over everything it reads.
+# The server has nothing materialised for that -- no aggregation table, no
+# group key -- it aggregates in end_send_group(), straight off the last join
+# tab. So the workers cannot merge through a group the way a GROUP BY merges.
+#
+# They do not have to. end_send_group() reaches Item_sum::add(), and add()
+# honours a value left by direct_add() for every aggregate the gate accepts, so
+# the manager merges partials through the plan's own terminal here exactly as
+# it does through end_update() for a GROUP BY.
+#
+# What the workers accumulate into is the grouped machinery with a single group
+# in it: the layout gives this shape a group of one constant column, so a
+# worker keeps one partial in a keyed container and ships one row. Keyed
+# matters for AVG, whose count is packed beside its sum only in a container
+# that has a group.
+#
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--disable_service_connection
+
+CREATE TABLE t1 (a INT PRIMARY KEY, g INT, b INT, d DECIMAL(20,4),
+                 e DOUBLE) ENGINE=InnoDB;
+--disable_warnings
+INSERT INTO t1 SELECT seq, seq MOD 97, seq, seq/7, seq/3 FROM seq_1_to_20000;
+--enable_warnings
+
+--echo #
+--echo # The same answer as a serial plan, for each aggregate that merges.
+--echo #
+--echo # ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT COUNT(*), COUNT(b), SUM(b), MIN(b), MAX(b) FROM t1;
+SELECT SUM(d), MIN(d), MAX(d), AVG(b), AVG(d) FROM t1;
+SELECT COUNT(*), SUM(b), AVG(b) FROM t1 WHERE g > 40;
+# Adding doubles is not associative, so which worker summed which chunk shows
+# in the last few digits -- and which worker summed which chunk is scheduling.
+# Rounded, rather than left out: the parallel answer has to be the serial one
+# to the precision anyone reads it at. Rounded well clear of the last bit,
+# too, or the rounding itself is what varies: these sum to ~6.7e7, where a
+# double's step is around 1e-8.
+SELECT ROUND(SUM(e), 2), ROUND(AVG(e), 6) FROM t1;
+
+--echo # ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+SELECT COUNT(*), COUNT(b), SUM(b), MIN(b), MAX(b) FROM t1;
+SELECT SUM(d), MIN(d), MAX(d), AVG(b), AVG(d) FROM t1;
+SELECT COUNT(*), SUM(b), AVG(b) FROM t1 WHERE g > 40;
+SELECT ROUND(SUM(e), 2), ROUND(AVG(e), 6) FROM t1;
+--disable_ps_protocol
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers (expect 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo #
+--echo # One row, whatever the workers saw. Nothing matches, so every worker
+--echo # ships nothing at all, and the answer is still a row: a count of no
+--echo # rows is 0 and a sum of none is NULL.
+--echo #
+FLUSH STATUS;
+SELECT COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 WHERE a < 0;
+--disable_ps_protocol
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers (expect 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+# One row per worker would be four rows here, and one row per group of a
+# constant would be one row however many workers ship a partial for it.
+--echo #
+--echo # and exactly one row, not one per worker
+--echo #
+--disable_ps_protocol
+FLUSH STATUS;
+--disable_result_log
+SELECT COUNT(*), SUM(b) FROM t1;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--enable_ps_protocol
+--disable_query_log
+--eval SELECT $rs = 1 AS one_row
+--enable_query_log
+
+--echo #
+--echo # An aggregate that cannot be merged is still refused, and the query
+--echo # runs serially rather than wrongly.
+--echo #
+FLUSH STATUS;
+SELECT COUNT(DISTINCT b) FROM t1;
+SELECT STD(b) FROM t1;
+SELECT GROUP_CONCAT(g) FROM t1 WHERE a < 3;
+--disable_ps_protocol
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # none of them ran in the workers (expect 1)
+--disable_query_log
+--eval SELECT $pq = 0 AS all_serial
+--enable_query_log
+
+--echo #
+--echo # A select list item that reads a column outside an aggregate takes
+--echo # whichever row the terminal happened to hold, so it is refused too.
+--echo #
+FLUSH STATUS;
+--disable_result_log
+SELECT g, COUNT(*) FROM t1;
+--enable_result_log
+--disable_ps_protocol
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran serially (expect 1)
+--disable_query_log
+--eval SELECT $pq = 0 AS ran_serially
+--enable_query_log
+
+DROP TABLE t1;
+SET SESSION parallel_worker_threads=default;

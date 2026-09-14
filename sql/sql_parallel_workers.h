@@ -521,7 +521,8 @@ extern bool   scale_cost_for_parallel_scan(THD *thd, TABLE *table,
 
 extern bool   can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab,
                                        bool trace= false);
-extern ORDER* pwt_preagg_group(JOIN *join, bool trace= false);
+extern pwt_preagg_kind pwt_preagg_shape(JOIN *join, ORDER **group,
+                                        bool trace= false);
 extern ORDER* pwt_manager_sort_order(JOIN *join);
 extern ORDER* pwt_plan_group_key(JOIN *join);
 extern int    run_scan_only_workers(JOIN *join, JOIN_TAB *scan_tab);

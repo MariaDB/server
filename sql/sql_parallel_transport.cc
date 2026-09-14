@@ -100,6 +100,7 @@ void pwt_row_layout::forget_aggregates()
 {
   /* plan_aggregates stays: the query still groups, the manager just does it. */
   grouped=          false;
+  whole_table=      false;
   n_sums=           0;
   mgr_sums=         nullptr;
   partial_items=    nullptr;
@@ -232,11 +233,14 @@ ORDER *pwt_row_layout::build_sort_order(THD *thd, TABLE *container)
 */
 
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
-                           uint n_tables, ORDER *plan_group, ORDER *plan_sort)
+                           uint n_tables, pwt_preagg_kind preagg,
+                           ORDER *plan_group, ORDER *plan_sort)
 {
   DBUG_ENTER("pwt_row_layout::build");
   join= join_arg;
-  plan_aggregates= grouped= (plan_group != nullptr);
+  plan_aggregates= grouped= (preagg != PWT_PREAGG_NONE);
+  whole_table= (preagg == PWT_PREAGG_WHOLE);
+  DBUG_ASSERT((preagg == PWT_PREAGG_GROUPED) == (plan_group != nullptr));
   plan_sorts= (plan_sort != nullptr);
 
   for (uint t= 0; t < n_tables; t++)
@@ -421,11 +425,46 @@ bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
   n_group= 0;
   for (ORDER *g= plan_group; g; g= g->next)
     n_group++;
+  /*
+    Aggregating over the whole table is one group, and the column it is keyed
+    on is a constant this layout adds: nothing in the query distinguishes one
+    row from another, so anything constant does. The definition carries it like
+    any other column, after the partials, and from here on this shape is the
+    grouped one with a single group in it -- which is what lets the worker
+    accumulate through end_update() into a keyed container, and keeps the
+    container keyed, which is the form Item_sum_avg::create_tmp_field() packs
+    its count into.
+  */
+  if (whole_table)
+  {
+    DBUG_ASSERT(!n_group);
+    Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+    if (!one || result_defn.push_back(one, thd->mem_root))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
+      return true;
+    }
+    n_group= 1;
+  }
   if (!(group_defn= thd->alloc<ORDER>(n_group)) ||
       !(group_pos= thd->alloc<uint>(n_group)))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int) (n_group * sizeof(ORDER)));
     return true;
+  }
+  if (whole_table)
+  {
+    List_iterator_fast<Item> di(result_defn);
+    Item *defn_item= nullptr;
+    for (uint j= 0; j < result_defn.elements; j++)
+      defn_item= di++;                            // the constant, pushed last
+
+    bzero((char *) &group_defn[0], sizeof(ORDER));
+    group_defn[0].item_ptr=  defn_item;
+    group_defn[0].item=      &group_defn[0].item_ptr;
+    group_defn[0].direction= ORDER::ORDER_ASC;
+    group_defn[0].next=      nullptr;
+    group_pos[0]=            result_defn.elements - 1;
   }
 
   uint k= 0;

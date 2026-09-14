@@ -115,6 +115,15 @@ struct pwt_row_container
 };
 
 
+/*
+  What the workers can pre-aggregate for this plan, if anything.
+
+  GROUPED: a partial per group of the GROUP BY, merged by the manager through
+  the plan's aggregation table. WHOLE: one partial for everything the worker
+  read, the query aggregating over the whole table with no GROUP BY at all.
+*/
+enum pwt_preagg_kind { PWT_PREAGG_NONE, PWT_PREAGG_GROUPED, PWT_PREAGG_WHOLE };
+
 /**
   @brief
     The row shape the producing and consuming ends agree on.
@@ -223,6 +232,19 @@ public:
   */
   bool              plan_aggregates;
   bool              grouped;
+  /*
+    True for implicit aggregation, i.e. aggregation over the whole_table.
+    False otherwise.
+
+    Everything downstream still sees a group, because build_aggregates() gives
+    this shape a group of one constant column. That is what lets a worker keep
+    its partial in a keyed container and merge into it through end_update() the
+    way the grouped path does -- and what keeps
+    Item_sum_avg::create_tmp_field() packing the count beside the sum, which it
+    does only for a container that has a group. So this flag is read where the
+    definition is built and nowhere else.
+  */
+  bool              whole_table;
 
   /*
     The plan's ORDER BY, when the manager is the one that has to apply it.
@@ -251,7 +273,7 @@ public:
     n_ship_base(0), n_sums(0), mgr_sums(nullptr), partial_items(nullptr),
     group_defn(nullptr), group_pos(nullptr), n_group(0),
     group_parts(0), group_length(0), group_null_parts(0),
-    plan_aggregates(false), grouped(false),
+    plan_aggregates(false), grouped(false), whole_table(false),
     plan_order(nullptr), sort_pos(nullptr), n_sort(0), plan_sorts(false),
     saved_write_set(nullptr)
   {}
@@ -261,7 +283,7 @@ public:
     receiving container from it. Returns true on error (my_error() called).
   */
   bool build(THD *thd, JOIN *join_arg, TABLE **tables, uint n_tables,
-             ORDER *plan_group, ORDER *plan_sort);
+             pwt_preagg_kind preagg, ORDER *plan_group, ORDER *plan_sort);
 
   /*
     An ORDER list equivalent to the plan's, reading 'container' rather than the
