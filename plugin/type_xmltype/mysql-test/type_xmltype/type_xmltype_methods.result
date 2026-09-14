@@ -1,0 +1,257 @@
+set sql_mode=oracle;
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getRootElement();
+x:= '<node1 aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</node1>';
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+a
+x.getRootElement()
+node1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getRootElement();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: 'xxxx'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement();
+END;
+$$
+x.getRootElement()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getRootElement(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getRootElement ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a> Value </a>';
+SELECT x.getSchemaURL();
+END;
+$$
+x.getSchemaURL()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a> Value </a>';
+SELECT x.getSchemaURL(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getSchemaURL ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getRootElement(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getRootElement ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.getStringVal();
+x:= NULL;
+SELECT x.getStringVal();
+END;
+$$
+x.getStringVal()
+<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>
+x.getStringVal()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getStringVal(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getStringVal ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>123.5</a>';
+SELECT x.getNumberVal();
+x:= '<a aa1="99">123.5</a>';
+SELECT x.getNumberVal();
+x:= NULL;
+SELECT x.getNumberVal();
+END;
+$$
+x.getNumberVal()
+123.5
+x.getNumberVal()
+123.5
+x.getNumberVal()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getNumberVal(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getNumberVal ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1" aa2="aa2">a1<b ba1="ba1">b1<c>c1</c>b2</b>a2</a>';
+SELECT x.isFragment();
+x:= NULL;
+SELECT x.isFragment();
+END;
+$$
+x.isFragment()
+0
+x.isFragment()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>1</a><b>2</b>';
+SELECT x.isFragment();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: '<a>1</a><b>2</b>'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.isFragment(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for isFragment ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>1</a>';
+SELECT x.createNonSchemaBasedXML();
+x:= NULL;
+SELECT x.createNonSchemaBasedXML();
+END;
+$$
+x.createNonSchemaBasedXML()
+<a>1</a>
+x.createNonSchemaBasedXML()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.createNonSchemaBasedXML(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for createNonSchemaBasedXML ; expected 0, got 1
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>1</a>';
+SELECT x.createSchemaBasedXML();
+SELECT x.createSchemaBasedXML('http://example.com/a.xsd');
+x:= NULL;
+SELECT x.createSchemaBasedXML();
+END;
+$$
+x.createSchemaBasedXML()
+<a>1</a>
+x.createSchemaBasedXML('http://example.com/a.xsd')
+<a>1</a>
+x.createSchemaBasedXML()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.createSchemaBasedXML('a', 'b');
+END;
+$$
+ERROR 42000: Incorrect number of arguments for createSchemaBasedXML ; expected 1, got 2
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a>1</a>';
+SELECT x.getClobVal();
+x:= NULL;
+SELECT x.getClobVal();
+END;
+$$
+x.getClobVal()
+<a>1</a>
+x.getClobVal()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getClobVal(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getClobVal ; expected 0, got 1
+# getNamespace
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a xmlns="http://a.org/ns" aa1="aa1"><b>b1</b></a>';
+SELECT x.getNamespace();
+x:= '<a xmlns:p="http://p.org/ns" aa1="aa1"><b>b1</b></a>';
+SELECT x.getNamespace();
+x:= '<a aa1="aa1"><b>b1</b></a>';
+SELECT x.getNamespace();
+END;
+$$
+x.getNamespace()
+http://a.org/ns
+x.getNamespace()
+http://p.org/ns
+x.getNamespace()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= 'xxxx';
+SELECT x.getNamespace();
+END;
+$$
+ERROR HY000: Incorrect XMLTYPE value: 'xxxx'
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= NULL;
+SELECT x.getNamespace();
+END;
+$$
+x.getNamespace()
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a/>';
+SELECT x.getNamespace(1);
+END;
+$$
+ERROR 42000: Incorrect number of arguments for getNamespace ; expected 0, got 1
