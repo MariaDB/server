@@ -1,11 +1,10 @@
-set @save_dbug=@@global.debug_dbug;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq MOD 7, CONCAT('row', seq MOD 5)
 FROM seq_1_to_5000;
 CREATE TABLE t2 (k INT PRIMARY KEY, v INT) ENGINE=InnoDB;
 INSERT INTO t2 SELECT seq, seq*2 FROM seq_1_to_5000;
 SET SESSION parallel_worker_threads=4;
-# tmp-table transport (expect 1 1)
+# rows go through tmp tables (expect 1 1)
 FLUSH STATUS;
 SELECT a, b, c FROM t1 WHERE a > 4995;
 a	b	c
@@ -16,34 +15,14 @@ a	b	c
 5000	2	row0
 ran_in_the_workers	rows_went_through_tmp_tables
 1	1
-# batch transport, same rows (expect 1 1)
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
-SELECT a, b, c FROM t1 WHERE a > 4995;
-a	b	c
-4996	5	row1
-4997	6	row2
-4998	0	row3
-4999	1	row4
-5000	2	row0
-ran_in_the_workers	no_tmp_table_rows
-1	1
-set global debug_dbug=@save_dbug;
 CREATE TABLE t3 (b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t3 SELECT seq MOD 3, CONCAT('v', seq MOD 2) FROM seq_1_to_2000;
-# tmp-table transport (expect 1 1)
+# every duplicate arrives (expect 1 1)
 FLUSH STATUS;
 SELECT b, c FROM t3;
 ran_in_the_workers	every_duplicate_arrived
 1	1
-# batch transport (expect 1 1)
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
-SELECT b, c FROM t3;
-ran_in_the_workers	every_duplicate_arrived
-1	1
-set global debug_dbug=@save_dbug;
-# tmp-table transport
+# a join runs in the workers
 SELECT t1.a, t1.c, t2.v FROM t1, t2
 WHERE t1.a = t2.k AND t1.b = 3 AND t1.a > 4900;
 a	c	v
@@ -63,45 +42,16 @@ a	c	v
 4994	row4	9988
 ran_in_the_workers
 1
-# batch transport
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
-SELECT t1.a, t1.c, t2.v FROM t1, t2
-WHERE t1.a = t2.k AND t1.b = 3 AND t1.a > 4900;
-a	c	v
-4903	row3	9806
-4910	row0	9820
-4917	row2	9834
-4924	row4	9848
-4931	row1	9862
-4938	row3	9876
-4945	row0	9890
-4952	row2	9904
-4959	row4	9918
-4966	row1	9932
-4973	row3	9946
-4980	row0	9960
-4987	row2	9974
-4994	row4	9988
-ran_in_the_workers
-1
-set global debug_dbug=@save_dbug;
 #
 CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
 INSERT INTO t4 SELECT seq, REPEAT('x',200) FROM seq_1_to_20000;
 SET SESSION tmp_memory_table_size=65536;
 SET SESSION max_heap_table_size=65536;
-# tmp-table transport: rebuilds on disk, and answers in full (expect 20000)
+# rebuilds on disk, and answers in full (expect 20000)
 FLUSH STATUS;
 SELECT a, b FROM t4;
 rows_sent
 20000
-set global debug_dbug="+d,pwt_batch_transport";
-FLUSH STATUS;
-SELECT a, b FROM t4;
-rows_sent
-20000
-set global debug_dbug=@save_dbug;
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 FLUSH STATUS;

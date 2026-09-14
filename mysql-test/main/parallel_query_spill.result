@@ -419,7 +419,21 @@ SELECT a, b FROM t1;
 # ran in the workers, all 20000 rows, containers rebuilt (expect 1 1 1)
 ran_in_the_workers	every_row_arrived	rebuilt_on_disk
 1	1	1
+CREATE TABLE t2 (a INT PRIMARY KEY, g INT, b VARCHAR(200)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq, CONCAT(REPEAT('x',180), seq) FROM seq_1_to_20000;
+SET SESSION tmp_memory_table_size=65536;
+SET SESSION max_heap_table_size=65536;
+FLUSH STATUS;
+SELECT g, COUNT(*), SUM(LENGTH(b)) FROM t2 GROUP BY g;
+# ran in the workers, a row per group, rebuilt on disk (expect 1 1 1)
+ran_in_the_workers	every_group_arrived	rebuilt_on_disk
+1	1	1
+SET SESSION parallel_worker_threads=0;
+SET SESSION parallel_worker_threads=4;
+# the parallel answer matches the serial one (expect 1)
+same_answer
+1
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 SET SESSION parallel_worker_threads=default;
-DROP TABLE t1;
+DROP TABLE t1, t2;
