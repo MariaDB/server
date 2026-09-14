@@ -544,7 +544,8 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   db_buf[db_len]= 0;
 
   size_t tbl_len= strlen(mdl_name.m_name + db_len + 1);
-  const bool is_temp= mdl_name.is_temporary();
+  const bool is_temp= mdl_name.is_temporary() &&
+    !mdl_name.is_create_or_replace();
 
   if (is_temp || tbl_len == 0);
   else if (const char *is_part= static_cast<const char*>
