@@ -1,0 +1,17 @@
+!include ../galera_2nodes.cnf
+
+# MDEV-38920: two deliberate EVS misconfigurations that a correct provider must
+# NOT silently accept - it has to warn and clamp each:
+#   evs.install_timeout       (PT5S) < evs.suspect_timeout   (PT16S)
+#   evs.inactive_check_period (PT5S) > evs.keepalive_period  (PT1S)
+#
+# inactive_check_period is kept <= suspect_timeout/2+1 (= 9s) so the provider's
+# own range check does not clamp it first - that leaves the keepalive-period
+# check to fire. install_timeout stays within [keepalive, inactive+1] for the
+# same reason.
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT16S;evs.inactive_timeout=PT32S;evs.install_timeout=PT5S;evs.keepalive_period=PT1S;evs.inactive_check_period=PT5S;gcache.size=10M'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT16S;evs.inactive_timeout=PT32S;evs.install_timeout=PT5S;evs.keepalive_period=PT1S;evs.inactive_check_period=PT5S;gcache.size=10M'
