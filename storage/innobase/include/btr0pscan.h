@@ -471,6 +471,29 @@ class Parallel_scan_partitioner::Scan_ctx {
   @return DB_SUCCESS or error code. */
   [[nodiscard]] dberr_t create_chunks();
 
+  /** Create this range's chunks with none of them tagged for re-splitting:
+  the division was decided knowing every range's size, so there is nothing
+  left for a worker to correct.
+  @return DB_SUCCESS or error code. */
+  [[nodiscard]] dberr_t create_chunks_unsplit();
+
+  /** Walk one level further down, to the children of the sub-trees this
+  range's boundaries name, and keep what that finds in place of them.
+
+  One boundary per page at that level, which is far more chunks than any scan
+  wants -- coalesce_bounds() cuts them back down. What the walk is for is the
+  count: the pages a range covers is how much work it holds, and the only
+  measure of that the tree offers without descending into it.
+  @return DB_SUCCESS or error code. */
+  [[nodiscard]] dberr_t partition_deeper();
+
+  /** Merge this range's boundaries into runs, leaving it with at most
+  'target' chunks. Adjacent chunks are contiguous intervals sharing an
+  endpoint, so a run of them merges into the first one's start and the last
+  one's end.
+  @param[in] target  the most chunks this range should produce. */
+  void coalesce_bounds(size_t target);
+
   /** @return how many chunks this range will produce. */
   [[nodiscard]] size_t n_bounds() const { return m_bounds_list.size(); }
 
