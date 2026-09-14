@@ -672,6 +672,20 @@ select * from t1 ignore index(idx_t,idx_n)
 
 drop table t1;
 
+--echo # Index use for an expression as the first argument of cast
+create table t1 (j json, key idx ((CAST(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr') AS CHAR(6) ARRAY)))) engine=innodb;
+SHOW CREATE TABLE t1;
+insert into t1 values ('{"tags": ["aaa", "bbb"], "attr": ["ccc", "ddd"]}');
+insert into t1 values ('{"tags": ["ccc", "aaa"], "attr": ["ccc", "fff"]}');
+explain
+select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
+select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
+explain
+select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
+select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
+
+DROP TABLE t1;
+
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);
