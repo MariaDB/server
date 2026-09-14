@@ -1743,3 +1743,16 @@ SET optimizer_switch=@save_optimizer_switch;
 
 --echo # restore default
 set @@optimizer_switch= default;
+
+
+--echo #
+--echo # MDEV-38801 implement Item_cache_year shallow_copy()
+--echo #
+
+CREATE TABLE t1 (c YEAR KEY);
+INSERT INTO t1 VALUES (2000),(2001);
+INSERT INTO t1 VALUES ((c IN (SELECT * FROM (SELECT * FROM t1 GROUP BY c) AS d
+  NATURAL JOIN (SELECT * FROM t1) AS e)));
+DROP TABLE t1;
+
+--echo # end of 10.11 tests
