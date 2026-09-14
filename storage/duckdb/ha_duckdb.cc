@@ -423,20 +423,36 @@ static bool calc_pk_difference(const uchar *old_row, const uchar *new_row,
   return false;
 }
 
-static myduck::BatchState get_batch_state(THD *thd)
+static int get_batch_state(THD *thd, bool insert_only,
+                           myduck::BatchState *batch_state)
 {
   auto *ctx= get_duckdb_context(thd);
-  myduck::BatchState batch_state= ctx->get_batch_state();
+  *batch_state= ctx->get_batch_state();
 
-  if (batch_state == myduck::BatchState::UNDEFINED)
+  if (*batch_state == myduck::BatchState::IN_INSERT_ONLY_BATCH &&
+      !insert_only)
   {
-    if (dml_in_batch)
-      batch_state= myduck::BatchState::IN_INSERT_ONLY_BATCH;
-    else
-      batch_state= myduck::BatchState::NOT_IN_BATCH;
-    ctx->set_batch_state(batch_state);
+    std::string error_msg;
+    if (ctx->flush_appenders(error_msg))
+    {
+      my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_APPEND_ERROR,
+               error_msg.c_str(), "DuckDB");
+      return HA_DUCKDB_APPEND_ERROR;
+    }
+    *batch_state= myduck::BatchState::UNDEFINED;
   }
-  return batch_state;
+
+  if (*batch_state == myduck::BatchState::UNDEFINED)
+  {
+    if (!dml_in_batch)
+      *batch_state= myduck::BatchState::NOT_IN_BATCH;
+    else if (insert_only)
+      *batch_state= myduck::BatchState::IN_INSERT_ONLY_BATCH;
+    else
+      *batch_state= myduck::BatchState::IN_MIX_BATCH;
+    ctx->set_batch_state(*batch_state);
+  }
+  return 0;
 }
 
 /* Build duckdb type map of blob type */
@@ -490,7 +506,13 @@ int ha_duckdb::write_row(const uchar *buf)
     DBUG_RETURN(ret);
   }
 
-  myduck::BatchState batch_state= get_batch_state(thd);
+  myduck::BatchState batch_state;
+  ret= get_batch_state(thd, true, &batch_state);
+  if (ret)
+  {
+    dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
+    DBUG_RETURN(ret);
+  }
 
   if (batch_state == myduck::BatchState::NOT_IN_BATCH)
   {
@@ -666,7 +688,10 @@ int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
   if (ret)
     DBUG_RETURN(ret);
 
-  myduck::BatchState batch_state= get_batch_state(thd);
+  myduck::BatchState batch_state;
+  ret= get_batch_state(thd, false, &batch_state);
+  if (ret)
+    DBUG_RETURN(ret);
 
   if (batch_state == myduck::BatchState::NOT_IN_BATCH)
   {
@@ -711,7 +736,10 @@ int ha_duckdb::delete_row(const uchar *)
   if (ret)
     DBUG_RETURN(ret);
 
-  myduck::BatchState batch_state= get_batch_state(thd);
+  myduck::BatchState batch_state;
+  ret= get_batch_state(thd, false, &batch_state);
+  if (ret)
+    DBUG_RETURN(ret);
 
   if (batch_state == myduck::BatchState::NOT_IN_BATCH)
   {
@@ -789,10 +817,17 @@ int ha_duckdb::rnd_init(bool)
   else
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
+  auto *ctx= get_duckdb_context(thd);
+  std::string error_msg;
+  if (ctx->flush_appenders(error_msg))
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_APPEND_ERROR,
+             error_msg.c_str(), "DuckDB");
+    DBUG_RETURN(HA_DUCKDB_APPEND_ERROR);
+  }
+
   std::string query= "SELECT * FROM " + quote_duckdb_identifier(schema_name) +
                      "." + quote_duckdb_identifier(table_name);
-
-  auto *ctx= get_duckdb_context(thd);
   query_result= myduck::duckdb_query(ctx->get_connection(), query);
   if (query_result->HasError())
   {
