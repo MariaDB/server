@@ -231,6 +231,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   uint i= 0;
   TABLE *table= scan_tab->table;
   handler *file= table->file;
+  ORDER *preagg_group= nullptr;
+  pwt_preagg_kind preagg= PWT_PREAGG_NONE;
   this->exec.join= join;
   this->thd= thd;
   this->exec.scan_tab= scan_tab;
@@ -292,18 +294,19 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   }
 
   /*
+    No pre-aggregation and no sort stage in scan-only: this thread runs the
+    plan's own terminals, so both belong to it exactly as they would serially.
+  */
+  preagg= scan_only ? PWT_PREAGG_NONE : pwt_preagg_shape(join, &preagg_group);
+
+  /*
     Work out the row shape the workers and this thread will agree on, and build
     the transport that carries rows in it. Both are described in
     sql_parallel_transport.h; from here on nothing in this file knows how a row
     travels, only that a worker has a sink to hand one to and we have a source
     to take the next one from.
   */
-  /*
-    No pre-aggregation and no sort stage in scan-only: this thread runs the
-    plan's own terminals, so both belong to it exactly as they would serially.
-  */
-  if (layout.build(thd, join, exec.tables, exec.n_tables,
-                   scan_only ? nullptr : pwt_preagg_group(join),
+  if (layout.build(thd, join, exec.tables, exec.n_tables, preagg, preagg_group,
                    scan_only ? nullptr : pwt_manager_sort_order(join)) ||
       setup_transport(thd, n) ||
       (layout.plan_sorts && setup_sort_stage(thd)))

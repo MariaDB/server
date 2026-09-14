@@ -1,0 +1,84 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, g INT, b INT, d DECIMAL(20,4),
+e DOUBLE) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq MOD 97, seq, seq/7, seq/3 FROM seq_1_to_20000;
+#
+# The same answer as a serial plan, for each aggregate that merges.
+#
+# ---- serial ----
+SET SESSION parallel_worker_threads=0;
+SELECT COUNT(*), COUNT(b), SUM(b), MIN(b), MAX(b) FROM t1;
+COUNT(*)	COUNT(b)	SUM(b)	MIN(b)	MAX(b)
+20000	20000	200010000	1	20000
+SELECT SUM(d), MIN(d), MAX(d), AVG(b), AVG(d) FROM t1;
+SUM(d)	MIN(d)	MAX(d)	AVG(b)	AVG(d)
+28572857.1429	0.1429	2857.1429	10000.5000	1428.64285715
+SELECT COUNT(*), SUM(b), AVG(b) FROM t1 WHERE g > 40;
+COUNT(*)	SUM(b)	AVG(b)
+11536	115486896	10011.0000
+SELECT ROUND(SUM(e), 2), ROUND(AVG(e), 6) FROM t1;
+ROUND(SUM(e), 2)	ROUND(AVG(e), 6)
+66670000.00	3333.500000
+# ---- parallel ----
+SET SESSION parallel_worker_threads=4;
+SELECT COUNT(*), COUNT(b), SUM(b), MIN(b), MAX(b) FROM t1;
+COUNT(*)	COUNT(b)	SUM(b)	MIN(b)	MAX(b)
+20000	20000	200010000	1	20000
+SELECT SUM(d), MIN(d), MAX(d), AVG(b), AVG(d) FROM t1;
+SUM(d)	MIN(d)	MAX(d)	AVG(b)	AVG(d)
+28572857.1429	0.1429	2857.1429	10000.5000	1428.64285715
+SELECT COUNT(*), SUM(b), AVG(b) FROM t1 WHERE g > 40;
+COUNT(*)	SUM(b)	AVG(b)
+11536	115486896	10011.0000
+SELECT ROUND(SUM(e), 2), ROUND(AVG(e), 6) FROM t1;
+ROUND(SUM(e), 2)	ROUND(AVG(e), 6)
+66670000.00	3333.500000
+# ran in the workers (expect 1)
+ran_in_the_workers
+1
+#
+# One row, whatever the workers saw. Nothing matches, so every worker
+# ships nothing at all, and the answer is still a row: a count of no
+# rows is 0 and a sum of none is NULL.
+#
+FLUSH STATUS;
+SELECT COUNT(*), SUM(b), MIN(b), MAX(b), AVG(b) FROM t1 WHERE a < 0;
+COUNT(*)	SUM(b)	MIN(b)	MAX(b)	AVG(b)
+0	NULL	NULL	NULL	NULL
+# ran in the workers (expect 1)
+ran_in_the_workers
+1
+#
+# and exactly one row, not one per worker
+#
+FLUSH STATUS;
+SELECT COUNT(*), SUM(b) FROM t1;
+one_row
+1
+#
+# An aggregate that cannot be merged is still refused, and the query
+# runs serially rather than wrongly.
+#
+FLUSH STATUS;
+SELECT COUNT(DISTINCT b) FROM t1;
+COUNT(DISTINCT b)
+20000
+SELECT STD(b) FROM t1;
+STD(b)
+5773.5027
+SELECT GROUP_CONCAT(g) FROM t1 WHERE a < 3;
+GROUP_CONCAT(g)
+1,2
+# none of them ran in the workers (expect 1)
+all_serial
+1
+#
+# A select list item that reads a column outside an aggregate takes
+# whichever row the terminal happened to hold, so it is refused too.
+#
+FLUSH STATUS;
+SELECT g, COUNT(*) FROM t1;
+# ran serially (expect 1)
+ran_serially
+1
+DROP TABLE t1;
+SET SESSION parallel_worker_threads=default;
