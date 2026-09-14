@@ -489,11 +489,42 @@ static int arch_ppc_probe(void) {
 #if defined(HAVE_ARMV8_CRC)
 extern "C" my_crc32_t crc32c_aarch64_available(void);
 extern "C" const char *crc32c_aarch64_impl(my_crc32_t);
+#elif defined HAVE_RISCV_ZBC
+extern "C" unsigned crc32c_riscv_zbc(unsigned, const void *, size_t);
+extern "C" int rv_zbc_supported(void *);
+extern "C" const char *crc32c_riscv_impl(my_crc32_t);
 #elif defined __i386__||defined __x86_64__||defined _M_X64||defined _M_IX86
 extern "C" my_crc32_t crc32c_x86_available(void);
 extern "C" const char *crc32c_x86_impl(my_crc32_t);
 #endif
 
+#if defined HAVE_RISCV_ZBC
+static my_crc32_t crc32c_riscv_choose(void *hwprobe)
+{
+  return rv_zbc_supported(hwprobe) ? crc32c_riscv_zbc : crc32c_slow;
+}
+
+/* The RISC-V resolver. Unlike the other architectures, the implementation is
+   selected by an indirect function instead of at the first call, because the
+   target operating systems of RISC-V (Linux and FreeBSD) support that.
+
+   The dynamic linker calls this at load time, before main(), so it may only
+   run code that is safe there. rv_zbc_supported() is: it uses the
+   riscv_hwprobe system call and nothing else.
+
+   The resolver must never return NULL. Whereas the *_available() functions
+   used elsewhere return NULL to mean "the extension is not present", an ifunc
+   resolver that returns NULL crashes at the first call. crc32c_slow() is
+   therefore returned instead; it is linked unconditionally anyway. */
+extern "C" { static my_crc32_t rv_crc32c_resolver(unsigned long long hwcap,
+                                                 void *hwprobe, void *reserved)
+{
+  (void) hwcap;
+  (void) reserved;
+
+  return crc32c_riscv_choose(hwprobe);
+} }
+#else
 static inline my_crc32_t Choose_Extend()
 {
 #if defined HAVE_POWER8 && defined HAS_ALTIVEC
@@ -510,10 +541,18 @@ static inline my_crc32_t Choose_Extend()
 }
 
 static const my_crc32_t ChosenExtend= Choose_Extend();
+#endif
 
 extern "C" const char *my_crc32c_implementation()
 {
-#if defined HAVE_POWER8 && defined HAS_ALTIVEC
+#if defined HAVE_RISCV_ZBC
+  /* The address of an ifunc symbol is the address of the selected
+     implementation, so it cannot be compared against a specific one from
+     here. The probe is repeated instead; that is what the resolver uses to
+     make the same choice. */
+  if (const char *ret= crc32c_riscv_impl(crc32c_riscv_choose(NULL)))
+    return ret;
+#elif defined HAVE_POWER8 && defined HAS_ALTIVEC
   if (ChosenExtend == crc32c_ppc)
     return "Using POWER8 crc32 instructions";
 #elif defined HAVE_ARMV8_CRC
@@ -528,7 +567,12 @@ extern "C" const char *my_crc32c_implementation()
 }  // namespace crc32c
 }  // namespace mysys_namespace
 
+#if defined HAVE_RISCV_ZBC
+extern "C" uint32 my_crc32c(uint32, const void *, size_t)
+  __attribute__((ifunc("rv_crc32c_resolver")));
+#else
 extern "C" uint32 my_crc32c(uint32 crc, const void *buf, size_t size)
 {
   return mysys_namespace::crc32c::ChosenExtend(crc,buf, size);
 }
+#endif
