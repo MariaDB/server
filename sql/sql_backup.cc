@@ -1389,6 +1389,10 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 
   if (command)
   {
+    if (fail)
+      /* Ensure that each stream is an invalid tar stream. */
+      for (int t= threads; t--; )
+        std::ignore= putc('\0', target_phase[t].stream);
     int pfail{0};
     for (int t= threads; t--; )
       pfail|= my_pclose(target_phase[t].stream);
