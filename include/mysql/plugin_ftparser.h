@@ -26,7 +26,15 @@ extern "C" {
   API for Full-text parser plugin. (MYSQL_FTPARSER_PLUGIN)
 */
 
-#define MYSQL_FTPARSER_INTERFACE_VERSION 0x0100
+#define MYSQL_FTPARSER_INTERFACE_VERSION 0x0101
+
+/*
+  0x0100 only lacks MYSQL_FTPARSER_PARAM::ftparser_arg, which was appended
+  to the end of the structure. A parser built against it reads the fields
+  it knows at the offsets it knows and never looks at the new one, so it
+  keeps working and keeps being accepted.
+*/
+#define MYSQL_FTPARSER_MIN_INTERFACE_VERSION 0x0100
 
 /* Parsing modes. Set in  MYSQL_FTPARSER_PARAM::mode */
 enum enum_ftparser_mode
@@ -179,6 +187,14 @@ typedef struct st_mysql_ftparser_boolean_info
 
   mode: The parsing mode.  With boolean operators, with stopwords, or
   nothing.  See  enum_ftparser_mode above.
+
+  ftparser_arg: What the index being parsed for was declared with, set by
+  the server when the table is opened and passed through unchanged by the
+  storage engine. NULL unless something asked for it, so a parser that
+  does not expect one sees nothing new. It is the only thing here that
+  differs between two indexes served by the same parser: everything else
+  describes the one document or query at hand. The plugin should not
+  modify it, and it lives as long as the table stays open.
 */
 
 typedef struct st_mysql_ftparser_param
@@ -195,6 +211,7 @@ typedef struct st_mysql_ftparser_param
   int length;
   unsigned int flags;
   enum enum_ftparser_mode mode;
+  void *ftparser_arg;
 } MYSQL_FTPARSER_PARAM;
 
 /*

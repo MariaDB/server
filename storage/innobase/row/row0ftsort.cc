@@ -408,6 +408,8 @@ row_merge_fts_doc_tokenize_by_parser(
 /*=================================*/
 	fts_doc_t*		doc,	/* in: doc to tokenize */
 	st_mysql_ftparser*	parser,	/* in: plugin parser instance */
+	void*			ftparser_arg, /* in: what the index was
+					 declared with */
 	fts_tokenize_ctx_t*	t_ctx)	/* in/out: tokenize ctx instance */
 {
 	MYSQL_FTPARSER_PARAM	param;
@@ -418,6 +420,7 @@ row_merge_fts_doc_tokenize_by_parser(
 	param.mysql_parse = fts_tokenize_document_internal;
 	param.mysql_add_word = row_merge_fts_doc_add_word_for_parser;
 	param.mysql_ftparam = t_ctx;
+	param.ftparser_arg = ftparser_arg;
 	param.cs = doc->charset;
 	param.doc = reinterpret_cast<char*>(doc->text.f_str);
 	param.length = static_cast<int>(doc->text.f_len);
@@ -463,6 +466,7 @@ row_merge_fts_doc_tokenize(
 	memset(data_size, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
 
 	parser = sort_buf[0]->index->parser;
+	void* ftparser_arg = sort_buf[0]->index->ftparser_arg;
 
 	/* Tokenize the data and add each word string, its corresponding
 	doc id and position to sort buffer */
@@ -481,7 +485,7 @@ row_merge_fts_doc_tokenize(
 
 				/* Parse the whole doc and cache tokens */
 				row_merge_fts_doc_tokenize_by_parser(doc,
-					parser, t_ctx);
+					parser, ftparser_arg, t_ctx);
 
 				/* Just indicate that we have parsed all words */
 				t_ctx->processed_len += 1;

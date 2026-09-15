@@ -909,8 +909,11 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   {
     plugin_ref parser= table->key_info[i].parser;
     if (table->key_info[i].flags & HA_USES_PARSER)
+    {
       file->s->keyinfo[i].parser=
         (struct st_mysql_ftparser *)plugin_decl(parser)->info;
+      file->s->keyinfo[i].ftparser_arg= table->key_info[i].ftparser_arg;
+    }
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
     table->s->key_info[i].block_size= table->key_info[i].block_size;
   }

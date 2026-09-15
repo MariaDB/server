@@ -6279,6 +6279,8 @@ ha_innobase::open(const char* name, int, uint)
 			index->parser =
 				static_cast<st_mysql_ftparser *>(
 					plugin_decl(parser)->info);
+			index->ftparser_arg =
+				table->key_info[i].ftparser_arg;
 
 			DBUG_EXECUTE_IF("fts_instrument_use_default_parser",
 				index->parser = &fts_default_parser;);

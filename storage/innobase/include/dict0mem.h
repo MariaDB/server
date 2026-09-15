@@ -1032,6 +1032,9 @@ struct dict_index_t {
 	dict_field_t*	fields;	/*!< array of field descriptions */
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
+	/** what this index was declared with, for its fulltext parser to
+	read out of MYSQL_FTPARSER_PARAM::ftparser_arg */
+	void*		ftparser_arg;
 
 	/** It just indicates whether newly added virtual column
 	during alter. It stores column in case of alter failure.

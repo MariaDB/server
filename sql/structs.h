@@ -146,6 +146,14 @@ typedef struct st_key {
     plugin_ref parser;                  /* Fulltext [pre]parser */
     LEX_CSTRING *parser_name;           /* Fulltext [pre]parser name */
   };
+  /*
+    What this index was declared with, for its fulltext parser to read out
+    of MYSQL_FTPARSER_PARAM::ftparser_arg. The parser is the same code for
+    every index it serves, so this is how one index tells it what it is
+    parsing for. Whoever sets it owns it and has to keep it alive for as
+    long as the table is open; the engines only carry it across.
+  */
+  void *ftparser_arg;
   KEY_PART_INFO *key_part;
   /* Unique name for cache;  db + \0 + table_name + \0 + key_name + \0 */
   uchar *cache_name;

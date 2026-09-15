@@ -259,6 +259,7 @@ struct fts_doc_t {
 	CHARSET_INFO*	charset;	/*!< Document's charset info */
 
 	st_mysql_ftparser* parser;	/*!< fts plugin parser */
+	void*		ftparser_arg;	/*!< ... and what it parses for */
 
 	ib_rbt_t*	stopwords;	/*!< Stopwords */
 };

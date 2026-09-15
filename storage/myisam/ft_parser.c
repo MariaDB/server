@@ -366,6 +366,7 @@ MYSQL_FTPARSER_PARAM *ftparser_call_initializer(MI_INFO *info,
 {
   uint32 ftparser_nr;
   struct st_mysql_ftparser *parser;
+  void *ftparser_arg;
   
   if (!ftparser_alloc_param(info))
     return 0;
@@ -374,14 +375,21 @@ MYSQL_FTPARSER_PARAM *ftparser_call_initializer(MI_INFO *info,
   {
     ftparser_nr= 0;
     parser= &ft_default_parser;
+    ftparser_arg= 0;
   }
   else
   {
     ftparser_nr= info->s->keyinfo[keynr].ftkey_nr;
     parser= info->s->keyinfo[keynr].parser;
+    ftparser_arg= info->s->keyinfo[keynr].ftparser_arg;
   }
   DBUG_ASSERT(paramnr < MAX_PARAM_NR);
   ftparser_nr= ftparser_nr*MAX_PARAM_NR + paramnr;
+  /*
+    The param is cached per parser, but the key it is used for is
+    whatever this call is about, so set it every time.
+  */
+  info->ftparser_param[ftparser_nr].ftparser_arg= ftparser_arg;
   if (! info->ftparser_param[ftparser_nr].mysql_add_word)
   {
     /* Note, that mysql_add_word is used here as a flag:

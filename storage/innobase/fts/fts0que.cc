@@ -147,6 +147,7 @@ struct fts_query_t {
 					fts_ast_visit_sub_exp() */
 
 	st_mysql_ftparser*	parser;	/*!< fts plugin parser */
+	void*			ftparser_arg; /*!< ... and what it parses for */
 
 	FTSQueryExecutor*	executor; /*!< shared FTS query executor */
 };
@@ -211,7 +212,7 @@ struct fts_phrase_t {
 		heap(NULL),
 		zip_size(table->space->zip_size()),
 		proximity_pos(NULL),
-		parser(NULL)
+		parser(NULL), ftparser_arg(NULL)
 	{
 	}
 
@@ -242,6 +243,8 @@ struct fts_phrase_t {
 
 	/** FTS plugin parser */
 	st_mysql_ftparser*	parser;
+	/** what the index was declared with */
+	void*			ftparser_arg;
 };
 
 /** Parameter passed to fts phrase match by parser */
@@ -1803,6 +1806,8 @@ fts_query_match_phrase_terms_by_parser(
 /*===================================*/
 	fts_phrase_param_t*	phrase_param,	/* in/out: phrase param */
 	st_mysql_ftparser*	parser,		/* in: plugin fts parser */
+	void*			ftparser_arg,	/* in: what the index was
+						 declared with */
 	byte*			text,		/* in: text to check */
 	ulint			len)		/* in: text length */
 {
@@ -1814,6 +1819,7 @@ fts_query_match_phrase_terms_by_parser(
 	param.mysql_parse = fts_tokenize_document_internal;
 	param.mysql_add_word = fts_query_match_phrase_add_word_for_parser;
 	param.mysql_ftparam = phrase_param;
+	param.ftparser_arg = ftparser_arg;
 	param.cs = phrase_param->phrase->charset;
 	param.doc = reinterpret_cast<char*>(text);
 	param.length = static_cast<int>(len);
@@ -1893,7 +1899,7 @@ fts_query_match_phrase(
 
 			if (fts_query_match_phrase_terms_by_parser(
 				&phrase_param,
-				phrase->parser,
+				phrase->parser, phrase->ftparser_arg,
 				ptr,
 				ulint(end - ptr))) {
 				break;
@@ -2030,10 +2036,12 @@ dberr_t fts_query_fetch_document(dict_index_t *fts_index,
       doc.text.f_len= field_len;
 
       if (field_no == 0)
-        fts_tokenize_document(&doc, result_doc, result_doc->parser);
+        fts_tokenize_document(&doc, result_doc, result_doc->parser,
+                              result_doc->ftparser_arg);
       else
         fts_tokenize_document_next(&doc, doc_len, result_doc,
-                                   result_doc->parser);
+                                   result_doc->parser,
+                                   result_doc->ftparser_arg);
 
       /* Next field offset: add 1 for separator if more fields follow */
       doc_len+= ((i + 1) < fts_index->n_user_defined_cols)
@@ -2168,7 +2176,7 @@ dberr_t fts_query_fetch_document(dict_index_t *fts_index,
 /*****************************************************************//**
 Retrieve the document and match the phrase tokens.
 @return DB_SUCCESS or error code */
-MY_ATTRIBUTE((nonnull(1,2,3,6), warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3,7), warn_unused_result))
 static
 dberr_t
 fts_query_match_document(
@@ -2178,6 +2186,8 @@ fts_query_match_document(
 	fts_match_t*	match,		/*!< in: doc id and positions */
 	ulint		distance,	/*!< in: proximity distance */
 	st_mysql_ftparser* parser,	/*!< in: fts plugin parser */
+	void*		ftparser_arg,	/*!< in: what the index was
+					declared with */
 	ibool*		found,		/*!< out: TRUE if phrase found */
 	THD*		thd)		/*!< in: query THD */
 {
@@ -2190,6 +2200,7 @@ fts_query_match_document(
 	phrase.charset = get_doc->index_cache->charset;
 	phrase.heap = mem_heap_create(512);
 	phrase.parser = parser;
+	phrase.ftparser_arg = ftparser_arg;
 
 	*found = phrase.found = FALSE;
 
@@ -2305,7 +2316,8 @@ fts_query_search_phrase(
 
 			query->error = fts_query_match_document(
 				orig_tokens, &get_doc, match,
-				query->distance, query->parser, &found,
+				query->distance, query->parser,
+				query->ftparser_arg, &found,
 				query->trx->mysql_thd);
 
 			if (query->error == DB_SUCCESS && found) {
@@ -3384,7 +3396,8 @@ fts_query_parse(
 		state.root = state.cur_node =
 			fts_ast_create_node_list(&state, NULL);
 		error = fts_parse_by_parser(mode, query_str, query_len,
-					    query->parser, &state);
+					    query->parser, query->ftparser_arg,
+					    &state);
 	} else {
 		/* Setup the scanner to use, this depends on the mode flag. */
 		state.lexer = fts_lexer_create(mode, query_str, query_len);
@@ -3562,6 +3575,7 @@ fts_query(
 	query.doc_ids = rbt_create(
 		sizeof(fts_ranking_t), fts_doc_id_cmp);
 	query.parser = index->parser;
+	query.ftparser_arg = index->ftparser_arg;
 
 	query.total_size += SIZEOF_RBT_CREATE;
 
@@ -3736,6 +3750,7 @@ fts_expand_query(
 
 	result_doc.charset = index_cache->charset;
 	result_doc.parser = index_cache->index->parser;
+	result_doc.ftparser_arg = index_cache->index->ftparser_arg;
 
 	query->total_size += SIZEOF_RBT_CREATE;
 

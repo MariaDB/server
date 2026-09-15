@@ -182,6 +182,7 @@ typedef struct st_mi_keydef		/* Key definition with open & info */
 
   HA_KEYSEG *seg,*end;
   struct st_mysql_ftparser *parser;     /* Fulltext [pre]parser */
+  void *ftparser_arg;                   /* ... and what it is parsing for */
   int (*bin_search)(struct st_myisam_info *info,struct st_mi_keydef *keyinfo,
 		    uchar *page,uchar *key,
 		    uint key_len,uint comp_flag,uchar * *ret_pos,

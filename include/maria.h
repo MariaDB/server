@@ -64,6 +64,7 @@ typedef struct st_maria_keydef          /* Key definition with open & info */
 
   HA_KEYSEG *seg, *end;
   struct st_mysql_ftparser *parser;     /* Fulltext [pre]parser */
+  void *ftparser_arg;                   /* ... and what it is parsing for */
   int (*bin_search)(const MARIA_KEY *key, const struct st_maria_page *page,
                     uint32 comp_flag, uchar **ret_pos, uchar *buff,
                     my_bool *was_last_key);

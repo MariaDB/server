@@ -666,6 +666,7 @@ typedef struct st_mysql_ftparser_param
   int length;
   unsigned int flags;
   enum enum_ftparser_mode mode;
+  void *ftparser_arg;
 } MYSQL_FTPARSER_PARAM;
 struct st_mysql_ftparser
 {

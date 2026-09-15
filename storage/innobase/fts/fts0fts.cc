@@ -2806,6 +2806,7 @@ fts_fetch_doc_from_rec(
 
 	index = get_doc->index_cache->index;
 	parser = get_doc->index_cache->index->parser;
+	void* ftparser_arg = get_doc->index_cache->index->ftparser_arg;
 
 	clust_rec = btr_pcur_get_rec(pcur);
 	ut_ad(!page_is_comp(btr_pcur_get_page(pcur))
@@ -2843,9 +2844,10 @@ fts_fetch_doc_from_rec(
 		}
 
 		if (!doc_len) {
-			fts_tokenize_document(doc, NULL, parser);
+			fts_tokenize_document(doc, NULL, parser, ftparser_arg);
 		} else {
-			fts_tokenize_document_next(doc, doc_len, NULL, parser);
+			fts_tokenize_document_next(doc, doc_len, NULL, parser,
+						   ftparser_arg);
 		}
 
 		doc_len += doc->text.f_len + 1;
@@ -2875,6 +2877,7 @@ fts_fetch_doc_from_tuple(
 
        index = get_doc->index_cache->index;
        parser = get_doc->index_cache->index->parser;
+       void* ftparser_arg = get_doc->index_cache->index->ftparser_arg;
        num_field = dict_index_get_n_fields(index);
 
        for (ulint i = 0; i < num_field; i++) {
@@ -2905,9 +2908,11 @@ fts_fetch_doc_from_tuple(
                }
 
                if (processed_doc == 0) {
-                       fts_tokenize_document(doc, NULL, parser);
+                       fts_tokenize_document(doc, NULL, parser,
+                                             ftparser_arg);
                } else {
-                       fts_tokenize_document_next(doc, doc_len, NULL, parser);
+                       fts_tokenize_document_next(doc, doc_len, NULL, parser,
+                                                  ftparser_arg);
                }
 
                processed_doc++;
@@ -3994,6 +3999,8 @@ fts_tokenize_by_parser(
 /*===================*/
 	fts_doc_t*		doc,	/* in/out: document to tokenize */
 	st_mysql_ftparser*	parser, /* in: plugin fts parser */
+	void*			ftparser_arg, /* in: what the index was
+					 declared with */
 	fts_tokenize_param_t*	fts_param) /* in: fts tokenize param */
 {
 	MYSQL_FTPARSER_PARAM	param;
@@ -4004,6 +4011,7 @@ fts_tokenize_by_parser(
 	param.mysql_parse = fts_tokenize_document_internal;
 	param.mysql_add_word = fts_tokenize_add_word_for_parser;
 	param.mysql_ftparam = fts_param;
+	param.ftparser_arg = ftparser_arg;
 	param.cs = doc->charset;
 	param.doc = reinterpret_cast<char*>(doc->text.f_str);
 	param.length = static_cast<int>(doc->text.f_len);
@@ -4017,12 +4025,14 @@ fts_tokenize_by_parser(
 /** Tokenize a document.
 @param[in,out]	doc	document to tokenize
 @param[out]	result	tokenization result
-@param[in]	parser	pluggable parser */
+@param[in]	parser	pluggable parser
+@param[in]	ftparser_arg	what the index was declared with */
 void
 fts_tokenize_document(
 	fts_doc_t*		doc,
 	fts_doc_t*		result,
-	st_mysql_ftparser*	parser)
+	st_mysql_ftparser*	parser,
+	void*			ftparser_arg)
 {
 	ut_a(!doc->tokens);
 	ut_a(doc->charset);
@@ -4036,7 +4046,7 @@ fts_tokenize_document(
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
 
-		fts_tokenize_by_parser(doc, parser, &fts_param);
+		fts_tokenize_by_parser(doc, parser, ftparser_arg, &fts_param);
 	} else {
 		ulint		inc;
 
@@ -4052,7 +4062,8 @@ fts_tokenize_document_next(
 	fts_doc_t*		doc,
 	ulint			add_pos,
 	fts_doc_t*		result,
-	st_mysql_ftparser*	parser)
+	st_mysql_ftparser*	parser,
+	void*			ftparser_arg)
 {
 	ut_a(doc->tokens);
 
@@ -4062,7 +4073,7 @@ fts_tokenize_document_next(
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = add_pos;
 
-		fts_tokenize_by_parser(doc, parser, &fts_param);
+		fts_tokenize_by_parser(doc, parser, ftparser_arg, &fts_param);
 	} else {
 		ulint		inc;
 
@@ -5150,6 +5161,7 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
     ulint doc_len= 0;
     doc_id_t doc_id= FTS_NULL_DOC_ID;
     st_mysql_ftparser* parser= fts_index->parser;
+    void* ftparser_arg= fts_index->ftparser_arg;
 
     fts_doc_init(&doc);
     doc.found= TRUE;
@@ -5196,9 +5208,10 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
         }
 
         if (processed_field == 0)
-          fts_tokenize_document(&doc, NULL, parser);
+          fts_tokenize_document(&doc, NULL, parser, ftparser_arg);
         else
-          fts_tokenize_document_next(&doc, doc_len, NULL, parser);
+          fts_tokenize_document_next(&doc, doc_len, NULL, parser,
+                                     ftparser_arg);
 
 	processed_field++;
         doc_len+=

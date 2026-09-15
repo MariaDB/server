@@ -980,22 +980,26 @@ void fts_sync_during_ddl(dict_table_t* table, THD* thd);
 /** Tokenize a document.
 @param[in,out]  doc     document to tokenize
 @param[out]     result  tokenization result
-@param[in]      parser  pluggable parser */
+@param[in]      parser  pluggable parser
+@param[in]      ftparser_arg  what the index was declared with */
 void fts_tokenize_document(
         fts_doc_t*              doc,
         fts_doc_t*              result,
-        st_mysql_ftparser*      parser);
+        st_mysql_ftparser*      parser,
+        void*                   ftparser_arg);
 
 /** Continue to tokenize a document.
 @param[in,out]  doc     document to tokenize
 @param[in]      add_pos add this position to all tokens from this tokenization
 @param[out]     result  tokenization result
-@param[in]      parser  pluggable parser */
+@param[in]      parser  pluggable parser
+@param[in]      ftparser_arg  what the index was declared with */
 void fts_tokenize_document_next(
         fts_doc_t*              doc,
         ulint                   add_pos,
         fts_doc_t*              result,
-        st_mysql_ftparser*      parser);
+        st_mysql_ftparser*      parser,
+        void*                   ftparser_arg);
 
 /** Get a character set based on precise type.
 @param prtype precise type

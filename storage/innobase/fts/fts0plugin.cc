@@ -256,6 +256,8 @@ fts_parse_by_parser(
 	uchar*			query_str,	/*!< in: query string */
 	ulint			query_len,	/*!< in: query string length */
 	st_mysql_ftparser*	parser,		/*!< in: fts plugin parser */
+	void*			ftparser_arg,	/*!< in: what the index was
+						declared with */
 	fts_ast_state_t*	state)		/*!< in/out: parser state */
 {
 	MYSQL_FTPARSER_PARAM	param;
@@ -267,6 +269,7 @@ fts_parse_by_parser(
 	param.mysql_parse = fts_parse_query_internal;
 	param.mysql_add_word = fts_query_add_word_for_parser;
 	param.mysql_ftparam = static_cast<void*>(state);
+	param.ftparser_arg = ftparser_arg;
 	param.cs = state->charset;
 	param.doc = reinterpret_cast<char*>(query_str);
 	param.length = static_cast<int>(query_len);
