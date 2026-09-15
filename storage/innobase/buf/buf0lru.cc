@@ -1271,20 +1271,15 @@ void buf_LRU_truncate_temp(uint32_t threshold)
   /* Set the extent descriptor page state as FREED */
   for (uint32_t cur_xdes_page= xdes_calc_descriptor_page(
          0, fil_system.temp_space->free_limit);
-       cur_xdes_page >= threshold;)
+       cur_xdes_page >= threshold;
+       cur_xdes_page-= uint32_t(srv_page_size))
   {
     mtr_t mtr{nullptr};
     mtr.start();
     if (buf_block_t* block= buf_page_get_gen(
           page_id_t(SRV_TMP_SPACE_ID, cur_xdes_page), 0, RW_X_LATCH,
           nullptr, BUF_PEEK_IF_IN_POOL, &mtr))
-    {
-      uint32_t state= block->page.state();
-      ut_ad(state > buf_page_t::UNFIXED);
-      ut_ad(state < buf_page_t::READ_FIX);
-      block->page.set_freed(state);
-    }
-    cur_xdes_page-= uint32_t(srv_page_size);
+      block->page.set_freed();
     mtr.commit();
   }
 

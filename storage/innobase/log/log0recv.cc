@@ -642,6 +642,9 @@ struct file_name_t {
 	/** Log sequence number of a FILE_CREATE record, or 0 */
 	lsn_t		create_lsn = 0;
 
+	/** Last FSP_SIZE or FSP_SPACE_FLAGS change, or 0 */
+	lsn_t		page0_lsn = 0;
+
 	/** FSP_SIZE of tablespace */
 	uint32_t	size = 0;
 
@@ -1257,6 +1260,7 @@ ATTRIBUTE_COLD static void fil_delete_apply(uint32_t id, const char *name)
     if (fil_ibd_load(id, name, space) == FIL_LOAD_OK)
     {
       ut_ad(space);
+      deferred_spaces.remove(id);
       fil_delete_apply(space);
       return;
     }
@@ -1292,10 +1296,6 @@ static void fil_name_process(const char *name, ulint len, uint32_t space_id,
 	file_name_t&	f = p.first->second;
 	ut_ad(!f.space || f.space->id == space_id);
 	auto d = deferred_spaces.find(space_id);
-	/* deferred_spaces must be a proper subset of recv_spaces.
-	Both here and in recv_validate_tablespace(), deferred_spaces.add()
-	may only be invoked for entries that exist in recv_spaces. */
-	ut_ad(!d || !p.second);
 
 	if (deleted) {
 		/* Got FILE_DELETE */
@@ -2156,6 +2156,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     lsn= file_checkpoint= log_sys.last_checkpoint_lsn;
+    log_sys.archived_checkpoint= lsn;
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
@@ -2234,7 +2235,8 @@ dberr_t recv_sys_t::find_checkpoint()
         log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
                                          field == log_t::CHECKPOINT_1);
     }
-    if (!log_sys.last_checkpoint_lsn)
+    log_sys.archived_checkpoint= log_sys.last_checkpoint_lsn;
+    if (!log_sys.archived_checkpoint)
       goto got_no_checkpoint;
     else if (!log_sys.archived_lsn)
       log_sys.archived_lsn= lsn;
@@ -3098,12 +3100,19 @@ void recv_sys_t::parse_page0(const page_id_t id, const byte *b,
     f{flags ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + b)
       : file_name_t::initial_flags};
   recv_spaces_t::iterator it= recv_spaces.find(space_id);
-  if (it != recv_spaces.end() && !it->second.space)
+  if (it != recv_spaces.end())
   {
-    if (size)
-      it->second.size= s;
-    if (flags)
-      it->second.flags= f;
+    if (it->second.page0_lsn > lsn)
+      return;
+    it->second.page0_lsn= lsn;
+
+    if (!it->second.space)
+    {
+      if (size)
+        it->second.size= s;
+      if (flags)
+        it->second.flags= f;
+    }
   }
   fil_space_set_recv_size_and_flags(space_id, s, f);
 }
@@ -4218,7 +4227,7 @@ set_start_lsn:
 		/* There have been no operations that modify the page.
 		Any buffered changes will be merged in ibuf_upgrade(). */
 		ut_ad(!mtr.has_modifications());
-		block->page.set_freed(block->page.state());
+		block->page.set_freed();
 	}
 
 	/* Make sure that committing mtr does not change the modification

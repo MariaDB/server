@@ -1,0 +1,37 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connect (backup,localhost,root)
+FLUSH TABLES WITH READ LOCK;
+FLUSH TABLES t FOR EXPORT;
+
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/backup_locks
+
+--error ER_STATEMENT_TIMEOUT
+evalp SET STATEMENT max_statement_time=0.1 FOR
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
+--connection default
+BACKUP STAGE END;
+--connection backup
+UNLOCK TABLES;
+FLUSH TABLES t FOR EXPORT;
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
+--rmdir $MYSQLTEST_VARDIR/backup_locks
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+FLUSH TABLES t FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+FLUSH TABLES t FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES t FOR EXPORT;
+
+--connection default
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
+--disconnect backup
+--rmdir $MYSQLTEST_VARDIR/backup_locks
+
+DROP TABLE t;

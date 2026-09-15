@@ -1427,7 +1427,7 @@ static void fil_crypt_release_iops(rotate_thread_t *state)
 
 /** Acquire a tablespace reference.
 @return whether a tablespace reference was successfully acquired */
-inline bool fil_space_t::acquire_if_not_stopped()
+bool fil_space_t::acquire_if_not_stopped()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   const uint32_t n= acquire_low();

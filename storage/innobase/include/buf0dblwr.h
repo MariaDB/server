@@ -177,6 +177,13 @@ public:
       (id >= block2 && id < block2 + block_size);
   }
 
+  /** the first page number */
+  uint32_t begin() const noexcept { return block1.page_no(); }
+  /** @return the first page number after the doublewrite buffer */
+  uint32_t end() const noexcept { return block2.page_no() + block_size; }
+  /** the size of the doublewrite buffer, in pages */
+  uint32_t size() const noexcept { return 2 * block_size; }
+
   /** Wait for flush_buffered_writes() to be fully completed */
   void wait_flush_buffered_writes() noexcept
   {

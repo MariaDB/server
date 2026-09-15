@@ -1,0 +1,6 @@
+BACKUP SERVER TO '$datadir/some_directory';
+ERROR HY000: Incorrect arguments to BACKUP SERVER TO
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
+ERROR HY000: Can't create directory 'MYSQLTEST_VARDIR/some_directory' (Errcode: 17 "File exists")
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
