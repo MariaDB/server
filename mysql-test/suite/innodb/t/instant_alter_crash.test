@@ -229,4 +229,199 @@ disconnect ddl;
 CHECK TABLE t2;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-37467 InnoDB Instant ALTER TABLE is not crash safe
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,2,3),(4,5,6);
+
+connect(con1,localhost,root,,,);
+# Crash after writing the metadata BLOB, before inserting the
+# metadata record.
+SET DEBUG_SYNC="btr_store_metadata_crash SIGNAL con_start WAIT_FOR con_finish";
+send ALTER TABLE t1 DROP COLUMN c, ALGORITHM=INSTANT;
+
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR con_start";
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect con1;
+CHECK TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 DROP COLUMN c, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+ALTER TABLE t1 ADD COLUMN d INT NOT NULL DEFAULT 7, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+
+# Crash after writing the metadata BLOB, before updating the
+# existing metadata record.
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="btr_store_metadata_crash SIGNAL con_continue WAIT_FOR ever";
+send ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+
+connection default;
+set DEBUG_SYNC="now WAIT_FOR con_continue";
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect con1;
+
+CHECK TABLE t1;
+SELECT * FROM t1;
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+CHECK TABLE t1;
+
+DROP TABLE t1;
+
+# Test: Table full during Simple ALTER DROP
+CREATE TABLE t1(
+  id INT PRIMARY KEY,
+  c1 INT,
+  c2 VARCHAR(100),
+  c3 TEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 100, 'test1', 'data1');
+INSERT INTO t1 VALUES(2, 200, 'test2', 'data2');
+
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t2 VALUES(1, 100, 'test1', 'data1');
+INSERT INTO t2 VALUES(2, 200, 'test2', 'data2');
+
+--error ER_RECORD_FILE_FULL
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail' FOR
+ALTER TABLE t1 DROP COLUMN c2, ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(3, 300, 'test3', 'data3');
+SELECT * FROM t1;
+
+# Test: Table full during ALTER DROP done after ALTER ADD
+ALTER TABLE t1 ADD COLUMN c4 VARCHAR(100) DEFAULT 'default_value', ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(4, 400, 'test4', 'data4', 'custom');
+SELECT * FROM t1;
+
+--error ER_RECORD_FILE_FULL
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail' FOR
+ALTER TABLE t1 DROP COLUMN c4, ALGORITHM=INSTANT;
+INSERT INTO t1 VALUES(5, 500, 'test5', 'data5', 'custom');
+SELECT * FROM t1;
+
+# Test: Table full during ALTER DROP ADD BLOB with 50kb default value while allocating 4th page
+--error ER_RECORD_FILE_FULL
+SET STATEMENT DEBUG_DBUG='d,btr_page_alloc_fail_4' FOR
+ALTER TABLE t2 DROP COLUMN c2, ADD COLUMN c4 BLOB DEFAULT (REPEAT(0x41, 50000)), ALGORITHM=INSTANT;
+INSERT INTO t2 VALUES(3, 300, 'test3', 'data3');
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+# Test: Kill right after the undo log record for the metadata record was
+# written.
+
+# The metadata record is an "alter metadata" (BLOB-carrying) record.
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,2,3),(4,5,6);
+ALTER TABLE t1 DROP COLUMN c, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD COLUMN d INT NOT NULL DEFAULT 7, ALGORITHM=INSTANT;
+
+# The metadata record is a plain "instant ADD COLUMN" record.
+CREATE TABLE t2(a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1,2,3),(4,5,6);
+ALTER TABLE t2 ADD COLUMN d INT NOT NULL DEFAULT 7, ALGORITHM=INSTANT;
+
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="btr_metadata_undo_logged SIGNAL con_go WAIT_FOR ever";
+send ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+
+connect(con2,localhost,root,,,);
+SET DEBUG_SYNC="btr_metadata_undo_logged SIGNAL con_go WAIT_FOR ever";
+send ALTER TABLE t2 DROP COLUMN b, ALGORITHM=INSTANT;
+
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR con_go";
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect con1;
+disconnect con2;
+
+# Wait for the rollback so that the results do not depend on its timing.
+let $wait_condition=
+  SELECT COUNT(*)=0 FROM information_schema.innodb_trx;
+--source include/wait_condition.inc
+
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+ALTER TABLE t2 DROP COLUMN b, ALGORITHM=INSTANT;
+SELECT * FROM t2;
+
+DROP TABLE t1,t2;
+
+# Test: Kill an instant ALTER TABLE whose changes to SYS_COLUMNS and
+# SYS_TABLES are durable, but which has not been committed. Appending a
+# column does not rewrite the SYS_COLUMNS records of the already
+# existing columns, so dict_load_columns() will not notice the
+# uncommitted operation. The recovery must detect it on the SYS_TABLES
+# record and load the uncommitted table definition.
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,2,3,4);
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+BEGIN;
+DELETE FROM t2;
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC="innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever";
+send ALTER TABLE t1 ADD COLUMN e INT, ALGORITHM=INSTANT;
+
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR ddl";
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect ddl;
+
+# Wait for the rollback so that the results do not depend on its timing.
+let $wait_condition=
+  SELECT COUNT(*)=0 FROM information_schema.innodb_trx;
+--source include/wait_condition.inc
+
+ALTER TABLE t1 ADD COLUMN e INT, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
+# The same, but the operation also drops a column, so that the rollback
+# will have to shorten the metadata record to the number of fields that
+# it comprised before the operation.
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, c INT, d INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,2,3,4);
+ALTER TABLE t1 DROP COLUMN b, ALGORITHM=INSTANT;
+
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+BEGIN;
+DELETE FROM t2;
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC="innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever";
+send ALTER TABLE t1 ADD COLUMN e INT, DROP COLUMN c, ALGORITHM=INSTANT;
+
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR ddl";
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect ddl;
+
+# Wait for the rollback so that the results do not depend on its timing.
+let $wait_condition=
+  SELECT COUNT(*)=0 FROM information_schema.innodb_trx;
+--source include/wait_condition.inc
+
+ALTER TABLE t1 ADD COLUMN e INT, DROP COLUMN c, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
 --list_files $MYSQLD_DATADIR/test

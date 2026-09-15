@@ -2401,6 +2401,51 @@ err_exit:
 			rec + rec_get_field_start_offs(
 				rec, DICT_FLD__SYS_TABLES__ID));
 
+	/* This is the first attempt (not READ UNCOMMITTED), and the table
+	identifier was not changed by an uncommitted transaction. */
+	if (use_uncommitted == 1) {
+		/* If the current version of this record was written by
+		a transaction that has not been committed,
+		dict_sys_tables_rec_read() read an older version of it.
+		When that transaction is an instant ALTER TABLE, the
+		clustered index metadata record already describes the
+		table definition that the transaction is creating, and
+		we must load that definition instead of the preceding
+		one.
+
+		This cannot be detected while reading SYS_COLUMNS. The
+		number of SYS_COLUMNS records that dict_load_columns()
+		reads is derived from SYS_TABLES.N_COLS, which we would
+		be reading from the older version. A column that the
+		operation appended is located after that many records,
+		and its SYS_COLUMNS record would never be read. Here we
+		are looking at a record that is located by table name,
+		so no such limit applies.
+
+		A delete-marked record is excluded. SYS_TABLES.NAME is
+		the clustered index key, so RENAME TABLE delete-marks the
+		record of the old name and inserts one for the new name.
+		The definition that corresponds to the old name is the
+		one that precedes the rename, which is what
+		dict_sys_tables_rec_read() already returned. Every
+		operation that modifies a table definition in place,
+		including instant ALTER TABLE, updates a non-key column
+		and leaves the record unmarked. */
+		ulint len;
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_TABLES__DB_TRX_ID, &len);
+		const trx_id_t id = len == DATA_TRX_ID_LEN
+			? trx_read_trx_id(field) : 0;
+
+		if (id && !rec_get_deleted_flag(rec, 0)
+		    && trx_sys.is_registered_nonzero(id)) {
+			uncommitted = true;
+			mtr.commit();
+			dict_mem_table_free(table);
+			goto reload;
+		}
+	}
+
 	mtr.commit();
 
 	mem_heap_t* heap = mem_heap_create(32000);
