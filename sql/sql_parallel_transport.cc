@@ -380,6 +380,7 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
 
 bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
 {
+  Item *one= nullptr;
   n_sums= 0;
   for (Item_sum **s= join->sum_funcs; *s; s++)
     n_sums++;
@@ -424,7 +425,7 @@ bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
   if (whole_table)
   {
     DBUG_ASSERT(!n_group);
-    Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+    one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
     if (!one || result_defn.push_back(one, thd->mem_root))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
@@ -440,13 +441,8 @@ bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
   }
   if (whole_table)
   {
-    List_iterator_fast<Item> di(result_defn);
-    Item *defn_item= nullptr;
-    for (uint j= 0; j < result_defn.elements; j++)
-      defn_item= di++;                            // the constant, pushed last
-
     bzero((char *) &group_defn[0], sizeof(ORDER));
-    group_defn[0].item_ptr=  defn_item;
+    group_defn[0].item_ptr=  one;
     group_defn[0].item=      &group_defn[0].item_ptr;
     group_defn[0].direction= ORDER::ORDER_ASC;
     group_defn[0].next=      nullptr;
@@ -542,7 +538,7 @@ bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
                                          ORDER *group)
 {
   /*
-    out needs it's own TMP_TABLE_PARAM because
+    out needs its own TMP_TABLE_PARAM because
     1) create_tmp_table() overwrites param->func_count with the number
        of items it actually has to copy, so a second table built from the same
        param allocates fewer fields than the layout needs.
@@ -1166,4 +1162,3 @@ pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
   }
   return src;
 }
-
