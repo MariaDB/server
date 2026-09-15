@@ -40,4 +40,4 @@ moxygen --version
 # Need to EXCLUDE the output directory so that doxygen does not try to parse the generated XML and markdown files
 (cat Doxyfile.generated_docs_plugin_api ; echo "OUTPUT_DIRECTORY=$TARGET_DIR"; echo "EXCLUDE=$TARGET_DIR/xml $TARGET_DIR/md" ) | doxygen -
 # run moxygen to generate the plugin API general doc api.md
-moxygen --quiet --anchors --pages --groups --output "$TARGET_DIR/md/%s.md" "$TARGET_DIR/xml"
+moxygen --quiet --pages --groups --output "$TARGET_DIR/md/%s.md" "$TARGET_DIR/xml"
