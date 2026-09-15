@@ -134,6 +134,70 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
   return pos;
 }
 
+Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
+                                  const KEY *key);
+/*
+  @brief
+    Build the EXTRA2_MVI_SPEC image: what each multi-valued index of the
+    table was declared with.
+
+  @detail
+    One entry per multi-valued index, preceded by the number of entries:
+
+      keyno    1 byte
+      length   1 or 3 bytes, see extra2_write_len()
+      text     the printed MVI_ENCODE() call, `length' bytes
+
+    Sparse rather than one entry per key, unlike EXTRA2_INDEX_FLAGS: most
+    tables have no multi-valued index at all, and an empty image means the
+    section is not written.
+
+    The text is what Virtual_column_info::print() produces, which is what
+    the internal column's expression is stored as as well. Keeping the
+    printed form means there is no binary format to freeze: whatever reads
+    it back is the parser that already reads a vcol expression.
+
+  @return
+    true if an error was raised
+*/
+
+static bool mvi_spec_image(String *image, List<Create_field> &create_fields,
+                           uint keys, const KEY *key_info)
+{
+  /* Write no image at all, to test that opening the table refuses it */
+  DBUG_EXECUTE_IF("mvi_skip_spec_image", return false;);
+
+  uint n_specs= 0;
+  for (uint i= 0; i < keys; i++)
+    if (mvi_key_spec(create_fields, key_info + i))
+      n_specs++;
+  if (!n_specs)
+    return false;
+
+  uchar len_buf[3];
+  size_t len_len= (size_t) (extra2_write_len(len_buf, n_specs) - len_buf);
+  if (image->append((char*) len_buf, len_len))
+    return true;                                // Out of memory
+
+  StringBuffer<MAX_FIELD_WIDTH> text;
+  for (uint i= 0; i < keys; i++)
+  {
+    Virtual_column_info *spec= mvi_key_spec(create_fields, key_info + i);
+    if (!spec)
+      continue;
+    DBUG_ASSERT(i <= 0xFF);                     /* MAX_KEY is 64 */
+    text.length(0);
+    spec->print(&text);
+    len_len= (size_t) (extra2_write_len(len_buf, text.length()) - len_buf);
+    if (image->append((char) i) ||
+        image->append((char*) len_buf, len_len) ||
+        image->append(text))
+      return true;                              // Out of memory
+  }
+  return false;
+}
+
+
 static field_index_t
 get_fieldno_by_name(HA_CREATE_INFO *create_info,
                     List<Create_field> &create_fields,
@@ -285,6 +349,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
   Field_data_type_info_image field_data_type_info_image;
+  StringBuffer<MAX_FIELD_WIDTH> mvi_spec;
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
@@ -295,6 +360,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                     create_fields, create_info->check_constraint_list);
 
   if (unlikely(error))
+    DBUG_RETURN(frm);
+
+  if (unlikely(mvi_spec_image(&mvi_spec, create_fields, keys, key_info)))
     DBUG_RETURN(frm);
 
   if (vcols.length())
@@ -397,6 +465,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (field_data_type_info_image.length())
     extra2_size+= 1 + extra2_str_size(field_data_type_info_image.length());
+
+  if (mvi_spec.length())
+    extra2_size+= 1 + extra2_str_size(mvi_spec.length());
 
   if (create_info->versioned())
   {
@@ -534,6 +605,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->vers_info.as_row.end));
     pos+= frm_fieldno_size;
+  }
+
+  if (mvi_spec.length())
+  {
+    *pos= EXTRA2_MVI_SPEC;
+    pos= extra2_write_str(pos + 1, &mvi_spec);
   }
 
   if (has_extra2_field_flags_)

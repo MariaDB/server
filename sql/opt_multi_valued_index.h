@@ -237,6 +237,19 @@ Item *mvi_desugar_whole_document(THD *thd, Item *column);
 bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column);
 
 /*
+  FRM: the definition of key `key' as a multi-valued index, or NULL when it
+  is not one. `create_fields' is the columns of the table the key belongs to.
+*/
+Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
+                                  const KEY *key);
+
+/*
+  Open: check the EXTRA2_MVI_SPEC image of `table' against its keys. Returns
+  true if they disagree, which makes the table unopenable.
+*/
+bool check_mvi_spec(const TABLE *table);
+
+/*
   Optimizer: is `expr' the document that a multi-valued index declared over
   `indexed' holds the keys of? A bare column and that column at path '$'
   are the same document.

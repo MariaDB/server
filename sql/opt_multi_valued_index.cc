@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_table.h"                        /* make_internal_field_name */
+#include "unireg.h"                           /* extra2_read_len */
 #include "item_func.h"
 #include "my_json_writer.h"
 
@@ -754,6 +755,105 @@ bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column)
     }
     break;
   }
+  return false;
+}
+
+
+/*
+  @brief
+    The definition of key `key' as a multi-valued index, or NULL when it is
+    not one.
+
+  @detail
+    A multi-valued index is a fulltext key over one internal column computed
+    by MVI_ENCODE(), so the definition to keep is that column's expression.
+    The key part names the column by position, `fieldnr' counting from 1.
+
+    This runs while the table is being created, off the columns the
+    statement defines, which is why it does not use is_mvi_key(): there is
+    no TABLE yet.
+*/
+
+Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
+                                  const KEY *key)
+{
+  if (key->user_defined_key_parts != 1)
+    return NULL;
+  /*
+    Counts from 0 here, unlike in a KEY read back from the FRM: the two are
+    filled in by different code, see mysql_prepare_create_table_finalize().
+    elem() returns NULL past the end of the list.
+  */
+  Create_field *column= create_fields.elem(key->key_part[0].fieldnr);
+  return column && is_mvi_vcol(column) ? column->vcol_info : NULL;
+}
+
+
+/*
+  @brief
+    Check the EXTRA2_MVI_SPEC image of `table' against its keys.
+
+  @detail
+    Every multi-valued index has an entry in the image, and every entry
+    describes a multi-valued index, with the text that index was declared
+    with. The two halves are worth checking for different reasons.
+
+    An entry no key claims, or one that says something other than the key
+    does, means the image and the keys disagree, and nothing here can tell
+    which of them is right.
+
+    A multi-valued index with no entry is the one that bites later. The
+    entry is what the definition becomes once the internal column goes
+    away; a key without one reads back as a plain fulltext key over the
+    base column, which is a valid definition meaning something else. A
+    table we would open as something it is not is a table to refuse.
+
+    Neither can happen to an FRM this server wrote, so a failure here means
+    the file was written by something else, damaged, or restored in pieces
+    -- ER_NOT_FORM_FILE, as for the FRM's other inconsistencies.
+
+  @return
+    true   The image and the keys disagree
+*/
+
+bool check_mvi_spec(const TABLE *table)
+{
+  const LEX_CUSTRING *image= &table->s->mvi_spec;
+  StringBuffer<MAX_FIELD_WIDTH> printed;
+  key_map described;
+  described.clear_all();
+
+  if (image->length)
+  {
+    const uchar *pos= image->str, *end= pos + image->length;
+    size_t n_specs= extra2_read_len(&pos, end);
+
+    for (size_t i= 0; i < n_specs; i++)
+    {
+      if (pos >= end)
+        return true;
+      uint keyno= *pos++;
+      size_t len= extra2_read_len(&pos, end);
+      if (!len || pos + len > end || keyno >= table->s->keys)
+        return true;
+      if (!is_mvi_key(table, keyno) || described.is_set(keyno))
+        return true;
+
+      Field *vcol= table->key_info[keyno].key_part[0].field;
+      printed.length(0);
+      vcol->vcol_info->print(&printed);
+      if (printed.length() != len || memcmp(printed.ptr(), pos, len))
+        return true;
+      described.set_bit(keyno);
+      pos+= len;
+    }
+    if (pos != end)
+      return true;
+  }
+
+  for (uint keyno= 0; keyno < table->s->keys; keyno++)
+    if (is_mvi_key(table, keyno) && !described.is_set(keyno))
+      return true;
   return false;
 }
 

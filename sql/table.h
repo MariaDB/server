@@ -776,6 +776,11 @@ struct TABLE_SHARE
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
+  /*
+    EXTRA2_MVI_SPEC: what each multi-valued index of the table was
+    declared with. Empty when the table has none.
+  */
+  LEX_CUSTRING mvi_spec;
 
   union {
     void *hlindex_data;                 /* for hlindex tables */

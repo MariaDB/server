@@ -180,6 +180,14 @@ enum extra2_frm_value_type {
   EXTRA2_FIELD_FLAGS=129,
   EXTRA2_FIELD_DATA_TYPE_INFO=130,
   EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
+  /*
+    What each multi-valued index of the table was declared with. Above
+    EXTRA2_ENGINE_IMPORTANT on purpose: without it such a key reads back
+    as a plain FULLTEXT key over the base column, which is a valid
+    definition meaning something else. A server that does not know this
+    section has to refuse the table, not misread it.
+  */
+  EXTRA2_MVI_SPEC=132,
 };
 
 enum extra2_field_flags {

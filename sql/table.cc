@@ -87,6 +87,7 @@ struct extra2_fields
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
   LEX_CUSTRING index_flags;
+  LEX_CUSTRING mvi_spec;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1696,6 +1697,10 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_FIELD_DATA_TYPE_INFO:
           fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
           break;
+        case EXTRA2_MVI_SPEC:
+          fail= read_extra2_section_once(extra2, length,
+                                         &fields->mvi_spec);
+          break;
         case EXTRA2_INDEX_FLAGS:
           fail= read_extra2_section_once(extra2, length, &fields->index_flags);
           break;
@@ -2246,6 +2251,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.index_flags.str)
     extra_index_flags_present= TRUE;
+
+  if (extra2.mvi_spec.length &&
+      !(share->mvi_spec.str=
+        (const uchar*) memdup_root(&share->mem_root, extra2.mvi_spec.str,
+                                   extra2.mvi_spec.length)))
+    goto err;
+  share->mvi_spec.length= extra2.mvi_spec.length;
 
   for (uint i= 0; i < share->total_keys; i++, keyinfo++)
   {
@@ -4600,6 +4612,16 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     outparam->update_keypart_vcol_info();
     mvi_set_keys_readonly(outparam);
+    /*
+      The keys and the EXTRA2_MVI_SPEC image have to describe the same
+      multi-valued indexes, see check_mvi_spec(). This is the last point
+      where the internal columns are available to check them against.
+    */
+    if (unlikely(check_mvi_spec(outparam)))
+    {
+      error= OPEN_FRM_CORRUPTED;
+      goto err;
+    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
