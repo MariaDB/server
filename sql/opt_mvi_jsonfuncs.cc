@@ -45,7 +45,7 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
           multiple?
 */
 
-static Mv_index *get_mvi_index(List<Mv_index> *indexes,
+static Mv_index *get_mvi_index(THD* thd, List<Mv_index> *indexes,
                                Item *array_indexed_expr)
 {
   Mv_index *index;
@@ -58,7 +58,9 @@ static Mv_index *get_mvi_index(List<Mv_index> *indexes,
     DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
                 Item_func::MVI_ENCODE_FUNC);
     mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
-    if (mvitem->arguments()[0]->eq(array_indexed_expr, true))
+    Item *as_document= array_indexed_expr->type() == Item::FIELD_ITEM ?
+      mvi_desugar_whole_document(thd, array_indexed_expr) : array_indexed_expr;
+    if (mvitem->arguments()[0]->eq(as_document, true))
     {
       return index;
     }
@@ -93,7 +95,7 @@ Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
   if (arg_count > 2 || !a2_constant)
     return NULL;
   /* Find the MVI that matches the first argument */
-  if (!(index= get_mvi_index(indexes, args[0])))
+  if (!(index= get_mvi_index(thd, indexes, args[0])))
     return NULL;
 
   if (!a2_parsed)
@@ -135,9 +137,9 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
   StringBuffer<256> tmp;
   DBUG_ASSERT(fixed());
 
-  if ((index= get_mvi_index(indexes, args[0])))
+  if ((index= get_mvi_index(thd, indexes, args[0])))
     literal_arg= 1;
-  else if ((index= get_mvi_index(indexes, args[1])))
+  else if ((index= get_mvi_index(thd, indexes, args[1])))
     literal_arg= 0;
   else
     return NULL;

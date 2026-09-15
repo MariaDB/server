@@ -718,6 +718,154 @@ t1	CREATE TABLE `t1` (
   KEY `idx` ((cast(json_extract(`j`,'$.a') as char(6) array)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# The indexed expression is `<column> -> '<path>'' and nothing else
+#
+# The keys of a row have to come from the bytes of one column, at a
+# path that does not depend on the row. Anything else would have to
+# be evaluated before the keys could be read out of it. A bare
+# column is accepted as the whole document, see further down.
+create table t1 (c int, j json, txt text)engine=innodb;
+# ->> unquotes, which is a function around the extraction
+alter table t1 add key idx ((CAST(j->>'$.a' AS CHAR(6) ARRAY)));
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+# not a column underneath
+alter table t1 add key idx ((CAST(json_extract(concat(j,''),'$.a')
+AS CHAR(6) ARRAY)));
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+create table t1 (j json, key idx ((CAST(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr') AS CHAR(6) ARRAY)))) engine=innodb;
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+# more than one path
+alter table t1 add key idx ((CAST(json_extract(j,'$.a','$.b')
+AS CHAR(6) ARRAY)));
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+# a path that is not a literal
+alter table t1 add key idx ((CAST(json_extract(j,txt) AS CHAR(6) ARRAY)));
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+# ... and the same at CREATE TABLE
+create table t2 (j json,
+key idx ((CAST(j->>'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal
+# the written-out form of what SHOW CREATE TABLE prints is accepted
+alter table t1 add key idx ((CAST(json_extract(j,'$.a') AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `txt` text DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.a') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop key idx;
+drop table t1;
+# A bare column is the whole document
+create table t1 (c int, j json,
+key idx ((CAST(j AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values (1,'["aaa","bbb"]'),(2,'["bbb"]'),(3,'["ccc"]');
+# ... and so the two spellings are one index, usable from either
+explain select c from t1 where json_contains(j,'"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1 where json_contains(j,'"aaa"') order by c;
+c
+1
+explain select c from t1 where json_contains(j->'$','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1 where json_contains(j->'$','"aaa"') order by c;
+c
+1
+# the same rows without the index:
+select c from t1 ignore index(idx)
+where json_contains(j,'"aaa"') order by c;
+c
+1
+# JSON_OVERLAPS too
+explain select c from t1 where json_overlaps(j,'["aaa","ccc"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	#	Using where
+select c from t1 where json_overlaps(j,'["aaa","ccc"]') order by c;
+c
+1
+3
+select c from t1 ignore index(idx)
+where json_overlaps(j,'["aaa","ccc"]') order by c;
+c
+1
+3
+# a path into the document is a different index expression, so it
+# does not match this one
+explain select c from t1 where json_contains(j->'$.a','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+# what SHOW CREATE TABLE printed re-creates the same index
+create table t2 (c int, j json,
+key idx ((CAST(json_extract(`j`,'$') AS CHAR(6) ARRAY))))
+engine=innodb;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t2 select * from t1;
+explain select c from t2 where json_contains(j,'"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	#	Using where
+select c from t2 where json_contains(j,'"aaa"') order by c;
+c
+1
+drop table t2, t1;
+# a bare column still has to be one the index can be built from
+create table t1 (j json,
+v json as (json_extract(j,'$.a')) virtual,
+key idx ((CAST(v AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Column v cannot be the base of a multi-valued index: it is not stored in the table
+# The base column has to be stored: a VIRTUAL one has no bytes in
+# the row to read the keys out of.
+create table t1 (c int, j json,
+v json as (json_extract(j,'$.a')) virtual)engine=innodb;
+alter table t1 add key idx ((CAST(v->'$.b' AS CHAR(6) ARRAY)));
+ERROR HY000: Column v cannot be the base of a multi-valued index: it is not stored in the table
+drop table t1;
+create table t1 (j json,
+v json as (json_extract(j,'$.a')) virtual,
+key idx ((CAST(v->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Column v cannot be the base of a multi-valued index: it is not stored in the table
+# a STORED one is fine
+create table t1 (c int, j json,
+s json as (json_extract(j,'$.a')) stored)engine=innodb;
+alter table t1 add key idx ((CAST(s->'$.b' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `s` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin GENERATED ALWAYS AS (json_extract(`j`,'$.a')) STORED CHECK (json_valid(`s`)),
+  KEY `idx` ((cast(json_extract(`s`,'$.b') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 (c,j) values (1,'{"a": {"b": ["aaa"]}}'),
+(2,'{"a": {"b": ["bbb"]}}');
+explain
+select c from t1 where json_contains(s->'$.b','"aaa"') order by c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where; Using filesort
+select c from t1 where json_contains(s->'$.b','"aaa"') order by c;
+c
+1
+select c from t1 ignore index(idx)
+where json_contains(s->'$.b','"aaa"') order by c;
+c
+1
+drop table t1;
 # MATCH() and a multi-valued index on the same table
 create table t1 (c int, txt text, j json,
 fulltext key ft (txt),
@@ -1068,32 +1216,6 @@ and json_contains(j->'$.nums','3') order by c;
 c	j
 3	{"tags": ["aaa"], "nums": [3,4]}
 drop table t1;
-# Index use for an expression as the first argument of cast
-create table t1 (j json, key idx ((CAST(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr') AS CHAR(6) ARRAY)))) engine=innodb;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
-  KEY `idx` ((cast(json_merge_preserve(json_extract(`j`,'$.tags'),json_extract(`j`,'$.attr')) as char(6) array)))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-insert into t1 values ('{"tags": ["aaa", "bbb"], "attr": ["ccc", "ddd"]}');
-insert into t1 values ('{"tags": ["ccc", "aaa"], "attr": ["ccc", "fff"]}');
-explain
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	0	NULL	2	Using where
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
-j
-{"tags": ["ccc", "aaa"], "attr": ["ccc", "fff"]}
-{"tags": ["aaa", "bbb"], "attr": ["ccc", "ddd"]}
-explain
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	0	NULL	1	Using where
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
-j
-{"tags": ["aaa", "bbb"], "attr": ["ccc", "ddd"]}
-DROP TABLE t1;
 # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 mvi_encode('[1, 42, "3"]', int)

@@ -448,6 +448,118 @@ alter table t1 add key idx ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # The indexed expression is `<column> -> '<path>'' and nothing else
+--echo #
+--echo # The keys of a row have to come from the bytes of one column, at a
+--echo # path that does not depend on the row. Anything else would have to
+--echo # be evaluated before the keys could be read out of it. A bare
+--echo # column is accepted as the whole document, see further down.
+
+create table t1 (c int, j json, txt text)engine=innodb;
+
+--echo # ->> unquotes, which is a function around the extraction
+--error ER_MVI_BAD_EXPR
+alter table t1 add key idx ((CAST(j->>'$.a' AS CHAR(6) ARRAY)));
+--echo # not a column underneath
+--error ER_MVI_BAD_EXPR
+alter table t1 add key idx ((CAST(json_extract(concat(j,''),'$.a')
+                                  AS CHAR(6) ARRAY)));
+--error ER_MVI_BAD_EXPR
+create table t1 (j json, key idx ((CAST(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr') AS CHAR(6) ARRAY)))) engine=innodb;
+--echo # more than one path
+--error ER_MVI_BAD_EXPR
+alter table t1 add key idx ((CAST(json_extract(j,'$.a','$.b')
+                                  AS CHAR(6) ARRAY)));
+--echo # a path that is not a literal
+--error ER_MVI_BAD_EXPR
+alter table t1 add key idx ((CAST(json_extract(j,txt) AS CHAR(6) ARRAY)));
+--echo # ... and the same at CREATE TABLE
+--error ER_MVI_BAD_EXPR
+create table t2 (j json,
+                 key idx ((CAST(j->>'$.a' AS CHAR(6) ARRAY))))engine=innodb;
+
+
+--echo # the written-out form of what SHOW CREATE TABLE prints is accepted
+alter table t1 add key idx ((CAST(json_extract(j,'$.a') AS CHAR(6) ARRAY)));
+show create table t1;
+alter table t1 drop key idx;
+drop table t1;
+
+--echo # A bare column is the whole document
+
+create table t1 (c int, j json,
+                 key idx ((CAST(j AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+insert into t1 values (1,'["aaa","bbb"]'),(2,'["bbb"]'),(3,'["ccc"]');
+
+--echo # ... and so the two spellings are one index, usable from either
+--replace_column 9 #
+explain select c from t1 where json_contains(j,'"aaa"');
+select c from t1 where json_contains(j,'"aaa"') order by c;
+--replace_column 9 #
+explain select c from t1 where json_contains(j->'$','"aaa"');
+select c from t1 where json_contains(j->'$','"aaa"') order by c;
+--echo # the same rows without the index:
+select c from t1 ignore index(idx)
+ where json_contains(j,'"aaa"') order by c;
+
+--echo # JSON_OVERLAPS too
+--replace_column 9 #
+explain select c from t1 where json_overlaps(j,'["aaa","ccc"]');
+select c from t1 where json_overlaps(j,'["aaa","ccc"]') order by c;
+select c from t1 ignore index(idx)
+ where json_overlaps(j,'["aaa","ccc"]') order by c;
+
+--echo # a path into the document is a different index expression, so it
+--echo # does not match this one
+--replace_column 9 #
+explain select c from t1 where json_contains(j->'$.a','"aaa"');
+
+--echo # what SHOW CREATE TABLE printed re-creates the same index
+create table t2 (c int, j json,
+                 key idx ((CAST(json_extract(`j`,'$') AS CHAR(6) ARRAY))))
+engine=innodb;
+show create table t2;
+insert into t2 select * from t1;
+--replace_column 9 #
+explain select c from t2 where json_contains(j,'"aaa"');
+select c from t2 where json_contains(j,'"aaa"') order by c;
+drop table t2, t1;
+
+--echo # a bare column still has to be one the index can be built from
+--error ER_MVI_BAD_BASE_COLUMN
+create table t1 (j json,
+                 v json as (json_extract(j,'$.a')) virtual,
+                 key idx ((CAST(v AS CHAR(6) ARRAY))))engine=innodb;
+
+--echo # The base column has to be stored: a VIRTUAL one has no bytes in
+--echo # the row to read the keys out of.
+create table t1 (c int, j json,
+                 v json as (json_extract(j,'$.a')) virtual)engine=innodb;
+--error ER_MVI_BAD_BASE_COLUMN
+alter table t1 add key idx ((CAST(v->'$.b' AS CHAR(6) ARRAY)));
+drop table t1;
+
+--error ER_MVI_BAD_BASE_COLUMN
+create table t1 (j json,
+                 v json as (json_extract(j,'$.a')) virtual,
+                 key idx ((CAST(v->'$.b' AS CHAR(6) ARRAY))))engine=innodb;
+
+--echo # a STORED one is fine
+create table t1 (c int, j json,
+                 s json as (json_extract(j,'$.a')) stored)engine=innodb;
+alter table t1 add key idx ((CAST(s->'$.b' AS CHAR(6) ARRAY)));
+show create table t1;
+insert into t1 (c,j) values (1,'{"a": {"b": ["aaa"]}}'),
+                            (2,'{"a": {"b": ["bbb"]}}');
+explain
+select c from t1 where json_contains(s->'$.b','"aaa"') order by c;
+select c from t1 where json_contains(s->'$.b','"aaa"') order by c;
+select c from t1 ignore index(idx)
+ where json_contains(s->'$.b','"aaa"') order by c;
+drop table t1;
+
 --echo # MATCH() and a multi-valued index on the same table
 create table t1 (c int, txt text, j json,
                  fulltext key ft (txt),
@@ -671,20 +783,6 @@ select * from t1 ignore index(idx_t,idx_n)
    and json_contains(j->'$.nums','3') order by c;
 
 drop table t1;
-
---echo # Index use for an expression as the first argument of cast
-create table t1 (j json, key idx ((CAST(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr') AS CHAR(6) ARRAY)))) engine=innodb;
-SHOW CREATE TABLE t1;
-insert into t1 values ('{"tags": ["aaa", "bbb"], "attr": ["ccc", "ddd"]}');
-insert into t1 values ('{"tags": ["ccc", "aaa"], "attr": ["ccc", "fff"]}');
-explain
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["ccc", "aaa"]');
-explain
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
-select * from t1 where json_contains(JSON_MERGE_PRESERVE(j->'$.tags', j->'$.attr'), '["aaa", "ddd"]');
-
-DROP TABLE t1;
 
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);

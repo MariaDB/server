@@ -12420,3 +12420,7 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
 ER_MVI_KEY_TOKEN_SIZE
         eng "A multi-valued index over this expression has keys of %u to %u characters, outside what %s indexes (%u to %u). Adjust the fulltext token size settings"
+ER_MVI_BAD_EXPR
+        eng "A multi-valued index must be declared as CAST(<column> -> '<path>' AS <type> ARRAY), with a path that is a literal"
+ER_MVI_BAD_BASE_COLUMN
+        eng "Column %s cannot be the base of a multi-valued index: it is not stored in the table"

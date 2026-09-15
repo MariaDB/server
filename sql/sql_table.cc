@@ -2987,6 +2987,12 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       DBUG_RETURN(TRUE);
     }
     /*
+      Now that the columns are known, is the base column one the index can
+      be built from?
+    */
+    if (check_mvi_base_column(alter_info, column))
+      DBUG_RETURN(TRUE);
+    /*
       Now that the engine is known, is it one that will hold the keys?
       This runs for a table being rebuilt too, so an ALTER of a table
       whose index the settings no longer allow fails here rather than

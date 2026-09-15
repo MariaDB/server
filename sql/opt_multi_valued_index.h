@@ -227,6 +227,22 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
 */
 bool check_mvi_token_size(const handler *file, const Create_field *column);
 
+Item *mvi_desugar_whole_document(THD *thd, Item *column);
+
+/*
+  DDL: can the multi-valued index whose keys `column' holds be built from
+  the column its expression reads them out of? Returns true if an error was
+  raised.
+*/
+bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column);
+
+/*
+  Optimizer: is `expr' the document that a multi-valued index declared over
+  `indexed' holds the keys of? A bare column and that column at path '$'
+  are the same document.
+*/
+bool mvi_same_document(THD* thd, Item *indexed, Item *expr);
+
 /*
   Open: does `table' have a multi-valued index whose keys the engine
   would drop? Answered once, into table->mvi_keys_dropped, because every

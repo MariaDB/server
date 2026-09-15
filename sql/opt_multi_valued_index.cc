@@ -632,6 +632,133 @@ static bool check_mvi_key_type(const Key *key)
 
 
 /*
+  @brief
+    The base column of a `<column> -> '<path>'' expression, or NULL when
+    `expr' is not of that form.
+
+  @detail
+    That form is all a multi-valued index can be declared over. It is
+    narrower than what the expression machinery could evaluate, on purpose:
+    the index has to stay describable as (column, path, cast type). The keys
+    of a row then come from the bytes of one column, which is what lets them
+    be produced by reading that column and looking inside it, rather than by
+    evaluating an expression the server has to materialise first.
+
+    The parser builds the same Item_func_json_extract for the `->' operator
+    and for a written-out json_extract(), so what SHOW CREATE TABLE prints
+    feeds straight back in.
+*/
+
+static Item_field *mvi_base_column(Item *expr)
+{
+  if (expr->type() != Item::FUNC_ITEM)
+    return NULL;
+  Item_func *func= (Item_func *) expr;
+  /* json_extract() takes a path per key; an index is over exactly one */
+  if (func->functype() != Item_func::JSON_EXTRACT_FUNC ||
+      func->argument_count() != 2)
+    return NULL;
+  Item **args= func->arguments();
+  if (args[0]->type() != Item::FIELD_ITEM || !args[1]->basic_const_item())
+    return NULL;
+  return (Item_field *) args[0];
+}
+
+/*
+  @brief
+    Rewrite / desugar a bare column into the extraction of the whole
+    document: `j' becomes `j -> '$''.
+
+  @detail
+    A column that is itself the array to index needs no path, and
+    `CAST(j AS <type> ARRAY)' is how one would write that. It means the
+    same as `CAST(j->'$' AS <type> ARRAY)', so the DDL stores the latter
+    and there is one form from that point on -- in the FRM, in what SHOW
+    CREATE TABLE prints, and on the query side.
+
+    The path is built the way the parser builds the one in `j->'$'', so
+    the two are indistinguishable afterwards.
+
+  @return
+    The rewritten expression, or NULL if an error was raised
+*/
+
+Item *mvi_desugar_whole_document(THD *thd, Item *column)
+{
+  /*
+    Use thd->variables.collation_connection, same as primary_expr
+    sql_yacc.cc when parsing <col>-><path>
+  */
+  Item *path= new (thd->mem_root) Item_string(thd, "$", 1,
+                                    thd->variables.collation_connection);
+  List<Item> *args= new (thd->mem_root) List<Item>;
+  if (unlikely(!path || !args ||
+               args->push_back(column, thd->mem_root) ||
+               args->push_back(path, thd->mem_root)))
+    return NULL;
+  return new (thd->mem_root) Item_func_json_extract(thd, *args);
+}
+
+/*
+  @brief
+    DDL: check the column can be used for a multi-valued index
+
+  @detail
+    `column' is the internal column that holds the keys; the one this
+    looks at is the column its expression extracts them from. The base
+    column has to be stored. Not because anything here needs that: the
+    server computes a VIRTUAL column into the record before the write,
+    so MVI_ENCODE can read it. It is where the key part is going. Once
+    it is the base column itself, the engine reads that column out of
+    the clustered index record to build the document, and a virtual
+    column has no place there - InnoDB refuses a FULLTEXT index over
+    one outright. Refuse it at the multi-valued index instead, with an
+    error that says why.
+
+    It runs once the columns of the new table are known, which for
+    ALTER TABLE means after mysql_prepare_alter_table() has merged the
+    old ones in, so `create_list' holds the base column whether the
+    statement mentions it or not. A name that is not in the list at
+    all is left alone -- the vcol expression fails on it with the
+    error it would raise anyway.
+
+    The shape of the expression is re-checked here, and not only in
+    add_mvi_key_part(), because a table being rebuilt arrives with the
+    expression it was created with, read back from the FRM instead of
+    written by the parser.
+
+  @return
+    true   The index cannot be built from it, and an error is raised
+*/
+
+bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column)
+{
+  const Item_func_mvi_encode *mvi= mvi_expr(column->invisible,
+                                            column->vcol_info);
+  DBUG_ASSERT(mvi);
+
+  const Item_field *base= mvi_base_column(mvi->arguments()[0]);
+  if (unlikely(!base))
+  {
+    my_error(ER_MVI_BAD_EXPR, MYF(0));
+    return true;
+  }
+  for (Create_field &f : alter_info->create_list)
+  {
+    if (!f.field_name.streq(base->field_name))
+      continue;
+    if (unlikely(!f.stored_in_db()))
+    {
+      my_error(ER_MVI_BAD_BASE_COLUMN, MYF(0), f.field_name.str);
+      return true;
+    }
+    break;
+  }
+  return false;
+}
+
+
+/*
   The name of the internal column that holds the keys of a multi-valued
   index: this prefix and a number that makes it unique in the table. See
   make_internal_field_name() for CREATE TABLE and mvi_name_new_vcols() for
@@ -680,6 +807,25 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
   }
   if (unlikely(check_mvi_key_type(key)))
     return NULL;
+
+  /*
+    A bare column is the array itself, with no path to follow into it.
+    Transform it to column->'$'
+  */
+  if (expr->type() == Item::FIELD_ITEM &&
+      unlikely(!(expr= mvi_desugar_whole_document(thd, expr))))
+    return NULL;
+
+  /*
+    `<column> -> '<path>'' and nothing else, see mvi_base_column(). Whether
+    that column is one the index can be built from is settled once the
+    columns are known, in check_mvi_base_column().
+  */
+  if (unlikely(!mvi_base_column(expr)))
+  {
+    my_error(ER_MVI_BAD_EXPR, MYF(0));
+    return NULL;
+  }
 
   /*
     The engine's fulltext token size limits are checked once the engine is
