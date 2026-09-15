@@ -62,4 +62,4 @@ connection default;
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
 DROP TABLE t1, t2;
-# End of 13.1 tests
+# End of 13.2 tests

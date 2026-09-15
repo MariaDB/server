@@ -118,4 +118,4 @@ DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

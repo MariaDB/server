@@ -107,4 +107,4 @@ DROP PROCEDURE p1;
 DROP PACKAGE pkg1;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
-# End of 13.1 tests
+# End of 13.2 tests

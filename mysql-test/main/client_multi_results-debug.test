@@ -192,4 +192,4 @@ DROP PROCEDURE p3_select;
 DROP TABLE t1;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

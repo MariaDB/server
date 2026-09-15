@@ -192,5 +192,5 @@ DROP PROCEDURE p;
 DROP FUNCTION f;
 DROP TABLE t1;
 connection slave;
-# End of 13.1 tests
+# End of 13.2 tests
 include/rpl_end.inc

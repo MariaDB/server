@@ -402,4 +402,4 @@ DROP FUNCTION f2;
 DROP FUNCTION f1;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

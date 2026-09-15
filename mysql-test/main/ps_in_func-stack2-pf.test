@@ -137,4 +137,4 @@ DROP FUNCTION f2a_direct_and_immediate;
 DROP FUNCTION f2b_direct_and_immediate;
 DROP TABLE t1;
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

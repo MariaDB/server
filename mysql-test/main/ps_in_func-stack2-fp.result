@@ -42,4 +42,4 @@ ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
 DROP FUNCTION f1;
 DROP PROCEDURE p2;
 DROP TABLE t1, t2;
-# End of 13.1 tests
+# End of 13.2 tests

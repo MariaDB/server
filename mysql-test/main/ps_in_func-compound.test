@@ -42,4 +42,4 @@ DROP FUNCTION f1;
 DROP TABLE t1;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

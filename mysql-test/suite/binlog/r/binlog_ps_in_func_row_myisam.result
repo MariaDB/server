@@ -1278,4 +1278,4 @@ DROP PROCEDURE p_plain;
 DROP TRIGGER tr1;
 DROP TABLE t1, t2;
 SET default_storage_engine=DEFAULT;
-# End of 13.1 tests
+# End of 13.2 tests

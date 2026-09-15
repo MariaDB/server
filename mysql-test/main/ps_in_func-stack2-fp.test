@@ -52,4 +52,4 @@ DROP PROCEDURE p2;
 DROP TABLE t1, t2;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

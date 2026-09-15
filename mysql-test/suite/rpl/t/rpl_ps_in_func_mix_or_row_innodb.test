@@ -54,6 +54,6 @@ DROP TABLE td;
 --connection master
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests
 
 --source include/rpl_end.inc

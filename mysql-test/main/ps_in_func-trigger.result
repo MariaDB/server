@@ -489,4 +489,4 @@ DROP PROCEDURE p1;
 DROP TABLE t2;
 DROP TABLE t1;
 SET @a= NULL;
-# End of 13.1 tests
+# End of 13.2 tests

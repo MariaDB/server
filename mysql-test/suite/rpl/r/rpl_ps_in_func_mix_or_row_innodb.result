@@ -39,5 +39,5 @@ DROP FUNCTION f_nd;
 DROP TABLE td;
 connection slave;
 connection master;
-# End of 13.1 tests
+# End of 13.2 tests
 include/rpl_end.inc

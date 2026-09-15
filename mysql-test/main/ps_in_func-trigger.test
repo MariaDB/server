@@ -565,4 +565,4 @@ DROP TABLE t1;
 SET @a= NULL;
 
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests

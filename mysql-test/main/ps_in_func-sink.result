@@ -160,4 +160,4 @@ DROP PROCEDURE p;
 DROP FUNCTION f_sel;
 DROP TABLE t2;
 DROP TABLE t1;
-# End of 13.1 tests
+# End of 13.2 tests

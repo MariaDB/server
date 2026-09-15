@@ -161,4 +161,4 @@ DROP FUNCTION f1_direct_immediate_direct;
 DROP PROCEDURE p2_default;
 DROP PROCEDURE p1;
 DROP TABLE t1;
-# End of 13.1 tests
+# End of 13.2 tests

@@ -149,4 +149,4 @@ DROP PROCEDURE p2_default;
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
---echo # End of 13.1 tests
+--echo # End of 13.2 tests
