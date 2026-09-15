@@ -44,6 +44,7 @@ select json_replace(@obj,'$.foo',1);
 select json_schema_valid(@obj, '{"type":"object"}');
 select json_set(@arr,'$[1000]',1);
 select json_valid(@arr);
+select 1 member of (@arr);
 select ST_AsTEXT(ST_GeomFromGeoJSON(JSON_OBJECT("type", "Point", "coordinates", @arr),2)) as exp;
 select @obj IS JSON;
 select @arr IS JSON;
