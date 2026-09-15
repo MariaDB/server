@@ -203,7 +203,7 @@ public:
       (AHI_IF_SPECIFIED, AHI_INDEX_NO_PREFERENCE ) -> false
       (AHI_IF_SPECIFIED, AHI_INDEX_PREFER_ENABLED) -> true */
     const ahi_status enabled{get_enabled()};
-    return (unlikely(enabled != AHI_OFF) &&
+    return (unlikely(enabled != AHI_OFF) && !(index->type & DICT_BLINK) &&
             enabled <= uint8_t{index->search_info.get_enabled()});
   }
 
