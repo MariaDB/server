@@ -1205,7 +1205,7 @@ public:
   /** The minimum allowed innodb_buffer_pool_size in garbage_collect() */
   size_t size_in_bytes_auto_min;
 #endif
-#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind || defined __SANITIZE_THREAD__
   /* In constrained environments, innodb_buffer_pool_size_max
    will default to the initial innodb_buffer_pool_size, that is,
    by default, it will not be possible to increase innodb_buffer_pool_size.
@@ -1214,7 +1214,12 @@ public:
    allocation would be backed by one or more copies of shadow bits of the
    same size that could be allocated and initialized even for dummy
    mappings created by mmap(2) with PROT_NONE. We do not want significant
-   overhead beyond the actual innodb_buffer_pool_size. */
+   overhead beyond the actual innodb_buffer_pool_size.
+
+   The ThreadSanitizer in GCC 16.2.0 targeting AMD64 is allocating
+   more than 100 TiB of virtual address space, which would make the
+   InnoDB 8 TiB allocation fail.
+  */
   static constexpr size_t size_in_bytes_max_default{0},
     size_in_bytes_max_minimum{0};
 #else
