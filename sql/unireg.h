@@ -33,15 +33,6 @@
 #define TEMP_PREFIX	"MY"
 #define LOG_PREFIX	"ML"
 #define PROGDIR		"bin/"
-#ifndef MYSQL_DATADIR
-#define MYSQL_DATADIR		"data/"
-#endif
-#ifndef SHAREDIR
-#define SHAREDIR	"share/"
-#endif
-#ifndef PLUGINDIR
-#define PLUGINDIR	"lib/plugin"
-#endif
 
 #define MAX_ERROR_RANGES 4  /* 1000-2000, 2000-3000, 3000-4000, 4000-5000 */
 #define ERRORS_PER_RANGE 1000
