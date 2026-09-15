@@ -222,7 +222,7 @@ private:
     @retval 0 on success
     */
     ATTRIBUTE_COLD int de_hardlink(const backup_target &target, lsn_t hl)
-      noexcept
+      noexcept try
     {
 #ifdef _WIN32
       std::string src{target.path};
@@ -340,6 +340,11 @@ private:
       }
 #endif
       return 0;
+    }
+    catch (std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      return 1;
     }
 
     /**
@@ -604,9 +609,7 @@ public:
       ctx.max_first_lsn= lsn;
       ctx.last_lsn= last_lsn;
     }
-    catch (std::bad_alloc&) {
-      ctx.last_lsn= 0;
-    }
+    catch (std::bad_alloc&) { ctx.last_lsn= 0; }
     log_sys.latch.wr_unlock();
     mutex.wr_unlock();
     /*
@@ -743,25 +746,21 @@ public:
     {
       const lsn_t lsn{log_sys.get_first_lsn() - log_sys.capacity()};
       mutex.wr_lock();
-      if (ctx.state != PROCESSING);
-      else if (ctx.last_lsn == LSN_MAX)
-      {
-        /* commit() was not invoked yet */
-        try {
+      try {
+        if (ctx.state != PROCESSING);
+        else if (ctx.last_lsn == LSN_MAX)
+          /* commit() was not invoked yet */
           queue.emplace_back(lsn);
-        }
-        catch (std::bad_alloc&) {
-          ctx.last_lsn= 0;
-        }
+        else if (lsn > ctx.last_lsn && ctx.old_size)
+          /*
+            The server was running with innodb_log_archive=OFF, and this
+            log file covers some changes after the end of the backup.
+            Let us delete the file straight away, to keep step() and
+            delete_logs() simple.
+          */
+          IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
       }
-      else if (lsn > ctx.last_lsn && ctx.old_size)
-        /*
-          The server was running with innodb_log_archive=OFF, and this
-          log file covers some changes after the end of the backup.
-          Let us delete the file straight away, to keep step() and
-          delete_logs() simple.
-        */
-        IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+      catch (std::bad_alloc&) { ctx.last_lsn= 0; }
       mutex.wr_unlock();
     }
   }
@@ -922,12 +921,16 @@ private:
     const lsn_t first_lsn{log_sys.get_first_lsn()};
     size_t i{non_log};
     non_log= 0;
-    while (i < queue.size())
+    try
     {
-      const lsn_t lsn{queue[i++]};
-      if (lsn != first_lsn)
-        IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+      while (i < queue.size())
+      {
+        const lsn_t lsn{queue[i++]};
+        if (lsn != first_lsn)
+          IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+      }
     }
+    catch (std::bad_alloc&) {}
     queue.clear();
   }
 
@@ -994,7 +997,8 @@ private:
      @retval 0 on success
   */
   static int backup(IF_WIN(const char *,int) target, fil_node_t *node,
-                    const char *name, uint32_t start, uint32_t limit) noexcept
+                    const char *name,
+                    uint32_t start, uint32_t limit) noexcept try
   {
     for (bool tried_mkdir{false};;)
     {
@@ -1076,18 +1080,15 @@ private:
       std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
                                  POSIX_FADV_SEQUENTIAL);
 #endif
-      /*
-        For the system tablespace, a minimum size has been configured
-        which may be larger than the currently used size. Preserve the
-        original size.
-
-        For other persistent data files, fil_node_t::read_page0()
-        expects at least 4 * innodb_page_size bytes. Small
-        ROW_FORMAT=COMPRESSED files may be zero-filled to this size.
-      */
-      const uint64_t min_size=
-        std::max(uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift,
-                 uint64_t{node->size} * page_size);
+      const uint64_t min_size= node->space->id
+        /* fil_node_t::read_page0() expects this minimum size */
+        ? uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift
+        /*
+          For the system tablespace, each file must correspond to
+          the configured minimum size, even if we have less payload
+          to copy.
+        */
+        : uint64_t{node->size} << srv_page_size_shift;
       if (uint64_t{limit} * page_size < min_size)
       {
         /* Expand the target file to the minimum size. */
@@ -1188,6 +1189,11 @@ private:
     return 0;
   fail:
     my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
+    return -1;
+  }
+  catch (std::bad_alloc&)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
     return -1;
   }
 
@@ -1371,7 +1377,7 @@ public:
   */
   static int replicate(lsn_t lsn,
                        const backup_target &target,
-                       const backup_sink &sink, bool old) noexcept
+                       const backup_sink &sink, bool old) noexcept try
   {
     ut_ad(log_get_lsn() >= lsn);
     const std::string p{log_sys.get_archive_path(lsn)};
@@ -1652,6 +1658,10 @@ public:
       goto fail;
 
     return 0;
+  }
+  catch (std::bad_alloc&) {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    return -1;
   }
 };
 
