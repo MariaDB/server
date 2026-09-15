@@ -198,48 +198,6 @@ bool jointab_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
 
 /**
   @brief
-    Trace our parallel scan table option.
-*/
-
-void trace_parallel_scan_options(JOIN *join)
-{
-  if (unlikely(join->thd->trace_started()))
-  {
-    JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
-                                      WITHOUT_CONST_TABLES);
-    JOIN_TAB *sorted= NULL;
-    for (uint t= join->const_tables; t < join->table_count; t++)
-      if (join->join_tab[t].filesort)
-      {
-        sorted= join->join_tab + t;
-        break;
-      }
-
-    const bool divisible= jointab_can_be_parallel_scanned(scan_tab, false) &&
-                          !sorted;
-    Json_writer_object trace_pscan(join->thd);
-    if (divisible)
-      trace_pscan.add("chosen_for_parallel_scan", scan_tab->table->alias.c_ptr());
-    else
-    {
-      trace_pscan.add("parallel_scan_abandoned",
-                      scan_tab ? scan_tab->table->alias.c_ptr() : "");
-      /* Named so it can be grepped for: "cause" is a common trace key. */
-      trace_pscan.add("parallel_scan_abandoned_because",
-                  sorted ?
-                  "the rows would have to reach the join sorted" :
-                  join->ordered_index_usage == join->ordered_index_group_by ?
-                  "an index now supplies the GROUP BY order" :
-                  join->ordered_index_usage == join->ordered_index_order_by ?
-                  "an index now supplies the ORDER BY order" :
-                  "the access path can no longer be divided in chunks");
-    }
-  }
-}
-
-
-/**
-  @brief
     The whole condition this table has to be filtered by, whatever the plan did
     with it.
 
@@ -1082,8 +1040,19 @@ static pwt_manager *pwt_mgr_of(TABLE *table)
 static int pwt_mgr_scan_read_record(READ_RECORD *info)
 {
   int rc= pwt_mgr_of(info->table)->next_scanned_row();
-  if (rc > 0 && info->print_error && !info->table->in_use->is_error())
-    my_error(ER_INTERNAL_ERROR, MYF(0), "parallel scan: worker failed");
+  THD *thd= info->table->in_use;
+  if (rc > 0 && info->print_error && !thd->is_error())
+  {
+    /*
+      Killed -- this query, or a worker, whose kill type was passed on to
+      this THD: ER_QUERY_INTERRUPTED, as a worker of the full path reports
+      it. The connection itself is dropped later for a KILL CONNECTION.
+    */
+    if (thd->killed)
+      my_error(ER_QUERY_INTERRUPTED, MYF(0));
+    else
+      my_error(ER_INTERNAL_ERROR, MYF(0), "parallel scan: worker failed");
+  }
   return rc;
 }
 
@@ -2105,6 +2074,31 @@ bool pwt_manager::setup_worker_preagg(THD *thd, pwt_worker *worker)
   DBUG_ASSERT(worker->exec.result.table->s->fields ==
               layout.recv.table->s->fields);
 
+#ifndef DBUG_OFF
+  /*
+    An AVG partial is only mergeable if the container holds its count beside
+    its sum. Item_sum_avg::create_tmp_field() packs the two into one binary
+    string field -- but only when the table has a group, which is the whole
+    reason the whole-table shape is given a constant group. Nothing else
+    enforces that, so check it here: the unpacked form is a plain double or
+    decimal field, and the manager would read it as a sum with no count.
+  */
+  for (uint i= 0; i < layout.n_sums; i++)
+  {
+    Item_sum *s= worker->exec.sums[i];
+    if (s->sum_func() != Item_sum::AVG_FUNC)
+      continue;
+    Item_sum_avg *avg= (Item_sum_avg *) s;
+    Field *f= worker->exec.result.table->field[layout.n_ship_base + i];
+    DBUG_ASSERT(f->type() == MYSQL_TYPE_STRING &&
+                f->charset() == &my_charset_bin &&
+                f->pack_length() ==
+                  sizeof(longlong) +
+                  (avg->result_type() == DECIMAL_RESULT ? avg->dec_bin_size
+                                                        : sizeof(double)));
+  }
+#endif
+
   /*
     Aggregation JOIN_TAB send to end_update().
     It reads the table, the param (for the key buffer, the Copy_field pairs and
@@ -2230,11 +2224,14 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
   if (pwt_self->manager->row_layout().grouped)
   {
     THD *thd= pwt_self->thd;
-    // record local memory used so that if a HEAP->Aria conversion happens...
+    /*
+      record local memory used so that if a we allocate another block, or
+      HEAP->Aria conversion happens, then owed gets transferred to the manager
+    */
     const int64 before= thd->status_var.local_memory_used;
     const enum_nested_loop_state rc= pwt_self->exec.aggr_tab->aggr->put_record();
     const int64 owed= thd->status_var.local_memory_used - before;
-    if (unlikely(owed))                 // we can account for it here
+    if (owed)
     {
       thd->status_var.local_memory_used= before;
       pwt_self->sink->account_spilled_memory(owed);
@@ -2936,8 +2933,8 @@ bool can_parallel_scan_jointab_access(JOIN_TAB *join_tab, bool trace)
   if (join_tab->join->ordered_index_usage != JOIN::ordered_index_void)
     return pwt_decline(join_tab->join, trace,
              join_tab->join->ordered_index_usage == JOIN::ordered_index_group_by
-             ? "an index supplies the GROUP BY order, so we can't split rows"
-             : "an index supplies the ORDER BY order, so we can't split rows");
+             ? "an index supplies the GROUP BY order, rows aren't splittable"
+             : "an index supplies the ORDER BY order, rows aren't splittable");
   if (!((join_tab->type == JT_ALL || join_tab->type == JT_RANGE) &&
         join_tab->read_first_record == join_init_read_record))
     return pwt_decline(join_tab->join, trace,
@@ -3181,13 +3178,15 @@ void parallel_join_check(JOIN *join)
   @brief
 
   Called from do_select() in sql_select.cc, run either the worker side
-  join, the scan only in the workers, or return NESTED_LOOP_DECLINED
+  join, the scan only in the workers, or set declined
 */
 
-enum_nested_loop_state do_select_parallel(JOIN *join)
+enum_nested_loop_state do_select_parallel(JOIN *join, bool *declined)
 {
+  *declined= true;
+
   if (!join->worker_side_parallel)
-    return NESTED_LOOP_DECLINED;
+    return NESTED_LOOP_ERROR;
 
   /*
     PROTOTYPE, behind debug_dbug='+d,pwt_scan_only'. The workers are a
@@ -3198,12 +3197,21 @@ enum_nested_loop_state do_select_parallel(JOIN *join)
   */
   if (pwt_scan_only_enabled())
   {
+    int rc;
     JOIN_TAB *scan_tab= first_linear_tab(join, WITH_BUSH_ROOTS,
                                          WITHOUT_CONST_TABLES);
     join->worker_side_parallel= false;
-    if (run_scan_only_workers(join, scan_tab) > 0)
+    rc= run_scan_only_workers(join, scan_tab);
+    if (rc > 0)
+    {
+      *declined= false;
       return NESTED_LOOP_ERROR;
-    return NESTED_LOOP_DECLINED;
+    }
+    /*
+      Left declined either way, so do_select() runs the plan: on 0 over the
+      diverted reader, on -1 (the engine declined) serially.
+    */
+    return NESTED_LOOP_OK;
   }
   else
   {
@@ -3216,11 +3224,14 @@ enum_nested_loop_state do_select_parallel(JOIN *join)
     */
     int wr= run_worker_side_join(join, scan_tab);
     if (wr >= 0)
+    {
+      *declined= false;
       return wr ? NESTED_LOOP_ERROR : NESTED_LOOP_OK;
+    }
     else
       join->worker_side_parallel= false;  // declined, run serially
   }
 
-  return NESTED_LOOP_DECLINED;
+  return NESTED_LOOP_ERROR;
 }
 

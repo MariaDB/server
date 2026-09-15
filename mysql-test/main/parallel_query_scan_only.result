@@ -1,0 +1,53 @@
+SET DEBUG_SYNC='RESET';
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq*10 FROM seq_1_to_100;
+connect  killee, localhost, root, , ;
+SET SESSION optimizer_parallel_setup_cost= 0;
+SET SESSION parallel_worker_threads=4;
+SET SESSION debug_dbug='+d,pwt_scan_only';
+#
+# The engine declines a locking read: the statement runs serially
+#
+SELECT a FROM t1 WHERE a > 97 FOR UPDATE;
+a
+100
+98
+99
+CREATE TEMPORARY TABLE t2 ENGINE=InnoDB AS SELECT a, b FROM t1 WHERE a > 97;
+SELECT a, b FROM t2 ORDER BY a;
+a	b
+98	980
+99	990
+100	1000
+DROP TEMPORARY TABLE t2;
+#
+# A scan the workers do read gives the serial answer
+#
+FLUSH STATUS;
+SELECT COUNT(*), SUM(b) FROM t1 WHERE a > 10;
+COUNT(*)	SUM(b)
+90	49950
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+Variable_name	Value
+Parallel_queries_executed	1
+#
+# KILL QUERY while the workers are paused: ER_QUERY_INTERRUPTED
+#
+SET @save_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= '+d,pwt_worker_pause_before_signal';
+SELECT a FROM t1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
+KILL QUERY ID;
+SET DEBUG_SYNC='now SIGNAL pwt_worker_continue';
+connection killee;
+ERROR 70100: Query execution was interrupted
+SET GLOBAL debug_dbug= @save_dbug;
+# the connection survives
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
+disconnect killee;
+connection default;
+SET DEBUG_SYNC='RESET';
+DROP TABLE t1;

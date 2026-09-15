@@ -16,6 +16,7 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --source include/have_debug.inc
+--source include/innodb_stable_estimates.inc
 
 --disable_service_connection
 
