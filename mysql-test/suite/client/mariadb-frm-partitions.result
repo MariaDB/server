@@ -1,0 +1,126 @@
+MariaDB frm parser test - Partitions
+Testing various partition types and configurations
+CREATE TABLE t_range_partition (
+id INT,
+sale_date DATE,
+amount DECIMAL(10,2),
+region VARCHAR(50)
+) PARTITION BY RANGE (YEAR(sale_date)) (
+PARTITION p2020 VALUES LESS THAN (2021),
+PARTITION p2021 VALUES LESS THAN (2022),
+PARTITION p2022 VALUES LESS THAN (2023),
+PARTITION p2023 VALUES LESS THAN (2024),
+PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+DROP TABLE t_range_partition;
+CREATE TABLE t_hash_partition (
+id INT,
+user_id INT,
+data VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (user_id, id)
+) PARTITION BY HASH(user_id) PARTITIONS 4;
+DROP TABLE t_hash_partition;
+CREATE TABLE t_list_partition (
+id INT,
+country VARCHAR(20),
+city VARCHAR(50),
+population INT
+) PARTITION BY LIST COLUMNS(country) (
+PARTITION p_north_america VALUES IN ('USA', 'Canada', 'Mexico'),
+PARTITION p_europe VALUES IN ('Germany', 'France', 'UK', 'Spain'),
+PARTITION p_asia VALUES IN ('Japan', 'China', 'India', 'Korea')
+);
+DROP TABLE t_list_partition;
+CREATE TABLE t_key_partition (
+id INT,
+name VARCHAR(100),
+email VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (id, name)
+) PARTITION BY KEY(id) PARTITIONS 8;
+DROP TABLE t_key_partition;
+CREATE TABLE t_range_columns_partition (
+id INT,
+first_name VARCHAR(50),
+last_name VARCHAR(50),
+birth_date DATE
+) PARTITION BY RANGE COLUMNS(last_name) (
+PARTITION p1 VALUES LESS THAN ('F'),
+PARTITION p2 VALUES LESS THAN ('L'),
+PARTITION p3 VALUES LESS THAN ('S'),
+PARTITION p4 VALUES LESS THAN (MAXVALUE)
+);
+DROP TABLE t_range_columns_partition;
+CREATE TABLE t_subpartition (
+id INT,
+sale_date DATE,
+region VARCHAR(20),
+amount DECIMAL(10,2)
+) PARTITION BY RANGE (YEAR(sale_date))
+SUBPARTITION BY HASH(id)
+SUBPARTITIONS 2 (
+PARTITION p2022 VALUES LESS THAN (2023),
+PARTITION p2023 VALUES LESS THAN (2024),
+PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+DROP TABLE t_subpartition;
+CREATE TABLE t_named_subpartitions (
+id INT,
+order_date DATE,
+customer_id INT,
+total DECIMAL(10,2)
+) PARTITION BY RANGE (YEAR(order_date))
+SUBPARTITION BY HASH(customer_id) (
+PARTITION p2022 VALUES LESS THAN (2023) (
+SUBPARTITION p2022_s1,
+SUBPARTITION p2022_s2
+),
+PARTITION p2023 VALUES LESS THAN (2024) (
+SUBPARTITION p2023_s1,
+SUBPARTITION p2023_s2
+)
+);
+DROP TABLE t_named_subpartitions;
+CREATE TABLE t_list_multi_columns (
+id INT,
+country VARCHAR(20),
+region VARCHAR(20),
+city VARCHAR(50)
+) PARTITION BY LIST COLUMNS(country, region) (
+PARTITION p_us_east VALUES IN (('USA', 'East')),
+PARTITION p_us_west VALUES IN (('USA', 'West')),
+PARTITION p_canada VALUES IN (('Canada', 'East'), ('Canada', 'West'))
+);
+DROP TABLE t_list_multi_columns;
+CREATE TABLE t_partition_with_indexes (
+id INT AUTO_INCREMENT,
+user_id INT,
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (id, user_id),
+INDEX idx_name (name),
+INDEX idx_created (created_at)
+) PARTITION BY HASH(user_id) PARTITIONS 4;
+DROP TABLE t_partition_with_indexes;
+CREATE TABLE t_partition_innodb (
+id INT AUTO_INCREMENT,
+data VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (id)
+) ENGINE=InnoDB
+PARTITION BY HASH(id) PARTITIONS 3;
+DROP TABLE t_partition_innodb;
+CREATE TABLE t_linear_hash_partition (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) PARTITION BY LINEAR HASH(id) PARTITIONS 6;
+DROP TABLE t_linear_hash_partition;
+CREATE TABLE t_linear_key_partition (
+id INT,
+name VARCHAR(100),
+PRIMARY KEY (id)
+) PARTITION BY LINEAR KEY(id) PARTITIONS 5;
+DROP TABLE t_linear_key_partition;
+Partitions test completed

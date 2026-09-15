@@ -1,0 +1,191 @@
+--echo MariaDB frm parser test - Partitions
+--echo Testing various partition types and configurations
+
+--source include/have_partition.inc
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+# Test RANGE partitioning
+CREATE TABLE t_range_partition (
+  id INT,
+  sale_date DATE,
+  amount DECIMAL(10,2),
+  region VARCHAR(50)
+) PARTITION BY RANGE (YEAR(sale_date)) (
+  PARTITION p2020 VALUES LESS THAN (2021),
+  PARTITION p2021 VALUES LESS THAN (2022),
+  PARTITION p2022 VALUES LESS THAN (2023),
+  PARTITION p2023 VALUES LESS THAN (2024),
+  PARTITION p_future VALUES LESS THAN MAXVALUE
+);
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_range_partition.frm
+DROP TABLE t_range_partition;
+
+# Test HASH partitioning
+CREATE TABLE t_hash_partition (
+  id INT,
+  user_id INT,
+  data VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, id)
+) PARTITION BY HASH(user_id) PARTITIONS 4;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_hash_partition.frm
+DROP TABLE t_hash_partition;
+
+# Test LIST partitioning
+CREATE TABLE t_list_partition (
+  id INT,
+  country VARCHAR(20),
+  city VARCHAR(50),
+  population INT
+) PARTITION BY LIST COLUMNS(country) (
+  PARTITION p_north_america VALUES IN ('USA', 'Canada', 'Mexico'),
+  PARTITION p_europe VALUES IN ('Germany', 'France', 'UK', 'Spain'),
+  PARTITION p_asia VALUES IN ('Japan', 'China', 'India', 'Korea')
+);
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_list_partition.frm
+DROP TABLE t_list_partition;
+
+# Test KEY partitioning
+CREATE TABLE t_key_partition (
+  id INT,
+  name VARCHAR(100),
+  email VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id, name)
+) PARTITION BY KEY(id) PARTITIONS 8;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_key_partition.frm
+DROP TABLE t_key_partition;
+
+# Test RANGE COLUMNS partitioning
+CREATE TABLE t_range_columns_partition (
+  id INT,
+  first_name VARCHAR(50),
+  last_name VARCHAR(50),
+  birth_date DATE
+) PARTITION BY RANGE COLUMNS(last_name) (
+  PARTITION p1 VALUES LESS THAN ('F'),
+  PARTITION p2 VALUES LESS THAN ('L'),
+  PARTITION p3 VALUES LESS THAN ('S'),
+  PARTITION p4 VALUES LESS THAN (MAXVALUE)
+);
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_range_columns_partition.frm
+DROP TABLE t_range_columns_partition;
+
+# Test subpartitioning (RANGE + HASH)
+CREATE TABLE t_subpartition (
+  id INT,
+  sale_date DATE,
+  region VARCHAR(20),
+  amount DECIMAL(10,2)
+) PARTITION BY RANGE (YEAR(sale_date))
+  SUBPARTITION BY HASH(id)
+  SUBPARTITIONS 2 (
+    PARTITION p2022 VALUES LESS THAN (2023),
+    PARTITION p2023 VALUES LESS THAN (2024),
+    PARTITION p_future VALUES LESS THAN MAXVALUE
+  );
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_subpartition.frm
+DROP TABLE t_subpartition;
+
+# Test partitioning with explicit subpartition names
+CREATE TABLE t_named_subpartitions (
+  id INT,
+  order_date DATE,
+  customer_id INT,
+  total DECIMAL(10,2)
+) PARTITION BY RANGE (YEAR(order_date))
+  SUBPARTITION BY HASH(customer_id) (
+    PARTITION p2022 VALUES LESS THAN (2023) (
+      SUBPARTITION p2022_s1,
+      SUBPARTITION p2022_s2
+    ),
+    PARTITION p2023 VALUES LESS THAN (2024) (
+      SUBPARTITION p2023_s1,
+      SUBPARTITION p2023_s2
+    )
+  );
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_named_subpartitions.frm
+DROP TABLE t_named_subpartitions;
+
+# Test LIST COLUMNS with multiple columns
+CREATE TABLE t_list_multi_columns (
+  id INT,
+  country VARCHAR(20),
+  region VARCHAR(20),
+  city VARCHAR(50)
+) PARTITION BY LIST COLUMNS(country, region) (
+  PARTITION p_us_east VALUES IN (('USA', 'East')),
+  PARTITION p_us_west VALUES IN (('USA', 'West')),
+  PARTITION p_canada VALUES IN (('Canada', 'East'), ('Canada', 'West'))
+);
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_list_multi_columns.frm
+DROP TABLE t_list_multi_columns;
+
+# Test partitioning with indexes
+CREATE TABLE t_partition_with_indexes (
+  id INT AUTO_INCREMENT,
+  user_id INT,
+  name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id, user_id),
+  INDEX idx_name (name),
+  INDEX idx_created (created_at)
+) PARTITION BY HASH(user_id) PARTITIONS 4;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_partition_with_indexes.frm
+DROP TABLE t_partition_with_indexes;
+
+# Test partitioning with different storage engines
+--source include/have_innodb.inc
+CREATE TABLE t_partition_innodb (
+  id INT AUTO_INCREMENT,
+  data VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB
+  PARTITION BY HASH(id) PARTITIONS 3;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_partition_innodb.frm
+DROP TABLE t_partition_innodb;
+
+# Test LINEAR HASH partitioning
+CREATE TABLE t_linear_hash_partition (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  data VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) PARTITION BY LINEAR HASH(id) PARTITIONS 6;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_linear_hash_partition.frm
+DROP TABLE t_linear_hash_partition;
+
+# Test LINEAR KEY partitioning
+CREATE TABLE t_linear_key_partition (
+  id INT,
+  name VARCHAR(100),
+  PRIMARY KEY (id)
+) PARTITION BY LINEAR KEY(id) PARTITIONS 5;
+--error 1
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_linear_key_partition.frm
+DROP TABLE t_linear_key_partition;
+
+--echo Partitions test completed
