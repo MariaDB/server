@@ -808,14 +808,15 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunk(const Bounds &bounds,
   return (err);
 }
 
-dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks_unsplit()
+dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks_unsplit(bool resplit,
+                                                    size_t split_point)
 {
   size_t i{};
 
   for (auto bounds : m_bounds_list) {
     const bool last = (i + 1 == m_bounds_list.size());
 
-    if (dberr_t err= create_chunk(bounds, false,
+    if (dberr_t err= create_chunk(bounds, resplit && (i >= split_point),
                                   last && m_config.m_scan_range.m_end_inclusive))
       return err;
 
@@ -901,27 +902,7 @@ dberr_t Parallel_scan_partitioner::Scan_ctx::create_chunks()
     }
   }
 
-  size_t i{};
-
-  for (auto bounds : m_bounds_list) {
-    /* Only the last chunk ends at the caller's upper bound, so only it can
-    be inclusive. */
-    const bool last = (i + 1 == m_bounds_list.size());
-
-    auto err = create_chunk(bounds, i >= split_point,
-                            last && m_config.m_scan_range.m_end_inclusive);
-
-    if (err != DB_SUCCESS) {
-      return (err);
-    }
-
-    ++i;
-  }
-
-  m_bounds_list.clear();
-  m_bounds_list.shrink_to_fit();
-
-  return DB_SUCCESS;
+  return create_chunks_unsplit(true, split_point);
 }
 
 dberr_t Parallel_scan_partitioner::add_scan(
@@ -1016,7 +997,7 @@ dberr_t Parallel_scan_partitioner::create_chunks()
 
     scan_ctx->coalesce_bounds(std::max(share, size_t{1}));
 
-    if (dberr_t err = scan_ctx->create_chunks_unsplit())
+    if (dberr_t err = scan_ctx->create_chunks_unsplit(false, 0))
       return err;
   }
 

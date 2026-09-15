@@ -3546,9 +3546,6 @@ int JOIN::optimize_stage2()
     }
   }
 
-  if (worker_side_parallel)
-    trace_parallel_scan_options(this);
-
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
@@ -24292,6 +24289,7 @@ do_select(JOIN *join, Procedure *procedure)
   }
   else
   {
+    bool declined= false;
     DBUG_EXECUTE_IF("show_explain_probe_do_select", 
                     if (dbug_user_var_equals_int(join->thd, 
                                                  "show_explain_probe_select_id", 
@@ -24313,7 +24311,8 @@ do_select(JOIN *join, Procedure *procedure)
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
 
-    if ((error= do_select_parallel(join)) == NESTED_LOOP_DECLINED)
+    error= do_select_parallel(join, &declined);
+    if (declined)
     {
       if (join->outer_ref_cond && !join->outer_ref_cond->val_bool())
         error= NESTED_LOOP_NO_MORE_ROWS;

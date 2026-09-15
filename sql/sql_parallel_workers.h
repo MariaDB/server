@@ -532,8 +532,7 @@ extern bool   can_parallel_scan_jointab_access(JOIN_TAB *join_tab,
                                              bool trace= false);
 extern bool   pwt_decline(JOIN *join, bool trace, const char *why);
 extern bool   pwt_scan_only_enabled();
-extern void   trace_parallel_scan_options(JOIN *join);
 extern void   parallel_join_check(JOIN *join);
 
-extern enum_nested_loop_state do_select_parallel(JOIN *join);
+extern enum_nested_loop_state do_select_parallel(JOIN *join, bool *declined);
 #endif
