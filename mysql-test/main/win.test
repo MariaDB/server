@@ -3109,5 +3109,26 @@ from t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-28509: Access null pointer during add_key_field call
+--echo #
+CREATE TABLE t1 (i INT);
+
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i != 5;
+
+--echo # The same crash occurs when the WHERE uses < instead of !=.
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i < 5;
+
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode= ONLY_FULL_GROUP_BY;
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i != 5;
+WITH cte AS (SELECT i FROM (SELECT i FROM t1 GROUP BY i) dt WINDOW w AS (PARTITION BY i))
+SELECT a.i FROM cte a JOIN cte b ON a.i=b.i WHERE a.i < 5;
+SET @@sql_mode= @save_sql_mode;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
