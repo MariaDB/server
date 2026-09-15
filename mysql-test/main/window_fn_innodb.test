@@ -1,0 +1,84 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39868: Wrong result (empty set) for a query with a window
+--echo #             function over a column of a merged derived table
+--echo #
+
+CREATE TABLE t1(c1 VARCHAR(100) PRIMARY KEY NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2(c1 BOOLEAN, c2 INT UNIQUE NOT NULL, PRIMARY KEY(c1, c2)) ENGINE=InnoDB;
+CREATE TABLE t3(c1 VARCHAR(100) NOT NULL, c2 INT NOT NULL) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES ('foo');
+INSERT INTO t2 VALUES (FALSE, 10);
+INSERT INTO t3 VALUES ('foo', 10);
+
+--echo # t2 is accessed with "Range checked for each record", and the value
+--echo # of subq.c2 used by the range optimizer must come from t3, not from
+--echo # the temporary table created for the window function.
+EXPLAIN
+SELECT AVG(subq.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN (
+SELECT * FROM t3
+) AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 ON (subq.c2 > t2.c1);
+
+SELECT AVG(subq.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN (
+SELECT * FROM t3
+) AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 ON (subq.c2 > t2.c1);
+
+--echo # the same with the derived table materialized
+SET optimizer_switch='derived_merge=off';
+SELECT AVG(subq.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN (
+SELECT * FROM t3
+) AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 ON (subq.c2 > t2.c1);
+SET optimizer_switch='derived_merge=default';
+
+--echo # the same without a derived table
+SELECT AVG(subq.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN t3 AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 ON (subq.c2 > t2.c1);
+
+--echo # the same without the range check on t2
+SELECT AVG(subq.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN (
+SELECT * FROM t3
+) AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 IGNORE INDEX (PRIMARY) ON (subq.c2 > t2.c1);
+
+--echo # the same via a view
+CREATE VIEW v3 AS SELECT * FROM t3;
+SELECT AVG(v3.c2) OVER () as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN v3
+ON (t1.c1 = v3.c1)
+STRAIGHT_JOIN t2 ON (v3.c2 > t2.c1);
+DROP VIEW v3;
+
+--echo # an aggregate function with GROUP BY uses a temporary table too
+SELECT AVG(subq.c2) as col1, t2.c1 as col2
+FROM t1
+LEFT JOIN (
+SELECT * FROM t3
+) AS subq
+ON (t1.c1 = subq.c1)
+STRAIGHT_JOIN t2 ON (subq.c2 > t2.c1)
+GROUP BY t2.c1;
+
+DROP TABLE t1, t2, t3;
+
+--echo # End of 10.11 tests
