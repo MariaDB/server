@@ -192,9 +192,11 @@ private:
     const lsn_t checkpoint{};
     /** Log record pointing to the checkpoint */
     const lsn_t checkpoint_end_lsn{};
-    /** the original innodb_log_file_size; 0 if innodb_log_archive was enabled */
+    /** the original innodb_log_file_size;
+    0 if innodb_log_archive was enabled */
     const uint64_t old_size{};
-    /** state of the operation; protected by log_sys.latch */
+    /** state of the operation; transitions to/from PROCESSING are
+    protected by log_sys.latch */
     Atomic_relaxed<State> state{IDLE};
     /** the start LSN of the last hard-linked file, or 0 */
     std::atomic<lsn_t> last_hardlink{};
@@ -513,19 +515,17 @@ public:
     size_t size{queue.size()}, non_log_files{non_log};
     ut_ad(size >= non_log_files);
 
-    if (UNIV_UNLIKELY(!size))
+    if (UNIV_UNLIKELY(ctx.last_lsn == 0))
     {
+      /* An error was flagged. */
+      size= size_t(-1);
     done:
       mutex.wr_unlock();
       return int(size);
     }
 
-    if (UNIV_UNLIKELY(ctx.last_lsn == 0))
-    {
-      /* An error was flagged. */
-      size= size_t(-1);
+    if (UNIV_UNLIKELY(!size))
       goto done;
-    }
 
     non_log-= size == non_log_files;
     id_limit= queue.back();
@@ -886,6 +886,7 @@ private:
     noexcept
   {
     ut_ad(end_page);
+    ut_ad(!(end_page % fil_space_t::BACKUP_BATCH_SIZE));
     space->backup_start(end_page);
     /* Block any writes that might be posted after checking
     fil_space_t::backup_page_end(). */
@@ -1661,6 +1662,7 @@ static InnoDB_backup innodb_backup;
 bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
 {
   ut_ad(latch_have_wr());
+  ut_ad(!recv_sys.rpo);
   ut_ad(!backup);
   ut_ad(end_lsn >= last_checkpoint_lsn);
   backup= true;
@@ -1671,7 +1673,7 @@ bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
     {
       /* Wait for recovery to be independent from the previous log. */
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      buf_flush_wait(end_lsn, false);
+      buf_flush_wait(first_lsn, true);
       ut_ad(first_lsn <= last_checkpoint_lsn);
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     }
@@ -1717,6 +1719,12 @@ void *innodb_backup_start(THD *thd, const backup_target *,
 {
   switch (phase) {
   case BACKUP_PHASE_PREPARE_START:
+    if (UNIV_UNLIKELY(recv_sys.rpo != 0))
+    {
+      my_error(ER_INNODB_READ_ONLY, MYF(0));
+      return reinterpret_cast<void*>(-1);
+    }
+
     if (!fil_system.have_all_spaces)
     {
       /* To speed up startup, InnoDB does not normally open all

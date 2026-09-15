@@ -153,11 +153,10 @@ TRUNCATE TABLE mysql.innodb_table_stats;
 SET GLOBAL innodb_log_archive=!@@GLOBAL.innodb_log_archive;
 --let $target_directory=$MYSQLTEST_VARDIR/log_archive_backup
 # Clean up after a previous failed test, in case we are retrying.
---error 0,1
---rmdir $target_directory
 --error ER_INNODB_READ_ONLY
 evalp BACKUP SERVER TO '$target_directory';
---rmdir $target_directory
+--error 1
+--list_files $target_directory
 
 --source include/shutdown_mysqld.inc
 --move_file $DATADIR/ib_logfile0 $DATADIR/ib_ffffffffff803000.log

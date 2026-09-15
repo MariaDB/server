@@ -1136,7 +1136,8 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
 
   for (ulint id_fold= id.fold(); id < high; ++id, ++id_fold)
   {
-    if (UNIV_UNLIKELY(space->is_stopping_writes()))
+    if (UNIV_UNLIKELY(space->is_stopping_writes() ||
+                      space->backup_page_end()))
     {
       if (bpage)
         bpage->lock.u_unlock(true);
@@ -1262,16 +1263,14 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
 /**
    Start writing out pages for a tablespace.
    @param id   tablespace identifier
-   @param end  fil_space_t::backup_page_end()
    @return tablespace and number of pages written at this point
 */
 static std::pair<fil_space_t*, uint32_t>
-buf_flush_space(const uint32_t id, uint32_t *end) noexcept
+buf_flush_space(const uint32_t id) noexcept
 {
   fil_space_t *space= fil_space_t::get_for_write(id);
   if (!space)
     return {nullptr, 0};
-  *end= space->backup_page_end();
   return {space, space->flush_freed(true)};
 }
 
@@ -1332,7 +1331,6 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
   uint32_t last_space_id= FIL_NULL;
-  uint32_t backup_page_end= 0;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
@@ -1417,13 +1415,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
           if (space)
             space->release();
           last_space_id= space_id;
-          auto p= buf_flush_space(space_id, &backup_page_end);
-          /*
-            In case our backup_page_end just missed a write in
-            backup_batch_start(), innodb_backup_batch_wait() will wait
-            until our bpage->lock.u_unlock() will be released in
-            buf_page_t::write_complete().
-          */
+          auto p= buf_flush_space(space_id);
           space= p.first;
           if (!space)
           {
@@ -1459,12 +1451,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         break;
       }
 
-      /*
-        Skip innodb_flush_neighbors if InnoDB_backup is in progress
-        and we may be badly I/O bound.
-      */
-      if (neighbors && UNIV_LIKELY(!(to_withdraw | backup_page_end)) &&
-          space->is_rotational() &&
+      if (neighbors && space->is_rotational() && UNIV_LIKELY(!to_withdraw) &&
           /* Skip neighbourhood flush from LRU list if we haven't yet reached
           half of the free page target. */
           UT_LIST_GET_LEN(buf_pool.free) * 2 >= free_limit)
@@ -1477,11 +1464,17 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         if (UNIV_UNLIKELY(to_withdraw != 0))
           to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
         const uint32_t page{bpage->id().page_no()};
+        const uint32_t backup_page_end{space->backup_page_end()};
         if (page < backup_page_end &&
             page >= backup_page_end - space->BACKUP_BATCH_SIZE)
           bpage->lock.u_unlock(true);
         else if (bpage->flush(space))
         {
+          /*
+            In case our load of backup_page_end just missed a store in
+            backup_batch_start(), innodb_backup_batch_wait() will wait
+            for bpage->lock.u_unlock() in buf_page_t::write_complete().
+          */
           ++n->flushed;
           goto reacquire_mutex;
         }
@@ -1546,7 +1539,6 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
     ? 0 : buf_pool.flush_neighbors;
   fil_space_t *space= nullptr;
   uint32_t last_space_id= FIL_NULL;
-  uint32_t backup_page_end= 0;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
@@ -1622,13 +1614,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
           if (space)
             space->release();
           last_space_id= space_id;
-          auto p= buf_flush_space(space_id, &backup_page_end);
-          /*
-            In case our backup_page_end just missed a write in
-            backup_batch_start(), innodb_backup_batch_wait() will wait
-            until our bpage->lock.u_unlock() will be released in
-            buf_page_t::write_complete().
-          */
+          auto p= buf_flush_space(space_id);
           space= p.first;
           mysql_mutex_lock(&buf_pool.mutex);
           buf_pool.stat.n_pages_written+= p.second;
@@ -1650,22 +1636,30 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         do
         {
-          if (neighbors && UNIV_LIKELY(!backup_page_end) &&
-              space->is_rotational())
+          if (neighbors && space->is_rotational())
             count+= buf_flush_try_neighbors(space, page_id, bpage,
                                             neighbors == 1, count, max_n);
-          else if (page_id.page_no() < backup_page_end &&
-                   page_id.page_no() >=
-                   backup_page_end - space->BACKUP_BATCH_SIZE)
-          {
-            bpage->lock.u_unlock(true);
-            continue;
-          }
-          else if (bpage->flush(space))
-            ++count;
           else
-            continue;
-          mysql_mutex_lock(&buf_pool.mutex);
+          {
+            const uint32_t backup_page_end{space->backup_page_end()};
+            if (page_id.page_no() < backup_page_end &&
+                page_id.page_no() >=
+                backup_page_end - space->BACKUP_BATCH_SIZE)
+            {
+              bpage->lock.u_unlock(true);
+              continue;
+            }
+            else if (bpage->flush(space))
+              /*
+                In case our load of backup_page_end just missed a store in
+                backup_batch_start(), innodb_backup_batch_wait() will wait
+                for bpage->lock.u_unlock() in buf_page_t::write_complete().
+              */
+              ++count;
+            else
+              continue;
+            mysql_mutex_lock(&buf_pool.mutex);
+          }
         }
         while (0);
       }
@@ -1815,12 +1809,6 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         const uint32_t page{bpage->id().page_no()};
         const uint32_t backup_page_end{space->backup_page_end()};
-        /*
-          In case our backup_page_end just missed a write in
-          backup_batch_start(), innodb_backup_batch_wait() will wait
-          until our bpage->lock.u_unlock() will be released in
-          buf_page_t::write_complete().
-        */
         if (UNIV_UNLIKELY(page < backup_page_end) &&
             page >= backup_page_end - space->BACKUP_BATCH_SIZE)
         {
@@ -1829,6 +1817,12 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         }
         else if (bpage->flush(space))
         {
+          /*
+            In case our load of backup_page_end just missed a store in
+            backup_batch_start(), innodb_backup_batch_wait() will wait
+            until our bpage->lock.u_unlock() will be released in
+            buf_page_t::write_complete().
+          */
           ++n_flush;
           if (!--max_n_flush)
           {
@@ -2177,14 +2171,12 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   else if (archive_header_was_reset)
   {
     ut_ad(resize_log.m_file != log.m_file);
+    innodb_backup_checkpoint();
     /* Make the previous archived log file read-only */
 #ifdef _WIN32
-    resize_log.close();
     SetFileAttributesA(get_archive_path(get_first_lsn() - capacity()).c_str(),
                        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
-    innodb_backup_checkpoint();
 #else
-    innodb_backup_checkpoint();
     struct stat st;
     if (!fstat(resize_log.m_file, &st))
       st.st_mode&= 0444;
@@ -2193,8 +2185,8 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     if (fchmod(resize_log.m_file, st.st_mode))
       my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
                get_archive_path(get_first_lsn() - capacity()).c_str(), errno);
-    resize_log.close();
 #endif
+    resize_log.close();
   }
   else
     goto checkpoint_completed;
