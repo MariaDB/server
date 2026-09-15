@@ -711,10 +711,23 @@ else # joiner
         SILENT=""
     fi
 
+    # Without uid/gid, rsync run as root drops the per-connection worker
+    # to nobody:nogroup, which can't write into the root-owned datadir.
+    # Only set it when we're actually root: rsync calls setgroups() as
+    # soon as uid/gid is present at all, which fails outright (not a
+    # no-op) for a non-root daemon even when the value matches its own
+    # identity.
+    UID_GID=""
+    if [ "$(id -u)" -eq 0 ]; then
+        UID_GID="uid = 0
+gid = 0"
+    fi
+
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
 read only = no
+$UID_GID
 timeout = 300
 $SILENT
 [$MODULE]
