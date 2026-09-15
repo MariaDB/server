@@ -150,6 +150,43 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
     ENDIF()
   ENDIF()
+ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64|RISCV64")
+  IF(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    include(CheckCXXSourceCompiles)
+
+    SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+    SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -march=rv64gc_zbc_zbb")
+
+    # Check for the Zbc extension by compiling the same inline assembler that
+    # the implementation uses. This also verifies that the compiler/assembler
+    # accepts the -march value.
+    CHECK_CXX_SOURCE_COMPILES("
+    #include <stdint.h>
+    uint64_t clmul(uint64_t a, uint64_t b) {
+      uint64_t r;
+      __asm__ (\"clmul %0, %1, %2\" : \"=r\"(r) : \"r\"(a), \"r\"(b));
+      return r;
+    }
+    uint64_t clmulh(uint64_t a, uint64_t b) {
+      uint64_t r;
+      __asm__ (\"clmulh %0, %1, %2\" : \"=r\"(r) : \"r\"(a), \"r\"(b));
+      return r;
+    }
+    int main() { return (int) (clmul(1, 2) ^ clmulh(1, 2)); }
+    " HAVE_RISCV_ZBC)
+
+    SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
+
+    IF(HAVE_RISCV_ZBC)
+      ADD_DEFINITIONS(-DHAVE_RISCV_ZBC)
+      # The ISA extension is enabled only for the core, so that the detection
+      # and dispatch code in crc32c_riscv.cc cannot be compiled for it.
+      SET(MYSYS_SOURCES ${MYSYS_SOURCES}
+        crc32/crc32c_riscv.cc crc32/crc32c_riscv_zbc.cc)
+      SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_riscv_zbc.cc PROPERTIES
+        COMPILE_FLAGS "-march=rv64gc_zbc_zbb")
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64" OR CMAKE_SYSTEM_NAME MATCHES AIX)
