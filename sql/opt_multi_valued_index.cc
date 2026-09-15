@@ -20,6 +20,7 @@
 #include "unireg.h"                           /* extra2_read_len */
 #include "item_func.h"
 #include "my_json_writer.h"
+#include <mysql/plugin_ftparser.h>   /* MYSQL_FTPARSER_PARAM */
 
 static QUICK_SELECT_I *create_quick_mvi_select(THD *thd, TABLE *table,
                                                Mvi_access *access);
@@ -306,6 +307,125 @@ Mvi_array_iterator::Event Mvi_array_iterator::next()
       DBUG_ASSERT(m_je->state != JST_ARRAY_START);
       return MVI_WALK_BAD_FORMAT;
   }
+}
+
+
+/*
+  @brief
+    Prepare the argument the mvi fulltext parser is handed for one
+    multi-valued index.
+
+  @detail
+    The path is parsed here, once, because the parser cannot allocate: it
+    runs on the engine's threads while a commit or an index build is going
+    on. json_find_path() does not write to the path -- it walks it with a
+    cursor and counters the caller owns -- so what comes out of here is
+    read-only and one of these serves every parse of the index.
+
+  @return
+    true   The path does not parse, and nothing was prepared
+*/
+
+bool mvi_parser_arg_init(MEM_ROOT *mem_root, Mvi_parser_arg *arg,
+                         const LEX_CSTRING *path, CHARSET_INFO *path_cs,
+                         const Type_handler *cast_th)
+{
+  bzero(arg, sizeof(*arg));
+  mem_root_dynamic_array_init(mem_root, PSI_INSTRUMENT_MEM, &arg->path.steps,
+                              sizeof(json_path_step_t), NULL,
+                              JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
+  if (json_path_setup(&arg->path, path_cs, (const uchar *) path->str,
+                      (const uchar *) path->str + path->length))
+    return true;
+  arg->cast_th= cast_th;
+  return false;
+}
+
+
+/*
+  @brief
+    The document half of the mvi fulltext parser: the keys of one
+    document.
+
+  @detail
+    The document is the value of the column the index is over, so the array
+    to index is somewhere inside it and the path says where. Once found, its
+    elements are walked and encoded by the same iterator MVI_ENCODE uses,
+    which is what the iterator is for: the keys of a document are made in
+    one place, so the write side and the query side cannot come to different
+    conclusions about what they are.
+
+    A document with no array at that path simply has no keys. Neither has
+    one that is not JSON at all, or an array whose elements cannot be
+    encoded in this index's datatype. None of that is an error here: a row
+    with no key in the index is a row the index cannot be used to find,
+    which the query side already has to allow for, see collect_mvi_keys().
+
+    Everything that changes while the document is read is on the stack, so
+    that two threads parsing for the same index share nothing but the
+    read-only *arg. Both dynamic arrays here are buffered on the stack and
+    can never have to grow, because json_lib refuses to scan deeper than
+    JSON_DEPTH_LIMIT and json_path_setup() refuses a path with that many
+    steps, which is what the two are indexed by. Hence the NULL MEM_ROOT:
+    growing them would be a bug, not an allocation.
+
+  @return
+    0, except when the server refuses a word
+*/
+
+int mvi_tokenize_document(MYSQL_FTPARSER_PARAM *param, Mvi_parser_arg *arg)
+{
+  MYSQL_FTPARSER_BOOLEAN_INFO bool_info=
+    { FT_TOKEN_WORD, 0, 0, 0, 0, ' ', 0 };
+  json_engine_t je;
+  json_path_step_t *cur_step;
+  int je_stack_buffer[JSON_DEPTH_LIMIT];
+  int array_counters_buffer[JSON_DEPTH_LIMIT];
+  MEM_ROOT_DYNAMIC_ARRAY array_counters;
+  const uchar *doc= (const uchar *) param->doc;
+  const uchar *array_start, *array_end;
+  /*
+    The charset of the column, which json_lib and the encoding both want
+    without the const the ftparser interface hands it over with.
+  */
+  CHARSET_INFO *cs= const_cast<CHARSET_INFO *>(param->cs);
+  StringBuffer<MVI_ENCODED_KEY_MAX_LEN> key;
+  Mvi_array_iterator::Event event;
+
+  key.set_charset(&my_charset_latin1_bin);
+  initJsonArray(NULL, &je.stack, sizeof(int), je_stack_buffer, 0);
+  initJsonArray(NULL, &array_counters, sizeof(int), array_counters_buffer, 0);
+
+  if (json_scan_start(&je, cs, doc, doc + param->length))
+    return 0;
+
+  /* json_find_path() moves this cursor along, so it starts at the front */
+  cur_step= (json_path_step_t *) arg->path.steps.buffer;
+  if (json_find_path(&je, &arg->path, &cur_step, &array_counters) ||
+      json_read_value(&je) ||
+      je.value_type != JSON_VALUE_ARRAY)
+    return 0;                                   /* No array there */
+
+  /* The text of the array, from its '[' to just past its ']' */
+  array_start= je.value;
+  if (json_skip_level(&je))
+    return 0;
+  array_end= je.s.c_str;
+
+  Mvi_array_iterator it(&je, cs, arg->cast_th, &key);
+  for (event= it.start(array_start, array_end);
+       !mvi_walk_stopped(event);
+       event= it.next())
+  {
+    if (event != Mvi_array_iterator::MVI_KEY)
+      continue;
+    if (param->mysql_add_word(param, key.ptr(), (int) key.length(),
+                              &bool_info))
+      return 1;
+    /* The iterator appends, so empty the buffer before the next key */
+    key.length(0);
+  }
+  return 0;
 }
 
 

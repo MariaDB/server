@@ -124,6 +124,8 @@ struct index_def_t {
 	index_field_t*	fields;		/*!< field definitions */
 	st_mysql_ftparser*
 			parser;		/*!< fulltext parser plugin */
+	void*		ftparser_arg;	/*!< ... and what it is parsing for.
+					See KEY::ftparser_arg */
 };
 
 /** Structure for reporting duplicate records. */

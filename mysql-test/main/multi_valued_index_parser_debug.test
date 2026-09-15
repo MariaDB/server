@@ -1,0 +1,149 @@
+#
+# The fulltext parser of a multi-valued index, on a key that is one.
+#
+# The DDL does not put the parser on the key yet, so no table definition
+# reaches it: a debug keyword plants a fixed declaration instead -- the
+# array at $.tags, its elements encoded as CHAR -- on any fulltext key
+# that names the parser.
+#
+# What the index then holds has to be exactly what MVI_ENCODE() makes of
+# the same array, key for key, because both go through the same
+# Mvi_array_iterator. That is the point of the iterator, so it is what
+# this checks.
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+
+# utf8mb4_bin so that a key is the hex of the element's own bytes and the
+# result below is readable. TEXT rather than JSON so that a document that
+# is not JSON at all can be one of the rows.
+set @@debug_dbug='+d,mvi_parser_tags_arg';
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+                 fulltext key ft (j) with parser mvi)engine=innodb;
+insert into t1 values
+ (1,'{"tags": ["aaa","bbb"]}'),
+ (2,'{"tags": ["bbb"], "other": ["zzz"]}'),
+ (3,'{"tags": ["ccc", 7, null, true, {"a": 1}, ["ddd","eee"]]}'),
+ (4,'{"tags": []}'),
+ (5,'{"other": ["fff"]}'),
+ (6,'{"tags": "not an array"}'),
+ (7,'not json at all');
+
+--echo #
+--echo # The keys of each document, as MVI_ENCODE() makes them: two elements
+--echo # for row 1, the elements of a nested array among row 3's, and
+--echo # nothing at all for a row with no array of encodable elements
+--echo # there. Elements that are not strings have no key in a CHAR index.
+--echo #
+select c, mvi_encode(j->'$.tags', char(6)) from t1 order by c;
+
+--echo #
+--echo # ... and the same keys, on the same rows, in the index. Nothing
+--echo # from elsewhere in the document is in it: not "zzz" from row 2's
+--echo # other array, not the keys of row 3's object, and nothing from the
+--echo # rows with no array at $.tags.
+--echo #
+set global innodb_ft_aux_table='test/t1';
+select word, doc_id from information_schema.innodb_ft_index_cache
+ order by word, doc_id;
+
+--echo #
+--echo # A boolean-mode search is a query the optimizer could have built:
+--echo # the keys are encoded before they get here, so it is the built-in
+--echo # parser that splits them apart.
+--echo #
+--echo # "aaa" is row 1 only
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+--echo # "bbb" is rows 1 and 2
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+--echo # "eee" is in a nested array in row 3
+select c from t1 where match(j) against ('656565' in boolean mode) order by c;
+--echo # both of row 1's keys
+select c from t1 where match(j) against ('+616161 +626262' in boolean mode)
+ order by c;
+--echo # a key of row 1 and a key of row 2, which no one row has
+select c from t1 where match(j) against ('+616161 +7a7a7a' in boolean mode)
+ order by c;
+
+--echo #
+--echo # A natural-language search is not a query anything builds for such
+--echo # an index, and the parser cannot tell one from a document: it reads
+--echo # the search string as a document, finds no array at $.tags in it,
+--echo # and so matches nothing.
+--echo #
+select c from t1 where match(j) against ('616161') order by c;
+
+--echo #
+--echo # The keys are in the table, not in a session: they survive a reopen
+--echo # and are read back from disk the same way.
+--echo #
+flush tables;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+
+--echo #
+--echo # An update rewrites the keys of that row and nothing else
+--echo #
+update t1 set j='{"tags": ["ggg"]}' where c=1;
+select c, mvi_encode(j->'$.tags', char(6)) from t1 order by c;
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+select c from t1 where match(j) against ('676767' in boolean mode) order by c;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+
+delete from t1 where c=2;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+drop table t1;
+
+--echo #
+--echo # The same through an index built by ALTER TABLE rather than by DML
+--echo #
+create table t2 (c int, j text charset utf8mb4 collate utf8mb4_bin)
+engine=innodb;
+insert into t2 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+alter table t2 add fulltext key ft (j) with parser mvi;
+flush tables;
+select c, mvi_encode(j->'$.tags', char(6)) from t2 order by c;
+select c from t2 where match(j) against ('616161' in boolean mode) order by c;
+select c from t2 where match(j) against ('626262' in boolean mode) order by c;
+drop table t2;
+
+--echo #
+--echo # MyISAM and Aria tokenize the same way. The index is unusable there
+--echo # -- no fulltext_estimate(), so the optimizer never picks it -- but
+--echo # a MATCH in the WHERE clause still reads it.
+--echo #
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+                 fulltext key ft (j) with parser mvi)engine=myisam;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+--echo # a phrase of two keys is matched against the document's keys in
+--echo # their order, so it is the parser that reads the document again
+select c from t1 where match(j) against ('"616161 626262"' in boolean mode)
+ order by c;
+select c from t1 where match(j) against ('"626262 616161"' in boolean mode)
+ order by c;
+drop table t1;
+
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+                 fulltext key ft (j) with parser mvi)engine=aria;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+drop table t1;
+
+set @@debug_dbug='';
+
+--echo #
+--echo # Without the declaration the very same key is a plain fulltext key
+--echo # over the column's own text, see multi_valued_index_parser.test
+--echo #
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+                 fulltext key ft (j) with parser mvi)engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}');
+select c from t1 where match(j) against ('tags' in boolean mode);
+select c from t1 where match(j) against ('616161' in boolean mode);
+drop table t1;

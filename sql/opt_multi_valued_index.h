@@ -117,6 +117,44 @@ enum json_value_types mvi_json_class(enum_field_types ftype);
 #define MVI_ENCODED_KEY_MIN_LEN 4
 
 /*
+  What the server puts in MYSQL_FTPARSER_PARAM::ftparser_arg for a
+  multi-valued index: what the mvi fulltext parser needs to turn a document
+  into the keys of that index, and nothing it has to allocate. The parser
+  runs on the engine's threads, while a DML commit or an index build is
+  going on, so this is prepared once where the table is opened and lives as
+  long as the table does.
+
+  Read-only once prepared, so one of these serves however many threads are
+  parsing for the index at the same time. Everything that changes as a
+  document is read is on the stack of the parse.
+*/
+
+struct Mvi_parser_arg
+{
+  /* Where the array is inside the document, parsed */
+  json_path_t path;
+  /* The type the elements are cast to, which is what makes a key a key */
+  const Type_handler *cast_th;
+};
+
+/*
+  Prepare one on `mem_root'. Returns true if `path' does not parse, in which
+  case nothing was prepared.
+*/
+bool mvi_parser_arg_init(MEM_ROOT *mem_root, Mvi_parser_arg *arg,
+                         const LEX_CSTRING *path, CHARSET_INFO *path_cs,
+                         const Type_handler *cast_th);
+
+/*
+  The document half of the mvi fulltext parser: turn the document in
+  `param' into the keys of the index `arg' describes and hand each one to
+  the server. Lives next to the encoding rather than in the plugin, so that
+  everything that decides what a key is stays in one file.
+*/
+int mvi_tokenize_document(struct st_mysql_ftparser_param *param,
+                          Mvi_parser_arg *arg);
+
+/*
   Encode one JSON value into the form it has in the index, appending it to
   `buf'. Returns true if the value cannot be encoded for this index and has
   to be skipped, in which case nothing is appended.

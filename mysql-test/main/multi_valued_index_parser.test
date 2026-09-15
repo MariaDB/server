@@ -1,10 +1,15 @@
 #
-# The fulltext parser of a multi-valued index.
+# The fulltext parser of a multi-valued index, on a key that is not one.
 #
-# It is not doing anything of its own yet: every mode hands the text to the
-# built-in parser. So a fulltext index that names it has to behave exactly
-# like one that does not, which is what this checks -- the same rows, the
-# same tokens in the index.
+# What makes an index multi-valued is the array it was declared with, which
+# the server hands the parser when the table is opened. A key that only
+# names the parser was declared with nothing, so there is nothing for it to
+# read out of a document and it falls back on the built-in parser: such a
+# key has to behave exactly like one that names no parser at all, which is
+# what this checks -- the same rows, the same tokens in the index.
+#
+# The other side of it, a key that was declared with an array, is in
+# multi_valued_index_parser_debug.test.
 #
 --source include/have_innodb.inc
 --source include/have_maria.inc
