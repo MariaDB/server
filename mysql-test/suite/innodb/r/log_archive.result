@@ -50,6 +50,8 @@ ALTER TABLE mysql.innodb_table_stats ROW_FORMAT=COMPACT, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 TRUNCATE TABLE mysql.innodb_table_stats;
 ERROR HY000: Table 'innodb_table_stats' is read only
+SET GLOBAL innodb_log_archive=!@@GLOBAL.innodb_log_archive;
+ERROR HY000: InnoDB is in read only mode
 # restart: --innodb-log-recovery-start=0 --innodb-log-recovery-target=18446744073705357290
 SELECT variable_name, variable_value FROM information_schema.global_status
 WHERE variable_name LIKE 'INNODB_LSN%';
