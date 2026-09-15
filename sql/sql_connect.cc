@@ -1439,6 +1439,8 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 {
   ulonglong thr_create_utime= microsecond_interval_timer();
   THD *thd;
+
+  /* Create a new THD for the connection */
   if (!(thd= connect->create_thd(NULL)))
   {
     connect->close_and_delete(0);
@@ -1461,7 +1463,8 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 
   server_threads.insert(thd); // Make THD visible in show processlist
 
-  delete connect; // must be after server_threads.insert, see close_connections()
+  /* must be after server_threads.insert, see close_connections() */
+  delete connect;
   
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */
@@ -1495,9 +1498,13 @@ end_thread:
       update_global_user_stats(thd, create_user, time(NULL));
 
     unlink_thd(thd);
+    /* Put thread in thread cache to wait for a new connection */
     if (IF_WSREP(thd->wsrep_applier, false) || !put_in_cache ||
         !(connect= thread_cache.park()))
+    {
+      /* No cache, cache full or thread cache timeout */
       break;
+    }
 
     /* Create new instrumentation for the new THD job */
     PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection, thd,

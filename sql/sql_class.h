@@ -854,6 +854,7 @@ typedef struct system_variables
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
+  my_bool transaction_verification;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;

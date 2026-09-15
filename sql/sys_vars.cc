@@ -1962,6 +1962,17 @@ Sys_gtid_seq_no(
        ON_CHECK(check_gtid_seq_no));
 
 
+static Sys_var_mybool Sys_transaction_verification(
+       "trx_verification",
+       "Enable transaction verification (if transaction committed or not). "
+       "If set to 0 globally, server will tell new connections that "
+       "transaction verification calls are not supported",
+       SESSION_VAR(transaction_verification),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(0));
+
+
 static Sys_var_ulonglong Sys_trx_connect_id(
        "trx_connect_id",
        "Connection id part of client-supplied transaction id",
