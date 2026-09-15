@@ -16,3 +16,7 @@ connection default;
 SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
 a
 DROP TABLE t0,t1;
+#
+# MDEV-38942 i_s_dict_fill_sys_tables() aborts when reading
+#   INNODB_SYS_TABLES after innodb_force_recovery
+#
