@@ -1,23 +1,3 @@
-#ifndef MYSQL_SERVICE_WSREP_INCLUDED
-#define MYSQL_SERVICE_WSREP_INCLUDED
-
-enum Wsrep_service_key_type
-{
-    WSREP_SERVICE_KEY_SHARED,
-    WSREP_SERVICE_KEY_REFERENCE,
-    WSREP_SERVICE_KEY_UPDATE,
-    WSREP_SERVICE_KEY_EXCLUSIVE
-};
-
-
-/* the bits in the bitmask for disabling temporarily some asserts */
-#define  WSREP_ASSERT_INNODB_TRX   1
-
-
-#if (defined (MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED)) || (!defined(MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_STATIC_INCLUDED))
-
-#else
-
 /* Copyright (c) 2015, 2020, MariaDB Corporation Ab
                  2018 Codership Oy <info@codership.com>
 
@@ -34,6 +14,9 @@ enum Wsrep_service_key_type
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_WSREP_INCLUDED
+#define MYSQL_SERVICE_WSREP_INCLUDED
+
 /**
   @file
   wsrep service
@@ -41,6 +24,30 @@ enum Wsrep_service_key_type
   Interface to WSREP functionality in the server.
   For engines that want to support galera.
 */
+
+/**
+  @defgroup plugin_api_service_wsrep WSREP service
+  @ingroup plugin_api_services
+  Access to WSREP functionality
+
+  @{
+*/
+
+enum Wsrep_service_key_type
+{
+    WSREP_SERVICE_KEY_SHARED,
+    WSREP_SERVICE_KEY_REFERENCE,
+    WSREP_SERVICE_KEY_UPDATE,
+    WSREP_SERVICE_KEY_EXCLUSIVE
+};
+
+
+/** The bits in the bitmask for disabling temporarily some asserts */
+#define  WSREP_ASSERT_INNODB_TRX   1
+#if (defined (MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED)) || (!defined(MYSQL_DYNAMIC_PLUGIN) && defined(MYSQL_SERVICE_WSREP_STATIC_INCLUDED))
+
+#else
+
 #include <my_pthread.h>
 #ifdef __cplusplus
 #endif
@@ -49,10 +56,8 @@ struct xid_t;
 struct wsrep_ws_handle;
 struct wsrep_buf;
 
-/* Must match to definition in sql/mysqld.h */
+/** Must match to definition in sql/mysqld.h */
 typedef int64 query_id_t;
-
-
 extern struct wsrep_service_st {
   my_bool                     (*get_wsrep_recovery_func)();
   bool                        (*wsrep_consistency_check_func)(MYSQL_THD thd);
@@ -104,55 +109,76 @@ extern struct wsrep_service_st {
   uint32                      (*wsrep_get_domain_id_func)();
 } *wsrep_service;
 
-#define MYSQL_SERVICE_WSREP_INCLUDED
 #endif
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define MYSQL_SERVICE_WSREP_DYNAMIC_INCLUDED
 #define get_wsrep_recovery() wsrep_service->get_wsrep_recovery_func()
-#define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
-#define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
-#define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
-#define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
+#define wsrep_consistency_check(thd) wsrep_service->wsrep_consistency_check_func(thd)
+#define wsrep_is_wsrep_xid(xid) wsrep_service->wsrep_is_wsrep_xid_func(xid)
+#define wsrep_xid_seqno(xid) wsrep_service->wsrep_xid_seqno_func(xid)
+#define wsrep_xid_uuid(xid) wsrep_service->wsrep_xid_uuid_func(xid)
+/**
+   Return true if wsrep is enabled for a thd. This means that
+   wsrep is enabled globally and the thd has wsrep on
+*/
 #define wsrep_on(thd) (thd) && WSREP_ON && wsrep_service->wsrep_on_func(thd)
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F,G)
-#define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
-#define wsrep_thd_TRYLOCK(T) wsrep_service->wsrep_thd_TRYLOCK_func(T)
-#define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
-#define wsrep_thd_kill_LOCK(T) wsrep_service->wsrep_thd_kill_LOCK_func(T)
-#define wsrep_thd_kill_UNLOCK(T) wsrep_service->wsrep_thd_kill_UNLOCK_func(T)
-#define wsrep_thd_query(T) wsrep_service->wsrep_thd_query_func(T)
-#define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
-#define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
-#define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
+/** Lock thd wsrep lock */
+#define wsrep_thd_LOCK(thd) wsrep_service->wsrep_thd_LOCK_func(thd)
+/**
+  Try thd wsrep lock.
+  @return non-zero if lock could not be taken.
+*/
+#define wsrep_thd_TRYLOCK(thd) wsrep_service->wsrep_thd_TRYLOCK_func(thd)
+/** Unlock thd wsrep lock */
+#define wsrep_thd_UNLOCK(thd) wsrep_service->wsrep_thd_UNLOCK_func(thd)
+#define wsrep_thd_kill_LOCK(thd) wsrep_service->wsrep_thd_kill_LOCK_func(thd)
+#define wsrep_thd_kill_UNLOCK(thd) wsrep_service->wsrep_thd_kill_UNLOCK_func(thd)
+#define wsrep_thd_query(thd) wsrep_service->wsrep_thd_query_func(thd)
+#define wsrep_thd_retry_counter(thd) wsrep_service->wsrep_thd_retry_counter_func(thd)
+#define wsrep_thd_ignore_table(thd) wsrep_service->wsrep_thd_ignore_table_func(thd)
+#define wsrep_thd_trx_seqno(thd) wsrep_service->wsrep_thd_trx_seqno_func(thd)
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
-#define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
-#define wsrep_thd_is_aborting(T) wsrep_service->wsrep_thd_is_aborting_func(T)
-#define wsrep_thd_in_rollback_func(T) wsrep_service->wsrep_thd_in_rollback_func(T)
-#define wsrep_thd_is_local(T) wsrep_service->wsrep_thd_is_local_func(T)
-#define wsrep_thd_self_abort(T) wsrep_service->wsrep_thd_self_abort_func(T)
-#define wsrep_thd_append_key(T,W,N,K) wsrep_service->wsrep_thd_append_key_func(T,W,N,K)
-#define wsrep_thd_append_table_key(T,D,B,K) wsrep_service->wsrep_thd_append_table_key_func(T,D,B,K)
-#define wsrep_thd_is_local_transaction(T) wsrep_service->wsrep_thd_is_local_transaction_func(T)
-#define wsrep_thd_client_state_str(T) wsrep_service->wsrep_thd_client_state_str_func(T)
-#define wsrep_thd_client_mode_str(T) wsrep_service->wsrep_thd_client_mode_str_func(T)
-#define wsrep_thd_transaction_state_str(T) wsrep_service->wsrep_thd_transaction_state_str_func(T)
-#define wsrep_thd_transaction_id(T) wsrep_service->wsrep_thd_transaction_id_func(T)
-#define wsrep_thd_bf_abort(T,T2,S) wsrep_service->wsrep_thd_bf_abort_func(T,T2,S)
-#define wsrep_thd_order_before(L,R) wsrep_service->wsrep_thd_order_before_func(L,R)
-#define wsrep_handle_SR_rollback(B,V) wsrep_service->wsrep_handle_SR_rollback_func(B,V)
-#define wsrep_thd_skip_locking(T) wsrep_service->wsrep_thd_skip_locking_func(T)
+/** @retval true if thd is in BF mode, either high_priority or TOI */
+#define wsrep_thd_is_BF(thd,sync) wsrep_service->wsrep_thd_is_BF_func(thd,sync)
+#define wsrep_thd_is_aborting(thd) wsrep_service->wsrep_thd_is_aborting_func(thd)
+/** @retval true if thd is in rollback */
+#define wsrep_thd_in_rollback_func(thd) wsrep_service->wsrep_thd_in_rollback_func(thd)
+/** @retval true if thd is in replicating mode */
+#define wsrep_thd_is_local(thd) wsrep_service->wsrep_thd_is_local_func(thd)
+#define wsrep_thd_self_abort(thd) wsrep_service->wsrep_thd_self_abort_func(thd)
+#define wsrep_thd_append_key(thd,key,nkeys,key_type) wsrep_service->wsrep_thd_append_key_func(thd,key,nkeys,key_type)
+#define wsrep_thd_append_table_key(thd,db,table,key) wsrep_service->wsrep_thd_append_table_key_func(thd,db,table,key)
+#define wsrep_thd_is_local_transaction(thd) wsrep_service->wsrep_thd_is_local_transaction_func(thd)
+/** @return thd client state string */
+#define wsrep_thd_client_state_str(thd) wsrep_service->wsrep_thd_client_state_str_func(thd)
+/** @return thd client mode string */
+#define wsrep_thd_client_mode_str(thd) wsrep_service->wsrep_thd_client_mode_str_func(thd)
+/** @return thd transaction state string */
+#define wsrep_thd_transaction_state_str(thd) wsrep_service->wsrep_thd_transaction_state_str_func(thd)
+/** @return current transaction id */
+#define wsrep_thd_transaction_id(thd) wsrep_service->wsrep_thd_transaction_id_func(thd)
+/** Mark thd own transaction as aborted */
+#define wsrep_thd_bf_abort(bf_thd,victim_thd,signal) wsrep_service->wsrep_thd_bf_abort_func(bf_thd,victim_thd,signal)
+#define wsrep_thd_order_before(left,right) wsrep_service->wsrep_thd_order_before_func(left,right)
+#define wsrep_handle_SR_rollback(BF_thd,victim_thd) wsrep_service->wsrep_handle_SR_rollback_func(BF_thd,victim_thd)
+#define wsrep_thd_skip_locking(thd) wsrep_service->wsrep_thd_skip_locking_func(thd)
 #define wsrep_get_sr_table_name() wsrep_service->wsrep_get_sr_table_name_func()
 #define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
-#define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
-#define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
-#define wsrep_OSU_method_get(T) wsrep_service->wsrep_OSU_method_get_func(T)
-#define wsrep_thd_has_ignored_error(T) wsrep_service->wsrep_thd_has_ignored_error_func(T)
-#define wsrep_thd_set_ignored_error(T,V) wsrep_service->wsrep_thd_set_ignored_error_func(T,V)
-#define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
-#define wsrep_thd_set_PA_unsafe(T) wsrep_service->wsrep_thd_set_PA_unsafe_func(T)
-#define wsrep_get_domain_id(T) wsrep_service->wsrep_get_domain_id_func(T)
+#define wsrep_commit_ordered(thd) wsrep_service->wsrep_commit_ordered_func(thd)
+/**
+  @return true if thd is in high priority mode
+  @todo: rename to is_high_priority()
+ */
+#define wsrep_thd_is_applying(thd) wsrep_service->wsrep_thd_is_applying_func(thd)
+#define wsrep_OSU_method_get(thd) wsrep_service->wsrep_OSU_method_get_func(thd)
+#define wsrep_thd_has_ignored_error(thd) wsrep_service->wsrep_thd_has_ignored_error_func(thd)
+#define wsrep_thd_set_ignored_error(thd,val) wsrep_service->wsrep_thd_set_ignored_error_func(thd,val)
+#define wsrep_report_bf_lock_wait(thd,trx_id) wsrep_service->wsrep_report_bf_lock_wait(thd,trx_id)
+#define wsrep_thd_set_PA_unsafe(thd) wsrep_service->wsrep_thd_set_PA_unsafe_func(thd)
+#define wsrep_get_domain_id(thd) wsrep_service->wsrep_get_domain_id_func(thd)
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
@@ -266,4 +292,6 @@ extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
 extern "C" void wsrep_thd_set_PA_unsafe(MYSQL_THD thd);
 extern "C" uint32 wsrep_get_domain_id();
 #endif
+
+/** @} */
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

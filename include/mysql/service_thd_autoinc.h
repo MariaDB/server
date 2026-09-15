@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_THD_AUTOINC_INCLUDED
 /* Copyright (C) 2013 MariaDB Foundation.
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_THD_AUTOINC_INCLUDED
+#define MYSQL_SERVICE_THD_AUTOINC_INCLUDED
+
 /**
   @file
   This service provides access to the auto_increment related system variables:
@@ -21,7 +23,19 @@
   @@auto_increment_offset
   @@auto_increment_increment
 */
+/**
+  @defgroup plugin_api_service_thd_autoinc THD autoinc service
+  @ingroup plugin_api_services
+  Access to the auto_increment related system variables.
+  
+  This service is used by plugins that need to know the current values of the auto_increment_offset and auto_increment_increment system variables for a given thread.
+  This service provides access to the auto_increment related system variables:
 
+  - `@@auto_increment_offset`
+  - `@@auto_increment_increment`
+
+  @{
+*/
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,16 +45,16 @@ extern struct thd_autoinc_service_st {
                                unsigned long* off, unsigned long* inc);
 } *thd_autoinc_service;
 
-#ifdef MYSQL_DYNAMIC_PLUGIN
-#define thd_get_autoinc(thd, off, inc) \
-  (thd_autoinc_service->thd_get_autoinc_func((thd), (off), (inc)))
-#else
 /**
   Return autoincrement system variables
   @param[in]  thd   user thread connection handle
   @param[out] off   the value of @@SESSION.auto_increment_offset
   @param[out] inc   the value of @@SESSION.auto_increment_increment
 */
+#ifdef MYSQL_DYNAMIC_PLUGIN
+#define thd_get_autoinc(thd, off, inc) \
+  (thd_autoinc_service->thd_get_autoinc_func((thd), (off), (inc)))
+#else
 void thd_get_autoinc(const MYSQL_THD thd,
                      unsigned long* off, unsigned long* inc);
 #endif
@@ -49,5 +63,5 @@ void thd_get_autoinc(const MYSQL_THD thd,
 }
 #endif
 
-#define MYSQL_SERVICE_THD_AUTOINC_INCLUDED
+/** @} */
 #endif
