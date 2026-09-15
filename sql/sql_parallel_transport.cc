@@ -394,6 +394,7 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
 
 bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
 {
+  Item *one;
   n_sums= 0;
   for (Item_sum **s= join->sum_funcs; *s; s++)
     n_sums++;
@@ -438,7 +439,7 @@ bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
   if (whole_table)
   {
     DBUG_ASSERT(!n_group);
-    Item *one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+    one= new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
     if (!one || result_defn.push_back(one, thd->mem_root))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(Item_int));
@@ -454,13 +455,8 @@ bool pwt_row_layout::build_aggregates(THD *thd, ORDER *plan_group)
   }
   if (whole_table)
   {
-    List_iterator_fast<Item> di(result_defn);
-    Item *defn_item= nullptr;
-    for (uint j= 0; j < result_defn.elements; j++)
-      defn_item= di++;                            // the constant, pushed last
-
     bzero((char *) &group_defn[0], sizeof(ORDER));
-    group_defn[0].item_ptr=  defn_item;
+    group_defn[0].item_ptr=  one;
     group_defn[0].item=      &group_defn[0].item_ptr;
     group_defn[0].direction= ORDER::ORDER_ASC;
     group_defn[0].next=      nullptr;
@@ -555,7 +551,7 @@ bool pwt_row_layout::make_container_from(THD *thd, List<Item> &defn,
                                          ORDER *group)
 {
   /*
-    out needs it's own TMP_TABLE_PARAM because
+    out needs its own TMP_TABLE_PARAM because
     1) create_tmp_table() overwrites param->func_count with the number
        of items it actually has to copy, so a second table built from the same
        param allocates fewer fields than the layout needs.
@@ -1159,252 +1155,3 @@ pwt_row_source *pwt_create_transport(THD *thd, pwt_manager *mgr,
   }
   return src;
 }
-
-#if 0
-/*
-  pwt_batch* classes implement streaming from workers to the manager
-  they may be useful in the future, so left here.
-*/
-
-bool pwt_batch_sink::init(pwt_manager *mgr, pwt_batch_source *peer_arg,
-                          uint reclength_arg)
-{
-  manager=   mgr;
-  peer=      peer_arg;
-  reclength= reclength_arg;
-  count=     0;
-  full=      false;
-  rows= (uchar*) my_malloc(key_memory_pwt_batch_rows,
-                           (size_t) PWT_ROW_GANULARITY * reclength, MYF(MY_WME));
-  return rows == nullptr;
-}
-
-
-void pwt_batch_sink::cleanup()
-{
-  my_free(rows);
-  rows= nullptr;
-}
-
-
-/**
-  @brief
-    Hand this worker's filled buffer to the manager.
-
-  @description
-    Marks the buffer ready and blocks until the manager has drained it (clears
-    'full') or asks the producers to stop. On return the buffer is the worker's
-    again: either to refill, or to abandon.
-
-    This is the only place a worker waits for the manager, and it is what the
-    temporary-table transport exists to remove.
-
-  @return
-    true   the consumer asked us to stop
-    false  the buffer was drained; refill it
-*/
-
-bool pwt_batch_sink::handoff()
-{
-  DBUG_ENTER("pwt_batch_sink::handoff");
-  mysql_mutex_lock(&manager->LOCK_data);
-  if (manager->workers_must_stop)
-  {
-    mysql_mutex_unlock(&manager->LOCK_data);
-    DBUG_RETURN(true);
-  }
-  full= true;
-  mysql_cond_signal(&manager->COND_data_avail);          // wake the consumer
-  while (full && !manager->workers_must_stop)
-  {
-    mysql_cond_wait(&peer->COND_data_space, &manager->LOCK_data);
-    DBUG_PRINT("info", ("worker wakes"));
-  }
-  bool stopped= manager->workers_must_stop;
-  mysql_mutex_unlock(&manager->LOCK_data);
-  DBUG_RETURN(stopped);
-}
-
-
-/*
-  @brief
-    Take one finished row: copy its record image into the buffer, handing the
-    buffer over when it fills.
-*/
-
-int pwt_batch_sink::emit_row(const uchar *rec)
-{
-  memcpy(rows + (size_t) count * reclength, rec, reclength);
-  if (++count == PWT_ROW_GANULARITY)
-  {
-    if (handoff())                                // manager asked us to stop
-      return PWT_EMIT_STOP;
-    count= 0;                                     // buffer drained; refill
-  }
-  return PWT_EMIT_OK;
-}
-
-
-/*
-  Hand over the final partial buffer. A stop arriving now is not interesting:
-  this producer has finished anyway.
-*/
-
-bool pwt_batch_sink::flush()
-{
-  if (count)
-    handoff();
-  return false;
-}
-
-
-/*****************************************************************************
-  pwt_batch_source -- the consuming end of the batch transport
-*****************************************************************************/
-
-bool pwt_batch_source::init(THD *thd, pwt_manager *mgr, uint n_workers,
-                            uint reclength_arg)
-{
-  manager=   mgr;
-  n_sinks=   n_workers;
-  reclength= reclength_arg;
-  cur=       nullptr;
-  cur_cursor= 0;
-  if (!(sinks= thd->alloc<pwt_batch_sink*>(n_workers)))
-    return true;
-  for (uint i= 0; i < n_workers; i++)
-    sinks[i]= nullptr;
-  mysql_cond_init(key_COND_pwt_data_space, &COND_data_space, nullptr);
-  inited= true;
-  return false;
-}
-
-
-pwt_row_sink *pwt_batch_source::make_sink(THD *thd, uint worker_nr,
-                                          pwt_row_container *container)
-{
-  DBUG_ASSERT(worker_nr < n_sinks);
-  /*
-    Not used: this transport copies the record out of the container rather than
-    keeping it, so it needs only the size, which it has from the layout.
-  */
-  (void) container;
-  pwt_batch_sink *s= new (thd->mem_root) pwt_batch_sink;
-  if (!s || s->init(manager, this, reclength))
-  {
-    my_error(ER_OUTOFMEMORY, MYF(0),
-             (int) (PWT_ROW_GANULARITY * reclength));
-    return nullptr;
-  }
-  sinks[worker_nr]= s;
-  return s;
-}
-
-
-/*
-  Release every producer blocked waiting for its buffer back, so it sees the
-  manager's stop request. The caller sets that request; this only wakes them.
-*/
-
-void pwt_batch_source::wake_producers()
-{
-  mysql_mutex_assert_owner(&manager->LOCK_data);
-  mysql_cond_broadcast(&COND_data_space);
-}
-
-
-void pwt_batch_source::cleanup()
-{
-  if (inited)
-  {
-    mysql_cond_destroy(&COND_data_space);
-    inited= false;
-  }
-}
-
-
-/*
-  @brief
-    Copy the next result row's record image into dst.
-
-  @description
-    Drains one worker's buffer at a time (cur), advancing cur_cursor through
-    its rows; when the buffer is exhausted it releases that worker to refill
-    and picks the next ready one. Blocks when no buffer is momentarily ready.
-
-    This is also the manager's only wait, so it is where the team's own state
-    is noticed: a worker killed is propagated to the manager's THD, a worker
-    error aborts, and "no buffer ready and nobody still running" is end of
-    data.
-
-  @return
-    0 = row copied into dst,  -1 = end of data,  1 = error.
-*/
-
-int pwt_batch_source::next_row(uchar *dst)
-{
-  DBUG_ENTER("pwt_batch_source::next_row");
-  THD *thd= manager->thd;
-  struct timespec wait;
-  wait.tv_nsec= 0;
-
-  for (;;)
-  {
-    if (cur)                                      // draining a worker's buffer
-    {
-      if (cur_cursor < cur->count)
-      {
-        memcpy(dst, cur->rows + (size_t) cur_cursor * reclength, reclength);
-        cur_cursor++;
-        DBUG_RETURN(0);
-      }
-      // buffer drained; release the worker so it can refill
-      mysql_mutex_lock(&manager->LOCK_data);
-      pwt_batch_sink *drained= cur;
-      cur= nullptr;
-      drained->full= false;                     // buffer is the worker's again
-      mysql_cond_broadcast(&COND_data_space);   // wake it to refill
-      mysql_mutex_unlock(&manager->LOCK_data);
-      // fall through and look for the next ready worker
-    }
-
-    // find the next worker whose buffer is filled and ready
-    pwt_batch_sink *next= nullptr;
-    PSI_stage_info old_stage;
-    mysql_mutex_lock(&manager->LOCK_data);
-    for (;;)
-    {
-      for (uint i= 0; i < n_sinks; i++)
-        if (sinks[i] && sinks[i]->full)
-        {
-          next= sinks[i];
-          break;
-        }
-      if (next)
-        break;
-
-      int res;
-      if ((res= manager->locked__process_manager_wakeup()) ||
-          (res=(thd->killed != NOT_KILLED)))
-      {
-        mysql_mutex_unlock(&manager->LOCK_data);
-        DBUG_RETURN(res);
-      }
-      // wait for a batch, a finishing worker, or a 1s tick to re-check killed.
-      // ENTER_COND/EXIT_COND publish the "Reading data from parallel workers"
-      // stage and register the cond so a KILL of the manager wakes it.
-      wait.tv_sec= time(0) + 1;
-      thd->ENTER_COND(&manager->COND_data_avail, &manager->LOCK_data,
-                      &stage_reading_data_from_parallel_worker, &old_stage);
-      mysql_cond_timedwait(&manager->COND_data_avail, &manager->LOCK_data,
-                           &wait);
-      thd->EXIT_COND(&old_stage);                 // unlocks LOCK_data
-      mysql_mutex_lock(&manager->LOCK_data);      // re-lock for the next pass
-    }
-    cur= next;
-    cur_cursor= 0;                                // start of next's buffer
-    mysql_mutex_unlock(&manager->LOCK_data);
-    // loop back and drain cur
-  }
-}
-#endif
