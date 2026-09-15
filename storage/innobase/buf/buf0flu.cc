@@ -1658,8 +1658,8 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
               ++count;
             else
               continue;
-            mysql_mutex_lock(&buf_pool.mutex);
           }
+          mysql_mutex_lock(&buf_pool.mutex);
         }
         while (0);
       }
