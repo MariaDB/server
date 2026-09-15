@@ -260,12 +260,15 @@ private:
   /** iterator to pages, used by parse() */
   map::iterator pages_it;
 
-  /** The allocated size of tmp_buf. The 1+8 extra bytes are
-  needed for FORMAT_ENC_11 in parse(). */
+  /** The size of tmp_buf that the parser requires. The 1+8 extra bytes
+  are needed for FORMAT_ENC_11 in parse(). */
   static constexpr size_t tmp_buf_size{MTR_SIZE_MAX + 9};
   /** buffer for decrypting mini-transactions or handling non-contiguous
   mini-transactions */
   byte *tmp_buf;
+  /** the number of bytes allocated for tmp_buf, which is tmp_buf_size
+  rounded up to a multiple of the large page size */
+  size_t tmp_buf_alloc_size;
 
   /** Process a record that indicates that a tablespace size is being shrunk.
   @param page_id first page that is not in the file

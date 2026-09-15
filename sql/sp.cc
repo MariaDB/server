@@ -2346,7 +2346,15 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
-  my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines, system_charset_info,
+  /*
+    Compare keys byte for byte.  The key carries the database name as the
+    statement spelled it, and with lower_case_table_names 0 two databases
+    can differ only in case.  A case insensitive comparison would collapse
+    the routines of both into one entry, so only one of them would be
+    loaded and locked, and a reference to the other would not find it.
+  */
+  my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
+                   &my_charset_bin,
                    Query_tables_list::START_SROUTINES_HASH_SIZE,
                    0, 0, sp_sroutine_key, 0, 0);
 

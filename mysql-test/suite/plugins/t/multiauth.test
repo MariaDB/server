@@ -206,8 +206,15 @@ create user mysqltest1 identified via ed25519 as password("good");
 grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # no plugin = failure
-# covers Linux (1st re), FreeBSD (2nd), AIX (3rd and 4th)
---replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/ /loaded: .*Could not load module.*client_ed25519.so.\n/loaded: no such file/ /System error: No such file or directory//
+# covers Linux (1st re), FreeBSD (2nd), AIX (3rd and 4th), macOS (5th and 6th).
+# The macOS text names every path that dlopen() tried.  Its length depends on
+# the vardir, so it either fits in the 512 byte buffer that --exec output is
+# read in or reaches the replacement as several chunks, each matched on its
+# own.  The 5th expression rewrites the chunk holding the start of the
+# message, the 6th drops the chunks that continue it.  Both stop at a newline
+# because the expressions are compiled with REG_DOTALL, where an unrestricted
+# .* would swallow the line terminator and join this line to the next one.
+--replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/ /loaded: .*Could not load module.*client_ed25519.so.\n/loaded: no such file/ /System error: No such file or directory// /loaded: dlopen\([^\n]*/loaded: no such file/ /^[^\n]*client_ed25519\.so[^\n]*//
 --error 1
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");
