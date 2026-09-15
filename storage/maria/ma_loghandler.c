@@ -3508,7 +3508,7 @@ my_bool translog_walk_filenames(const char *directory,
   for (i= 0; i < dirp->number_of_files; i++)
   {
     char *file= dirp->dir_entry[i].name;
-    if (strncmp(file, "aria_log.", 10) == 0 &&
+    if (strncmp(file, "aria_log.", 9) == 0 &&
         file[10] >= '0' && file[10] <= '9' &&
         file[11] >= '0' && file[11] <= '9' &&
         file[12] >= '0' && file[12] <= '9' &&
