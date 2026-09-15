@@ -1,0 +1,45 @@
+#
+# MDEV-41008 Parsing of forward slash '/' behaving differently between
+# OpenSSL 3 vs OpenSSL 1
+#
+# OpenSSL 3 escapes a literal '/' or '+' inside an RDN value; OpenSSL 1.1
+# and WolfSSL never do. A stored REQUIRE SUBJECT/ISSUER with such a
+# backslash doesn't match a certificate rendered without one.
+# old_mode=X509_LENIENT_COMPARE restores the lenient match.
+#
+
+--source include/have_ssl_communication.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+
+let $MYSQL_CLIENT= $MYSQL --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem;
+
+# std_data/client-cert.pem subject/issuer are from main/openssl_1.test; the
+# extra backslashes below stand in for what a stricter library would escape.
+
+create user x509_subject_user@localhost
+  require subject '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB\\/CN=client';
+
+create user x509_issuer_user@localhost
+  require issuer '/CN=cacert/C=FI/ST=Helsinki/L=Helsinki\\/O=MariaDB';
+
+--echo #
+--echo # Default old_mode: strict comparison, escaped grant does not match
+--echo #
+--error 1
+--exec $MYSQL_CLIENT --user=x509_subject_user -e "select 1" 2>&1
+--error 1
+--exec $MYSQL_CLIENT --user=x509_issuer_user -e "select 1" 2>&1
+
+--echo #
+--echo # old_mode=X509_LENIENT_COMPARE: lenient comparison, grant matches
+--echo #
+set @old_mode_save= @@global.old_mode;
+set global old_mode= concat(@@global.old_mode, ',X509_LENIENT_COMPARE');
+--exec $MYSQL_CLIENT --user=x509_subject_user -e "select 1" 2>&1
+--exec $MYSQL_CLIENT --user=x509_issuer_user -e "select 1" 2>&1
+set global old_mode= @old_mode_save;
+
+drop user x509_subject_user@localhost, x509_issuer_user@localhost;
+
+--source include/wait_until_count_sessions.inc

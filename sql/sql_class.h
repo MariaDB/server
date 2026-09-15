@@ -206,6 +206,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
 #define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 #define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
+#define OLD_MODE_X509_LENIENT_COMPARE (1 << 7)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
