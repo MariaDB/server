@@ -47,9 +47,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 #ifdef _WIN32
 
 #include "mysys_priv.h"
+#include "mysys_err.h"
 #include <share.h>
 #include <sys/stat.h>
 #include <winternl.h>
+#include <errno.h>
 
 extern "C" {
 
@@ -320,11 +322,172 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
 }
 
 
+/* Strip the "\\?\" ("\\?\UNC\") prefix GetFinalPathNameByHandle() adds. */
+static int my_win_strip_extended_prefix(const char *path, char *to,
+                                         size_t to_size)
+{
+  if (!strncmp(path, "\\\\?\\UNC\\", 8))
+  {
+    size_t len= strlen(path + 8);
+    if (len + 3 > to_size)
+    {
+      errno= ENAMETOOLONG;
+      return -1;
+    }
+    to[0]= to[1]= '\\';
+    strmov(to + 2, path + 8);
+    return 0;
+  }
+  if (!strncmp(path, "\\\\?\\", 4))
+    path+= 4;
+  if (strlen(path) >= to_size)
+  {
+    errno= ENAMETOOLONG;
+    return -1;
+  }
+  strmov(to, path);
+  return 0;
+}
+
+
+/* Resolved path behind an open handle, following NTFS symlinks, junctions
+   and mount points. */
+static int my_win_get_final_path(HANDLE h, char *to, size_t to_size)
+{
+  char buf[FN_REFLEN + 8];
+  DWORD len= GetFinalPathNameByHandle(h, buf, (DWORD) sizeof(buf),
+                                       FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (len == 0 || len >= sizeof(buf))
+  {
+    if (len >= sizeof(buf))
+      errno= ENAMETOOLONG;
+    else
+      my_osmaperr(GetLastError());
+    return -1;
+  }
+  return my_win_strip_extended_prefix(buf, to, to_size);
+}
+
+
+/*
+  Windows implementation of my_realpath(), see my_symlink.c: open the
+  canonicalized path and read back CreateFile()'s resolved target via
+  GetFinalPathNameByHandle(), resolving symlinks, junctions and mount
+  points along the way.
+*/
+int my_win_realpath(char *to, const char *filename, myf MyFlags)
+{
+  char full_path[FN_REFLEN];
+  HANDLE h;
+  static const char cur_dir[]= {FN_CURLIB, '\0'};
+  DWORD ret= GetFullPathName(filename[0] ? filename : cur_dir,
+                              sizeof(full_path), full_path, NULL);
+  if (ret == 0 || ret >= sizeof(full_path))
+  {
+    if (ret >= sizeof(full_path))
+      my_errno= ENAMETOOLONG;
+    else
+    {
+      my_osmaperr(GetLastError());
+      my_errno= errno;
+    }
+    if (MyFlags & MY_WME)
+      my_error(EE_REALPATH, MYF(0), filename, my_errno);
+    my_load_path(to, filename, NullS);
+    return -1;
+  }
+
+  h= my_create_file_with_retries(full_path, FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    DWORD err= GetLastError();
+    my_bool enoent= (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND);
+    if (enoent)
+      my_errno= ENOENT;
+    else
+    {
+      my_osmaperr(err);
+      my_errno= errno;
+    }
+    /* Report the error (if any) before overwriting 'to' ('to' and
+       'filename' may be the same buffer, e.g. mf_format.c). */
+    if (MyFlags & MY_WME)
+      my_error(EE_REALPATH, MYF(0), filename, my_errno);
+    strmake(to, full_path, FN_REFLEN-1);
+    return enoent ? 1 : -1;
+  }
+
+  if (my_win_get_final_path(h, to, FN_REFLEN))
+  {
+    my_errno= errno; /* already set by my_win_get_final_path() */
+    if (MyFlags & MY_WME)
+      my_error(EE_REALPATH, MYF(0), filename, my_errno);
+    strmake(to, full_path, FN_REFLEN-1);
+    CloseHandle(h);
+    return -1;
+  }
+  CloseHandle(h);
+  return 0;
+}
+
+
+/**
+  Verify that 'h' (opened for 'path') didn't follow a symlink, junction or
+  mount point anywhere along the path. Windows has no O_NOFOLLOW/O_PATH
+  equivalent; instead this mirrors POSIX's realpath()+strcmp() check in
+  NOSYMLINK_FUNCTION_BODY by comparing 'path' (expected to already be
+  my_realpath()-resolved) against my_win_get_final_path() of 'h'.
+
+  @param h     handle already opened for path
+  @param path  expected (my_realpath()-resolved) name
+
+  @return 0 if verified; -1 with errno set to ENOTDIR on a mismatch, or to
+          whatever my_win_get_final_path() failed with otherwise
+*/
+int my_win_verify_nosymlinks(HANDLE h, const char *path)
+{
+  char opened_path[FN_REFLEN];
+  if (my_win_get_final_path(h, opened_path, sizeof(opened_path)))
+    return -1; /* errno already set by my_win_get_final_path() */
+  if (!strcmp(path, opened_path))
+    return 0;
+  errno= ENOTDIR;
+  return -1;
+}
+
+
 File my_win_open(const char *path, int flags)
 {
   DBUG_ENTER("my_win_open");
-  DBUG_RETURN(my_win_sopen((char *) path, flags | _O_BINARY, _SH_DENYNO, 
-    _S_IREAD | S_IWRITE));
+  DBUG_RETURN(my_win_sopen((char *) path, flags | _O_BINARY, _SH_DENYNO,
+                            _S_IREAD | S_IWRITE));
+}
+
+
+/**
+  my_win_open(), enforcing MY_NOSYMLINKS. 'path' must already be a
+  my_realpath()-resolved name (see my_win_verify_nosymlinks() above).
+  Verifies after the open, so it can't stop O_CREAT/O_TRUNC from acting
+  first; no current caller combines them with MY_NOSYMLINKS.
+
+  @return -1 (errno set, see my_win_verify_nosymlinks()) on rejection
+*/
+File my_win_open_nosymlinks(const char *path, int flags)
+{
+  File fd;
+  DBUG_ENTER("my_win_open_nosymlinks");
+  DBUG_ASSERT(!(flags & (O_CREAT | O_TRUNC)));
+  fd= my_win_open(path, flags);
+  if (fd >= 0 && my_win_verify_nosymlinks(my_get_osfhandle(fd), path))
+  {
+    int err= errno; /* my_win_close() only touches errno on its own failure */
+    my_win_close(fd);
+    fd= -1;
+    errno= err;
+  }
+  DBUG_RETURN(fd);
 }
 
 

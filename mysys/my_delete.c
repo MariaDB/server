@@ -19,7 +19,7 @@
 
 #ifdef _WIN32
 #include <direct.h> /* rmdir */
-static int my_win_unlink(const char *name);
+static int my_win_unlink(const char *name, myf MyFlags);
 #endif
 
 CREATE_NOSYMLINK_FUNCTION(
@@ -35,7 +35,7 @@ int my_delete(const char *name, myf MyFlags)
   DBUG_PRINT("my",("name %s MyFlags %lu", name, MyFlags));
 
 #ifdef _WIN32
-  err = my_win_unlink(name);
+  err = my_win_unlink(name, MyFlags);
 #else
   if (MyFlags & MY_NOSYMLINKS)
     err= unlink_nosymlinks(name);
@@ -83,7 +83,22 @@ int my_delete(const char *name, myf MyFlags)
 */
 #include <my_rdtsc.h>
 
-static int my_win_unlink(const char *name)
+/**
+  Check MY_NOSYMLINKS for a CreateFile()-based delete strategy.
+
+  @param h        handle already opened for name
+  @param name     expected (my_realpath()-resolved) file name
+  @param MyFlags  checked for MY_NOSYMLINKS
+
+  @return true if the delete should be rejected
+*/
+static my_bool win_unlink_check_nosymlinks(HANDLE h, const char *name,
+                                            myf MyFlags)
+{
+  return (MyFlags & MY_NOSYMLINKS) && my_win_verify_nosymlinks(h, name);
+}
+
+static int my_win_unlink(const char *name, myf MyFlags)
 {
   HANDLE handle= INVALID_HANDLE_VALUE;
   DWORD attributes;
@@ -136,6 +151,11 @@ static int my_win_unlink(const char *name)
                        NULL, OPEN_EXISTING, 0, NULL);
     if (handle != INVALID_HANDLE_VALUE)
     {
+      if (win_unlink_check_nosymlinks(handle, name, MyFlags))
+      {
+        CloseHandle(handle);
+        DBUG_RETURN(-1); /* errno set by my_win_verify_nosymlinks() */
+      }
       /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
       struct {DWORD _Flags;} disp= {0x3};
       BOOL ok= SetFileInformationByHandle(
@@ -149,6 +169,11 @@ static int my_win_unlink(const char *name)
                        FILE_FLAG_DELETE_ON_CLOSE, NULL);
     if (handle != INVALID_HANDLE_VALUE)
     {
+      if (win_unlink_check_nosymlinks(handle, name, MyFlags))
+      {
+        CloseHandle(handle);
+        DBUG_RETURN(-1); /* errno set by my_win_verify_nosymlinks() */
+      }
       /*
         We opened file without sharing flags (exclusive), no one else has this
         file opened, thus it is safe to close handle to remove it. No renaming
@@ -174,6 +199,12 @@ static int my_win_unlink(const char *name)
           ("CreateFile(%s) with FILE_FLAG_DELETE_ON_CLOSE failed with %u\n",
            name, last_error));
       goto error;
+    }
+
+    if (win_unlink_check_nosymlinks(handle, name, MyFlags))
+    {
+      CloseHandle(handle);
+      DBUG_RETURN(-1); /* errno set by my_win_verify_nosymlinks() */
     }
 
     tsc= my_timer_cycles();
