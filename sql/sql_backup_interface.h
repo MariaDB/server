@@ -31,6 +31,8 @@ struct backup_target
 /** BACKUP SERVER worker specific context */
 struct backup_sink
 {
+  /** worker identifier: 0 to CONCURRENT-1 (the connection thread) */
+  int id;
 #ifdef _WIN32
   /** A value indicating an invalid stream */
   static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};

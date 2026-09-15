@@ -1983,6 +1983,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       else if (c && is_mmap())
       {
       unmap_old_checkpoint:
+        innodb_backup_checkpoint_pmem();
         checkpoint_buf= nullptr;
         my_munmap(c, lseek(resize_log.m_file, 0, SEEK_END));
         goto first_checkpoint_in_new_archive;

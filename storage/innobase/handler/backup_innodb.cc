@@ -162,8 +162,8 @@ namespace
 class InnoDB_backup
 {
 public:
-  InnoDB_backup() { mutex.init(); }
-  ~InnoDB_backup() { mutex.destroy(); }
+  InnoDB_backup() { log_mutex.init(); mutex.init(); }
+  ~InnoDB_backup() { log_mutex.destroy(); mutex.destroy(); }
 
 private:
   enum State {
@@ -182,16 +182,17 @@ private:
     const lsn_t first_lsn{};
     /** Start LSN of the last log file, or LSN_MAX if not determined yet */
     lsn_t max_first_lsn{};
-    /** Final LSN of the backup, or LSN_MAX if not determined yet;
-    on error, assigned to 0 while holding InnoDB_backup::mutex and
-    exclusive log_sys.latch */
+    /** Final LSN of the backup, or LSN_MAX if not determined yet,
+    or last LSN copied by log_track();
+    on error, set to 0 while holding log_mutex (if is_log_tracking())
+    or while holding InnoDB_backup::mutex and exclusive log_sys.latch */
     lsn_t last_lsn{};
-    /** size of the first log file */
-    const uint64_t first_size{};
     /** Checkpoint at the start of the backup */
     const lsn_t checkpoint{};
     /** Log record pointing to the checkpoint */
     const lsn_t checkpoint_end_lsn{};
+    /** size of the first log file */
+    const uint64_t first_size{};
     /** the original innodb_log_file_size;
     0 if innodb_log_archive was enabled */
     const uint64_t old_size{};
@@ -200,6 +201,28 @@ private:
     Atomic_relaxed<State> state{IDLE};
     /** the start LSN of the last hard-linked file, or 0 */
     std::atomic<lsn_t> last_hardlink{};
+    /** log_track() source file handle */
+    os_file_t log_src{};
+    /** first log_track() target file handle */
+    const os_file_t first_log_dst{};
+    /** log_track() target file handle */
+    os_file_t log_dst{};
+    /** backup target */
+    const backup_target *const target{};
+
+    void destroy() noexcept
+    {
+      if (first_log_dst != OS_FILE_CLOSED)
+      {
+        IF_WIN(CloseHandle(first_log_dst), close(first_log_dst));
+        if (log_dst != first_log_dst)
+          IF_WIN(CloseHandle(log_dst), close(log_dst));
+      }
+      state= IDLE;
+    }
+
+    /** @return whether we are copying the log in real time */
+    bool is_log_tracking() const noexcept { return log_dst != OS_FILE_CLOSED; }
 
     /**
        Note that a log file was hard-linked.
@@ -216,13 +239,11 @@ private:
 
     /** Ensure that the last, hard-linked log file is not shared with
     the server data directory, by copying it until the final LSN
-    @param target    backup target directory
     @param hl        last_hardlink
     @return error code
     @retval 0 on success
     */
-    ATTRIBUTE_COLD int de_hardlink(const backup_target &target, lsn_t hl)
-      noexcept try
+    ATTRIBUTE_COLD int de_hardlink(lsn_t hl) noexcept try
     {
 #ifdef _WIN32
       std::string src{target.path};
@@ -273,7 +294,7 @@ private:
       const char *const d_{dst.c_str()};
       int d{-1};
       int err= ER_FILE_NOT_FOUND;
-      int s= openat(target.fd, d_, O_RDONLY);
+      int s= openat(target->fd, d_, O_RDONLY);
       if (s == -1)
       {
       error_return:
@@ -283,10 +304,10 @@ private:
         return 1;
       }
       err= ER_CANT_DELETE_FILE;
-      if (unlinkat(target.fd, d_, 0))
+      if (unlinkat(target->fd, d_, 0))
         goto error_return;
       err= ER_CANT_CREATE_FILE;
-      d= openat(target.fd, d_, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      d= openat(target->fd, d_, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
       if (d < 0)
         goto error_return;
 #endif
@@ -349,12 +370,11 @@ private:
 
     /**
        Finish a backup.
-       @param target  backup target
        @param sink    backup worker context
        @return error code
        @retval 0 on success
     */
-    int cleanup(const backup_target &target, const backup_sink &sink) noexcept
+    int cleanup(const backup_sink &sink) noexcept
     {
       int fail{0};
       ut_ad(state == CLEANUP);
@@ -369,12 +389,12 @@ private:
 
         if (hl == current_first_lsn ||
             (last_lsn < current_first_lsn && sink.stream == sink.NO_STREAM))
-          fail= de_hardlink(target, hl);
+          fail= de_hardlink(hl);
 
         if (!fail)
-          fail= write_config(target, sink);
+          fail= write_config(*target, sink);
       }
-      state= IDLE; /* unblock init() */
+      destroy(); /* unblock init() */
       return fail;
     }
   };
@@ -382,21 +402,27 @@ private:
   /** backup context */
   context ctx;
 
+  /** mutex protecting log_track() */
+  srw_mutex log_mutex;
   /** mutex protecting queue, non_log */
   srw_mutex mutex;
+
   /** collection of files and sizes, followed by any log files to be copied */
   std::vector<uint64_t> queue;
   /** number of non-log files at the start of the queue */
-  size_t non_log;
+  Atomic_relaxed<size_t> non_log;
 
 public:
   /**
      Start of BACKUP SERVER: collect all files to be backed up
      @param thd     current session
-     @return ctx
+     @param target  backup target
+     @param sink    backup coordinator context
+     @return &ctx
      @retval -1 on failure
   */
-  void *init(THD *thd) noexcept
+  void *init(THD *thd, const backup_target &target, const backup_sink &sink)
+    noexcept
   {
     log_sys.latch.wr_lock();
     while (ctx.state != IDLE)
@@ -411,15 +437,64 @@ public:
     ut_ad(!non_log);
     ut_ad(queue.empty());
     ut_d(mutex.wr_unlock());
-
     uint64_t old_size;
 
     if (log_sys.backup_start(&old_size, thd))
     {
+    unlock_fail:
       log_sys.latch.wr_unlock();
     fail:
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
       return reinterpret_cast<void*>(-1);
+    }
+
+    const lsn_t first_lsn{log_sys.get_first_lsn()};
+    lsn_t lsn_max{LSN_MAX}, start_end;
+    const lsn_t start=
+#if 1 /* TODO: for incremental backup, allow the start to be specified */
+      log_sys.get_latest_checkpoint(start_end);
+#else
+    log_sys.archived_checkpoint;
+    start_end= log_sys.archived_lsn;
+#endif
+    ut_ad(start_end >= start);
+    ut_ad(start >= log_sys.get_first_lsn());
+
+    backup_fd log_src{OS_FILE_CLOSED}, log_dst{OS_FILE_CLOSED};
+
+    if (log_sys.is_mmap_writeable()) /* FIXME: remove this */
+    if (sink.id && sink.stream == sink.NO_STREAM)
+    {
+      // log_src= log_sys.log.dup();
+      if (0 && log_src == OS_FILE_CLOSED)
+        goto unlock_fail;
+#ifndef _WIN32
+      const std::string path{log_sys.get_archive_path(first_lsn)};
+      log_dst= openat(target.fd, path.c_str(),
+                      O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      if (log_dst < 0)
+      {
+        log_sys.latch.wr_unlock();
+        std::ignore= close(log_src);
+        my_error(ER_CANT_CREATE_FILE, MYF(0), path.c_str(), errno);
+        return reinterpret_cast<void*>(-1);
+      }
+#else
+      std::string path{target.path};
+      path.push_back('/');
+      log_sys.append_archive_name(path, first_lsn);
+      log_dst= CreateFile(path.c_str(), GENERIC_WRITE, 0,
+                          my_win_file_secattr(), CREATE_NEW,
+                          FILE_ATTRIBUTE_NORMAL, nullptr);
+      if (log_dst == INVALID_HANDLE_VALUE)
+      {
+        log_sys.latch.wr_unlock();
+        CloseHandle(log_src);
+        my_error(ER_CANT_CREATE_FILE, MYF(0), path.c_str(), errno);
+        return reinterpret_cast<void*>(-1);
+      }
+#endif
+      lsn_max= start;
     }
 
     mutex.wr_lock();
@@ -429,20 +504,10 @@ public:
 
     try
     {
-      lsn_t start_end;
-      const lsn_t start=
-#if 1 /* TODO: for incremental backup, allow the start to be specified */
-        log_sys.get_latest_checkpoint(start_end);
-#else
-      log_sys.archived_checkpoint;
-      start_end= log_sys.archived_lsn;
-#endif
-      ut_ad(start_end >= start);
-      ut_ad(start >= log_sys.get_first_lsn());
-
       new (&ctx) context{
-        log_sys.get_first_lsn(), LSN_MAX, LSN_MAX, log_sys.file_size,
-        start, start_end, old_size, PROCESSING, 0
+        first_lsn, lsn_max, lsn_max, start, start_end,
+        log_sys.file_size, old_size, PROCESSING, 0,
+        log_src, log_dst, log_dst, &target
       };
 
       /* Collect all tablespaces that have been created before our
@@ -489,7 +554,7 @@ public:
       mutex.wr_unlock();
       log_sys.backup_stop(old_size, thd);
       mutex.wr_lock();
-      ctx.state= IDLE;
+      ctx.destroy();
       mutex.wr_unlock();
       goto fail;
     }
@@ -512,12 +577,15 @@ public:
   int step(const backup_target &target, backup_phase phase,
            const backup_sink &sink) noexcept
   {
-    uint64_t id_limit{0};
-    mutex.wr_lock();
     ut_ad(&ctx == sink.ha_data);
     ut_ad(ctx.state != IDLE);
     ut_ad(ctx.last_lsn != LSN_MAX || phase == BACKUP_PHASE_START);
-    size_t size{queue.size()}, non_log_files{non_log};
+    if (ctx.is_log_tracking() && !sink.id)
+      return log_track(phase);
+    uint64_t id_limit{0};
+    mutex.wr_lock();
+    size_t size{queue.size()};
+    const size_t non_log_files{non_log};
     ut_ad(size >= non_log_files);
 
     if (UNIV_UNLIKELY(ctx.last_lsn == 0))
@@ -532,7 +600,8 @@ public:
     if (UNIV_UNLIKELY(!size))
       goto done;
 
-    non_log-= size == non_log_files;
+    if (size == non_log_files)
+      non_log= non_log_files - 1;
     id_limit= queue.back();
     queue.pop_back();
     mutex.wr_unlock();
@@ -581,32 +650,212 @@ public:
   }
 
   /**
+     Copy the log in real time.
+     @param phase   backup phase
+     @return error code (never positive)
+     @retval 0 on success
+  */
+  int log_track(backup_phase phase) noexcept
+  {
+    ut_ad(ctx.is_log_tracking());
+#ifdef HAVE_PMEM
+    if (log_sys.is_mmap())
+      return log_track_pmem();
+#endif
+    ::abort(); // todo
+    uint64_t begin{}, end{};
+    int err;
+#ifdef POSIX_FADV_SEQUENTIAL
+    std::ignore= posix_fadvise(ctx.log_src, begin, end - begin,
+                               POSIX_FADV_SEQUENTIAL);
+#endif
+#ifdef copy_file_shortcut
+    if (1 == (err= copy_file_shortcut(ctx.log_src, ctx.log_dst, begin, end)))
+#endif
+      err= backup::copy(ctx.log_src, ctx.log_dst, begin, end);
+#ifdef POSIX_FADV_DONTNEED
+    std::ignore= posix_fadvise(ctx.log_src, 0, 0, POSIX_FADV_DONTNEED);
+#endif
+    return err;
+  }
+
+#ifdef HAVE_PMEM
+  /**
+     Copy the memory-mapped log in real time.
+     @param phase   backup phase
+     @return error code (never positive)
+     @retval 0 on success
+  */
+  int log_track_pmem()
+  {
+    do
+    {
+      log_sys.latch.wr_lock();
+      ut_ad(ctx.is_log_tracking());
+      ut_ad(log_sys.is_mmap());
+      ut_ad(log_sys.is_mmap_writeable());
+      lsn_t first{log_sys.get_first_lsn()};
+      const lsn_t lsn{std::min(log_sys.get_lsn(), first + log_sys.capacity())};
+      ut_ad(lsn >= first);
+      ut_ad(lsn >= ctx.last_lsn);
+      log_mutex.wr_lock();
+      const lsn_t prev{ctx.last_lsn};
+      ut_ad(prev <= lsn);
+      ctx.last_lsn= lsn;
+      const byte *const buf{log_sys.buf};
+      log_sys.latch.wr_unlock();
+      first-= log_sys.START_OFFSET;
+      int err=
+        copy_file_mmap(buf, ctx.log_dst, prev - first, lsn - first);
+      log_mutex.wr_unlock();
+      if (err)
+        return err;
+    }
+    while (non_log != 0);
+
+    return 0;
+  }
+
+  /** Copy the remaining memory-mapped log during log_t::write_checkpoint() */
+  void checkpoint_complete_pmem() noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    ut_ad(log_sys.checkpoint_buf);
+    if (ctx.state != PROCESSING || !ctx.is_log_tracking())
+      return;
+    const lsn_t lsn{log_sys.get_first_lsn()};
+    lsn_t first{lsn - log_sys.capacity()};
+    const lsn_t prev{ctx.last_lsn};
+    ut_ad(prev >= first);
+    ut_ad(prev <= lsn);
+    ctx.last_lsn= lsn;
+    ctx.max_first_lsn= lsn;
+    first-= log_sys.START_OFFSET;
+    log_mutex.wr_lock();
+
+    int f= copy_file_mmap(log_sys.checkpoint_buf, ctx.log_dst,
+                          prev - first, lsn - first);
+    do
+    {
+      if (ctx.log_dst != ctx.first_log_dst &&
+          IF_WIN(!CloseHandle(ctx.log_dst), close(ctx.log_dst)));
+      else if (!f)
+      {
+#ifndef _WIN32
+        ctx.log_dst= openat(ctx.target->fd,
+                            log_sys.get_archive_path(lsn).c_str(),
+                            O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+        if (ctx.log_dst >= 0)
+          continue;
+#else
+        std::string path{target->path};
+        path.push_back('/');
+        log_sys.append_archive_name(path, lsn);
+        ctx.log_dst= CreateFile(path.c_str(), GENERIC_WRITE, 0,
+                                my_win_file_secattr(), CREATE_NEW,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (ctx.log_dst != INVALID_HANDLE_VALUE)
+          continue;
+#endif
+      }
+
+      /* Signal a failure */
+      ctx.last_lsn= 0;
+    }
+    while (false);
+
+    log_mutex.wr_unlock();
+  }
+#endif
+
+  /**
      Determine the logical time of the backup snapshot.
      @return whether the operation failed
   */
   bool commit() noexcept
   {
+#ifdef HAVE_PMEM
+  retry:
+#endif
     log_sys.latch.wr_lock();
     mutex.wr_lock();
     ut_ad(!non_log);
     ut_ad(ctx.state == PROCESSING);
-    ut_ad(ctx.max_first_lsn == LSN_MAX);
+    ut_ad(ctx.max_first_lsn == LSN_MAX || ctx.is_log_tracking());
     if (ctx.last_lsn == 0)
     {
       log_sys.latch.wr_unlock();
       mutex.wr_unlock();
       return true;
     }
-    ut_ad(ctx.last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
-    lsn_t lsn{log_sys.get_first_lsn()};
+    lsn_t first{log_sys.get_first_lsn()};
     try {
-      /* Schedule the remaining log for copying */
-      queue.emplace_back(lsn);
-      const lsn_t next_lsn{lsn + log_sys.capacity()};
-      if (next_lsn < last_lsn)
-        queue.emplace_back(lsn= next_lsn);
-      ctx.max_first_lsn= lsn;
+      if (ctx.is_log_tracking())
+      {
+        ut_ad(ctx.last_lsn <= last_lsn);
+        ut_ad(ctx.max_first_lsn == first);
+        ut_ad(ctx.max_first_lsn <= ctx.last_lsn);
+#ifdef HAVE_PMEM
+        if (log_sys.is_mmap())
+        {
+          log_mutex.wr_lock();
+          const lsn_t prev{ctx.last_lsn};
+          ut_ad(prev >= first);
+          ut_ad(prev <= last_lsn);
+          ctx.last_lsn= last_lsn;
+          ctx.max_first_lsn= first;
+          const lsn_t lsn{std::min(last_lsn, first + log_sys.capacity())};
+          const byte *const buf{log_sys.buf};
+          log_sys.latch.wr_unlock();
+          mutex.wr_unlock();
+          int err= copy_file_mmap(buf, ctx.log_dst, prev - first, lsn - first);
+          log_mutex.wr_unlock();
+          if (err)
+            return true;
+          if (lsn == last_lsn)
+          {
+            do
+            {
+              uint64_t size{lsn - first + log_sys.START_OFFSET};
+              if (size < log_sys.FILE_SIZE_MIN)
+                size= log_sys.FILE_SIZE_MIN;
+              else if (size & 4095)
+                size= (size + 4095) & ~4095ULL;
+              else
+                continue;
+              if (ftruncate(ctx.log_dst, off_t(size)))
+                return true;
+            }
+            while (false);
+            uint64_t cp_buf[8]{};
+            write_checkpoint_buf(cp_buf,
+                                 ctx.checkpoint_end_lsn -
+                                 ctx.first_lsn + log_sys.START_OFFSET);
+            return write_checkpoint(ctx.first_log_dst, cp_buf);
+          }
+          else
+            /* Wait for checkpoint_complete_pmem() */
+            goto retry;
+        }
+        else
+#endif
+        {
+          ::abort();
+        }
+
+        return false;
+      }
+      else
+      {
+        ut_ad(ctx.last_lsn == LSN_MAX);
+        /* Schedule the remaining log for copying */
+        queue.emplace_back(first);
+        const lsn_t next_lsn{first + log_sys.capacity()};
+        if (next_lsn < last_lsn)
+          queue.emplace_back(first= next_lsn);
+      }
+      ctx.max_first_lsn= first;
       ctx.last_lsn= last_lsn;
     }
     catch (std::bad_alloc&) { ctx.last_lsn= 0; }
@@ -733,7 +982,8 @@ public:
   int finish_end(const backup_target &target, const backup_sink &sink) noexcept
   {
     ut_ad(!sink.ha_data || &ctx == static_cast<context*>(sink.ha_data));
-    return sink.ha_data ? ctx.cleanup(target, sink) : 0;
+    ut_ad(!sink.ha_data || &target == ctx.target);
+    return sink.ha_data ? ctx.cleanup(sink) : 0;
   }
 
   /**
@@ -749,16 +999,34 @@ public:
       try {
         if (ctx.state != PROCESSING);
         else if (ctx.last_lsn == LSN_MAX)
+        {
           /* commit() was not invoked yet */
+          ut_ad(!ctx.is_log_tracking());
           queue.emplace_back(lsn);
-        else if (lsn > ctx.last_lsn && ctx.old_size)
-          /*
-            The server was running with innodb_log_archive=OFF, and this
-            log file covers some changes after the end of the backup.
-            Let us delete the file straight away, to keep step() and
-            delete_logs() simple.
-          */
-          IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+        }
+        else
+        {
+          if (ctx.is_log_tracking())
+          {
+            ut_ad(ctx.last_lsn);
+#ifdef HAVE_PMEM
+            if (log_sys.is_mmap())
+              /* checkpoint_complete_pmem() copied this */;
+            else
+#endif
+            {
+              ::abort(); // TODO
+            }
+          }
+          else if (lsn > ctx.last_lsn && ctx.old_size)
+            /*
+              The server was running with innodb_log_archive=OFF, and this
+              log file covers some changes after the end of the backup.
+              Let us delete the file straight away, to keep step() and
+              delete_logs() simple.
+            */
+            IF_WIN(DeleteFile,unlink)(log_sys.get_archive_path(lsn).c_str());
+        }
       }
       catch (std::bad_alloc&) { ctx.last_lsn= 0; }
       mutex.wr_unlock();
@@ -1333,10 +1601,12 @@ public:
     sizeof "innodb_log_recovery_start=" +
     sizeof "innodb_log_recovery_target=\n" + 45 * 3;
 
-  /** Write the configuration parameters for restoring the backup
-  @param config  buffer for configuration string
-  @param ctx     backup context
-  @return size of the configuration string */
+  /**
+     Write the configuration parameters for restoring the backup
+     @param config  buffer for configuration string
+     @param ctx     backup context
+     @return size of the configuration string
+  */
   static size_t write_config_buf(char *config, const context &ctx)
     noexcept
   {
@@ -1349,12 +1619,14 @@ public:
                            ctx.last_lsn));
   }
 
-  /** Write the configuration parameters for restoring the backup
-  @param target  backup target
-  @param sink    backup worker context
-  @param ctx     backup context
-  @return error code (non-positive)
-  @retval 0   on success */
+  /**
+     Write the configuration parameters for restoring the backup
+     @param target  backup target
+     @param sink    backup worker context
+     @param ctx     backup context
+     @return error code (non-positive)
+     @retval 0   on success
+  */
   static int write_config(const backup_target &target,
                           const backup_sink &sink) noexcept
   {
@@ -1724,7 +1996,7 @@ void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
     resize_finish(thd);
 }
 
-void *innodb_backup_start(THD *thd, const backup_target *,
+void *innodb_backup_start(THD *thd, const backup_target *target,
                           backup_phase phase, const backup_sink *sink) noexcept
 {
   switch (phase) {
@@ -1748,7 +2020,7 @@ void *innodb_backup_start(THD *thd, const backup_target *,
     }
     return 0;
   case BACKUP_PHASE_START:
-    return innodb_backup.init(thd);
+    return innodb_backup.init(thd, *target, *sink);
   case BACKUP_PHASE_NO_COMMIT:
     if (innodb_backup.commit())
       return reinterpret_cast<void*>(-1);
@@ -1790,3 +2062,10 @@ void innodb_backup_checkpoint() noexcept
 {
   innodb_backup.checkpoint_complete();
 }
+
+#ifdef HAVE_PMEM
+void innodb_backup_checkpoint_pmem() noexcept
+{
+  innodb_backup.checkpoint_complete_pmem();
+}
+#endif

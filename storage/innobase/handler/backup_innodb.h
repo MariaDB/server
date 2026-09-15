@@ -56,3 +56,10 @@ int innodb_backup_end(THD *thd, const backup_target *target,
    Complete the first checkpoint in a new archive log file.
 */
 void innodb_backup_checkpoint() noexcept;
+
+#ifdef HAVE_PMEM
+/**
+   Complete the first checkpoint in a new memory-mapped archive log file.
+*/
+void innodb_backup_checkpoint_pmem() noexcept;
+#endif
