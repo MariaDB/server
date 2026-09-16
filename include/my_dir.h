@@ -17,6 +17,7 @@
 #define MY_DIR_H
 
 #include <sys/stat.h>
+#include <m_string.h>                         /* LEX_CSTRING */
 
 #ifdef	__cplusplus
 extern "C" {
@@ -54,6 +55,13 @@ extern "C" {
 #define MY_WANT_SORT     8192   /* my_lib; sort files */
 #define MY_WANT_STAT	16384	/* my_lib; stat files */
 #define MY_DONT_SORT        0
+#define MY_DIR_ONLY_FILES  0x200000U /* my_dir_open; skip directories */
+#define MY_DIR_ONLY_DIRS   0x400000U /* my_dir_open; only directories */
+
+/* Return values for my_dir_read_next() */
+#define MY_DIR_OK               0
+#define MY_DIR_EOF              1
+#define MY_DIR_NAME_TOO_LONG    2
 
 	/* typedefs for my_dir & my_stat */
 
@@ -103,8 +111,40 @@ typedef struct st_my_dir	/* Struct returned from my_dir */
   size_t		number_of_files;
 } MY_DIR;
 
+/*
+  Struct used by my_dir_open() to traverse a directory one entry at a
+  time. Only 'path' and 'filter' are of interest for the caller.
+*/
+
+typedef struct st_my_no_cache_dir
+{
+  /*
+    Directory given to my_dir_open(), without any end FN_LIBCHAR.
+    This is a copy of the original string; the caller does not have
+    to keep the string that was given to my_dir_open() around.
+  */
+  LEX_CSTRING path;
+  /* Copy of the name filter given to my_dir_open(), or NULL */
+  char *filter;
+  /* DIR* on Posix, search handle on Windows */
+  void *dirp;
+  /* WIN32_FIND_DATAA on Windows, not used on Posix */
+  void *find_data;
+  /* MY_DIR_ONLY_FILES | MY_DIR_ONLY_DIRS */
+  myf flags;
+  /* Windows; the entry in find_data is not given to the caller yet */
+  my_bool pending;
+} MY_NO_CACHE_DIR;
+
 extern MY_DIR *my_dir(const char *path,myf MyFlags);
 extern void my_dirend(MY_DIR *buffer);
+extern MY_NO_CACHE_DIR *my_dir_open(const char *path, const char *filter,
+                                    myf MyFlags);
+extern int my_dir_read_next(MY_NO_CACHE_DIR *dir, char *path,
+                            size_t path_length, MY_STAT *stat_area,
+                            myf MyFlags);
+extern int my_dir_rewind(MY_NO_CACHE_DIR *dir, myf MyFlags);
+extern int my_dir_close(MY_NO_CACHE_DIR *dir);
 extern MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags);
 extern int my_fstat(int filenr, MY_STAT *stat_area, myf MyFlags);
 

@@ -215,7 +215,8 @@ extern "C" int copy_entire_file(int src, int dst)
 }
 #endif
 
-#if defined __linux__ || defined __FreeBSD__
+/* stepwise() is used both by copy_file_range() and by sendfile() */
+#if defined HAVE_COPY_FILE_RANGE || defined __linux__
 using copying_step= ssize_t(int,int,size_t,off_t*);
 template<copying_step step,bool nonblocking>
 static ssize_t stepwise(int in_fd, int out_fd, off_t offset, off_t end)
@@ -238,6 +239,9 @@ static ssize_t stepwise(int in_fd, int out_fd, off_t offset, off_t end)
   }
 }
 
+#endif
+
+#ifdef HAVE_COPY_FILE_RANGE
 /* Copy between files in a single (type of) file system */
 static inline ssize_t
 copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
@@ -258,7 +262,7 @@ namespace backup {
 int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 {
   assert(end >= start);
-#ifdef __FreeBSD__
+#if defined __FreeBSD__ && defined HAVE_COPY_FILE_RANGE
   /* On FreeBSD, copy_file_range() without flags just works */
   return int(cfr(src, dst, off_t(start), off_t(end)));
 #else
@@ -354,7 +358,7 @@ extern "C" int backup_stream_zeropad(backup_fd stream, size_t written)
   return written ? backup_stream_write(stream, zerobuf, 512 - written) : 0;
 }
 
-#ifdef __linux__
+#ifdef copy_file_shortcut
 /**
    Try to copy a portion of a file via copy_file_range(2).
    @param src   source file descriptor

@@ -26,6 +26,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				mf_tempfile.c mf_unixpath.c mf_wcomp.c mulalloc.c my_access.c
 				my_alloc.c my_bit.c my_bitmap.c my_chsize.c
 				my_compress.c my_copy.c  my_create.c my_delete.c
+				my_dir.c
 				my_div.c my_error.c my_file.c my_fopen.c my_fstream.c 
 				my_getexe.c
 				my_gethwaddr.c my_getopt.c my_getsystime.c my_getwd.c my_compare.c my_init.c
