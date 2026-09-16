@@ -9874,7 +9874,6 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 }
 
 
-
 bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
                        const LEX_CSTRING &expr_str)
 {
@@ -9892,24 +9891,17 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item,
     */
     item->set_in_ps_safe_context();
   }
+
+  if (spv)
+  {
+    return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
+                                        expr_str);
+  }
   else
   {
-    if (spv)
-    {
-      return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true,
-                                          expr_str);
-    }
-    else
-    {
-      if (is_trigger_new_or_old_reference(&new_or_old))
-      {
-        return set_trigger_field_or_row(name, NULL, item, expr_str);
-      }
-      else
-      {
-        return set_system_variable(option_type, name, item);
-      }
-    }
+    if (is_trigger_new_or_old_reference(&new_or_old))
+      return set_trigger_field_or_row(name, NULL, item, expr_str);
+    return set_system_variable(option_type, name, item);
   }
 }
 
