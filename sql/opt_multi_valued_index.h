@@ -313,6 +313,17 @@ Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
                                     Item_func_mvi_encode *spec);
 
 /*
+  Write: refuse a write that a multi-valued index of `table' cannot hold
+  the keys of, raising ER_MVI_KEY_TOKEN_SIZE. `is_update' leaves alone a
+  statement that does not write the base column of any of them. Only worth
+  calling when TABLE::mvi_spec says the table has one at all.
+
+  @return
+    true   The write must not happen, and an error is raised
+*/
+bool mvi_report_unfit_write(TABLE *table, bool is_update);
+
+/*
   Optimizer: is `expr' the document that a multi-valued index declared over
   `indexed' holds the keys of? A bare column and that column at path '$'
   are the same document.

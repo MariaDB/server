@@ -634,6 +634,59 @@ bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec)
 
 /*
   @brief
+    Refuse a write that a multi-valued index of `table' cannot hold the keys
+    of.
+
+  @detail
+    The engine drops a key outside its fulltext token size limits as the row
+    is written, not as it is searched for, so the row would be missing from
+    the index for good: once the settings are wide again the optimizer uses
+    the index and does not find that row. A corrupted index, in other words,
+    and the one thing a multi-valued index must never be. Refuse the write
+    instead and leave the table readable, so that the index can be dropped
+    or the settings put back.
+
+    Which indexes are affected is asked here and not once when the table is
+    opened, so that this and the optimizer, which leaves such an index
+    unused, read the limits in the same place at the same time and cannot
+    come to different conclusions -- see collect_mvi_indexes_for_table().
+    It costs a walk of the multi-valued indexes of the table, and only of a
+    table that has one.
+
+    What the walk decides is whether the statement writes the document any
+    of them reads: an UPDATE that leaves the base column alone gives the
+    engine no reason to re-read it, so no entry is rewritten and none can go
+    missing. A DELETE only removes entries, which cannot corrupt anything,
+    and is not asked at all.
+
+  @return
+    true   The write must not happen, and an error is raised
+*/
+
+bool mvi_report_unfit_write(TABLE *table, bool is_update)
+{
+  DBUG_ASSERT(table->mvi_spec);
+  /* Only a key the engine has, so s->keys and not s->total_keys */
+  for (uint keyno= 0; keyno < table->s->keys; keyno++)
+  {
+    Item_func_mvi_encode *spec= table->mvi_spec[keyno];
+    if (!spec)
+      continue;
+    /* The key part of a multi-valued index is the base column itself */
+    if (is_update &&
+        !bitmap_is_set(table->write_set,
+                       table->key_info[keyno].key_part[0].fieldnr - 1))
+      continue;
+    if (!mvi_keys_fit_fulltext(table->file, spec->cast_type().type_handler(),
+                               /*report_error_if_unfit=*/true))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  @brief
     Could key #keyno of `share' be a multi-valued index?
 
   @detail

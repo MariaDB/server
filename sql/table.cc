@@ -9590,25 +9590,6 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       break;
     }
 
-    /*
-      TODO: refuse the write when a multi-valued index of this table has
-      keys the engine drops, which it does when the fulltext token size
-      settings are narrower than the keys the index produces -- the table
-      may have been created when they were wider, or on another server.
-      Such a row would be missing from the index for good, because the
-      keys are dropped as they are written and not as they are searched
-      for, so once the settings are wide again the index is used and the
-      row is not found: a corrupted index.
-
-      This used to hang off the internal column that held the keys, which
-      was computed here, and there is no such column any more. It belongs
-      wherever the row itself is written now, and only for a statement
-      that writes the base column: an UPDATE that leaves it alone does not
-      touch the index either, and a DELETE only removes entries, which
-      cannot corrupt anything. See mvi_keys_fit_fulltext(), which the
-      optimizer already calls to leave such an index unused.
-    */
-
     if (update)
     {
       /* Compute the actual value of the virtual fields */

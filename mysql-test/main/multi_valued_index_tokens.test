@@ -128,11 +128,20 @@ drop table t2;
 --echo # -- no fulltext_estimate(), so the optimizer never picks it -- but
 --echo # a MATCH in the WHERE clause still reads it.
 --echo #
+--echo # TODO: they do not. The searches below find nothing, and the one
+--echo # for a word of the document says which half is wrong: a hit there
+--echo # means the index was built by the built-in parser, so the
+--echo # declaration did not reach ha_myisam::open()'s copy of
+--echo # MI_KEYDEF::ftparser_arg or ftparser_call_initializer(); no hit
+--echo # means the index holds nothing at all. The JSON predicate still
+--echo # answers correctly off a table scan either way.
 create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
                  key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=myisam;
 insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
 select c from t1 where match(j) against ('616161' in boolean mode) order by c;
 select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+--echo # a word of the document, which must not be in a multi-valued index
+select c from t1 where match(j) against ('tags' in boolean mode) order by c;
 --echo # a phrase of two keys is matched against the document's keys in
 --echo # their order, so it is the parser that reads the document again
 select c from t1 where match(j) against ('"616161 626262"' in boolean mode)
@@ -147,5 +156,9 @@ create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
 insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
 select c from t1 where match(j) against ('616161' in boolean mode) order by c;
 select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+--echo # a word of the document, see above
+select c from t1 where match(j) against ('tags' in boolean mode) order by c;
 select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo # TODO: and this DROP warns 1112, an unsupported extension, which
+--echo # nothing about this table definition should provoke
 drop table t1;

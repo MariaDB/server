@@ -37,6 +37,8 @@
 #include <myisampack.h>
 #include "transaction.h"
 #include "myisam.h"
+/* Declared in opt_multi_valued_index.h, which wants sql_select.h first */
+bool mvi_report_unfit_write(TABLE *table, bool is_update);
 #include "probes_mysql.h"
 #include <mysql/psi/mysql_table.h>
 #include <pfs_transaction_provider.h>
@@ -5010,6 +5012,15 @@ void handler::print_error(int error, myf errflag)
   DBUG_ENTER("handler::print_error");
   DBUG_PRINT("enter",("error: %d",error));
 
+  /*
+    HA_ERR_GENERIC says no more than that something went wrong, so it is
+    also what a caller returns when it has already said what -- see
+    ha_write_row(). Leave that message alone rather than putting
+    ER_GET_ERRNO on top of it.
+  */
+  if (error == HA_ERR_GENERIC && ha_thd()->is_error())
+    DBUG_VOID_RETURN;
+
   if (ha_thd()->transaction_rollback_request)
   {
     /* Ensure this becomes a true error */
@@ -8524,6 +8535,19 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_ASSERT(table_share->tmp_table || m_lock_type == F_WRLCK);
   DBUG_ASSERT(buf == table->record[0]);
 
+  /*
+    A multi-valued index whose keys the engine drops must not have a row
+    written past it, see mvi_report_unfit_write(). Before the write: the row
+    must not reach the engine. Only a table that has a multi-valued index at
+    all goes any further than the test below.
+  */
+  if (unlikely(table->mvi_spec != NULL) &&
+      mvi_report_unfit_write(table, /*is_update=*/ false))
+  {
+    error= HA_ERR_GENERIC;                      /* The error is raised */
+    goto err;
+  }
+
   if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
       (error= ha_check_inserver_constraints(NULL, buf)))
     goto err;
@@ -8590,6 +8614,12 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
+
+  /* See ha_write_row(). An UPDATE is only refused if it writes the
+  document such an index reads. */
+  if (unlikely(table->mvi_spec != NULL) &&
+      mvi_report_unfit_write(table, /*is_update=*/ true))
+    return HA_ERR_GENERIC;                      /* The error is raised */
 
   if (!(ha_table_flags() & HA_CHECK_UNIQUE_AFTER_WRITE) &&
       (error= ha_check_inserver_constraints(old_data, new_data)))
