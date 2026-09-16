@@ -1517,7 +1517,7 @@ public:
 # endif
       if (dst != sink.stream)
       {
-        err= copy_entire_file(src, dst);
+        err= my_copy_file_range(src, dst, 0, chunk->offset, MYF(MY_WME));
         goto close_dst;
       }
 #endif
