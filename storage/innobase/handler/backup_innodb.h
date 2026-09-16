@@ -60,3 +60,10 @@ int innodb_backup_end(THD *thd, const backup_target *target,
    @param first_lsn  the start LSN of the old archive log file
 */
 void innodb_backup_checkpoint(lsn_t first_lsn) noexcept;
+
+#ifdef HAVE_PMEM
+/**
+   Complete the first checkpoint in a new memory-mapped archive log file.
+*/
+void innodb_backup_checkpoint_pmem() noexcept;
+#endif
