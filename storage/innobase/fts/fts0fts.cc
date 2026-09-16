@@ -105,10 +105,6 @@ ulong	fts_max_token_size;
 ulong	fts_min_token_size;
 
 
-// FIXME: testing
-static time_t elapsed_time;
-static ulint n_nodes;
-
 /** Time to sleep after DEADLOCK error before retrying operation. */
 static const std::chrono::milliseconds FTS_DEADLOCK_RETRY_WAIT(100);
 
@@ -3298,10 +3294,7 @@ func_exit:
 dberr_t fts_write_node(FTSQueryExecutor *executor, uint8_t selected,
                        const fts_aux_data_t *aux_data) noexcept
 {
-  time_t start_time= time(NULL);
   dberr_t error= executor->insert_aux_record(selected, aux_data);
-  elapsed_time+= time(NULL) - start_time;
-  ++n_nodes;
   return error;
 }
 
@@ -3377,8 +3370,6 @@ dberr_t fts_sync_write_words(FTSQueryExecutor *executor,
 
         if (unlock_cache) mysql_mutex_lock(&table->fts->cache->lock);
       }
-
-      n_nodes+= ib_vector_size(word->nodes);
 
       if (UNIV_UNLIKELY(error != DB_SUCCESS) && !print_error)
       {
