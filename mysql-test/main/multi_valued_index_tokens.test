@@ -128,13 +128,6 @@ drop table t2;
 --echo # -- no fulltext_estimate(), so the optimizer never picks it -- but
 --echo # a MATCH in the WHERE clause still reads it.
 --echo #
---echo # TODO: they do not. The searches below find nothing, and the one
---echo # for a word of the document says which half is wrong: a hit there
---echo # means the index was built by the built-in parser, so the
---echo # declaration did not reach ha_myisam::open()'s copy of
---echo # MI_KEYDEF::ftparser_arg or ftparser_call_initializer(); no hit
---echo # means the index holds nothing at all. The JSON predicate still
---echo # answers correctly off a table scan either way.
 create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
                  key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=myisam;
 insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');

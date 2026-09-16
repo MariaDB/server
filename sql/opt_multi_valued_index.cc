@@ -405,6 +405,15 @@ int mvi_tokenize_document(MYSQL_FTPARSER_PARAM *param, Mvi_parser_arg *arg)
   Mvi_array_iterator::Event event;
 
   key.set_charset(&my_charset_latin1_bin);
+  /*
+    One key at a time is built in `key' and the buffer is reused for the
+    next one, so nothing the server is handed here outlives the
+    mysql_add_word() call it is handed to. MyISAM and Aria build the index
+    from a tree of pointers into the document, which stays put for them,
+    and only copy a word when asked -- so ask, or the index fills up with
+    whatever is left on this stack frame. InnoDB copies either way.
+  */
+  param->flags|= MYSQL_FTFLAGS_NEED_COPY;
   initJsonArray(NULL, &je.stack, sizeof(int), je_stack_buffer, 0);
   initJsonArray(NULL, &array_counters, sizeof(int), array_counters_buffer, 0);
 
