@@ -1415,8 +1415,7 @@ rename:
 			/* Skip the deferred spaces
 			when lsn is already processed */
 			if (!if_exists) {
-				deferred_spaces.add(
-					space_id, fname.name.c_str(), lsn);
+				goto deferred_add;
 			}
 			break;
 		case FIL_LOAD_INVALID:
@@ -1443,6 +1442,8 @@ rename:
 		}
 	} else if (ftype == FILE_CREATE && !f.space) {
 		f.create_lsn = lsn;
+deferred_add:
+		deferred_spaces.add(space_id, fname.name.c_str(), lsn);
 	}
 }
 
