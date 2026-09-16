@@ -94,10 +94,12 @@ static ssize_t mmap_copy(const void *p, int out_fd, uint64_t o, uint64_t end)
   {
     const size_t size{std::min(c, size_t(INT_MAX >> 20 << 20))};
     if (stream)
+    {
       if ((ret= backup_stream_write(out_fd, b, size)))
         break;
-    ret= stream ? size : pwrite(out_fd, b, size, off_t(o));
-    if (ret < 0)
+      ret= size;
+    }
+    else if ((ret= pwrite(out_fd, b, size, off_t(o))) < 0)
       break;
     c-= ret;
     if (!c)
