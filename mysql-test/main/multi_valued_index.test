@@ -502,6 +502,30 @@ alter table t1 add key idx ((CAST(j->'$.' AS CHAR(6) ARRAY)));
 --echo # ... and a path is not a number
 --error ER_JSON_PATH_SYNTAX
 alter table t1 add key idx ((CAST(json_extract(j,7) AS CHAR(6) ARRAY)));
+
+--echo #
+--echo # A path that can match more than once in a document would lose
+--echo # rows: the parser indexes the array at the first match and stops,
+--echo # so a row matching through a later one has no key of ours at all.
+--echo #
+--error ER_JSON_PATH_NO_WILDCARD
+alter table t1 add key idx ((CAST(j->'$.*' AS CHAR(6) ARRAY)));
+--error ER_JSON_PATH_NO_WILDCARD
+alter table t1 add key idx ((CAST(j->'$.*.tags' AS CHAR(6) ARRAY)));
+--error ER_JSON_PATH_NO_WILDCARD
+alter table t1 add key idx ((CAST(j->'$**.tags' AS CHAR(6) ARRAY)));
+--error ER_JSON_PATH_NO_WILDCARD
+alter table t1 add key idx ((CAST(j->'$[*].tags' AS CHAR(6) ARRAY)));
+--error ER_JSON_PATH_NO_WILDCARD
+alter table t1 add key idx ((CAST(j->'$[0 to 2].tags' AS CHAR(6) ARRAY)));
+--echo # ... and the same at CREATE TABLE
+--error ER_JSON_PATH_NO_WILDCARD
+create table t2 (j json,
+                 key idx ((CAST(j->'$.*' AS CHAR(6) ARRAY))))engine=innodb;
+--echo # one array of one path is what it takes, at any depth
+alter table t1 add key idx ((CAST(j->'$.a.b[3].tags' AS CHAR(6) ARRAY)));
+show create table t1;
+alter table t1 drop key idx;
 drop table t1;
 
 --echo #

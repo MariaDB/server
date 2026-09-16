@@ -774,6 +774,36 @@ ERROR HY000: Unexpected end of JSON path in argument 1 to function 'json_extract
 # ... and a path is not a number
 alter table t1 add key idx ((CAST(json_extract(j,7) AS CHAR(6) ARRAY)));
 ERROR HY000: Syntax error in JSON path in argument 1 to function 'json_extract' at position 1
+#
+# A path that can match more than once in a document would lose
+# rows: the parser indexes the array at the first match and stops,
+# so a row matching through a later one has no key of ours at all.
+#
+alter table t1 add key idx ((CAST(j->'$.*' AS CHAR(6) ARRAY)));
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+alter table t1 add key idx ((CAST(j->'$.*.tags' AS CHAR(6) ARRAY)));
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+alter table t1 add key idx ((CAST(j->'$**.tags' AS CHAR(6) ARRAY)));
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+alter table t1 add key idx ((CAST(j->'$[*].tags' AS CHAR(6) ARRAY)));
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+alter table t1 add key idx ((CAST(j->'$[0 to 2].tags' AS CHAR(6) ARRAY)));
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+# ... and the same at CREATE TABLE
+create table t2 (j json,
+key idx ((CAST(j->'$.*' AS CHAR(6) ARRAY))))engine=innodb;
+ERROR HY000: Wildcards or range in JSON path not allowed in argument 1 to function 'json_extract'
+# one array of one path is what it takes, at any depth
+alter table t1 add key idx ((CAST(j->'$.a.b[3].tags' AS CHAR(6) ARRAY)));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  `txt` text DEFAULT NULL,
+  KEY `idx` ((cast(json_extract(`j`,'$.a.b[3].tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+alter table t1 drop key idx;
 drop table t1;
 #
 # The elements are cast to CHAR(n), SIGNED or UNSIGNED, and to

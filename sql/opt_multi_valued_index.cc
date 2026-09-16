@@ -1285,6 +1285,23 @@ static Mvi_decl *mvi_decl_from_key_part(THD *thd, Item *expr,
     return NULL;
   }
 
+  /*
+    A path that can match more than once in a document is a path that
+    would lose rows. The fulltext parser reads the array at the first
+    match and stops there, see mvi_tokenize_document(), so a row whose
+    second match holds the value searched for has no key in the index and
+    nothing the query side could search for would find it -- a false
+    negative, the one thing this index must never produce. Indexing every
+    match is what it would take to allow these, and the query side would
+    have to union the keys the same way.
+  */
+  if (unlikely(jp.types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                                JSON_PATH_ARRAY_RANGE)))
+  {
+    my_error(ER_JSON_PATH_NO_WILDCARD, MYF(0), 1, "json_extract");
+    return NULL;
+  }
+
   decl->path.length= path.length();
   if (unlikely(!(decl->path.str= strmake_root(thd->mem_root, path.ptr(),
                                               path.length()))))
