@@ -173,48 +173,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
   return ret;
 }
 
-#ifdef __APPLE__
-/* The inline copy_entire_file() invokes fcopyfile() */
-#elif defined _WIN32
-/* CopyFileEx() should be used */
-#else
-/** Copy a file (whole content).
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-extern "C" int copy_entire_file(int src, int dst)
-{
-  uint64_t end(lseek(src, 0, SEEK_END));
-#ifdef POSIX_FADV_SEQUENTIAL
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif
-  int ret;
-# ifdef copy_file_shortcut
-  ret= int(copy_file_shortcut(src, dst, 0, end));
-  if (ret == 1)
-# endif
-  {
-# ifdef copy_file_mmap
-    void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
-    if (p != MAP_FAILED)
-    {
-      ret= int(copy_file_mmap(p, dst, 0, end));
-      munmap(p, size_t{end});
-    }
-    else
-# endif
-    {
-      ret= backup::copy(src, dst, 0, end);
-    }
-  }
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
-#endif
-  return ret;
-}
-#endif
-
 /* stepwise() is used both by copy_file_range() and by sendfile() */
 #if defined HAVE_COPY_FILE_RANGE || defined __linux__
 using copying_step= ssize_t(int,int,size_t,off_t*);
@@ -774,7 +732,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 # endif
 #endif
       new (&target_phase[--t])
-        backup_target_phase{backup_target{IF_WIN(nullptr, -1)},
+        backup_target_phase{backup_target{nullptr, -1},
           BACKUP_PHASE_START, backup_sink{sink, nullptr}, f, 0, ha_data};
     }
   }
@@ -782,8 +740,10 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     goto err_exit;
   else
   {
-#ifndef _WIN32
-    const int dir{open(target, O_DIRECTORY)};
+#ifdef _WIN32
+    const int dir= -1;                  /* The path is used on Windows */
+#else
+    const int dir= open(target, O_DIRECTORY);
     if (dir < 0)
     {
       my_error(EE_CANT_MKDIR, MYF(ME_BELL), target, errno);
@@ -793,7 +753,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     for (int t{threads}; t; )
     {
       new (&target_phase[--t])
-        backup_target_phase{backup_target{IF_WIN(target, dir)},
+        backup_target_phase{backup_target{target, dir},
           BACKUP_PHASE_START,
           backup_sink{backup_sink::NO_STREAM, nullptr}, nullptr, 0, ha_data};
     }

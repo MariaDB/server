@@ -19,13 +19,11 @@
 /** BACKUP SERVER target */
 struct backup_target
 {
-#ifdef _WIN32
   /** Target directory path name, or nullptr if streaming */
   const char *path;
-#else
-  /** Target directory descriptor, or -1 if streaming */
+  /** Target directory descriptor, or -1 if streaming.
+  Not used on Windows, where the path is used instead. */
   int fd;
-#endif
 };
 
 /** BACKUP SERVER worker specific context */
@@ -87,33 +85,10 @@ struct backup_chunk
 /** File descriptor */
 typedef IF_WIN(HANDLE, int) backup_fd;
 
-#ifdef _WIN32
-/* Use CopyFileEx() to copy entire files */
-#elif defined __APPLE__
-/* You should invoke fclonefileat(2) manually before attempting
-copy_entire_file() or backup::copy() */
+#ifdef __APPLE__
+/* backup_innodb.cc uses fclonefileat(2) to copy entire files */
 # include <sys/attr.h>
 # include <sys/clonefile.h>
-# include <copyfile.h>
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (negative)
-@retval 0   on success */
-inline int copy_entire_file(int src, int dst)
-{
-  return fcopyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE);
-}
-#else
-# ifdef __cplusplus
-extern "C"
-# endif
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-int copy_entire_file(int src, int dst);
 #endif
 
 #ifdef __cplusplus
