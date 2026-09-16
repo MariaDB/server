@@ -1723,6 +1723,22 @@ void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
     resize_finish(thd);
 }
 
+void innodb_prepare_for_backup() noexcept
+{
+  if (!fil_system.have_all_spaces)
+  {
+    /* To speed up startup, InnoDB does not normally open all
+       tablespace files that are pointed to by SYS_TABLES.
+       InnoDB_backup::init() assumes that the information of all
+       tablespaces is available, including files that had been created
+       before the server was started, and never opened in the course of
+       the current server execution. */
+    dict_load_tablespaces(nullptr, true);
+    ut_ad(fil_system.have_all_spaces);
+  }
+}
+
+
 void *innodb_backup_start(THD *thd, const backup_target *,
                           backup_phase phase, const backup_sink *sink) noexcept
 {
@@ -1733,18 +1749,7 @@ void *innodb_backup_start(THD *thd, const backup_target *,
       my_error(ER_INNODB_READ_ONLY, MYF(0));
       return reinterpret_cast<void*>(-1);
     }
-
-    if (!fil_system.have_all_spaces)
-    {
-      /* To speed up startup, InnoDB does not normally open all
-      tablespace files that are pointed to by SYS_TABLES.
-      InnoDB_backup::init() assumes that the information of all
-      tablespaces is available, including files that had been created
-      before the server was started, and never opened in the course of
-      the current server execution. */
-      dict_load_tablespaces(nullptr, true);
-      ut_ad(fil_system.have_all_spaces);
-    }
+    /* innodb_prepare_for_backup(); */  /* Already called */
     return 0;
   case BACKUP_PHASE_START:
     return innodb_backup.init(thd);
