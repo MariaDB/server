@@ -153,7 +153,7 @@ select 'fmt_iso';
 set global server_audit_timestamp_format='T24=%T';
 select 'fmt_t24';
 
---echo # 2l: Microseconds %f (always 000000 until MDEV-39307 is fixed)
+--echo # 2l: Microseconds %f render six zero-padded digits
 set global server_audit_timestamp_format='US=%f';
 select 'fmt_usec';
 
@@ -197,7 +197,7 @@ set global server_audit_logging=off;
 --let SEARCH_PATTERN=T24=\d{2}:\d{2}:\d{2}.*fmt_t24
 --source include/search_pattern_in_file.inc
 
---let SEARCH_PATTERN=US=000000.*fmt_usec
+--let SEARCH_PATTERN=US=\d{6}.*fmt_usec
 --source include/search_pattern_in_file.inc
 
 --let SEARCH_PATTERN=TZ=[+-]\d{4}.*fmt_tz
@@ -447,6 +447,49 @@ set global server_audit_logging=off;
 
 --let SEARCH_PATTERN=P2=\d{8}.*persist_cycle3
 --source include/search_pattern_in_file.inc
+
+remove_file $SEARCH_FILE;
+
+--echo ########################################################################
+--echo # Section 10: Microsecond resolution of %f (MDEV-39307)
+--echo ########################################################################
+
+let SEARCH_FILE= $MYSQLD_DATADIR/ts_ext_usec.log;
+set global server_audit_file_path='ts_ext_usec.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='US=%f';
+set global server_audit_logging=on;
+
+--echo # %f must carry real microseconds, not a constant 000000
+# Log several statements; the microsecond value at write time is
+# effectively random, so at least one entry is expected to have a
+# non-zero microsecond value.
+--disable_query_log
+--disable_result_log
+let $i= 20;
+while ($i) {
+  eval select 'usec_$i';
+  dec $i;
+}
+--enable_result_log
+--enable_query_log
+
+set global server_audit_logging=off;
+
+--echo # A six-digit zero-padded microsecond field is logged
+--let SEARCH_PATTERN=US=\d{6}.*usec_20
+--source include/search_pattern_in_file.inc
+
+--echo # At least one entry carries a real (non-zero) microsecond value
+perl;
+  my $ok= 0;
+  open(FILE, '<', $ENV{SEARCH_FILE}) or die "Can't open $ENV{SEARCH_FILE}: $!";
+  while (<FILE>) {
+    if (/US=(\d{6})/ && $1 ne '000000') { $ok= 1; last; }
+  }
+  close(FILE);
+  print $ok ? "usec_ok\n" : "usec_bad\n";
+EOF
 
 remove_file $SEARCH_FILE;
 

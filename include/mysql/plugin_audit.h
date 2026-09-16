@@ -29,7 +29,7 @@ extern "C" {
 
 #define MYSQL_AUDIT_CLASS_MASK_SIZE 1
 
-#define MYSQL_AUDIT_INTERFACE_VERSION 0x0303
+#define MYSQL_AUDIT_INTERFACE_VERSION 0x0304
 
 
 /*************************************************************************
@@ -69,6 +69,14 @@ struct mysql_event_general
   /* Added in version 0x303 */
   unsigned int port;
   MYSQL_CONST_LEX_STRING database;
+  /*
+    Added in version 0x304.
+
+    The time when the event occurred, in microseconds since the epoch.
+    general_time above keeps the second resolution for backward
+    compatibility.
+  */
+  unsigned long long general_time_microseconds;
 };
 
 
