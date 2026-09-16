@@ -173,7 +173,7 @@ int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end);
 #  define copy_file_mmap copy_mmap
 # endif
 
-# ifdef __linux__
+# ifdef HAVE_COPY_FILE_RANGE
 #  ifdef __cplusplus
 extern "C"
 #  endif

@@ -474,6 +474,8 @@
 #cmakedefine HAVE_CHARSET_utf32 1
 #cmakedefine HAVE_UCA_COLLATIONS 1
 #cmakedefine HAVE_COMPRESS 1
+#cmakedefine HAVE_COPY_FILE_RANGE 1
+#cmakedefine HAVE_FCOPYFILE 1
 #cmakedefine HAVE_EncryptAes128Ctr 1
 #cmakedefine HAVE_EncryptAes128Gcm 1
 #cmakedefine HAVE_hkdf 1
