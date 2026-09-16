@@ -13,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#pragma once
+#include "log0types.h"
+
 /**
    Start of a BACKUP SERVER phase,
    when no innodb_backup_step() or innodb_backup_end() is pending.
@@ -54,5 +57,6 @@ int innodb_backup_end(THD *thd, const backup_target *target,
 
 /**
    Complete the first checkpoint in a new archive log file.
+   @param first_lsn  the start LSN of the old archive log file
 */
-void innodb_backup_checkpoint() noexcept;
+void innodb_backup_checkpoint(lsn_t first_lsn) noexcept;

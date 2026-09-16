@@ -738,13 +738,13 @@ public:
 
   /**
      Complete the first checkpoint in a new archive log file.
+     @param lsn  the start LSN of the old archive log file
   */
-  void checkpoint_complete() noexcept
+  void checkpoint_complete(lsn_t lsn) noexcept
   {
     ut_ad(log_sys.latch_have_wr());
     if (ctx.state == PROCESSING)
     {
-      const lsn_t lsn{log_sys.get_first_lsn() - log_sys.capacity()};
       mutex.wr_lock();
       try {
         if (ctx.state != PROCESSING);
@@ -953,7 +953,7 @@ private:
                                     buf_page_t **blocks)
     noexcept
   {
-# if 1
+# if 0
     return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
     for (uint32_t page{0};;)
@@ -1786,7 +1786,7 @@ int innodb_backup_end(THD *thd, const backup_target *target,
   }
 }
 
-void innodb_backup_checkpoint() noexcept
+void innodb_backup_checkpoint(lsn_t first_lsn) noexcept
 {
-  innodb_backup.checkpoint_complete();
+  innodb_backup.checkpoint_complete(first_lsn);
 }

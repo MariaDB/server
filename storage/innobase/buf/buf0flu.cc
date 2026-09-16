@@ -1948,7 +1948,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
   lsn_t resizing{resize_lsn.load(std::memory_order_relaxed)};
   byte *c= checkpoint_buf;
-  lsn_t archive_header_was_reset{0};
+  lsn_t archive_header_was_reset{0}, old_first_lsn{first_lsn};
 
   if (archive)
   {
@@ -1957,14 +1957,13 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 #ifdef HAVE_PMEM
     ut_ad(!resize_buf || !checkpoint_buf);
     ut_ad(!resize_buf || resize_log.is_opened());
+    if (c && is_mmap())
+      /* undo archived_mmap_switch_complete() */
+      old_first_lsn-= capacity();
 #else
     ut_ad(!resize_buf);
 #endif
-    if (end_lsn >= first_lsn + (
-#ifdef HAVE_PMEM
-                                c && is_mmap() ? 0 :
-#endif
-                                capacity()))
+    if (end_lsn >= old_first_lsn + capacity())
     {
 #ifdef HAVE_PMEM
       if (resize_buf)
@@ -2171,10 +2170,10 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   else if (archive_header_was_reset)
   {
     ut_ad(resize_log.m_file != log.m_file);
-    innodb_backup_checkpoint();
+    innodb_backup_checkpoint(old_first_lsn);
     /* Make the previous archived log file read-only */
 #ifdef _WIN32
-    SetFileAttributesA(get_archive_path(get_first_lsn() - capacity()).c_str(),
+    SetFileAttributesA(get_archive_path(old_first_lsn)).c_str(),
                        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
 #else
     struct stat st;
@@ -2184,7 +2183,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       st.st_mode= 0444;
     if (fchmod(resize_log.m_file, st.st_mode))
       my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-               get_archive_path(get_first_lsn() - capacity()).c_str(), errno);
+               get_archive_path(old_first_lsn).c_str(), errno);
 #endif
     resize_log.close();
   }
