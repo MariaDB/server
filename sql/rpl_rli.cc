@@ -2403,6 +2403,14 @@ void rpl_group_info::clear_tables_to_lock()
 void rpl_group_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("rpl_group_info::slave_close_thread_tables(THD *thd)");
+  /*
+    None of this belongs to us from a sub-statement (e.g. BINLOG from a
+    trigger/routine): thd's tables/locks/transaction are the enclosing
+    statement's. Only clear_tables_to_lock() runs in that case.
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+    goto end;
+
   thd->get_stmt_da()->set_overwrite_status(true);
 #ifdef WITH_WSREP
   // This can happen e.g. when table_def::compatible_with fails and sets a error
@@ -2440,6 +2448,7 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   else
     thd->mdl_context.release_statement_locks();
 
+end:
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
 }

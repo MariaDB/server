@@ -188,3 +188,157 @@ BINLOG '123';
 BINLOG '-2079193929';
 --error ER_BASE64_DECODE_ERROR
 BINLOG 'xç↓%~∙D╒ƒ╡';
+
+--echo #
+--echo # MDEV-39074 trans_rollback_stmt(THD *): Assertion `! thd->in_sub_stmt' failed.
+--echo #
+
+# Triggers/procedures/functions below insert rows as a side effect of
+# being called; under --ps-protocol mysqltest can execute such calls
+# more than once, duplicating those side effects. Force the plain text
+# protocol for this section.
+--disable_ps_protocol
+
+create table t0 (a int);
+create table t1 (a int);
+
+# Format_description_log_event; reused from binlog_base64_flag.test
+--let $FORMAT_DESCR_LOG_EVENT= 'ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC'
+
+# table_map+write_rows_log_event corresponding to: insert into t1 values (3)
+--let $ROW_INSERT_T1= 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='
+
+# Query_log_event (no checksum, matches the checksum-less FD event above)
+# corresponding to: insert into t1 values (99)
+--let $STMT_INSERT_T1= 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'
+
+create trigger trig_t0_insert after insert on t0 for each row binlog 'enabled';
+--error ER_SP_BADSTATEMENT
+insert into t0 set a= 0;
+drop trigger trig_t0_insert;
+
+--echo ## Case 1: Row event in trigger (disabled)
+
+eval binlog $FORMAT_DESCR_LOG_EVENT;
+eval create trigger trig_t0_insert after insert on t0 for each row
+binlog $ROW_INSERT_T1;
+eval create trigger trig_t1_insert after insert on t1 for each row
+binlog $ROW_INSERT_T1;
+
+--error ER_SP_BADSTATEMENT
+insert into t0 set a= 1;
+--error ER_SP_BADSTATEMENT
+insert into t1 set a= 1;
+select * from t1;
+
+drop trigger trig_t0_insert;
+drop trigger trig_t1_insert;
+
+--echo ## Case 2: Statement event in trigger (disabled)
+
+eval create trigger trig_t0_insert after insert on t0 for each row
+binlog $STMT_INSERT_T1;
+eval create trigger trig_t1_insert after insert on t1 for each row
+binlog $STMT_INSERT_T1;
+
+--error ER_SP_BADSTATEMENT
+insert into t0 set a= 2;
+--error ER_SP_BADSTATEMENT
+insert into t1 set a= 2;
+select * from t1;
+
+drop trigger trig_t0_insert;
+drop trigger trig_t1_insert;
+
+--echo ## Case 3: Row event in SP (disabled)
+
+delimiter |;
+eval create procedure proc_t1_insert()
+begin
+  insert into t1 set a= 3;
+  binlog $ROW_INSERT_T1;
+end|
+delimiter ;|
+
+--error ER_SP_BADSTATEMENT
+call proc_t1_insert();
+drop procedure proc_t1_insert;
+
+--echo ## Case 4: Statement event in SP (disabled)
+
+delimiter |;
+eval create procedure proc_t1_insert()
+begin
+  insert into t1 set a= 4;
+  binlog $STMT_INSERT_T1;
+end|
+delimiter ;|
+
+--error ER_SP_BADSTATEMENT
+call proc_t1_insert();
+drop procedure proc_t1_insert;
+
+--echo ## Case 5: Row event in SF (disabled)
+
+delimiter |;
+eval create function func_t0_insert() returns int
+begin
+  insert into t0 set a= 5;
+  binlog $ROW_INSERT_T1;
+  return 0;
+end|
+delimiter ;|
+
+delimiter |;
+eval create function func_t1_insert() returns int
+begin
+  insert into t1 set a= 5;
+  binlog $ROW_INSERT_T1;
+  return 0;
+end|
+delimiter ;|
+
+--error ER_SP_BADSTATEMENT
+select func_t0_insert();
+--error ER_SP_BADSTATEMENT
+select func_t1_insert();
+select * from t1;
+drop function func_t0_insert;
+drop function func_t1_insert;
+
+--echo ## Case 6: Statement event in SF (disabled)
+
+delimiter |;
+eval create function func_t1_insert() returns int
+begin
+  insert into t1 set a= 6;
+  binlog $STMT_INSERT_T1;
+  return 0;
+end|
+delimiter ;|
+
+--error ER_SP_BADSTATEMENT
+select func_t1_insert();
+drop function func_t1_insert;
+
+--echo ## Case 7: Row event in PS (works)
+
+eval prepare stmt from "binlog $ROW_INSERT_T1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+
+--echo ## Case 8: Statement event in PS (works)
+
+eval prepare stmt from "binlog $STMT_INSERT_T1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+
+drop table t0, t1;
+
+--enable_ps_protocol
+
+--echo # End of 10.11 tests
