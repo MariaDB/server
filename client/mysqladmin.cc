@@ -50,8 +50,6 @@ static bool sql_log_bin_off= false;
 static uint opt_protocol=0;
 static myf error_flags; /* flags to pass to my_printf_error, like ME_BELL */
 
-static my_bool ex_status_printed = 0; /* First output is not relative. */
-
 #include <sslopt-vars.h>
 
 static void print_version(void);
@@ -924,7 +922,6 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
         (*func)(res, row, rownr++);
       print_top(res);
 
-      ex_status_printed = 1; /* From now on the output will be relative */
       mysql_free_result(res);
       break;
     }
