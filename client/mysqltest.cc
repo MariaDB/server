@@ -1912,6 +1912,7 @@ void free_used_memory()
     my_free(embedded_server_args[--embedded_server_arg_count]);
   delete_dynamic(&q_lines);
   dynstr_free(&ds_res);
+  dynstr_free(&master_pos.gtid_pos);
   if (ds_warn)
     dynstr_free(ds_warn);
   free_all_replace();
