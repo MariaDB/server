@@ -911,6 +911,56 @@ Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
 
 /*
   @brief
+    The declaration of `key' as a multi-valued index, off the columns of
+    the statement that defines it.
+
+  @detail
+    The key part of a multi-valued index names the internal column the DDL
+    made up to hold the keys, not anything the user wrote, so what the key
+    is over is not in the key at all. It is the expression of that column,
+    which is what this digs out. See add_mvi_key_part().
+
+    By name, the way init_key_part_spec() does it, because that is all a
+    Key has to go on: the key parts are not numbered until
+    mysql_prepare_create_table_finalize(), which is what mvi_key_spec()
+    uses instead once they are.
+
+  @return
+    The declaration, or NULL if `key' is not a multi-valued index
+*/
+
+Virtual_column_info *mvi_key_decl(List<Create_field> &create_list,
+                                  const Key *key)
+{
+  if (key->type != Key::FULLTEXT || key->columns.elements != 1)
+    return NULL;
+  for (Key_part_spec &kp: key->columns)            /* The one key part */
+    for (Create_field &c: create_list)
+      if (c.field_name.streq(kp.field_name) && is_mvi_vcol(&c))
+        return c.vcol_info;
+  return NULL;
+}
+
+
+/*
+  Two multi-valued indexes are the same index when they hold the same keys,
+  and what they were declared with -- the array, and what its elements are
+  encoded as -- is all that decides those. Comparing the printed form is
+  what check_mvi_spec() does against the FRM image as well.
+*/
+
+bool mvi_decls_eq(Virtual_column_info *a, Virtual_column_info *b)
+{
+  StringBuffer<MAX_FIELD_WIDTH> pa, pb;
+  a->print(&pa);
+  b->print(&pb);
+  return pa.length() == pb.length() &&
+         !memcmp(pa.ptr(), pb.ptr(), pa.length());
+}
+
+
+/*
+  @brief
     Check the EXTRA2_MVI_SPEC image of `table' against its keys.
 
   @detail

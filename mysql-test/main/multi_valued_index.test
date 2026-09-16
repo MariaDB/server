@@ -807,3 +807,39 @@ select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
 select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
 select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
 select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
+
+--echo #
+--echo # Two multi-valued indexes over the same array are the same index.
+--echo # The internal column each of them holds its keys in is one the DDL
+--echo # made up and its own, so the key parts never say so; what they were
+--echo # declared with does.
+--echo #
+create table t1 (c int, j json,
+                 key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 key k2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+drop table t1;
+
+--echo # ... and the same when the second one is added by ALTER, where the
+--echo # first one's declaration comes from the FRM rather than the statement
+create table t1 (c int, j json,
+                 key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+alter table t1 add key k2 ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
+show create table t1;
+drop table t1;
+
+--echo # A different array is a different index, and so is the same array
+--echo # with its elements encoded differently
+create table t1 (c int, j json,
+                 key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 key k2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY))),
+                 key k3 ((CAST(j->'$.tags' AS CHAR(7) ARRAY))),
+                 key k4 ((CAST(j->'$.tags' AS INT ARRAY))))engine=innodb;
+drop table t1;
+
+--echo # A multi-valued index and a plain fulltext key over the column it
+--echo # reads are not duplicates of each other
+create table t1 (c int, j json,
+                 key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 fulltext key k2 (j))engine=innodb;
+drop table t1;

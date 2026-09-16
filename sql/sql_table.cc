@@ -2527,10 +2527,10 @@ static bool key_cmp(const Key_part_spec &a, const Key_part_spec &b)
   @param thd              Thread context.
   @param key              Key to be checked.
   @param key_info         Key meta-data info.
-  @param key_list         List of existing keys.
+  @param alter_info       The keys and the columns of the statement.
 */
 static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
-                                const List<Key> *key_list)
+                                Alter_info *alter_info)
 {
   /*
     We only check for duplicate indexes if it is requested and the
@@ -2542,7 +2542,15 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
   if (key->old || key->type == Key::FOREIGN_KEY || key->generated)
     return;
 
-  for (const Key &k : *key_list)
+  /*
+    A multi-valued index is over an internal column the DDL made up to
+    hold its keys, named after nothing the user wrote and its own. So the
+    key parts of two of them never match, whether or not the two are the
+    same index; what decides that is what they were declared with.
+  */
+  Virtual_column_info *decl= mvi_key_decl(alter_info->create_list, key);
+
+  for (const Key &k : alter_info->key_list)
   {
     // Looking for a similar key...
 
@@ -2558,8 +2566,13 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
       continue;
     }
 
-    if (std::equal(key->columns.begin(), key->columns.end(), k.columns.begin(),
-                   key_cmp))
+    Virtual_column_info *k_decl= mvi_key_decl(alter_info->create_list, &k);
+    if ((decl != NULL) != (k_decl != NULL))
+      continue;                        // Only one of the two is multi-valued
+
+    if (decl ? mvi_decls_eq(decl, k_decl)
+             : std::equal(key->columns.begin(), key->columns.end(),
+                          k.columns.begin(), key_cmp))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DUP_INDEX,
                           ER_THD(thd, ER_DUP_INDEX), key_info->name.str);
@@ -3980,7 +3993,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     // Check if a duplicate index is defined.
-    check_duplicate_key(thd, key, key_info, &alter_info->key_list);
+    check_duplicate_key(thd, key, key_info, alter_info);
 
     key_info->is_ignored= key->key_create_info.is_ignored;
     key_info++;

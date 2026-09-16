@@ -16,6 +16,7 @@
 
 class Alter_info;
 class Json_writer_object;
+class Key;
 
 /* An MVI index */
 struct Mv_index : public Sql_alloc
@@ -280,6 +281,18 @@ bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column);
 */
 Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
                                   const KEY *key);
+
+/*
+  DDL: the same, earlier -- off a Key, before the key parts are numbered.
+  `create_list' is the columns the statement defines.
+*/
+Virtual_column_info *mvi_key_decl(List<Create_field> &create_list,
+                                  const Key *key);
+
+/*
+  DDL: do two such declarations describe the same keys? Neither may be NULL.
+*/
+bool mvi_decls_eq(Virtual_column_info *a, Virtual_column_info *b);
 
 /*
   Open: check the EXTRA2_MVI_SPEC image of `table' against its keys. Returns
