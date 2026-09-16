@@ -3905,6 +3905,7 @@ innobase_create_index_def(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
 
 	index->parser = NULL;
+	index->ftparser_arg = NULL;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
 	index->name = mem_heap_strdup(heap, key->name.str);
@@ -3935,6 +3936,15 @@ innobase_create_index_def(
 					index->parser =
 						static_cast<st_mysql_ftparser*>(
 						plugin_decl(parser)->info);
+					/* The index is built by this ALTER,
+					so the parser has to be told what it
+					is parsing for now and not only when
+					the table is opened again. The table
+					this comes from stays open until the
+					build is over. */
+					index->ftparser_arg =
+						altered_table->key_info[j]
+						.ftparser_arg;
 
 					break;
 				}
@@ -7247,6 +7257,7 @@ error_handling_drop_uncached_1:
 				goto error_handling_drop_uncached_1;
 			}
 			index->parser = index_defs[a].parser;
+			index->ftparser_arg = index_defs[a].ftparser_arg;
 			if (n_v_col) {
 				index->assign_new_v_col(n_v_col);
 			}
@@ -7355,6 +7366,7 @@ error_handling_drop_uncached:
 			}
 
 			index->parser = index_defs[a].parser;
+			index->ftparser_arg = index_defs[a].ftparser_arg;
 			if (n_v_col) {
 				index->assign_new_v_col(n_v_col);
 			}

@@ -1,0 +1,181 @@
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set @@debug_dbug='+d,mvi_parser_tags_arg';
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+fulltext key ft (j) with parser mvi)engine=innodb;
+insert into t1 values
+(1,'{"tags": ["aaa","bbb"]}'),
+(2,'{"tags": ["bbb"], "other": ["zzz"]}'),
+(3,'{"tags": ["ccc", 7, null, true, {"a": 1}, ["ddd","eee"]]}'),
+(4,'{"tags": []}'),
+(5,'{"other": ["fff"]}'),
+(6,'{"tags": "not an array"}'),
+(7,'not json at all');
+#
+# The keys of each document, as MVI_ENCODE() makes them: two elements
+# for row 1, the elements of a nested array among row 3's, and
+# nothing at all for a row with no array of encodable elements
+# there. Elements that are not strings have no key in a CHAR index.
+#
+select c, mvi_encode(j->'$.tags', char(6)) from t1 order by c;
+c	mvi_encode(j->'$.tags', char(6))
+1	616161 626262
+2	626262
+3	636363 646464 656565
+4	
+5	NULL
+6	NULL
+7	NULL
+Warnings:
+Warning	4204	Invalid vector format at offset: 14 for '"not an array"'. Must be a valid JSON array of numbers.
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+#
+# ... and the same keys, on the same rows, in the index. Nothing
+# from elsewhere in the document is in it: not "zzz" from row 2's
+# other array, not the keys of row 3's object, and nothing from the
+# rows with no array at .tags.
+#
+set global innodb_ft_aux_table='test/t1';
+select word, doc_id from information_schema.innodb_ft_index_cache
+order by word, doc_id;
+word	doc_id
+616161	1
+626262	1
+626262	2
+636363	3
+646464	3
+656565	3
+#
+# A boolean-mode search is a query the optimizer could have built:
+# the keys are encoded before they get here, so it is the built-in
+# parser that splits them apart.
+#
+# "aaa" is row 1 only
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+c
+1
+# "bbb" is rows 1 and 2
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+1
+2
+# "eee" is in a nested array in row 3
+select c from t1 where match(j) against ('656565' in boolean mode) order by c;
+c
+3
+# both of row 1's keys
+select c from t1 where match(j) against ('+616161 +626262' in boolean mode)
+order by c;
+c
+1
+# a key of row 1 and a key of row 2, which no one row has
+select c from t1 where match(j) against ('+616161 +7a7a7a' in boolean mode)
+order by c;
+c
+#
+# A natural-language search is not a query anything builds for such
+# an index, and the parser cannot tell one from a document: it reads
+# the search string as a document, finds no array at .tags in it,
+# and so matches nothing.
+#
+select c from t1 where match(j) against ('616161') order by c;
+c
+#
+# The keys are in the table, not in a session: they survive a reopen
+# and are read back from disk the same way.
+#
+flush tables;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+1
+2
+#
+# An update rewrites the keys of that row and nothing else
+#
+update t1 set j='{"tags": ["ggg"]}' where c=1;
+select c, mvi_encode(j->'$.tags', char(6)) from t1 order by c;
+c	mvi_encode(j->'$.tags', char(6))
+1	676767
+2	626262
+3	636363 646464 656565
+4	
+5	NULL
+6	NULL
+7	NULL
+Warnings:
+Warning	4204	Invalid vector format at offset: 14 for '"not an array"'. Must be a valid JSON array of numbers.
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+c
+select c from t1 where match(j) against ('676767' in boolean mode) order by c;
+c
+1
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+2
+delete from t1 where c=2;
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+drop table t1;
+#
+# The same through an index built by ALTER TABLE rather than by DML
+#
+create table t2 (c int, j text charset utf8mb4 collate utf8mb4_bin)
+engine=innodb;
+insert into t2 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+alter table t2 add fulltext key ft (j) with parser mvi;
+flush tables;
+select c, mvi_encode(j->'$.tags', char(6)) from t2 order by c;
+c	mvi_encode(j->'$.tags', char(6))
+1	616161 626262
+2	626262
+select c from t2 where match(j) against ('616161' in boolean mode) order by c;
+c
+select c from t2 where match(j) against ('626262' in boolean mode) order by c;
+c
+drop table t2;
+#
+# MyISAM and Aria tokenize the same way. The index is unusable there
+# -- no fulltext_estimate(), so the optimizer never picks it -- but
+# a MATCH in the WHERE clause still reads it.
+#
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+fulltext key ft (j) with parser mvi)engine=myisam;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+c
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+# a phrase of two keys is matched against the document's keys in
+# their order, so it is the parser that reads the document again
+select c from t1 where match(j) against ('"616161 626262"' in boolean mode)
+order by c;
+c
+select c from t1 where match(j) against ('"626262 616161"' in boolean mode)
+order by c;
+c
+drop table t1;
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+fulltext key ft (j) with parser mvi)engine=aria;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
+select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+c
+select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+c
+drop table t1;
+Warnings:
+Warning	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version
+set @@debug_dbug='';
+#
+# Without the declaration the very same key is a plain fulltext key
+# over the column's own text, see multi_valued_index_parser.test
+#
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+fulltext key ft (j) with parser mvi)engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa","bbb"]}');
+select c from t1 where match(j) against ('tags' in boolean mode);
+c
+1
+select c from t1 where match(j) against ('616161' in boolean mode);
+c
+drop table t1;

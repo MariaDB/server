@@ -2205,6 +2205,26 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), parser_name.str);
           goto err;
         }
+        /*
+          The DDL of a multi-valued index does not put a parser on the key
+          yet, so nothing tells the mvi parser what it is parsing for and
+          it behaves like the built-in one. Hand it a fixed argument here
+          -- the array at $.tags, its elements encoded as CHAR -- so that
+          the JSON side of it can be exercised on a key that only names
+          the parser. Goes away with the DDL, see mvi_key_spec().
+        */
+        DBUG_EXECUTE_IF("mvi_parser_tags_arg",
+        {
+          Lex_cstring tags= Lex_cstring_strlen("$.tags");
+          Mvi_parser_arg *arg;
+          if (!strcmp(parser_name.str, "mvi") &&
+              (arg= (Mvi_parser_arg *) alloc_root(&share->mem_root,
+                                                  sizeof(*arg))) &&
+              !mvi_parser_arg_init(&share->mem_root, arg, &tags,
+                                   &my_charset_utf8mb4_bin,
+                                   &type_handler_long_blob))
+            keyinfo->ftparser_arg= arg;
+        });
       }
     }
 

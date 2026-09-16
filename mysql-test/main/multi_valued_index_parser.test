@@ -1,0 +1,71 @@
+#
+# The fulltext parser of a multi-valued index, on a key that is not one.
+#
+# What makes an index multi-valued is the array it was declared with, which
+# the server hands the parser when the table is opened. A key that only
+# names the parser was declared with nothing, so there is nothing for it to
+# read out of a document and it falls back on the built-in parser: such a
+# key has to behave exactly like one that names no parser at all, which is
+# what this checks -- the same rows, the same tokens in the index.
+#
+# The other side of it, a key that was declared with an array, is in
+# multi_valued_index_parser_debug.test.
+#
+--source include/have_innodb.inc
+--source include/have_maria.inc
+
+--echo # It is built in, always on, and cannot be unloaded
+select plugin_name, plugin_type, plugin_status, load_option
+from information_schema.plugins where plugin_name='mvi';
+
+create table t1 (c int, txt text,
+                 fulltext key ft (txt))engine=innodb;
+create table t2 (c int, txt text,
+                 fulltext key ft (txt) with parser mvi)engine=innodb;
+show create table t2;
+
+insert into t1 values (1,'alpha beta'),(2,'beta gamma'),(3,'gamma delta');
+insert into t2 select * from t1;
+
+--echo # the same rows, whichever parser the index names
+select c from t1 where match(txt) against ('beta') order by c;
+select c from t2 where match(txt) against ('beta') order by c;
+select c from t1 where match(txt) against ('+beta +gamma' in boolean mode)
+ order by c;
+select c from t2 where match(txt) against ('+beta +gamma' in boolean mode)
+ order by c;
+select c from t1 where match(txt) against ('"beta gamma"' in boolean mode)
+ order by c;
+select c from t2 where match(txt) against ('"beta gamma"' in boolean mode)
+ order by c;
+
+--echo # ... and the same tokens in the index
+set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
+set global innodb_ft_aux_table='test/t1';
+select word, doc_count from information_schema.innodb_ft_index_cache
+ order by word;
+set global innodb_ft_aux_table='test/t2';
+select word, doc_count from information_schema.innodb_ft_index_cache
+ order by word;
+set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
+
+--echo # the index survives a rebuild and a reopen
+alter table t2 add column x int;
+flush tables;
+show create table t2;
+select c from t2 where match(txt) against ('beta') order by c;
+
+drop table t1, t2;
+
+--echo # MyISAM and Aria honour a parser on a fulltext key too
+create table t1 (c int, txt text,
+                 fulltext key ft (txt) with parser mvi)engine=myisam;
+insert into t1 values (1,'alpha beta'),(2,'beta gamma');
+select c from t1 where match(txt) against ('beta') order by c;
+drop table t1;
+
+create table t1 (c int, txt text,
+                 fulltext key ft (txt) with parser mvi)engine=aria;
+insert into t1 values (1,'alpha beta'),(2,'beta gamma');
+select c from t1 where match(txt) against ('beta') order by c;
+drop table t1;
