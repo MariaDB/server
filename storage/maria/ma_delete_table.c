@@ -43,8 +43,17 @@ int maria_delete_table(const char *name)
     'open_for_repair' to be able to open even a crashed table.
   */
   my_errno= 0;
+  /*
+    HA_OPEN_FROM_SQL_LAYER because a table whose keys are built by an
+    SQL-layer plugin -- a fulltext parser, or an index over a virtual
+    column -- refuses to open without it, and this open is from the SQL
+    layer: ha_maria::delete_table(), or recovery replaying a DDL of it.
+    Nothing here reads a key anyway; the open is only to find out whether
+    the table was transactional.
+  */
   if (!(info= maria_open(name, O_RDONLY,
-                        (HA_OPEN_FOR_DROP | HA_OPEN_FOR_REPAIR), 0)))
+                        (HA_OPEN_FOR_DROP | HA_OPEN_FOR_REPAIR |
+                         HA_OPEN_FROM_SQL_LAYER), 0)))
   {
     sync_dir= 0;
     /* Ignore not found errors and wrong symlink errors */

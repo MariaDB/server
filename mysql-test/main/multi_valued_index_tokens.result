@@ -226,8 +226,4 @@ c
 select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 c
 1
-# TODO: and this DROP warns 1112, an unsupported extension, which
-# nothing about this table definition should provoke
 drop table t1;
-Warnings:
-Warning	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version

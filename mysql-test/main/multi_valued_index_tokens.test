@@ -152,6 +152,4 @@ select c from t1 where match(j) against ('626262' in boolean mode) order by c;
 --echo # a word of the document, see above
 select c from t1 where match(j) against ('tags' in boolean mode) order by c;
 select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
---echo # TODO: and this DROP warns 1112, an unsupported extension, which
---echo # nothing about this table definition should provoke
 drop table t1;
