@@ -244,6 +244,16 @@ void mysql_client_binlog_statement(THD* thd)
                             thd->lex->comment.length : 2048),
                      thd->lex->comment.str));
 
+  /*
+    The parser refuses BINLOG in a routine body; this catches dynamic SQL
+    (EXECUTE IMMEDIATE, EXECUTE) run from a routine.
+  */
+  if (thd->spcont)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "BINLOG");
+    DBUG_VOID_RETURN;
+  }
+
   if (check_global_access(thd, PRIV_STMT_BINLOG))
     DBUG_VOID_RETURN;
 
@@ -421,8 +431,12 @@ void mysql_client_binlog_statement(THD* thd)
           applied in PS mode. So, reset the current lex temporary to point to
           thd->main_lex before running ev->apply_event() and restore its
           original value on return.
+
+          Likewise, point thd->stmt_arena to thd: otherwise a Query event's
+          statement leaks its allocations onto the PS's persistent arena.
         */
         LEX *backup_lex;
+        SCOPE_VALUE(thd->stmt_arena, static_cast<Query_arena *>(thd));
 
         thd->backup_and_reset_current_lex(&backup_lex);
         err= save_restore_context_apply_event(ev, rgi);
