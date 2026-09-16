@@ -1144,8 +1144,10 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
   tpool::task *const tasks=
     static_cast<tpool::task*>(alloca(threads * sizeof *tasks));
   backup_step_callback_pending= threads - 1;
+  assert(target_phase[0].sink.id == threads - 1);
   for (int n{threads}; --n; )
   {
+    assert(target_phase[n].sink.id == (threads - 1) - n);
     target_phase[n].phase= target_phase->phase;
     tp->submit_task(new (&tasks[n]) tpool::task{backup_step_callback,
                                                 &target_phase[n]});
@@ -1254,7 +1256,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   if (command)
   {
     char cmd[1024];
-    for (int t{threads}; t; )
+    for (int t{threads}; t; t--)
     {
 #ifndef _WIN32
       /*
@@ -1287,9 +1289,10 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       fcntl(sink, F_SETPIPE_SZ, 1 << 20/* 1 MiB */);
 # endif
 #endif
-      new (&target_phase[--t])
+      new (&target_phase[threads - t])
         backup_target_phase{backup_target{IF_WIN(nullptr, -1)},
-          BACKUP_PHASE_START, backup_sink{sink, nullptr}, f, 0, context};
+          BACKUP_PHASE_START, backup_sink{t - 1, sink, nullptr},
+          f, 0, context};
     }
   }
   else if (my_mkdir(target, 0755, MYF(MY_WME)))
@@ -1304,12 +1307,13 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       goto err_exit;
     }
 #endif
-    for (int t{threads}; t; )
+    for (int t{threads}; t--; )
     {
-      new (&target_phase[--t])
+      new (&target_phase[threads - 1 - t])
         backup_target_phase{backup_target{IF_WIN(target, dir)},
           BACKUP_PHASE_START,
-          backup_sink{backup_sink::NO_STREAM, nullptr}, nullptr, 0, context};
+          backup_sink{t, backup_sink::NO_STREAM, nullptr},
+          nullptr, 0, context};
     }
   }
 

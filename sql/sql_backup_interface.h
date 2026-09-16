@@ -22,15 +22,19 @@ struct backup_target
 #ifdef _WIN32
   /** Target directory path name, or nullptr if streaming */
   const char *path;
+  bool operator==(const backup_target &o) const { return path == o.path; }
 #else
   /** Target directory descriptor, or -1 if streaming */
   int fd;
+  bool operator==(const backup_target &o) const { return fd == o.fd; }
 #endif
 };
 
 /** BACKUP SERVER worker specific context */
 struct backup_sink
 {
+  /** worker identifier: 0 to CONCURRENT-1 (the connection thread) */
+  int id;
 #ifdef _WIN32
   /** A value indicating an invalid stream */
   static constexpr HANDLE NO_STREAM{INVALID_HANDLE_VALUE};
