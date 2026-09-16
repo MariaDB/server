@@ -2173,7 +2173,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     innodb_backup_checkpoint(old_first_lsn);
     /* Make the previous archived log file read-only */
 #ifdef _WIN32
-    SetFileAttributesA(get_archive_path(old_first_lsn)).c_str(),
+    SetFileAttributesA(get_archive_path(old_first_lsn).c_str(),
                        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
 #else
     struct stat st;
