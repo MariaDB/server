@@ -417,8 +417,6 @@ public:
     if (log_sys.backup_start(&old_size, thd))
     {
       log_sys.latch.wr_unlock();
-    fail:
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
       return reinterpret_cast<void*>(-1);
     }
 
@@ -491,7 +489,8 @@ public:
       mutex.wr_lock();
       ctx.state= IDLE;
       mutex.wr_unlock();
-      goto fail;
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      return reinterpret_cast<void*>(-1);
     }
 
     mutex.wr_unlock();
