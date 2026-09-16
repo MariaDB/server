@@ -3936,16 +3936,6 @@ innobase_create_index_def(
 					index->parser =
 						static_cast<st_mysql_ftparser*>(
 						plugin_decl(parser)->info);
-					/* The index is built by this ALTER,
-					so the parser has to be told what it
-					is parsing for now and not only when
-					the table is opened again. The table
-					this comes from stays open until the
-					build is over. */
-					index->ftparser_arg =
-						altered_table->key_info[j]
-						.ftparser_arg;
-
 					break;
 				}
 			}
@@ -3953,6 +3943,17 @@ innobase_create_index_def(
 			DBUG_EXECUTE_IF("fts_instrument_use_default_parser",
 				index->parser = &fts_default_parser;);
 			ut_ad(index->parser);
+			/* This ALTER builds the index, so the parser has to
+			be told what it is parsing for now and not only when
+			the table is opened afterwards. It comes off the key
+			definition being built and not out of altered_table,
+			which the server has not necessarily read the
+			declarations of yet. */
+			index->ftparser_arg = key->ftparser_arg;
+			/* A multi-valued index cannot be built without it:
+			the entries would be the words of the document
+			instead of the keys of the array. */
+			ut_ad(!key->mvi_spec || index->ftparser_arg);
 		}
 	} else if (key->algorithm == HA_KEY_ALG_RTREE) {
 		DBUG_ASSERT(!(key->flags & HA_NOSAME));

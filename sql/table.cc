@@ -94,6 +94,7 @@ struct extra2_fields
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
+static bool parse_mvi_specs(THD *, TABLE *, bool *);
 
 /*
   Lex_ident_db does not have operator""_Lex_ident_db,
@@ -1432,6 +1433,14 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   table->find_constraint_correlated_indexes();
 
+  /*
+    The declarations of the multi-valued indexes are parsed here as well:
+    they are expressions over this table's columns, read out of the FRM,
+    and want the same arena and the same charset handling.
+  */
+  if (parse_mvi_specs(thd, table, error_reported))
+    goto end;
+
   res=0;
 end:
   thd->restore_active_arena(table->expr_arena, &backup_arena);
@@ -2205,26 +2214,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), parser_name.str);
           goto err;
         }
-        /*
-          The DDL of a multi-valued index does not put a parser on the key
-          yet, so nothing tells the mvi parser what it is parsing for and
-          it behaves like the built-in one. Hand it a fixed argument here
-          -- the array at $.tags, its elements encoded as CHAR -- so that
-          the JSON side of it can be exercised on a key that only names
-          the parser. Goes away with the DDL, see mvi_key_spec().
-        */
-        DBUG_EXECUTE_IF("mvi_parser_tags_arg",
-        {
-          Lex_cstring tags= Lex_cstring_strlen("$.tags");
-          Mvi_parser_arg *arg;
-          if (!strcmp(parser_name.str, "mvi") &&
-              (arg= (Mvi_parser_arg *) alloc_root(&share->mem_root,
-                                                  sizeof(*arg))) &&
-              !mvi_parser_arg_init(&share->mem_root, arg, &tags,
-                                   &my_charset_utf8mb4_bin,
-                                   &type_handler_long_blob))
-            keyinfo->ftparser_arg= arg;
-        });
       }
     }
 
@@ -3248,17 +3237,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         key_part->type= field->key_type();
 
         /*
-          A key part the user cannot name normally hides the whole key. Two
-          kinds of key are built that way on purpose and are not hidden:
-          a long unique, and a multi-valued index - a fulltext key over one
-          internal column holding the index keys. We cannot use is_mvi_key()
-          to recognize the latter: the vcol expressions are not parsed until
-          parse_vcol_defs(), long after this.
+          A key part the user cannot name normally hides the whole key. A
+          long unique is built that way on purpose and is not hidden.
         */
         if (field->invisible > INVISIBLE_USER && !field->vers_sys_field() &&
-            keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
-            !(keyinfo->algorithm == HA_KEY_ALG_FULLTEXT &&
-              keyinfo->user_defined_key_parts == 1))
+            keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
           keyinfo->flags |= HA_INVISIBLE_KEY;
         if (field->null_ptr)
         {
@@ -4218,6 +4201,126 @@ end:
   DBUG_RETURN(vcol_info);
 }
 
+
+/*
+  @brief
+    Parse TABLE_SHARE::mvi_spec into TABLE::mvi_spec.
+
+  @detail
+    The section is sparse -- one entry per multi-valued index, preceded by
+    the number of entries, see mvi_spec_image(). Each entry is the printed
+    MVI_ENCODE() call that index was declared with, under the number of the
+    key it belongs to.
+
+    It is parsed the way a virtual column expression is, and into the same
+    Virtual_column_info, because that is what it was written as: one
+    expression reading one column of this table. Which is also why every
+    TABLE of the share parses its own copy rather than the share holding
+    one, exactly as parse_vcol_defs() does for a vcol.
+
+    What the fulltext parser is handed does go on the share: it is the path
+    and the datatype alone, with no Item and no Field in it, so every TABLE
+    would build the same one. TODO: build it in
+    TABLE_SHARE::init_from_binary_frm_image() instead, where there is no
+    question of two opens racing to be the one that does. That needs the
+    path and the cast type without running the SQL parser over the entry,
+    so it needs the section to keep them apart rather than as printed SQL.
+
+    An entry that names a key of the wrong shape, or does not parse, or
+    parses into something other than a declaration, is an FRM this server
+    did not write. So is a key of the right shape with no entry at all:
+    such a key names the mvi fulltext parser, which no table definition
+    may, see check_mvi_key_parser(). Refuse the table either way, rather
+    than open it as the plain fulltext key it would otherwise look like.
+
+  @return
+    true   The table cannot be opened
+*/
+
+static bool parse_mvi_specs(THD *thd, TABLE *table, bool *error_reported)
+{
+  TABLE_SHARE *share= table->s;
+  const uchar *pos= share->mvi_spec.str;
+  const uchar *end= pos + share->mvi_spec.length;
+  StringBuffer<MAX_FIELD_WIDTH> expr_str;
+  key_map described;
+  size_t n_specs;
+
+  described.clear_all();
+  if (!share->mvi_spec.length)
+    goto check_keys;
+
+  if (!(table->mvi_spec= (Item_func_mvi_encode **)
+          alloc_root(&table->mem_root,
+                     sizeof(Item_func_mvi_encode *) * share->total_keys)))
+    return true;                                // Out of memory
+  bzero(table->mvi_spec,
+        sizeof(Item_func_mvi_encode *) * share->total_keys);
+
+  n_specs= extra2_read_len(&pos, end);
+  for (size_t i= 0; i < n_specs; i++)
+  {
+    Virtual_column_info *spec, *parsed;
+    Item_func_mvi_encode *mvi;
+    uint keyno;
+    size_t len;
+
+    if (pos >= end)
+      goto corrupted;
+    keyno= *pos++;
+    len= extra2_read_len(&pos, end);
+    if (!len || pos + len > end || keyno >= share->total_keys ||
+        described.is_set(keyno) || !mvi_key_names_parser(share, keyno))
+      goto corrupted;
+
+    expr_str.length(0);
+    if (expr_str.append(&parse_vcol_keyword) ||
+        expr_str.append((const char *) pos, len))
+      return true;                              // Out of memory
+    if (!(spec= new (&table->mem_root) Virtual_column_info()))
+      return true;                              // Out of memory
+    spec->set_vcol_type(VCOL_GENERATED_STORED);
+
+    thd->where= THD_WHERE::USE_WHERE_STRING;
+    thd->where_str= "multi-valued index";
+    parsed= unpack_vcol_info_from_frm(thd, table, &expr_str, &spec,
+                                      error_reported);
+    if (!parsed)
+      return true;                  /* The parse raised the error itself */
+    if (!(mvi= mvi_spec_expr(parsed)))
+      goto corrupted;
+
+    table->mvi_spec[keyno]= mvi;
+    described.set_bit(keyno);
+    pos+= len;
+
+    /*
+      The fulltext parser's argument, once per share. See above for the
+      race this leaves open.
+    */
+    if (!share->key_info[keyno].ftparser_arg &&
+        !(share->key_info[keyno].ftparser_arg=
+            mvi_make_parser_arg(&share->mem_root, mvi)))
+      goto corrupted;
+    table->key_info[keyno].ftparser_arg=
+      share->key_info[keyno].ftparser_arg;
+  }
+  if (pos != end)
+    goto corrupted;
+
+check_keys:
+  /* A key that names the parser and was not described by any entry */
+  for (uint keyno= 0; keyno < share->total_keys; keyno++)
+    if (mvi_key_names_parser(share, keyno) && !described.is_set(keyno))
+      goto corrupted;
+  return false;
+
+corrupted:
+  my_error(ER_NOT_FORM_FILE, MYF(0), share->normalized_path.str);
+  *error_reported= true;
+  return true;
+}
+
 #ifndef DBUG_OFF
 static void print_long_unique_table(TABLE *table)
 {
@@ -4580,7 +4683,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     Process virtual and default columns, if any.
   */
   if (share->virtual_fields || share->default_fields ||
-      share->default_expressions || share->table_check_constraints)
+      share->default_expressions || share->table_check_constraints ||
+      share->mvi_spec.length)
   {
     Field **vfield_ptr, **dfield_ptr;
     Virtual_column_info **check_constraint_ptr;
@@ -4631,17 +4735,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     switch_defaults_to_nullable_trigger_fields(outparam);
 
     outparam->update_keypart_vcol_info();
-    mvi_set_keys_readonly(outparam);
-    /*
-      The keys and the EXTRA2_MVI_SPEC image have to describe the same
-      multi-valued indexes, see check_mvi_spec(). This is the last point
-      where the internal columns are available to check them against.
-    */
-    if (unlikely(check_mvi_spec(outparam)))
-    {
-      error= OPEN_FRM_CORRUPTED;
-      goto err;
-    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -9498,24 +9591,23 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     }
 
     /*
-      A multi-valued index whose keys the engine drops must not have a
-      row written past it. The row would be missing from the index for
-      good -- the keys are dropped as they are written, not while they
-      are searched for -- so once the settings that drop them are wide
-      again, the index is used and that row is not found. In other
-      words, the index would be corrupted. Refuse the write instead, and
-      let the index be dropped or the settings put back.
+      TODO: refuse the write when a multi-valued index of this table has
+      keys the engine drops, which it does when the fulltext token size
+      settings are narrower than the keys the index produces -- the table
+      may have been created when they were wider, or on another server.
+      Such a row would be missing from the index for good, because the
+      keys are dropped as they are written and not as they are searched
+      for, so once the settings are wide again the index is used and the
+      row is not found: a corrupted index.
 
-      Only when this column is one of those and is being computed: an
-      UPDATE that leaves the indexed expression alone does not touch the
-      index either. A DELETE computes the column too, to find the entry
-      to remove, and removing one cannot corrupt anything.
+      This used to hang off the internal column that held the keys, which
+      was computed here, and there is no such column any more. It belongs
+      wherever the row itself is written now, and only for a statement
+      that writes the base column: an UPDATE that leaves it alone does not
+      touch the index either, and a DELETE only removes entries, which
+      cannot corrupt anything. See mvi_keys_fit_fulltext(), which the
+      optimizer already calls to leave such an index unused.
     */
-    if (unlikely(mvi_keys_readonly) && update &&
-        (update_mode == VCOL_UPDATE_FOR_WRITE ||
-         update_mode == VCOL_UPDATE_FOR_REPLACE) &&
-        mvi_report_unfit_keys(this, vf))
-      break;             /* The exit below returns in_use->is_error() */
 
     if (update)
     {

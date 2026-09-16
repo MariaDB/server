@@ -17,14 +17,17 @@
 class Alter_info;
 class Json_writer_object;
 class Key;
+class Item_func_mvi_encode;
 
 /* An MVI index */
 struct Mv_index : public Sql_alloc
 {
-  Field *vcol;                  /* The hidden vcol of the index */
+  /* What the index was declared with, see TABLE::mvi_spec */
+  Item_func_mvi_encode *spec;
+  TABLE *table;                 /* The table it is an index of */
   uint keyno;                   /* The keyno of the index */
-  Mv_index(Field *vcol_arg, uint keyno_arg)
-    : vcol(vcol_arg), keyno(keyno_arg) {}
+  Mv_index(Item_func_mvi_encode *spec_arg, TABLE *table_arg, uint keyno_arg)
+    : spec(spec_arg), table(table_arg), keyno(keyno_arg) {}
 };
 
 /* Access descriptor for a predicate */
@@ -264,41 +267,50 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
   ER_MVI_KEY_TOKEN_SIZE when they do not fit. Returns true if an error
   was raised.
 */
-bool check_mvi_token_size(const handler *file, const Create_field *column);
+bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec);
 
 Item *mvi_desugar_whole_document(THD *thd, Item *column);
 
 /*
-  DDL: can the multi-valued index whose keys `column' holds be built from
-  the column its expression reads them out of? Returns true if an error was
-  raised.
+  DDL: can the multi-valued index `spec' declares be built from the column
+  it reads the array out of? Returns true if an error was raised.
 */
-bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column);
+bool check_mvi_base_column(Alter_info *alter_info,
+                           Item_func_mvi_encode *spec);
 
 /*
-  FRM: the definition of key `key' as a multi-valued index, or NULL when it
-  is not one. `create_fields' is the columns of the table the key belongs to.
+  DDL: do two declarations describe the same keys? Neither may be NULL.
 */
-Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
-                                  const KEY *key);
+bool mvi_decls_eq(Item_func_mvi_encode *a, Item_func_mvi_encode *b);
 
 /*
-  DDL: the same, earlier -- off a Key, before the key parts are numbered.
-  `create_list' is the columns the statement defines.
+  The name of the fulltext parser every multi-valued index names, and no
+  table definition may. A key that names it and has no declaration is a key
+  whose declaration went missing, which is what makes the FRM's
+  EXTRA2_MVI_SPEC section checkable, see mvi_key_names_parser().
 */
-Virtual_column_info *mvi_key_decl(List<Create_field> &create_list,
-                                  const Key *key);
+#define MVI_PARSER_NAME "mvi"
 
 /*
-  DDL: do two such declarations describe the same keys? Neither may be NULL.
+  Open: could key #keyno of `share' be a multi-valued index -- a fulltext
+  key over one stored column, parsed by MVI_PARSER_NAME? Says nothing about
+  whether it is one: only a declaration does, see is_mvi_key().
 */
-bool mvi_decls_eq(Virtual_column_info *a, Virtual_column_info *b);
+bool mvi_key_names_parser(const TABLE_SHARE *share, uint keyno);
 
 /*
-  Open: check the EXTRA2_MVI_SPEC image of `table' against its keys. Returns
-  true if they disagree, which makes the table unopenable.
+  Open: `vcol' as read back out of EXTRA2_MVI_SPEC, if it is a declaration
+  a multi-valued index could have been written with, and NULL if it is not.
 */
-bool check_mvi_spec(const TABLE *table);
+Item_func_mvi_encode *mvi_spec_expr(Virtual_column_info *vcol);
+
+/*
+  Open: what the mvi fulltext parser is to be handed for the index `spec'
+  declares, allocated on `mem_root'. Returns NULL if `spec' cannot be
+  served, which no declaration this server wrote ever is.
+*/
+Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
+                                    Item_func_mvi_encode *spec);
 
 /*
   Optimizer: is `expr' the document that a multi-valued index declared over
@@ -308,23 +320,10 @@ bool check_mvi_spec(const TABLE *table);
 bool mvi_same_document(THD* thd, Item *indexed, Item *expr);
 
 /*
-  Open: does `table' have a multi-valued index whose keys the engine
-  would drop? Answered once, into table->mvi_keys_dropped, because every
-  write asks.
+  What key #keyno of `table' was declared with, or NULL when it is not a
+  multi-valued index
 */
-void mvi_set_keys_readonly(TABLE *table);
-
-/*
-  Write: is `field' the column of a multi-valued index whose keys the
-  engine will not hold? Raises ER_MVI_KEY_TOKEN_SIZE when it is.
-*/
-bool mvi_report_unfit_keys(const TABLE *table, const Field *field);
-
-/*
-  Is `field' the internal column that holds the keys of a multi-valued index?
-*/
-bool is_mvi_vcol(const Field *field);
-bool is_mvi_vcol(const Create_field *field);
+Item_func_mvi_encode *mvi_key_spec(const TABLE *table, uint keyno);
 
 /* Is key #keyno of `table' a multi-valued index? */
 bool is_mvi_key(const TABLE *table, uint keyno);
@@ -343,11 +342,11 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
                                 const Lex_cast_type_st &cast_type);
 
 /*
-  DDL: name the internal columns of the multi-valued indexes this ALTER
-  TABLE adds, which the parser could only name provisionally. Returns true
-  if an error was raised.
+  DDL: settle which fulltext parser `key' is parsed by -- the mvi parser
+  when it is a multi-valued index, and never it when it is not. Returns
+  true if an error was raised.
 */
-bool mvi_name_new_vcols(THD *thd, TABLE *table, Alter_info *alter_info);
+bool check_mvi_key_parser(Key *key);
 
 /*
   Analyze `cond' and pick the MVI access `tab' will use, if any, and let the

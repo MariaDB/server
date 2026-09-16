@@ -88,6 +88,11 @@ row_merge_create_fts_sort_index(
 	new_index->n_def = FTS_NUM_FIELDS_SORT;
 	new_index->cached = TRUE;
 	new_index->parser = index->parser;
+	/* The sort index is what row_merge_fts_doc_tokenize() reads the parser
+	out of, so it needs to know what that parser is parsing for as well.
+	Without this a multi-valued index builds from the words of the
+	document instead of the keys of the array. */
+	new_index->ftparser_arg = index->ftparser_arg;
 
 	idx_field = dict_index_get_nth_field(index, 0);
 	charset = fts_index_get_charset(index);

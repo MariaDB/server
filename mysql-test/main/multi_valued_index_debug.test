@@ -1,13 +1,15 @@
 #
-# The keys of a table and its EXTRA2_MVI_SPEC image have to describe the
-# same multi-valued indexes. Neither half can go missing in an FRM this
-# server wrote, so the only way to reach the check is to make the server
-# write a bad one on purpose.
+# A multi-valued index is a fulltext key over the base column whose
+# declaration is in the FRM's EXTRA2_MVI_SPEC section. The key names the
+# mvi fulltext parser, which nothing else may, so a key that names it with
+# no declaration behind it is an index whose declaration went missing.
+# Neither half can go missing in an FRM this server wrote, so the only way
+# to reach the check is to make the server write a bad one on purpose.
 #
 --source include/have_innodb.inc
 --source include/have_debug.inc
 
---echo # A multi-valued index whose definition was not written is a key we
+--echo # A multi-valued index whose declaration was not written is a key we
 --echo # would open as a plain fulltext key over the base column -- a valid
 --echo # definition meaning something else. Refuse the table instead.
 

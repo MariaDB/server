@@ -3,95 +3,87 @@ select plugin_name, plugin_type, plugin_status, load_option
 from information_schema.plugins where plugin_name='mvi';
 plugin_name	plugin_type	plugin_status	load_option
 mvi	FTPARSER	ACTIVE	FORCE
+#
+# No table definition may name it
+#
 create table t1 (c int, txt text,
-fulltext key ft (txt))engine=innodb;
-create table t2 (c int, txt text,
 fulltext key ft (txt) with parser mvi)engine=innodb;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `c` int(11) DEFAULT NULL,
-  `txt` text DEFAULT NULL,
-  FULLTEXT KEY `ft` (`txt`) WITH PARSER `mvi`
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-insert into t1 values (1,'alpha beta'),(2,'beta gamma'),(3,'gamma delta');
-insert into t2 select * from t1;
-# the same rows, whichever parser the index names
-select c from t1 where match(txt) against ('beta') order by c;
-c
-1
-2
-select c from t2 where match(txt) against ('beta') order by c;
-c
-1
-2
-select c from t1 where match(txt) against ('+beta +gamma' in boolean mode)
-order by c;
-c
-2
-select c from t2 where match(txt) against ('+beta +gamma' in boolean mode)
-order by c;
-c
-2
-select c from t1 where match(txt) against ('"beta gamma"' in boolean mode)
-order by c;
-c
-2
-select c from t2 where match(txt) against ('"beta gamma"' in boolean mode)
-order by c;
-c
-2
-# ... and the same tokens in the index
-set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
-set global innodb_ft_aux_table='test/t1';
-select word, doc_count from information_schema.innodb_ft_index_cache
-order by word;
-word	doc_count
-alpha	1
-beta	2
-beta	2
-delta	1
-gamma	2
-gamma	2
-set global innodb_ft_aux_table='test/t2';
-select word, doc_count from information_schema.innodb_ft_index_cache
-order by word;
-word	doc_count
-alpha	1
-beta	2
-beta	2
-delta	1
-gamma	2
-gamma	2
-set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
-# the index survives a rebuild and a reopen
-alter table t2 add column x int;
-flush tables;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `c` int(11) DEFAULT NULL,
-  `txt` text DEFAULT NULL,
-  `x` int(11) DEFAULT NULL,
-  FULLTEXT KEY `ft` (`txt`) WITH PARSER `mvi`
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-select c from t2 where match(txt) against ('beta') order by c;
-c
-1
-2
-drop table t1, t2;
-# MyISAM and Aria honour a parser on a fulltext key too
+ERROR HY000: Fulltext parser mvi is reserved for multi-valued indexes and cannot be named by a table definition
 create table t1 (c int, txt text,
 fulltext key ft (txt) with parser mvi)engine=myisam;
-insert into t1 values (1,'alpha beta'),(2,'beta gamma');
-select c from t1 where match(txt) against ('beta') order by c;
-c
-drop table t1;
+ERROR HY000: Fulltext parser mvi is reserved for multi-valued indexes and cannot be named by a table definition
 create table t1 (c int, txt text,
 fulltext key ft (txt) with parser mvi)engine=aria;
+ERROR HY000: Fulltext parser mvi is reserved for multi-valued indexes and cannot be named by a table definition
+create table t1 (c int, txt text)engine=innodb;
+alter table t1 add fulltext key ft (txt) with parser mvi;
+ERROR HY000: Fulltext parser mvi is reserved for multi-valued indexes and cannot be named by a table definition
+# ... not even with the name spelled some other way
+alter table t1 add fulltext key ft (txt) with parser `MVI`;
+ERROR HY000: Fulltext parser mvi is reserved for multi-valued indexes and cannot be named by a table definition
+drop table t1;
+#
+# A plain fulltext key over the same column is unaffected, and so is
+# one that names a parser of its own
+#
+create table t1 (c int, txt text,
+fulltext key ft (txt))engine=innodb;
 insert into t1 values (1,'alpha beta'),(2,'beta gamma');
 select c from t1 where match(txt) against ('beta') order by c;
 c
+1
+2
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `txt` text DEFAULT NULL,
+  FULLTEXT KEY `ft` (`txt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
-Warnings:
-Warning	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version
+#
+# A multi-valued index and a plain fulltext key over one column can
+# live side by side: the parser is what keeps them apart, so each
+# holds what it should.
+#
+# What cannot be asked for is which of the two a MATCH() searches.
+# MATCH names the column, both keys are over it, and nothing in the
+# statement says more than that -- so the MATCH() queries below are
+# deliberately not here.
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+key mv ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+fulltext key ft (j))engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  KEY `mv` ((cast(json_extract(`j`,'$.tags') as char(6) array))),
+  FULLTEXT KEY `ft` (`j`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values (1,'{"tags": ["aaa"]}');
+# the multi-valued index holds the keys of the array
+select c from t1 where json_contains(j->'$.tags','"aaa"');
+c
+1
+drop table t1;
+# On a column of its own the plain fulltext key is unambiguous, and
+# holds the words of that column while the multi-valued index holds
+# the keys of the array in the other
+create table t1 (c int, txt text,
+j text charset utf8mb4 collate utf8mb4_bin,
+key mv ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+fulltext key ft (txt))engine=innodb;
+insert into t1 values (1,'alpha beta','{"tags": ["aaa"]}'),
+(2,'beta gamma','{"tags": ["bbb"]}');
+select c from t1 where match(txt) against ('alpha' in boolean mode);
+c
+1
+select c from t1 where json_contains(j->'$.tags','"aaa"');
+c
+1
+select c from t1 where match(txt) against ('beta' in boolean mode)
+and json_contains(j->'$.tags','"bbb"');
+c
+2
+drop table t1;

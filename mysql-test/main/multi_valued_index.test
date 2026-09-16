@@ -6,18 +6,22 @@ create table t1 (c int, j json, key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))e
 SHOW CREATE TABLE t1;
 show index from t1;
 
---echo # A second multi-valued index gets an internal column of its own:
---echo # the name the parser picks is only unique among the columns the
---echo # ALTER itself adds, so it is picked again in the altered table.
+--echo # A second multi-valued index over another array of the same column
+--echo # is over the same column: the two have the same key part, and only
+--echo # what they were declared with tells them apart.
 alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)));
 show index from t1;
---echo # dropping the key takes its column with it
+--echo # dropping it leaves the table exactly as it was
 alter table t1 drop key idx2;
 show index from t1;
 
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
 
+--echo # The entries of the index, as InnoDB holds them. POSITION is which
+--echo # key of the row it is and not where in the document it was found:
+--echo # InnoDB numbers the words a parser plugin hands it rather than
+--echo # taking an offset from it, see fts_tokenize_add_word_for_parser().
 insert into t1 values (1, '{"tags": [1, 34567]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 insert into t1 values (2, '{"tags": ["1", "abcde", "", 34567]}');
@@ -270,7 +274,6 @@ select c from t1 ignore index(idx)
 --replace_column 9 #
 explain select c from t1
  where json_contains(j->'$.tags', json_array(repeat('b',43)));
-# TODO: why is there a warning 4036 here?
 select c from t1
  where json_contains(j->'$.tags', json_array(repeat('b',43))) order by c;
 
@@ -335,8 +338,10 @@ order by t0.a;
 
 drop table t0, t1;
 
---echo # SHOW CREATE TABLE prints the expression the index was declared with.
---echo # The column that holds the index keys is internal and is not printed.
+--echo # SHOW CREATE TABLE prints the expression the index was declared
+--echo # with, which is in the FRM. The key itself is a fulltext key over
+--echo # the base column, and printing it that way would lose the array it
+--echo # is over -- and would not read back in as the same index.
 
 create table t1 (c int, j json,
                  key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
@@ -594,7 +599,6 @@ insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
 
 create table t2 like t1;
 show create table t2;
---echo # one internal column, named from scratch in the new table
 show index from t2;
 insert into t2 select * from t1;
 explain select * from t2 where json_contains(j->'$.tags','"aaa"');
@@ -633,21 +637,24 @@ drop table t1;
 --echo #
 --echo # Dropping the base column
 --echo #
---echo # The hidden column is computed from it, so the drop has to be refused
---echo # while the index exists. It must not leave an index over a column
---echo # that is gone.
+--echo # The index is over that column, so it goes when the column goes,
+--echo # the way any other index over a dropped column does. There is
+--echo # nothing of it left to keep: the array it indexes is inside that
+--echo # column and its declaration reads it from there.
 
 create table t1 (c int, j json,
                  key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
 
---error ER_BAD_FIELD_ERROR
 alter table t1 drop column j;
---echo # the table is unchanged and still usable
 show create table t1;
-select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+select c from t1 order by c;
+drop table t1;
 
---echo # dropping the index first makes it possible
+--echo # dropping the index in the same statement comes to the same thing
+create table t1 (c int, j json,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
 alter table t1 drop key idx, drop column j;
 show create table t1;
 
@@ -662,7 +669,9 @@ create table t1 (c int, j json,
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
                       (3,'{"tags": ["aaa","bbb"]}');
 
---echo ## adding a multi-valued index costs the table instant ADD COLUMN
+--echo ## A multi-valued index is a fulltext index, and InnoDB will not
+--echo ## add a stored column instantly to a table that has one of those,
+--echo ## see instant_alter_column_possible() and MDEV-17459.
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t1 add column x int, algorithm=instant;
 show create table t1;
@@ -682,16 +691,15 @@ explain
 select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 
---echo ## adding the index in place to a table that already has rows
+--echo ## Adding the index to a table that already has rows needs nothing
+--echo ## added to those rows: the keys are read out of a column that is
+--echo ## already there. So the engine builds it, and ALGORITHM=INPLACE is
+--echo ## enough -- the entries are made by the fulltext parser reading the
+--echo ## base column, see innobase_create_index_def().
 create table t2 (c int, j json) engine=innodb;
 insert into t2 select c, j from t1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
                 algorithm=inplace;
-
---echo ## ... it needs a rebuild, which ALGORITHM=COPY does
-alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
-                algorithm=copy;
 show create table t2;
 explain select * from t2 where json_contains(j->'$.tags','"aaa"');
 select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
@@ -699,16 +707,25 @@ select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
 select * from t2 ignore index(idx)
  where json_contains(j->'$.tags','"aaa"') order by c;
 
---echo ## ... rebuild still needed needed even when a table already has a fulltext index
+--echo ## ... and ALGORITHM=COPY builds the same index
+alter table t2 drop key idx;
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                algorithm=copy;
+show create table t2;
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+
+--echo ## ... and so does a table that already has a fulltext index, where
+--echo ## the FTS_DOC_ID column the entries are keyed by is there already
 create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
 insert into t3 select c, 'alpha', j from t1;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
                 algorithm=inplace;
-alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
-                algorithm=copy;
 show create table t3;
 select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
+--echo ## the fulltext index the table had is untouched
+select c from t3 where match(txt) against ('alpha' in boolean mode)
+ order by c;
 drop table t3;
 drop table t1, t2;
 
@@ -810,9 +827,9 @@ select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
 
 --echo #
 --echo # Two multi-valued indexes over the same array are the same index.
---echo # The internal column each of them holds its keys in is one the DDL
---echo # made up and its own, so the key parts never say so; what they were
---echo # declared with does.
+--echo # Two over one column have the same key part whichever arrays they
+--echo # are over, so the key parts never say so; what they were declared
+--echo # with does.
 --echo #
 create table t1 (c int, j json,
                  key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),

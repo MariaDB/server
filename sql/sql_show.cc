@@ -7494,7 +7494,6 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
         if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
-            !is_mvi_key(show_table, i) &&
             !DBUG_IF("test_completely_invisible"))
         {
           /*

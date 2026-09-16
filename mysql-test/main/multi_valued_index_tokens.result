@@ -1,7 +1,16 @@
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
-set @@debug_dbug='+d,mvi_parser_tags_arg';
 create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
-fulltext key ft (j) with parser mvi)engine=innodb;
+key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `j` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  KEY `ft` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	ft	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
 insert into t1 values
 (1,'{"tags": ["aaa","bbb"]}'),
 (2,'{"tags": ["bbb"], "other": ["zzz"]}'),
@@ -32,7 +41,7 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' 
 # ... and the same keys, on the same rows, in the index. Nothing
 # from elsewhere in the document is in it: not "zzz" from row 2's
 # other array, not the keys of row 3's object, and nothing from the
-# rows with no array at .tags.
+# rows with no array at that path.
 #
 set global innodb_ft_aux_table='test/t1';
 select word, doc_id from information_schema.innodb_ft_index_cache
@@ -45,9 +54,40 @@ word	doc_id
 646464	3
 656565	3
 #
-# A boolean-mode search is a query the optimizer could have built:
-# the keys are encoded before they get here, so it is the built-in
-# parser that splits them apart.
+# The JSON predicates find the rows they should, and the same rows
+# they find without the index
+#
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
+select c from t1 ignore index(ft)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+select c from t1 where json_contains(j->'$.tags','["aaa","bbb"]') order by c;
+c
+1
+select c from t1 ignore index(ft)
+where json_contains(j->'$.tags','["aaa","bbb"]') order by c;
+c
+1
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+select c from t1 where json_overlaps(j->'$.tags','["eee","zzz"]') order by c;
+c
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+select c from t1 ignore index(ft)
+where json_overlaps(j->'$.tags','["eee","zzz"]') order by c;
+c
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+#
+# The key part is the base column now, so MATCH() against the index
+# parses. The keys are encoded, so a boolean-mode search for one is
+# the same search the optimizer builds.
 #
 # "aaa" is row 1 only
 select c from t1 where match(j) against ('616161' in boolean mode) order by c;
@@ -74,17 +114,20 @@ c
 #
 # A natural-language search is not a query anything builds for such
 # an index, and the parser cannot tell one from a document: it reads
-# the search string as a document, finds no array at .tags in it,
-# and so matches nothing.
+# the search string as a document, finds no array in it, and so
+# matches nothing.
 #
 select c from t1 where match(j) against ('616161') order by c;
+c
+# ... and the words of the document are not in the index either
+select c from t1 where match(j) against ('tags' in boolean mode) order by c;
 c
 #
 # The keys are in the table, not in a session: they survive a reopen
 # and are read back from disk the same way.
 #
 flush tables;
-select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+select c from t1 where json_contains(j->'$.tags','"bbb"') order by c;
 c
 1
 2
@@ -104,16 +147,16 @@ c	mvi_encode(j->'$.tags', char(6))
 Warnings:
 Warning	4204	Invalid vector format at offset: 14 for '"not an array"'. Must be a valid JSON array of numbers.
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
-select c from t1 where match(j) against ('616161' in boolean mode) order by c;
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 c
-select c from t1 where match(j) against ('676767' in boolean mode) order by c;
+select c from t1 where json_contains(j->'$.tags','"ggg"') order by c;
 c
 1
-select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+select c from t1 where json_contains(j->'$.tags','"bbb"') order by c;
 c
 2
 delete from t1 where c=2;
-select c from t1 where match(j) against ('626262' in boolean mode) order by c;
+select c from t1 where json_contains(j->'$.tags','"bbb"') order by c;
 c
 set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
 drop table t1;
@@ -123,16 +166,19 @@ drop table t1;
 create table t2 (c int, j text charset utf8mb4 collate utf8mb4_bin)
 engine=innodb;
 insert into t2 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
-alter table t2 add fulltext key ft (j) with parser mvi;
+alter table t2 add key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY)));
 flush tables;
 select c, mvi_encode(j->'$.tags', char(6)) from t2 order by c;
 c	mvi_encode(j->'$.tags', char(6))
 1	616161 626262
 2	626262
-select c from t2 where match(j) against ('616161' in boolean mode) order by c;
+select c from t2 where json_contains(j->'$.tags','"aaa"') order by c;
 c
-select c from t2 where match(j) against ('626262' in boolean mode) order by c;
+1
+select c from t2 where json_contains(j->'$.tags','"bbb"') order by c;
 c
+1
+2
 drop table t2;
 #
 # MyISAM and Aria tokenize the same way. The index is unusable there
@@ -140,7 +186,7 @@ drop table t2;
 # a MATCH in the WHERE clause still reads it.
 #
 create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
-fulltext key ft (j) with parser mvi)engine=myisam;
+key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=myisam;
 insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
 select c from t1 where match(j) against ('616161' in boolean mode) order by c;
 c
@@ -154,28 +200,20 @@ c
 select c from t1 where match(j) against ('"626262 616161"' in boolean mode)
 order by c;
 c
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
 drop table t1;
 create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
-fulltext key ft (j) with parser mvi)engine=aria;
+key ft ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=aria;
 insert into t1 values (1,'{"tags": ["aaa","bbb"]}'),(2,'{"tags": ["bbb"]}');
 select c from t1 where match(j) against ('616161' in boolean mode) order by c;
 c
 select c from t1 where match(j) against ('626262' in boolean mode) order by c;
 c
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
 drop table t1;
 Warnings:
 Warning	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version
-set @@debug_dbug='';
-#
-# Without the declaration the very same key is a plain fulltext key
-# over the column's own text, see multi_valued_index_parser.test
-#
-create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
-fulltext key ft (j) with parser mvi)engine=innodb;
-insert into t1 values (1,'{"tags": ["aaa","bbb"]}');
-select c from t1 where match(j) against ('tags' in boolean mode);
-c
-1
-select c from t1 where match(j) against ('616161' in boolean mode);
-c
-drop table t1;

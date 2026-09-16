@@ -9,22 +9,26 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
-# A second multi-valued index gets an internal column of its own:
-# the name the parser picks is only unique among the columns the
-# ALTER itself adds, so it is picked again in the altered table.
+t1	1	idx	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+# A second multi-valued index over another array of the same column
+# is over the same column: the two have the same key part, and only
+# what they were declared with tells them apart.
 alter table t1 add key idx2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY)));
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
-t1	1	idx2	1	DB_MVI_2	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
-# dropping the key takes its column with it
+t1	1	idx	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx2	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+# dropping it leaves the table exactly as it was
 alter table t1 drop key idx2;
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
 set global innodb_ft_aux_table='test/t1';
+# The entries of the index, as InnoDB holds them. POSITION is which
+# key of the row it is and not where in the document it was found:
+# InnoDB numbers the words a parser plugin hands it rather than
+# taking an offset from it, see fts_tokenize_add_word_for_parser().
 insert into t1 values (1, '{"tags": [1, 34567]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
@@ -32,17 +36,17 @@ insert into t1 values (2, '{"tags": ["1", "abcde", "", 34567]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 31xx	2	2	1	2	0
-6162636465	2	2	1	2	5
-xxxx	2	2	1	2	16
+6162636465	2	2	1	2	1
+xxxx	2	2	1	2	2
 insert into t1 values (3, '{"tags": ["1.0", "34567", "", 34567]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
 WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 312e30	3	3	1	3	0
 31xx	2	2	1	2	0
-3334353637	3	3	1	3	7
-6162636465	2	2	1	2	5
-xxxx	2	3	2	2	16
-xxxx	2	3	2	3	18
+3334353637	3	3	1	3	1
+6162636465	2	2	1	2	1
+xxxx	2	3	2	2	2
+xxxx	2	3	2	3	2
 insert into t1 values (4, '{}');
 insert into t1 values (5, '{"tags": [[["1"], "34567"]]}');
 SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
@@ -50,11 +54,11 @@ WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 312e30	3	3	1	3	0
 31xx	2	5	2	2	0
 31xx	2	5	2	5	0
-3334353637	3	5	2	3	7
-3334353637	3	5	2	5	5
-6162636465	2	2	1	2	5
-xxxx	2	3	2	2	16
-xxxx	2	3	2	3	18
+3334353637	3	5	2	3	1
+3334353637	3	5	2	5	1
+6162636465	2	2	1	2	1
+xxxx	2	3	2	2	2
+xxxx	2	3	2	3	2
 explain
 select * from t1 where json_contains(j->'$.tags', '"abcde"');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -435,8 +439,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select c from t1
 where json_contains(j->'$.tags', json_array(repeat('b',43))) order by c;
 c
-Warnings:
-Warning	4036	Character disallowed in JSON in argument 2 to function 'json_contains' at position 44
+2
 # a value that is exactly as long as the key image can be
 explain select c from t1
 where json_overlaps(j->'$.tags', json_array(repeat('c',42)));
@@ -532,8 +535,10 @@ a	c	j
 2	NULL	NULL
 3	3	{"tags": ["aaa","bbb"]}
 drop table t0, t1;
-# SHOW CREATE TABLE prints the expression the index was declared with.
-# The column that holds the index keys is internal and is not printed.
+# SHOW CREATE TABLE prints the expression the index was declared
+# with, which is in the FRM. The key itself is a fulltext key over
+# the base column, and printing it that way would lose the array it
+# is over -- and would not read back in as the same index.
 create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
@@ -547,7 +552,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 # That output is all it takes to re-create the index: feed it back in
 create table t2 (
 `c` int(11) DEFAULT NULL,
@@ -625,12 +630,12 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx2	1	DB_MVI_1	NULL	#	NULL	NULL	YES	FULLTEXT			NO
-t1	1	idx3	1	DB_MVI_2	NULL	#	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx2	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx3	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
 # both indexes are usable, and each finds its own rows
 explain select * from t1 where json_contains(j->'$.tags','"aaa"');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx2	idx2	0	NULL	2	Using where
+1	SIMPLE	t1	range	idx2	idx2	0	NULL	3	Using where
 select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 c
 1
@@ -657,9 +662,9 @@ c
 alter table t1 add key idx4 ((CAST(j->'$.s' AS CHAR(6) ARRAY)));
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	idx2	1	DB_MVI_1	NULL	#	NULL	NULL	YES	FULLTEXT			NO
-t1	1	idx3	1	DB_MVI_2	NULL	#	NULL	NULL	YES	FULLTEXT			NO
-t1	1	idx4	1	DB_MVI_3	NULL	#	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx2	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx3	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
+t1	1	idx4	1	j	NULL	#	NULL	NULL	YES	FULLTEXT			NO
 explain select * from t1 where json_contains(j->'$.n','42');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	idx3	idx3	0	NULL	2	Using where
@@ -911,10 +916,9 @@ t2	CREATE TABLE `t2` (
   `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
   KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-# one internal column, named from scratch in the new table
 show index from t2;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t2	1	idx	1	DB_MVI_1	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+t2	1	idx	1	j	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
 insert into t2 select * from t1;
 explain select * from t2 where json_contains(j->'$.tags','"aaa"');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -978,26 +982,28 @@ drop table t1;
 #
 # Dropping the base column
 #
-# The hidden column is computed from it, so the drop has to be refused
-# while the index exists. It must not leave an index over a column
-# that is gone.
+# The index is over that column, so it goes when the column goes,
+# the way any other index over a dropped column does. There is
+# nothing of it left to keep: the array it indexes is inside that
+# column and its declaration reads it from there.
 create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
 alter table t1 drop column j;
-ERROR 42S22: Unknown column 'j' in 'GENERATED ALWAYS AS'
-# the table is unchanged and still usable
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` int(11) DEFAULT NULL,
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
-  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+  `c` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
-c	j
-1	{"tags": ["aaa"]}
-# dropping the index first makes it possible
+select c from t1 order by c;
+c
+1
+2
+drop table t1;
+# dropping the index in the same statement comes to the same thing
+create table t1 (c int, j json,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}');
 alter table t1 drop key idx, drop column j;
 show create table t1;
 Table	Create Table
@@ -1012,7 +1018,9 @@ create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["bbb"]}'),
 (3,'{"tags": ["aaa","bbb"]}');
-## adding a multi-valued index costs the table instant ADD COLUMN
+## A multi-valued index is a fulltext index, and InnoDB will not
+## add a stored column instantly to a table that has one of those,
+## see instant_alter_column_possible() and MDEV-17459.
 alter table t1 add column x int, algorithm=instant;
 ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 show create table t1;
@@ -1066,15 +1074,15 @@ select * from t1 where json_contains(j->'$.tags','"aaa"') order by c;
 c	j	y	z
 1	{"tags": ["aaa"]}	NULL	NULL
 3	{"tags": ["aaa","bbb"]}	NULL	NULL
-## adding the index in place to a table that already has rows
+## Adding the index to a table that already has rows needs nothing
+## added to those rows: the keys are read out of a column that is
+## already there. So the engine builds it, and ALGORITHM=INPLACE is
+## enough -- the entries are made by the fulltext parser reading the
+## base column, see innobase_create_index_def().
 create table t2 (c int, j json) engine=innodb;
 insert into t2 select c, j from t1;
 alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
 algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-## ... it needs a rebuild, which ALGORITHM=COPY does
-alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
-algorithm=copy;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -1095,14 +1103,30 @@ where json_contains(j->'$.tags','"aaa"') order by c;
 c	j
 1	{"tags": ["aaa"]}
 3	{"tags": ["aaa","bbb"]}
-## ... rebuild still needed needed even when a table already has a fulltext index
+## ... and ALGORITHM=COPY builds the same index
+alter table t2 drop key idx;
+alter table t2 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+algorithm=copy;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`)),
+  KEY `idx` ((cast(json_extract(`j`,'$.tags') as char(6) array)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+explain select * from t2 where json_contains(j->'$.tags','"aaa"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	idx	idx	0	NULL	2	Using where
+select * from t2 where json_contains(j->'$.tags','"aaa"') order by c;
+c	j
+1	{"tags": ["aaa"]}
+3	{"tags": ["aaa","bbb"]}
+## ... and so does a table that already has a fulltext index, where
+## the FTS_DOC_ID column the entries are keyed by is there already
 create table t3 (c int, txt text, j json, fulltext key ft (txt))engine=innodb;
 insert into t3 select c, 'alpha', j from t1;
 alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
 algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
-alter table t3 add key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
-algorithm=copy;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -1116,6 +1140,13 @@ select * from t3 where json_contains(j->'$.tags','"aaa"') order by c;
 c	txt	j
 1	alpha	{"tags": ["aaa"]}
 3	alpha	{"tags": ["aaa","bbb"]}
+## the fulltext index the table had is untouched
+select c from t3 where match(txt) against ('alpha' in boolean mode)
+order by c;
+c
+1
+2
+3
 drop table t3;
 drop table t1, t2;
 #
@@ -1260,9 +1291,9 @@ mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60))
 414141 4242424242424242424242424242424242424242424242424242424242424242424242424242424242
 #
 # Two multi-valued indexes over the same array are the same index.
-# The internal column each of them holds its keys in is one the DDL
-# made up and its own, so the key parts never say so; what they were
-# declared with does.
+# Two over one column have the same key part whichever arrays they
+# are over, so the key parts never say so; what they were declared
+# with does.
 #
 create table t1 (c int, j json,
 key k1 ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),

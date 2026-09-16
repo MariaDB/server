@@ -53,11 +53,7 @@ static Mv_index *get_mvi_index(THD* thd, List<Mv_index> *indexes,
   Item_func_mvi_encode *mvitem;
   while ((index= it++))
   {
-    Field *vcol_field= index->vcol;
-    DBUG_ASSERT(vcol_field->vcol_info->expr->type() == Item::FUNC_ITEM);
-    DBUG_ASSERT(((Item_func *) vcol_field->vcol_info->expr)->functype() ==
-                Item_func::MVI_ENCODE_FUNC);
-    mvitem= (Item_func_mvi_encode *) vcol_field->vcol_info->expr;
+    mvitem= index->spec;
     Item *as_document= array_indexed_expr->type() == Item::FIELD_ITEM ?
       mvi_desugar_whole_document(thd, array_indexed_expr) : array_indexed_expr;
     if (mvitem->arguments()[0]->eq(as_document, true))
@@ -214,9 +210,7 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
                                     CHARSET_INFO *cs, const String *json,
                                     bool conjunctive, json_engine_t *je)
 {
-  Item_func_mvi_encode *mvitem=
-    (Item_func_mvi_encode *) index->vcol->vcol_info->expr;
-  const Type_handler *cast_th= mvitem->cast_type().type_handler();
+  const Type_handler *cast_th= index->spec->cast_type().type_handler();
   Mvi_access *access= NULL;
   /* One key at a time: add_key() copies it onto the mem_root */
   StringBuffer<MVI_ENCODED_KEY_MAX_LEN> buf;

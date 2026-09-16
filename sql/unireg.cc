@@ -32,6 +32,7 @@
 #include "sql_class.h"                  // THD, Internal_error_handler
 #include "create_options.h"
 #include "discover.h"
+#include "item_strfunc.h"            // Item_func_mvi_encode
 #include <m_ctype.h>
 
 #define FCOMP			17		/* Bytes for a packed field */
@@ -134,8 +135,6 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
   return pos;
 }
 
-Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
-                                  const KEY *key);
 /*
   @brief
     Build the EXTRA2_MVI_SPEC image: what each multi-valued index of the
@@ -152,24 +151,23 @@ Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
     tables have no multi-valued index at all, and an empty image means the
     section is not written.
 
-    The text is what Virtual_column_info::print() produces, which is what
-    the internal column's expression is stored as as well. Keeping the
-    printed form means there is no binary format to freeze: whatever reads
-    it back is the parser that already reads a vcol expression.
+    The text is the printed MVI_ENCODE() call the key carries, see
+    KEY::mvi_spec. Keeping the printed form means there is no binary format
+    to freeze: whatever reads it back is the parser that already reads a
+    vcol expression, see parse_mvi_specs().
 
   @return
     true if an error was raised
 */
 
-static bool mvi_spec_image(String *image, List<Create_field> &create_fields,
-                           uint keys, const KEY *key_info)
+static bool mvi_spec_image(String *image, uint keys, const KEY *key_info)
 {
   /* Write no image at all, to test that opening the table refuses it */
   DBUG_EXECUTE_IF("mvi_skip_spec_image", return false;);
 
   uint n_specs= 0;
   for (uint i= 0; i < keys; i++)
-    if (mvi_key_spec(create_fields, key_info + i))
+    if (key_info[i].mvi_spec)
       n_specs++;
   if (!n_specs)
     return false;
@@ -182,12 +180,12 @@ static bool mvi_spec_image(String *image, List<Create_field> &create_fields,
   StringBuffer<MAX_FIELD_WIDTH> text;
   for (uint i= 0; i < keys; i++)
   {
-    Virtual_column_info *spec= mvi_key_spec(create_fields, key_info + i);
+    Item_func_mvi_encode *spec= key_info[i].mvi_spec;
     if (!spec)
       continue;
     DBUG_ASSERT(i <= 0xFF);                     /* MAX_KEY is 64 */
     text.length(0);
-    spec->print(&text);
+    spec->print_for_table_def(&text);
     len_len= (size_t) (extra2_write_len(len_buf, text.length()) - len_buf);
     if (image->append((char) i) ||
         image->append((char*) len_buf, len_len) ||
@@ -362,7 +360,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   if (unlikely(error))
     DBUG_RETURN(frm);
 
-  if (unlikely(mvi_spec_image(&mvi_spec, create_fields, keys, key_info)))
+  if (unlikely(mvi_spec_image(&mvi_spec, keys, key_info)))
     DBUG_RETURN(frm);
 
   if (vcols.length())

@@ -1,10 +1,10 @@
-# A multi-valued index whose definition was not written is a key we
+# A multi-valued index whose declaration was not written is a key we
 # would open as a plain fulltext key over the base column -- a valid
 # definition meaning something else. Refuse the table instead.
 set @@debug_dbug='+d,mvi_skip_spec_image';
 create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
-ERROR HY000: Incorrect information in file: './test/t1.frm'
+ERROR HY000: Incorrect information in file: './test/t1'
 set @@debug_dbug='';
 # a table with no multi-valued index writes no image and is unaffected
 set @@debug_dbug='+d,mvi_skip_spec_image';

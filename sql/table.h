@@ -68,6 +68,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class Item_func_mvi_encode;
 class Copy_field;
 class Table_statistics;
 class With_element;
@@ -1414,6 +1415,18 @@ public:
   KEY  *key_info;			/* data of keys in database */
 
   Field **field;                        /* Pointer to fields */
+  /*
+    What each multi-valued index of this table was declared with: one entry
+    per key, NULL for a key that is not one, and NULL altogether when the
+    table has no multi-valued index at all.
+
+    Parsed out of TABLE_SHARE::mvi_spec by parse_mvi_specs(), once per
+    TABLE rather than once per share, because the Item reads a column of
+    this TABLE -- the same reason vcol expressions are parsed per TABLE,
+    see parse_vcol_defs(). It is what makes a key a multi-valued index once
+    the table is open, and the only thing that does, see is_mvi_key().
+  */
+  Item_func_mvi_encode **mvi_spec;
   Field **vfield;                       /* Pointer to virtual fields*/
   Field **default_field;                /* Fields with non-constant DEFAULT */
   Field *next_number_field;		/* Set if next_number is activated */
@@ -1626,12 +1639,6 @@ public:
   bool locked_by_name;
   bool fulltext_searched;
   bool no_cache;
-  /*
-    A multi-valued index of this table do not fit the engine's
-    fulltext token size limits. The corresponding columns will be
-    readonly.
-  */
-  bool mvi_keys_readonly;
   /* To signal that the table is associated with a HANDLER statement */
   bool open_by_handler;
   /*

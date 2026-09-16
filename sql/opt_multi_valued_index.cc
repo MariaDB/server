@@ -16,7 +16,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
-#include "sql_table.h"                        /* make_internal_field_name */
+#include "sql_table.h"
 #include "unireg.h"                           /* extra2_read_len */
 #include "item_func.h"
 #include "my_json_writer.h"
@@ -198,6 +198,12 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
       }
       if (my_binary_compare(cs))
       {
+        /*
+          Point at the element instead of copying it. Nothing may write
+          through `sorted' from here on -- the bytes belong to the caller,
+          and on the write path they are the row InnoDB is about to store,
+          see mvi_tokenize_document() and fts_fetch_doc_from_rec().
+        */
         sorted.set((char *) je->value, je->value_len,
                    &my_charset_latin1_bin);
       }
@@ -221,8 +227,14 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
   if (sorted.length() > MVI_KEY_IMAGE_MAX_LEN)
     sorted.length(MVI_KEY_IMAGE_MAX_LEN);
 
-  /* 3. hex */
-  buf->append_hex(sorted.c_ptr(), sorted.length());
+  /*
+    3. hex. ptr() and not c_ptr(): the latter NUL-terminates in place when
+    the buffer has room past the string, and cutting the image down in step
+    2 leaves exactly that -- so it would write a NUL over the first byte
+    the image does not cover. In the branch above those bytes are the
+    document's own.
+  */
+  buf->append_hex(sorted.ptr(), sorted.length());
 
   /* 4. pad */
   if (sorted.length() == 0)
@@ -524,20 +536,23 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
 
 /*
   @brief
-    If `field' is the internal column that holds the keys of a multi-valued
-    index, return the mvi_encode() call that computes them.
+    If `vcol_info' is the declaration of a multi-valued index, return the
+    MVI_ENCODE() call it is made of.
 
   @detail
-    Only the multi-valued index DDL creates a hidden column computed by
-    MVI_ENCODE(), so this identifies one for certain.
+    MVI_ENCODE() is what the declaration of a multi-valued index is made of,
+    on the way into the FRM and on the way back out of it, and a declaration
+    is all this has to recognise: the DDL builds the call itself, and the
+    text in EXTRA2_MVI_SPEC is what that call printed.
+
+    A call this does not recognise is not a declaration at all -- an FRM
+    that has one in that section was not written by this server.
 */
 
-static Item_func_mvi_encode *mvi_expr(field_visibility_t invisible,
-                                      const Virtual_column_info *vcol_info)
+Item_func_mvi_encode *mvi_spec_expr(Virtual_column_info *vcol_info)
 {
   Item *expr;
-  if (invisible != INVISIBLE_FULL || !vcol_info ||
-      !(expr= vcol_info->expr) ||
+  if (!vcol_info || !(expr= vcol_info->expr) ||
       expr->type() != Item::FUNC_ITEM ||
       ((Item_func *) expr)->functype() != Item_func::MVI_ENCODE_FUNC)
     return NULL;
@@ -610,107 +625,71 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
 }
 
 
-bool check_mvi_token_size(const handler *file, const Create_field *column)
+bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec)
 {
-  Item_func_mvi_encode *mvi= mvi_expr(column->invisible, column->vcol_info);
-  DBUG_ASSERT(mvi);
-  return !mvi_keys_fit_fulltext(file, mvi->cast_type().type_handler(),
+  return !mvi_keys_fit_fulltext(file, spec->cast_type().type_handler(),
                                 /*report_error_if_unfit=*/true);
 }
 
 
 /*
   @brief
-    Is `field' the column of a multi-valued index whose keys the engine
-    will not hold?
+    Could key #keyno of `share' be a multi-valued index?
 
-  @param report  Raise ER_MVI_KEY_TOKEN_SIZE if it is
+  @detail
+    A multi-valued index is a fulltext key over one stored column, parsed
+    by the mvi fulltext parser. Nothing else this server writes names that
+    parser, and no table definition may either, see check_mvi_key_parser().
 
-  @return
-    true   It is
+    That is the whole shape of one. What array it is over and what its
+    elements are encoded as is in EXTRA2_MVI_SPEC, and a key of this shape
+    with nothing there is a key whose declaration went missing -- which is
+    what makes the section checkable at all, now that the keys no longer
+    describe themselves.
 */
 
-static bool mvi_field_keys_unfit(const TABLE *table, const Field *field,
-                                 bool report)
+bool mvi_key_names_parser(const TABLE_SHARE *share, uint keyno)
 {
-  Item_func_mvi_encode *mvi= mvi_expr(field->invisible, field->vcol_info);
-  return mvi && !mvi_keys_fit_fulltext(table->file,
-                                       mvi->cast_type().type_handler(),
-                                       report);
-}
-
-
-void mvi_set_keys_readonly(TABLE *table)
-{
-  table->mvi_keys_readonly= false;
-  for (Field **vf= table->vfield; vf && *vf; vf++)
-  {
-    if (mvi_field_keys_unfit(table, *vf, /*report=*/false))
-    {
-      table->mvi_keys_readonly= true;
-      return;
-    }
-  }
-}
-
-
-bool mvi_report_unfit_keys(const TABLE *table, const Field *field)
-{
-  return mvi_field_keys_unfit(table, field, /*report=*/true);
-}
-
-
-bool is_mvi_vcol(const Field *field)
-{
-  return mvi_expr(field->invisible, field->vcol_info) != NULL;
-}
-
-
-/* The same, on the way in: for a column that is being created */
-bool is_mvi_vcol(const Create_field *field)
-{
-  return mvi_expr(field->invisible, field->vcol_info) != NULL;
+  DBUG_ASSERT(keyno < share->total_keys);
+  const KEY *key= share->key_info + keyno;
+  /* TODO: "legacy" */
+  if (!(key->flags & HA_FULLTEXT_legacy) ||
+      key->user_defined_key_parts != 1 ||
+      !(key->flags & HA_USES_PARSER) || !key->parser)
+    return false;
+  return Lex_ident_column(*plugin_name(key->parser)).
+           streq(Lex_cstring_strlen(MVI_PARSER_NAME));
 }
 
 
 /*
   @brief
-    Is key #keyno of `table' a multi-valued index, that is, a fulltext key
-    over one internal MVI column?
+    The declaration of key #keyno of `table', or NULL when it is not a
+    multi-valued index.
 
   @detail
-    init_key_part_spec() does not allow such a key to have more than one key
-    part. The check is here as well because a table created before it was
-    added may still have one, and there is no single expression to show for
-    it. The optimizer does use each of its parts, see
-    collect_mvi_indexes_for_table().
+    One entry of TABLE::mvi_spec, which parse_mvi_specs() filled in out of
+    the FRM. Nothing else identifies such a key: the key definition itself
+    only says it is a fulltext key over a column, which it shares with a
+    plain fulltext key over the very same column.
 */
 
-static Item_func_mvi_encode *mvi_key_expr(const TABLE *table, uint keyno)
+Item_func_mvi_encode *mvi_key_spec(const TABLE *table, uint keyno)
 {
-  KEY *key= table->s->key_info + keyno;
-  /* TODO: "legacy" */
-  if (!(key->flags & HA_FULLTEXT_legacy) || key->user_defined_key_parts != 1)
-    return NULL;
-  /*
-    Take the field from the TABLE and not from the key part: the share's
-    Field objects have no expression, parse_vcol_defs() builds one for each
-    TABLE of the share.
-  */
-  Field *field= table->field[key->key_part[0].fieldnr - 1];
-  return mvi_expr(field->invisible, field->vcol_info);
+  DBUG_ASSERT(keyno < table->s->total_keys);
+  return table->mvi_spec ? table->mvi_spec[keyno] : NULL;
 }
 
 
 bool is_mvi_key(const TABLE *table, uint keyno)
 {
-  return mvi_key_expr(table, keyno) != NULL;
+  return mvi_key_spec(table, keyno) != NULL;
 }
 
 
 void print_mvi_key_expr(String *str, const TABLE *table, uint keyno)
 {
-  Item_func_mvi_encode *mvi= mvi_key_expr(table, keyno);
+  Item_func_mvi_encode *mvi= mvi_key_spec(table, keyno);
   DBUG_ASSERT(mvi);
   mvi->print_as_array_cast(str);
 }
@@ -825,16 +804,12 @@ Item *mvi_desugar_whole_document(THD *thd, Item *column)
     DDL: check the column can be used for a multi-valued index
 
   @detail
-    `column' is the internal column that holds the keys; the one this
-    looks at is the column its expression extracts them from. The base
-    column has to be stored. Not because anything here needs that: the
-    server computes a VIRTUAL column into the record before the write,
-    so MVI_ENCODE can read it. It is where the key part is going. Once
-    it is the base column itself, the engine reads that column out of
-    the clustered index record to build the document, and a virtual
-    column has no place there - InnoDB refuses a FULLTEXT index over
-    one outright. Refuse it at the multi-valued index instead, with an
-    error that says why.
+    The base column -- the one the declaration reads the array out of --
+    has to be stored, because it is the column the key part is over. The
+    engine reads it out of the clustered index record to build the
+    document it tokenizes, and a virtual column has no place there:
+    InnoDB refuses a FULLTEXT index over one outright. Refuse it at the
+    multi-valued index instead, with an error that says why.
 
     It runs once the columns of the new table are known, which for
     ALTER TABLE means after mysql_prepare_alter_table() has merged the
@@ -852,13 +827,10 @@ Item *mvi_desugar_whole_document(THD *thd, Item *column)
     true   The index cannot be built from it, and an error is raised
 */
 
-bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column)
+bool check_mvi_base_column(Alter_info *alter_info,
+                           Item_func_mvi_encode *spec)
 {
-  const Item_func_mvi_encode *mvi= mvi_expr(column->invisible,
-                                            column->vcol_info);
-  DBUG_ASSERT(mvi);
-
-  const Item_field *base= mvi_base_column(mvi->arguments()[0]);
+  const Item_field *base= mvi_base_column(spec->arguments()[0]);
   if (unlikely(!base))
   {
     my_error(ER_MVI_BAD_EXPR, MYF(0));
@@ -880,80 +852,17 @@ bool check_mvi_base_column(Alter_info *alter_info, const Create_field *column)
 
 
 /*
-  @brief
-    The definition of key `key' as a multi-valued index, or NULL when it is
-    not one.
-
-  @detail
-    A multi-valued index is a fulltext key over one internal column computed
-    by MVI_ENCODE(), so the definition to keep is that column's expression.
-    The key part names the column by position, `fieldnr' counting from 1.
-
-    This runs while the table is being created, off the columns the
-    statement defines, which is why it does not use is_mvi_key(): there is
-    no TABLE yet.
-*/
-
-Virtual_column_info *mvi_key_spec(List<Create_field> &create_fields,
-                                  const KEY *key)
-{
-  if (key->user_defined_key_parts != 1)
-    return NULL;
-  /*
-    Counts from 0 here, unlike in a KEY read back from the FRM: the two are
-    filled in by different code, see mysql_prepare_create_table_finalize().
-    elem() returns NULL past the end of the list.
-  */
-  Create_field *column= create_fields.elem(key->key_part[0].fieldnr);
-  return column && is_mvi_vcol(column) ? column->vcol_info : NULL;
-}
-
-
-/*
-  @brief
-    The declaration of `key' as a multi-valued index, off the columns of
-    the statement that defines it.
-
-  @detail
-    The key part of a multi-valued index names the internal column the DDL
-    made up to hold the keys, not anything the user wrote, so what the key
-    is over is not in the key at all. It is the expression of that column,
-    which is what this digs out. See add_mvi_key_part().
-
-    By name, the way init_key_part_spec() does it, because that is all a
-    Key has to go on: the key parts are not numbered until
-    mysql_prepare_create_table_finalize(), which is what mvi_key_spec()
-    uses instead once they are.
-
-  @return
-    The declaration, or NULL if `key' is not a multi-valued index
-*/
-
-Virtual_column_info *mvi_key_decl(List<Create_field> &create_list,
-                                  const Key *key)
-{
-  if (key->type != Key::FULLTEXT || key->columns.elements != 1)
-    return NULL;
-  for (Key_part_spec &kp: key->columns)            /* The one key part */
-    for (Create_field &c: create_list)
-      if (c.field_name.streq(kp.field_name) && is_mvi_vcol(&c))
-        return c.vcol_info;
-  return NULL;
-}
-
-
-/*
   Two multi-valued indexes are the same index when they hold the same keys,
   and what they were declared with -- the array, and what its elements are
-  encoded as -- is all that decides those. Comparing the printed form is
-  what check_mvi_spec() does against the FRM image as well.
+  encoded as -- is all that decides those. The printed form is what the FRM
+  keeps as well, so comparing it is comparing what will be stored.
 */
 
-bool mvi_decls_eq(Virtual_column_info *a, Virtual_column_info *b)
+bool mvi_decls_eq(Item_func_mvi_encode *a, Item_func_mvi_encode *b)
 {
   StringBuffer<MAX_FIELD_WIDTH> pa, pb;
-  a->print(&pa);
-  b->print(&pb);
+  a->print_for_table_def(&pa);
+  b->print_for_table_def(&pb);
   return pa.length() == pb.length() &&
          !memcmp(pa.ptr(), pb.ptr(), pa.length());
 }
@@ -961,101 +870,73 @@ bool mvi_decls_eq(Virtual_column_info *a, Virtual_column_info *b)
 
 /*
   @brief
-    Check the EXTRA2_MVI_SPEC image of `table' against its keys.
+    Build what the mvi fulltext parser is handed for the index `spec'
+    declares.
 
   @detail
-    Every multi-valued index has an entry in the image, and every entry
-    describes a multi-valued index, with the text that index was declared
-    with. The two halves are worth checking for different reasons.
-
-    An entry no key claims, or one that says something other than the key
-    does, means the image and the keys disagree, and nothing here can tell
-    which of them is right.
-
-    A multi-valued index with no entry is the one that bites later. The
-    entry is what the definition becomes once the internal column goes
-    away; a key without one reads back as a plain fulltext key over the
-    base column, which is a valid definition meaning something else. A
-    table we would open as something it is not is a table to refuse.
-
-    Neither can happen to an FRM this server wrote, so a failure here means
-    the file was written by something else, damaged, or restored in pieces
-    -- ER_NOT_FORM_FILE, as for the FRM's other inconsistencies.
+    The parser needs the path to the array and the datatype the elements
+    are cast to, and needs them without having to allocate or evaluate
+    anything: it runs on the engine's threads while a commit or an index
+    build is going on. Both are in the declaration, which is where the
+    narrowed DDL put them -- the array is `<column> -> '<literal path>''
+    and nothing else, so the path is a constant this can read out now and
+    parse once, see mvi_base_column().
 
   @return
-    true   The image and the keys disagree
+    The argument, allocated on `mem_root', or NULL if `spec' is not a
+    declaration this server could have written
 */
 
-bool check_mvi_spec(const TABLE *table)
+Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
+                                    Item_func_mvi_encode *spec)
 {
-  const LEX_CUSTRING *image= &table->s->mvi_spec;
-  StringBuffer<MAX_FIELD_WIDTH> printed;
-  key_map described;
-  described.clear_all();
+  Item *document= spec->arguments()[0];
+  Item_field *base= mvi_base_column(document);
+  StringBuffer<MAX_FIELD_WIDTH> tmp;
+  String *path;
+  Mvi_parser_arg *arg;
 
-  if (image->length)
-  {
-    const uchar *pos= image->str, *end= pos + image->length;
-    size_t n_specs= extra2_read_len(&pos, end);
+  if (!base)
+    return NULL;                                /* Not a declaration */
+  /* mvi_base_column() has checked it is a literal, so this evaluates */
+  if (!(path= ((Item_func *) document)->arguments()[1]->val_str(&tmp)))
+    return NULL;
 
-    for (size_t i= 0; i < n_specs; i++)
-    {
-      if (pos >= end)
-        return true;
-      uint keyno= *pos++;
-      size_t len= extra2_read_len(&pos, end);
-      if (!len || pos + len > end || keyno >= table->s->keys)
-        return true;
-      if (!is_mvi_key(table, keyno) || described.is_set(keyno))
-        return true;
-
-      Field *vcol= table->key_info[keyno].key_part[0].field;
-      printed.length(0);
-      vcol->vcol_info->print(&printed);
-      if (printed.length() != len || memcmp(printed.ptr(), pos, len))
-        return true;
-      described.set_bit(keyno);
-      pos+= len;
-    }
-    if (pos != end)
-      return true;
-  }
-
-  for (uint keyno= 0; keyno < table->s->keys; keyno++)
-    if (is_mvi_key(table, keyno) && !described.is_set(keyno))
-      return true;
-  return false;
+  if (!(arg= (Mvi_parser_arg *) alloc_root(mem_root, sizeof(*arg))))
+    return NULL;                                // Out of memory
+  const LEX_CSTRING path_str= { path->ptr(), path->length() };
+  if (mvi_parser_arg_init(mem_root, arg, &path_str, path->charset(),
+                          spec->cast_type().type_handler()))
+    return NULL;
+  return arg;
 }
-
-
-/*
-  The name of the internal column that holds the keys of a multi-valued
-  index: this prefix and a number that makes it unique in the table. See
-  make_internal_field_name() for CREATE TABLE and mvi_name_new_vcols() for
-  ALTER TABLE.
-*/
-#define MVI_VCOL_NAME_PREFIX "DB_MVI_"
-/* The prefix, the number and the terminating NUL */
-static const size_t MVI_VCOL_NAME_LEN= sizeof(MVI_VCOL_NAME_PREFIX) + 10;
 
 
 /*
   @brief
     Handle a `(CAST(expr AS type ARRAY))' key part: turn the key being
-    defined into a multi-valued index over a new internal column.
+    defined into a multi-valued index over the column the array is in.
 
   @detail
-    There is no field to index directly, so the DDL builds one: a hidden
-    stored column computed by MVI_ENCODE(), holding the encoded elements of
-    the array, and a fulltext index over it. That pairing is what a
-    multi-valued index is, see is_mvi_key().
+    The key part is that column, and the array inside it, with the datatype
+    its elements are cast to, becomes the key's declaration -- one
+    MVI_ENCODE() call, which is what goes into the FRM's EXTRA2_MVI_SPEC
+    section and what comes back out of it. Nothing is materialised: the
+    engine reads the column and the mvi fulltext parser looks inside it for
+    the array, see mvi_tokenize_document().
 
-    Both the column and the key are invisible: there is no syntax that would
-    name the column, and SHOW CREATE TABLE prints the key with the expression
-    it was declared with instead, see print_mvi_key_expr().
+    So the key is a fulltext key, over a column the user wrote, parsed by
+    a parser the user may not name. That last part is what keeps the two
+    apart: a fulltext key over the same column with no declaration is a
+    plain fulltext key over its text, and there would otherwise be nothing
+    to tell it from a multi-valued index whose declaration went missing.
+
+    SHOW CREATE TABLE prints neither the parser nor the column, but the
+    expression the index was declared with, which is also the only form
+    that reads back in, see print_mvi_key_expr().
 
   @return
-    The key part naming the new column, or NULL if an error was raised
+    The key part naming the base column, or NULL if an error was raised
 */
 
 Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
@@ -1063,6 +944,7 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
 {
   LEX *lex= thd->lex;
   Key *key= lex->last_key;
+  Item_field *base;
 
   /*
     An index over an ARRAY has exactly one key part. Catch a second one here,
@@ -1091,7 +973,7 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
     that column is one the index can be built from is settled once the
     columns are known, in check_mvi_base_column().
   */
-  if (unlikely(!mvi_base_column(expr)))
+  if (unlikely(!(base= mvi_base_column(expr))))
   {
     my_error(ER_MVI_BAD_EXPR, MYF(0));
     return NULL;
@@ -1101,147 +983,69 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
     The engine's fulltext token size limits are checked once the engine is
     known, in init_key_part_spec(): the statement has not named it yet.
   */
-  Create_field *f= new (thd->mem_root) Create_field();
-  Item *vcol_expr=
+  Item_func_mvi_encode *spec=
     new (thd->mem_root) Item_func_mvi_encode(thd, expr, cast_type);
-  if (unlikely(!f || !vcol_expr))
+  if (unlikely(!spec))
     return NULL;
 
   /*
-    Has to run before `f' joins the list it looks for a free name in.
-
-    The list is all this statement defines, which for CREATE TABLE is every
-    column of the table, but for ALTER TABLE is only the columns being
-    added: the name picked here can still collide with one the altered
-    table already has. mysql_prepare_alter_table() settles that, once the
-    table is known, in mvi_name_new_vcols().
+    The parser is put on the key in check_mvi_key_parser(), once whatever
+    the statement says about it has been applied: WITH PARSER comes after
+    the key parts, so it has not been seen yet.
   */
-  const Lex_ident_column fname=
-    make_internal_field_name(thd, MVI_VCOL_NAME_PREFIX,
-                             &lex->alter_info.create_list);
-
-  Virtual_column_info *v= add_virtual_expression(thd, vcol_expr);
-  if (unlikely(!v))
-    return NULL;
-  v->set_vcol_type(VCOL_GENERATED_STORED);
-
-  f->invisible= INVISIBLE_FULL;
-  f->set_handler(&type_handler_blob);
-  f->charset= &my_charset_latin1_bin;
-  f->vcol_info= v;
-  lex->init_last_field(f, &fname);
-  lex->alter_info.create_list.push_back(f, thd->mem_root);
-
   key->type= Key::FULLTEXT;
-  key->invisible= true;
+  key->mvi_spec= spec;
 
-  return new (thd->mem_root) Key_part_spec(&fname, 0, /*gen=*/true);
-}
-
-
-/*
-  Is `name' taken, either by a column of `table' or by one this statement
-  defines? `self' is the column being named, which does not take its own
-  name.
-*/
-
-static bool mvi_vcol_name_taken(const TABLE *table,
-                                List<Create_field> *create_list,
-                                const Create_field *self,
-                                const LEX_CSTRING &name)
-{
-  for (Field **f_ptr= table->field; *f_ptr; f_ptr++)
-    if ((*f_ptr)->field_name.streq(name))
-      return true;
-  List_iterator<Create_field> it(*create_list);
-  while (const Create_field *def= it++)
-    if (def != self && def->field_name.streq(name))
-      return true;
-  return false;
-}
-
-
-/*
-  The key part that names `fname', or NULL if there is none. Only a
-  multi-valued index has an invisible key, see add_mvi_key_part(), so this
-  will not pick up a key the user wrote.
-*/
-
-static Key_part_spec *mvi_key_part_for(Alter_info *alter_info,
-                                       const LEX_CSTRING &fname)
-{
-  List_iterator<Key> key_it(alter_info->key_list);
-  while (Key *key= key_it++)
-  {
-    if (!key->invisible || key->columns.elements != 1)
-      continue;
-    Key_part_spec *kp= key->columns.head();
-    if (kp->field_name.streq(fname))
-      return kp;
-  }
-  return NULL;
+  return new (thd->mem_root) Key_part_spec(&base->field_name, 0);
 }
 
 
 /*
   @brief
-    Give the internal columns of the multi-valued indexes this ALTER
-    TABLE adds names that are free in the table being altered.
+    DDL: settle which fulltext parser a key is to be parsed by, now that
+    the whole key definition has been read.
 
   @detail
-    add_mvi_key_part() named the column in the parser, where the only
-    names it can see are the ones the statement itself introduces. For
-    CREATE TABLE that is every column of the new table, but for ALTER
-    TABLE it is just the columns being added, so
+    The parser is how a multi-valued index tells itself apart from a plain
+    fulltext key over the same column: see add_mvi_key_part(). So it works
+    in both directions.
 
-      ALTER TABLE t ADD KEY ((CAST(j->'$.a' AS CHAR(6) ARRAY)))
+    A key that is a multi-valued index gets it, whatever the statement says
+    -- and if the statement says something else, that is an error rather
+    than something to override, because such an index would hold encoded
+    elements produced by something that does not encode them.
 
-    asks for DB_MVI_1 on a table that may already have a DB_MVI_1, and
-    the two collide once the old columns are merged in.
-
-    Rename here instead, where the table is known. The key part to fix
-    up is found by the name the parser gave the column: a name is
-    unique within one Alter_info, so there is at most one repeat.
-
-    Note this runs on the copy of the Alter_info that ALTER TABLE
-    works on (see Alter_info::Alter_info()), not on the one the parser
-    filled in, so re-executing a prepared statement names the column
-    afresh.
+    A key that is not one may not name it. Such a key would be
+    indistinguishable from a multi-valued index whose declaration is
+    missing from the FRM, and the server could no longer say which of the
+    two it is looking at. Nothing is lost by refusing it either: with no
+    declaration to read, the parser does exactly what the built-in one
+    does.
 
   @return
-    true if an error was raised
+    true   An error was raised
 */
 
-bool mvi_name_new_vcols(THD *thd, TABLE *table, Alter_info *alter_info)
+bool check_mvi_key_parser(Key *key)
 {
-  List_iterator<Create_field> def_it(alter_info->create_list);
-  while (Create_field *def= def_it++)
+  const LEX_CSTRING &name= key->key_create_info.parser_name;
+  const bool named_ours= name.str &&
+    Lex_ident_column(name).streq(Lex_cstring_strlen(MVI_PARSER_NAME));
+
+  if (!key->mvi_spec)
   {
-    if (!is_mvi_vcol(def) ||
-        !mvi_vcol_name_taken(table, &alter_info->create_list, def,
-                             def->field_name))
-      continue;                 /* Not an MVI or name already unique */
-
-    char buf[MVI_VCOL_NAME_LEN];
-    LEX_CSTRING name= { buf, 0 };
-    for (uint num= 1; ; num++)
-    {
-      name.length= my_snprintf(buf, sizeof(buf), "%s%u",
-                               MVI_VCOL_NAME_PREFIX, num);
-      if (!mvi_vcol_name_taken(table, &alter_info->create_list, def, name))
-        break;
-    }
-    const Lex_ident_column new_name(thd->strmake_lex_cstring(name));
-    if (unlikely(!new_name.str))
-      return true;                              // Out of memory
-
-    Key_part_spec *kp= mvi_key_part_for(alter_info, def->field_name);
-    DBUG_ASSERT(kp);                            // Its key is in the statement
-    if (unlikely(!kp))
-      continue;
-    kp->field_name= new_name;
-    def->field_name= new_name;
+    if (!named_ours)
+      return false;
+    my_error(ER_MVI_RESERVED_PARSER, MYF(0), MVI_PARSER_NAME);
+    return true;
   }
+  if (name.str && !named_ours)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "WITH PARSER",
+             "a multi-valued index");
+    return true;
+  }
+  key->key_create_info.parser_name= Lex_cstring_strlen(MVI_PARSER_NAME);
   return false;
 }
 
@@ -1251,33 +1055,25 @@ static
 bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
                                    List<Mv_index> *indexes)
 {
+  if (!table->mvi_spec)
+    return FALSE;                               /* Not one index of them */
   for (uint i=0; i < table->s->keys; i++)
   {
-    if (!table->keys_in_use_for_query.is_set(i))
+    /* Only a key the engine has, so s->keys and not s->total_keys */
+    Item_func_mvi_encode *spec;
+    if (!table->keys_in_use_for_query.is_set(i) ||
+        !(spec= table->mvi_spec[i]))
       continue;
-
-    KEY *key= &table->key_info[i];
-    /* TODO: "legacy" */
-    if (!(key->flags & HA_FULLTEXT_legacy))
+    /*
+      The engine's token size limits are checked at DDL time, but they
+      are settings: this table may have been created when they were
+      wider, or on another server.
+    */
+    if (!mvi_keys_fit_fulltext(table->file, spec->cast_type().type_handler()))
       continue;
-    for (uint kp=0; kp < key->user_defined_key_parts; kp++)
-    {
-      Field *field= key->key_part[kp].field;
-      if (!is_mvi_vcol(field))
-        continue;
-      /*
-        The engine's token size limits are checked at DDL time, but they
-        are settings: this table may have been created when they were
-        wider, or on another server.
-      */
-      Item_func_mvi_encode *mvi= mvi_expr(field->invisible, field->vcol_info);
-      DBUG_ASSERT(mvi);
-      if (!mvi_keys_fit_fulltext(table->file, mvi->cast_type().type_handler()))
-        continue;
-      Mv_index *index= new (thd->mem_root) Mv_index(field, i);
-      if (indexes->push_back(index))
-        return TRUE; // Out of memory
-    }
+    Mv_index *index= new (thd->mem_root) Mv_index(spec, table, i);
+    if (!index || indexes->push_back(index))
+      return TRUE; // Out of memory
   }
   return FALSE; // Ok
 }
@@ -1389,7 +1185,7 @@ bool Mvi_access::merge(MEM_ROOT *mem_root, Mvi_access *other)
 
 void Mvi_access::estimate_records()
 {
-  TABLE *table= index->vcol->table;
+  TABLE *table= index->table;
   handler *file= table->file;
   List_iterator<String> it(encoded);
   String *key;
@@ -1488,7 +1284,7 @@ bool Mvi_access::build_ft_query(String *out)
 
 void Mvi_access::print_json(THD *thd, Json_writer_object *trace_object)
 {
-  KEY *key_info= index->vcol->table->key_info + index->keyno;
+  KEY *key_info= index->table->key_info + index->keyno;
   List_iterator<String> it(encoded);
   String *key;
   trace_object->add("index", key_info->name).
@@ -1600,7 +1396,7 @@ bool setup_mvi_access_for_table(THD *thd, JOIN_TAB *tab, Item *cond)
       An access can only be on this table: ctx.indexes holds this table's
       indexes and get_mvi_index() matches the predicate against those.
     */
-    DBUG_ASSERT(access->index->vcol->table == tab->table);
+    DBUG_ASSERT(access->index->table == tab->table);
 
     /* Fold it into an access we already keep, if the two are compatible */
     List_iterator<Mvi_access> kit(*kept);

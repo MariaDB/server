@@ -1,15 +1,12 @@
 #
-# The fulltext parser of a multi-valued index, on a key that is not one.
+# The fulltext parser of a multi-valued index is reserved.
 #
-# What makes an index multi-valued is the array it was declared with, which
-# the server hands the parser when the table is opened. A key that only
-# names the parser was declared with nothing, so there is nothing for it to
-# read out of a document and it falls back on the built-in parser: such a
-# key has to behave exactly like one that names no parser at all, which is
-# what this checks -- the same rows, the same tokens in the index.
-#
-# The other side of it, a key that was declared with an array, is in
-# multi_valued_index_parser_debug.test.
+# A multi-valued index is a fulltext key over the base column, parsed by
+# the mvi parser, and that parser is what tells it from a plain fulltext
+# key over the very same column. So the parser is the server's to name: a
+# table definition that named it would be indistinguishable from a
+# multi-valued index whose declaration went missing from the FRM, and
+# nothing would be able to say which of the two the server was looking at.
 #
 --source include/have_innodb.inc
 --source include/have_maria.inc
@@ -18,54 +15,67 @@
 select plugin_name, plugin_type, plugin_status, load_option
 from information_schema.plugins where plugin_name='mvi';
 
+--echo #
+--echo # No table definition may name it
+--echo #
+--error ER_MVI_RESERVED_PARSER
 create table t1 (c int, txt text,
-                 fulltext key ft (txt))engine=innodb;
-create table t2 (c int, txt text,
                  fulltext key ft (txt) with parser mvi)engine=innodb;
-show create table t2;
-
-insert into t1 values (1,'alpha beta'),(2,'beta gamma'),(3,'gamma delta');
-insert into t2 select * from t1;
-
---echo # the same rows, whichever parser the index names
-select c from t1 where match(txt) against ('beta') order by c;
-select c from t2 where match(txt) against ('beta') order by c;
-select c from t1 where match(txt) against ('+beta +gamma' in boolean mode)
- order by c;
-select c from t2 where match(txt) against ('+beta +gamma' in boolean mode)
- order by c;
-select c from t1 where match(txt) against ('"beta gamma"' in boolean mode)
- order by c;
-select c from t2 where match(txt) against ('"beta gamma"' in boolean mode)
- order by c;
-
---echo # ... and the same tokens in the index
-set @old_innodb_ft_aux_table=@@global.innodb_ft_aux_table;
-set global innodb_ft_aux_table='test/t1';
-select word, doc_count from information_schema.innodb_ft_index_cache
- order by word;
-set global innodb_ft_aux_table='test/t2';
-select word, doc_count from information_schema.innodb_ft_index_cache
- order by word;
-set global innodb_ft_aux_table=@old_innodb_ft_aux_table;
-
---echo # the index survives a rebuild and a reopen
-alter table t2 add column x int;
-flush tables;
-show create table t2;
-select c from t2 where match(txt) against ('beta') order by c;
-
-drop table t1, t2;
-
---echo # MyISAM and Aria honour a parser on a fulltext key too
+--error ER_MVI_RESERVED_PARSER
 create table t1 (c int, txt text,
                  fulltext key ft (txt) with parser mvi)engine=myisam;
-insert into t1 values (1,'alpha beta'),(2,'beta gamma');
-select c from t1 where match(txt) against ('beta') order by c;
-drop table t1;
-
+--error ER_MVI_RESERVED_PARSER
 create table t1 (c int, txt text,
                  fulltext key ft (txt) with parser mvi)engine=aria;
+
+create table t1 (c int, txt text)engine=innodb;
+--error ER_MVI_RESERVED_PARSER
+alter table t1 add fulltext key ft (txt) with parser mvi;
+--echo # ... not even with the name spelled some other way
+--error ER_MVI_RESERVED_PARSER
+alter table t1 add fulltext key ft (txt) with parser `MVI`;
+drop table t1;
+
+--echo #
+--echo # A plain fulltext key over the same column is unaffected, and so is
+--echo # one that names a parser of its own
+--echo #
+create table t1 (c int, txt text,
+                 fulltext key ft (txt))engine=innodb;
 insert into t1 values (1,'alpha beta'),(2,'beta gamma');
 select c from t1 where match(txt) against ('beta') order by c;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # A multi-valued index and a plain fulltext key over one column can
+--echo # live side by side: the parser is what keeps them apart, so each
+--echo # holds what it should.
+--echo #
+--echo # What cannot be asked for is which of the two a MATCH() searches.
+--echo # MATCH names the column, both keys are over it, and nothing in the
+--echo # statement says more than that -- so the MATCH() queries below are
+--echo # deliberately not here.
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+                 key mv ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 fulltext key ft (j))engine=innodb;
+show create table t1;
+insert into t1 values (1,'{"tags": ["aaa"]}');
+--echo # the multi-valued index holds the keys of the array
+select c from t1 where json_contains(j->'$.tags','"aaa"');
+drop table t1;
+
+--echo # On a column of its own the plain fulltext key is unambiguous, and
+--echo # holds the words of that column while the multi-valued index holds
+--echo # the keys of the array in the other
+create table t1 (c int, txt text,
+                 j text charset utf8mb4 collate utf8mb4_bin,
+                 key mv ((CAST(j->'$.tags' AS CHAR(6) ARRAY))),
+                 fulltext key ft (txt))engine=innodb;
+insert into t1 values (1,'alpha beta','{"tags": ["aaa"]}'),
+                      (2,'beta gamma','{"tags": ["bbb"]}');
+select c from t1 where match(txt) against ('alpha' in boolean mode);
+select c from t1 where json_contains(j->'$.tags','"aaa"');
+select c from t1 where match(txt) against ('beta' in boolean mode)
+ and json_contains(j->'$.tags','"bbb"');
 drop table t1;

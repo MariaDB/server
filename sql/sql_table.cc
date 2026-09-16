@@ -2543,12 +2543,11 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
     return;
 
   /*
-    A multi-valued index is over an internal column the DDL made up to
-    hold its keys, named after nothing the user wrote and its own. So the
-    key parts of two of them never match, whether or not the two are the
-    same index; what decides that is what they were declared with.
+    Two multi-valued indexes over one column have the same key part -- that
+    column -- whichever arrays they are over, so the key parts decide
+    nothing here. What they were declared with does.
   */
-  Virtual_column_info *decl= mvi_key_decl(alter_info->create_list, key);
+  Item_func_mvi_encode *decl= key->mvi_spec;
 
   for (const Key &k : alter_info->key_list)
   {
@@ -2566,7 +2565,7 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
       continue;
     }
 
-    Virtual_column_info *k_decl= mvi_key_decl(alter_info->create_list, &k);
+    Item_func_mvi_encode *k_decl= k.mvi_spec;
     if ((decl != NULL) != (k_decl != NULL))
       continue;                        // Only one of the two is multi-valued
 
@@ -2981,7 +2980,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
 
   if (!DBUG_IF("test_invisible_index")
       && column->invisible > INVISIBLE_USER
-      && !(column->flags & VERS_SYSTEM_FIELD) && !key.invisible)
+      && !(column->flags & VERS_SYSTEM_FIELD))
   {
     my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
     DBUG_RETURN(TRUE);
@@ -2992,7 +2991,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     them has no defining expression to show in SHOW CREATE TABLE, and no
     syntax of its own that would read it back in.
   */
-  if (is_mvi_vcol(column))
+  if (key.mvi_spec)
   {
     if (key.columns.elements != 1)
     {
@@ -3000,10 +2999,10 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       DBUG_RETURN(TRUE);
     }
     /*
-      Now that the columns are known, is the base column one the index can
-      be built from?
+      Now that the columns are known, is the base column -- which is what
+      this key part is over -- one the index can be built from?
     */
-    if (check_mvi_base_column(alter_info, column))
+    if (check_mvi_base_column(alter_info, key.mvi_spec))
       DBUG_RETURN(TRUE);
     /*
       Now that the engine is known, is it one that will hold the keys?
@@ -3011,7 +3010,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       whose index the settings no longer allow fails here rather than
       (re)building an index that cannot be used.
     */
-    if (check_mvi_token_size(file, column))
+    if (check_mvi_token_size(file, key.mvi_spec))
       DBUG_RETURN(TRUE);
   }
 
@@ -3711,10 +3710,31 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
         key_info->flags= HA_FULLTEXT_legacy;
         if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
           key->key_create_info.algorithm= HA_KEY_ALG_FULLTEXT;
+        if (check_mvi_key_parser(key))
+          DBUG_RETURN(true);
         if ((key_info->parser_name= &key->key_create_info.parser_name)->str)
           key_info->flags|= HA_USES_PARSER;
         else
           key_info->parser_name= 0;
+        /*
+          What a multi-valued index was declared with, on its way to the
+          FRM's EXTRA2_MVI_SPEC section. The keys are sorted below, so it
+          travels with the key it belongs to rather than being looked up
+          by key number afterwards.
+        */
+        if ((key_info->mvi_spec= key->mvi_spec))
+        {
+          /*
+            ... and what its fulltext parser is to be handed. The engine
+            builds the index from this definition, so it needs the argument
+            before the table the index belongs to has ever been opened --
+            which is the only other place one is made, out of the FRM, see
+            parse_mvi_specs().
+          */
+          if (!(key_info->ftparser_arg=
+                  mvi_make_parser_arg(thd->mem_root, key_info->mvi_spec)))
+            DBUG_RETURN(TRUE);                  // Out of memory
+        }
         break;
     case Key::SPATIAL:
         key_info->flags= HA_SPATIAL_legacy;
@@ -6958,6 +6978,21 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   /*
+    A multi-valued index is over the base column whichever array inside it
+    it indexes, so the key parts below say nothing about which one that is.
+    Two that were declared differently hold different keys, so the index
+    has to be rebuilt rather than kept -- it would otherwise keep the old
+    array's keys while the FRM said the new one.
+  */
+  {
+    Item_func_mvi_encode *old_spec=
+      mvi_key_spec(table, (uint) (table_key - table->key_info));
+    if ((old_spec != NULL) != (new_key->mvi_spec != NULL) ||
+        (old_spec && !mvi_decls_eq(old_spec, new_key->mvi_spec)))
+      return Compare_keys::NotEqual;
+  }
+
+  /*
   Rebuild the index if following condition get satisfied:
 
   (i) Old table doesn't have primary key, new table has it and vice-versa
@@ -8591,41 +8626,6 @@ void rename_field_in_list(Create_field *field, List<const char> *field_list)
 #endif
 
 
-/*
-  @brief
-    Should `field', the internal column of a multi-valued index, survive this
-    ALTER TABLE?
-
-  @detail
-    It only exists to hold the entries of one key, so it lives exactly as
-    long as that key does: a column whose key is being dropped goes with it,
-    and so does one that has no key left at all.
-*/
-
-static bool mvi_vcol_kept_by_alter(TABLE *table, Field *field,
-                                   Alter_info *alter_info)
-{
-  KEY *key_info= table->key_info;
-  if (!is_mvi_vcol(field))
-    return false;
-  for (uint i= 0; i < table->s->total_keys; i++, key_info++)
-  {
-    if (!is_mvi_key(table, i) || key_info->key_part[0].field != field)
-      continue;
-    /* This is its key. Keep the column unless the key is going away */
-    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
-    while (Alter_drop *drop= drop_it++)
-    {
-      if (drop->type == Alter_drop::KEY &&
-          Lex_ident_column(key_info->name).streq(drop->name))
-        return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -8787,28 +8787,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   table->file->get_foreign_key_list(thd, &fk_list);
 
   /*
-    The internal columns of the multi-valued indexes this statement adds
-    were named in the parser, which could not see the columns of the table
-    being altered. Name them here, before the two lists are merged below and
-    a name the table already uses turns into a duplicate.
-  */
-  if (mvi_name_new_vcols(thd, table, alter_info))
-    DBUG_RETURN(1);
-
-  /*
     First collect all fields from table which isn't in drop_list
   */
   bitmap_clear_all(&table->tmp_set);
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
-    /*
-      Internal columns are re-created from scratch by the new table's DDL,
-      except the one that holds the keys of a multi-valued index: there is no
-      syntax that would re-create that one, so carry it over as it is, for as
-      long as its key is (see the key loop below).
-    */
-    if (field->invisible == INVISIBLE_FULL &&
-        !mvi_vcol_kept_by_alter(table, field, alter_info))
+    /* Internal columns are re-created from scratch by the new table's DDL */
+    if (field->invisible == INVISIBLE_FULL)
         continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
@@ -8992,8 +8977,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     else
     {
-      /* The internal column of a multi-valued index also goes last */
-      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM || is_mvi_vcol(field));
+      DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
       def= new (root) Create_field(thd, field, field);
       new_create_tail.push_back(def, root);
     }
@@ -9028,6 +9012,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (field->default_value)
         field->default_value->expr->walk(&Item::rename_fields_processor,
                                         &column_rename_param, WALK_SUBQUERY);
+    }
+    /*
+      A multi-valued index names its base column in the declaration it was
+      created with, and that declaration belongs to the key rather than to
+      any column, so the loop above does not reach it. Rename it here, in
+      place and on the open table, the way the expressions above are: the
+      key loop below hands these very Items to the new table's keys, and
+      they are what carries the index into its FRM.
+    */
+    for (uint keyno= 0; keyno < table->s->total_keys; keyno++)
+    {
+      Item_func_mvi_encode *spec= mvi_key_spec(table, keyno);
+      if (spec)
+        spec->walk(&Item::rename_fields_processor, &column_rename_param,
+                   WALK_SUBQUERY);
     }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (thd->work_part_info)
@@ -9502,10 +9501,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key->period= table->s->period.name;
       key->old= true;
       /*
-        A multi-valued index: its only key part is an internal column. Let
-        the key keep it, see init_key_part_spec().
+        A multi-valued index keeps the declaration it already had. Nothing
+        in the statement re-states it -- there is no syntax that would --
+        so this is what carries it into the new table's FRM.
       */
-      key->invisible= is_mvi_key(table, i);
+      key->mvi_spec= mvi_key_spec(table, i);
       new_key_list.push_back(key, root);
     }
     if (long_hash_key)
