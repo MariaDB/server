@@ -5738,6 +5738,63 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
   return true;
 }
 
+/**
+  Recursively simplifies AND/OR expressions containing boolean literals.
+
+  @note
+    This can potentially allow skipping evaluation of some non-literal
+    parts of the entire expression.
+
+    E.g. a query like
+      SELECT (SELECT MIN(c0) FROM t2)<0 OR true;
+    will be simplified to
+      SELECT true;
+    which allows skipping the evaluation of SELECT MIN(c0) FROM t2.
+*/
+Item *Item_cond::simplify_cond(THD *thd)
+{
+  List_iterator<Item> li(list);
+  Item *child;
+
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return this;
+
+  while ((child= li++))
+  {
+    if (child->type() == Item::COND_ITEM)
+    {
+      Item *new_child= static_cast<Item_cond *>(child)->simplify_cond(thd);
+      if (new_child != child)
+        li.replace(new_child);
+    }
+  }
+  bool is_and= functype() == Item_func::COND_AND_FUNC;
+  bool is_or= functype() == Item_func::COND_OR_FUNC;
+  if (is_and || is_or)
+  {
+    List_iterator<Item> li2(list);
+    while ((child= li2++))
+    {
+      Item *real= child->real_item();
+      if (real->is_bool_literal())
+      {
+        if (real->val_bool() == is_or)
+          return new (thd->mem_root) Item_bool(thd, is_or);
+        else
+          li2.remove();
+      }
+    }
+    if (list.is_empty())
+      return new (thd->mem_root) Item_bool(thd, is_and);
+    if (list.elements == 1)
+    {
+      Item *item= list.head();
+      list.empty();
+      return item;
+    }
+  }
+  return this;
+}
 
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
