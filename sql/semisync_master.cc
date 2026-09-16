@@ -440,26 +440,32 @@ Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
 
 
 Trans_binlog_info::Trans_binlog_info()
-  : Repl_semi_sync_trx_info(file_name_buf, 0)
+  : Repl_semi_sync_trx_info()
 {
   file_name_buf[0]= '\0';
+  log_file= file_name_buf;
 }
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
                                      my_off_t log_pos)
-  : Repl_semi_sync_trx_info(file_name_buf, log_pos)
+  : Repl_semi_sync_trx_info()
 {
   strmake_buf(file_name_buf, file_name);
+  log_file= file_name_buf;
+  this->log_pos= log_pos;
 }
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
                                      my_off_t log_pos,
                                      const rpl_gtid *gtid)
-  : Repl_semi_sync_trx_info(file_name_buf, log_pos, gtid)
+  : Repl_semi_sync_trx_info()
 {
   strmake_buf(file_name_buf, file_name);
+  log_file= file_name_buf;
+  this->log_pos= log_pos;
+  this->gtid= *gtid;
 }
 
 
