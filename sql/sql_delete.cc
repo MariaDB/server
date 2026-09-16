@@ -1650,8 +1650,12 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
     if (unlikely((local_error= table->file->ha_rnd_pos(table->record[0],
                                                        (uchar*)rowid.ptr()))))
     {
-      // Table aliased to itself had key deleted already
-      continue;
+      // Table aliased to itself had key deleted already.
+      // HA_ERR_END_OF_FILE is returned by federated/tina in some cases.
+      if (local_error == HA_ERR_KEY_NOT_FOUND || local_error == HA_ERR_END_OF_FILE)
+        continue;
+      err_table= table;
+      goto err;
     }
 
     bool trg_skip_row= false;
