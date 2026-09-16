@@ -58,7 +58,7 @@ enum backup_phase
   /** abort any operation */
   BACKUP_PHASE_ABORT= -1,
   /** preparatory phase executed while holding no locks */
-  BACKUP_PHASE_PREPARE_START= 0,
+  BACKUP_PHASE_PREPARE_START  = 0,
   /** initial actual work phase; @see MDL_BACKUP_START */
   BACKUP_PHASE_START,
   /** copy while new writes to non-transactional tables are blocked;

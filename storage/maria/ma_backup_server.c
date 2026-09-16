@@ -543,16 +543,6 @@ static int aria_backup_log(const struct backup_target *target,
   assert(ab->subdir == INVALID_HANDLE_VALUE);
 #endif
 
-  if (ab->status != TRANSLOG_PURGE_DISABLED)
-  {
-    assert(ab->status == BACKUP_FAIL);
-#ifdef _WIN32
-  err_exit:
-#endif
-    left= -1;
-    ab->status= BACKUP_FAIL;
-  }
-  else
   {
 #ifndef _WIN32
     struct dirent *d;
@@ -688,11 +678,6 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
     ab= sink->ha_data;
     if (!ab)
       break;
-    if (ab->status != TRANSLOG_LOCKED)
-    {
-      assert(ab->status == BACKUP_FAIL);
-      break;
-    }
 #ifndef _WIN32
     assert(!ab->dir);
     assert(!ab->subdir);
@@ -702,11 +687,7 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
       if (dfd >= 0)
       {
         if ((ab->dir= fdopendir(dfd)))
-        {
-          ab->status= TRANSLOG_PURGE_DISABLED;
-          translog_disable_purge();
           break;
-        }
         close(dfd);
       }
     }
@@ -719,16 +700,11 @@ void *aria_backup_start(THD *thd, const struct backup_target *target,
           snprintf(path, sizeof path, "%s/aria_log*", maria_data_root) &&
           (ab->dir= FindFirstFileA(path, &ab->d)) !=
           INVALID_HANDLE_VALUE)
-      {
-        ab->status= TRANSLOG_PURGE_DISABLED;
-        translog_disable_purge();
         break;
-      }
     }
 #endif
     dir_error(maria_data_root);
     ab->status= BACKUP_FAIL;
-    translog_unlock();
     return (void*) -1;
   case BACKUP_PHASE_ABORT:
     break;
@@ -832,15 +808,6 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     FindClose(ab->dir);
     ab->dir= INVALID_HANDLE_VALUE;
 #endif
-    /*
-      Block further writes to the ENGINE=Aria log until all
-      aria_backup_log() have completed in phase=BACKUP_PHASE_FINISH.
-      This guarantees a consistent snapshot with respect to the
-      translog_get_horizon() that we had determined at the
-      aria_backup_start() of this phase.
-    */
-    ab->status= TRANSLOG_LOCKED;
-    translog_lock();
     break;
   case BACKUP_PHASE_ABORT:
     break;
@@ -852,11 +819,8 @@ int aria_backup_end(THD *thd, const struct backup_target *target,
     case BACKUP_OK:
     case BACKUP_FAIL:
       break;
-    case TRANSLOG_PURGE_DISABLED:
-      translog_enable_purge();
-      /* fall through */
     case TRANSLOG_LOCKED:
-      translog_unlock();
+    case TRANSLOG_PURGE_DISABLED:
       break;
     }
 #ifndef _WIN32
