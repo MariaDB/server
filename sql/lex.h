@@ -70,7 +70,6 @@ SYMBOL symbols[] = {
   { "ANALYZE",		SYM(ANALYZE_SYM)},
   { "AND",		SYM(AND_SYM)},
   { "ANY",              SYM(ANY_SYM)},
-  { "ANY_VALUE",     SYM(ANY_VALUE_SYM)},
   { "ARRAY",		SYM(ARRAY_SYM)},
   { "AS",		SYM(AS)},
   { "ASC",		SYM(ASC)},
@@ -755,6 +754,7 @@ SYMBOL symbols[] = {
 
 SYMBOL sql_functions[] = {
   { "ADDDATE",		SYM(ADDDATE_SYM)},
+  { "ANY_VALUE",     SYM(ANY_VALUE_SYM)},
   { "BIT_AND",		SYM(BIT_AND)},
   { "BIT_OR",		SYM(BIT_OR)},
   { "BIT_XOR",		SYM(BIT_XOR)},

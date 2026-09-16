@@ -116,6 +116,11 @@ SELECT coercibility(ANY_VALUE(a)), coercibility(ANY_VALUE('x')) FROM t;
 
 DROP TABLE t;
 
+# Ensure ANY_VALUE is not a fully reserved word
+CREATE TABLE t1 (any_value INT);
+SELECT 1 AS any_value;
+DROP TABLE t1;
+
 SET sql_mode=@save_sql_mode;
 
 --echo # End of 13.1 tests.
