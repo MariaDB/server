@@ -1337,15 +1337,25 @@ mvi_encode('[1, 42, "3"]', int)
 select mvi_encode('[1, 42, "3"]', unsigned);
 mvi_encode('[1, 42, "3"]', unsigned)
 0000000000000001 000000000000002a
+# trailing spaces are part of the value: nothing trims them, because
+# the predicates do not consider a padded string equal to an
+# unpadded one either
 select mvi_encode('[1, 42, "3   "]', char(6));
 mvi_encode('[1, 42, "3   "]', char(6))
-33xx
+33202020
 select mvi_encode('[1, 42, "   "]', char(6));
 mvi_encode('[1, 42, "   "]', char(6))
+202020
+select mvi_encode('[1, 42, ""]', char(6));
+mvi_encode('[1, 42, ""]', char(6))
 xxxx
 select mvi_encode('[1, 42, "3   "]', binary(6));
 mvi_encode('[1, 42, "3   "]', binary(6))
-33xx
+33202020
+# ... and neither is the case of it folded away
+select mvi_encode('["aaa", "AAA", "aAa"]', char(6));
+mvi_encode('["aaa", "AAA", "aAa"]', char(6))
+616161 414141 614161
 select mvi_encode('[1, 42]', char(6));
 mvi_encode('[1, 42]', char(6))
 
@@ -1362,16 +1372,49 @@ mvi_encode('[1]]', int)
 8000000000000001
 select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',42), '"]'), char(60))
-4242424242424242424242424242424242424242424242424242424242424242424242424242424242
+6262626262626262626262626262626262626262626262626262626262626262626262626262626262
 select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',43), '"]'), char(60))
-4242424242424242424242424242424242424242424242424242424242424242424242424242424242
+6262626262626262626262626262626262626262626262626262626262626262626262626262626262
 select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
 mvi_encode(concat('["', repeat('b',100), '"]'), char(60))
-4242424242424242424242424242424242424242424242424242424242424242424242424242424242
+6262626262626262626262626262626262626262626262626262626262626262626262626262626262
 select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
 mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60))
-414141 4242424242424242424242424242424242424242424242424242424242424242424242424242424242
+616161 6262626262626262626262626262626262626262626262626262626262626262626262626262626262
+#
+# A case-insensitive, space-padding collation on the base column
+# changes nothing. The index holds the characters of the element and
+# the predicate compares the characters of the element, so the two
+# agree on which rows match whatever the collation would say about
+# equality.
+#
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_general_ci,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["AAA"]}'),
+(3,'{"tags": ["bb"]}'),(4,'{"tags": ["bb  "]}');
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"aaa"') order by c;
+c
+1
+select c from t1 where json_contains(j->'$.tags','"AAA"') order by c;
+c
+2
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"AAA"') order by c;
+c
+2
+select c from t1 where json_contains(j->'$.tags','"bb"') order by c;
+c
+3
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"bb"') order by c;
+c
+3
+drop table t1;
 #
 # Two multi-valued indexes over the same array are the same index.
 # Two over one column have the same key part whichever arrays they

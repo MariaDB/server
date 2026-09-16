@@ -872,9 +872,15 @@ drop table t1;
 --echo # direct call of mvi_encode
 select mvi_encode('[1, 42, "3"]', int);
 select mvi_encode('[1, 42, "3"]', unsigned);
+--echo # trailing spaces are part of the value: nothing trims them, because
+--echo # the predicates do not consider a padded string equal to an
+--echo # unpadded one either
 select mvi_encode('[1, 42, "3   "]', char(6));
 select mvi_encode('[1, 42, "   "]', char(6));
+select mvi_encode('[1, 42, ""]', char(6));
 select mvi_encode('[1, 42, "3   "]', binary(6));
+--echo # ... and neither is the case of it folded away
+select mvi_encode('["aaa", "AAA", "aAa"]', char(6));
 select mvi_encode('[1, 42]', char(6));
 select mvi_encode('[1, 42, {}}]', char(6));
 select mvi_encode('[[1], 42]', int);
@@ -884,14 +890,34 @@ select mvi_encode('[[1], 42]', int);
 select mvi_encode('[1]]', int);
 
 # A key image longer than 42 bytes does not fit in a fulltext token, so
-# it is cut down to 42 and the key is a prefix key. Only a binary
-# collation gets there: strnxfrm() is asked for 42 bytes and cannot
-# return more.
+# it is cut down to 42 and the key is a prefix key.
 select mvi_encode(concat('["', repeat('b',42), '"]'), char(60));
 # the same key as above
 select mvi_encode(concat('["', repeat('b',43), '"]'), char(60));
 select mvi_encode(concat('["', repeat('b',100), '"]'), char(60));
 select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
+
+--echo #
+--echo # A case-insensitive, space-padding collation on the base column
+--echo # changes nothing. The index holds the characters of the element and
+--echo # the predicate compares the characters of the element, so the two
+--echo # agree on which rows match whatever the collation would say about
+--echo # equality.
+--echo #
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_general_ci,
+                 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["aaa"]}'),(2,'{"tags": ["AAA"]}'),
+                      (3,'{"tags": ["bb"]}'),(4,'{"tags": ["bb  "]}');
+select c from t1 where json_contains(j->'$.tags','"aaa"') order by c;
+select c from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"aaa"') order by c;
+select c from t1 where json_contains(j->'$.tags','"AAA"') order by c;
+select c from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"AAA"') order by c;
+select c from t1 where json_contains(j->'$.tags','"bb"') order by c;
+select c from t1 ignore index(idx)
+ where json_contains(j->'$.tags','"bb"') order by c;
+drop table t1;
 
 --echo #
 --echo # Two multi-valued indexes over the same array are the same index.

@@ -195,9 +195,8 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
     return NULL;
 
   /*
-    TODO: is this really so:
-    encode_mvi_key() must see the collation of the indexed expression: that
-    is what decides how MVI_ENCODE built the keys that are in the index.
+    The charset of the indexed expression, for the same reason as in
+    JSON_CONTAINS above.
   */
   return collect_mvi_keys(thd, index,
                           args[1 - literal_arg]->collation.collation, json,
@@ -215,8 +214,11 @@ static uint mvi_key_count(const Mvi_access *access)
   @brief
     Collect the element keys to search `index' for from a JSON literal.
 
-  @param cs           Collation of the indexed expression
-                      TODO why does that matter?
+  @param cs           The charset of the indexed expression, which is the
+                      charset the document is in. encode_mvi_key() reads
+                      the characters of an element with it; it asks the
+                      collation nothing, because the predicates do not
+                      either, see there.
 
   @param json         The JSON literal: an array, or a single scalar
   @param conjunctive  true when the keys are ANDed (JSON_CONTAINS),

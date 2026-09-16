@@ -247,9 +247,17 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
     index is a value the index cannot be used for at all. Two values that
     agree on the first MVI_KEY_IMAGE_MAX_LEN bytes of their image then
     share a key, which costs false positives and nothing else -- the
-    predicate is rechecked on every row the index produces. The strnxfrm()
-    branch below has always worked that way; it asks for exactly that many
-    bytes of weights and cannot get more back.
+    predicate is rechecked on every row the index produces.
+
+    The collation is not folded into the image, and trailing spaces are not
+    trimmed out of it, because the predicates this index answers do not ask
+    the collation about anything. json_string_compare(), which is what
+    decides whether a document element and a value searched for are the
+    same string, is a memcmp when neither side is escaped and a comparison
+    of decoded characters when one is; it takes a CHARSET_INFO only to
+    decode. So two elements are the same value when their characters are
+    the same and not otherwise, and that is what the image has to
+    distinguish.
 
   @return
     false   Encoded successfully, the key is appended to *buf
@@ -284,36 +292,15 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
     /* TODO: unquote? */
     /* CHAR(n) => LONG BLOB */
     case MYSQL_TYPE_LONG_BLOB:
-    {
-      /* Trim trailing whitespaces if possible */
-      if (!(cs->state & MY_CS_NOPAD))
-      {
-        je->value_len= (int) cs->lengthsp((const char *) je->value,
-                                         je->value_len);
-      }
-      if (my_binary_compare(cs))
-      {
-        /*
-          Point at the element instead of copying it. Nothing may write
-          through `sorted' from here on -- the bytes belong to the caller,
-          and on the write path they are the row InnoDB is about to store,
-          see mvi_tokenize_document() and fts_fetch_doc_from_rec().
-        */
-        sorted.set((char *) je->value, je->value_len,
-                   &my_charset_latin1_bin);
-      }
-      else
-      {
-        // TODO: Is this ever used outside of "SELECT MVI_ENCODE()" ?
-        my_strnxfrm_ret_t rc=
-          cs->strnxfrm((uchar *) sorted.c_ptr(),
-                       /*buffer_size*/ MVI_KEY_IMAGE_MAX_LEN,
-                       /*n_weights*/ MVI_KEY_IMAGE_MAX_LEN,
-                       je->value, je->value_len, 0);
-        sorted.length(rc.m_result_length);
-      }
+      /*
+        The element's own bytes are the image: point at them instead of
+        copying. Nothing may write through `sorted' from here on -- the
+        bytes belong to the caller, and on the write path they are the row
+        InnoDB is about to store, see mvi_tokenize_document() and
+        fts_fetch_doc_from_rec().
+      */
+      sorted.set((char *) je->value, je->value_len, &my_charset_latin1_bin);
       break;
-    }
     default:
       return true;
   }
@@ -326,8 +313,7 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
     3. hex. ptr() and not c_ptr(): the latter NUL-terminates in place when
     the buffer has room past the string, and cutting the image down in step
     2 leaves exactly that -- so it would write a NUL over the first byte
-    the image does not cover. In the branch above those bytes are the
-    document's own.
+    the image does not cover, which for a string is the document's own.
   */
   buf->append_hex(sorted.ptr(), sorted.length());
 
