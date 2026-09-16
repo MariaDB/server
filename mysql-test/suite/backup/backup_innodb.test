@@ -81,6 +81,7 @@ SELECT * FROM t;
 DELETE FROM t;
 DROP TABLE at0, at1;
 
+--sorted_result
 if (!$have_debug) {
 # Without involving DEBUG_SYNC, the RENAME TABLE could have been
 # executed before InnoDB_backup::init() collected the file names.
