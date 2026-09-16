@@ -173,7 +173,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   generated(rhs.generated),
   invisible(rhs.invisible),
   without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
-  period(rhs.period), mvi_spec(rhs.mvi_spec)
+  period(rhs.period), mvi_decl(rhs.mvi_decl)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }

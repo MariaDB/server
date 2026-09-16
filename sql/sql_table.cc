@@ -2544,10 +2544,10 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
 
   /*
     Two multi-valued indexes over one column have the same key part -- that
-    column -- whichever arrays they are over, so the key parts decide
-    nothing here. What they were declared with does.
+    column -- whichever arrays they are over, so the key parts alone decide
+    nothing here. What they were declared with has to match as well.
   */
-  Item_func_mvi_encode *decl= key->mvi_spec;
+  const Mvi_decl *decl= key->mvi_decl;
 
   for (const Key &k : alter_info->key_list)
   {
@@ -2565,11 +2565,13 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
       continue;
     }
 
-    Item_func_mvi_encode *k_decl= k.mvi_spec;
+    const Mvi_decl *k_decl= k.mvi_decl;
     if ((decl != NULL) != (k_decl != NULL))
       continue;                        // Only one of the two is multi-valued
 
-    if (decl ? mvi_decls_eq(decl, k_decl)
+    if (decl ? (decl->eq(k_decl) &&
+                std::equal(key->columns.begin(), key->columns.end(),
+                           k.columns.begin(), key_cmp))
              : std::equal(key->columns.begin(), key->columns.end(),
                           k.columns.begin(), key_cmp))
     {
@@ -2991,7 +2993,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     them has no defining expression to show in SHOW CREATE TABLE, and no
     syntax of its own that would read it back in.
   */
-  if (key.mvi_spec)
+  if (key.mvi_decl)
   {
     if (key.columns.elements != 1)
     {
@@ -3002,7 +3004,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       Now that the columns are known, is the base column -- which is what
       this key part is over -- one the index can be built from?
     */
-    if (check_mvi_base_column(alter_info, key.mvi_spec))
+    if (check_mvi_base_column(*column))
       DBUG_RETURN(TRUE);
     /*
       Now that the engine is known, is it one that will hold the keys?
@@ -3010,7 +3012,7 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       whose index the settings no longer allow fails here rather than
       (re)building an index that cannot be used.
     */
-    if (check_mvi_token_size(file, key.mvi_spec))
+    if (check_mvi_token_size(file, key.mvi_decl))
       DBUG_RETURN(TRUE);
   }
 
@@ -3722,17 +3724,17 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           travels with the key it belongs to rather than being looked up
           by key number afterwards.
         */
-        if ((key_info->mvi_spec= key->mvi_spec))
+        if ((key_info->mvi_decl= key->mvi_decl))
         {
           /*
             ... and what its fulltext parser is to be handed. The engine
             builds the index from this definition, so it needs the argument
             before the table the index belongs to has ever been opened --
             which is the only other place one is made, out of the FRM, see
-            parse_mvi_specs().
+            mvi_read_specs().
           */
           if (!(key_info->ftparser_arg=
-                  mvi_make_parser_arg(thd->mem_root, key_info->mvi_spec)))
+                  mvi_make_parser_arg(thd->mem_root, key_info->mvi_decl)))
             DBUG_RETURN(TRUE);                  // Out of memory
         }
         break;
@@ -6985,10 +6987,10 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     array's keys while the FRM said the new one.
   */
   {
-    Item_func_mvi_encode *old_spec=
-      mvi_key_spec(table, (uint) (table_key - table->key_info));
-    if ((old_spec != NULL) != (new_key->mvi_spec != NULL) ||
-        (old_spec && !mvi_decls_eq(old_spec, new_key->mvi_spec)))
+    const Mvi_decl *old_decl=
+      mvi_key_decl(table, (uint) (table_key - table->key_info));
+    if ((old_decl != NULL) != (new_key->mvi_decl != NULL) ||
+        (old_decl && !old_decl->eq(new_key->mvi_decl)))
       return Compare_keys::NotEqual;
   }
 
@@ -9013,21 +9015,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         field->default_value->expr->walk(&Item::rename_fields_processor,
                                         &column_rename_param, WALK_SUBQUERY);
     }
-    /*
-      A multi-valued index names its base column in the declaration it was
-      created with, and that declaration belongs to the key rather than to
-      any column, so the loop above does not reach it. Rename it here, in
-      place and on the open table, the way the expressions above are: the
-      key loop below hands these very Items to the new table's keys, and
-      they are what carries the index into its FRM.
-    */
-    for (uint keyno= 0; keyno < table->s->total_keys; keyno++)
-    {
-      Item_func_mvi_encode *spec= mvi_key_spec(table, keyno);
-      if (spec)
-        spec->walk(&Item::rename_fields_processor, &column_rename_param,
-                   WALK_SUBQUERY);
-    }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (thd->work_part_info)
     {
@@ -9505,7 +9492,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         in the statement re-states it -- there is no syntax that would --
         so this is what carries it into the new table's FRM.
       */
-      key->mvi_spec= mvi_key_spec(table, i);
+      key->mvi_decl= table->key_info[i].mvi_decl;
       new_key_list.push_back(key, root);
     }
     if (long_hash_key)

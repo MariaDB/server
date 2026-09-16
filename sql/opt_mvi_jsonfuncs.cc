@@ -34,32 +34,81 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
 
 /*
   @brief
-    Find Multi-Value Index created over array_indexed_expr.
+    Take a `<column> -> '<path>'' expression apart, the way a multi-valued
+    index is declared over one.
 
   @detail
-    Search the table for an index declared as
+    A bare column is the whole document, which is the path '$' -- the same
+    form the declaration keeps it in, see mvi_decl_from_key_part().
 
-     INDEX idx ((CAST(array_indexed_expr AS <DATATYPE> ARRAY));
+  @return
+    true   Not of that form, and no index can answer for it
+*/
 
-    NOTE: we currently we only locate one such index. What if there are
+static bool split_indexed_document(Item *expr, Field **base,
+                                   String *path)
+{
+  Item *path_item;
+  uint errors;
+
+  if (expr->type() == Item::FIELD_ITEM)
+  {
+    *base= ((Item_field *) expr)->field;
+    return path->copy(STRING_WITH_LEN("$"), mvi_path_charset());
+  }
+  if (expr->type() != Item::FUNC_ITEM)
+    return true;
+  Item_func *func= (Item_func *) expr;
+  /* json_extract() takes a path per key; an index is over exactly one */
+  if (func->functype() != Item_func::JSON_EXTRACT_FUNC ||
+      func->argument_count() != 2 ||
+      func->arguments()[0]->type() != Item::FIELD_ITEM ||
+      !(path_item= func->arguments()[1])->basic_const_item())
+    return true;
+  String tmp, *given= path_item->val_str(&tmp);
+  if (!given)
+    return true;
+  *base= ((Item_field *) func->arguments()[0])->field;
+  return path->copy(given->ptr(), given->length(), given->charset(),
+                    mvi_path_charset(), &errors) || errors;
+}
+
+
+/*
+  @brief
+    Find the Multi-Value Index that holds the keys of array_indexed_expr.
+
+  @detail
+    The index was declared over a column at a path, and the expression has
+    to be that same column at that same path -- compared as the bytes the
+    declaration keeps, so that what the DDL wrote and what the query asks
+    for are compared in one charset, see mvi_path_charset().
+
+    NOTE: we currently only locate one such index. What if there are
           multiple?
 */
 
-static Mv_index *get_mvi_index(THD* thd, List<Mv_index> *indexes,
+static Mv_index *get_mvi_index(List<Mv_index> *indexes,
                                Item *array_indexed_expr)
 {
   Mv_index *index;
   List_iterator<Mv_index> it(*indexes);
-  Item_func_mvi_encode *mvitem;
+  StringBuffer<MAX_FIELD_WIDTH> path;
+  Field *base;
+
+  if (split_indexed_document(array_indexed_expr, &base, &path))
+    return NULL;
+
   while ((index= it++))
   {
-    mvitem= index->spec;
-    Item *as_document= array_indexed_expr->type() == Item::FIELD_ITEM ?
-      mvi_desugar_whole_document(thd, array_indexed_expr) : array_indexed_expr;
-    if (mvitem->arguments()[0]->eq(as_document, true))
-    {
-      return index;
-    }
+    const KEY *key= index->table->key_info + index->keyno;
+    /* The key part of a multi-valued index is its base column */
+    if (base->table != index->table ||
+        key->key_part[0].fieldnr - 1 != base->field_index ||
+        index->decl->path.length != path.length() ||
+        memcmp(index->decl->path.str, path.ptr(), path.length()))
+      continue;
+    return index;
   }
   return NULL;
 }
@@ -91,7 +140,7 @@ Mvi_access *Item_func_json_contains::get_mvi_access(THD *thd,
   if (arg_count > 2 || !a2_constant)
     return NULL;
   /* Find the MVI that matches the first argument */
-  if (!(index= get_mvi_index(thd, indexes, args[0])))
+  if (!(index= get_mvi_index(indexes, args[0])))
     return NULL;
 
   if (!a2_parsed)
@@ -133,9 +182,9 @@ Mvi_access *Item_func_json_overlaps::get_mvi_access(THD *thd,
   StringBuffer<256> tmp;
   DBUG_ASSERT(fixed());
 
-  if ((index= get_mvi_index(thd, indexes, args[0])))
+  if ((index= get_mvi_index(indexes, args[0])))
     literal_arg= 1;
-  else if ((index= get_mvi_index(thd, indexes, args[1])))
+  else if ((index= get_mvi_index(indexes, args[1])))
     literal_arg= 0;
   else
     return NULL;
@@ -210,7 +259,7 @@ static Mvi_access *collect_mvi_keys(THD *thd, Mv_index *index,
                                     CHARSET_INFO *cs, const String *json,
                                     bool conjunctive, json_engine_t *je)
 {
-  const Type_handler *cast_th= index->spec->cast_type().type_handler();
+  const Type_handler *cast_th= index->decl->cast_type_handler();
   Mvi_access *access= NULL;
   /* One key at a time: add_key() copies it onto the mem_root */
   StringBuffer<MVI_ENCODED_KEY_MAX_LEN> buf;

@@ -518,12 +518,12 @@ public:
   uint length;
   Lex_ident_column period;
   /*
-    What a multi-valued index was declared with: the array and the datatype
-    its elements are cast to, as one MVI_ENCODE() call. NULL for every other
-    key -- it is what makes this key a multi-valued index, and the only
-    thing that does, see add_mvi_key_part().
+    What a multi-valued index was declared with: where the array is inside
+    the base column, and the datatype its elements are cast to. NULL for
+    every other key -- it is what makes this key a multi-valued index, and
+    the only thing that does, see add_mvi_key_part().
   */
-  Item_func_mvi_encode *mvi_spec;
+  Mvi_decl *mvi_decl;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
@@ -531,7 +531,7 @@ public:
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
     invisible(false), without_overlaps(false), old(false), length(0),
-    mvi_spec(NULL)
+    mvi_decl(NULL)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -543,7 +543,7 @@ public:
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
     invisible(false), without_overlaps(false), old(false), length(0),
-    mvi_spec(NULL)
+    mvi_decl(NULL)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;

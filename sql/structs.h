@@ -36,7 +36,7 @@ struct TABLE;
 class Type_handler;
 class Field;
 class Index_statistics;
-class Item_func_mvi_encode;
+struct Mvi_decl;
 struct Lex_ident_cli_st;
 
 class THD;
@@ -156,16 +156,16 @@ typedef struct st_key {
   */
   void *ftparser_arg;
   /*
-    DDL: what a multi-valued index was declared with, on its way into the
-    EXTRA2_MVI_SPEC section of the FRM, see mvi_spec_image(). NULL for
-    every other key.
+    What a multi-valued index was declared with, and NULL for every other
+    key -- which is the only thing that says which of the two a fulltext
+    key over a stored column is, see mvi_key_decl().
 
-    Unlike `parser', this is not filled in when the table is opened. The
-    Item reads one column of one TABLE, so it cannot be shared the way a
-    TABLE_SHARE's key is: each TABLE parses the section into a
-    TABLE::mvi_spec of its own instead.
+    It travels with the key: from the DDL into the FRM's EXTRA2_MVI_SPEC
+    section, see mvi_spec_image(), and back out of it into the share, see
+    mvi_read_specs(). Nothing in it depends on a TABLE or a THD, so every
+    TABLE of the share gets it with the rest of the key definition.
   */
-  Item_func_mvi_encode *mvi_spec;
+  Mvi_decl *mvi_decl;
   KEY_PART_INFO *key_part;
   /* Unique name for cache;  db + \0 + table_name + \0 + key_name + \0 */
   uchar *cache_name;

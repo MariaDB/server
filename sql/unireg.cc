@@ -32,7 +32,6 @@
 #include "sql_class.h"                  // THD, Internal_error_handler
 #include "create_options.h"
 #include "discover.h"
-#include "item_strfunc.h"            // Item_func_mvi_encode
 #include <m_ctype.h>
 
 #define FCOMP			17		/* Bytes for a packed field */
@@ -51,29 +50,6 @@ static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
                            ulong);
-
-/*
-  write the length as
-  if (  0 < length <= 255)      one byte
-  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
-*/
-static uchar *extra2_write_len(uchar *pos, size_t len)
-{
-  DBUG_ASSERT(len);
-  if (len <= 255)
-    *pos++= (uchar)len;
-  else
-  {
-    /*
-      At the moment we support options_len up to 64K.
-      We can easily extend it in the future, if the need arises.
-    */
-    DBUG_ASSERT(len <= 65535);
-    int2store(pos + 1, len);
-    pos+= 3;
-  }
-  return pos;
-}
 
 static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
 {
@@ -134,67 +110,6 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
   }
   return pos;
 }
-
-/*
-  @brief
-    Build the EXTRA2_MVI_SPEC image: what each multi-valued index of the
-    table was declared with.
-
-  @detail
-    One entry per multi-valued index, preceded by the number of entries:
-
-      keyno    1 byte
-      length   1 or 3 bytes, see extra2_write_len()
-      text     the printed MVI_ENCODE() call, `length' bytes
-
-    Sparse rather than one entry per key, unlike EXTRA2_INDEX_FLAGS: most
-    tables have no multi-valued index at all, and an empty image means the
-    section is not written.
-
-    The text is the printed MVI_ENCODE() call the key carries, see
-    KEY::mvi_spec. Keeping the printed form means there is no binary format
-    to freeze: whatever reads it back is the parser that already reads a
-    vcol expression, see parse_mvi_specs().
-
-  @return
-    true if an error was raised
-*/
-
-static bool mvi_spec_image(String *image, uint keys, const KEY *key_info)
-{
-  /* Write no image at all, to test that opening the table refuses it */
-  DBUG_EXECUTE_IF("mvi_skip_spec_image", return false;);
-
-  uint n_specs= 0;
-  for (uint i= 0; i < keys; i++)
-    if (key_info[i].mvi_spec)
-      n_specs++;
-  if (!n_specs)
-    return false;
-
-  uchar len_buf[3];
-  size_t len_len= (size_t) (extra2_write_len(len_buf, n_specs) - len_buf);
-  if (image->append((char*) len_buf, len_len))
-    return true;                                // Out of memory
-
-  StringBuffer<MAX_FIELD_WIDTH> text;
-  for (uint i= 0; i < keys; i++)
-  {
-    Item_func_mvi_encode *spec= key_info[i].mvi_spec;
-    if (!spec)
-      continue;
-    DBUG_ASSERT(i <= 0xFF);                     /* MAX_KEY is 64 */
-    text.length(0);
-    spec->print_for_table_def(&text);
-    len_len= (size_t) (extra2_write_len(len_buf, text.length()) - len_buf);
-    if (image->append((char) i) ||
-        image->append((char*) len_buf, len_len) ||
-        image->append(text))
-      return true;                              // Out of memory
-  }
-  return false;
-}
-
 
 static field_index_t
 get_fieldno_by_name(HA_CREATE_INFO *create_info,

@@ -2476,7 +2476,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
   {
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
-    if (is_mvi_key(table, i))
+    if (key_info->mvi_decl)
     {
       /*
         A multi-valued index. The column that holds its keys is internal and
@@ -2486,7 +2486,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       packet->append(STRING_WITH_LEN(",\n  KEY "));
       append_identifier(thd, packet, &key_info->name);
       packet->append(STRING_WITH_LEN(" (("));
-      print_mvi_key_expr(packet, table, i);
+      print_mvi_key_expr(thd, packet, share, i);
       packet->append(STRING_WITH_LEN("))"));
       continue;
     }

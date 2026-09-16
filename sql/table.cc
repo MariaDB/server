@@ -94,7 +94,6 @@ struct extra2_fields
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *,
               TABLE *, String *, Virtual_column_info **, bool *);
-static bool parse_mvi_specs(THD *, TABLE *, bool *);
 
 /*
   Lex_ident_db does not have operator""_Lex_ident_db,
@@ -1433,14 +1432,6 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   table->find_constraint_correlated_indexes();
 
-  /*
-    The declarations of the multi-valued indexes are parsed here as well:
-    they are expressions over this table's columns, read out of the FRM,
-    and want the same arena and the same charset handling.
-  */
-  if (parse_mvi_specs(thd, table, error_reported))
-    goto end;
-
   res=0;
 end:
   thd->restore_active_arena(table->expr_arena, &backup_arena);
@@ -2260,13 +2251,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.index_flags.str)
     extra_index_flags_present= TRUE;
-
-  if (extra2.mvi_spec.length &&
-      !(share->mvi_spec.str=
-        (const uchar*) memdup_root(&share->mem_root, extra2.mvi_spec.str,
-                                   extra2.mvi_spec.length)))
-    goto err;
-  share->mvi_spec.length= extra2.mvi_spec.length;
 
   for (uint i= 0; i < share->total_keys; i++, keyinfo++)
   {
@@ -3593,6 +3577,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     bitmap_clear_all(share->check_set);
   }
 
+  /*
+    The multi-valued indexes of the table, now that the keys they belong to
+    and the columns they are over are both known
+  */
+  if (mvi_read_specs(share, &extra2.mvi_spec))
+    goto err;
+
 #ifndef DBUG_OFF
   if (use_hash)
     (void) my_hash_check(&share->name_hash);
@@ -4202,125 +4193,6 @@ end:
 }
 
 
-/*
-  @brief
-    Parse TABLE_SHARE::mvi_spec into TABLE::mvi_spec.
-
-  @detail
-    The section is sparse -- one entry per multi-valued index, preceded by
-    the number of entries, see mvi_spec_image(). Each entry is the printed
-    MVI_ENCODE() call that index was declared with, under the number of the
-    key it belongs to.
-
-    It is parsed the way a virtual column expression is, and into the same
-    Virtual_column_info, because that is what it was written as: one
-    expression reading one column of this table. Which is also why every
-    TABLE of the share parses its own copy rather than the share holding
-    one, exactly as parse_vcol_defs() does for a vcol.
-
-    What the fulltext parser is handed does go on the share: it is the path
-    and the datatype alone, with no Item and no Field in it, so every TABLE
-    would build the same one. TODO: build it in
-    TABLE_SHARE::init_from_binary_frm_image() instead, where there is no
-    question of two opens racing to be the one that does. That needs the
-    path and the cast type without running the SQL parser over the entry,
-    so it needs the section to keep them apart rather than as printed SQL.
-
-    An entry that names a key of the wrong shape, or does not parse, or
-    parses into something other than a declaration, is an FRM this server
-    did not write. So is a key of the right shape with no entry at all:
-    such a key names the mvi fulltext parser, which no table definition
-    may, see check_mvi_key_parser(). Refuse the table either way, rather
-    than open it as the plain fulltext key it would otherwise look like.
-
-  @return
-    true   The table cannot be opened
-*/
-
-static bool parse_mvi_specs(THD *thd, TABLE *table, bool *error_reported)
-{
-  TABLE_SHARE *share= table->s;
-  const uchar *pos= share->mvi_spec.str;
-  const uchar *end= pos + share->mvi_spec.length;
-  StringBuffer<MAX_FIELD_WIDTH> expr_str;
-  key_map described;
-  size_t n_specs;
-
-  described.clear_all();
-  if (!share->mvi_spec.length)
-    goto check_keys;
-
-  if (!(table->mvi_spec= (Item_func_mvi_encode **)
-          alloc_root(&table->mem_root,
-                     sizeof(Item_func_mvi_encode *) * share->total_keys)))
-    return true;                                // Out of memory
-  bzero(table->mvi_spec,
-        sizeof(Item_func_mvi_encode *) * share->total_keys);
-
-  n_specs= extra2_read_len(&pos, end);
-  for (size_t i= 0; i < n_specs; i++)
-  {
-    Virtual_column_info *spec, *parsed;
-    Item_func_mvi_encode *mvi;
-    uint keyno;
-    size_t len;
-
-    if (pos >= end)
-      goto corrupted;
-    keyno= *pos++;
-    len= extra2_read_len(&pos, end);
-    if (!len || pos + len > end || keyno >= share->total_keys ||
-        described.is_set(keyno) || !mvi_key_names_parser(share, keyno))
-      goto corrupted;
-
-    expr_str.length(0);
-    if (expr_str.append(&parse_vcol_keyword) ||
-        expr_str.append((const char *) pos, len))
-      return true;                              // Out of memory
-    if (!(spec= new (&table->mem_root) Virtual_column_info()))
-      return true;                              // Out of memory
-    spec->set_vcol_type(VCOL_GENERATED_STORED);
-
-    thd->where= THD_WHERE::USE_WHERE_STRING;
-    thd->where_str= "multi-valued index";
-    parsed= unpack_vcol_info_from_frm(thd, table, &expr_str, &spec,
-                                      error_reported);
-    if (!parsed)
-      return true;                  /* The parse raised the error itself */
-    if (!(mvi= mvi_spec_expr(parsed)))
-      goto corrupted;
-
-    table->mvi_spec[keyno]= mvi;
-    described.set_bit(keyno);
-    pos+= len;
-
-    /*
-      The fulltext parser's argument, once per share. See above for the
-      race this leaves open.
-    */
-    if (!share->key_info[keyno].ftparser_arg &&
-        !(share->key_info[keyno].ftparser_arg=
-            mvi_make_parser_arg(&share->mem_root, mvi)))
-      goto corrupted;
-    table->key_info[keyno].ftparser_arg=
-      share->key_info[keyno].ftparser_arg;
-  }
-  if (pos != end)
-    goto corrupted;
-
-check_keys:
-  /* A key that names the parser and was not described by any entry */
-  for (uint keyno= 0; keyno < share->total_keys; keyno++)
-    if (mvi_key_names_parser(share, keyno) && !described.is_set(keyno))
-      goto corrupted;
-  return false;
-
-corrupted:
-  my_error(ER_NOT_FORM_FILE, MYF(0), share->normalized_path.str);
-  *error_reported= true;
-  return true;
-}
-
 #ifndef DBUG_OFF
 static void print_long_unique_table(TABLE *table)
 {
@@ -4683,8 +4555,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     Process virtual and default columns, if any.
   */
   if (share->virtual_fields || share->default_fields ||
-      share->default_expressions || share->table_check_constraints ||
-      share->mvi_spec.length)
+      share->default_expressions || share->table_check_constraints)
   {
     Field **vfield_ptr, **dfield_ptr;
     Virtual_column_info **check_constraint_ptr;

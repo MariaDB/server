@@ -489,6 +489,48 @@ create table t2 (j json,
 alter table t1 add key idx ((CAST(json_extract(j,'$.a') AS CHAR(6) ARRAY)));
 show create table t1;
 alter table t1 drop key idx;
+
+--echo #
+--echo # ... and the path has to be a path. It is what the fulltext parser
+--echo # walks the document with, so one it would not accept is a key
+--echo # definition that could never produce a key.
+--echo #
+--error ER_JSON_PATH_SYNTAX
+alter table t1 add key idx ((CAST(json_extract(j,'tags') AS CHAR(6) ARRAY)));
+--error ER_JSON_PATH_EOS
+alter table t1 add key idx ((CAST(j->'$.' AS CHAR(6) ARRAY)));
+--echo # ... and a path is not a number
+--error ER_JSON_PATH_SYNTAX
+alter table t1 add key idx ((CAST(json_extract(j,7) AS CHAR(6) ARRAY)));
+drop table t1;
+
+--echo #
+--echo # The elements are cast to CHAR(n), SIGNED or UNSIGNED, and to
+--echo # nothing else: those are the three a key can be made of. An index
+--echo # of any other datatype would hold no keys at all and find no rows,
+--echo # which it used to be accepted as.
+--echo #
+create table t1 (c int, j json)engine=innodb;
+--error ER_WRONG_USAGE
+alter table t1 add key idx ((CAST(j->'$.a' AS DATE ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add key idx ((CAST(j->'$.a' AS DOUBLE ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add key idx ((CAST(j->'$.a' AS DECIMAL(10,2) ARRAY)));
+--error ER_WRONG_USAGE
+alter table t1 add key idx ((CAST(j->'$.a' AS DATETIME ARRAY)));
+--echo # ... and the same at CREATE TABLE
+--error ER_WRONG_USAGE
+create table t2 (j json,
+                 key idx ((CAST(j->'$.a' AS TIME ARRAY))))engine=innodb;
+--echo # the three that are accepted, in every spelling of them
+alter table t1 add key i1 ((CAST(j->'$.a' AS CHAR(6) ARRAY)));
+alter table t1 add key i2 ((CAST(j->'$.b' AS BINARY(6) ARRAY)));
+alter table t1 add key i3 ((CAST(j->'$.c' AS VARCHAR(6) ARRAY)));
+alter table t1 add key i4 ((CAST(j->'$.d' AS SIGNED ARRAY)));
+alter table t1 add key i5 ((CAST(j->'$.e' AS INT ARRAY)));
+alter table t1 add key i6 ((CAST(j->'$.f' AS UNSIGNED INT ARRAY)));
+show create table t1;
 drop table t1;
 
 --echo # A bare column is the whole document
@@ -610,7 +652,9 @@ select * from t2 ignore index(idx)
 drop table t2, t1;
 
 --echo #
---echo # Renaming the base column
+--echo # Renaming the base column. The declaration does not name it -- the
+--echo # key part does -- so there is nothing of ours to rewrite: the index
+--echo # follows the column of its own accord.
 --echo #
 
 create table t1 (c int, j json,
@@ -852,6 +896,13 @@ create table t1 (c int, j json,
                  key k2 ((CAST(j->'$.attr' AS CHAR(6) ARRAY))),
                  key k3 ((CAST(j->'$.tags' AS CHAR(7) ARRAY))),
                  key k4 ((CAST(j->'$.tags' AS INT ARRAY))))engine=innodb;
+drop table t1;
+
+--echo # ... and so is the same array of a different column: the base
+--echo # column is the key part, so those two differ there
+create table t1 (c int, j1 json, j2 json,
+                 key k1 ((CAST(j1->'$.tags' AS CHAR(6) ARRAY))),
+                 key k2 ((CAST(j2->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
 drop table t1;
 
 --echo # A multi-valued index and a plain fulltext key over the column it

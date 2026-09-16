@@ -17,8 +17,10 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_table.h"
-#include "unireg.h"                           /* extra2_read_len */
+#include "unireg.h"                  /* extra2_read_len, extra2_write_len */
 #include "item_func.h"
+#include "item_jsonfunc.h"                    /* report_path_error_ex */
+#include "sql_show.h"                         /* append_identifier */
 #include "my_json_writer.h"
 #include <mysql/plugin_ftparser.h>   /* MYSQL_FTPARSER_PARAM */
 
@@ -76,22 +78,115 @@ void Item_func_mvi_encode::print(String *str, enum_query_type query_type)
 
 /*
   @brief
-    Print the index expression the way it was written:
-
-      CAST(<expr> AS <type> ARRAY)
+    The type handler a stored cast means, or NULL when it is not a cast a
+    multi-valued index can be made of.
 
   @detail
-    print() cannot do this. Its output is what pack_expression() writes into
-    the FRM, and that is read back as a call of mvi_encode(), which is the
-    only form the parser accepts outside an index definition.
+    The one place that says which datatypes an index can be of, asked by the
+    DDL of what the statement wrote and by the FRM reader of what the
+    section holds. Whatever encode_mvi_key() grows -- DECIMAL and the
+    temporal types are its standing TODO -- is a case here, and costs
+    nothing on disk: the cast is stored the way a column's datatype is.
+
+    A handler is returned rather than just "yes", so that the caller can
+    check the datatype it has *is* this one and not merely something with
+    the same field_type(): a user-defined type over a string would pass a
+    field_type() test and then be encoded as the string it is not.
 */
 
-void Item_func_mvi_encode::print_as_array_cast(String *str)
+const Type_handler *mvi_cast_handler(enum_field_types type, bool is_unsigned)
 {
-  str->append(STRING_WITH_LEN("cast("));
-  /* The same flags the other parts of a table definition are printed with */
-  args[0]->print_for_table_def(str);
-  str->append(STRING_WITH_LEN(" as "));
+  switch (type) {
+  case MYSQL_TYPE_LONG_BLOB:                    /* CHAR, BINARY, VARCHAR */
+    return is_unsigned ? NULL : &type_handler_long_blob;
+  case MYSQL_TYPE_LONGLONG:                     /* INT, SIGNED, UNSIGNED */
+    if (is_unsigned)
+      return &type_handler_ulonglong;
+    else
+      return &type_handler_slonglong;
+  default:
+    return NULL;
+  }
+}
+
+
+const Type_handler *Mvi_decl::cast_type_handler() const
+{
+  const Type_handler *th= mvi_cast_handler(cast_type, cast_unsigned);
+  /* Neither the DDL nor the FRM reader lets an unsupported cast through */
+  DBUG_ASSERT(th);
+  return th;
+}
+
+
+void Mvi_decl::append_cast_type(String *str) const
+{
+  char buf[32];
+  size_t length;
+  switch (cast_type) {
+  case MYSQL_TYPE_LONG_BLOB:
+    str->append(STRING_WITH_LEN("char("));
+    length= (size_t) (longlong10_to_str(cast_length, buf, -10) - buf);
+    str->append(buf, length);
+    str->append(')');
+    return;
+  case MYSQL_TYPE_LONGLONG:
+    if (cast_unsigned)
+      str->append(STRING_WITH_LEN("unsigned"));
+    else
+      str->append(STRING_WITH_LEN("int"));
+    return;
+  default:
+    break;
+  }
+  /*
+    Whatever the encoding grows: the datatype's own name, with the length
+    and the scale it was given. The same shape CAST() takes them in, so it
+    reads back in, and nothing to write here when that day comes.
+  */
+  {
+    const Name name= cast_type_handler()->name();
+    str->append(name.ptr(), name.length());
+    if (cast_length)
+    {
+      str->append('(');
+      length= (size_t) (longlong10_to_str(cast_length, buf, -10) - buf);
+      str->append(buf, length);
+      if (cast_dec)
+      {
+        str->append(',');
+        length= (size_t) (longlong10_to_str(cast_dec, buf, -10) - buf);
+        str->append(buf, length);
+      }
+      str->append(')');
+    }
+  }
+}
+
+
+/*
+  @brief
+    Print the index expression the way it was written:
+
+      CAST(<column> -> '<path>' AS <type> ARRAY)
+
+  @detail
+    Built by hand, because there is no expression to print: what the FRM
+    keeps is the declaration, and this is the SQL that means it. The forms
+    below are the ones a table definition is printed in elsewhere -- the
+    column as an identifier, the path as a string literal in the charset
+    Item_string::print() would use -- so that what SHOW CREATE TABLE
+    prints parses straight back into the same declaration.
+*/
+
+void Mvi_decl::print(THD *thd, String *str, const Lex_ident_column &base) const
+{
+  String path_str(path.str, path.length, mvi_path_charset());
+  str->append(STRING_WITH_LEN("cast(json_extract("));
+  append_identifier(thd, str, base.str, base.length);
+  str->append(STRING_WITH_LEN(",'"));
+  path_str.print(str, &my_charset_utf8mb4_general_ci);
+  str->append(STRING_WITH_LEN("') as "));
   append_cast_type(str);
   str->append(STRING_WITH_LEN(" array)"));
 }
@@ -545,27 +640,206 @@ bool Item_func_mvi_encode::fix_length_and_dec(THD *thd)
 
 /*
   @brief
-    If `vcol_info' is the declaration of a multi-valued index, return the
-    MVI_ENCODE() call it is made of.
+    Build the EXTRA2_MVI_SPEC image: what each multi-valued index of the
+    table was declared with.
 
   @detail
-    MVI_ENCODE() is what the declaration of a multi-valued index is made of,
-    on the way into the FRM and on the way back out of it, and a declaration
-    is all this has to recognise: the DDL builds the call itself, and the
-    text in EXTRA2_MVI_SPEC is what that call printed.
+    A version, the number of entries, and then one entry per multi-valued
+    index. Sparse rather than one entry per key, unlike EXTRA2_INDEX_FLAGS:
+    most tables have no multi-valued index at all, and an empty image means
+    the section is not written.
 
-    A call this does not recognise is not a declaration at all -- an FRM
-    that has one in that section was not written by this server.
+      version       1 byte, MVI_SPEC_VERSION
+      entries       1 or 3 bytes, see extra2_write_len()
+      then per entry:
+        length      1 or 3 bytes: the bytes of the entry that follow
+        keyno       1 byte
+        tag         1 byte, Mvi_decl::Tag: what shape the rest has
+
+      tag ARRAY_AT_PATH:
+        cast type   1 byte, enum_field_types, as a column's datatype is
+        cast flags  1 byte, 1 = unsigned
+        cast length 4 bytes
+        cast dec    1 byte
+        path length 1 or 3 bytes
+        path        `path length' bytes, in mvi_path_charset()
+
+    The entry length is what makes the section walkable by a reader that
+    does not understand every entry in it, and the tag is where a
+    differently shaped declaration goes -- see Mvi_decl::Tag. Neither is a
+    licence to skip: a reader that finds bytes it cannot account for
+    refuses the table, because a declaration it half understands would
+    build and search a different index than the FRM describes. What changes
+    what the keys are bumps MVI_SPEC_VERSION.
+
+    The base column is not in here. The key part of a multi-valued index is
+    that column, so the key definition already says which one it is -- which
+    is also why renaming it needs nothing of us.
+
+    Read back by mvi_read_specs().
+
+  @return
+    true if an error was raised
 */
 
-Item_func_mvi_encode *mvi_spec_expr(Virtual_column_info *vcol_info)
+bool mvi_spec_image(String *image, uint keys, const KEY *key_info)
 {
-  Item *expr;
-  if (!vcol_info || !(expr= vcol_info->expr) ||
-      expr->type() != Item::FUNC_ITEM ||
-      ((Item_func *) expr)->functype() != Item_func::MVI_ENCODE_FUNC)
-    return NULL;
-  return (Item_func_mvi_encode *) expr;
+  /* Write no image at all, to test that opening the table refuses it */
+  DBUG_EXECUTE_IF("mvi_skip_spec_image", return false;);
+
+  /* extra2_write_len() leaves the marker byte of a long length alone */
+  uchar len_buf[3]= { 0, 0, 0 };
+  uchar head[MVI_SPEC_ENTRY_HEAD_LEN];
+  uint n_specs= 0;
+  size_t len;
+
+  for (uint i= 0; i < keys; i++)
+    if (key_info[i].mvi_decl)
+      n_specs++;
+  if (!n_specs)
+    return false;
+
+  len= (size_t) (extra2_write_len(len_buf, n_specs) - len_buf);
+  if (image->append((char) MVI_SPEC_VERSION) ||
+      image->append((char*) len_buf, len))
+    return true;                                // Out of memory
+
+  for (uint i= 0; i < keys; i++)
+  {
+    const Mvi_decl *decl= key_info[i].mvi_decl;
+    size_t entry_len;
+    if (!decl)
+      continue;
+    DBUG_ASSERT(i <= 0xFF);                     /* MAX_KEY is 64 */
+    /* Never empty, and short enough for the section, see MVI_PATH_MAX_LEN */
+    DBUG_ASSERT(decl->path.length &&
+                decl->path.length <= MVI_PATH_MAX_LEN);
+
+    head[0]= (uchar) i;
+    head[1]= (uchar) Mvi_decl::ARRAY_AT_PATH;
+    head[2]= (uchar) decl->cast_type;
+    head[3]= decl->cast_unsigned ? MVI_CAST_UNSIGNED : 0;
+    int4store(head + 4, decl->cast_length);
+    head[8]= decl->cast_dec;
+
+    entry_len= sizeof(head) + extra2_str_size(decl->path.length);
+    len_buf[0]= len_buf[1]= len_buf[2]= 0;
+    len= (size_t) (extra2_write_len(len_buf, entry_len) - len_buf);
+    if (image->append((char*) len_buf, len) ||
+        image->append((char*) head, sizeof(head)))
+      return true;                              // Out of memory
+
+    len_buf[0]= len_buf[1]= len_buf[2]= 0;
+    len= (size_t) (extra2_write_len(len_buf, decl->path.length) - len_buf);
+    if (image->append((char*) len_buf, len) ||
+        image->append(decl->path.str, decl->path.length))
+      return true;                              // Out of memory
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Read the FRM's EXTRA2_MVI_SPEC section. See mvi_spec_image() for the
+    bytes.
+
+  @detail
+    All of it lands on the share, because a declaration is neither an Item
+    nor a Field and does not depend on a THD: the key keeps it for as long
+    as the share lives, and so does the argument built here for the key's
+    fulltext parser, which the engine's threads read while a commit or an
+    index build is going on.
+
+    An entry this cannot account for to the last byte is an FRM this server
+    did not write, or one a newer server did: a version, a tag or a cast it
+    does not know, a key of the wrong shape, or an entry that does not end
+    where its length says. So is a key of the right shape with no entry at
+    all: such a key names the mvi fulltext parser, which no table
+    definition may, see check_mvi_key_parser(). Refuse the table either
+    way, rather than open it as the plain fulltext key it would otherwise
+    look like.
+
+  @return
+    true   The table cannot be opened
+*/
+
+bool mvi_read_specs(TABLE_SHARE *share, const LEX_CUSTRING *section)
+{
+  const uchar *pos= section->str;
+  const uchar *end= pos + section->length;
+
+  if (section->length)
+  {
+    size_t n_specs;
+
+    if (pos >= end || *pos++ != MVI_SPEC_VERSION)
+      return true;
+    n_specs= extra2_read_len(&pos, end);
+    for (size_t i= 0; i < n_specs; i++)
+    {
+      Mvi_decl *decl;
+      KEY *key;
+      const uchar *entry_end;
+      size_t entry_len, path_len;
+      uint keyno;
+      uchar cast_flags;
+
+      entry_len= extra2_read_len(&pos, end);
+      if (entry_len < MVI_SPEC_ENTRY_HEAD_LEN || pos + entry_len > end)
+        return true;
+      entry_end= pos + entry_len;
+
+      keyno= *pos++;
+      if (keyno >= share->total_keys || !mvi_key_names_parser(share, keyno))
+        return true;
+      key= share->key_info + keyno;
+      if (key->mvi_decl)                        /* Described twice */
+        return true;
+      if (*pos++ != Mvi_decl::ARRAY_AT_PATH)
+        return true;
+
+      if (!(decl= new (&share->mem_root) Mvi_decl()))
+        return true;                            // Out of memory
+      decl->cast_type= (enum_field_types) *pos++;
+      cast_flags= *pos++;
+      if (cast_flags & ~MVI_CAST_UNSIGNED)
+        return true;
+      decl->cast_unsigned= (cast_flags & MVI_CAST_UNSIGNED) != 0;
+      decl->cast_length= uint4korr(pos);
+      pos+= 4;
+      decl->cast_dec= *pos++;
+      if (!mvi_cast_handler(decl->cast_type, decl->cast_unsigned))
+        return true;
+
+      /* The path, never empty: a bare base column is kept as '$' */
+      path_len= extra2_read_len(&pos, entry_end);
+      if (!path_len || pos + path_len > entry_end)
+        return true;
+      if (!(decl->path.str= strmake_root(&share->mem_root,
+                                         (const char *) pos, path_len)))
+        return true;                            // Out of memory
+      decl->path.length= path_len;
+      pos+= path_len;
+
+      /* Nothing in the entry this version of the section does not know */
+      if (pos != entry_end)
+        return true;
+
+      if (!(key->ftparser_arg= mvi_make_parser_arg(&share->mem_root, decl)))
+        return true;
+      key->mvi_decl= decl;
+      share->mvi_keys.set_bit(keyno);
+    }
+    if (pos != end)
+      return true;
+  }
+
+  /* A key that names the parser and was not described by any entry */
+  for (uint keyno= 0; keyno < share->total_keys; keyno++)
+    if (mvi_key_names_parser(share, keyno) && !share->key_info[keyno].mvi_decl)
+      return true;
+  return false;
 }
 
 
@@ -574,10 +848,16 @@ Item_func_mvi_encode *mvi_spec_expr(Virtual_column_info *vcol_info)
     The range of key lengths, in characters, an MVI of the cast_th
     datatype can produce.
 
+  @detail
+    The other half of mvi_cast_handler(): that says which datatypes an
+    index can be of, this says how long their keys are. A datatype
+    encode_mvi_key() grows needs a case in both.
+
   @return
     true  It produces no keys at all, and *min_chars and *max_chars are
           untouched. encode_mvi_key() has no image for the datatype, so
-          nothing is ever stored or searched for.
+          nothing is ever stored or searched for -- which mvi_cast_handler()
+          refuses, so nothing a declaration names reaches this.
 */
 
 static bool mvi_key_length_range(const Type_handler *cast_th,
@@ -634,9 +914,9 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
 }
 
 
-bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec)
+bool check_mvi_token_size(const handler *file, const Mvi_decl *decl)
 {
-  return !mvi_keys_fit_fulltext(file, spec->cast_type().type_handler(),
+  return !mvi_keys_fit_fulltext(file, decl->cast_type_handler(),
                                 /*report_error_if_unfit=*/true);
 }
 
@@ -674,19 +954,19 @@ bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec)
 
 bool mvi_report_unfit_write(TABLE *table, bool is_update)
 {
-  DBUG_ASSERT(table->mvi_spec);
+  DBUG_ASSERT(!table->s->mvi_keys.is_clear_all());
   /* Only a key the engine has, so s->keys and not s->total_keys */
   for (uint keyno= 0; keyno < table->s->keys; keyno++)
   {
-    Item_func_mvi_encode *spec= table->mvi_spec[keyno];
-    if (!spec)
+    const KEY *key= table->key_info + keyno;
+    if (!key->mvi_decl)
       continue;
     /* The key part of a multi-valued index is the base column itself */
     if (is_update &&
-        !bitmap_is_set(table->write_set,
-                       table->key_info[keyno].key_part[0].fieldnr - 1))
+        !bitmap_is_set(table->write_set, key->key_part[0].fieldnr - 1))
       continue;
-    if (!mvi_keys_fit_fulltext(table->file, spec->cast_type().type_handler(),
+    if (!mvi_keys_fit_fulltext(table->file,
+                               key->mvi_decl->cast_type_handler(),
                                /*report_error_if_unfit=*/true))
       return true;
   }
@@ -730,30 +1010,27 @@ bool mvi_key_names_parser(const TABLE_SHARE *share, uint keyno)
     multi-valued index.
 
   @detail
-    One entry of TABLE::mvi_spec, which parse_mvi_specs() filled in out of
-    the FRM. Nothing else identifies such a key: the key definition itself
-    only says it is a fulltext key over a column, which it shares with a
-    plain fulltext key over the very same column.
+    What mvi_read_specs() read out of the FRM, or what the DDL put there.
+    Nothing else identifies such a key: the key definition itself only says
+    it is a fulltext key over a column, which it shares with a plain
+    fulltext key over the very same column.
 */
 
-Item_func_mvi_encode *mvi_key_spec(const TABLE *table, uint keyno)
+const Mvi_decl *mvi_key_decl(const TABLE *table, uint keyno)
 {
   DBUG_ASSERT(keyno < table->s->total_keys);
-  return table->mvi_spec ? table->mvi_spec[keyno] : NULL;
+  return table->key_info[keyno].mvi_decl;
 }
 
 
-bool is_mvi_key(const TABLE *table, uint keyno)
+void print_mvi_key_expr(THD *thd, String *str, const TABLE_SHARE *share,
+                        uint keyno)
 {
-  return mvi_key_spec(table, keyno) != NULL;
-}
-
-
-void print_mvi_key_expr(String *str, const TABLE *table, uint keyno)
-{
-  Item_func_mvi_encode *mvi= mvi_key_spec(table, keyno);
-  DBUG_ASSERT(mvi);
-  mvi->print_as_array_cast(str);
+  const KEY *key= share->key_info + keyno;
+  DBUG_ASSERT(key->mvi_decl);
+  /* The key part is the base column, see add_mvi_key_part() */
+  key->mvi_decl->print(thd, str,
+                       share->field[key->key_part[0].fieldnr - 1]->field_name);
 }
 
 
@@ -801,10 +1078,11 @@ static bool check_mvi_key_type(const Key *key)
   @detail
     That form is all a multi-valued index can be declared over. It is
     narrower than what the expression machinery could evaluate, on purpose:
-    the index has to stay describable as (column, path, cast type). The keys
-    of a row then come from the bytes of one column, which is what lets them
-    be produced by reading that column and looking inside it, rather than by
-    evaluating an expression the server has to materialise first.
+    an index of it *is* (column, path, cast type), which is all the FRM
+    keeps of it, see Mvi_decl. The keys of a row then come from the bytes
+    of one column, which is what lets them be produced by reading that
+    column and looking inside it, rather than by evaluating an expression
+    the server has to materialise first.
 
     The parser builds the same Item_func_json_extract for the `->' operator
     and for a written-out json_extract(), so what SHOW CREATE TABLE prints
@@ -828,149 +1106,190 @@ static Item_field *mvi_base_column(Item *expr)
 
 /*
   @brief
-    Rewrite / desugar a bare column into the extraction of the whole
-    document: `j' becomes `j -> '$''.
-
-  @detail
-    A column that is itself the array to index needs no path, and
-    `CAST(j AS <type> ARRAY)' is how one would write that. It means the
-    same as `CAST(j->'$' AS <type> ARRAY)', so the DDL stores the latter
-    and there is one form from that point on -- in the FRM, in what SHOW
-    CREATE TABLE prints, and on the query side.
-
-    The path is built the way the parser builds the one in `j->'$'', so
-    the two are indistinguishable afterwards.
-
-  @return
-    The rewritten expression, or NULL if an error was raised
-*/
-
-Item *mvi_desugar_whole_document(THD *thd, Item *column)
-{
-  /*
-    Use thd->variables.collation_connection, same as primary_expr
-    sql_yacc.cc when parsing <col>-><path>
-  */
-  Item *path= new (thd->mem_root) Item_string(thd, "$", 1,
-                                    thd->variables.collation_connection);
-  List<Item> *args= new (thd->mem_root) List<Item>;
-  if (unlikely(!path || !args ||
-               args->push_back(column, thd->mem_root) ||
-               args->push_back(path, thd->mem_root)))
-    return NULL;
-  return new (thd->mem_root) Item_func_json_extract(thd, *args);
-}
-
-/*
-  @brief
     DDL: check the column can be used for a multi-valued index
 
   @detail
-    The base column -- the one the declaration reads the array out of --
-    has to be stored, because it is the column the key part is over. The
-    engine reads it out of the clustered index record to build the
-    document it tokenizes, and a virtual column has no place there:
-    InnoDB refuses a FULLTEXT index over one outright. Refuse it at the
-    multi-valued index instead, with an error that says why.
-
-    It runs once the columns of the new table are known, which for
-    ALTER TABLE means after mysql_prepare_alter_table() has merged the
-    old ones in, so `create_list' holds the base column whether the
-    statement mentions it or not. A name that is not in the list at
-    all is left alone -- the vcol expression fails on it with the
-    error it would raise anyway.
-
-    The shape of the expression is re-checked here, and not only in
-    add_mvi_key_part(), because a table being rebuilt arrives with the
-    expression it was created with, read back from the FRM instead of
-    written by the parser.
+    The base column -- the one the array is read out of -- has to be
+    stored, because it is the column the key part is over. The engine reads
+    it out of the clustered index record to build the document it tokenizes,
+    and a virtual column has no place there: InnoDB refuses a FULLTEXT index
+    over one outright. Refuse it at the multi-valued index instead, with an
+    error that says why.
 
   @return
     true   The index cannot be built from it, and an error is raised
 */
 
-bool check_mvi_base_column(Alter_info *alter_info,
-                           Item_func_mvi_encode *spec)
+bool check_mvi_base_column(const Create_field &column)
 {
-  const Item_field *base= mvi_base_column(spec->arguments()[0]);
-  if (unlikely(!base))
-  {
-    my_error(ER_MVI_BAD_EXPR, MYF(0));
-    return true;
-  }
-  for (Create_field &f : alter_info->create_list)
-  {
-    if (!f.field_name.streq(base->field_name))
-      continue;
-    if (unlikely(!f.stored_in_db()))
-    {
-      my_error(ER_MVI_BAD_BASE_COLUMN, MYF(0), f.field_name.str);
-      return true;
-    }
-    break;
-  }
-  return false;
-}
-
-
-/*
-  Two multi-valued indexes are the same index when they hold the same keys,
-  and what they were declared with -- the array, and what its elements are
-  encoded as -- is all that decides those. The printed form is what the FRM
-  keeps as well, so comparing it is comparing what will be stored.
-*/
-
-bool mvi_decls_eq(Item_func_mvi_encode *a, Item_func_mvi_encode *b)
-{
-  StringBuffer<MAX_FIELD_WIDTH> pa, pb;
-  a->print_for_table_def(&pa);
-  b->print_for_table_def(&pb);
-  return pa.length() == pb.length() &&
-         !memcmp(pa.ptr(), pb.ptr(), pa.length());
+  if (likely(column.stored_in_db()))
+    return false;
+  my_error(ER_MVI_BAD_BASE_COLUMN, MYF(0), column.field_name.str);
+  return true;
 }
 
 
 /*
   @brief
-    Build what the mvi fulltext parser is handed for the index `spec'
+    Build what the mvi fulltext parser is handed for the index `decl'
     declares.
 
   @detail
     The parser needs the path to the array and the datatype the elements
     are cast to, and needs them without having to allocate or evaluate
     anything: it runs on the engine's threads while a commit or an index
-    build is going on. Both are in the declaration, which is where the
-    narrowed DDL put them -- the array is `<column> -> '<literal path>''
-    and nothing else, so the path is a constant this can read out now and
-    parse once, see mvi_base_column().
+    build is going on. Both are in the declaration, so all that is left to
+    do here is parse the path, once.
 
   @return
-    The argument, allocated on `mem_root', or NULL if `spec' is not a
-    declaration this server could have written
+    The argument, allocated on `mem_root', or NULL if the path does not
+    parse -- which a declaration this server wrote never does, see
+    mvi_decl_from_key_part() -- or on out of memory
 */
 
-Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
-                                    Item_func_mvi_encode *spec)
+Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root, const Mvi_decl *decl)
 {
-  Item *document= spec->arguments()[0];
-  Item_field *base= mvi_base_column(document);
-  StringBuffer<MAX_FIELD_WIDTH> tmp;
-  String *path;
-  Mvi_parser_arg *arg;
-
-  if (!base)
-    return NULL;                                /* Not a declaration */
-  /* mvi_base_column() has checked it is a literal, so this evaluates */
-  if (!(path= ((Item_func *) document)->arguments()[1]->val_str(&tmp)))
-    return NULL;
-
-  if (!(arg= (Mvi_parser_arg *) alloc_root(mem_root, sizeof(*arg))))
+  Mvi_parser_arg *arg=
+    (Mvi_parser_arg *) alloc_root(mem_root, sizeof(*arg));
+  if (!arg)
     return NULL;                                // Out of memory
-  const LEX_CSTRING path_str= { path->ptr(), path->length() };
-  if (mvi_parser_arg_init(mem_root, arg, &path_str, path->charset(),
-                          spec->cast_type().type_handler()))
+  if (mvi_parser_arg_init(mem_root, arg, &decl->path, mvi_path_charset(),
+                          decl->cast_type_handler()))
     return NULL;
   return arg;
+}
+
+
+/*
+  @brief
+    Record in `decl' the cast a `CAST(... AS <type> ARRAY)' key part asks
+    for, if it is one a multi-valued index can be made of.
+
+  @detail
+    The handler has to be the one mvi_cast_handler() names for the datatype
+    it reports, and not merely something that reports the same one: a
+    user-defined type over a string would pass a field_type() test and then
+    be encoded as the string it is not.
+
+  @return
+    true   Not a cast an index can be made of, and an error is raised
+*/
+
+static bool mvi_decl_set_cast(const Lex_cast_type_st &cast_type,
+                              Mvi_decl *decl)
+{
+  const Type_handler *th= cast_type.type_handler();
+  const enum_field_types type= th->field_type();
+  const bool is_unsigned= th->is_unsigned();
+
+  if (unlikely(mvi_cast_handler(type, is_unsigned) != th))
+  {
+    /*
+      encode_mvi_key() has no key image for it, so such an index would hold
+      no keys and find no rows. It used to be accepted and be exactly that.
+    */
+    my_error(ER_WRONG_USAGE, MYF(0), th->name().ptr(), "ARRAY");
+    return true;
+  }
+  decl->cast_type= type;
+  decl->cast_unsigned= is_unsigned;
+  decl->cast_length= cast_type.length();
+  decl->cast_dec= cast_type.dec();
+  return false;
+}
+
+
+/*
+  @brief
+    Build the declaration a `CAST(<expr> AS <type> ARRAY)' key part means,
+    and say which column it is over.
+
+  @detail
+    <expr> is `<column> -> '<path>'', see mvi_base_column() -- or a bare
+    column, which is the whole document and is kept as the path '$', so
+    that there is one form from here on: in the FRM, in what SHOW CREATE
+    TABLE prints, and on the query side.
+
+    The path is parsed here, once, rather than left for the fulltext parser
+    to trip over on the first row: json_path_setup() is what that parser
+    walks the document with, so a path it does not accept is a key
+    definition that could never produce a key.
+
+  @return
+    The declaration, allocated on thd->mem_root, or NULL if an error was
+    raised. *base is the column it is over.
+*/
+
+static Mvi_decl *mvi_decl_from_key_part(THD *thd, Item *expr,
+                                        const Lex_cast_type_st &cast_type,
+                                        Item_field **base)
+{
+  StringBuffer<MAX_FIELD_WIDTH> raw, path;
+  /* A bare column is the whole document, which is the path '$' */
+  LEX_CSTRING given= { "$", 1 };
+  CHARSET_INFO *given_cs= mvi_path_charset();
+  Mvi_decl *decl;
+  json_path_t jp;
+  json_path_step_t step_buffer[JSON_DEPTH_LIMIT];
+  uint errors;
+
+  if (unlikely(!(decl= new (thd->mem_root) Mvi_decl())))
+    return NULL;                                // Out of memory
+  if (unlikely(mvi_decl_set_cast(cast_type, decl)))
+    return NULL;
+
+  if (expr->type() == Item::FIELD_ITEM)
+    *base= (Item_field *) expr;
+  else
+  {
+    String *str;
+    if (unlikely(!(*base= mvi_base_column(expr))))
+    {
+      my_error(ER_MVI_BAD_EXPR, MYF(0));
+      return NULL;
+    }
+    /* mvi_base_column() has checked it is a literal, so this evaluates */
+    if (unlikely(!(str= ((Item_func *) expr)->arguments()[1]->val_str(&raw))))
+    {
+      my_error(ER_MVI_BAD_EXPR, MYF(0));
+      return NULL;
+    }
+    given.str= str->ptr();
+    given.length= str->length();
+    given_cs= str->charset();
+  }
+
+  if (unlikely(path.copy(given.str, given.length, given_cs,
+                         mvi_path_charset(), &errors) || errors ||
+               path.length() > MVI_PATH_MAX_LEN))
+  {
+    my_error(ER_MVI_BAD_EXPR, MYF(0));
+    return NULL;
+  }
+
+  /*
+    Stack-buffered: json_path_setup() stops at JSON_DEPTH_LIMIT steps, which
+    is what this is sized by, so it can never have to grow. Hence the NULL
+    MEM_ROOT -- growing it would be a bug, not an allocation.
+  */
+  initJsonArray(NULL, &jp.steps, sizeof(json_path_step_t), step_buffer, 0);
+  if (unlikely(json_path_setup(&jp, mvi_path_charset(),
+                               (const uchar *) path.ptr(),
+                               (const uchar *) path.end())))
+  {
+    report_path_error_ex(path.ptr(), &jp, "json_extract", 0,
+                         Sql_condition::WARN_LEVEL_ERROR);
+    /* Not every way a path can fail has a message of its own */
+    if (!thd->is_error())
+      my_error(ER_MVI_BAD_EXPR, MYF(0));
+    return NULL;
+  }
+
+  decl->path.length= path.length();
+  if (unlikely(!(decl->path.str= strmake_root(thd->mem_root, path.ptr(),
+                                              path.length()))))
+    return NULL;                                // Out of memory
+  return decl;
 }
 
 
@@ -980,9 +1299,9 @@ Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
     defined into a multi-valued index over the column the array is in.
 
   @detail
-    The key part is that column, and the array inside it, with the datatype
-    its elements are cast to, becomes the key's declaration -- one
-    MVI_ENCODE() call, which is what goes into the FRM's EXTRA2_MVI_SPEC
+    The key part is that column, and where the array is inside it together
+    with the datatype its elements are cast to becomes the key's
+    declaration -- which is what goes into the FRM's EXTRA2_MVI_SPEC
     section and what comes back out of it. Nothing is materialised: the
     engine reads the column and the mvi fulltext parser looks inside it for
     the array, see mvi_tokenize_document().
@@ -1007,6 +1326,7 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
   LEX *lex= thd->lex;
   Key *key= lex->last_key;
   Item_field *base;
+  Mvi_decl *decl;
 
   /*
     An index over an ARRAY has exactly one key part. Catch a second one here,
@@ -1023,31 +1343,12 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
     return NULL;
 
   /*
-    A bare column is the array itself, with no path to follow into it.
-    Transform it to column->'$'
+    Whether the base column is one the index can be built from, and whether
+    the engine will hold the keys, are both settled once the columns and the
+    engine are known, in init_key_part_spec(): the statement has named
+    neither yet.
   */
-  if (expr->type() == Item::FIELD_ITEM &&
-      unlikely(!(expr= mvi_desugar_whole_document(thd, expr))))
-    return NULL;
-
-  /*
-    `<column> -> '<path>'' and nothing else, see mvi_base_column(). Whether
-    that column is one the index can be built from is settled once the
-    columns are known, in check_mvi_base_column().
-  */
-  if (unlikely(!(base= mvi_base_column(expr))))
-  {
-    my_error(ER_MVI_BAD_EXPR, MYF(0));
-    return NULL;
-  }
-
-  /*
-    The engine's fulltext token size limits are checked once the engine is
-    known, in init_key_part_spec(): the statement has not named it yet.
-  */
-  Item_func_mvi_encode *spec=
-    new (thd->mem_root) Item_func_mvi_encode(thd, expr, cast_type);
-  if (unlikely(!spec))
+  if (unlikely(!(decl= mvi_decl_from_key_part(thd, expr, cast_type, &base))))
     return NULL;
 
   /*
@@ -1056,7 +1357,7 @@ Key_part_spec *add_mvi_key_part(THD *thd, Item *expr,
     the key parts, so it has not been seen yet.
   */
   key->type= Key::FULLTEXT;
-  key->mvi_spec= spec;
+  key->mvi_decl= decl;
 
   return new (thd->mem_root) Key_part_spec(&base->field_name, 0);
 }
@@ -1094,7 +1395,7 @@ bool check_mvi_key_parser(Key *key)
   const bool named_ours= name.str &&
     Lex_ident_column(name).streq(Lex_cstring_strlen(MVI_PARSER_NAME));
 
-  if (!key->mvi_spec)
+  if (!key->mvi_decl)
   {
     if (!named_ours)
       return false;
@@ -1117,23 +1418,23 @@ static
 bool collect_mvi_indexes_for_table(THD *thd, TABLE *table,
                                    List<Mv_index> *indexes)
 {
-  if (!table->mvi_spec)
+  if (table->s->mvi_keys.is_clear_all())
     return FALSE;                               /* Not one index of them */
   for (uint i=0; i < table->s->keys; i++)
   {
     /* Only a key the engine has, so s->keys and not s->total_keys */
-    Item_func_mvi_encode *spec;
+    const Mvi_decl *decl;
     if (!table->keys_in_use_for_query.is_set(i) ||
-        !(spec= table->mvi_spec[i]))
+        !(decl= table->key_info[i].mvi_decl))
       continue;
     /*
       The engine's token size limits are checked at DDL time, but they
       are settings: this table may have been created when they were
       wider, or on another server.
     */
-    if (!mvi_keys_fit_fulltext(table->file, spec->cast_type().type_handler()))
+    if (!mvi_keys_fit_fulltext(table->file, decl->cast_type_handler()))
       continue;
-    Mv_index *index= new (thd->mem_root) Mv_index(spec, table, i);
+    Mv_index *index= new (thd->mem_root) Mv_index(decl, table, i);
     if (!index || indexes->push_back(index))
       return TRUE; // Out of memory
   }

@@ -68,7 +68,6 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
-class Item_func_mvi_encode;
 class Copy_field;
 class Table_statistics;
 class With_element;
@@ -778,10 +777,11 @@ struct TABLE_SHARE
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;               /* definitions of generated columns */
   /*
-    EXTRA2_MVI_SPEC: what each multi-valued index of the table was
-    declared with. Empty when the table has none.
+    Which keys are multi-valued indexes, so that a table with none pays
+    nothing for them. What each of them was declared with is on the key,
+    see KEY::mvi_decl.
   */
-  LEX_CUSTRING mvi_spec;
+  key_map mvi_keys;
 
   union {
     void *hlindex_data;                 /* for hlindex tables */
@@ -1415,18 +1415,6 @@ public:
   KEY  *key_info;			/* data of keys in database */
 
   Field **field;                        /* Pointer to fields */
-  /*
-    What each multi-valued index of this table was declared with: one entry
-    per key, NULL for a key that is not one, and NULL altogether when the
-    table has no multi-valued index at all.
-
-    Parsed out of TABLE_SHARE::mvi_spec by parse_mvi_specs(), once per
-    TABLE rather than once per share, because the Item reads a column of
-    this TABLE -- the same reason vcol expressions are parsed per TABLE,
-    see parse_vcol_defs(). It is what makes a key a multi-valued index once
-    the table is open, and the only thing that does, see is_mvi_key().
-  */
-  Item_func_mvi_encode **mvi_spec;
   Field **vfield;                       /* Pointer to virtual fields*/
   Field **default_field;                /* Fields with non-constant DEFAULT */
   Field *next_number_field;		/* Set if next_number is activated */

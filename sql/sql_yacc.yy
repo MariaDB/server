@@ -11156,6 +11156,7 @@ function_call_nonkeyword:
               MYSQL_YYABORT;
             Lex->safe_to_cache_query= false;
           }
+        /* TODO: surround this with ifndef DBUG_OFF */
         | MVI_ENCODE_SYM '(' expr ',' cast_type ')'
           {
             $$= new (thd->mem_root) Item_func_mvi_encode(thd, $3, $5);

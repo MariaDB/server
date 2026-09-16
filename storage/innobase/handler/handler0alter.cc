@@ -3953,7 +3953,7 @@ innobase_create_index_def(
 			/* A multi-valued index cannot be built without it:
 			the entries would be the words of the document
 			instead of the keys of the array. */
-			ut_ad(!key->mvi_spec || index->ftparser_arg);
+			ut_ad(!key->mvi_decl || index->ftparser_arg);
 		}
 	} else if (key->algorithm == HA_KEY_ALG_RTREE) {
 		DBUG_ASSERT(!(key->flags & HA_NOSAME));

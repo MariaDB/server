@@ -14,20 +14,133 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-class Alter_info;
+class Create_field;
 class Json_writer_object;
 class Key;
-class Item_func_mvi_encode;
+
+/*
+  The charset the path of a declaration is kept in, in the FRM and in
+  memory. A member name in a JSON path can be any string a document has,
+  so it is utf8mb4; and two declarations are compared as bytes, so they
+  have to be bytes of the same charset to begin with.
+*/
+static inline CHARSET_INFO *mvi_path_charset()
+{ return &my_charset_utf8mb4_bin; }
+
+/*
+  The longest a path may be. What the FRM section can carry, see
+  extra2_write_len(); nothing anyone would write comes near it.
+*/
+#define MVI_PATH_MAX_LEN 65535
+
+/*
+  The version of the EXTRA2_MVI_SPEC section, see mvi_spec_image(). A reader
+  that does not know a version refuses the table, which is what the section
+  being engine-important is for: anything that changes what the keys of a
+  row are has to bump this rather than be skipped, or an older server would
+  build and search a different index than the one the FRM describes.
+*/
+#define MVI_SPEC_VERSION 1
+
+/* The fixed-width head of one entry of it: see mvi_spec_image() */
+#define MVI_SPEC_ENTRY_HEAD_LEN 9
+
+/* The one bit of an entry's cast flags byte */
+#define MVI_CAST_UNSIGNED 1
+
+/* The one place that says which casts an index can be made of */
+const Type_handler *mvi_cast_handler(enum_field_types type, bool is_unsigned);
+
+
+/*
+  @brief
+    What a multi-valued index was declared with.
+
+  @detail
+    Everything about such an index that the key definition does not already
+    say. The key part is the base column, so the column is not in here --
+    it is key_part[0]. What is left is where inside that column the array
+    is, and what its elements are cast to: the two things that decide what
+    the keys of a row are, see encode_mvi_key().
+
+    No Item and no Field in it, and nothing in it depends on a THD. So one
+    of these serves the share and every TABLE opened from it, read straight
+    out of the FRM into KEY::mvi_decl, and the fulltext parser's argument
+    can be built beside it once and for all.
+*/
+
+struct Mvi_decl : public Sql_alloc
+{
+  /*
+    What kind of declaration this is, which is what an entry of the FRM
+    section is tagged with. There is one kind so far -- the elements of the
+    array at a path -- and a kind is how a differently shaped one would be
+    added: an index of the whole document, say, whose keys are not the
+    elements of any one array and which would have no path at all. Its
+    entry would carry its own payload under its own tag, and a reader that
+    does not know the tag refuses the table.
+  */
+  enum Tag
+  {
+    ARRAY_AT_PATH= 0
+  };
+
+  /*
+    Where the array is inside the column, in mvi_path_charset(). '$' when
+    the column is itself the array.
+  */
+  LEX_CSTRING path;
+
+  /*
+    What the elements are cast to, described the way a column's datatype is
+    -- a type, a length, a scale and a sign -- and not as one of the few
+    casts the encoding happens to handle today. So the datatypes
+    encode_mvi_key() is still missing (DECIMAL and the temporal ones are its
+    standing TODO) cost a case in mvi_cast_handler() and nothing on disk.
+  */
+  enum_field_types cast_type;
+  uint32 cast_length;           /* the n of CHAR(n), 0 when there is none */
+  uint8 cast_dec;               /* the n of DECIMAL(m,n), 0 when none */
+  bool cast_unsigned;
+
+  /* What encode_mvi_key() and the token size checks want instead */
+  const Type_handler *cast_type_handler() const;
+
+  /* Print the cast the way CAST() spells it: `char(6)', `int', `unsigned' */
+  void append_cast_type(String *str) const;
+
+  /*
+    Print `cast(json_extract(`base`,'<path>') as <type> array)': the
+    expression the index was declared with, and the only form that reads
+    back in. For SHOW CREATE TABLE.
+  */
+  void print(THD *thd, String *str, const Lex_ident_column &base) const;
+
+  /*
+    Do two declarations describe the same keys? The base column is not
+    compared: it is the key part, which whoever asks has compared already.
+  */
+  bool eq(const Mvi_decl *other) const
+  {
+    return cast_type == other->cast_type &&
+           cast_length == other->cast_length &&
+           cast_dec == other->cast_dec &&
+           cast_unsigned == other->cast_unsigned &&
+           path.length == other->path.length &&
+           !memcmp(path.str, other->path.str, path.length);
+  }
+};
+
 
 /* An MVI index */
 struct Mv_index : public Sql_alloc
 {
-  /* What the index was declared with, see TABLE::mvi_spec */
-  Item_func_mvi_encode *spec;
+  /* What the index was declared with, see KEY::mvi_decl */
+  const Mvi_decl *decl;
   TABLE *table;                 /* The table it is an index of */
   uint keyno;                   /* The keyno of the index */
-  Mv_index(Item_func_mvi_encode *spec_arg, TABLE *table_arg, uint keyno_arg)
-    : spec(spec_arg), table(table_arg), keyno(keyno_arg) {}
+  Mv_index(const Mvi_decl *decl_arg, TABLE *table_arg, uint keyno_arg)
+    : decl(decl_arg), table(table_arg), keyno(keyno_arg) {}
 };
 
 /* Access descriptor for a predicate */
@@ -267,21 +380,13 @@ bool mvi_keys_fit_fulltext(const handler *file, const Type_handler *cast_th,
   ER_MVI_KEY_TOKEN_SIZE when they do not fit. Returns true if an error
   was raised.
 */
-bool check_mvi_token_size(const handler *file, Item_func_mvi_encode *spec);
-
-Item *mvi_desugar_whole_document(THD *thd, Item *column);
+bool check_mvi_token_size(const handler *file, const Mvi_decl *decl);
 
 /*
-  DDL: can the multi-valued index `spec' declares be built from the column
-  it reads the array out of? Returns true if an error was raised.
+  DDL: can a multi-valued index be built from `column', the column it
+  reads the array out of? Returns true if an error was raised.
 */
-bool check_mvi_base_column(Alter_info *alter_info,
-                           Item_func_mvi_encode *spec);
-
-/*
-  DDL: do two declarations describe the same keys? Neither may be NULL.
-*/
-bool mvi_decls_eq(Item_func_mvi_encode *a, Item_func_mvi_encode *b);
+bool check_mvi_base_column(const Create_field &column);
 
 /*
   The name of the fulltext parser every multi-valued index names, and no
@@ -294,29 +399,23 @@ bool mvi_decls_eq(Item_func_mvi_encode *a, Item_func_mvi_encode *b);
 /*
   Open: could key #keyno of `share' be a multi-valued index -- a fulltext
   key over one stored column, parsed by MVI_PARSER_NAME? Says nothing about
-  whether it is one: only a declaration does, see is_mvi_key().
+  whether it is one: only a declaration does, see KEY::mvi_decl.
 */
 bool mvi_key_names_parser(const TABLE_SHARE *share, uint keyno);
 
 /*
-  Open: `vcol' as read back out of EXTRA2_MVI_SPEC, if it is a declaration
-  a multi-valued index could have been written with, and NULL if it is not.
-*/
-Item_func_mvi_encode *mvi_spec_expr(Virtual_column_info *vcol);
-
-/*
-  Open: what the mvi fulltext parser is to be handed for the index `spec'
-  declares, allocated on `mem_root'. Returns NULL if `spec' cannot be
+  Open: what the mvi fulltext parser is to be handed for the index `decl'
+  declares, allocated on `mem_root'. Returns NULL if `decl' cannot be
   served, which no declaration this server wrote ever is.
 */
 Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
-                                    Item_func_mvi_encode *spec);
+                                    const Mvi_decl *decl);
 
 /*
   Write: refuse a write that a multi-valued index of `table' cannot hold
   the keys of, raising ER_MVI_KEY_TOKEN_SIZE. `is_update' leaves alone a
   statement that does not write the base column of any of them. Only worth
-  calling when TABLE::mvi_spec says the table has one at all.
+  calling when TABLE_SHARE::mvi_keys says the table has one at all.
 
   @return
     true   The write must not happen, and an error is raised
@@ -324,26 +423,26 @@ Mvi_parser_arg *mvi_make_parser_arg(MEM_ROOT *mem_root,
 bool mvi_report_unfit_write(TABLE *table, bool is_update);
 
 /*
-  Optimizer: is `expr' the document that a multi-valued index declared over
-  `indexed' holds the keys of? A bare column and that column at path '$'
-  are the same document.
+  Open: read the FRM's EXTRA2_MVI_SPEC section into KEY::mvi_decl of the
+  keys it describes, and prepare what their fulltext parser is handed.
+  Everything lands on the share: see Mvi_decl. Returns true when the
+  section and the keys do not agree, which is an FRM this server did not
+  write.
 */
-bool mvi_same_document(THD* thd, Item *indexed, Item *expr);
+bool mvi_read_specs(TABLE_SHARE *share, const LEX_CUSTRING *section);
 
 /*
   What key #keyno of `table' was declared with, or NULL when it is not a
   multi-valued index
 */
-Item_func_mvi_encode *mvi_key_spec(const TABLE *table, uint keyno);
-
-/* Is key #keyno of `table' a multi-valued index? */
-bool is_mvi_key(const TABLE *table, uint keyno);
+const Mvi_decl *mvi_key_decl(const TABLE *table, uint keyno);
 
 /*
-  Print the expression key #keyno was declared with, in the CAST(... ARRAY)
-  form, for SHOW CREATE TABLE
+  Print the expression key #keyno of `share' was declared with, in the
+  CAST(... ARRAY) form, for SHOW CREATE TABLE
 */
-void print_mvi_key_expr(String *str, const TABLE *table, uint keyno);
+void print_mvi_key_expr(THD *thd, String *str, const TABLE_SHARE *share,
+                        uint keyno);
 
 /*
   DDL: handle a `(CAST(expr AS type ARRAY))' key part of the key being

@@ -8541,7 +8541,7 @@ int handler::ha_write_row(const uchar *buf)
     must not reach the engine. Only a table that has a multi-valued index at
     all goes any further than the test below.
   */
-  if (unlikely(table->mvi_spec != NULL) &&
+  if (unlikely(!table->s->mvi_keys.is_clear_all()) &&
       mvi_report_unfit_write(table, /*is_update=*/ false))
   {
     error= HA_ERR_GENERIC;                      /* The error is raised */
@@ -8617,7 +8617,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 
   /* See ha_write_row(). An UPDATE is only refused if it writes the
   document such an index reads. */
-  if (unlikely(table->mvi_spec != NULL) &&
+  if (unlikely(!table->s->mvi_keys.is_clear_all()) &&
       mvi_report_unfit_write(table, /*is_update=*/ true))
     return HA_ERR_GENERIC;                      /* The error is raised */
 

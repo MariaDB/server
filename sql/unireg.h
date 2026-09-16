@@ -200,6 +200,30 @@ enum extra2_index_flags {
 };
 
 
+/*
+  write the length as
+  if (  0 < length <= 255)      one byte
+  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
+*/
+static inline uchar *extra2_write_len(uchar *pos, size_t len)
+{
+  DBUG_ASSERT(len);
+  if (len <= 255)
+    *pos++= (uchar)len;
+  else
+  {
+    /*
+      At the moment we support options_len up to 64K.
+      We can easily extend it in the future, if the need arises.
+    */
+    DBUG_ASSERT(len <= 65535);
+    int2store(pos + 1, len);
+    pos+= 3;
+  }
+  return pos;
+}
+
+
 static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
 {
   size_t length= *(*extra2)++;
@@ -214,6 +238,15 @@ static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
     return 0;
   return length;
 }
+
+class String;
+
+/*
+  The EXTRA2_MVI_SPEC section: written by mvi_spec_image() and read back by
+  mvi_read_specs(), both in opt_multi_valued_index.cc, where everything
+  else that knows what a multi-valued index is lives too.
+*/
+bool mvi_spec_image(String *image, uint keys, const KEY *key_info);
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
