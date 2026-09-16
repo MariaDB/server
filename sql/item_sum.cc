@@ -328,6 +328,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
           sel->set_non_agg_field_used(true);
           if (sel->join)
           {
+            field->marker= sel->cur_pos_in_select_list;
             sel->join->non_agg_fields.push_back(field, thd->mem_root);
           }
         }
@@ -342,6 +343,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
         }
         else if (sel->join)
         {
+          field->marker= sel->cur_pos_in_select_list;
           sel->join->non_agg_fields.push_back(field, thd->mem_root);
         }
       }
