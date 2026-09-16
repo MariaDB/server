@@ -2403,6 +2403,17 @@ void rpl_group_info::clear_tables_to_lock()
 void rpl_group_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("rpl_group_info::slave_close_thread_tables(THD *thd)");
+  /*
+    None of the thd-global cleanup below must run from a sub-statement
+    (e.g. a BINLOG statement executed from a trigger or stored routine):
+    thd's open tables, metadata locks and statement transaction belong
+    to the enclosing top-level statement and must be left untouched
+    until that statement finishes. Only rgi-local state
+    (like clear_tables_to_lock()) is finalized in that case.
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+    goto end;
+
   thd->get_stmt_da()->set_overwrite_status(true);
 #ifdef WITH_WSREP
   // This can happen e.g. when table_def::compatible_with fails and sets a error
@@ -2440,6 +2451,7 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   else
     thd->mdl_context.release_statement_locks();
 
+end:
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
 }

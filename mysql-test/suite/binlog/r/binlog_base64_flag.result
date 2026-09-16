@@ -133,3 +133,138 @@ BINLOG '-2079193929';
 ERROR HY000: Decoding of base64 string failed
 BINLOG 'xç↓%~∙D╒ƒ╡';
 ERROR HY000: Decoding of base64 string failed
+#
+# MDEV-39074 trans_rollback_stmt(THD *): Assertion `! thd->in_sub_stmt' failed.
+#
+create table t0 (a int);
+create table t1 (a int);
+create trigger trig_t0_insert after insert on t0 for each row binlog 'enabled';
+insert into t0 set a= 0;
+ERROR HY000: Decoding of base64 string failed
+drop trigger trig_t0_insert;
+## Case 1: Row event in trigger (works partially)
+binlog 'ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC';
+create trigger trig_t0_insert after insert on t0 for each row
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+create trigger trig_t1_insert after insert on t1 for each row
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+insert into t0 set a= 1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+insert into t1 set a= 1;
+select * from t1;
+a
+1
+3
+drop trigger trig_t0_insert;
+drop trigger trig_t1_insert;
+## Case 2: Statement event in trigger (disabled)
+create trigger trig_t0_insert after insert on t0 for each row
+binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp';
+create trigger trig_t1_insert after insert on t1 for each row
+binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp';
+insert into t0 set a= 2;
+ERROR 0A000: Statement-based BINLOG event is not allowed in stored procedures
+insert into t1 set a= 2;
+ERROR 0A000: Statement-based BINLOG event is not allowed in stored procedures
+select * from t1;
+a
+1
+3
+2
+drop trigger trig_t0_insert;
+drop trigger trig_t1_insert;
+## Case 3: Row event in SP (disabled)
+create procedure proc_t1_insert()
+begin
+insert into t1 set a= 3;
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+end|
+call proc_t1_insert();
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+drop procedure proc_t1_insert;
+## Case 4: Statement event in SP (disabled)
+create procedure proc_t1_insert()
+begin
+insert into t1 set a= 4;
+binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp';
+end|
+call proc_t1_insert();
+ERROR 0A000: Statement-based BINLOG event is not allowed in stored procedures
+drop procedure proc_t1_insert;
+## Case 5: Row event in SF (works partially)
+create function func_t0_insert() returns int
+begin
+insert into t0 set a= 5;
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+return 0;
+end|
+create function func_t1_insert() returns int
+begin
+insert into t1 set a= 5;
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+return 0;
+end|
+select func_t0_insert();
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+select func_t1_insert();
+func_t1_insert()
+0
+select * from t1;
+a
+1
+3
+2
+3
+4
+5
+3
+drop function func_t0_insert;
+drop function func_t1_insert;
+## Case 6: Statement event in SF (disabled)
+create function func_t1_insert() returns int
+begin
+insert into t1 set a= 6;
+binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp';
+return 0;
+end|
+select func_t1_insert();
+ERROR 0A000: Statement-based BINLOG event is not allowed in stored procedures
+drop function func_t1_insert;
+## Case 7: Row event in PS (works)
+prepare stmt from "binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+a
+1
+3
+2
+3
+4
+5
+3
+6
+3
+3
+## Case 8: Statement event in PS (works)
+prepare stmt from "binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+a
+1
+3
+2
+3
+4
+5
+3
+6
+3
+3
+99
+99
+drop table t0, t1;
+# End of 10.11 tests

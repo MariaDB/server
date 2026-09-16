@@ -5416,6 +5416,7 @@ protected:
 private:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  inline void init_option_bits();
   int do_apply_event(rpl_group_info *rgi) override;
   int do_update_pos(rpl_group_info *rgi) override;
   enum_skip_reason do_shall_skip(rpl_group_info *rgi) override;

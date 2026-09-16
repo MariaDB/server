@@ -1918,6 +1918,31 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   /*
+    Statement-based (Query_log_event) BINLOG events are applied via
+    mysql_parse(), which assumes it is starting a genuinely new
+    top-level statement (see THD::reset_for_next_command(), documented
+    as "not called by substatements of routines", and lex_start()'s
+    reuse of thd->main_lex, which belongs to the enclosing statement
+    while it is still executing). None of that holds for a BINLOG
+    statement executed from a trigger, stored function or stored
+    procedure, so refuse it outright instead of trying to make it
+    work.
+
+    thd->in_sub_stmt only covers triggers and stored functions: both
+    are always nested inside whatever statement invoked them. A stored
+    procedure invoked directly via CALL is not nested in anything --
+    the CALL is itself the top-level statement -- so thd->in_sub_stmt
+    stays 0 for its body, even though it runs through the very same
+    sp_instr/thd->spcont machinery. Check thd->spcont too to cover it.
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "Statement-based BINLOG event");
+    thd->is_slave_error= true;
+    DBUG_RETURN(true);
+  }
+
+  /*
     Colleagues: please never free(thd->catalog) in MySQL. This would
     lead to bugs as here thd->catalog is a part of an alloced block,
     not an entire alloced block (see
@@ -2203,7 +2228,14 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             */
             thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
           }
-          mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
+          if (!thd->stmt_arena->is_conventional())
+          {
+            // Under a PS: avoid leaking onto its stmt_arena.
+            SCOPE_VALUE(thd->stmt_arena, static_cast<Query_arena *>(thd));
+            mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
+          }
+          else
+            mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
           /* Finalize server status flags after executing a statement. */
           thd->update_server_status();
           log_slow_statement(thd);
@@ -5858,6 +5890,30 @@ inline void restore_empty_query_table_list(LEX *lex)
 }
 
 
+inline void Rows_log_event::init_option_bits()
+{
+  /*
+    There are a few flags that are replicated with each row event.
+    Make sure to set/clear them before executing the main body of
+    the event.
+  */
+  if (get_flags(NO_FOREIGN_KEY_CHECKS_F))
+      thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
+  else
+      thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
+
+  if (get_flags(RELAXED_UNIQUE_CHECKS_F))
+      thd->variables.option_bits|= OPTION_RELAXED_UNIQUE_CHECKS;
+  else
+      thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  if (get_flags(NO_CHECK_CONSTRAINT_CHECKS_F))
+    thd->variables.option_bits|= OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+  else
+    thd->variables.option_bits&= ~OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+}
+
+
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
@@ -5904,7 +5960,44 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     after the table map events.  We should then lock all the tables
     used in the transaction and proceed with execution of the actual
     event.
+
+    thd->spcont/thd->in_sub_stmt are set while this event is being
+    applied from a trigger, stored function or stored procedure.
+    In any of these cases, thd->lock -- whatever its current value --
+    belongs to the enclosing top-level statement, so we must not lock
+    (or open) tables of our own here; we can only reuse tables the
+    enclosing statement has already opened and locked.
   */
+  if (thd->spcont || thd->in_sub_stmt)
+  {
+    for (TABLE_LIST *tables= rgi->tables_to_lock; tables;
+         tables= tables->next_global)
+    {
+      TABLE *table= find_locked_table(thd->open_tables, tables->db.str,
+                                      tables->table_name.str);
+      bool found_by_name= table != NULL;
+      /*
+        Row events always need a write lock (Table_map_log_event builds
+        tables_to_lock with TL_WRITE).
+      */
+      while (table && table->reginfo.lock_type < TL_FIRST_WRITE)
+        table= find_locked_table(table->next, tables->db.str,
+                                 tables->table_name.str);
+      if (!table)
+      {
+        error= found_by_name ? ER_TABLE_NOT_LOCKED_FOR_WRITE : ER_TABLE_NOT_LOCKED;
+        my_error(error, MYF(0), tables->table_name.str);
+        thd->is_slave_error= 1;
+        goto err;
+      }
+      tables->table= table;
+    }
+    thd->set_time(when, when_sec_part);
+    thd->lex->set_stmt_row_injection();
+    init_option_bits();
+    goto locked_tables;
+  }
+
   if (!thd->lock)
   {
     /*
@@ -5933,26 +6026,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       injections.
     */
     thd->lex->set_stmt_row_injection();
-
-    /*
-      There are a few flags that are replicated with each row event.
-      Make sure to set/clear them before executing the main body of
-      the event.
-    */
-    if (get_flags(NO_FOREIGN_KEY_CHECKS_F))
-        thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
-    else
-        thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
-
-    if (get_flags(RELAXED_UNIQUE_CHECKS_F))
-        thd->variables.option_bits|= OPTION_RELAXED_UNIQUE_CHECKS;
-    else
-        thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
-
-    if (get_flags(NO_CHECK_CONSTRAINT_CHECKS_F))
-      thd->variables.option_bits|= OPTION_NO_CHECK_CONSTRAINT_CHECKS;
-    else
-      thd->variables.option_bits&= ~OPTION_NO_CHECK_CONSTRAINT_CHECKS;
+    init_option_bits();
 
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
@@ -6034,6 +6108,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       /* remove trigger's tables */
       goto err;
     }
+
+locked_tables:
 
     DBUG_EXECUTE_IF("rows_log_event_after_open_table", {
       const char action[]=
@@ -6459,21 +6535,24 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
     */
     error= thd->binlog_flush_pending_rows_event(TRUE);
 
-    /*
-      If this event is not in a transaction, the call below will, if some
-      transactional storage engines are involved, commit the statement into
-      them and flush the pending event to binlog.
-      If this event is in a transaction, the call will do nothing, but a
-      Xid_log_event will come next which will, if some transactional engines
-      are involved, commit the transaction and flush the pending event to the
-      binlog.
-      We check for thd->transaction_rollback_request because it is possible
-      there was a deadlock that was ignored by slave-skip-errors. Normally, the
-      deadlock would have been rolled back already.
-    */
-    error|= (int) ((error || thd->transaction_rollback_request)
-                       ? trans_rollback_stmt(thd)
-                       : trans_commit_stmt(thd));
+    if (!thd->in_sub_stmt)
+    {
+      /*
+        If this event is not in a transaction, the call below will, if some
+        transactional storage engines are involved, commit the statement into
+        them and flush the pending event to binlog.
+        If this event is in a transaction, the call will do nothing, but a
+        Xid_log_event will come next which will, if some transactional engines
+        are involved, commit the transaction and flush the pending event to the
+        binlog.
+        We check for thd->transaction_rollback_request because it is possible
+        there was a deadlock that was ignored by slave-skip-errors. Normally, the
+        deadlock would have been rolled back already.
+      */
+      error|= (int) ((error || thd->transaction_rollback_request)
+                        ? trans_rollback_stmt(thd)
+                        : trans_commit_stmt(thd));
+    }
 
     /*
       Now what if this is not a transactional engine? we still need to
