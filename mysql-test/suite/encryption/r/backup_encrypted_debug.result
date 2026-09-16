@@ -56,6 +56,8 @@ i
 3
 5
 7
+Warnings:
+Note	1194	Zerofilling moved table ./test/at1
 DROP TABLE t, at0, at1;
 ERROR HY000: Table 't' is read only
 SELECT * FROM at0;

@@ -28,6 +28,12 @@ void *innodb_backup_start(THD *thd, const backup_target *target,
   noexcept;
 
 /**
+   Used by maria-backup and BACKUP SERVER to prepare for a backup
+*/
+
+void innodb_prepare_for_backup() noexcept;
+
+/**
    Process a file that was collected in innodb_backup_start().
    @param thd     current session
    @param target  backup target

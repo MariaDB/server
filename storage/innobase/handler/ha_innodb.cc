@@ -4363,6 +4363,8 @@ static int innodb_init(void* p)
 		= innodb_prepare_commit_versioned;
 
         innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
+	innobase_hton->prepare_for_backup = innodb_prepare_for_backup;
+	innobase_hton->end_backup = 0;
 	innobase_hton->backup_start = innodb_backup_start;
 	innobase_hton->backup_step = innodb_backup_step;
 	innobase_hton->backup_end = innodb_backup_end;

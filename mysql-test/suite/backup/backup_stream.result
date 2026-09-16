@@ -27,6 +27,8 @@ i
 SELECT * FROM at1;
 i
 1
+Warnings:
+Note	1194	Zerofilling moved table ./test/at1
 SELECT * FROM t;
 a	b
 1	
