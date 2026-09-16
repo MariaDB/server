@@ -23,8 +23,8 @@ SELECT JSON_EQUALS('"A"', '"\\u0041"');
 JSON_EQUALS('"A"', '"\\u0041"')
 1
 # JSON_UNQUOTE correctly resolves the escape (proving they are the same)
-SELECT JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"');
-JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"')
+SELECT JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"') AS result;
+result
 1
 #
 # Additional test from MDEV-39995 comment:
@@ -33,29 +33,28 @@ JSON_UNQUOTE('"A"') = JSON_UNQUOTE('"\\u0041"')
 SELECT JSON_UNQUOTE('"A"');
 JSON_UNQUOTE('"A"')
 A
-SELECT JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR));
-JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))
+SELECT JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR)) AS result;
+result
 A
-SELECT JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR));
-JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR))
+SELECT JSON_CONTAINS('"A"', CAST(0x225C753030343122 AS CHAR)) AS result;
+result
 1
 SELECT JSON_CONTAINS(JSON_QUOTE(JSON_UNQUOTE('"A"')),
-JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))));
-JSON_CONTAINS(JSON_QUOTE(JSON_UNQUOTE('"A"')),
-JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR))))
+JSON_QUOTE(JSON_UNQUOTE(CAST(0x225C753030343122 AS CHAR)))) AS result;
+result
 1
 #
 # More Unicode escape equivalences
 #
 # \u0048\u0065\u006C\u006C\u006F = "Hello"
-SELECT JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
-JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+SELECT JSON_CONTAINS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"') AS result;
+result
 1
-SELECT JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
-JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+SELECT JSON_EQUALS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"') AS result;
+result
 1
-SELECT JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"');
-JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"')
+SELECT JSON_OVERLAPS('"Hello"', '"\\u0048\\u0065\\u006C\\u006C\\u006F"') AS result;
+result
 1
 # Mixed literal and escape in the same string: "H\u0065llo" = "Hello"
 SELECT JSON_EQUALS('"Hello"', '"H\\u0065llo"');
@@ -94,20 +93,20 @@ JSON_OVERLAPS('"?"', '"\\uD83D\\uDE00"')
 SELECT JSON_EQUALS('"😊"', '"\\uD83D\\uDE0A"');
 JSON_EQUALS('"?"', '"\\uD83D\\uDE0A"')
 1
-SELECT JSON_CONTAINS('["😀", "hello"]', '["\\uD83D\\uDE00"]');
-JSON_CONTAINS('["?", "hello"]', '["\\uD83D\\uDE00"]')
+SELECT JSON_CONTAINS('["😀", "hello"]', '["\\uD83D\\uDE00"]') AS result;
+result
 1
-SELECT JSON_EQUALS('{"emoji": "😀"}', '{"emoji": "\\uD83D\\uDE00"}');
-JSON_EQUALS('{"emoji": "?"}', '{"emoji": "\\uD83D\\uDE00"}')
+SELECT JSON_EQUALS('{"emoji": "😀"}', '{"emoji": "\\uD83D\\uDE00"}') AS result;
+result
 1
 #
 # Escaped object keys: \u006B\u0065\u0079 = "key"
 #
-SELECT JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
-JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}')
+SELECT JSON_EQUALS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}') AS result;
+result
 1
-SELECT JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}');
-JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}')
+SELECT JSON_CONTAINS('{"key":"A"}', '{"\\u006B\\u0065\\u0079":"A"}') AS result;
+result
 1
 #
 # BMP non-ASCII: é = U+00E9, literal UTF-8 vs escape
