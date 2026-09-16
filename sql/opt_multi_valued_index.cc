@@ -230,6 +230,48 @@ static void store_sort_key_longlong(uchar *to, bool unsigned_flag,
 
 /*
   @brief
+    Decode a JSON string element written with escapes into the bytes it
+    would have had if it had been written plainly.
+
+  @detail
+    `"abc"' and `"a\u0062c"' are one value: json_string_compare() resolves
+    the escapes before comparing, so they have to be one key too. Decoding
+    into the element's own charset is what makes the two the same bytes,
+    because a plain element is already those bytes.
+
+    At most `to_len' of them, which is as much as the image will keep
+    anyway, see encode_mvi_key(). So a long element needs no buffer of its
+    own: the decoding stops where the cut would be, and it stops at the
+    same character on both sides of the index because both decode the same
+    way. A character this charset cannot hold, or an escape json_lib does
+    not like, stops it in the same place for the same reason.
+
+  @return
+    How many bytes were written to `to'
+*/
+
+static uint32 mvi_unescape(CHARSET_INFO *cs, const json_engine_t *je,
+                           uchar *to, size_t to_len)
+{
+  json_string_t s;
+  uchar *pos= to, *end= to + to_len;
+
+  json_string_set_cs(&s, cs);
+  json_string_set_str(&s, je->value, je->value + je->value_len);
+  while (json_read_string_const_chr(&s) == 0)
+  {
+    /* MY_CS_ILUNI is 0 and out of room is negative, so one test does */
+    int len= my_ci_wc_mb(cs, s.c_next, pos, end);
+    if (len <= 0)
+      break;
+    pos+= len;
+  }
+  return (uint32) (pos - to);
+}
+
+
+/*
+  @brief
     Encode the current JSON value in *je to either store or look it up in
     Multi-Value Index. The index uses cast_th datatype.
 
@@ -271,6 +313,8 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
   enum_field_types cast_ftype= cast_th->field_type();
   bool is_unsigned= cast_th->is_unsigned();
   StringBuffer<MVI_KEY_IMAGE_MAX_LEN> sorted;
+  /* Only an element written with escapes needs one, see mvi_unescape() */
+  uchar unescaped[MVI_KEY_IMAGE_MAX_LEN];
   /* Skip encoding on type incompatibility */
   if (mvi_json_class(cast_ftype) != je->value_type)
     return true;
@@ -289,9 +333,16 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
                               is_unsigned, val);
       break;
     }
-    /* TODO: unquote? */
     /* CHAR(n) => LONG BLOB */
     case MYSQL_TYPE_LONG_BLOB:
+      if (unlikely(je->value_escaped))
+      {
+        /* The string the escapes stand for is the value, see mvi_unescape() */
+        sorted.set((char *) unescaped,
+                   mvi_unescape(cs, je, unescaped, sizeof(unescaped)),
+                   &my_charset_latin1_bin);
+        break;
+      }
       /*
         The element's own bytes are the image: point at them instead of
         copying. Nothing may write through `sorted' from here on -- the

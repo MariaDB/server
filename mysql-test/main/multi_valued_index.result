@@ -1356,6 +1356,19 @@ mvi_encode('[1, 42, "3   "]', binary(6))
 select mvi_encode('["aaa", "AAA", "aAa"]', char(6));
 mvi_encode('["aaa", "AAA", "aAa"]', char(6))
 616161 414141 614161
+# an escaped element is the string it escapes, so the three below
+# are one value and have one key
+select mvi_encode('["abc", "a\\u0062c", "\\u0061bc"]', char(6));
+mvi_encode('["abc", "a\\u0062c", "\\u0061bc"]', char(6))
+616263 616263 616263
+# ... including the escapes that are not \u
+select mvi_encode('["a\\nb", "a\\u000Ab"]', char(6));
+mvi_encode('["a\\nb", "a\\u000Ab"]', char(6))
+610a62 610a62
+# a backslash that escapes a backslash is one character
+select mvi_encode('["a\\\\b"]', char(6));
+mvi_encode('["a\\\\b"]', char(6))
+615c62
 select mvi_encode('[1, 42]', char(6));
 mvi_encode('[1, 42]', char(6))
 
@@ -1382,6 +1395,63 @@ mvi_encode(concat('["', repeat('b',100), '"]'), char(60))
 select mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60));
 mvi_encode(concat('["aaa", "', repeat('b',43), '"]'), char(60))
 616161 6262626262626262626262626262626262626262626262626262626262626262626262626262626262
+#
+# An element written with escapes is found by a search for the
+# string it escapes, and the other way round: the predicate
+# resolves them before comparing, so the index has to as well.
+#
+create table t1 (c int, j text charset utf8mb4 collate utf8mb4_bin,
+key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
+insert into t1 values (1,'{"tags": ["abc"]}'),
+(2,'{"tags": ["a\\u0062c"]}'),
+(3,'{"tags": ["a\\nb"]}'),
+(4,'{"tags": ["xyz"]}');
+select c from t1 where json_contains(j->'$.tags','"abc"') order by c;
+c
+1
+2
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"abc"') order by c;
+c
+1
+2
+# ... and the search spelled with the escape finds the same rows
+select c from t1 where json_contains(j->'$.tags','"a\\u0062c"') order by c;
+c
+1
+2
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"a\\u0062c"') order by c;
+c
+1
+2
+# a newline, written both ways
+select c from t1 where json_contains(j->'$.tags','"a\\nb"') order by c;
+c
+3
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"a\\nb"') order by c;
+c
+3
+select c from t1 where json_contains(j->'$.tags','"a\\u000Ab"') order by c;
+c
+3
+select c from t1 ignore index(idx)
+where json_contains(j->'$.tags','"a\\u000Ab"') order by c;
+c
+3
+# JSON_OVERLAPS the same way
+select c from t1 where json_overlaps(j->'$.tags','["a\\u0062c","nope"]')
+order by c;
+c
+1
+2
+select c from t1 ignore index(idx)
+where json_overlaps(j->'$.tags','["a\\u0062c","nope"]') order by c;
+c
+1
+2
+drop table t1;
 #
 # A case-insensitive, space-padding collation on the base column
 # changes nothing. The index holds the characters of the element and
