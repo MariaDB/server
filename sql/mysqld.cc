@@ -1908,7 +1908,8 @@ static void close_connections(void)
     If we are waiting on any ACKs, delay killing the thread until either an ACK
     is received or the timeout is hit.
   */
-  if (shutdown_wait_for_slaves && repl_semisync_master->get_master_enabled())
+  if (shutdown_wait_for_slaves && repl_semisync_master &&
+      repl_semisync_master->get_master_enabled())
   {
     repl_semisync_master->await_all_slave_replies(
         "Delaying shutdown to await semi-sync ACK");
@@ -5412,10 +5413,12 @@ static int init_server_components()
     called into from eg. ha_commit_trans(). However the initialization of
     semi-sync happens only later.
   */
+#ifdef HAVE_REPLICATION
   if (binlog_engine_used)
     repl_semisync_master= new Repl_semi_sync_master_gtid();
   else
     repl_semisync_master= new Repl_semi_sync_master_file_pos();
+#endif
 
   /*
     Since some wsrep threads (THDs) are create before plugins are
