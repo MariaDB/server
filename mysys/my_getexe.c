@@ -26,6 +26,8 @@
 #elif defined(__NetBSD__)
 #include <sys/param.h>
 #include <sys/sysctl.h>
+#elif defined(HAVE_GETEXECPATH)
+#include <unistd.h>
 #endif
 
 /** Fill the buffer with the executable program name
@@ -57,6 +59,9 @@ int my_get_exepath(char *buf, size_t size, const char *argv0)
 #elif defined(__NetBSD__)
   int mib[4] = {CTL_KERN, KERN_PROC_ARGS, -1, KERN_PROC_PATHNAME };
   if (sysctl(mib, 4, buf, &size, NULL, 0) == 0)
+    return 0;
+#elif defined(HAVE_GETEXECPATH)
+  if (getexecpath(buf, size) == 0)
     return 0;
 #endif
 

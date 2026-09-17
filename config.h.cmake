@@ -150,6 +150,7 @@
 #cmakedefine HAVE_FTIME 1
 #cmakedefine HAVE_GETIFADDRS 1
 #cmakedefine HAVE_GETCWD 1
+#cmakedefine HAVE_GETEXECPATH 1
 #cmakedefine HAVE_GETHOSTBYADDR_R 1
 #cmakedefine HAVE_GETHRTIME 1
 #cmakedefine HAVE_GETPAGESIZE 1
