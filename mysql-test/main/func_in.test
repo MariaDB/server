@@ -936,3 +936,81 @@ drop table t1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-35845 WHERE COL IN (item0, item1, ..., itemN) AND COL = item1
+--echo # Optimization
+--echo #
+
+create table t1 (v varchar(64), t text, c char(32));
+insert into t1 values ('a','a','a'),('b','b','b');
+explain extended select * from t1 where v in ('a','b') and v = 'b';
+explain extended select * from t1 where t in ('a','b') and t = 'b';
+explain extended select * from t1 where c in ('a','b') and c = 'b';
+explain extended select * from t1 where v not in ('a','b') and v = 'b';
+select * from t1 where v in ('a','b') and v = 'b';
+select * from t1 where v in ('a','x') and v = 'b';
+select * from t1 where v not in ('a','b') and v = 'b';
+drop table t1;
+
+--echo # The predicant is left alone when the IN predicate and the equality
+--echo # compare with different collations.  Under utf8mb3_german2_ci the
+--echo # o-umlaut row matches 'oe', under utf8mb3_general_ci it does not, so
+--echo # the two predicates ask different questions and neither one answers
+--echo # for the other.
+--echo # Each list holds two values because a one value list is parsed as an
+--echo # equality and never becomes an IN predicate.
+
+set names utf8mb3 collate utf8mb3_german2_ci;
+create table t1 (a char(10) character set utf8mb3);
+insert into t1 values (_utf8mb3 0xC3B6),('oe');
+explain extended select * from t1
+  where a in ('oe','xx') and a = 'oe' collate utf8mb3_german2_ci;
+select hex(a) from t1
+  where a in ('oe','xx') and a = 'oe' collate utf8mb3_german2_ci;
+--echo # Only the first value of the next list carries the other collation, so
+--echo # the second value on its own would allow the rewrite.  Refusing the
+--echo # whole predicate shows the check runs per value.
+explain extended select * from t1
+  where a in ('oe' collate utf8mb3_german2_ci,'xx') and a = 'oe';
+select hex(a) from t1
+  where a in ('oe' collate utf8mb3_german2_ci,'xx') and a = 'oe';
+--echo # With one collation throughout, the same rows let the rewrite happen.
+--echo # The equality on its own matches both rows, so keeping the IN above is
+--echo # what holds the o-umlaut row back.
+explain extended select * from t1 where a in ('oe','xx') and a = 'oe';
+select hex(a) from t1 where a in ('oe','xx') and a = 'oe';
+select hex(a) from t1 where a = 'oe' collate utf8mb3_german2_ci;
+drop table t1;
+set names default;
+
+--echo # A constant that stands in for another item is refused.  Comparing the
+--echo # literal 1 against a YEAR column turns it into the value the column
+--echo # would hold, 2001, and the value list is converted the same way.  A
+--echo # clone of that constant carries the literal 1, which matches nothing in
+--echo # the converted list, so the predicant keeps the column.
+--echo # The equality is <=> rather than = so that the multiple equality
+--echo # machinery leaves the condition to this rewrite.
+
+create table t1 (y year);
+insert into t1 values (2001),(2002),(2003);
+explain extended select * from t1 where y in (1,2) and y <=> 1;
+select * from t1 where y in (1,2) and y <=> 1;
+select * from t1 where y in (1,2) and y <=> 2;
+select * from t1 where y in (1,2) and y <=> 3;
+drop table t1;
+
+--echo # A NULL in the list leaves the predicant alone.  A column in the list
+--echo # does not, and the rewritten predicate still answers correctly.
+
+create table t1 (v varchar(64), w varchar(64));
+insert into t1 values ('a','a'),('b','b');
+explain extended select * from t1 where v in ('a',NULL) and v = 'b';
+select * from t1 where v in ('a',NULL) and v = 'b';
+explain extended select * from t1 where v in ('a',w) and v = 'b';
+select * from t1 where v in ('a',w) and v = 'b';
+drop table t1;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
