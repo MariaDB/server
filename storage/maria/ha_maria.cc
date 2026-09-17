@@ -26,6 +26,7 @@
 #include "ma_backup_server.h"
 #include "trnman_public.h"
 #include "trnman.h"
+#include "strfunc.h"                            // strconvert
 
 C_MODE_START
 #include "maria_def.h"
@@ -46,6 +47,7 @@ C_MODE_END
 #include "mysql/plugin.h"
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
+#include <aria_server_backup.h>
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -4437,13 +4439,139 @@ int ha_maria::check_for_upgrade(HA_CHECK_OPT *check)
   return HA_ADMIN_OK;
 }
 
-
 void aria_reset_pagecache_counters()
 {
   multi_reset_pagecache_counters(&maria_pagecaches);
 }
 
-  struct st_mysql_storage_engine maria_storage_engine=
+/****************************************************************************
+   Backup interface
+*****************************************************************************/
+
+/*
+  Open Aria table files for backup
+
+  @param THD         Thread handle, need for mdl locks
+  @param path        Path to index file (*.MAI)
+  @param trans_type  0 for non transactional, 1 for transactional
+  @param result Store information about the aria file needed for backup
+
+  Both the index and data files are opened atomically (protected against
+  any DDL).
+*/
+
+
+int aria_open_files_for_backup(THD *thd,
+                               const char *path, my_bool trans_type,
+                               ARIA_BACKUP_CONTEXT *context)
+{
+  char db[FN_REFLEN], table[FN_REFLEN], tmp_path[FN_REFLEN];
+  const char *table_name_start= my_basename(path);
+  const char *ext= fn_ext(path);
+  int error;
+  uint str_error;
+
+  if (ext[0] == 0 || table_name_start == path)
+    return 1;                                   // No path or ext in filename
+
+  /* Get backup lock */
+  strconvert(&my_charset_filename, path,
+             MY_MIN(FN_REFLEN-1, table_name_start - path -1),
+             system_charset_info, db, sizeof(db)-1, &str_error);
+  strconvert(&my_charset_filename, table_name_start,
+             MY_MIN(FN_REFLEN-1, ext - table_name_start),
+             system_charset_info, table, sizeof(table)-1, &str_error);
+  if (backup_lock(thd, db, table))
+    return 1;                                   // Cannot get lock
+
+  if (my_realpath(tmp_path, fn_format(tmp_path, path, "",
+                                      MARIA_NAME_IEXT,
+                                      MY_REPLACE_EXT | MY_UNPACK_FILENAME),
+                  MYF(0)))
+  {
+    error= 2;
+    goto exit;
+  }
+  if (my_is_symlink(tmp_path) && mysys_test_invalid_symlink(tmp_path))
+  {
+    error= 3;
+    goto exit;
+  }
+
+  bzero(context, sizeof(*context));
+
+  if ((context->kfile= mysql_file_open(key_file_kfile, tmp_path,
+                                       O_RDONLY | O_SHARE |
+                                       O_NOFOLLOW | O_CLOEXEC,
+                                       MYF(MY_THREAD_SPECIFIC |
+                                           MY_NOSYMLINKS))) < 0)
+  {
+    error= 4;                                   // File not found
+    goto exit;
+  }
+  if (aria_get_capabilities(context->kfile, tmp_path, &context->capabilities))
+  {
+    error= 5;                                   // Wrong data in file
+    goto close_and_exit;
+  }
+  if (context->capabilities.online_backup_safe != trans_type)
+  {
+    error= -1;                                  // Wrong type
+    goto close_and_exit;
+  }
+
+  (void) fn_format(tmp_path, path ,"", MARIA_NAME_DEXT,
+                   MY_REPLACE_EXT | MY_UNPACK_FILENAME);
+  if (my_is_symlink(tmp_path) &&
+      (my_realpath(tmp_path, tmp_path, MYF(0)) ||
+       mysys_test_invalid_symlink(tmp_path)))
+  {
+    error= 6;
+    goto free_cap_and_exit;                     // Wrong symlink
+  }
+  if ((context->dfile= mysql_file_open(key_file_dfile, tmp_path,
+                                      O_RDONLY | O_SHARE | O_NOFOLLOW |
+                                      O_CLOEXEC,
+                                      MYF(MY_THREAD_SPECIFIC |
+                                          MY_NOSYMLINKS))) < 0)
+  {
+    error= 6;
+    goto free_cap_and_exit;
+  }
+
+  /* Prepare for aria_read_xxxx_file(). Set where to start reading */
+  context->kblock= context->dblock= 0;
+  backup_unlock(thd);
+  return 0;                                     // Ready for copy
+
+free_cap_and_exit:
+  aria_free_capabilities(&context->capabilities);
+close_and_exit:
+  my_close(context->kfile, MYF(0));
+exit:
+  backup_unlock(thd);
+  return error;
+}
+
+
+/*
+  Close aria backup context
+  Should only be called if aria_open_files_for_backup() succeded
+*/
+
+void aria_close_files_for_backup(ARIA_BACKUP_CONTEXT *context)
+{
+  aria_free_capabilities(&context->capabilities);
+  my_close(context->dfile, MYF(0));
+  my_close(context->kfile, MYF(0));
+}
+
+
+/****************************************************************************
+   Register engine
+*****************************************************************************/
+
+struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 maria_declare_plugin(aria)

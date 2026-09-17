@@ -124,8 +124,13 @@ typedef struct st_my_no_cache_dir
     to keep the string that was given to my_dir_open() around.
   */
   LEX_CSTRING path;
-  /* Copy of the name filter given to my_dir_open(), or NULL */
-  char *filter;
+  /*
+    Copy of the name filter given to my_dir_open(); str is 0 if there
+    is no filter. '*' and '?' are wildcards, independently of the
+    wild_many and wild_one variables that the server changes to the
+    SQL wildcards '%' and '_'.
+  */
+  LEX_CSTRING filter;
   /* DIR* on Posix, search handle on Windows */
   void *dirp;
   /* WIN32_FIND_DATAA on Windows, not used on Posix */

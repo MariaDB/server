@@ -570,7 +570,7 @@ bool backup_reset_alter_copy_lock(THD *thd)
 *****************************************************************************/
 
 
-bool backup_lock(THD *thd, TABLE_LIST *table)
+bool backup_lock(THD *thd, const char *db_name, const char *table_name)
 {
   /* We should leave the previous table unlocked in case of errors */
   backup_unlock(thd);
@@ -580,7 +580,7 @@ bool backup_lock(THD *thd, TABLE_LIST *table)
     return 1;
   }
   if (!(thd->mdl_backup_lock= thd->mdl_context.MDL_ACQUIRE_LOCK(
-          MDL_key::TABLE, table->db.str, table->table_name.str,
+          MDL_key::TABLE, db_name, table_name,
           MDL_SHARED_HIGH_PRIO, MDL_EXPLICIT,
           thd->variables.lock_wait_timeout)))
     return 1;

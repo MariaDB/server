@@ -379,6 +379,7 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
 	for (const Partition &partition : m_partitions) {
 		ds_file_t		*dst_file = nullptr;
 		uchar *copy_buffer = nullptr;
+                size_t copy_length;
 		std::string full_name = partition.m_file_path + ext;
 		const char	*dst_path =
 			(xtrabackup_copy_back || xtrabackup_move_back) ?
@@ -392,9 +393,10 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
 			goto err;
 		}
 
+                copy_length= m_cap.block_size * 128;
 		copy_buffer =
 			reinterpret_cast<uchar *>(my_malloc(PSI_NOT_INSTRUMENTED,
-			m_cap.block_size, MYF(0)));
+			copy_length, MYF(0)));
 
 		DBUG_MARIABACKUP_EVENT_LOCK(
 			is_index ?
@@ -403,14 +405,22 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
 			fil_space_t::name_type(m_sql_name.data(),
                         m_sql_name.size()));
 
-		for (ulonglong block= 0 ; ; block++) {
+		/*
+		  aria_read_index() and aria_read_data() are used instead
+		  of aria_read_index_file() and aria_read_data_file() as
+		  we also have to copy tables that are not transactional
+		  and not block based.
+		*/
+		for (ulonglong block= 0 ; ;) {
 			size_t length = m_cap.block_size;
 			if (is_index)
                           error= aria_read_index(partition.m_index_file, &m_cap,
-                                                       block, copy_buffer);
+                                                 block, copy_buffer,
+                                                 copy_length, &length);
                         else
                           error= aria_read_data(partition.m_data_file, &m_cap,
-                                                block, copy_buffer, &length);
+                                                block, copy_buffer, copy_length,
+                                                &length);
 			if (error)
                         {
                           if (error == HA_ERR_END_OF_FILE)
@@ -427,6 +437,14 @@ bool Table::copy(ds_ctxt_t *ds, bool is_index, unsigned thread_num) {
                               "with error: %d", dst_path, error);
                           goto err;
 			}
+                        /*
+                          A table without checksums is not block based,
+                          which means that the last read can end in the
+                          middle of a block. Round up to get the next
+                          read after the data we just copied.
+                        */
+                        block+= ((length + m_cap.block_size - 1) /
+                                 m_cap.block_size);
 		}
 
 		DBUG_MARIABACKUP_EVENT_LOCK(

@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+SELECT @@aria_log_dir_path = @@datadir AS log_dir_is_datadir;
+
+CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_1000;
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_aria_log
+--error 0,1
+--rmdir $target_directory
+evalp BACKUP SERVER TO '$target_directory';
+
+--exec echo "--- files in datadir:"; ls $MYSQLTEST_VARDIR/mysqld.1/data/ | grep -i aria
+--exec echo "--- aria files in backup:"; ls $target_directory/ | grep -i aria || echo "NONE"
+
+DROP TABLE at1;
+--rmdir $target_directory

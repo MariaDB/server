@@ -1,0 +1,97 @@
+--source include/have_file_key_management.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # BACKUP SERVER of encrypted Aria tables
+--echo #
+
+# All Aria tables are encrypted; see backup_aria_encrypted.opt
+SELECT @@aria_encrypt_tables;
+
+# Only tables in page format can be encrypted
+CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+CREATE TABLE at0 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=0;
+
+# Enough rows to get index and data files of several pages
+INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_10000;
+INSERT INTO at0 SELECT seq, MD5(seq) FROM seq_1_to_10000;
+
+SELECT COUNT(*), SUM(id) FROM at1;
+SELECT COUNT(*), SUM(id) FROM at0;
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_aria_encrypted
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+evalp BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+
+--echo #
+--echo # The Aria log files have to be part of the backup
+--echo #
+
+--file_exists $target_directory/aria_log_control
+--file_exists $target_directory/aria_log.00000001
+
+--echo #
+--echo # The copied files should not contain any clear text
+--echo #
+
+let target_directory=$target_directory;
+perl;
+  my $row= "c4ca4238a0b923820dcc509a6f75849b";        # MD5('1')
+  foreach my $name ("at1.MAD", "at1.MAI", "at0.MAD", "at0.MAI")
+  {
+    my $file= "$ENV{target_directory}/test/$name";
+    open(FILE, "<", $file) or die "Can't open $file: $!";
+    binmode FILE;
+    local $/;
+    my $data= <FILE>;
+    close FILE;
+    print "$name has clear text: ", (index($data, $row) >= 0 ? "yes" : "no"),
+          "\n";
+  }
+EOF
+
+--echo #
+--echo # Start the server on the backup and check that the tables are intact
+--echo #
+
+if ($MARIADB_UPGRADE_EXE) {
+let target_directory=$target_directory;
+perl;
+open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+open OUT, ">>", "$ENV{target_directory}/backup.cnf";
+print OUT while (<IN>);
+close(IN);
+close(OUT);
+EOF
+}
+if (!$MARIADB_UPGRADE_EXE) {
+  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+}
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/restart_mysqld.inc
+
+CHECK TABLE at1, at0 EXTENDED;
+SELECT COUNT(*), SUM(id) FROM at1;
+SELECT COUNT(*), SUM(id) FROM at0;
+SELECT txt FROM at1 WHERE id=1;
+SELECT txt FROM at0 WHERE id=10000;
+
+--echo #
+--echo # Restart on the original data directory
+--echo #
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+SELECT COUNT(*), SUM(id) FROM at1;
+SELECT COUNT(*), SUM(id) FROM at0;
+DROP TABLE at1, at0;
+
+--rmdir $target_directory

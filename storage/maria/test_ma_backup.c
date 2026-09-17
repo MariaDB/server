@@ -29,7 +29,8 @@
 
 static int silent;
 static int create_test_table(const char *table_name, int stage);
-static int copy_table(const char *table_name, int stage);
+static int copy_table_low_level(const char *table_name, int stage);
+static int copy_table_with_context(const char *table_name, int stage);
 static void create_record(uchar *record,uint rownr);
 
 int main(int argc __attribute__((unused)), char *argv[])
@@ -70,7 +71,9 @@ int main(int argc __attribute__((unused)), char *argv[])
     fflush(stdout);
     if (create_test_table(buff, i))
       goto err;
-    if (copy_table(buff, i))
+    if (copy_table_low_level(buff, i))
+      goto err;
+    if (copy_table_with_context(buff, i))
       goto err;
   }
   error= 0;
@@ -86,75 +89,173 @@ err:
 
 
 /**
-   Example of how to read an Aria table
+   Example of how to read an Aria table with the low level interface
+
+   This interface can be used for all Aria tables, also for tables
+   that are not transactional or not block based.
 */
 
-static int copy_table(const char *table_name, int stage)
+static int copy_table_low_level(const char *table_name, int stage)
 {
   char old_name[FN_REFLEN];
   uchar *copy_buffer= 0;
   ARIA_TABLE_CAPABILITIES cap;
+  File kfile= -1, dfile= -1;
   ulonglong block;
-  File org_file= -1;
+  size_t copy_size, length;
   int error= 1;
 
-  strxmov(old_name, table_name, ".MAI", NullS);
+  bzero(&cap, sizeof(cap));
+  printf("- Copying table with aria_read_index() and aria_read_data()\n");
 
-  if ((org_file= my_open(old_name,
-                         O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
-                         MYF(MY_WME))) < 0)
+  strxmov(old_name, table_name, ".MAI", NullS);
+  if ((kfile= my_open(old_name,
+                      O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                      MYF(MY_WME))) < 0)
     goto err;
-  if ((error= aria_get_capabilities(org_file, table_name, &cap)))
+  if ((error= aria_get_capabilities(kfile, table_name, &cap)))
   {
     fprintf(stderr, "aria_get_capabilities failed:  %d\n", error);
     goto err;
   }
-
-  printf("- Capabilities read. oneline_backup_safe: %d\n",
+  printf("- Capabilities read. online_backup_safe: %d\n",
          cap.online_backup_safe);
-  printf("- Copying index file\n");
 
-  copy_buffer= my_malloc(PSI_NOT_INSTRUMENTED, cap.block_size, MYF(0));
-  for (block= 0 ; ; block++)
-  {
-    if ((error= aria_read_index(org_file, &cap, block, copy_buffer) ==
-         HA_ERR_END_OF_FILE))
-      break;
-    if (error)
-    {
-      fprintf(stderr, "aria_read_index failed:  %d\n", error);
-      goto err;
-    }
-  }
-  my_close(org_file, MYF(MY_WME));
-
-
-  printf("- Copying data file\n");
   strxmov(old_name, table_name, ".MAD", NullS);
-  if ((org_file= my_open(old_name, O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
-                         MYF(MY_WME))) < 0)
+  if ((dfile= my_open(old_name,
+                      O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                      MYF(MY_WME))) < 0)
     goto err;
 
-  for (block= 0 ; ; block++)
+  copy_size= cap.block_size * 10;
+  if (!(copy_buffer= my_malloc(PSI_NOT_INSTRUMENTED, copy_size, MYF(MY_WME))))
+    goto err;
+
+  printf("- Copying index file\n");
+  for (block= 0 ; ; )
   {
-    size_t length;
-    if ((error= aria_read_data(org_file, &cap, block, copy_buffer,
-                               &length) == HA_ERR_END_OF_FILE))
-      break;
-    if (error)
+    if ((error= aria_read_index(kfile, &cap, block, copy_buffer, copy_size,
+                                &length)))
     {
+      if (error == HA_ERR_END_OF_FILE)
+        break;
       fprintf(stderr, "aria_read_index failed:  %d\n", error);
       goto err;
     }
+    /* Here one would copy the data to the backup */
+
+    /* A file that is not block based can end in the middle of a block */
+    block+= (length + cap.block_size - 1) / cap.block_size;
+  }
+
+  printf("- Copying data file\n");
+  for (block= 0 ; ; )
+  {
+    if ((error= aria_read_data(dfile, &cap, block, copy_buffer, copy_size,
+                               &length)))
+    {
+      if (error == HA_ERR_END_OF_FILE)
+        break;
+      fprintf(stderr, "aria_read_data failed:  %d\n", error);
+      goto err;
+    }
+    /* Here one would copy the data to the backup */
+    block+= (length + cap.block_size - 1) / cap.block_size;
   }
   error= 0;
 
 err:
   my_free(copy_buffer);
-  if (org_file >= 0)
-    my_close(org_file, MYF(MY_WME));
+  aria_free_capabilities(&cap);
+  if (kfile >= 0)
+    my_close(kfile, MYF(MY_WME));
+  if (dfile >= 0)
+    my_close(dfile, MYF(MY_WME));
   if (error)
-    fprintf(stderr, "Failed in copy_table stage: %d\n", stage);
+    fprintf(stderr, "Failed in copy_table_low_level stage: %d\n", stage);
+  return error;
+}
+
+
+/**
+   Example of how to read an Aria table with ARIA_BACKUP_CONTEXT
+
+   aria_read_data_file() can only be used with transactional tables
+   that have checksums. Other tables are not always block based and
+   have to be copied with my_copy() while there are no writes to them.
+*/
+
+static int copy_table_with_context(const char *table_name, int stage)
+{
+  char old_name[FN_REFLEN];
+  uchar *copy_buffer= 0;
+  ARIA_BACKUP_CONTEXT context;
+  size_t copy_size;
+  longlong length;
+  int error= 1;
+
+  bzero(&context, sizeof(context));
+  context.kfile= context.dfile= -1;
+  printf("- Copying table with ARIA_BACKUP_CONTEXT\n");
+
+  strxmov(old_name, table_name, ".MAI", NullS);
+  if ((context.kfile= my_open(old_name,
+                              O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                              MYF(MY_WME))) < 0)
+    goto err;
+  if ((error= aria_get_capabilities(context.kfile, table_name,
+                                    &context.capabilities)))
+  {
+    fprintf(stderr, "aria_get_capabilities failed:  %d\n", error);
+    goto err;
+  }
+  if (!context.capabilities.online_backup_safe)
+  {
+    printf("- Not a transactional table; nothing to do here\n");
+    error= 0;
+    goto err;
+  }
+
+  strxmov(old_name, table_name, ".MAD", NullS);
+  if ((context.dfile= my_open(old_name,
+                              O_RDONLY | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                              MYF(MY_WME))) < 0)
+    goto err;
+
+  copy_size= context.capabilities.block_size * 10;
+  if (!(copy_buffer= my_malloc(PSI_NOT_INSTRUMENTED, copy_size, MYF(MY_WME))))
+    goto err;
+
+  printf("- Copying index file\n");
+  while ((length= aria_read_index_file(&context, copy_buffer, copy_size)) > 0)
+    ;                                  /* Here one would copy the data */
+  if (length < 0)
+  {
+    error= (int) -length;
+    fprintf(stderr, "aria_read_index_file failed:  %d\n", error);
+    goto err;
+  }
+
+  printf("- Copying data file\n");
+  while ((length= aria_read_data_file(&context, copy_buffer, copy_size)) > 0)
+    ;                                  /* Here one would copy the data */
+  if (length < 0)
+  {
+    error= (int) -length;
+    fprintf(stderr, "aria_read_data_file failed:  %d\n", error);
+    goto err;
+  }
+  error= 0;
+
+err:
+  my_free(copy_buffer);
+  aria_free_capabilities(&context.capabilities);
+  if (context.kfile >= 0)
+    my_close(context.kfile, MYF(MY_WME));
+  if (context.dfile >= 0)
+    my_close(context.dfile, MYF(MY_WME));
+  if (error)
+    fprintf(stderr, "Failed in copy_table_with_context stage: %d\n", stage);
   return error;
 }
 

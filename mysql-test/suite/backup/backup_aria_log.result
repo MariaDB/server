@@ -1,0 +1,15 @@
+SELECT @@aria_log_dir_path = @@datadir AS log_dir_is_datadir;
+log_dir_is_datadir
+1
+CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_1000;
+BACKUP SERVER TO '$target_directory';
+--- files in datadir:
+aria_log.00000001
+aria_log_control
+aria_recovery.trace
+--- aria files in backup:
+aria_log.00000001
+aria_log_control
+DROP TABLE at1;

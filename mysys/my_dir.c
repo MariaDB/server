@@ -31,6 +31,7 @@
 
 #include "mysys_priv.h"
 #include <m_string.h>
+#include <m_ctype.h>
 #include <my_dir.h>
 #include "mysys_err.h"
 
@@ -197,7 +198,10 @@ static MY_NO_CACHE_DIR *dir_alloc(const char *path, const char *filter,
   dir->path.str= path_buff;
   dir->path.length= path_length;
   if (filter)
-    dir->filter= (char*) memcpy(filter_buff, filter, filter_length);
+  {
+    dir->filter.str= (char*) memcpy(filter_buff, filter, filter_length);
+    dir->filter.length= filter_length - 1;
+  }
   dir->find_data= find_data;
   /*
     Remember how the caller wants errors to be reported, so that
@@ -462,9 +466,16 @@ int my_dir_read_next(MY_NO_CACHE_DIR *dir, char *path, size_t path_length,
 
     if (is_dot_name(name))
       continue;
-    if (dir->filter && wild_compare(name, dir->filter, 0))
-      continue;
     name_length= strlen(name);
+    /*
+      wild_compare() cannot be used here, as the server changes
+      wild_many and wild_one to the SQL wildcards '%' and '_'.
+    */
+    if (dir->filter.str &&
+        my_wildcmp_bin(&my_charset_bin, name, name + name_length,
+                       dir->filter.str, dir->filter.str + dir->filter.length,
+                       0, '?', '*'))
+      continue;
 
     if (!mode || (stat_area && (MyFlags & MY_WANT_STAT)))
     {

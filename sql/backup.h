@@ -42,7 +42,7 @@ bool backup_end(THD *thd);
 void backup_set_alter_copy_lock(THD *thd, TABLE *altered_table);
 bool backup_reset_alter_copy_lock(THD *thd);
 
-bool backup_lock(THD *thd, TABLE_LIST *table);
+bool backup_lock(THD *thd, const char *db_name, const char *table_name);
 void backup_unlock(THD *thd);
 void backup_log_ddl(const backup_log_info *info);
 #endif /* BACKUP_INCLUDED */

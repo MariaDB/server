@@ -5121,7 +5121,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       For unlock the list is empty
     */
     if (first_table)
-      res= backup_lock(thd, first_table);
+      res= backup_lock(thd, first_table->db.str, first_table->table_name.str);
     else
       backup_unlock(thd);
     if (!res)
