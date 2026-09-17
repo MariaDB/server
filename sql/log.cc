@@ -10545,10 +10545,10 @@ MYSQL_BIN_LOG::semisync_report_update_engine(THD *thd, uint64_t file_no,
 {
   int res= 0;
 
+#ifdef HAVE_REPLICATION
+
   DBUG_ASSERT(repl_semisync_master->get_master_enabled());
   DBUG_ASSERT(opt_binlog_engine_hton);
-
-#ifdef HAVE_REPLICATION
   /*
     When using engine-implemented binlog, we are using GTID for semi-sync
     acknowledgement. We still supply a binlog file name, but it is only used
