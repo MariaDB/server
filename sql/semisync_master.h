@@ -40,7 +40,12 @@ struct Tranx_node {
 
 
 /*
-  Encapsulate a reference to a binlog position.
+  Encapsulate a reference to a binlog position used in semi-sync. Such a
+  position contains both the GTID and the filename/offset values.
+
+  This struct Repl_semi_sync_trx_info is used to pass such references
+  as function arguments, where the underlying memory for the log_file
+  filename string is managed separately by the caller.
 */
 struct Repl_semi_sync_trx_info {
   rpl_gtid gtid;
@@ -55,7 +60,12 @@ struct Repl_semi_sync_trx_info {
 
 
 /*
-  Structure to save transaction log filename and position
+  Structure to save transaction log filename and position.
+
+  This struct Trans_binlog_info holds the same information (GTID and
+  filename/offset) as struct Repl_semi_sync_trx_info, but in addition
+  contains an embedded buffer that provides memory allocation/ownership
+  of the log_file filename string.
 */
 struct Trans_binlog_info : public Repl_semi_sync_trx_info {
   char file_name_buf[FN_REFLEN];
