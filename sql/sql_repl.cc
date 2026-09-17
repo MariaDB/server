@@ -2127,28 +2127,37 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
 
 
 static bool
+is_end_of_group_event(bool standalone, Log_event_type event_type,
+                      String *packet, my_off_t ev_offset, size_t len,
+                      enum_binlog_checksum_alg current_checksum_alg)
+{
+  if (standalone)
+    return !Log_event::is_part_of_group(event_type);
+  return
+    (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
+     ( /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
+       event_type == QUERY_EVENT &&
+       Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr()
+                                                  + ev_offset,
+                                                len - ev_offset,
+                                                current_checksum_alg)));
+}
+
+
+static bool
 is_until_reached(binlog_send_info *info, ulong *ev_offset,
                  Log_event_type event_type, const char **errmsg,
                  uint32 current_pos)
 {
-  switch (info->gtid_until_group)
-  {
-  case GTID_UNTIL_NOT_DONE:
+  DBUG_ASSERT(info->gtid_until_group == GTID_UNTIL_NOT_DONE ||
+              info->gtid_until_group == GTID_UNTIL_STOP_AFTER_STANDALONE ||
+              info->gtid_until_group == GTID_UNTIL_STOP_AFTER_TRANSACTION);
+  bool standalone= info->gtid_until_group == GTID_UNTIL_STOP_AFTER_STANDALONE;
+  if (info->gtid_until_group == GTID_UNTIL_NOT_DONE ||
+      !is_end_of_group_event(standalone, event_type, info->packet,
+                             *ev_offset, info->packet->length(),
+                             info->current_checksum_alg))
     return false;
-  case GTID_UNTIL_STOP_AFTER_STANDALONE:
-    if (Log_event::is_part_of_group(event_type))
-      return false;
-    break;
-  case GTID_UNTIL_STOP_AFTER_TRANSACTION:
-    if (event_type != XID_EVENT && event_type != XA_PREPARE_LOG_EVENT &&
-        (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
-         !Query_log_event::peek_is_commit_rollback
-         ((uchar*) info->packet->ptr() + *ev_offset,
-          info->packet->length() - *ev_offset,
-          info->current_checksum_alg)))
-      return false;
-    break;
-  }
 
   /*
     The last event group has been sent, now the START SLAVE UNTIL condition
@@ -2374,26 +2383,11 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   if (info->in_event_group)
   {
-    if (info->standalone)
+    if (is_end_of_group_event(info->standalone, event_type, packet,
+                              ev_offset, len, current_checksum_alg))
     {
-      if (!Log_event::is_part_of_group(event_type))
-      {
-        info->in_event_group= false;
-        end_of_group_event= true;
-      }
-    }
-    else
-    {
-      if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
-          (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
-           Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
-                                                    ev_offset,
-                                                    len - ev_offset,
-                                                    current_checksum_alg)))
-      {
-        info->in_event_group= false;
-        end_of_group_event= true;
-      }
+      info->in_event_group= false;
+      end_of_group_event= true;
     }
 
     /*
