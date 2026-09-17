@@ -247,6 +247,8 @@ ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used le
 create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
 select distinct v from t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t	t	v	v	253 (type=vector)	4	4	Y	32896	0	63
 v
 UUUU
 VVVV
