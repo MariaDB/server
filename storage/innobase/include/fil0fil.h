@@ -1183,13 +1183,17 @@ public:
   /** Rename the file.
   @param path   new file name, allocated in ut_free() compatible way */
   void rename(char *path) noexcept;
+private:
   /** Refresh the backup_name from name. */
-  inline void set_backup_name() noexcept;
-  /** Consume the name that had been sampled by set_backup_name().
-  @param backup_name  the name that was sampled by set_backup_name()
-  @return the current name; if different from backup_name,
-  the caller must invoke ut_free(backup_name) */
-  inline const char *get_backup_name(char *&backup_name) noexcept;
+  void set_backup_name_low(char *name) noexcept;
+public:
+  /** Refresh the backup_name from name. The caller must invoke
+  clear_backup_name() afterwards. */
+  void set_backup_name() noexcept { set_backup_name_low(name); }
+  /** Undo set_backup_name(). */
+  void clear_backup_name() noexcept { set_backup_name_low(nullptr); }
+  /** @return a name that had been sampled by set_backup_name() */
+  inline const char *get_backup_name() noexcept;
 
 private:
   /** Does stuff common for close() and detach() */
@@ -1650,6 +1654,13 @@ inline void fil_space_t::reacquire() noexcept
   ut_ad(n & PENDING);
   ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
 #endif /* SAFE_MUTEX */
+}
+
+/** @return a name that had been sampled by set_backup_name() */
+inline const char *fil_node_t::get_backup_name() noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  return backup_name;
 }
 
 /** Flush pending writes from the file system cache to the file. */

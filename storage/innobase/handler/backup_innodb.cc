@@ -62,21 +62,12 @@ inline void buf_page_t::write_unfix_try() noexcept
                                         std::memory_order_relaxed));
 }
 
-inline void fil_node_t::set_backup_name() noexcept
+void fil_node_t::set_backup_name_low(char *name) noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  if (backup_name != name)
+  if (backup_name != name && backup_name != this->name)
     ut_free(backup_name);
   backup_name= name;
-}
-
-inline const char *fil_node_t::get_backup_name(char *&backup_name) noexcept
-{
-  mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(this->backup_name);
-  backup_name= this->backup_name;
-  this->backup_name= nullptr;
-  return name;
 }
 
 /**
@@ -553,23 +544,15 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       if (fil_space_t *space{fil_space_get_by_id(uint32_t(id_limit))})
       {
-        char *backup_name;
-        const char *const name=
-          UT_LIST_GET_FIRST(space->chain)->get_backup_name(backup_name);
+        const char *const backup_name=
+          UT_LIST_GET_FIRST(space->chain)->get_backup_name();
         const bool acquired{space->acquire_if_not_stopped()};
         mysql_mutex_unlock(&fil_system.mutex);
 
-        const int res= acquired
-          ? backup_space(target, *space, sink, backup_name,
-                         uint32_t(id_limit >> 32))
-          : 0;
-        ut_ad(res <= 0);
-
-        if (backup_name != name)
-          ut_free(backup_name);
-
-        if (res)
-          return res;
+        if (acquired)
+          if (int res= backup_space(target, *space, sink, backup_name,
+                                    uint32_t(id_limit >> 32)))
+            return res;
       }
       else
         mysql_mutex_unlock(&fil_system.mutex);
@@ -782,10 +765,11 @@ private:
     ut_ad(ctx.state == PROCESSING);
     int res= -1;
     uint32_t start{0};
+    fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
 #ifdef _WIN32
     if (sink.stream == sink.NO_STREAM)
     {
-      for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+      for (;;)
       {
         if ((res= backup(target.path, node, name, start, limit)))
           break;
@@ -803,7 +787,7 @@ private:
     }
     else
     {
-      for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+      for (;;)
       {
         if ((res= stream(sink.stream, node, name, start, limit)))
           break;
@@ -832,7 +816,7 @@ private:
       fd= sink.stream;
       method= stream;
     }
-    for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain);;)
+    for (;;)
     {
 # ifdef HAVE_POSIX_FALLOCATE
       if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
@@ -868,7 +852,11 @@ private:
       node= next;
     }
 #endif
+    mysql_mutex_lock(&fil_system.mutex);
+    node->clear_backup_name();
+    mysql_mutex_unlock(&fil_system.mutex);
     space.release();
+    ut_ad(res <= 0);
     return res;
   }
 
