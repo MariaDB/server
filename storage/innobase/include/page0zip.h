@@ -59,23 +59,7 @@ extern uint	page_zip_level;
 /** 'deleted' flag */
 #define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
-/**********************************************************************//**
-Determine the size of a compressed page in bytes.
-@return size in bytes */
-UNIV_INLINE
-ulint
-page_zip_get_size(
-/*==============*/
-	const page_zip_des_t*	page_zip)	/*!< in: compressed page */
-	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************************//**
-Set the size of a compressed page in bytes. */
-UNIV_INLINE
-void
-page_zip_set_size(
-/*==============*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		size);		/*!< in: size in bytes */
+#define page_zip_get_size(page_zip) (page_zip)->get_size()
 
 /** Determine if a record is so big that it needs to be stored externally.
 @param[in]	rec_size	length of the record in bytes
@@ -106,10 +90,6 @@ bool
 page_zip_is_too_big(
 	const dict_index_t*	index,
 	const dtuple_t*		entry);
-
-/**********************************************************************//**
-Initialize a compressed page descriptor. */
-#define page_zip_des_init(page_zip) (page_zip)->clear()
 
 /**********************************************************************//**
 Configure the zlib allocator to use the given memory heap. */
