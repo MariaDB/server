@@ -190,7 +190,13 @@ create table t (pk int primary key, v vector(2) not null, key(v(6)));
 --echo #
 create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
+--disable_cursor_protocol
+--disable_view_protocol
+--enable_metadata
 select distinct v from t;
+--disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
 drop table t;
 
 --echo #

@@ -146,6 +146,11 @@ public:
   uint size_of() const  override { return sizeof(*this); }
   bool update_min(Field *, bool) override { return false; } // disable EITS
   bool update_max(Field *, bool) override { return false; } // disable EITS
+  void make_send_field(Send_field *to) override
+  {
+    Field_varstring::make_send_field(to);
+    to->set_data_type_name("vector"_LEX_CSTRING);
+  }
 };
 
 #endif // SQL_TYPE_VECTOR_INCLUDED
