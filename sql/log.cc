@@ -7260,7 +7260,8 @@ err:
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-      if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+      if (likely(!error) &&
+          repl_semisync_master.wait_after_sync(log_file_name, offset))
       {
         error=1;
         /* error is already printed inside hook */
