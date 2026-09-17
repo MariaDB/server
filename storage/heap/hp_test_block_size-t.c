@@ -31,6 +31,7 @@
 #include <tap.h>
 #include "heap.h"
 #include "heapdef.h"
+#include "my_compare.h"
 
 #define REC_LENGTH   100
 #define INT_OFFSET   1

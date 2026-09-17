@@ -20,6 +20,7 @@
 #include <tap.h>
 #include "heap.h"
 #include "heapdef.h"
+#include "my_compare.h"
 
 /*
   Record layout for a table (int4, blob(N)):

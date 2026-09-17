@@ -22,6 +22,7 @@
 #include <tap.h>
 #include "heap.h"
 #include "heapdef.h"
+#include "my_compare.h"
 
 /*
   Record layout: (null bitmap, int4 a, int4 b)
