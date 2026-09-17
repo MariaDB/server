@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB Corporation.
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -873,14 +873,20 @@ public:
     TIMESTAMP_DNUN_FIELD=23,    // TIMESTAMP DEFAULT NOW() ON UPDATE NOW()
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
-  enum imagetype { itRAW, itMBR};
+  enum imagetype { itRAW, itMBR, itMVI};
   /*
     Form in which an index stores its column values: itMBR for a SPATIAL
     (RTREE) index, which stores the column's MBR instead of its value;
-    itRAW for every other index algorithm.
+    itMVI for multi-valued index; itRAW for every other index algorithm.
   */
   static enum imagetype image_type(enum ha_key_alg alg)
-  { return alg == HA_KEY_ALG_RTREE ? itMBR : itRAW; }
+  {
+    switch (alg) {
+    case HA_KEY_ALG_RTREE: return itMBR;
+    case HA_KEY_ALG_ARRAY: return itMVI;
+    default: return itRAW;
+    }
+  }
 
   utype	unireg_check;
   field_visibility_t invisible;

@@ -1468,6 +1468,26 @@ public:
 
 
 /*
+  Quick select for a lookup on an HA_KEY_ALG_ARRAY (JSON array/hlindex)
+  "index": get_next() drives TABLE::hlindex_read_first()/hlindex_read_next(),
+  which look up the hlindex table and translate hits back into base
+  table rows (see json_index::read_first/read_next in sql/index/json.cc).
+*/
+class QUICK_RANGE_SELECT_ARRAY: public QUICK_RANGE_SELECT
+{
+public:
+  QUICK_RANGE_SELECT_ARRAY(THD *thd, TABLE *table, uint index_arg,
+                          bool no_alloc, MEM_ROOT *parent_alloc,
+                          bool *create_err)
+    :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
+    create_err)
+    {};
+  int reset() override;
+  int get_next() override;
+};
+
+
+/*
   QUICK_INDEX_SORT_SELECT is the base class for the common functionality of:
   - QUICK_INDEX_MERGE_SELECT, access based on multi-index merge/union 
   - QUICK_INDEX_INTERSECT_SELECT, access based on  multi-index intersection 

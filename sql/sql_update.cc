@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2022, MariaDB
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -976,7 +976,9 @@ update_begin:
   explain->tracker.on_scan_init();
 
   table->file->prepare_for_modify(true, true);
-  DBUG_ASSERT(table->file->inited != handler::NONE);
+  DBUG_ASSERT(table->file->inited != handler::NONE ||
+             (select && select->quick &&
+              table->key_info[select->quick->index].is_hlindex()));
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
