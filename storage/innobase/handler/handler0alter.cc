@@ -1203,8 +1203,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				index->lock.free();
 				dict_mem_index_free(index);
 			}
-			for (unsigned i = old_n_v_cols; i--; ) {
-				old_v_cols[i].~dict_v_col_t();
+			for (unsigned i = instant_table->n_v_cols; i--; ) {
+				instant_table->v_cols[i].~dict_v_col_t();
 			}
 			if (instant_table->fts) {
 				instant_table->fts->~fts_t();
