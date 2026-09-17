@@ -7663,13 +7663,17 @@ void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 
   /*
     Do not put virtual column values into the write_set, as they will be
-    re-computed anyway by the slave applier.
+    re-computed anyway by the slave applier. Except for binlog_row_image=FULL
+    to help 3rd-party readers of the binlog where re-computing the virtual
+    column values may not be simple.
   */
   if (unlikely(table->vfield))
   {
+    if (row_image < BINLOG_ROW_IMAGE_FULL
 #ifdef HAVE_REPLICATION
-    if (!table->s->online_alter_binlog)
+        && !table->s->online_alter_binlog
 #endif
+        )
     {
       if (table->read_set != &table->tmp_set)
       {
