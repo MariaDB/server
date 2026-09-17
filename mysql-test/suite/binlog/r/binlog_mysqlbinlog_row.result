@@ -5471,3 +5471,14 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+### MDEV-41045: Missing virtual columns in binlog break backwards compat for CDCs
+CREATE TABLE h (id int primary key, a int, b int, v int AS (a*2) VIRTUAL, s int AS (a+1) STORED);
+FLUSH LOGS;
+SET SESSION binlog_format= ROW;
+INSERT INTO h (id,a,b) VALUES (1,5,9);
+UPDATE h SET a=7 WHERE id=1;
+DELETE FROM h WHERE id=1;
+FLUSH LOGS;
+DROP TABLE h;
+include/assert_grep.inc [Ensure vcol v is included in all FULL row images]
+include/assert_grep.inc [Ensure vcol s is included in all FULL row images]
