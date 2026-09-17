@@ -234,6 +234,12 @@ EOF
       install -o 0 -g 0 -m 0755 -d $mariadb_cfgdir
     fi
 
+    # Check for pre-existing MySQL debian.cnf on new install. Move if found.
+    if [ -z "$2" ] && [ -e "$dc" ] && ! grep -q "THIS FILE IS OBSOLETE" "$dc"
+    then
+      mv -f "$dc" "$dc.bak"
+    fi
+
     if [ ! -e "$dc" ]
     then
       cat /dev/null > $dc
