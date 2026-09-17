@@ -356,7 +356,7 @@ SELECT category,
     STDDEV_SAMP(value) FILTER (WHERE status IS NOT NULL) OVER (PARTITION BY category) as stddev_samp_result,
     VARIANCE(value) FILTER (WHERE amount >= 0) OVER (PARTITION BY category) as variance_result,
     VAR_SAMP(value) FILTER (WHERE category = 'Clothing' AND status IS NOT NULL) OVER (PARTITION BY category) as var_samp_result,
-    ST_AsText(ST_COLLECT(geom) FILTER (WHERE status = 'active') OVER (PARTITION BY category)) as collect_result
+    ST_AsText(ST_COLLECT(geom) FILTER (WHERE status = 'active') OVER (PARTITION BY category ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) as collect_result
 FROM test_aggregates;
 
 --echo #
