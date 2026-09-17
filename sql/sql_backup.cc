@@ -1449,7 +1449,8 @@ static void ustar_write_dozen(char *start, uint64_t n) noexcept
 static void ustar_block_init(char *buf, const char *name, mode_t mode,
                              uint64_t size) noexcept
 {
-  strncpy(buf, name, 100);
+  strncpy(buf, name, 99);
+  buf[99]= '\0';
   ustar_write_octal(buf + 100, buf + 108, uint64_t(mode));
   ustar_write_octal(buf + 108, buf + 116, 0/* POSIX uid */);
   ustar_write_octal(buf + 116, buf + 124, 0/* POSIX gid */);
@@ -1554,25 +1555,24 @@ int backup_stream_start(backup_fd stream,
   assert(stream != backup_sink::NO_STREAM);
   char buf[512];
   size_t s= strlen(name);
-  if (s > 100)
+  if (s > 99)
   {
     /* Write a block that contains the full name length,
     followed by blocks that contain the full name, in
     tar --format=oldgnu */
-    ustar_block_init(buf, "././@LongLink", 0644, s);
+    ustar_block_init(buf, "././@LongLink", 0644, s + 1);
+    buf[156]= 'L';
     ustar_block_checksum(buf);
     if (int err= backup_stream_write(stream, buf, sizeof buf))
       return err;
-    const size_t whole{s & ~(sizeof buf)};
+    const size_t whole{s & ~((sizeof buf) - 1)};
     if (whole)
       if (int err= backup_stream_write(stream, name, whole))
         return err;
-    if (s - whole)
-    {
-      ustar_zeropad(buf, name + whole, sizeof buf);
-      if (int err= backup_stream_write(stream, buf, sizeof buf))
-        return err;
-    }
+    /* After 512*n bytes of file name there will be a zerofilled block. */
+    ustar_zeropad(buf, name + whole, sizeof buf);
+    if (int err= backup_stream_write(stream, buf, sizeof buf))
+      return err;
   }
 
   ustar_block_init(buf, name, mode, size);

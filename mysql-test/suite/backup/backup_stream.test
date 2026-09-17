@@ -11,9 +11,13 @@ INSERT INTO at1 VALUES (1);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (0);
 
+CREATE DATABASE `$$$$$$$$$$$$`;
+CREATE TABLE `$$$$$$$$$$$$`.`$$$$$$$$$$$$`(a SERIAL) ENGINE=InnoDB
+SELECT 1;
+
 if ($MARIADB_UPGRADE_EXE)
 {
---exec echo "@cat > %MYSQL_TMP_DIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
+--exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
 
 BEGIN;
@@ -40,22 +44,15 @@ ROLLBACK;
 SELECT * FROM t;
 DELETE FROM t;
 DROP TABLE at0, at1;
+DROP DATABASE `$$$$$$$$$$$$`;
 
 --let $target_directory=$MYSQLTEST_VARDIR/backup_stream
 # Clean up after a previous failed test, in case we are retrying.
 --error 0,1
 --rmdir $target_directory
 --mkdir $target_directory
-if ($MARIADB_UPGRADE_EXE)
-{
---exec tar xf $MYSQL_TMP_DIR/1.tar -C $target_directory
---exec tar xf $MYSQL_TMP_DIR/2.tar -C $target_directory
-}
-if (!$MARIADB_UPGRADE_EXE)
-{
 --exec tar xf $MARIADB_DATADIR/1.tar -C $target_directory
 --exec tar xf $MARIADB_DATADIR/2.tar -C $target_directory
-}
 --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
 
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
@@ -63,24 +60,24 @@ if (!$MARIADB_UPGRADE_EXE)
 SELECT * FROM at0;
 SELECT * FROM at1;
 SELECT * FROM t;
+SELECT * FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 --error ER_OPEN_AS_READONLY
 DELETE FROM t;
+--error ER_OPEN_AS_READONLY
+DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 
-if ($MARIADB_UPGRADE_EXE)
-{
---remove_file $MYSQL_TMP_DIR/1.tar
---remove_file $MYSQL_TMP_DIR/2.tar
---remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
-}
-if (!$MARIADB_UPGRADE_EXE)
-{
 --remove_file $MARIADB_DATADIR/1.tar
 --remove_file $MARIADB_DATADIR/2.tar
+if ($MARIADB_UPGRADE_EXE)
+{
+--remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;
 DROP TABLE t;
+--error ER_NO_SUCH_TABLE
+DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 
 --rmdir $target_directory
