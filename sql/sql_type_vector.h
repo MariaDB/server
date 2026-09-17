@@ -43,6 +43,13 @@ public:
   }
 
   bool Column_definition_fix_attributes(Column_definition *c) const override;
+
+  bool Item_append_extended_type_info(Send_field_extended_metadata *to,
+                                      const Item *item) const override
+  {
+    return to->set_data_type_name("vector"_LEX_CSTRING);
+  }
+
   bool Key_part_spec_init_vector(Key_part_spec *part,
                                  const Column_definition &def) const override;
   Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,

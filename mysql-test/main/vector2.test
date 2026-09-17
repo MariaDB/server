@@ -190,7 +190,11 @@ create table t (pk int primary key, v vector(2) not null, key(v(6)));
 --echo #
 create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
+--disable_view_protocol
+--enable_metadata
 select distinct v from t;
+--disable_metadata
+--enable_view_protocol
 drop table t;
 
 --echo #
@@ -587,5 +591,15 @@ flush tables;
 --error ER_NOT_KEYFILE 
 select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-41860 Vector datatype returns in protocol as VAR_STRING without vector hints
+--echo #
+
+--disable_view_protocol
+--enable_metadata
+select vec_fromtext('[5.89166e13]') as v;
+--disable_metadata
+--enable_view_protocol
 
 --echo # End of 11.8 tests

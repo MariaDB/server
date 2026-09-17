@@ -247,6 +247,8 @@ ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used le
 create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
 select distinct v from t;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t	t	v	v	253 (type=vector)	4	4	Y	32896	0	63
 v
 UUUU
 VVVV
@@ -728,4 +730,12 @@ flush tables;
 select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
 drop table t1, t2;
+#
+# MDEV-41860 Vector datatype returns in protocol as VAR_STRING without vector hints
+#
+select vec_fromtext('[5.89166e13]') as v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					v	253 (type=vector)	20	4	Y	128	0	63
+v
+\VVV
 # End of 11.8 tests
