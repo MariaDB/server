@@ -190,7 +190,9 @@ create table t (pk int primary key, v vector(2) not null, key(v(6)));
 --echo #
 create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
+--enable_metadata
 select distinct v from t;
+--disable_metadata
 drop table t;
 
 --echo #
