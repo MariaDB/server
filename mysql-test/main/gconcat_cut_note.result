@@ -82,7 +82,7 @@ SELECT GROUP_CONCAT(t ORDER BY t LIMIT 2) AS gc FROM t2;
 gc
 aa,bb
 Warnings:
-Note	4266	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
+Note	4275	Some values were cut while processing group_concat(). Increase group_concat_max_len if you want to avoid the cut
 #
 # The same data, and the offset moves the answer onto the row that
 # was cut. The answer is now short by what was cut: a warning.

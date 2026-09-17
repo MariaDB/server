@@ -10,12 +10,12 @@ SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
 gc_len
 0
 Warnings:
-Warning	4265	Result was cut by group_concat() because of tmp_memory_table_size limit
+Warning	4274	Result was cut by group_concat() because of tmp_memory_table_size limit
 SELECT JSON_LENGTH(JSON_ARRAYAGG(DISTINCT a)) AS ja_len FROM t1;
 ja_len
 0
 Warnings:
-Warning	4265	Result was cut by json_arrayagg() because of tmp_memory_table_size limit
+Warning	4274	Result was cut by json_arrayagg() because of tmp_memory_table_size limit
 SET SESSION debug_dbug=DEFAULT;
 SET @@tmp_memory_table_size=DEFAULT;
 #
@@ -28,7 +28,7 @@ SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;
 gc_len
 0
 Warnings:
-Warning	4265	Result was cut by group_concat() because of max_heap_table_size limit
+Warning	4274	Result was cut by group_concat() because of max_heap_table_size limit
 SET SESSION debug_dbug=DEFAULT;
 SET @@max_heap_table_size=DEFAULT;
 #
