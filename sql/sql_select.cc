@@ -22376,8 +22376,7 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, fexpr, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure, false,
-                             (current_counter == distinct));
+                             distinct_record_structure, false, false);
           if (!new_field)
             goto err;
           tmp_from_field++;
