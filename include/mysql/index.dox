@@ -1,11 +1,399 @@
 /**
   @mainpage Plugin API Documentation
 
-  The MariaDB plugin API allows development of plugins that can extend the basic server functionality.
+  MariaDB Server Plugin API is a C-based extensibility framework
+  (largely compatible with MySQL’s but extended) that allows dynamic or
+  static loading of modules to add or modify server behavior without
+  recompiling the core server.
 
-   - Concepts
-   - Get started: Building a plugin
-   - Plugin types
-   - Plugin services
+   - @subpage concepts
+   - @subpage implementation
+   - @subpage make_a_plugin
+   - @ref plugin_types
+   - @ref plugin_api_services_for_plugins
    - [API reference](api.md#)
+*/
+
+/**
+  @page concepts Plugin API Concepts
+
+  @section concept_big_picture The Big Picture: The Server, Plugins and Interfaces
+
+  The server does, at certain stages of its execution, call plugin APIs when it
+  needs certain operation performed: e.g. authenticate a user, log a message,
+  read and write from/to a database table etc.
+
+  These API are like written functionality contracts.
+  They allow separating the server functionality from the actual API
+  implementations themselves. And, since the API implementions are a dynamic set,
+  adding new implementations extends the server functionality
+  (e.g. adds new ways a user can be authenticated or message be logged)
+  without having to re-compile and even re-start the server itself.
+
+  The MariaDB server plugin infrastructure uses the following logical terms:
+
+  @section concept_plugin_api Plugin API
+
+  A well defined, versioned and stable interface specification.
+  It's also abstract, as it's not tied to any one specific implementation.
+
+  @section concept_plugin Plugin
+
+  A named and versioned implementation of a specific @ref concept_plugin_api.
+
+  @sa @ref plugin_types for a list of the available plugin types and what they do
+
+  @section concept_plugin_library Plugin Library
+  
+  (habitually abbreviated as a plugin)
+  An executable binary that contains one or more @ref concept_plugin that can
+  be accessed by the server when it needs to call plugin API implementations.
+
+  @section concept_plugin_service Plugin Services
+
+  Sometimes plugin code needs to call back into the the server.
+
+  The plugin is running into the same process and the server symbols are
+  not hidden. So it can just reference a server symbol: e.g. call a server
+  function or read a server variable. These will get resolved by the OS's
+  dynamic linker (for dynamic plugins) or static linker (for static plugins).
+
+  But this is considered **bad** since there's no guarantee that the plugin's
+  snapshot of what the server symbol is captured during plugin compilation
+  matches the actual server symbol definition inside the running server.
+
+  This is why the plugin infrastructure provides a more controlled way for a
+  plugin to call server code.
+
+  It's called a plugin service.
+
+  Plugin services are a finite set determined at server's and plugin's
+  compile time.
+
+  They guarantee that the service is present, matches the definition and
+  is callable after plugin load.
+  They also provide platform independecy as they operate the same on all
+  OSes and architectures.
+
+  @section concept_plugin_system_variables Plugin System Variables
+
+  @section concetp_plugin_status_variables Plugin Status Variables
+
+  @sa @ref implementation on how the above concepts are implemented.
+
+*/
+
+/**
+  @page implementation Plugin API Implementation
+
+  This is how the individual abstract concepts are implemented and
+  interact with each other.
+
+  @section impl_server The Server Plugin API implementation
+
+  The server is the bedrock of the plugin infrastructure and contains the
+  base implementation to enable plugin usage.
+  Plugins can theoretically be loaded into other binaries, but chances are
+  that they won't operate all that well (if at all) in this case since they
+  heavily depend on server's infrastructure.
+
+  Here's what the server implements to support plugins:
+
+  @subsection impl_server_global_plugin_list The global plugin list
+
+  The server maintains a global in-memory list of all available plugins (plugin_array), mirrored into a set of hash tables (plugin_hash) and guarded by LOCK_plugin.
+  
+  The plugin libraries containing the available plugins can be:
+   - statically linked into the server binary
+   - dynamically loaded at startup via the --plugin-load... command line arguments
+   - dynamically loaded just prior to the server's commencement of normal operations from the mysql.plugins table.
+   - dynamically loaded at runtime via the INSTALL PLUGIN SQL command.
+   - unloaded at runtime via the UNINSTALL PLUGIN SQL command
+   - unloaded at server shutdown 
+
+  The server implements all of the above possibilities in its code.
+
+  It also implements and provides a list of interfaces the plugins can use to
+  call back and interact with the server.
+  These are called @ref impl_server_plugin_services.
+
+  The list and some basic attributes for each plugin in it are visible via
+  the INFORMATION_SCHEMA.plugins table.
+
+  @subsection impl_server_plugin_api_call How does the server call a plugin API.
+
+  At certain opportune stages of server's normal operation the server might decide
+  to "reach out" to a plugin by calling a plugin API. Since the plugins are named it
+  can call any individual plugin by name. E.g. when executing `CREATE TABLE engine=foo`, 
+  the server will:
+
+  - look "foo" into the cache of plugin "references" (plugin_ref) for that plugin type, if available.
+  - If no cached reference is found:
+      - Take LOCK_plugin
+      - Look "foo" up into the global plugin_array for implementations of the specific plugin API (storage engine in this case)
+      - If found, create a reference (plugin_ref) to the plugin.
+  - call API "method" (function pointers) through the plugin_ref, if found.
+  - when done, either store the plugin_ref into a cache for reuse or release it.
+
+  @section impl_server_plugin_services Plugin Services Implementation
+
+  Every dynamic plugin exposes one symbol for every service it knows about. These
+  are implemented by the `libservices` static library that is linked into every plugin.
+  
+  Initially, these global pointers are not valid pointers: when the plugin is compiled,
+  they are set to the service version (e.g. VERSION_base64) that the plugin expects.
+  The service header also contains a definition of a more concrete data structure
+  (e.g. @ref base64_service_st) that this global pointer should be pointing to.
+
+  The server maintains a global named list of plugin service API implementations.
+  Every time a @ref concept_plugin_library is initialized, the server gets its global
+  service API implementation list, looks up all the symbols expoted by the
+  @ref concept_plugin_library, and, for each symbol:
+  
+  - checks the versions by comparing the symbol's value to the server version.
+  - sets @ref concept_plugin_library 's symbol value to the actual server
+    service pointer.
+
+  Each service header also contains "syntax sugar" macros, e.g.
+
+  ```
+  #define my_base64_encode(A,B,C) base64_service->base64_encode_ptr(A,B,C)
+  ```
+
+  that allow successfull compilation of 
+  
+  ```
+    my_base64_encode(x,y,z)
+  ```
+  as a function pointer call through the @ref concept_plugin_library 's service pointer. 
+
+  @sa @ref plugin_api_services for a list of the services provided by the server.
+
+  @section impl_plugin_library The Plugin library Implementation
+
+  A @ref concept_plugin_library is executable code, either a part of
+  the server itself or bundled as a shared library.
+
+  Each plugin library implements the plugin library API. It exposes that implementation
+  via a set of dynamic library symbols.  
+
+  @subsection impl_plugin_library_static Statically linked plugin libraries.
+
+  Plugins linked statically to the server are collected into a global
+  server "plugin library" and "installed" (and initialized) at server startup.
+
+  @subsection impl_plugin_library_dynamic Dynamic Plugin Libraries
+
+  A @ref concept_plugin_library is usually compiled as OS dynamic library:
+   DLLs on MS Windows, .so on Unixes. 
+  What differentiates a @ref concept_plugin_library from a regular OS
+  shared library is that it exposes a specific public symbol
+  _maria_plugin_declarations_ that the server recognizes. 
+  In fact it also exposes _maria_plugin_interface_version_ and
+  _maria_sizeof_struct_st_plugin_, but these are auxilary.
+
+  See @ref maria_declare_plugin for details on how this is implemented.
+
+  @subsection impl_plugin_library_lifecycle The Lifecycle Of a Plugin Library
+
+  A plugin library always provides an array of @ref st_maria_plugin structures,
+  each describing a @ref concept_plugin this @ref concept_plugin_library provides.
+  This contains everything that goes between @ref maria_declare_plugin and
+  @ref maria_declare_plugin_end in plugin declartion.
+
+  When the @ref concept_plugin_library is loaded into the server:
+
+   - the library is version and maturity checked. @sa @subpage plugin_verification
+   - for each @ref concept_plugin contained
+     - plugin API version check is performed
+     - the plugin is initialized
+     - the plugin system and status variables are added to the variable global lists
+     - the plugin is added into the global plugin_array.
+
+  At unload time the effect of plugin library load above is reversed.
+
+  @section impl_plugin Plugin implementation
+
+  A MariaDB plugin is a logical, versioned implementation of exactly two interfaces:
+   - The base, house-keeping @ref st_maria_plugin plugin management interface
+   - A specific plugin interface, one of @ref plugin_types. This is referenced by the
+     @ref st_maria_plugin::info pointer of the @ref st_maria_plugin structure.
+
+  @section impl_plugin_system_variables Plugin System Variables Implementation
+
+  TODO
+
+  @section impl_plugin_status_variables Plugin Status Variables Implementation
+
+  TODO
+*/
+
+/**
+  @page plugin_verification Plugin Verification
+
+  When a dynamically-loaded @ref concept_plugin_library is loaded into the server,
+  the server will verify if it is compatible with it before proceeding any further. 
+  This is important since the plugin API expects certain data structures to be laid
+  out in a certain way so that the plugin can function correctly.
+
+  @section plugin_verification_version Plugin Version Verification
+
+  The server will read plugin's symbol `_maria_plugin_interface_version_`
+  (as defined by @ref maria_declare_plugin) and compare that with its own plugin API
+  version.
+  If plugin's API interface version is with a different major version loading
+  is refused.
+*/
+
+/**
+   @page make_a_plugin How to make a plugin
+
+   This is a tutorial and a walk-through on how to bootstrap, implement, compile,
+   test and distribute a MariaDB @ref concept_plugin_library.
+
+   @section map_architecture Architecture and Design Decisions.
+
+   The most important architectural decision is to decide what
+   @ref concept_plugin_api to implement.
+   To make that determination you need to understand when your
+   plugin needs to be called by the server and with what parameters.
+
+   Sometimes just the base @ref st_maria_plugin API is good enough.
+   @ref st_maria_plugin::init is called when the plugin is loaded and
+   @ref st_maria_plugin::deinit is called when the plugin is unloaded.
+   This will suffice if you are after implementing e.g. a network listener:
+   you can start a background thread that listens for connections and
+   processes connects, disconnects and commands in @ref st_maria_plugin::init.
+   And then signal to it to shut down gracefully from @ref st_maria_plugin::deinit.
+
+   In this case you implement the so called @ref daemon_plugin_data. This has no
+   API whatsover. Just a version.
+
+   But, in general, you need to understand the available @ref plugin_types and
+   decide on implementing the one that suits your needs best.
+
+   Do you want to provide a better password validation method? Look into
+   @ref password_validation_plugin_data.
+   Need to expose data in tabular format to server? Do a
+   @ref information_schema_plugin_data.
+
+   The good part is that you can actually combine multiple @ref concept_plugin
+   into a single @ref concept_plugin_library. 
+
+   So, back to the example above, if you need to implement a network listener,
+   but also return the current connection table as an INFORMATION_SCHEMA table
+   you can define the two @ref concept_plugin implementations into your single
+   @ref concept_plugin_library.
+
+   @section map_code Code your plugin library
+
+   It's easiest to just take one of the existing plugins and copy its code.
+
+   But, in case you want to start afresh, here's a very minimal boilerplate to
+   copy from
+   ```
+    #include <mysql/plugin.h>
+    /* TODO: if needed: #include <mysql/specific plugin type, e.g. plugin_audit.h> */
+
+    static int plugin_one_init(void *)
+    {
+      /* TODO: code here */
+      return 0; /* success */
+    }
+
+    static int plugin_one_deinit(void *)
+    {
+      /* TODO: code here */
+      return 0; /* success */
+    }
+
+    static struct st_mysql_daemon plugin_one =
+    { MYSQL_DAEMON_INTERFACE_VERSION  };
+
+    maria_declare_plugin(plugin_one)
+    {
+      MYSQL_DAEMON_PLUGIN,
+      &plugin_one,
+      "plugin example",
+      "You",
+      "A boilerplate plugin code",
+      PLUGIN_LICENSE_GPL,
+      plugin_one_init,            /* Plugin Init */
+      plugin_one_deinit,          /* Plugin Deinit */
+      0x0100,                     /* 1.0 */
+      NULL,                       /* status variables */
+      NULL,                       /* system variables */
+      "1.0",                      /* string version */
+      MariaDB_PLUGIN_MATURITY_EXPERIMENTAL /* maturity */
+    }
+    maria_declare_plugin_end;
+   ```
+
+   @sa @ref maria_declare_plugin, @ref maria_declare_plugin_end,
+    @ref MYSQL_DAEMON_PLUGIN, @ref MYSQL_DAEMON_INTERFACE_VERSION,
+    @ref PLUGIN_LICENSE_GPL, @ref MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+
+   If you need to add system variables, you can add the following to the above:
+
+   ```
+   static unsigned int v1;
+
+   static int
+   v1_check_function(MYSQL_THD thd,
+                     struct st_mysql_sys_var *var,
+                     void *save, struct st_mysql_value *value) {
+     /* TODO: code here */
+     return 0; /* OK */
+   }
+   static void
+   v1_update_function(MYSQL_THD thd,
+                      struct st_mysql_sys_var *var,
+                      void *var_ptr, const void *save) {
+     /* TODO: code here */
+   }
+
+   static MYSQL_SYSVAR_UINT(
+	v1,			/* SQL variable name */
+	v1,			/* local C variable reference */
+	PLUGIN_VAR_RQCMDARG,    /* flags: An argument is required */
+        "gizmo variable",	/* SQL visible description */
+	v1_check_funcion,
+	v1_update_function,
+        0,                      /* default value */
+	0,                      /* minimal value */
+	365*100,                /* maximum value */
+	1			/* increase step */
+  );
+
+  static struct st_mysql_sys_var* sysvars[]= {
+    MYSQL_SYSVAR(v1),   /* variable reference */
+    NULL                /* terminator. keep */
+  };
+  ```
+
+  And then pass on the `sysvars` to the @ref maria_declare_plugin 's
+  system variable placeholder.
+
+  @sa @ref MYSQL_SYSVAR_UINT, @ref mysql_var_check_func, 
+  @ref mysql_var_update_func, @ref MYSQL_SYSVAR
+
+  Similarly, if you need status variables, you can add the following:
+
+  ```
+  static volatile int var_s1;
+  static struct st_mysql_show_var status_vars[]=
+  {
+    { 
+      "s1",               /* status variable SQL name */
+      (char *) &var_s1,   /* reference to the C variable */
+      SHOW_INT            /* type */
+    },
+    { 0, 0, 0}            /* terminator. keep */
+  }
+  ```
+
+  And then pass on the `status_vars` to the @ref maria_declare_plugin 's
+  status variable placeholder.
+
+  @sa @ref st_mysql_show_var, @ref SHOW_INT
 */

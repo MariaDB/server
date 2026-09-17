@@ -23,12 +23,20 @@
   This file defines the API for server plugins that manage functions.
 */
 
+/**
+   @defgroup function_plugin_data Function Plugin
+   @ingroup plugin_types
+   API for Function plugin. (@ref MariaDB_FUNCTION_INTERFACE_VERSION)
+
+   This file defines the API for server plugins that manage functions.
+   @{
+*/
 #ifdef __cplusplus
 
 #include <mysql/plugin.h>
 
-/*
-  API for function plugins. (MariaDB_FUNCTION_PLUGIN)
+/**
+  API for function plugins.
 */
 #define MariaDB_FUNCTION_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
@@ -50,5 +58,7 @@ public:
 
 
 #endif /* __cplusplus */
+
+/** @} */
 
 #endif /* MARIADB_PLUGIN_FUNCTION_INCLUDED */
