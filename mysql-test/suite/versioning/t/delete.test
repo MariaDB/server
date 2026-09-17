@@ -121,4 +121,33 @@ select f1, f3, check_row(row_start, row_end) from t1 for system_time all order b
 --echo # Cleanup
 drop tables t1, t2;
 
+
+--let $engine=`select @@default_storage_engine`
+if ($MTR_COMBINATION_TRX_ID)
+{
+  --let $engine= Aria
+}
+
+#
+# System-versioned DELETE leaves one current row when driven through an index
+# on the row_end field (Halloween problem): the delete finds current rows via
+# row_end_idx and updates row_end in place, which re-positions the row within
+# the same index being scanned, so the last entry is skipped.
+#
+
+--replace_result $engine ENGINE
+eval create table t (
+  id int primary key,
+  row_start timestamp(6) generated always as row start,
+  row_end   timestamp(6) generated always as row end,
+  period for system_time(row_start, row_end),
+  key row_end_idx (row_end)
+) engine=$engine with system versioning;
+
+insert into t (id) values (1), (2), (3);
+delete from t force index (row_end_idx);
+--echo # Expected: no current rows remain.
+select id from t;
+drop table t;
+
 --source suite/versioning/common_finish.inc
