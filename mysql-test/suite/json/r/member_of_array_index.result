@@ -1,0 +1,782 @@
+#
+# WL: MEMBER OF using a JSON array (ARRAY / hlindex) index
+#
+# Item_func_member_of::get_mm_leaf() lets "value MEMBER OF (json_col)"
+# use an ARRAY index on json_col, the same way spatial predicates use
+# get_mm_leaf() to hook onto RTREE indexes.
+#
+# 1. Numeric array index: basic membership lookups use the index
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t1 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]'),
+(3, '[3, 6, 9]'),
+(4, '[]'),
+(5, '[7]');
+# EXPLAIN should pick the array index for a MEMBER OF lookup
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	2	Using where
+SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+id
+1
+3
+SELECT id FROM t1 WHERE 6 MEMBER OF (tags);
+id
+2
+3
+SELECT id FROM t1 WHERE 7 MEMBER OF (tags);
+id
+5
+# No match: empty result, no crash
+SELECT id FROM t1 WHERE 42 MEMBER OF (tags);
+id
+# Cross-check: IGNORE INDEX forces the non-indexed (row-by-row
+# JSON_CONTAINS) evaluation -- results must be identical to the
+# indexed queries above
+EXPLAIN SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags);
+id
+1
+3
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 6 MEMBER OF (tags);
+id
+2
+3
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 7 MEMBER OF (tags);
+id
+5
+SELECT id FROM t1 IGNORE INDEX (arr_idx) WHERE 42 MEMBER OF (tags);
+id
+# NOT MEMBER OF does not use the array index (it is not a sargable
+# single-value lookup) -- still must return correct results
+SELECT id FROM t1 WHERE 3 NOT MEMBER OF (tags);
+id
+2
+4
+5
+# A plain comparison on the same JSON column must not try to use the
+# array index (it indexes array elements, not the column's own value)
+EXPLAIN SELECT id FROM t1 WHERE tags = '[3, 6, 9]';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	arr_idx	NULL	NULL	NULL	5	Using where
+SELECT id FROM t1 WHERE tags = '[3, 6, 9]';
+id
+3
+DROP TABLE t1;
+#
+# 2. String array index
+#
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS CHAR(20) ARRAY))
+);
+INSERT INTO t2 VALUES
+(1, '["red", "green", "blue"]'),
+(2, '["green", "yellow"]'),
+(3, '["black"]');
+EXPLAIN SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	arr_idx	arr_idx	258	NULL	2	Using where
+SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
+id
+1
+2
+SELECT id FROM t2 WHERE 'black' MEMBER OF (tags);
+id
+3
+SELECT id FROM t2 WHERE 'purple' MEMBER OF (tags);
+id
+# Case/type-strict: a JSON string element must not match a differently
+# cased or differently typed lookup value
+SELECT id FROM t2 WHERE 'GREEN' MEMBER OF (tags);
+id
+# Cross-check: IGNORE INDEX must give identical results
+EXPLAIN SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'green' MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'green' MEMBER OF (tags);
+id
+1
+2
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'black' MEMBER OF (tags);
+id
+3
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'purple' MEMBER OF (tags);
+id
+SELECT id FROM t2 IGNORE INDEX (arr_idx) WHERE 'GREEN' MEMBER OF (tags);
+id
+DROP TABLE t2;
+#
+# 3. A correlated (non-constant) MEMBER OF value re-evaluates per row
+#
+CREATE TABLE t3 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t3 VALUES (1, '[10, 20]'), (2, '[20, 30]'), (3, '[30, 40]');
+CREATE TABLE probe (v INT);
+INSERT INTO probe VALUES (20), (40), (99);
+SELECT probe.v, t3.id FROM probe, t3 WHERE probe.v MEMBER OF (t3.tags);
+v	id
+20	1
+20	2
+40	3
+DROP TABLE probe, t3;
+#
+# 4. A second, plain index on the same JSON column: get_mm_leaf() must
+# see key_part->image_type != itMVI for that index's key part and
+# decline it, still picking the array index for MEMBER OF
+#
+CREATE TABLE t4 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX plain_idx (tags(100)),
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t4 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]'),
+(3, '[3, 6, 9]');
+EXPLAIN SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	plain_idx,arr_idx	arr_idx	258	NULL	2	Using where
+SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
+id
+1
+3
+SELECT id FROM t4 WHERE 6 MEMBER OF (tags);
+id
+2
+3
+SELECT id FROM t4 WHERE 42 MEMBER OF (tags);
+id
+DROP TABLE t4;
+#
+# 5. A function-wrapped array column is never a bare field reference,
+# so get_full_func_mm_tree_for_args() can't match it to arr_idx and
+# MEMBER OF falls back to non-indexed evaluation on its own (no
+# IGNORE INDEX needed) -- results must still agree with the indexed
+# form
+#
+CREATE TABLE t5 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t5 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]'),
+(3, '[3, 6, 9]');
+EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	range	arr_idx	arr_idx	258	NULL	2	Using where
+EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (JSON_COMPACT(tags));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT id FROM t5 WHERE 3 MEMBER OF (JSON_COMPACT(tags));
+id
+1
+3
+SELECT id FROM t5 WHERE 6 MEMBER OF (JSON_COMPACT(tags));
+id
+2
+3
+SELECT id FROM t5 WHERE 42 MEMBER OF (JSON_COMPACT(tags));
+id
+DROP TABLE t5;
+#
+# 6. DELETE removes the deleted row's elements from the array index
+#
+CREATE TABLE t6 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t6 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]'),
+(3, '[3, 6, 9]');
+SELECT id FROM t6 WHERE 3 MEMBER OF (tags);
+id
+1
+3
+DELETE FROM t6 WHERE id = 1;
+# id 1's "3" is gone from the index, id 3's is not
+SELECT id FROM t6 WHERE 3 MEMBER OF (tags);
+id
+3
+DROP TABLE t6;
+#
+# 7. UPDATE replaces a row's elements in the array index
+#
+CREATE TABLE t7 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t7 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]');
+UPDATE t7 SET tags = '[100]' WHERE id = 1;
+# the old elements are gone, the new one is there
+SELECT id FROM t7 WHERE 1 MEMBER OF (tags);
+id
+SELECT id FROM t7 WHERE 2 MEMBER OF (tags);
+id
+SELECT id FROM t7 WHERE 3 MEMBER OF (tags);
+id
+SELECT id FROM t7 WHERE 100 MEMBER OF (tags);
+id
+1
+DROP TABLE t7;
+#
+# 8. UPDATE/DELETE filtered by MEMBER OF against the same array index
+# they also (potentially) write to, matching more than one row
+#
+CREATE TABLE t8 (
+id INT PRIMARY KEY,
+other INT,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t8 VALUES
+(1, 0, '[5]'),
+(2, 0, '[5]'),
+(3, 0, '[5]'),
+(4, 0, '[5]'),
+(5, 0, '[1]');
+# (a) SET doesn't touch "tags" -- TABLE::hlindexes_on_update() skips
+# delete_row()/insert_row() entirely (the indexed column can't have
+# changed), so there is nothing to interleave with the read scan
+EXPLAIN UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t8	range	arr_idx	arr_idx	258	NULL	4	Using where
+UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
+# all four rows with a "5" must be updated, not just the first match
+SELECT id, other FROM t8;
+id	other
+1	9
+2	9
+3	9
+4	9
+5	0
+# (b) DELETE always removes every indexed element of the row -- this
+# is the one case that genuinely interleaves the read scan
+# (QUICK_RANGE_SELECT_ARRAY::get_next(), via ha_index_next_same())
+# with the per-row delete_row() (via hlindexes_on_delete()) on the
+# very same hlindex handler, row by row: delete_row() must not
+# disturb the read scan's position, or later matches get silently
+# dropped
+DELETE FROM t8 WHERE 5 MEMBER OF (tags);
+# all four rows with a "5" must be deleted, not just the first match
+SELECT id FROM t8;
+id
+5
+DROP TABLE t8;
+# (c) SET touches "tags" itself -- sql_update.cc's used_key_is_modified
+# check (is_keys_used() -> is_key_used(), which resolves against the
+# array key's real key number in table->key_info, same as any
+# ordinary index) detects "tags" is both scanned via arr_idx and
+# being SET, and forces a buffered plan ("Using buffer"): the read
+# scan fully finishes before any row is written, so this doesn't
+# interleave either
+CREATE TABLE t8b (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t8b VALUES
+(1, '[5]'),
+(2, '[5]'),
+(3, '[5]'),
+(4, '[5]'),
+(5, '[1]');
+EXPLAIN UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t8b	range	arr_idx	arr_idx	258	NULL	4	Using where; Using buffer
+UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
+# all four rows with a "5" must be updated, not just the first match
+SELECT id FROM t8b WHERE 99 MEMBER OF (tags);
+id
+1
+2
+3
+4
+SELECT id FROM t8b WHERE 5 MEMBER OF (tags);
+id
+DROP TABLE t8b;
+#
+# 9. Bulk DELETE (no WHERE) and TRUNCATE use delete_all(), not a
+# per-row loop -- both must still leave the array index consistent
+# (empty) for the (now-empty) table
+#
+CREATE TABLE t9 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t9 VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]');
+DELETE FROM t9;
+INSERT INTO t9 VALUES (1, '[1, 2, 3]');
+SELECT id FROM t9 WHERE 1 MEMBER OF (tags);
+id
+1
+TRUNCATE TABLE t9;
+INSERT INTO t9 VALUES (1, '[1, 2, 3]');
+SELECT id FROM t9 WHERE 1 MEMBER OF (tags);
+id
+1
+DROP TABLE t9;
+#
+# 10. SHOW CREATE TABLE on an array index, and round-tripping its
+# output back through CREATE TABLE
+#
+# The declared element type (UNSIGNED / CHAR(20) / ...) isn't stored
+# anywhere -- see Key::ARRAY handling in sql_table.cc -- so it can't be
+# reproduced; SHOW CREATE TABLE prints CAST(... AS JSON ARRAY) instead,
+# JSON being a bare placeholder cast_type (sql_yacc.yy), equivalent to
+# LONGTEXT, until MDEV-38740 makes JSON a real data type. The base
+# column itself is unaffected by that -- it prints as a real "json"
+# column (Field_blob::sql_type(), see is_literal_json_field() in
+# sql_type_json.cc), so it re-parses back into a genuine JSON-typed
+# column, same as the original
+CREATE TABLE t10 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+SHOW CREATE TABLE t10;
+Table	Create Table
+t10	CREATE TABLE `t10` (
+  `id` int(11) NOT NULL,
+  `tags` json NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `arr_idx` (CAST(`tags` AS JSON ARRAY))
+\)
+DROP TABLE t10;
+# CAST(... AS JSON) is now a general placeholder cast_type, not
+# specific to array index definitions -- it's just LONGTEXT, with
+# no validation of its own (MDEV-38740 will give it real semantics)
+SELECT CAST('not valid json either' AS JSON) AS value,
+CHARSET(CAST('x' AS JSON)) AS cs, COLLATION(CAST('x' AS JSON)) AS col;
+value	cs	col
+not valid json either	utf8mb4	utf8mb4_bin
+# CAST(... AS JSON ARRAY) still requires a genuine JSON column, same
+# as any other element type would
+CREATE TABLE t10 (
+id INT PRIMARY KEY,
+tags LONGTEXT NOT NULL,
+INDEX arr_idx (CAST(tags AS JSON ARRAY))
+);
+ERROR HY000: Incorrect arguments to JSON INDEX
+# Recreate via the exact DDL SHOW CREATE TABLE would print, and check
+# the array index -- not some other index kind -- actually comes back
+CREATE TABLE t10 (
+`id` int(11) NOT NULL,
+`tags` json NOT NULL,
+PRIMARY KEY (`id`),
+KEY `arr_idx` (CAST(`tags` AS JSON ARRAY))
+);
+INSERT INTO t10 VALUES
+(1, '[1, 2, 3]'),
+(2, '[4, 5, 6]'),
+(3, '[3, 6, 9]');
+EXPLAIN SELECT id FROM t10 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t10	range	arr_idx	arr_idx	258	NULL	2	Using where
+SELECT id FROM t10 WHERE 3 MEMBER OF (tags);
+id
+1
+3
+SELECT id FROM t10 WHERE 42 MEMBER OF (tags);
+id
+# SHOW CREATE TABLE on the round-tripped table is stable (prints the
+# same thing again)
+SHOW CREATE TABLE t10;
+Table	Create Table
+t10	CREATE TABLE `t10` (
+  `id` int(11) NOT NULL,
+  `tags` json NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `arr_idx` (CAST(`tags` AS JSON ARRAY))
+\)
+DROP TABLE t10;
+#
+# 11. Unlike VECTOR/SPATIAL, a nullable array-indexed column is fine:
+# a NULL row simply has no hlindex entry (json_index::insert_row()
+# treats NULL as HA_ERR_BAD_FIELD_VALUE, the same as any other value
+# it can't index -- see section 12) and is never matched by MEMBER
+# OF, indexed or not. This matters because a generated column --
+# the only way to index an array nested inside a larger JSON
+# document -- can never be declared NOT NULL
+CREATE TABLE t11 (
+id INT PRIMARY KEY,
+tags JSON,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t11 VALUES (1, '[5, 6]'), (3, '[7, 8]');
+INSERT IGNORE INTO t11 VALUES (2, NULL);
+Warnings:
+Warning	1366	Incorrect json value: '' for column `test`.`t11`.`tags` at row 1
+# NULL isn't a member of anything, and must not be found via the
+# index either
+EXPLAIN SELECT id FROM t11 WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t11	range	arr_idx	arr_idx	258	NULL	1	Using where
+SELECT id FROM t11 WHERE 5 MEMBER OF (tags);
+id
+1
+SELECT id FROM t11 WHERE 7 MEMBER OF (tags);
+id
+3
+SELECT id FROM t11 WHERE 9 MEMBER OF (tags);
+id
+SELECT id FROM t11 WHERE tags IS NULL OR 5 MEMBER OF (tags);
+id
+1
+2
+DROP TABLE t11;
+#
+# 11b. The main point of allowing NULL: index an array nested inside
+# a larger JSON document via a generated column, since there's no
+# other way to reach it (CAST(... AS type ARRAY) only accepts a bare
+# column, not an arbitrary expression, see key_def in sql_yacc.yy).
+# The generated column is NULL (and so, unindexed) for any row whose
+# document doesn't have that path
+CREATE TABLE t11b (
+id INT PRIMARY KEY,
+doc JSON NOT NULL,
+tags JSON AS (JSON_EXTRACT(doc, '$.a.b.c')),
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+# IGNORE for row 3: its path doesn't match, so the generated column
+# comes out NULL, which (like any other unindexable value) isn't a
+# hard error, only an ignorable one -- see section 12
+INSERT IGNORE INTO t11b (id, doc) VALUES
+(1, '{"a": {"b": {"c": [1, 2, 3]}}}'),
+(2, '{"a": {"b": {"c": [3, 4, 5]}}}'),
+(3, '{"x": "no matching path"}');
+Warnings:
+Warning	1366	Incorrect json value: '' for column `test`.`t11b`.`tags` at row 3
+SELECT id, tags FROM t11b;
+id	tags
+1	[1, 2, 3]
+2	[3, 4, 5]
+3	NULL
+EXPLAIN SELECT id FROM t11b WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t11b	range	arr_idx	arr_idx	258	NULL	2	Using where
+SELECT id FROM t11b WHERE 3 MEMBER OF (tags);
+id
+1
+2
+SELECT id FROM t11b WHERE 1 MEMBER OF (tags);
+id
+1
+SELECT id FROM t11b WHERE 5 MEMBER OF (tags);
+id
+2
+DROP TABLE t11b;
+#
+# 12. Valid JSON that cannot be indexed: not an array at all, or an
+# array containing a non-scalar (nested array/object) element. The
+# column itself has no CHECK(JSON_VALID()) of its own (JSON doesn't
+# add one, see sql_type_json.h), so this is only caught on
+# INSERT/UPDATE, by json_index::insert_row()/json_index_encode_token()
+# rejecting JSON_VALUE_OBJECT/JSON_VALUE_ARRAY -- not at CREATE TABLE
+# time. The error reuses HA_ERR_BAD_FIELD_VALUE (a plugin can't add
+# its own HA_ERR_* code), chosen because handler::is_fatal_error()
+# already treats it as ignorable -- see the INSERT IGNORE case below
+#
+CREATE TABLE t12 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+# not a JSON array at all
+INSERT INTO t12 VALUES (1, '{"a": 1}');
+ERROR 22007: Incorrect json value: '{"a": 1}' for column `test`.`t12`.`tags` at row 1
+INSERT INTO t12 VALUES (2, '42');
+ERROR 22007: Incorrect json value: '42' for column `test`.`t12`.`tags` at row 1
+# an array, but one of its elements is itself an array/object
+INSERT INTO t12 VALUES (3, '[1, [2, 3]]');
+ERROR 22007: Incorrect json value: '[1, [2, 3]]' for column `test`.`t12`.`tags` at row 1
+INSERT INTO t12 VALUES (4, '[1, {"a": 1}]');
+ERROR 22007: Incorrect json value: '[1, {"a": 1}]' for column `test`.`t12`.`tags` at row 1
+# the base row of a failed INSERT is already written by the time
+# json_index::insert_row() notices the problem (see handler.cc's
+# ha_write_row(): the hlindex insert happens after, not instead of,
+# the base table write) -- so on a non-transactional engine it can be
+# left behind, under- or un-indexed; a transactional engine rolls the
+# whole statement back instead (see member_of_array_index_innodb.test
+# for that case specifically). Either way, start from a clean table
+# rather than depend on which: this is not what this test is about
+DROP TABLE t12;
+CREATE TABLE t12 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t12 VALUES (1, '[1, 2]');
+SELECT id FROM t12 WHERE 1 MEMBER OF (tags);
+id
+1
+DROP TABLE t12;
+#
+# 13. INSERT IGNORE must skip only the row(s) it can't index, not the
+# whole statement -- HA_ERR_BAD_FIELD_VALUE is in the default
+# handler::is_fatal_error() allow-list, so Write_record::single_insert()
+# downgrades it to a warning and moves on, same as for any other
+# ignorable per-row error
+#
+CREATE TABLE t12 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT IGNORE INTO t12 VALUES (10, '[3, 4]'), (11, '{"bad": 1}'), (12, '[5, 6]');
+Warnings:
+Warning	1366	Incorrect json value: '{"bad": 1}' for column `test`.`t12`.`tags` at row 2
+# all three rows are there -- IGNORE doesn't drop the row, only the
+# (impossible) array index entry for the one that can't be indexed
+SELECT * FROM t12;
+id	tags
+10	[3, 4]
+11	{"bad": 1}
+12	[5, 6]
+# the un-indexable row is simply invisible to an indexed MEMBER OF
+# lookup -- as it must be: it has no array to search to begin with
+SELECT id FROM t12 WHERE 3 MEMBER OF (tags);
+id
+10
+SELECT id FROM t12 WHERE 5 MEMBER OF (tags);
+id
+12
+#
+# 14. DELETE/UPDATE of a row whose JSON value can't be indexed must not
+# error: a stored-but-unindexable value is not table corruption (it's
+# reachable in perfectly ordinary ways -- INSERT IGNORE above, or a
+# plain INSERT on a non-transactional engine, see
+# member_of_array_index_innodb.test), so json_index::delete_row()
+# (called to remove the old array's hlindex entries, whether by an
+# explicit DELETE or by UPDATE replacing the value) must treat
+# "can't reparse this value" the same as "found no entries to
+# delete", not as an error
+#
+# delete the un-indexable row from 13: used to fail with the same
+# error INSERT did, even though there's nothing to clean up (it was
+# never indexed to begin with)
+DELETE FROM t12 WHERE id=11;
+SELECT * FROM t12;
+id	tags
+10	[3, 4]
+12	[5, 6]
+# UPDATE replacing an un-indexable value with a good one: the delete
+# of the (nonexistent) old entries must not block indexing the new
+# value. INSERT IGNORE here only to get the bad value stored to begin
+# with (see section 13)
+INSERT IGNORE INTO t12 VALUES (13, '{"still": "bad"}');
+Warnings:
+Warning	1366	Incorrect json value: '{"still": "bad"}' for column `test`.`t12`.`tags` at row 1
+UPDATE t12 SET tags = '[7, 8]' WHERE id=13;
+SELECT id FROM t12 WHERE 7 MEMBER OF (tags);
+id
+13
+# an array that's valid up to a point: elements before the bad one
+# are indexed normally (json_index::insert_row() stops at the first
+# error, same as json_index::delete_row() does below)
+INSERT IGNORE INTO t12 VALUES (14, '[20, 21, {"bad": 1}]');
+Warnings:
+Warning	1366	Incorrect json value: '[20, 21, {"bad": 1}]' for column `test`.`t12`.`tags` at row 1
+SELECT id FROM t12 WHERE 20 MEMBER OF (tags);
+id
+14
+SELECT id FROM t12 WHERE 21 MEMBER OF (tags);
+id
+14
+# deleting it must clean up exactly those partial entries -- nothing
+# left behind for a later row to collide with
+DELETE FROM t12 WHERE id=14;
+INSERT INTO t12 VALUES (15, '[20]');
+SELECT id FROM t12 WHERE 20 MEMBER OF (tags);
+id
+15
+DROP TABLE t12;
+#
+# 15. AND of two independent MEMBER OF predicates against the same
+# array index: get_claimed_key_part() (opt_range.cc) gives each one
+# its own key part/idx instead of colliding on the one shared slot,
+# so tree_and() treats them as if they were on different keys and
+# keeps each one's range independently -- the cost-based optimizer
+# picks whichever candidate is cheaper to drive the scan, with the
+# other condition still enforced as a plain WHERE filter
+#
+CREATE TABLE t15 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+c INT,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)),
+INDEX cidx (c)
+);
+INSERT INTO t15 VALUES
+(1, '[5]', 1),
+(2, '[7]', 2),
+(3, '[5, 7]', 3),
+(4, '[5, 7, 9]', 4),
+(5, '[1, 2]', 5);
+EXPLAIN SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND 7 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t15	range	arr_idx	arr_idx	258	NULL	3	Using where
+SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND 7 MEMBER OF (tags);
+id
+3
+4
+# same rows forcing a full scan, to confirm the plan above isn't
+# silently dropping anything
+SELECT id FROM t15 IGNORE INDEX (arr_idx)
+WHERE 5 MEMBER OF (tags) AND 7 MEMBER OF (tags);
+id
+3
+4
+# a third, independent condition on a different real key: the two
+# MEMBER OF conditions against arr_idx must not regress versus the
+# plain two-key case just because there's now more than one of them
+EXPLAIN SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND c=3 AND 7 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t15	ref	cidx,arr_idx	cidx	5	const	1	Using where
+SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND c=3 AND 7 MEMBER OF (tags);
+id
+3
+DROP TABLE t15;
+#
+# 16. OR of two independent MEMBER OF predicates against the same
+# array index: same get_claimed_key_part() mechanism as section 15,
+# but for OR this means tree_or() finds no common key between the
+# two predicates and falls through to building a SEL_IMERGE
+# (index_merge/sort_union) instead of per-key combination -- the
+# existing, already-correct rowid-based dedup in that machinery is
+# what makes a row matching BOTH predicates come back exactly once
+#
+CREATE TABLE t16 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+c INT,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)),
+INDEX cidx (c)
+);
+INSERT INTO t16 SELECT seq, JSON_ARRAY(seq), seq FROM seq_1_to_2000;
+# row 1000's array contains BOTH values the OR tests, so it must
+# come back exactly once, not twice
+UPDATE t16 SET tags = '[5, 1999]' WHERE id = 1000;
+ANALYZE TABLE t16;
+Table	Op	Msg_type	Msg_text
+test.t16	analyze	status	Engine-independent statistics collected
+test.t16	analyze	Warning	Engine-independent statistics are not collected for column 'tags'
+test.t16	analyze	status	OK
+EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t16	index_merge	arr_idx	arr_idx,arr_idx	258,258	NULL	#	Using sort_union(arr_idx,arr_idx); Using where
+SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags) ORDER BY id;
+id
+5
+1000
+1999
+SELECT COUNT(*) AS total_rows, COUNT(DISTINCT id) AS distinct_ids
+FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags);
+total_rows	distinct_ids
+3	3
+# a third, independent condition on a different real key: must not
+# regress back to a full scan just because there's more than one
+# MEMBER OF predicate sharing arr_idx (this exact 3-way shape used
+# to degrade to ALL before get_claimed_key_part())
+EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t16	index_merge	cidx,arr_idx	arr_idx,cidx,arr_idx	258,5,258	NULL	#	Using sort_union(arr_idx,cidx,arr_idx); Using where
+SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags) ORDER BY id;
+id
+5
+1000
+1500
+1999
+DROP TABLE t16;
+#
+# 17. DELETE of a row whose array has a duplicate value: insert_row()
+# already collapsed the duplicate to one hlindex row (HA_ERR_FOUND_DUPP_KEY
+# is skipped), so delete_row()'s second pass over that same value finds
+# nothing left to delete -- HA_ERR_KEY_NOT_FOUND for that occurrence must
+# not abort the row's delete or touch another row's entry for the same
+# value
+#
+CREATE TABLE t17 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t17 VALUES
+(1, '[2, 2, 3]'),
+(2, '[2, 4]');
+# both rows match on the shared value
+SELECT id FROM t17 WHERE 2 MEMBER OF (tags);
+id
+1
+2
+DELETE FROM t17 WHERE id = 1;
+# id 1 is fully gone; id 2's "2" is untouched
+SELECT id FROM t17 WHERE 2 MEMBER OF (tags);
+id
+2
+SELECT id FROM t17 WHERE 3 MEMBER OF (tags);
+id
+DROP TABLE t17;
+#
+# 18. "Sort intersect" (QUICK_INDEX_INTERSECT_SELECT, non-ROR, doesn't
+# need rowid-ordered input, unlike ROR-intersect) combining the array
+# index with an ordinary index on a different column: hlindex scans
+# are never ROR (check_quick_select_array() always sets is_ror_scan
+# to FALSE), so this is the only index-merge-intersect an array index
+# can take part in. It shares read_keys_and_merge_scans() with
+# sort_union (section 16), already fixed for hlindex quicks there.
+#
+CREATE TABLE t18 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+c INT,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)),
+INDEX cidx (c)
+);
+INSERT INTO t18 SELECT seq, JSON_ARRAY(MOD(seq,200)), seq FROM seq_1_to_1000;
+ANALYZE TABLE t18;
+Table	Op	Msg_type	Msg_text
+test.t18	analyze	status	Engine-independent statistics collected
+test.t18	analyze	Warning	Engine-independent statistics are not collected for column 'tags'
+test.t18	analyze	status	OK
+# ground truth: index_merge off entirely, forces a plain range scan
+SET optimizer_switch='index_merge=off';
+SELECT COUNT(*) FROM t18 FORCE INDEX(arr_idx,cidx)
+WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
+COUNT(*)
+1
+# same query, sort_intersect enabled: cheaper than either single index
+# alone on this data (each condition alone matches far more rows than
+# their conjunction), so the optimizer picks it without a hint
+SET optimizer_switch='index_merge=on,index_merge_sort_union=on,index_merge_sort_intersection=on,index_merge_intersection=on';
+EXPLAIN SELECT id FROM t18 FORCE INDEX(arr_idx,cidx)
+WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t18	index_merge	cidx,arr_idx	arr_idx,cidx	258,5	NULL	#	Using sort_intersect(arr_idx,cidx); Using where
+SELECT COUNT(*) FROM t18 FORCE INDEX(arr_idx,cidx)
+WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
+COUNT(*)
+1
+SET optimizer_switch=DEFAULT;
+DROP TABLE t18;
+# End of 13.3 tests

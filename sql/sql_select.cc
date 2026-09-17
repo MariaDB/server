@@ -7157,6 +7157,30 @@ Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
 
 
 void
+Item_func_member_of::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                    uint *and_level, table_map usable_tables,
+                                    SARGABLE_PARAM **sargables)
+{
+  /*
+    "value MEMBER OF (json_col)" is handled like a spatial relation
+    predicate (Item_func_spatial_rel::add_key_fields(), item_geofunc.h):
+    json_col (args[1]) is the fixed field side, value (args[0]) the value
+    side -- there is no reversed "json_col MEMBER OF value" form.
+    eq_func=false because this is not a literal equality on the field's
+    own value (it is a per-array-element containment test), exactly as a
+    spatial relation is not a literal comparison of the field's raw bytes
+    either; this still lets a const/available value populate
+    const_keys/cond_set/sargables for the field's ARRAY index, which is
+    what makes range analysis (get_mm_leaf(), see item_jsonfunc.h/.cc) get
+    attempted for it at all.
+  */
+  if (Item_field *field_item= get_local_field(args[1]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false /*eq_func*/, args, 1, usable_tables, sargables);
+}
+
+
+void
 Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                              uint *and_level, table_map usable_tables,
                              SARGABLE_PARAM **sargables)

@@ -117,6 +117,8 @@
 #include "uniques.h"
 #include "my_json_writer.h"
 #include "opt_hints.h"
+#include "index/hlindex.h"     // hlindex (TABLE::hli)
+#include "index/json.h"        // JSON_INDEX_VALUE_MAX_LEN
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}
@@ -2856,13 +2858,15 @@ SQL_SELECT::test_quick_select(THD *thd,
                  thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
   /*
+    The "+1" is for the hlindex/ARRAY key's own single phantom key
+    part, added below after this loop.
     The "+MAX_KEY" reserves room for get_claimed_key_part() to clone an
-    RTREE key part on the fly, once per independent predicate beyond the
+    RTREE/ARRAY key part on the fly, once per independent predicate beyond the
     first one against the same field within this pass.
   */
   if (!(param.key_parts= (KEY_PART*)
           alloc_root(&alloc, sizeof(KEY_PART) *
-                      (head->s->actual_n_key_parts(thd) + MAX_KEY))) ||
+                      (head->s->actual_n_key_parts(thd) + 1 + MAX_KEY))) ||
       fill_used_fields_bitmap(&param))
   {
     thd->no_errors=0;
@@ -2932,6 +2936,69 @@ SQL_SELECT::test_quick_select(THD *thd,
     param.real_keynr[param.keys++]=idx;
     if (cur_key_len > max_key_len)
       max_key_len= cur_key_len;
+  }
+
+  /*
+    The loop above only considers "ordinary" keys (idx < head->s->keys).
+    A JSON array (HA_KEY_ALG_ARRAY) index is an hlindex key
+    (head->s->keys <= idx < head->s->total_keys) -- its physical storage
+    is a separate table, not a real key of this table's own handler.
+    Unlike VECTOR (HA_KEY_ALG_VECTOR), which is only ever used via its own
+    dedicated ORDER BY ... LIMIT rewrite and must stay out of this loop, an
+    ARRAY key is eligible for the classic range optimizer via
+    Item_func_member_of::get_mm_leaf(); add it here as one more candidate
+    key, since the loop above's bound (idx < head->s->keys) would
+    otherwise never reach it.
+  */
+  if (head->s->hlindexes() && key_info->algorithm == HA_KEY_ALG_ARRAY)
+  {
+    Json_writer_object trace_idx_details(thd);
+    trace_idx_details.add("index", key_info->name).add("usable", true);
+    param.key[param.keys]= key_parts;
+    Json_writer_array trace_keypart(thd, "key_parts");
+    key_parts->key= param.keys;
+    key_parts->part= 0;
+    /*
+      key_info->key_part->{length,store_length} describe the underlying
+      JSON column's own (large) key length, not the small, fixed-format
+      {typ, value} encoding Item_func_member_of::get_mm_leaf() and
+      json_index_encode_value() actually produce and, via key_copy(), store
+      in SEL_ARG::min_value/max_value as a key spanning the hlindex table's
+      `typ tinyint unsigned` and `value varbinary(JSON_INDEX_VALUE_MAX_LEN)`
+      columns. get_quick_keys()/store_min_max() copy exactly
+      key_parts->store_length bytes out of that buffer, so this must match
+      the key_copy()-encoded size (JSON_INDEX_KEY_MAX_LEN, prefixes
+      included), not the JSON column's own length -- else it would read
+      past that small buffer.
+    */
+    key_parts->length= JSON_INDEX_VALUE_MAX_LEN;
+    key_parts->store_length= JSON_INDEX_KEY_MAX_LEN;
+    key_parts->field= key_info->key_part->field;
+    /*
+      Not key_info->key_part->null_bit: that's the underlying (now
+      nullable, see sql_table.cc's Key::ARRAY case) JSON column's own
+      null_bit, but this key part's bytes are never a null-indicator
+      byte followed by a value the way a normal nullable key part's are
+      -- json_index::make_key() always writes a real {typ, value} key
+      starting at byte 0 (typ is never 0: JSON_VALUE_UNINITIALIZED/
+      OBJECT/ARRAY are rejected before encoding, see
+      json_index_encode_token()). A nonzero null_bit here would make
+      null_part_in_key()/QUICK_RANGE_SELECT::cmp_next() misread that
+      always-nonzero typ byte as "this key part is NULL", breaking every
+      MEMBER OF lookup. NULL rows have no hlindex entry to find in the
+      first place (json_index::insert_row() skips them), so this key
+      part is never actually used to search for NULL.
+    */
+    key_parts->null_bit= 0;
+    key_parts->image_type= Field::image_type(key_info->algorithm);
+    key_parts->flag= (uint8) key_info->key_part->key_part_flag;
+    trace_keypart.add(key_parts->field->field_name);
+    key_parts->claimed= false;
+    key_parts++;
+    trace_keypart.end();
+    param.real_keynr[param.keys++]= head->s->keys;
+    if (JSON_INDEX_KEY_MAX_LEN > max_key_len)
+      max_key_len= JSON_INDEX_KEY_MAX_LEN;
   }
   trace_idx.end();
 
@@ -9452,10 +9519,10 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
 
 
 /*
-  For a predicate matching an RTREE key part (image_type != itRAW),
+  For a predicate matching an RTREE/ARRAY key part (image_type != itRAW),
   return the key part to actually build a range against.
 
-  Two independent predicates against the same spatial field can't be
+  Two independent predicates against the same spatial/array field can't be
   combined into one range tree (see key_and()/key_or()'s GEOM_FLAG checks):
   each one needs its own key part/idx, so that tree_and()/tree_or() see
   them as if they were different indexes and combine them the way they
@@ -10895,9 +10962,9 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       Combining two GEOM_FLAG trees is done elsewhere, so here it
       means that one SEL_ARG has GEOM_FLAG and the other doesn't, like
       MBRIntersects and IS NULL - which is impossible for spatial indexes
+      but possible for ARRAY
     */
     DBUG_ASSERT((key1->min_flag ^ key2->min_flag) & GEOM_FLAG);
-    DBUG_ASSERT(0);
     key1->free_tree();
     key2->free_tree();
     return 0;					// Can't optimize this
@@ -11141,9 +11208,9 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
       Combining two GEOM_FLAG trees is done elsewhere, so here it
       means that one SEL_ARG has GEOM_FLAG and the other doesn't, like
       MBRIntersects and IS NULL - which is impossible for spatial indexes
+      but possible for ARRAY
     */
     DBUG_ASSERT((key1->min_flag ^ key2->min_flag) & GEOM_FLAG);
-    DBUG_ASSERT(0);
     key1->free_tree();
     key2->free_tree();
     return 0;                                   // Can't optimize this
@@ -12560,6 +12627,69 @@ static bool check_if_first_key_part_has_only_one_value(SEL_ARG *arg)
     HA_POS_ERROR if estimate calculation failed due to table handler problems.
 */
 
+/*
+  ARRAY-key (JSON array/hlindex) counterpart of check_quick_select() below:
+  keynr is the JSON array/hlindex key (see Item_func_member_of::get_mm_leaf(),
+  test_quick_select() above). Its physical storage (if any -- that's the
+  hlindex implementation's own business, see hlindex::records_in_range() in
+  sql/index/hlindex.h) is not param->table's own handler, so the generic
+  handler::multi_range_read_info_const() path check_quick_select() otherwise
+  uses -- which always targets param->table->file -- does not apply:
+  redirect the estimate through the hlindex interface instead. tree->min_value
+  already holds the {type-tag, payload} encoded lookup value (a single
+  point: min_value == max_value), produced by json_index_encode_value().
+
+  Same return contract as check_quick_select(): the row estimate, or
+  HA_POS_ERROR on failure.
+*/
+static
+ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
+                                 bool update_tbl_stats, uint *mrr_flags,
+                                 uint *bufsize, Cost_estimate *cost,
+                                 bool *is_ror_scan)
+{
+  TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
+  ha_rows rows;
+
+  if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
+    return HA_POS_ERROR;
+
+  rows= param->table->hli->records_in_range(param->table,
+                                            param->table->key_info + keynr,
+                                            tree->min_value,
+                                            JSON_INDEX_KEY_MAX_LEN, cost);
+  param->quick_rows[keynr]= rows;
+  if (rows == HA_POS_ERROR)
+    return HA_POS_ERROR;
+
+  *is_ror_scan= FALSE;
+  *mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
+  *bufsize= 0;
+  param->possible_keys.set_bit(keynr);
+  cost->comp_cost= rows2double(rows) * param->table->file->WHERE_COST;
+  range->max_index_blocks= 0; // no file-block-based cost model for hlindex
+  range->max_row_blocks= 0;
+  if (update_tbl_stats)
+  {
+    param->table->set_opt_range_condition_rows(rows);
+    if (!param->range_keys_seen.is_set(keynr) ||
+        cost->total_cost() < range->cost.total_cost())
+    {
+      param->range_keys_seen.set_bit(keynr);
+      param->table->opt_range_keys.set_bit(keynr);
+      range->key_parts= 1;
+      range->ranges= 1;
+      range->rows= rows;
+      range->cost= *cost;
+      range->first_key_part_has_only_one_value= true; // always a single point
+      range->selectivity= rows ?
+        (double) param->table->opt_range_condition_rows / rows : 1.0;
+    }
+  }
+  return rows;
+}
+
+
 static
 ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                            bool index_only,
@@ -12589,6 +12719,11 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
     DBUG_RETURN(0L);
   if (tree->type != SEL_ARG::KEY_RANGE || tree->part != 0)
     DBUG_RETURN(HA_POS_ERROR);
+
+  if (param->table->key_info[keynr].algorithm == HA_KEY_ALG_ARRAY)
+    DBUG_RETURN(check_quick_select_array(param, keynr, tree, update_tbl_stats,
+                                         mrr_flags, bufsize, cost,
+                                         is_ror_scan));
 
   seq.keyno= idx;
   seq.real_keyno= keynr;
@@ -12895,6 +13030,12 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
                                       param->real_keynr[idx],
                                       MY_TEST(parent_alloc),
                                       parent_alloc, &create_err);
+  else if (param->table->key_info[param->real_keynr[idx]].algorithm ==
+           HA_KEY_ALG_ARRAY)
+    quick=new QUICK_RANGE_SELECT_ARRAY(param->thd, param->table,
+                                       param->real_keynr[idx],
+                                       MY_TEST(parent_alloc),
+                                       parent_alloc, &create_err);
   else
     quick=new QUICK_RANGE_SELECT(param->thd, param->table,
                                  param->real_keynr[idx],
@@ -13368,8 +13509,9 @@ int read_keys_and_merge_scans(THD *thd,
   cur_quick= cur_quick_it++;
   bool first_quick= TRUE;
   DBUG_ASSERT(cur_quick != 0);
-  head->file->ha_start_keyread(cur_quick->index);
-  
+  if (!head->key_info[cur_quick->index].is_hlindex())
+    head->file->ha_start_keyread(cur_quick->index);
+
   /*
     We reuse the same instance of handler so we need to call both init and 
     reset here.
@@ -13996,6 +14138,66 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
       DBUG_RETURN(result);
     last_range= 0;				// Not found, to next range
   }
+}
+
+
+/*
+  Get next for a JSON array (HA_KEY_ALG_ARRAY / hlindex) "index": drives
+  TABLE::hlindex_read_first()/hlindex_read_next(), which look up the
+  hlindex table and translate hits back into base table rows (see
+  json_index::read_first/read_next in sql/index/json.cc). Unlike ordinary
+  QUICK_RANGE_SELECT/_GEOM, this never touches "file"/"record" directly --
+  head->hlindex_read_next() reads straight into head->record[0].
+
+  Unlike QUICK_RANGE_SELECT/_GEOM, there is never more than one range to
+  iterate: Item_func_member_of::get_mm_leaf() builds exactly one point per
+  predicate, and key_and()/key_or() (see their GEOM_FLAG checks) refuse to
+  merge two such points on the same keypart into one tree, so
+  "x MEMBER OF (col) OR y MEMBER OF (col)" can't produce two ranges on the
+  same QUICK_RANGE_SELECT_ARRAY object either -- hence the plain
+  if/DBUG_ASSERT below instead of QUICK_RANGE_SELECT/_GEOM's ranges loop.
+*/
+
+/*
+  Unlike QUICK_RANGE_SELECT::reset(), this must not call
+  file->ha_index_init() -- "index" here is a phantom key number that only
+  exists in the SQL layer's KEY_PART/key_info arrays (see
+  test_quick_select()'s hlindex-key enumeration): it is never a real
+  index in head->file's own engine, since HA_KEY_ALG_ARRAY is implemented
+  entirely via the hlindex overlay. MyISAM/Aria happen to tolerate opening
+  it anyway, but InnoDB's dictionary genuinely has no such key and
+  change_active_index() fails outright ("could not find key no N ... from
+  dict cache"). All actual reads go through head->hlindex_read_first() in
+  get_next() below, on a completely different handler (the hlindex's own
+  backing table), so head->file is simply never touched here.
+*/
+int QUICK_RANGE_SELECT_ARRAY::reset()
+{
+  last_range= NULL;
+  cur_range= (QUICK_RANGE**) ranges.buffer;
+  return 0;
+}
+
+int QUICK_RANGE_SELECT_ARRAY::get_next()
+{
+  int result;
+  DBUG_ENTER("QUICK_RANGE_SELECT_ARRAY::get_next");
+  DBUG_ASSERT(ranges.elements == 1);
+
+  if (!last_range)
+  {
+    last_range= *((QUICK_RANGE**) ranges.buffer);
+    result= head->hlindex_read_first(index, last_range->min_key,
+                                     last_range->min_length, HA_POS_ERROR);
+  }
+  else
+    result= head->hlindex_read_next();
+  if (result == HA_ERR_END_OF_FILE)
+  {
+    head->hlindex_read_end();
+    last_range= 0;
+  }
+  DBUG_RETURN(result);
 }
 
 
@@ -17747,14 +17949,38 @@ void print_range(String *out, const KEY_PART_INFO *key_part,
   if (flag & GEOM_FLAG)
   {
     /*
-      The flags of GEOM ranges do not work the same way as for other
-      range types, so printing "col < some_geom" doesn't make sense.
-      Just print the column name, not operator.
+      GEOM_FLAG ranges are always a single keypart (usable_key_parts == 1
+      for both RTREE and ARRAY), and the bytes are not necessarily a valid
+      key image for the field's own type -- print this one keypart
+      directly instead of going through the generic, multi-keypart
+      print_key_value() below. Its store_length-based loop assumes an
+      ordinary key_part->length, which a JSON array key part doesn't have:
+      CAST(...AS...ARRAY) key parts are built with length=0 (there is no
+      fixed element length to give them), so store_length there degenerates
+      to just the blob-length-prefix size and the loop walks off past this
+      one keypart into whatever memory follows.
     */
-    print_keyparts_name(out, key_part, n_key_parts, keypart_map);
-    out->append(STRING_WITH_LEN(" "));
-    print_key_value(out, key_part, range->start_key.key,
-                    range->start_key.length);
+    if (key_part->field->type() == MYSQL_TYPE_GEOMETRY)
+    {
+      /*
+        The flags of GEOM ranges do not work the same way as for other
+        range types, so printing "col < some_geom" doesn't make sense.
+        Just print the column name, not operator.
+      */
+      print_keyparts_name(out, key_part, n_key_parts, keypart_map);
+      out->append(STRING_WITH_LEN(" "));
+      print_key_value(out, key_part, range->start_key.key,
+                      range->start_key.length);
+    }
+    else
+    {
+      /* "value MEMBER OF (json_array_column)", not "col (value)" */
+      out->append('(');
+      key_part->field->table->hli->print_key(out, range->start_key.key,
+                                             range->start_key.length);
+      out->append(STRING_WITH_LEN(") MEMBER OF "));
+      print_keyparts_name(out, key_part, n_key_parts, keypart_map);
+    }
     return;
   }
 

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -917,7 +917,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
 
   table->file->prepare_for_modify(table->versioned(VERS_TIMESTAMP) ||
                                   table_list->has_period(), true);
-  DBUG_ASSERT(table->file->inited != handler::NONE);
+  DBUG_ASSERT(table->file->inited != handler::NONE ||
+             (select && select->quick &&
+              table->key_info[select->quick->index].is_hlindex()));
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);

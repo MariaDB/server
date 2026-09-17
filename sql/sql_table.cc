@@ -65,6 +65,7 @@
 #include "log.h"
 #include "index/hlindex.h"
 #include "index/vector_mhnsw.h"
+#include "index/json.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -3019,6 +3020,13 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       DBUG_RETURN(TRUE);
     break;
 
+  case Key::ARRAY:
+    if (type_handler->Key_part_spec_init_json(&kp, *column))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), "JSON INDEX");
+      DBUG_RETURN(TRUE);
+    }
+    break;
   case Key::IGNORE_KEY:
     DBUG_ASSERT(0);
     break;
@@ -3070,8 +3078,14 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
       key_part_length= kp.length;
   }
   else if (key_part_length == 0 && (column->flags & NOT_NULL_FLAG) &&
-           !*is_hash_field_needed)
+           !*is_hash_field_needed && key.type != Key::ARRAY)
   {
+    /*
+      An ARRAY key never indexes the column's own bytes (that's why
+      calc_key_length() legitimately returns 0 for it, unlike a normal
+      key on a BLOB/JSON column) -- it indexes the column's individual
+      JSON array elements, in a separate hlindex table (sql/index/json.cc).
+    */
     my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(), field_name.str);
     DBUG_RETURN(TRUE);
   }
@@ -3680,9 +3694,12 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       key_number--;                             // Skip this key
       continue;
     case Key::VECTOR:
-        if (key->key_create_info.algorithm == HA_KEY_ALG_UNDEF)
-          key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
+        key->key_create_info.algorithm= HA_KEY_ALG_VECTOR;
         index_plugin= mhnsw_plugin;
+        break;
+    case Key::ARRAY:
+        key->key_create_info.algorithm= HA_KEY_ALG_ARRAY;
+        index_plugin= json_index_plugin;
         break;
     case Key::IGNORE_KEY:
       DBUG_ASSERT(0);
@@ -3837,6 +3854,20 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
           my_error(ER_INDEX_CANNOT_HAVE_NULL, MYF(0), type[key->type]);
           DBUG_RETURN(TRUE);
         }
+        break;
+
+      case Key::ARRAY:
+        /*
+          Unlike SPATIAL/VECTOR, NULL is allowed here: json_index::
+          insert_row() (sql/index/json.cc) treats a NULL value the same as
+          any other value it can't index (HA_ERR_BAD_FIELD_VALUE -- an
+          ignorable error, see handler::is_fatal_error()), not as something
+          to reject at CREATE TABLE time. This matters because generated
+          columns -- the main way to index an array nested inside a larger
+          JSON document, e.g.
+          INDEX (CAST(JSON_EXTRACT(doc, '$.a.b.c') AS JSON ARRAY))
+          -- can never be declared NOT NULL.
+        */
         break;
       }
 

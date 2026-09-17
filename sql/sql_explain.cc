@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2013 Monty Program Ab
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3078,8 +3079,8 @@ int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
                                                          key_map possible_keys)
 {
   uint j;
-  multi_alloc_root(alloc, &keys_stat, sizeof(ha_rows) * table->s->keys,
-                   &keys_stat_names, sizeof(char *) * table->s->keys, NULL);
+  multi_alloc_root(alloc, &keys_stat, sizeof(ha_rows) * table->s->total_keys,
+                   &keys_stat_names, sizeof(char *) * table->s->total_keys, 0);
   if ((!keys_stat) || (!keys_stat_names))
   {
     keys_stat= NULL;
@@ -3087,9 +3088,9 @@ int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
     return 1;
   }
   keys_map= possible_keys;
-  keys= table->s->keys;
-  bzero(keys_stat, sizeof(ha_rows) * table->s->keys);
-  for (j= 0; j < table->s->keys; j++)
+  keys= table->s->total_keys;
+  bzero(keys_stat, sizeof(ha_rows) * table->s->total_keys);
+  for (j= 0; j < table->s->total_keys; j++)
   {
     if (possible_keys.is_set(j))
     {

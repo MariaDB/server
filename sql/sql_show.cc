@@ -2535,6 +2535,22 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       if (j)
         packet->append(',');
 
+      if (key_info->algorithm == HA_KEY_ALG_ARRAY)
+      {
+        /*
+          The declared element type (CAST(... AS type ARRAY)) isn't stored
+          anywhere -- it's currently unused beyond parsing (see Key::ARRAY
+          handling in sql_table.cc) -- so this can't reproduce what the user
+          originally wrote. Print a type that's always valid to re-parse
+          instead (see the JSON_SYM alternative of cast_type in
+          sql_yacc.yy).
+        */
+        packet->append(STRING_WITH_LEN("CAST("));
+        append_identifier(thd, packet, &field->field_name);
+        packet->append(STRING_WITH_LEN(" AS JSON ARRAY)"));
+        continue;
+      }
+
       if (key_part->field)
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&

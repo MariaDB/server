@@ -4452,6 +4452,11 @@ public:
   {
     return true; // Error
   }
+  virtual bool Key_part_spec_init_json(Key_part_spec *part,
+                                       const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual Field *make_table_field(MEM_ROOT *root,
                                   const LEX_CSTRING *name,
                                   const Record_addr &addr,

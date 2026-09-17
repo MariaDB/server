@@ -53,7 +53,7 @@
 #include "opt_group_by_cardinality.h"
 #include "index/hlindex.h"
 #include "index/vector_mhnsw.h"
-#include "opt_group_by_cardinality.h"
+#include "index/json.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -928,6 +928,8 @@ static bool create_key_infos(THD *thd, const uchar *strpos,
     }
     else if (keyinfo->algorithm == HA_KEY_ALG_VECTOR)
       keyinfo->hliton= (hlindexton*)(mhnsw_plugin->data);
+    else if (keyinfo->algorithm == HA_KEY_ALG_ARRAY)
+      keyinfo->hliton= (hlindexton*)(json_index_plugin->data);
 
     if (!keyinfo->is_hlindex())
       share->keys++;
@@ -4499,7 +4501,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   /* Allocate storage for range optimizer */
   if (!multi_alloc_root(&outparam->mem_root,
                         &outparam->opt_range,
-                        share->keys * sizeof(TABLE::OPT_RANGE),
+                        share->total_keys * sizeof(TABLE::OPT_RANGE),
                         &outparam->const_key_parts,
                         share->total_keys * sizeof(key_part_map),
                         NullS))
@@ -7891,7 +7893,7 @@ static void do_mark_index_columns(TABLE *table, uint index,
   mark columns used by key, but don't reset other fields
 */
 
-inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
+void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 {
   do_mark_index_columns(this, index, bitmap, false);
 }
@@ -11179,7 +11181,7 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs) const
 inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
-  TRASH_ALLOC((void*)opt_range, s->keys * sizeof(*opt_range));
+  TRASH_ALLOC((void*)opt_range, s->total_keys * sizeof(*opt_range));
   TRASH_ALLOC(const_key_parts, s->total_keys * sizeof(*const_key_parts));
 }
 
@@ -11241,7 +11243,8 @@ const LEX_CSTRING KEY::type(enum ha_key_alg alg) const
     { STRING_WITH_LEN("FULLTEXT") },
     { STRING_WITH_LEN("HASH") },
     { STRING_WITH_LEN("HASH") },
-    { STRING_WITH_LEN("VECTOR") }
+    { STRING_WITH_LEN("VECTOR") },
+    { STRING_WITH_LEN("ARRAY") },
   };
   return alg2name[alg];
 }
