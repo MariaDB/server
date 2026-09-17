@@ -14,6 +14,7 @@
 --echo # definition meaning something else. Refuse the table instead.
 
 set @@debug_dbug='+d,mvi_skip_spec_image';
+--replace_regex /'.*t1.frm'/'DIR\/t1.frm'/
 --error ER_NOT_FORM_FILE
 create table t1 (c int, j json,
                  key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;

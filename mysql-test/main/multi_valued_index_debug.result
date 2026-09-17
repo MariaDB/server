@@ -4,7 +4,7 @@
 set @@debug_dbug='+d,mvi_skip_spec_image';
 create table t1 (c int, j json,
 key idx ((CAST(j->'$.tags' AS CHAR(6) ARRAY))))engine=innodb;
-ERROR HY000: Incorrect information in file: './test/t1.frm'
+ERROR HY000: Incorrect information in file: 'DIR/t1.frm'
 set @@debug_dbug='';
 # a table with no multi-valued index writes no image and is unaffected
 set @@debug_dbug='+d,mvi_skip_spec_image';

@@ -312,9 +312,9 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
 {
   enum_field_types cast_ftype= cast_th->field_type();
   bool is_unsigned= cast_th->is_unsigned();
-  StringBuffer<MVI_KEY_IMAGE_MAX_LEN> sorted;
+  String sorted;
   /* Only an element written with escapes needs one, see mvi_unescape() */
-  uchar unescaped[MVI_KEY_IMAGE_MAX_LEN];
+  uchar unescaped[MVI_KEY_IMAGE_MAX_LEN], image[MVI_KEY_IMAGE_MAX_LEN];
   /* Skip encoding on type incompatibility */
   if (mvi_json_class(cast_ftype) != je->value_type)
     return true;
@@ -328,9 +328,8 @@ bool encode_mvi_key(json_engine_t *je, const Type_handler *cast_th,
       longlong val= json_value_to_longlong(je->value_type, cs,
                                            (char *) je->value,
                                            je->value_len);
-      sorted.length(8);
-      store_sort_key_longlong((uchar *) sorted.c_ptr(),
-                              is_unsigned, val);
+      store_sort_key_longlong(image, is_unsigned, val);
+      sorted.set((char *) image, 8, &my_charset_latin1_bin);
       break;
     }
     /* CHAR(n) => LONG BLOB */
