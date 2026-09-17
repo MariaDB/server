@@ -75,7 +75,7 @@ public:
    1 byte for the magic num
    4 bytes for the GTID domain_id, little-endian
    4 bytes for the server_id
-   8 bytes for the domain_id
+   8 bytes for the seq_no
 */
 #define REPLY_GTID_LEN (4 + 4 + 8)
 #define REPLY_GTID_OFFSET (REPLY_MAGIC_NUM_OFFSET + REPLY_MAGIC_NUM_LEN)
