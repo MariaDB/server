@@ -13,6 +13,8 @@
 --source include/have_perfschema.inc
 --source include/have_hostname_cache.inc
 
+call mtr.add_suppression("Host '192.0.2.4' is blocked because of many connection errors");
+
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc

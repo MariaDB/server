@@ -903,19 +903,19 @@ bool init_new_connection_handler_thread()
   @param addr  peer address (can be NULL, if 'ip' is set)
   @param ip    peer address as string (can be NULL if 'addr' is set)
   @param port  peer port
-  @param check_proxy_networks if true, and host is in
-               'proxy_protocol_networks' list, skip
-               "host not privileged" check
+  @param mode  see host_check_mode
   @param[out] host_errors - number of connect
               errors for this host
 
-  @retval 0 ok, 1 error
+  @retval 0 ok, or (mode == HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP) host
+              check failed and the error is deferred - see host_check_mode
+  @retval 1 error
 */
 int thd_set_peer_addr(THD *thd,
   sockaddr_storage *addr,
   const char *ip,
   uint port,
-  bool check_proxy_networks,
+  host_check_mode mode,
   uint *host_errors)
 {
   *host_errors= 0;
@@ -987,7 +987,14 @@ int thd_set_peer_addr(THD *thd,
     if (rc == RC_BLOCKED_HOST)
     {
       /* HOST_CACHE stats updated by ip_to_hostname(). */
-      my_error(ER_HOST_IS_BLOCKED, MYF(0), thd->main_security_ctx.host_or_ip);
+      if (mode == HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP)
+      {
+        thd->net.using_proxy_protocol|= NET_PROXY_PROTOCOL_HOST_BLOCKED;
+        return 0;
+      }
+      my_error(ER_HOST_IS_BLOCKED,
+               MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0),
+               thd->main_security_ctx.host_or_ip);
       return 1;
     }
   }
@@ -996,12 +1003,19 @@ int thd_set_peer_addr(THD *thd,
       thd->main_security_ctx.host : "unknown host"),
       (thd->main_security_ctx.ip ?
         thd->main_security_ctx.ip : "unknown ip")));
-  if ((!check_proxy_networks || !is_proxy_protocol_allowed((struct sockaddr *) addr)) 
+  if ((mode == HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP ||
+       !is_proxy_protocol_allowed((struct sockaddr *) addr))
       && acl_check_host(thd->main_security_ctx.host, thd->main_security_ctx.ip))
   {
     /* HOST_CACHE stats updated by acl_check_host(). */
-    my_error(ER_HOST_NOT_PRIVILEGED, MYF(0),
-      thd->main_security_ctx.host_or_ip);
+    if (mode == HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP)
+    {
+      thd->net.using_proxy_protocol|= NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED;
+      return 0;
+    }
+    my_error(ER_HOST_NOT_PRIVILEGED,
+             MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0),
+             thd->main_security_ctx.host_or_ip);
     return 1;
   }
   return 0;
@@ -1118,7 +1132,7 @@ static int check_connection(THD *thd)
     }
 
     if (thd_set_peer_addr(thd, &net->vio->remote, ip, peer_port,
-                          true, &connect_errors))
+                          HOST_CHECK_MODE_DEFAULT, &connect_errors))
     {
       statistic_increment(aborted_connects_preauth, &LOCK_status);
       return 1;
