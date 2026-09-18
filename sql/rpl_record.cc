@@ -22,6 +22,9 @@
 #include "slave.h"                  // Need to pull in slave_print_msg
 #include "rpl_utility.h"
 #include "rpl_rli.h"
+/* MDEV-39143: Item_func_json_insert / _remove / _format */
+#include "item_jsonfunc.h"
+#include "sql_array.h"           // Dynamic_array
 
 /*
 
@@ -274,6 +277,410 @@ static void convert_field(Field *result_field, Field *conv_field)
 }
 
 
+/*
+  One decoded MySQL JSON diff from a PARTIAL_UPDATE_ROWS_EVENT.  'path' points
+  at the JSON path text and 'value' at the diff's new value in MySQL binary
+  JSON (JSONB); both point into the row buffer.  'value' is NULL for REMOVE.
+*/
+enum enum_mysql_json_diff_op
+{
+  MYSQL_JSON_DIFF_REPLACE= 0,
+  MYSQL_JSON_DIFF_INSERT=  1,
+  MYSQL_JSON_DIFF_REMOVE=  2
+};
+
+struct Mysql_json_diff
+{
+  enum_mysql_json_diff_op op;
+  const char  *path;
+  size_t       path_length;
+  const uchar *value;                           // NULL for REMOVE
+  size_t       value_length;
+};
+
+
+/**
+   Decode a MySQL Json_diff_vector, the payload of one partial JSON column in
+   the after-image of a PARTIAL_UPDATE_ROWS_EVENT.  The format, specified by
+   MySQL WL#2955 section 4, F3, is
+
+     [ length : 4 bytes ] [ diff_1 ] ... [ diff_N ]
+
+   where 'length' counts the bytes of the diffs that follow (not itself), and
+   each diff is
+
+     [ op : 1 ] [ path_length : net_field_length ] [ path : path_length ]
+     ( [ value_length : net_field_length ] [ value : value_length ] )?
+
+   the value part being present if and only if op is not REMOVE.  The number
+   of diffs is not stored; they are read until 'length' bytes are consumed.
+
+   @param[in,out] row_image_pos
+                  The caller's read cursor into the row image.  On entry it
+                  points at the 4-byte length prefix; on success it is
+                  advanced to one past the last diff, i.e. to the next
+                  column's data.  On failure it is left untouched, so the
+                  caller must not rely on it to locate the error.
+   @param[in]     end
+                  One past the last readable byte of the row image.  Only an
+                  upper bound for validation: the extent of the vector itself
+                  comes from its own length prefix, which is checked to fit
+                  within [*row_image_pos, end).  Every path and value length
+                  is likewise checked against the vector's end, so a corrupt
+                  length cannot make this function read outside the buffer.
+   @param[out]    out
+                  Decoded diffs are *appended*; existing elements are kept, so
+                  the caller passes a fresh array unless it deliberately wants
+                  to accumulate.  On failure 'out' may already hold the diffs
+                  decoded before the bad one - a caller that continues after an
+                  error must clear it.
+
+                  The 'path' and 'value' members point *into* the row image
+                  rather than at copies, so the decoded diffs are only valid
+                  while that buffer lives.  'value' is NULL and 'value_length'
+                  is 0 for a REMOVE diff.  Values are still MySQL binary JSON
+                  here; decoding them to text is the caller's job.
+
+   @retval false  Success; the whole vector was consumed.
+   @retval true   The buffer is truncated or corrupt (a length runs past the
+                  end of the vector, or an unknown operation code), or the
+                  array could not grow.  Note the MariaDB convention: true
+                  means failure.
+*/
+static bool read_mysql_json_diff_vector(const uchar **row_image_pos,
+                                        const uchar *end,
+                                        Dynamic_array<Mysql_json_diff> &out)
+{
+  const uchar *ptr= *row_image_pos;
+  if (end - ptr < 4)
+    return true;
+  size_t length= uint4korr(ptr);
+  ptr+= 4;
+  if ((size_t) (end - ptr) < length)
+    return true;
+  const uchar *const diffs_end= ptr + length;
+
+  while (ptr < diffs_end)
+  {
+    Mysql_json_diff diff;
+    diff.op= (enum_mysql_json_diff_op) *ptr++;
+    if (diff.op > MYSQL_JSON_DIFF_REMOVE)
+      return true;
+
+    size_t avail= (size_t) (diffs_end - ptr);
+    diff.path_length= (size_t) safe_net_field_length_ll((uchar**) &ptr, avail);
+    if ((size_t) (diffs_end - ptr) < diff.path_length)
+      return true;
+    diff.path= (const char*) ptr;
+    ptr+= diff.path_length;
+
+    if (diff.op == MYSQL_JSON_DIFF_REMOVE)
+    {
+      diff.value= NULL;
+      diff.value_length= 0;
+    }
+    else
+    {
+      avail= (size_t) (diffs_end - ptr);
+      diff.value_length= (size_t) safe_net_field_length_ll((uchar**) &ptr,
+                                                           avail);
+      if ((size_t) (diffs_end - ptr) < diff.value_length)
+        return true;
+      diff.value= ptr;
+      ptr+= diff.value_length;
+    }
+
+    if (out.append(diff))
+      return true;                              // out of memory
+  }
+
+  *row_image_pos= diffs_end;
+  return false;
+}
+
+
+/**
+   Decide which MariaDB function an INSERT diff corresponds to.
+
+   MySQL's Json_diff has a single INSERT operation, but its meaning depends
+   on what the path points at: sql-common/json_diff.h and WL#2955 section 4,
+   F3 define it as JSON_ARRAY_INSERT() when the path names an array cell and
+   JSON_INSERT() when it names an object member.  The two differ for a cell
+   that already exists - JSON_ARRAY_INSERT shifts the remaining elements
+   right, while JSON_INSERT does nothing at all because the path is already
+   present - so picking the wrong one corrupts the document silently.
+
+   @param path_obj    Scratch path parser, its steps array already
+                      initialised; reused across the diffs of one column.
+   @param path        The diff's path text.
+   @param path_length Its length in bytes.
+   @param[out] is_array_cell
+                      True if the path's last step selects an array cell.
+   @param[out] is_from_end
+                      True if that step counts from the end of the array,
+                      i.e. it was written as '[last]' or '[last-N]'.  Such a
+                      path is stored with a negative n_item.  The caller
+                      refuses these for now; see the note in
+                      apply_partial_json_column().
+
+   @retval false  Path parsed; both out-parameters are set.
+   @retval true   The path could not be parsed.
+*/
+static bool json_diff_path_is_array_cell(json_path_t *path_obj,
+                                         const char *path,
+                                         size_t path_length,
+                                         bool *is_array_cell,
+                                         bool *is_from_end)
+{
+  if (json_path_setup(path_obj, &my_charset_utf8mb4_bin,
+                      (const uchar *) path,
+                      (const uchar *) path + path_length))
+    return true;
+
+  const json_path_step_t *last_step=
+    ((const json_path_step_t *) path_obj->steps.buffer) +
+    path_obj->last_step_idx;
+  *is_array_cell= (last_step->type & JSON_PATH_ARRAY) != 0;
+  *is_from_end= *is_array_cell && last_step->n_item < 0;
+  return false;
+}
+
+
+/**
+   Apply one partial-JSON column of a MySQL PARTIAL_UPDATE_ROWS_EVENT
+   after-image.
+
+   A partial column carries a Json_diff vector rather than a value, so it
+   cannot go through the normal unpack path: there is nothing to unpack into
+   the conversion table and copy out with convert_field().  Instead the base
+   document is taken from the matched row, the diffs are applied to it in
+   order, and the resulting text is stored into the slave field directly.
+
+   The base document is the *before-image*, which lives in record[1] while
+   record[0] is being built.  The field is temporarily shifted there to read
+   it (move_field_offset()), matching MySQL, which applies diffs to the
+   field's current value.
+
+   Each diff is folded through MariaDB's own JSON functions, so the result
+   matches what the corresponding SQL function would produce:
+
+     REPLACE -> JSON_REPLACE, INSERT -> JSON_INSERT, REMOVE -> JSON_REMOVE
+
+   applied one at a time, each result feeding the next.  A diff value arrives
+   as MySQL binary JSON and is decoded to text by storing it into
+   \a conv_field (a Field_mysql_json) and reading it back; the text is then
+   wrapped in JSON_COMPACT() so that JSON_INSERT/JSON_REPLACE treat it as a
+   JSON value rather than as a quoted string.
+
+   The Items built for this are created on a private THD::free_list which is
+   released here, so their internal buffers do not accumulate until the end
+   of the statement.
+
+   @param rgi     Relay group info; supplies the THD the Items are built on.
+   @param table   The slave table.  Used to locate the before-image, i.e.
+                  the distance between record[0] and record[1].
+   @param result_field
+                  The slave's JSON (or text) field, in record[0].  Receives
+                  the document produced by applying the diffs, and is set
+                  NOT NULL.
+   @param conv_field
+                  The conversion-table Field_mysql_json for this column,
+                  used purely as a binary-JSON-to-text decoder for the diff
+                  values.  Must not be NULL: a partial JSON column always
+                  has a conversion field, since the source type is never
+                  native to MariaDB.
+   @param[in,out] state
+                  Unpack state.  Its pack_ptr is advanced past the diff
+                  vector that this call consumes, so the caller continues
+                  with the next column.  Left unchanged if the vector is
+                  corrupt.
+   @param row_end One past the last readable byte of the row image, bounding
+                  the diff decoding.
+
+   @retval 0                    Success; result_field holds the new document.
+   @retval HA_ERR_CORRUPT_EVENT The diff vector is truncated or malformed.
+   @retval HA_ERR_GENERIC       The before-image was NULL, or building or
+                                evaluating one of the JSON functions failed.
+                                An error has been raised on the THD.
+
+   @note Known gaps, tracked in the MDEV-39143 design document:
+         - MySQL distinguishes a REJECTED diff (the path does not match, so
+           the value is left alone and replication continues) from a real
+           error.  Here every failure stops the SQL thread.
+         - The NULL before-image case raises a placeholder ER_UNKNOWN_ERROR.
+*/
+static int apply_partial_json_column(const rpl_group_info *rgi, TABLE *table,
+                                     Field *result_field, Field *conv_field,
+                                     Unpack_record_state &state,
+                                     const uchar *row_end)
+{
+  Dynamic_array<Mysql_json_diff> diffs((PSI_memory_key) PSI_NOT_INSTRUMENTED);
+  const uchar *ptr= state.pack_ptr;
+  if (read_mysql_json_diff_vector(&ptr, row_end, diffs))
+    return HA_ERR_CORRUPT_EVENT;
+  state.pack_ptr= ptr;
+
+  THD *thd= rgi->thd;
+  DBUG_ASSERT(conv_field);
+
+  /* Read the before-image JSON value (found row is in record[1]). */
+  my_ptrdiff_t bi_offset= (my_ptrdiff_t) (table->record[1] - table->record[0]);
+  result_field->move_field_offset(bi_offset);
+  bool base_is_null= result_field->is_null();
+  String base_buf;
+  String *base= base_is_null ? NULL : result_field->val_str(&base_buf);
+  result_field->move_field_offset(-bi_offset);
+  if (base_is_null || !base)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+      "MDEV-39143: partial JSON update with no base value (slave out of sync)",
+      MYF(0));
+    return HA_ERR_GENERIC;
+  }
+
+  String cur;
+  if (cur.copy(*base))
+    return HA_ERR_GENERIC;
+
+  /*
+    Build and evaluate the JSON functions on a private free_list, then release
+    them (and their internal buffers) here with free_items(), instead of
+    letting them accumulate until end of statement.
+  */
+  Item *const save_free_list= thd->free_list;
+  thd->free_list= NULL;
+  int rc= 0;
+
+  /* Reused by every INSERT diff of this column to classify its path. */
+  json_path_t diff_path;
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM,
+                              &diff_path.steps, sizeof(json_path_step_t),
+                              NULL, JSON_DEPTH_DEFAULT, JSON_DEPTH_INC,
+                              MYF(0));
+
+  for (size_t k= 0; k < diffs.elements() && !rc; k++)
+  {
+    const Mysql_json_diff &diff= diffs.at(k);
+    List<Item> args;
+    Item *doc_it= new (thd->mem_root)
+      Item_string(thd, cur.ptr(), (uint) cur.length(), cur.charset());
+    Item *path_it= new (thd->mem_root)
+      Item_string(thd, diff.path, (uint) diff.path_length,
+                  &my_charset_utf8mb4_bin);
+    if (!doc_it || !path_it ||
+        args.push_back(doc_it, thd->mem_root) ||
+        args.push_back(path_it, thd->mem_root))
+    { rc= HA_ERR_GENERIC; break; }
+
+    Item *func;
+    if (diff.op == MYSQL_JSON_DIFF_REMOVE)
+      func= new (thd->mem_root) Item_func_json_remove(thd, args);
+    else
+    {
+      /*
+        Point conv_field directly at the diff's raw JSONB bytes, the same way
+        Field_blob::unpack() hands a normal blob column its wire bytes.
+        Field::store() must not be used here: Field_mysql_json is built with
+        a fixed field_charset() of utf8mb4_bin (mysql_json.cc), so store()
+        would run the bytes through well_formed_copy_with_check() and reject
+        them the moment a structural byte (e.g. a multi-byte JSONB length,
+        needed once a string exceeds 127 bytes) is not valid standalone
+        UTF-8.  JSONB is binary data, not text, and must reach val_str()
+        unmodified; set_ptr() bypasses charset handling entirely, exactly
+        like the ordinary full-document unpack path already does.
+      */
+      ((Field_blob *) conv_field)->set_ptr(diff.value_length,
+                                           const_cast<uchar *>(diff.value));
+      String vbuf, *vtext= conv_field->val_str(&vbuf);
+      if (!vtext)
+      { rc= HA_ERR_GENERIC; break; }
+      /*
+        Copy the decoded value onto the statement mem_root (val_str's buffer is
+        transient) and wrap it in JSON_COMPACT, so JSON_INSERT/REPLACE inserts
+        it as a JSON value rather than a quoted string.
+      */
+      char *vdup= (char *) thd->memdup(vtext->ptr(), vtext->length());
+      Item *v_it= vdup ? new (thd->mem_root)
+        Item_string(thd, vdup, (uint) vtext->length(), vtext->charset())
+        : NULL;
+      Item *val_json= v_it ? new (thd->mem_root)
+        Item_func_json_format(thd, v_it, Item_func_json_format::COMPACT)
+        : NULL;
+      if (!val_json || args.push_back(val_json, thd->mem_root))
+      { rc= HA_ERR_GENERIC; break; }
+      if (diff.op == MYSQL_JSON_DIFF_INSERT)
+      {
+        /*
+          An INSERT on an array cell is JSON_ARRAY_INSERT, on an object
+          member JSON_INSERT.  See json_diff_path_is_array_cell().
+        */
+        bool is_array_cell= false, is_from_end= false;
+        if (json_diff_path_is_array_cell(&diff_path, diff.path,
+                                         diff.path_length, &is_array_cell,
+                                         &is_from_end))
+        {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "MDEV-39143: unparsable JSON path in a partial "
+                          "JSON update: '%.*s'", MYF(0),
+                          (int) diff.path_length, diff.path);
+          rc= HA_ERR_GENERIC;
+          break;
+        }
+        /*
+          Refuse rather than diverge silently.  MySQL emits an array-cell
+          INSERT only for a cell that does not exist, which for a
+          from-the-end index means it clamped the position to 0 and
+          prepended.  MariaDB's JSON_ARRAY_INSERT resolves '[last-N]'
+          differently - it appends when the index goes negative, and is off
+          by one even in range - so applying the diff here would store a
+          document that differs from the source with no error raised.  Stop
+          the SQL thread instead; a wrong row that replication reports as
+          applied is worse than a halt.  Lift this once JSON_ARRAY_INSERT
+          resolves such paths the same way the other JSON functions do.
+        */
+        if (is_array_cell && is_from_end)
+        {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "MDEV-39143: cannot apply a partial JSON update "
+                          "that inserts at a from-the-end array index: "
+                          "path '%.*s' on %s.%s.%s. MariaDB's "
+                          "JSON_ARRAY_INSERT resolves '[last-N]' "
+                          "differently from MySQL, so the result would "
+                          "silently differ from the source.", MYF(0),
+                          (int) diff.path_length, diff.path,
+                          table->s->db.str, table->s->table_name.str,
+                          result_field->field_name.str);
+          rc= HA_ERR_GENERIC;
+          break;
+        }
+        func= is_array_cell ?
+          (Item *) new (thd->mem_root) Item_func_json_array_insert(thd, args)
+          : (Item *) new (thd->mem_root) Item_func_json_insert(true, false,
+                                                               thd, args);
+      }
+      else
+        func= new (thd->mem_root) Item_func_json_insert(false, true,
+                                                        thd, args);
+    }
+    if (!func || func->fix_fields(thd, &func))
+    { rc= HA_ERR_GENERIC; break; }
+    String rbuf, *res= func->val_str(&rbuf);
+    if (!res || func->null_value || cur.copy(*res))
+    { rc= HA_ERR_GENERIC; break; }
+  }
+
+  thd->free_items();
+  thd->free_list= save_free_list;
+  if (rc)
+    return rc;
+
+  result_field->set_notnull();
+  if (result_field->store(cur.ptr(), cur.length(), cur.charset()))
+    return HA_ERR_GENERIC;
+  return 0;
+}
+
+
 /**
    Unpack a row into @c table->record[0].
 
@@ -307,6 +714,16 @@ static void convert_field(Field *result_field, Field *conv_field)
    @param row_end
                   Pointer to variable that will hold the value of the
                   end position for the data in the row event
+   @param is_partial_json_after_image
+                  True when unpacking the after-image of a MySQL
+                  PARTIAL_UPDATE_ROWS_EVENT (binlog_row_value_options=
+                  PARTIAL_JSON on the source).  Such an image starts with a
+                  value_options integer and, if that has PARTIAL_JSON_UPDATES
+                  set, a partial_bits bitmap with one bit per JSON column of
+                  the source table; a JSON column whose bit is set carries a
+                  diff vector instead of a full value.  Must be false for a
+                  before-image, which never has that header and never carries
+                  diffs, and for every other event type.
 
    @retval 0 No error
 
@@ -315,11 +732,11 @@ static void convert_field(Field *result_field, Field *conv_field)
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
-
 int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
                uchar const *const row_data, MY_BITMAP const *cols,
                uchar const **const current_row_end,
-               uchar const *const row_end)
+               uchar const *const row_end,
+               bool is_partial_json_after_image)
 {
   int error;
   bool null_value;
@@ -328,7 +745,33 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
   DBUG_ASSERT(table);
   DBUG_ASSERT(rgi);
 
-  Unpack_record_state st(row_data, row_end, (bitmap_bits_set(cols) + 7) / 8);
+  const uchar *rec_ptr= row_data;
+
+  /*
+    A MySQL PARTIAL_UPDATE_ROWS_EVENT update after-image is prefixed with a
+    value_options integer and, when it has the PARTIAL_JSON_UPDATES bit set, a
+    partial_bits bitmap carrying one bit per JSON column in the master table
+    (see MySQL sql/log_event.cc).  Read past this header so the null bits and
+    column values are unpacked from the correct offset.
+  */
+  const uchar *pj_partial_bits= NULL;   // set for a PARTIAL_JSON after-image
+  uint pj_json_col= 0;             // running index over master JSON columns
+  if (is_partial_json_after_image)
+  {
+    const uint PARTIAL_JSON_UPDATES= 1;
+    const table_def *pj_tabledef=
+      &((RPL_TABLE_LIST*) table->pos_in_table_list)->m_tabledef;
+    size_t avail= (size_t) (row_end - rec_ptr);
+    ulonglong value_options=
+      safe_net_field_length_ll((uchar**) &rec_ptr, avail);
+    if (value_options & PARTIAL_JSON_UPDATES)
+    {
+      pj_partial_bits= rec_ptr;
+      rec_ptr+= (pj_tabledef->json_column_count() + 7) / 8;
+    }
+  }
+
+  Unpack_record_state st(rec_ptr, row_end, (bitmap_bits_set(cols) + 7) / 8);
 
   if (bitmap_is_clear_all(cols))
   {
@@ -371,6 +814,19 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
     for (uint master_idx= 0; master_idx < master_cols; master_idx++)
     {
       Field *field=NULL, *conv_field= NULL;
+      /*
+        A partial JSON after-image carries one partial_bits entry per master
+        JSON column, in column order, regardless of image/null.  Advance the
+        index for every JSON column and remember whether this one is a diff.
+      */
+      bool is_partial_col= false;
+      if (pj_partial_bits &&
+          tabledef->binlog_type(master_idx) == MYSQL_TYPE_JSON_MYSQL)
+      {
+        is_partial_col= (pj_partial_bits[pj_json_col / 8] &
+                         (1 << (pj_json_col % 8))) != 0;
+        pj_json_col++;
+      }
       /*
         Check 1: Skip unpacking if the field wasn't written in this record.
         This can happen for update row events when the before_image and
@@ -442,6 +898,15 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
                                 result_field->field_name.str, master_idx));
       DBUG_ASSERT(field != NULL);
 
+      if (is_partial_col)
+      {
+        int pj_err= apply_partial_json_column(rgi, table, result_field,
+                                              conv_field, st, row_end);
+        if (pj_err)
+          DBUG_RETURN(pj_err);
+      }
+      else
+      {
       bool unpack_result= st.unpack_field(tabledef, field, master_idx);
       if (!unpack_result)
       {
@@ -474,6 +939,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
        */
       if (conv_field)
         convert_field(result_field, conv_field);
+      }
     }
   }
   else

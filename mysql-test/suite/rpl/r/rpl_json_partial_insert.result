@@ -1,0 +1,36 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+INSTALL SONAME 'type_mysql_json';
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+call mtr.add_suppression("MDEV-39143: cannot apply a partial JSON update");
+call mtr.add_suppression("Slave SQL.*Error executing row event");
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1105]
+# Slave stopped, Last_SQL_Error matches the expected refusal:
+# Could not execute MySQL Update_rows_partial event on table jsontest.t1; MDEV-39143: cannot apply a partial JSON update that inserts at a from-the-end array index: path '$.arr[last-9]' on jsontest.t1.j. MariaDB's JSON_ARRAY_INSERT resolves '[last-N]' differently from MySQL, so the result would silently differ from the source., Error_code: 1105; handler error HA_ERR_GENERIC; the event's master log master-bin.000001, end_log_pos 2453
+#
+# Rows applied before the halt: id=1 got its object-member INSERT and
+# id=2 its array append.  id=3 and id=4 keep the inserted values.
+SELECT id, JSON_QUERY(j,'$.arr') AS arr, JSON_VALUE(j,'$.newkey') AS newkey
+FROM jsontest.t1 ORDER BY id;
+id	arr	newkey
+1	[1, 2, 3]	added
+2	[1, 2, 3, 99]	NULL
+3	[1, 2, 3]	NULL
+4	[1, 2, 3]	NULL
+connection slave;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+DROP DATABASE jsontest;
+CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+connection master;
+connection slave;
+UNINSTALL SONAME 'type_mysql_json';
+include/rpl_end.inc

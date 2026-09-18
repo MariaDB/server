@@ -59,6 +59,7 @@
 
 
 --connection slave
+INSTALL SONAME 'type_mysql_json';
 --source include/stop_slave.inc
 
 --connection master
@@ -99,14 +100,26 @@ CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=2297;
 START SLAVE IO_THREAD;
 START SLAVE SQL_THREAD;
 --source include/wait_for_slave_io_to_start.inc
---let $slave_sql_errno= 1594
---source include/wait_for_slave_sql_error.inc
+
+# MDEV-39143: PARTIAL_UPDATE_ROWS_EVENT is now applied instead of rejected.
+# Wait for the JSON_REPLACE partial update (the last event in the injected
+# file) to reach t2, rather than for a fixed position, since the exact byte
+# offset is fragile against any future re-recording of the fixture.
+# LIKE avoids '$' which mysqltest would interpolate inside --let; the
+# repeating unit is 3 chars ('oOo'), so 'oOooOo' is the substring it produces.
+--let $wait_condition= SELECT COUNT(*)=1 FROM test.t2 WHERE a=1 AND b LIKE '%oOooOo%'
+--source include/wait_condition.inc
 
 SELECT * FROM t1 ORDER BY a;
 SELECT * FROM t2 ORDER BY a;
 
-STOP SLAVE IO_THREAD;
---source include/wait_for_slave_io_to_stop.inc
+# The SQL thread is genuinely caught up and running now that the partial
+# JSON update applies instead of erroring, so both threads must be stopped
+# before CHANGE MASTER (STOP SLAVE IO_THREAD alone left it running here
+# before MDEV-39143, when the SQL thread had already halted on the event 39
+# rejection).
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
 # Restart replication after the MySQL 8.0 file.
 CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4;
 START SLAVE IO_THREAD;
@@ -116,8 +129,8 @@ START SLAVE SQL_THREAD;
 --sync_with_master
 
 DROP TABLE t1, t2;
+UNINSTALL SONAME 'type_mysql_json';
 CALL mtr.add_suppression('TRANSACTION_PAYLOAD_EVENT event. You can avoid this event by specifying');
-CALL mtr.add_suppression('PARTIAL_UPDATE_ROWS_EVENT event. You can avoid this event by specifying');
 
 --connection master
 --source include/rpl_end.inc

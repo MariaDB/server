@@ -1,0 +1,95 @@
+# MDEV-39143: INSERT diffs in a MySQL partial JSON update.
+#
+# Companion to rpl_json_partial_update.test and driven the same way - see the
+# header there for how the recorded MySQL binlog is injected.  The fixture,
+# std_data/mdev39143_partial_json_insert.000001, was recorded on MySQL 9.2
+# with binlog_row_value_options=PARTIAL_JSON from:
+#
+#   UPDATE t1 SET j=JSON_SET(j,'$.newkey','added')  WHERE id=1;
+#   UPDATE t1 SET j=JSON_SET(j,'$.arr[7]',99)       WHERE id=2;
+#   UPDATE t1 SET j=JSON_SET(j,'$.arr[last-9]',77)  WHERE id=3;
+#   UPDATE t1 SET j=JSON_SET(j,'$.arr[1]',55)       WHERE id=4;
+#   UPDATE t1 SET j=JSON_REMOVE(j,'$.arr[2]')       WHERE id=4;
+#
+# MySQL logs the first as an INSERT diff on an object-member path and the
+# next two as INSERT diffs on array-cell paths; its own mysqlbinlog renders
+# them as JSON_INSERT, JSON_ARRAY_INSERT and JSON_ARRAY_INSERT respectively.
+# The slave must make the same distinction: id=3 is the discriminating case,
+# where the path resolves before the start of the array so the value is
+# prepended and the existing elements shift right.  JSON_INSERT would leave
+# the document untouched there, silently.
+#
+# MySQL's own contents after those updates, read from the source table:
+#   id=1 arr [1, 2, 3]     newkey "added"
+#   id=2 arr [1, 2, 3, 99]
+#   id=3 arr [77, 1, 2, 3]
+#   id=4 arr [1, 55]
+#
+# id=3 cannot be applied correctly yet and the slave deliberately stops on
+# it.  MySQL emits an array-cell INSERT only for a cell that does not exist,
+# which for '[last-9]' means it clamped the position to 0 and prepended.
+# MariaDB's JSON_ARRAY_INSERT resolves a from-the-end index differently - it
+# appends once the index goes negative, and is off by one even in range -
+# while JSON_EXTRACT, JSON_REPLACE and JSON_REMOVE all agree with MySQL on
+# the same paths.  That looks like a pre-existing JSON_ARRAY_INSERT bug
+# reachable from plain SQL, so rather than store a document that silently
+# differs from the source, the apply path refuses the diff and halts.
+#
+# This test therefore asserts the halt, and that the diffs before it applied
+# correctly: id=1 (object member) and id=2 (array append, where both
+# functions agree).  id=4's REPLACE and REMOVE come after the failing event
+# and are not reached.  When JSON_ARRAY_INSERT is fixed, drop the guard in
+# apply_partial_json_column() and this test should expect MySQL's values
+# above for all four rows.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+INSTALL SONAME 'type_mysql_json';
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+--remove_file $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mdev39143_partial_json_insert.000001 $datadir/master-bin.000001
+--source include/rpl_start_server.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+call mtr.add_suppression("MDEV-39143: cannot apply a partial JSON update");
+call mtr.add_suppression("Slave SQL.*Error executing row event");
+START SLAVE;
+
+# The slave must stop on the id=3 diff rather than apply it.
+--let $slave_sql_errno= 1105
+--source include/wait_for_slave_sql_error.inc
+--let $err= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--echo # Slave stopped, Last_SQL_Error matches the expected refusal:
+--echo # $err
+
+--echo #
+--echo # Rows applied before the halt: id=1 got its object-member INSERT and
+--echo # id=2 its array append.  id=3 and id=4 keep the inserted values.
+SELECT id, JSON_QUERY(j,'$.arr') AS arr, JSON_VALUE(j,'$.newkey') AS newkey
+  FROM jsontest.t1 ORDER BY id;
+
+# Cleanup.
+# The SQL thread is already stopped by the error above, so only
+# the IO thread needs stopping before CHANGE MASTER; wait_for_slave_to_stop
+# would itself fail on the pending Last_SQL_Error.
+--connection slave
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+DROP DATABASE jsontest;
+CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+--connection master
+--save_master_pos
+--connection slave
+--sync_with_master
+UNINSTALL SONAME 'type_mysql_json';
+--source include/rpl_end.inc
