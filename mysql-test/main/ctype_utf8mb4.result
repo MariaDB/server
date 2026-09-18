@@ -1546,9 +1546,9 @@ id	a	b
 11	bbbbbb	60
 SELECT id, a, b FROM t1 WHERE a BETWEEN 'aaaa' AND 'bbbbbb';
 id	a	b
+6	bbbbbb	40
 8	aaaa	10
 9	aaaa	50
-6	bbbbbb	40
 11	bbbbbb	60
 SELECT id, a FROM t1 WHERE a='bbbbbb';
 id	a
