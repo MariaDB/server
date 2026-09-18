@@ -516,9 +516,25 @@ bool Item::vcol_subst_analyzer(uchar **)
            (((Item_func*)this)->bitmap_bit() & allowed_cmp_funcs))); // (2)
 }
 
+/*
+  @brief
+    Check if the comparison of `rhs` with the vcol expression and with the
+    vcol field give the same result, although the field is not a supertype
+    to the expression.
+
+  @detail
+    Storing the expression's value into the field can be lossy here, but a
+    lossy conversion of a value of the expression's data type can only
+    produce an extreme value of the field's domain (numbers are clamped,
+    strings are truncated). So the comparison survives the conversion if
+    `rhs` lies strictly inside that domain, and is exactly representable in
+    the data type of the expression.
+*/
+
 static bool vcol_type_both_bounded(Field *vcol_field, Item *vcol_expr, Item *rhs)
 {
-  return vcol_field->is_supertype(rhs) && vcol_expr->is_supertype(rhs);
+  return vcol_field->is_const_strictly_inside_domain(rhs) &&
+         vcol_expr->is_supertype(rhs);
 }
 
 Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
@@ -532,13 +548,17 @@ Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
   if (!args[0]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[1])))
   {
     vcol_expr= &args[1];
-    if (functype() == EQ_FUNC)
+    const Functype ftype= functype();
+    if (ftype == EQ_FUNC || ftype == LE_FUNC || ftype == GE_FUNC ||
+        ftype == LT_FUNC || ftype == GT_FUNC)
       other= args[0];
   }
   else if (!args[1]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[0])))
   {
     vcol_expr= &args[0];
-    if (functype() == EQ_FUNC)
+    const Functype ftype= functype();
+    if (ftype == EQ_FUNC || ftype == LE_FUNC || ftype == GE_FUNC ||
+        ftype == LT_FUNC || ftype == GT_FUNC)
       other= args[1];
   }
   else
