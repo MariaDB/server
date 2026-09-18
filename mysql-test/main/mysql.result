@@ -55,6 +55,41 @@ _
 Test  'go' command g
 a
 1
+_
+Test 'silent' command(no column names) S
+a	b
+1	x
+1	x
+_
+Test 'silent' command(overrides --table) S
+1	x
+_
+Test 'silent' command(overrides --vertical) S
+1	x
+_
+Test 'silent' command(already silent) S
+1	x
+_
+Test 'silent' command(next statement unaffected) S
+1
++---+
+| a |
++---+
+| 1 |
++---+
+1
+*************************** 1. row ***************************
+a: 1
+_
+Test 'silent' command(G unaffected) S
+1
+*************************** 1. row ***************************
+a: 1
+_
+Test 'silent' command(statement with a quoted delimiter) S
+analyze table t1;
+_
+Test 'silent' command(empty result and error) S
 drop table t1;
 create table t1(a int);
 lock tables t1 write;
