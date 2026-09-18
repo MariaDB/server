@@ -596,3 +596,21 @@ INSERT INTO tt VALUES (3,4);
 SELECT * FROM tt;
 
 DROP TABLE tt;
+
+--echo #
+--echo # MDEV-40490: SET NEW = (row subquery) in a trigger silently
+--echo # assigns NULL to all columns and skips the single-row check
+--echo #
+
+CREATE TABLE src (a INT, b INT);
+INSERT INTO src VALUES (10,20);
+
+CREATE TABLE t (a INT, b INT) ;
+CREATE TRIGGER t_bi
+  BEFORE INSERT ON t FOR EACH ROW
+    SET NEW = (SELECT a,b FROM src);
+
+INSERT INTO t VALUES (1,2);
+SELECT a,b FROM t;
+
+DROP TABLE t, src;
