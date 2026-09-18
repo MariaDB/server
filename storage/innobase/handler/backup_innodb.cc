@@ -433,7 +433,6 @@ public:
 
     if (log_sys.backup_start(&old_size, thd))
     {
-    unlock_fail:
       log_sys.latch.wr_unlock();
       return reinterpret_cast<void*>(-1);
     }
@@ -455,12 +454,7 @@ public:
     if (log_sys.is_mmap_writeable()) /* FIXME: remove this */
     if (sink.id && sink.stream == sink.NO_STREAM)
     {
-      // log_src= log_sys.log.dup();
-      if (0 && log_src == OS_FILE_CLOSED)
-      {
-        // my_error(...);
-        goto unlock_fail;
-      }
+      log_src= log_sys.log.m_file;
 #ifndef _WIN32
       const std::string path{log_sys.get_archive_path(first_lsn)};
       log_dst= openat(target.fd, path.c_str(),
@@ -468,7 +462,6 @@ public:
       if (log_dst < 0)
       {
         log_sys.latch.wr_unlock();
-        std::ignore= close(log_src);
         my_error(ER_CANT_CREATE_FILE, MYF(0), path.c_str(), errno);
         return reinterpret_cast<void*>(-1);
       }
@@ -482,7 +475,6 @@ public:
       if (log_dst == INVALID_HANDLE_VALUE)
       {
         log_sys.latch.wr_unlock();
-        CloseHandle(log_src);
         my_error(ER_CANT_CREATE_FILE, MYF(0), path.c_str(), errno);
         return reinterpret_cast<void*>(-1);
       }
@@ -576,7 +568,7 @@ public:
     ut_ad(ctx.state != IDLE);
     ut_ad(ctx.last_lsn != LSN_MAX || phase == BACKUP_PHASE_START);
     if (ctx.is_log_tracking() && !sink.id)
-      return log_track(phase);
+      return log_track();
     uint64_t id_limit{0};
     mutex.wr_lock();
     size_t size{queue.size()};
@@ -638,17 +630,28 @@ public:
 
   /**
      Copy the log in real time.
-     @param phase   backup phase
      @return error code (never positive)
      @retval 0 on success
   */
-  int log_track(backup_phase phase) noexcept
+  int log_track() noexcept
   {
     ut_ad(ctx.is_log_tracking());
 #ifdef HAVE_PMEM
     if (log_sys.is_mmap())
       return log_track_pmem();
 #endif
+    return log_track_file(false);
+  }
+
+  /**
+     Copy the log in real time.
+     @param latched   whether log_sys.latch is being held
+     @return error code (never positive)
+     @retval 0 on success
+  */
+  int log_track_file(bool latched) noexcept
+  {
+    ut_ad(log_sys.latch_have_wr() == latched);
     ::abort(); // todo
     uint64_t begin{}, end{};
     int err;
@@ -849,7 +852,7 @@ public:
         else
 #endif
         {
-          ::abort();
+          ::abort(); // TODO
         }
 
         return false;
@@ -1015,7 +1018,9 @@ public:
           else
 #endif
           {
-            ::abort(); // TODO
+            ut_ad(ctx.log_src == log_sys.resize_log.m_file);
+            log_track_file(true);
+            ctx.log_src= log_sys.log.m_file;
           }
         }
         else if (ctx.last_lsn == LSN_MAX)
