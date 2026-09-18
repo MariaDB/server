@@ -1,4 +1,5 @@
 --source include/mysql_upgrade_preparation.inc
+--source include/have_innodb.inc
 
 --echo #
 --echo # MDEV-39993 mariadb-upgrade Drops Existing EXECUTE Grants on sys
