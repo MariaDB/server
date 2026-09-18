@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS sys_get_config;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION sys_get_config (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION sys_get_config (
         in_variable_name VARCHAR(128),
         in_default_value VARCHAR(128)
     )
