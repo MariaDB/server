@@ -63,6 +63,8 @@ set default_master_connection = '';
 stop slave sql_thread;
 --source include/wait_for_slave_sql_to_stop.inc
 change master to master_heartbeat_period=1;
+# This read is unchanged because it is against a connection that stopped and
+# thus should be stable.
 show status like 'Slave_received_heartbeats';
 start slave;
 --source include/wait_for_slave_to_start.inc
@@ -72,11 +74,18 @@ start slave;
 # The units are tens of seconds
 --let $status_timeout = 30 
 --source include/wait_for_status_var.inc
-show status like 'Slave_received_heartbeats';
+# The counter advances for as long as the connection is running, so recording
+# an exact value here races with the next heartbeat.  Check that it is
+# non-zero instead.
+--let $assert_text = Slave_received_heartbeats is non-zero for the default connection
+--let $assert_cond = [SHOW STATUS LIKE "Slave_received_heartbeats", Value, 1] > 0
+--source include/assert.inc
 stop slave;
 --source include/wait_for_slave_to_stop.inc
 
 set default_master_connection = 'master1';
+# This read is unchanged because it is against a connection that stopped and
+# thus should be stable.
 show status like 'Slave_received_heartbeats';
 
 stop slave;
@@ -89,7 +98,12 @@ start slave;
 --let $status_var_value = 1
 --let $status_timeout = 30
 --source include/wait_for_status_var.inc
-show status like 'Slave_received_heartbeats';
+# The counter advances for as long as the connection is running, so recording
+# an exact value here races with the next heartbeat.  Check that it is
+# non-zero instead.
+--let $assert_text = Slave_received_heartbeats is non-zero for the default connection
+--let $assert_cond = [SHOW STATUS LIKE "Slave_received_heartbeats", Value, 1] > 0
+--source include/assert.inc
 
 
 --echo #
