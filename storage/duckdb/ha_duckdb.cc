@@ -406,8 +406,6 @@ static bool calc_row_difference(const uchar *old_row, const uchar *new_row,
 
 /* check whether PK is modified */
 static bool calc_pk_difference(const uchar *old_row, const uchar *new_row,
-                               TABLE *table) __attribute__((unused));
-static bool calc_pk_difference(const uchar *old_row, const uchar *new_row,
                                TABLE *table)
 {
   KEY *key_info= table->key_info;
@@ -421,6 +419,23 @@ static bool calc_pk_difference(const uchar *old_row, const uchar *new_row,
       return true;
   }
   return false;
+}
+
+static int execute_idempotent_pk_update(THD *thd, TABLE *table,
+                                        const uchar *old_row)
+{
+  DeleteConvertor delete_old(table, old_row);
+  int ret= execute_dml(thd, &delete_old);
+  if (ret)
+    return ret;
+
+  DeleteConvertor delete_new(table);
+  ret= execute_dml(thd, &delete_new);
+  if (ret)
+    return ret;
+
+  InsertConvertor insert_new(table, true);
+  return execute_dml(thd, &insert_new);
 }
 
 static int get_batch_state(THD *thd, bool insert_only,
@@ -683,27 +698,55 @@ int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
   DBUG_ENTER("ha_duckdb::update_row");
   int ret= 0;
   THD *thd= ha_thd();
+  bool replication_applier= myduck::thd_is_replication_applier(thd);
+  bool pk_modified= calc_pk_difference(old_row, new_row, table);
 
   ret= duckdb_register_trx(thd);
   if (ret)
     DBUG_RETURN(ret);
+
+  if (!replication_applier && pk_modified)
+    table->rpl_write_set= &table->s->all_set;
 
   myduck::BatchState batch_state;
   ret= get_batch_state(thd, false, &batch_state);
   if (ret)
     DBUG_RETURN(ret);
 
-  if (batch_state == myduck::BatchState::NOT_IN_BATCH)
+  if (replication_applier && !pk_modified)
   {
-    if (update_modified_column_only &&
-        calc_row_difference(old_row, new_row, table))
+    auto *ctx= get_duckdb_context(thd);
+    std::string error_msg;
+    if (ctx->flush_appenders(error_msg))
     {
-      bitmap_copy(table->write_set, &table->tmp_set);
+      my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_APPEND_ERROR,
+               error_msg.c_str(), "DuckDB");
+      DBUG_RETURN(HA_DUCKDB_APPEND_ERROR);
     }
-    bitmap_clear_all(&table->tmp_set);
 
     UpdateConvertor update_convertor(table, old_row);
     ret= execute_dml(thd, &update_convertor);
+    if (ret == 0)
+      srv_duckdb_status.duckdb_rows_update++;
+    DBUG_RETURN(ret);
+  }
+
+  if (batch_state == myduck::BatchState::NOT_IN_BATCH)
+  {
+    if (replication_applier)
+      ret= execute_idempotent_pk_update(thd, table, old_row);
+    else
+    {
+      if (update_modified_column_only &&
+          calc_row_difference(old_row, new_row, table))
+      {
+        bitmap_copy(table->write_set, &table->tmp_set);
+      }
+      bitmap_clear_all(&table->tmp_set);
+
+      UpdateConvertor update_convertor(table, old_row);
+      ret= execute_dml(thd, &update_convertor);
+    }
     if (ret == 0)
       srv_duckdb_status.duckdb_rows_update++;
   }
@@ -716,8 +759,13 @@ int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
     else
     {
       ctx->set_batch_state(myduck::BatchState::NOT_IN_BATCH);
-      UpdateConvertor update_convertor(table, old_row);
-      ret= execute_dml(thd, &update_convertor);
+      if (replication_applier)
+        ret= execute_idempotent_pk_update(thd, table, old_row);
+      else
+      {
+        UpdateConvertor update_convertor(table, old_row);
+        ret= execute_dml(thd, &update_convertor);
+      }
       if (ret == 0)
         srv_duckdb_status.duckdb_rows_update++;
     }
