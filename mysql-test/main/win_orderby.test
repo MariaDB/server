@@ -178,3 +178,98 @@ drop table t;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+--echo #
+--echo # MDEV-39868: Wrong result (empty set) for a query with a window
+--echo #             function over a column of a merged derived table
+--echo #
+
+create table t1(c1 varchar(100) not null, key t1_k1 (c1));
+create table t2(c1 boolean, c2 int not null, key t2_k1 (c1, c2));
+create table t3(c1 varchar(100) not null, c2 int not null);
+
+insert into t1 values ('foo'), ('bar');
+insert into t2 values (false, 10);
+insert into t3 values ('foo', 10), ('bar', 20);
+
+--echo # t2 is accessed with "range checked for each record", and the value
+--echo # of subq.c2 used by the range optimizer must come from t3, not from
+--echo # the temporary table created for the window function.
+explain
+select avg(subq.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1);
+
+select avg(subq.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1);
+
+--echo # the same with the derived table materialized
+set optimizer_switch='derived_merge=off';
+select avg(subq.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1);
+set optimizer_switch='derived_merge=default';
+
+--echo # the same without a derived table
+select avg(subq.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join t3 as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1);
+
+--echo # the same without the range check on t2
+select avg(subq.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 ignore index (t2_k1) on (subq.c2 > t2.c1);
+
+--echo # the same via a view
+create view v3 as select * from t3;
+select avg(v3.c2) over () as col1, t2.c1 as col2
+from t1
+straight_join v3
+on (t1.c1 = v3.c1)
+straight_join t2 on (v3.c2 > t2.c1);
+drop view v3;
+
+--echo # an aggregate function with group by uses a temporary table too
+explain
+select avg(subq.c2) as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1)
+group by t2.c1;
+
+select avg(subq.c2) as col1, t2.c1 as col2
+from t1
+straight_join (
+select * from t3
+) as subq
+on (t1.c1 = subq.c1)
+straight_join t2 on (subq.c2 > t2.c1)
+group by t2.c1;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
