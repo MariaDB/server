@@ -1062,3 +1062,43 @@ CREATE EVENT ev1
 DO FETCH GROUP NEXT ROW;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-38004 Double free on repeated execution of prepared aggregate
+--echo # function against empty table in Query_arena::free_items()
+--echo #
+
+--delimiter |
+create aggregate function agg_cnt() returns int
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+1;
+end loop;
+end|
+--delimiter ;
+
+create table t1 (id int);
+prepare stmt from "select agg_cnt() from t1";
+execute stmt;
+execute stmt;
+insert into t1 values (1),(2),(2);
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+--echo #
+--echo # Compare with
+select agg_cnt() from t1;
+
+prepare stmt from "select id, agg_cnt() from t1 group by id with rollup";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+# Cleanup
+drop function agg_cnt;
+drop table t1;
+
+--echo # End of 10.11 tests
