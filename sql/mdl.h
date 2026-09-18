@@ -324,7 +324,8 @@ enum enum_mdl_type {
   Must be acquired during commit.
 */
 #define MDL_BACKUP_COMMIT enum_mdl_type(13)
-#define MDL_BACKUP_END enum_mdl_type(14)
+#define MDL_BACKUP_COMMIT_HIGH_PRIO enum_mdl_type(14)
+#define MDL_BACKUP_END enum_mdl_type(15)
 
 
 /** Duration of metadata lock. */

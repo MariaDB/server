@@ -1791,7 +1791,7 @@ int ha_commit_trans(THD *thd, bool all)
                                                         &no_rollback);
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans && rw_ha_count > 0;
-  MDL_request mdl_backup;
+  MDL_request mdl_request, *mdl_ptr= &mdl_request;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
@@ -1811,19 +1811,48 @@ int ha_commit_trans(THD *thd, bool all)
       We allow the owner of FTWRL to COMMIT; we assume that it knows
       what it does.
     */
-    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-
     if (!WSREP(thd))
     {
-      if (thd->mdl_context.acquire_lock(&mdl_backup,
+      rpl_group_info *rgi= thd->rgi_slave;
+      bool is_parallel_slave= rgi && rgi->is_parallel_exec &&
+                              rgi->gtid_sub_id > 0;
+
+      /*
+        Allocate the slave worker's MDL_request in the transaction
+        mem-root: the lock may have to outlive ha_commit_trans()'s frame
+        because, per MDEV-7458, an errored-out parallel-slave worker
+        defers rollback (and the paired MDL release) to cleanup_context.
+      */
+      if (is_parallel_slave)
+        mdl_ptr= new (&thd->transaction->mem_root) MDL_request();
+
+      /*
+        Parallel-slave: register and decide atomically. See
+        Backup_commit_team::join_and_decide() for the rule. The matrix
+        grants MDL_BACKUP_COMMIT_HIGH_PRIO past a waiting BACKUP X-request.
+      */
+      enum_mdl_type lock_type= MDL_BACKUP_COMMIT;
+      if (is_parallel_slave)
+        lock_type= rgi->rli->backup_team.join_and_decide(
+            rgi->current_gtid.domain_id, rgi->gtid_sub_id);
+
+      MDL_REQUEST_INIT(mdl_ptr, MDL_key::BACKUP, "", "", lock_type,
+                       MDL_EXPLICIT);
+
+      if (thd->mdl_context.acquire_lock(mdl_ptr,
                                         thd->variables.lock_wait_timeout))
       {
+        if (is_parallel_slave)
+          rgi->rli->backup_team.leave(rgi->current_gtid.domain_id,
+                                      rgi->gtid_sub_id);
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
         ha_rollback_trans(thd, all);
         DBUG_RETURN(1);
       }
-      thd->backup_commit_lock= &mdl_backup;
+      if (is_parallel_slave)
+        rgi->rli->backup_team.mark_granted(rgi->current_gtid.domain_id,
+                                           rgi->gtid_sub_id);
+      thd->backup_commit_lock= mdl_ptr;
     }
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
@@ -2073,18 +2102,26 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
-  // reset the pointer to the ticket when it's stack instantiated
-  if (thd->backup_commit_lock == &mdl_backup)
+  if (!(thd->rgi_slave && thd->rgi_slave->is_parallel_exec && error) &&
+      (mdl_ptr && thd->backup_commit_lock == mdl_ptr))
   {
     /*
       We do not always immediately release transactional locks
       after ha_commit_trans() (see uses of ha_enable_transaction()),
       thus we release the commit blocker lock as soon as it's
       not needed.
+      Errored-out slave parallel worker needs to keep it BACKUP lock
+      to be released at its cleanup before the MDEV-7458 deferred rollback.
      */
-    if (mdl_backup.ticket)
-      thd->mdl_context.release_lock(mdl_backup.ticket);
-    thd->backup_commit_lock= 0;
+    if (mdl_ptr->ticket)
+      thd->mdl_context.release_lock(mdl_ptr->ticket);
+    thd->backup_commit_lock= nullptr;
+    /* Paired with backup_team.join() above. */
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+        thd->rgi_slave->gtid_sub_id > 0)
+      thd->rgi_slave->rli->backup_team.leave(
+          thd->rgi_slave->current_gtid.domain_id,
+          thd->rgi_slave->gtid_sub_id);
   }
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
@@ -2238,6 +2275,23 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   if (is_real_trans)
   {
     thd->has_waiter= false;
+    if (!error && (thd->rgi_slave && thd->rgi_slave->is_parallel_exec) &&
+	thd->backup_commit_lock)
+    {
+      DBUG_ASSERT(thd->backup_commit_lock->ticket);
+      /*
+        As parallel slave allocates its BACKUP lock in transaction mem-root
+        the successful commit by slave must be followed with the lock release
+        before the mem-root is cleaned.
+      */
+      thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
+      thd->backup_commit_lock= nullptr;
+      /* Paired with backup_team.join() in ha_commit_trans. */
+      if (thd->rgi_slave->gtid_sub_id > 0)
+        thd->rgi_slave->rli->backup_team.leave(
+            thd->rgi_slave->current_gtid.domain_id,
+            thd->rgi_slave->gtid_sub_id);
+    }
     thd->transaction->cleanup();
     if (count >= 2)
       statistic_increment(transactions_multi_engine, LOCK_status);
@@ -2403,6 +2457,23 @@ int ha_rollback_trans(THD *thd, bool all)
       thd->transaction->xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+	thd->backup_commit_lock)
+    {
+      /*
+        MDL BACKUP unlocking by parallel slave is done after the transaction
+        rolls back. The MDL lock must be released before its memory allocation
+        in transaction root is cleaned.
+      */
+      thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
+      thd->backup_commit_lock= nullptr;
+      /* Paired with backup_team.join() in ha_commit_trans. */
+      if (thd->rgi_slave->gtid_sub_id > 0)
+        thd->rgi_slave->rli->backup_team.leave(
+            thd->rgi_slave->current_gtid.domain_id,
+            thd->rgi_slave->gtid_sub_id);
+    }
+
     thd->transaction->cleanup();
   }
   if (all)

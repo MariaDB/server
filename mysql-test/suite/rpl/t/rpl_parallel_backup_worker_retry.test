@@ -2,6 +2,11 @@
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
+#
+# The test for MDEV-37453 is adapted to MDEV-36025 fixes including
+# some comments. The latter bug-fixes extends the current scenario into few,
+# find rpl.rpl_parallel_backup_worker_retry.
+#
 --echo #
 --echo # MDEV-37453 Parallel Replication Crash During Backup
 --echo #
@@ -17,8 +22,9 @@
 # 2. At this point issue BACKUP commands of which BLOCK_COMMIT will
 #    later force the 2nd transaction to wait for the BACKUP MDL lock.
 # 3. Release locks to the 1st transaction which would kick the 2nd out
-#    of waiting-for-prior-commit only to return negative from the
-#    BACKUP MDL acquisition attempt (found itself killed).
+#    of waiting-for-prior-commit.
+#    MDEV-36025: it won't do
+#      BACKUP MDL re-acquisition attempt along the way to retry.
 # 4. Finally, prove of safety: the 2nd transaction retries successfully.
 
 --connection master
@@ -59,7 +65,9 @@ BEGIN;
 # While the 1st worker is locked out run backup
 --connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
 BACKUP STAGE START;
-BACKUP STAGE BLOCK_COMMIT;
+# MDEV-36025 changes the slave worker not to release BACKUP MDL which it
+# is holding see $wait_condition above.
+--send BACKUP STAGE BLOCK_COMMIT
 
 # release the 1st work
 --connection aux_slave
@@ -71,14 +79,29 @@ ROLLBACK;
 # that will kick the 2nd out of the current WfPTtC into next retry one
 --connection aux_slave
 --let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
---source include/wait_condition.inc
+source include/wait_condition.inc;
+
+# at same time BACKUP's request is still waiting
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+source include/wait_condition.inc;
 
 let $status_var_comparsion= >;
 --source include/wait_for_status_var.inc
 
+# BACKUP gets its lock granted by trx1
+--connection backup_slave
+reap;
+
+# which makes the retrying trx2 wait for it
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+source include/wait_condition.inc;
+
+# release BACKUP MDL
 --connection backup_slave
 BACKUP STAGE END;
 
+# and we're done
 --connection slave
 --sync_with_master
 
