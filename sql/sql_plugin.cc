@@ -525,6 +525,13 @@ static void free_plugin_mem(struct st_plugin_dl *p)
 }
 
 
+/* Silence plugin-load errors only on the startup error-log path, never at runtime. */
+static inline bool silent_plugin_startup(myf MyFlags)
+{
+  return opt_silent_startup && (MyFlags & ME_ERROR_LOG);
+}
+
+
 /**
   Reads data from mysql plugin interface
 
@@ -545,7 +552,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Determine interface version */
   if (!sym)
   {
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym,
                dlpath);
     DBUG_RETURN(TRUE);
@@ -666,7 +673,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       Actually this branch impossible because in case of absence of maria
       version we try mysql version.
     */
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_FIND_DL_ENTRY, MyFlags,
                maria_plugin_interface_version_sym, dlpath);
     DBUG_RETURN(TRUE);
@@ -782,7 +789,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
   /* Open new dll handle */
   if (!(plugin_dl.handle= dlopen(dlpath, RTLD_NOW)))
   {
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, errno,
                my_dlerror(dlpath));
     goto ret;
@@ -827,7 +834,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
         my_snprintf(buf, sizeof(buf),
                     "service '%s' interface version mismatch",
                     list_of_services[i].name);
-        if (!opt_silent_startup)
+        if (!silent_plugin_startup(MyFlags))
           my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC, buf);
         goto ret;
       }
@@ -1159,7 +1166,8 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
     if (!name->str &&
         (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
     {
-      if (plugin->name != maybe_dupe->plugin->name && !opt_silent_startup)
+      if (plugin->name != maybe_dupe->plugin->name &&
+          !silent_plugin_startup(MyFlags))
       {
         my_error(ER_UDF_EXISTS, MyFlags, plugin->name);
         DBUG_RETURN(INSTALL_FAIL_NOT_OK);
