@@ -35,20 +35,33 @@ COUNT(*)
 # ROW: replicated UPDATE (including a PK change) and DELETE
 connection master;
 SET SESSION binlog_format=ROW;
-CREATE TABLE t_upd (id INT PRIMARY KEY, v VARCHAR(16)) ENGINE=DuckDB;
-INSERT INTO t_upd VALUES (1, 'one'), (2, 'two'), (3, 'three');
+CREATE TABLE t_upd (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=DuckDB;
+INSERT INTO t_upd VALUES
+(1, 'one', 'keep-1'),
+(2, 'two', 'keep-2'),
+(3, 'three', 'keep-3');
+UPDATE t_upd SET v = 'TWO' WHERE id = 2;
+ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
+UPDATE t_upd SET id = 30, v = 'moved' WHERE id = 3;
+ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
+DELETE FROM t_upd WHERE id = 1;
+ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
 UPDATE t_upd SET v = 'TWO' WHERE v = 'two';
 UPDATE t_upd SET id = 30, v = 'moved' WHERE v = 'three';
 DELETE FROM t_upd WHERE v = 'one';
 SELECT * FROM t_upd ORDER BY id;
-id	v
-2	TWO
-30	moved
+id	v	untouched
+2	TWO	keep-2
+30	moved	keep-3
 connection slave;
 SELECT * FROM t_upd ORDER BY id;
-id	v
-2	TWO
-30	moved
+id	v	untouched
+2	TWO	keep-2
+30	moved	keep-3
 connection master;
 DELETE FROM t_upd;
 connection slave;
@@ -57,14 +70,39 @@ COUNT(*)
 0
 # MINIMAL row image: replicated UPDATE preserves unchanged columns
 connection master;
+SET GLOBAL duckdb_dml_in_batch=OFF;
 SET SESSION binlog_row_image=MINIMAL;
-INSERT INTO t_upd VALUES (1, 'one');
+INSERT INTO t_upd VALUES
+(1, 'one', 'must-survive'),
+(2, 'other', 'must-not-leak');
 UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
 connection slave;
-SELECT * FROM t_upd;
-id	v
-1	ONE
+SELECT * FROM t_upd WHERE id = 1;
+id	v	untouched
+1	ONE	must-survive
 connection master;
+UPDATE t_upd SET id = 20 WHERE v = 'other';
+connection slave;
+SELECT * FROM t_upd ORDER BY id;
+id	v	untouched
+1	ONE	must-survive
+20	other	must-not-leak
+UPDATE t_upd SET v = 'corrupt', untouched = 'corrupt' WHERE v = 'other';
+SELECT * FROM t_upd ORDER BY id;
+id	v	untouched
+1	ONE	must-survive
+20	corrupt	corrupt
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_LOG_FILE='REPLAY_FILE', MASTER_LOG_POS=REPLAY_POS, MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT * FROM t_upd ORDER BY id;
+id	v	untouched
+1	ONE	must-survive
+20	other	must-not-leak
+connection master;
+SET GLOBAL duckdb_dml_in_batch=ON;
 SET SESSION binlog_row_image=FULL;
 SET SESSION binlog_format=MIXED;
 DROP DATABASE mdev_40957_rpl;
