@@ -3279,3 +3279,96 @@ drop table t1,t2;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-35747 Prepared statement with WITH ... AS (VALUES ... ) returns
+#            wrong result
+#
+# The simplest form: a bare VALUES TVC as the prepared statement, no
+# CTE.  The column takes its type from the bound value, so a later
+# EXECUTE with a different type must report that new type.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+?
+1
+execute stmt using @v;
+?
+1
+set @v= 'abc';
+execute stmt using @v;
+?
+abc
+deallocate prepare stmt;
+# CTE whose body is a TVC with a parameter marker and an explicit column.
+prepare stmt from 'with t(id) as (values (?)) select t.id from t';
+set @v= 1;
+execute stmt using @v;
+id
+1
+execute stmt using @v;
+id
+1
+set @v= 'abc';
+execute stmt using @v;
+id
+abc
+deallocate prepare stmt;
+# Multi row VALUES with several parameter markers.
+prepare stmt from 'with t(id) as (values (?), (?)) select t.id from t order by id';
+set @v1= 10, @v2= 20;
+execute stmt using @v1, @v2;
+id
+10
+20
+execute stmt using @v1, @v2;
+id
+10
+20
+set @v1= 'aa', @v2= 'bb';
+execute stmt using @v1, @v2;
+id
+aa
+bb
+deallocate prepare stmt;
+# One row of several columns, so that each column has its own type
+# holder.  The two columns swap types between the executions.
+prepare stmt from 'with t(a,b) as (values (?,?)) select t.a, t.b from t';
+set @v1= 1, @v2= 'abc';
+execute stmt using @v1, @v2;
+a	b
+1	abc
+set @v1= 'xyz', @v2= 2;
+execute stmt using @v1, @v2;
+a	b
+xyz	2
+deallocate prepare stmt;
+# The column type below is computed again on each execution and
+# follows the value bound by that execution, so it reads as an
+# integer, then as NULL, then as an integer again.  Nullability
+# works differently.  A parameter marker has no value at PREPARE, so
+# the column is nullable from then on and nothing later clears that,
+# which is why Is_null stays Y throughout, including on the
+# execution that binds a value after the NULL.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	8	20	1	Y	32896	0	63
+?
+1
+set @v= NULL;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	254	0	0	Y	0	0	8
+?
+NULL
+set @v= 2;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	8	20	1	Y	32896	0	63
+?
+2
+deallocate prepare stmt;
+#
+# End of 10.11 tests
+#
