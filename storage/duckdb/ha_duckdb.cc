@@ -709,6 +709,22 @@ int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
   }
   else
   {
+    /*
+      The batched update is replayed as delete + insert of the complete
+      new row. A replicated after-image is complete only with
+      binlog_row_image=FULL; the columns missing from a partial image
+      hold defaults, not the actual values.
+    */
+    if (myduck::thd_is_replication_applier(thd) &&
+        !bitmap_is_set_all(table->write_set))
+    {
+      sql_print_warning("DuckDB: 'binlog_row_image' is not set to 'FULL', "
+                        "replicated UPDATE replay is not possible!");
+      my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_DML_ERROR,
+               "'binlog_row_image' is not set to 'FULL'", "DuckDB");
+      DBUG_RETURN(HA_DUCKDB_DML_ERROR);
+    }
+
     auto *ctx= get_duckdb_context(thd);
     ret= ctx->append_row_update(table, old_row);
     if (ret == 0)
@@ -912,6 +928,26 @@ int ha_duckdb::rnd_pos(uchar *, uchar *)
 {
   DBUG_ENTER("ha_duckdb::rnd_pos");
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+}
+
+/*
+  Read-free replication apply. Rows_log_event::find_row() unpacks the
+  event's before-image into record[0] before locating the row; with
+  HA_PRIMARY_KEY_REQUIRED_FOR_POSITION it locates it through this
+  method. DuckDB identifies rows by primary key taken from the record
+  itself, so no lookup is needed: report success and leave the
+  before-image in record[0].
+
+  Any caller outside of the replication applier (filesort, multi-table
+  UPDATE/DELETE) must keep getting an error: faking success there would
+  silently corrupt data.
+*/
+int ha_duckdb::rnd_pos_by_record(uchar *)
+{
+  DBUG_ENTER("ha_duckdb::rnd_pos_by_record");
+  if (!myduck::thd_is_replication_applier(ha_thd()))
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  DBUG_RETURN(0);
 }
 
 int ha_duckdb::info(uint flag)

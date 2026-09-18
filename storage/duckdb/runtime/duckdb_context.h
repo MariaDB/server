@@ -178,4 +178,7 @@ private:
     transaction.  DuckDB does not support XA. */
 bool reject_xa_if_active(THD *thd);
 
+/** Return true when THD is a replication applier thread. */
+bool thd_is_replication_applier(THD *thd);
+
 } // namespace myduck
