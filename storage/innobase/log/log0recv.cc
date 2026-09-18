@@ -1480,7 +1480,7 @@ void recv_sys_t::tmp_free() noexcept
 {
   if (tmp_buf)
   {
-    ut_free_dodump(tmp_buf, tmp_buf_size);
+    aligned_free(tmp_buf);
     tmp_buf= nullptr;
   }
 }
@@ -1869,8 +1869,16 @@ dberr_t recv_sys_t::find_checkpoint()
 
     if (!tmp_buf)
     {
-      tmp_buf= static_cast<byte*>
-        (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+      /*
+        recv_dblwr_t::validate_page() uses the start of tmp_buf as two page
+        frames, so tmp_buf gets the alignment that page frames are given
+        elsewhere.  The large page allocator is not used here because it
+        rounds the size up where the platform reports no huge page size,
+        and the rounded size is charged to the server memory accounting
+        while tmp_free() credits back only tmp_buf_size.
+      */
+      tmp_buf= static_cast<byte*>(aligned_malloc(tmp_buf_size,
+                                                 srv_page_size));
       if (!tmp_buf)
         return DB_OUT_OF_MEMORY;
     }
