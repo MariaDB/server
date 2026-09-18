@@ -1983,7 +1983,7 @@ inline buf_page_t *LRUItr::start() noexcept
 {
   mysql_mutex_assert_owner(m_mutex);
 
-  if (!m_hp || m_hp->old)
+  if (!m_hp || !m_hp->old)
     m_hp= UT_LIST_GET_LAST(buf_pool.LRU);
 
   return m_hp;
