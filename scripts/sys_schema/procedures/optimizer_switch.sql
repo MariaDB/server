@@ -13,12 +13,9 @@
 --  along with this program; if not, write to the Free Software
 --  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS optimizer_switch_choice;
-DROP PROCEDURE IF EXISTS optimizer_switch_on;
-DROP PROCEDURE IF EXISTS optimizer_switch_off;
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_choice(IN on_off VARCHAR(3))
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_choice(IN on_off VARCHAR(3))
 COMMENT 'return @@optimizer_switch options as a result set for easier readability'
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
@@ -47,7 +44,7 @@ BEGIN
   DROP TEMPORARY TABLE tmp_opt_switch;
 END$$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_on()
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_on()
 COMMENT 'return @@optimizer_switch options that are on'
 SQL SECURITY INVOKER
 NOT DETERMINISTIC
@@ -56,7 +53,7 @@ BEGIN
   call optimizer_switch_choice("on");
 END$$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_off()
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE optimizer_switch_off()
 COMMENT 'return @@optimizer_switch options that are off'
 SQL SECURITY INVOKER
 NOT DETERMINISTIC

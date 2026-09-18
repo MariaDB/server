@@ -189,10 +189,12 @@ then
   # Add the rest of the files in install file order, removing new lines along the way
   cat "$SYSDIR/sys_$MYSQLVERSION.sql" | tr -d '\r' | grep 'SOURCE' | grep -v before_setup | grep -v after_setup | $SED_R 's .{8}  ' | sed 's/^/./' >  "./sys_$MYSQLVERSION.sql"
   while read file; do
-      # First try and get a DROP command
-      grep -E '(^DROP PROCEDURE|^DROP FUNCTION|^DROP TRIGGER)' $file >> $OUTPUTFILE
+      # First try and get a DROP command. Functions and procedures are
+      # installed with CREATE OR REPLACE (MDEV-39993, to preserve grants
+      # across reinstalls) and so never have one; only triggers still do.
+      grep -E '^DROP TRIGGER' $file >> $OUTPUTFILE
       # And remove any that may exist (but keep DROP TEMPORARY TABLE)
-      sed -i -e "/^DROP PROCEDURE/d;/^DROP FUNCTION/d;/^DROP TRIGGER/d" $file
+      sed -i -e "/^DROP TRIGGER/d" $file
       echo "" >> $OUTPUTFILE
       # Then collapse the rest of the file
       cat $file | tr '\n' ' ' >> $OUTPUTFILE

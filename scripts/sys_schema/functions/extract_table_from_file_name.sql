@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS extract_table_from_file_name;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION extract_table_from_file_name (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION extract_table_from_file_name (
         path VARCHAR(512)
     )
     RETURNS VARCHAR(64) 
