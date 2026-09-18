@@ -1,5 +1,6 @@
 # For explain
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 set @@join_buffer_size=256*1024;
 
 create table t1 (a int, b int) engine=MyISAM;
@@ -97,3 +98,24 @@ drop table t;
 
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-38988: Assertion failure in Protocol::end_statement or
+--echo # lack of warning upon query with INTERSECT and LIMIT ROWS EXAMINED
+--echo #
+
+CREATE TABLE t (a INT PRIMARY KEY, b INT);
+INSERT INTO t SELECT seq, seq FROM seq_1_to_30;
+(SELECT a FROM t LIMIT ROWS EXAMINED 100) EXCEPT ALL (SELECT a FROM t);
+
+DROP TABLE t;
+
+CREATE TABLE t (id INT PRIMARY KEY, f VARCHAR(16));
+INSERT INTO t SELECT seq, '' FROM seq_1_to_8650;
+(SELECT f FROM t WHERE id BETWEEN 7000 AND 9000 LIMIT ROWS EXAMINED 8000)
+INTERSECT
+(SELECT f FROM t WHERE id BETWEEN 7000 AND 9000 LIMIT ROWS EXAMINED 8000);
+
+DROP TABLE t;
+
+--echo # End of 10.11 tests
