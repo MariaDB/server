@@ -1,0 +1,87 @@
+#
+# Purpose:
+#   Semi-sync must not await an ACK for a @@skip_replication transaction which
+# no connected slave will receive, but it must still await one when at least
+# one connected slave replicates such transactions.
+#
+# Methodology:
+#   One primary with two semi-sync replicas which use different values of
+# --replicate-events-marked-for-skip, so that both the mixed case and the
+# all-slaves-filter case are covered. The whole scenario is run once per
+# rpl_semi_sync_master_wait_point value, because the ACK is awaited in a
+# different place for each of them: the binlog group commit leader waits for
+# AFTER_SYNC, while the user thread waits after the engine commit for
+# AFTER_COMMIT.
+#
+# References:
+#   MDEV-38486: Semi-sync master hangs on @@skip_replication transactions
+#
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--let $rpl_topology= 1->2,1->3
+--source include/rpl_init.inc
+
+--echo #
+--echo # Setup: primary and two semi-sync slaves with different skip filtering:
+--echo #   server_2: replicate_events_marked_for_skip = FILTER_ON_MASTER
+--echo #   server_3: replicate_events_marked_for_skip = REPLICATE (default)
+--echo #
+
+--connection server_1
+SET @old_master_enabled= @@global.rpl_semi_sync_master_enabled;
+SET @old_master_timeout= @@global.rpl_semi_sync_master_timeout;
+SET @old_wait_point= @@global.rpl_semi_sync_master_wait_point;
+# Keep the timeout short: if the primary ever awaits an ACK which cannot come,
+# it degrades to asynchronous within this many milliseconds and the test fails
+# on Rpl_semi_sync_master_status instead of hanging.
+SET GLOBAL rpl_semi_sync_master_timeout= 2000;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+
+--connection server_2
+--source include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+SET GLOBAL replicate_events_marked_for_skip= FILTER_ON_MASTER;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+SET @old_slave_enabled= @@global.rpl_semi_sync_slave_enabled;
+SET @old_skip= @@global.replicate_events_marked_for_skip;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+--source include/start_slave.inc
+
+--connection server_1
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_SYNC;
+--let $wait_point= AFTER_SYNC
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+
+--connection server_1
+SET GLOBAL rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+--let $wait_point= AFTER_COMMIT
+--source suite/rpl/t/rpl_semi_sync_skip_replication.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection server_1
+SET GLOBAL rpl_semi_sync_master_wait_point= @old_wait_point;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_enabled;
+SET GLOBAL rpl_semi_sync_master_timeout= @old_master_timeout;
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_slave_enabled;
+SET GLOBAL replicate_events_marked_for_skip= @old_skip;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
