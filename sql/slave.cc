@@ -5296,7 +5296,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       if (repl_semisync_slave.
           slave_read_sync_header((const uchar*) mysql->net.read_pos + 1,
                                  event_len,
-                                 &(mi->semi_ack), &event_buf, &event_len))
+                                 mi, &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -5353,7 +5353,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (repl_semisync_slave.get_slave_enabled() &&
+      if (repl_semisync_slave.get_slave_enabled(mi) &&
           mi->semi_sync_reply_enabled &&
           (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
@@ -5397,7 +5397,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
             master info only when ack is needed. This may lead to at least one
             group transaction delay but affords better performance improvement.
           */
-          (!repl_semisync_slave.get_slave_enabled() ||
+          (!repl_semisync_slave.get_slave_enabled(mi) ||
            (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
             (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
           (DBUG_IF("failed_flush_master_info") ||
@@ -7410,7 +7410,7 @@ dbug_gtid_accept:
     */
     mi->do_accept_own_server_id=
       (s_id == global_system_variables.server_id &&
-       repl_semisync_slave.get_slave_enabled() && opt_gtid_strict_mode &&
+       repl_semisync_slave.get_slave_enabled(mi) && opt_gtid_strict_mode &&
        mi->using_gtid != Master_info::USE_GTID_NO &&
         !mysql_bin_log.check_strict_gtid_sequence(event_gtid.domain_id,
                                                   event_gtid.server_id,

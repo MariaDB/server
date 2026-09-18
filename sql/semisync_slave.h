@@ -17,6 +17,7 @@
 
 #ifndef SEMISYNC_SLAVE_H
 #define SEMISYNC_SLAVE_H
+#ifdef HAVE_REPLICATION
 
 #include "semisync.h"
 #include "my_global.h"
@@ -33,7 +34,6 @@ class Master_info;
 class Repl_semi_sync_slave
   :public Repl_semi_sync_base {
 public:
-  Repl_semi_sync_slave() :m_slave_enabled(false) {}
   ~Repl_semi_sync_slave() = default;
 
   void set_trace_level(unsigned long trace_level) {
@@ -45,12 +45,12 @@ public:
    */
   int init_object();
 
-  inline bool get_slave_enabled() {
-    return m_slave_enabled;
+  inline bool get_slave_enabled(Master_info *mi) {
+    return mi->semi_sync_enabled;
   }
 
-  void set_slave_enabled(bool enabled) {
-    m_slave_enabled = enabled;
+  void set_slave_enabled(Master_info *mi, bool enabled) {
+    mi->semi_sync_enabled= enabled;
   }
 
   inline bool is_delay_master(){
@@ -71,8 +71,8 @@ public:
    * Input:
    *  header      - (IN)  packet header pointer
    *  total_len   - (IN)  total packet length: metadata + payload
-   *  semi_flags  - (IN)  store flags: SEMI_SYNC_SLAVE_DELAY_SYNC and
-                          SEMI_SYNC_NEED_ACK
+   *  mi          - (IN)  store flags: SEMI_SYNC_SLAVE_DELAY_SYNC and
+                          SEMI_SYNC_NEED_ACK, to Master_info::semi_ack
    *  payload     - (IN)  payload: the replication event
    *  payload_len - (IN)  payload length
    *
@@ -80,7 +80,7 @@ public:
    *  0: success;  non-zero: error
    */
   int slave_read_sync_header(const uchar *header, unsigned long total_len,
-                             int *semi_flags,
+                             Master_info *mi,
                              const uchar **payload, unsigned long *payload_len);
 
   /* A slave replies to the master indicating its replication process.  It
@@ -97,7 +97,6 @@ public:
 private:
   /* True when init_object has been called */
   bool m_init_done;
-  bool m_slave_enabled;        /* semi-sync is enabled on the slave */
   bool m_delay_master;
   unsigned int m_kill_conn_timeout;
 };
@@ -115,4 +114,5 @@ extern unsigned long long rpl_semi_sync_slave_send_ack;
 extern int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
                                  system_status_var *status_var,
                                  enum_var_type scope);
+#endif /* HAVE_REPLICATION */
 #endif /* SEMISYNC_SLAVE_H */
