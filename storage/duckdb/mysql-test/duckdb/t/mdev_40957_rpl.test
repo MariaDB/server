@@ -1,0 +1,73 @@
+--source ../include/have_duckdb.inc
+--source include/master-slave.inc
+
+--echo # MIXED: UUID()/NOW() switch the statements to row events
+--connection master
+CREATE DATABASE mdev_40957_rpl CHARACTER SET utf8mb4;
+USE mdev_40957_rpl;
+SELECT @@binlog_format;
+CREATE TABLE invoice (
+  id UUID DEFAULT UUID() PRIMARY KEY,
+  product VARCHAR(64),
+  amount DECIMAL(12,2),
+  sold_at TIMESTAMP
+) ENGINE=DuckDB DEFAULT CHARSET utf8mb4;
+INSERT INTO invoice (product, amount, sold_at) VALUES
+  ('MariaDB mug', 12.00, NOW()),
+  ('DuckDB sticker', 2.50, NOW()),
+  ('Sea lion plush', 25.00, NOW()),
+  ('DuckDB sticker', 2.50, NOW());
+
+--sync_slave_with_master
+USE mdev_40957_rpl;
+SELECT COUNT(*) FROM invoice;
+
+--connection master
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM invoice;
+
+--echo # ROW: replicated UPDATE (including a PK change) and DELETE
+--connection master
+SET SESSION binlog_format=ROW;
+CREATE TABLE t_upd (id INT PRIMARY KEY, v VARCHAR(16)) ENGINE=DuckDB;
+INSERT INTO t_upd VALUES (1, 'one'), (2, 'two'), (3, 'three');
+# WHERE on a non-indexed column: an indexed predicate would need
+# index_read_map(), which the engine does not implement yet
+UPDATE t_upd SET v = 'TWO' WHERE v = 'two';
+UPDATE t_upd SET id = 30, v = 'moved' WHERE v = 'three';
+DELETE FROM t_upd WHERE v = 'one';
+SELECT * FROM t_upd ORDER BY id;
+
+--sync_slave_with_master
+SELECT * FROM t_upd ORDER BY id;
+
+--connection master
+DELETE FROM t_upd;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM t_upd;
+
+--echo # MINIMAL row image: replicated UPDATE must fail instead of
+--echo # destroying the columns missing from the after-image
+--connection master
+SET SESSION binlog_row_image=MINIMAL;
+INSERT INTO t_upd VALUES (1, 'one');
+UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
+
+--connection slave
+--let $slave_sql_errno= 1296
+--source include/wait_for_slave_sql_error.inc
+--source include/stop_slave_io.inc
+RESET SLAVE;
+DROP DATABASE mdev_40957_rpl;
+
+--connection master
+SET SESSION binlog_row_image=FULL;
+SET SESSION binlog_format=MIXED;
+DROP DATABASE mdev_40957_rpl;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
