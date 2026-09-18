@@ -1,4 +1,5 @@
 # Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2026, MariaDB plc
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +29,16 @@ ENDIF()
 # mysqld_error.h results in rebuild of the almost whole server)
 # To preserve timestamp, first generate a temp header file, then copy it
 # to mysqld_error.h using cmake -E copy_if_different
-ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+SET(GENERATED_ERROR_HEADERS
+  ${CMAKE_BINARY_DIR}/include/mysqld_error.h
+  ${CMAKE_BINARY_DIR}/include/mysqld_ername.h
+  ${CMAKE_BINARY_DIR}/include/sql_state.h)
+
+ADD_CUSTOM_COMMAND(OUTPUT ${GENERATED_ERROR_HEADERS}
+   BYPRODUCTS
+	${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+	${CMAKE_BINARY_DIR}/include/mysqld_ername.h.tmp
+	${CMAKE_BINARY_DIR}/include/sql_state.h.tmp
    COMMAND comp_err
 	--charset=${PROJECT_SOURCE_DIR}/sql/share/charsets
 	--out-dir=${CMAKE_BINARY_DIR}/sql/share/
@@ -44,7 +54,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
 ADD_CUSTOM_TARGET(GenError
                   ALL
                   DEPENDS
-                  ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
+                  ${GENERATED_ERROR_HEADERS})
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c COMPONENT Client)
 TARGET_LINK_LIBRARIES(my_print_defaults  mysys)

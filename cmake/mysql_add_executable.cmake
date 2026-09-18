@@ -98,14 +98,11 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   IF(link)
     IF(UNIX)
       ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-         ${target} ${link}
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${link}
         COMMENT "Creating ${link} link"
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
-      INSTALL(PROGRAMS
-         ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${link}
-         DESTINATION
-         ${ARG_DESTINATION}
+        WORKING_DIRECTORY $<TARGET_FILE_DIR:${target}>/)
+      INSTALL(PROGRAMS $<TARGET_FILE_DIR:${target}>/${link}
+         DESTINATION ${ARG_DESTINATION}
          COMPONENT ${COMP}Symlinks)
     ELSE()
       # Windows note:
