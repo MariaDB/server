@@ -89,7 +89,9 @@ let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
 
 --let $MYSQLD_DATADIR= `select @@datadir`
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+# This checks the decoded SQL text of a Query_log_event, so keep the legacy
+# SQL output of Query_log_events (MDEV-37602).
+--exec $MYSQL_BINLOG --query-events-as-sql $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
 
 --let SEARCH_PATTERN= OPTIMIZE TABLE t1,t2
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out

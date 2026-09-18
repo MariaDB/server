@@ -158,7 +158,8 @@ class Master_info: public Master_info_file, public Slave_reporting_capability
     USE_GTID_CURRENT_POS= enum_master_use_gtid::CURRENT_POS,
     USE_GTID_SLAVE_POS  = enum_master_use_gtid::SLAVE_POS;
 
-  Master_info(LEX_CSTRING *connection_name, bool is_slave_recovery);
+  Master_info(LEX_CSTRING *connection_name, bool is_slave_recovery,
+              const char *rli_thread_name= "SQL");
   ~Master_info();
   bool shall_ignore_server_id(ulong s_id);
   void clear_in_memory_info(bool all);

@@ -1,0 +1,107 @@
+RESET MASTER;
+#
+# Two tables, so table-map ids alternate rather than staying constant,
+# and a mix of multi-statement transactions with autocommit statements.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (1,'one');
+INSERT INTO t2 VALUES (1,'uno');
+INSERT INTO t1 VALUES (2,'two');
+UPDATE t2 SET b='UNO' WHERE a=1;
+DELETE FROM t1 WHERE a=2;
+COMMIT;
+INSERT INTO t1 VALUES (3,'three');
+INSERT INTO t1 VALUES (4,'four');
+INSERT INTO t2 VALUES (2,'dos');
+BEGIN;
+UPDATE t1 SET b='THREE' WHERE a=3;
+INSERT INTO t2 VALUES (3,'tres');
+COMMIT;
+FLUSH LOGS;
+#
+# A second binary log, so the replay can drive two pseudo_slave_mode
+# cycles through one connection (each dump brackets itself with
+# PSEUDO_SLAVE_MODE=1 ... =0).
+#
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t3 VALUES (1,'x');
+INSERT INTO t3 VALUES (2,'y');
+COMMIT;
+INSERT INTO t3 VALUES (3,'z');
+FLUSH LOGS;
+FOUND 1 /PSEUDO_SLAVE_MODE=1/ in ctx1.sql
+FOUND 1 /PSEUDO_SLAVE_MODE=0/ in ctx1.sql
+DROP TABLE t1, t2, t3;
+#
+# Replay both dumps over a single connection.  The concatenation drives
+# PSEUDO_SLAVE_MODE 1 -> 0 -> 1 -> 0, so the session Master_info and
+# rpl_group_info are built, torn down and rebuilt without the connection
+# ever being closed.
+#
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	THREE
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	UNO
+2	dos
+3	tres
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	x
+2	y
+3	z
+# All three tables match their pre-replay checksums.
+#
+# Replaying the same dump twice over one connection, with the tables
+# dropped in between, must give the same result both times: the context
+# rebuilt for the second cycle must not retain table maps from the first,
+# even though the replayed events carry identical table ids.
+#
+DROP TABLE t1, t2, t3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	THREE
+4	four
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	UNO
+2	dos
+3	tres
+# Both replay cycles produced the same checksums.
+DROP TABLE t1, t2;
+#
+# Compressed query events (QUERY_COMPRESSED_EVENT) must be accepted by
+# the BINLOG statement too, otherwise replay of a compressed binary log
+# fails outright once query events stop being emitted as raw SQL.
+#
+SET @old_compress= @@GLOBAL.log_bin_compress;
+SET @old_min_len= @@GLOBAL.log_bin_compress_min_len;
+SET GLOBAL log_bin_compress= ON;
+SET GLOBAL log_bin_compress_min_len= 10;
+SET SESSION binlog_format= STATEMENT;
+RESET MASTER;
+CREATE TABLE t4 (a INT PRIMARY KEY, b VARCHAR(500)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1, REPEAT('compressible payload ', 8));
+BEGIN;
+INSERT INTO t4 VALUES (2, REPEAT('more compressible payload ', 8));
+UPDATE t4 SET b= REPEAT('updated payload ', 8) WHERE a=1;
+COMMIT;
+FLUSH LOGS;
+FOUND 4 /Query_compressed/ in ctx3.sql
+DROP TABLE t4;
+SELECT a, LENGTH(b) FROM t4 ORDER BY a;
+a	LENGTH(b)
+1	128
+2	208
+# Compressed-event replay matches the pre-replay checksum.
+DROP TABLE t4;
+SET GLOBAL log_bin_compress= @old_compress;
+SET GLOBAL log_bin_compress_min_len= @old_min_len;
+SET SESSION binlog_format= ROW;

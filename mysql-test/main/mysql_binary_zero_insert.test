@@ -127,8 +127,10 @@ SELECT COUNT(*)=8 from tb;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 FLUSH LOGS;
---echo # MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
---exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQL_TMP_DIR/binlog_zeros.sql
+--echo # MYSQL_BINLOG --query-events-as-sql MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
+# This test checks that binary-zero data survives a mysqlbinlog dump/replay as
+# plain SQL text, so ask for the legacy SQL output of Query_log_events.
+--exec $MYSQL_BINLOG --query-events-as-sql $MYSQLD_DATADIR/$binlog_file > $MYSQL_TMP_DIR/binlog_zeros.sql
 --let SEARCH_PATTERN= \x5c\x00
 --let SEARCH_FILE= $MYSQL_TMP_DIR/binlog_zeros.sql
 --source include/search_pattern_in_file.inc

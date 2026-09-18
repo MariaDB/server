@@ -285,7 +285,7 @@ DROP TABLE t1;
 
 --disable_query_log
 CREATE TABLE patch (a BLOB);
---exec $MYSQL_BINLOG --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
+--exec $MYSQL_BINLOG --query-events-as-sql --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
 ### Starting master-bin.000014
 eval LOAD DATA LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat'
      INTO TABLE patch FIELDS TERMINATED BY '';
@@ -403,7 +403,7 @@ query_vertical SELECT * FROM t1;
 DROP TABLE t1;
 
 echo >> mysqlbinlog var/log/master-bin.000020 > var/tmp/bug32580.sql;
-exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000020 > $MYSQLTEST_VARDIR/tmp/bug32580.sql;
+exec $MYSQL_BINLOG --query-events-as-sql $MYSQLD_DATADIR/master-bin.000020 > $MYSQLTEST_VARDIR/tmp/bug32580.sql;
 echo >> mysql test < var/tmp/bug32580.sql;
 exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug32580.sql;
 remove_file $MYSQLTEST_VARDIR/tmp/bug32580.sql;
@@ -606,10 +606,12 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 --echo # FDE corrupted in relay log
 --echo #
 --let TZ=GMT
---exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_checksum.binlog
---exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id.binlog
---exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
---exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_none.binlog
+# This section checks the decoded SQL text of the events, so keep the legacy
+# SQL output of Query_log_events (MDEV-37602).
+--exec $MYSQL_BINLOG --query-events-as-sql --hexdump std_data/mdev-4645-binlog_checksum.binlog
+--exec $MYSQL_BINLOG --query-events-as-sql --hexdump std_data/mdev-4645-binlog_group_id.binlog
+--exec $MYSQL_BINLOG --query-events-as-sql --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
+--exec $MYSQL_BINLOG --query-events-as-sql --hexdump std_data/mdev-4645-binlog_none.binlog
 
 #
 # MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
