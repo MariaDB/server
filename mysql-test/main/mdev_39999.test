@@ -1,0 +1,48 @@
+#
+# MDEV-39999: JSON path quoting for keys with special characters
+#
+
+--echo #
+--echo # MDEV-39999: JSON_SEARCH must quote keys containing special characters
+--echo #
+
+# Dot in key
+SELECT JSON_SEARCH('{"a.b":"x"}', 'one', 'x') AS path;
+
+# Bracket in key
+SELECT JSON_SEARCH('{"a[0]":"x"}', 'one', 'x') AS path;
+
+# Normal key (no quoting needed)
+SELECT JSON_SEARCH('{"normal":"x"}', 'one', 'x') AS path;
+
+# Space in key
+SELECT JSON_SEARCH('{"hello world":"x"}', 'one', 'x') AS path;
+
+# Asterisk in key
+SELECT JSON_SEARCH('{"a*b":"x"}', 'one', 'x') AS path;
+
+# Embedded double-quote in key
+SELECT JSON_SEARCH('{"a\\"b":"x"}', 'one', 'x') AS path;
+
+# Backslash in key
+SELECT JSON_SEARCH('{"a\\\\b":"x"}', 'one', 'x') AS path;
+
+# Key starting with digit
+SELECT JSON_SEARCH('{"1abc":"x"}', 'one', 'x') AS path;
+
+# Empty key
+SELECT JSON_SEARCH('{"":"x"}', 'one', 'x') AS path;
+SELECT JSON_VALUE('{"":"x"}', JSON_UNQUOTE(JSON_SEARCH('{"":"x"}', 'one', 'x'))) AS val;
+
+# JSON_SEARCH with 'all' mode - multiple matches
+SELECT JSON_SEARCH('{"a.b":"x", "c":"x", "d[0]":"x"}', 'all', 'x') AS paths;
+
+# Roundtrip: path from JSON_SEARCH works with JSON_VALUE
+SELECT JSON_VALUE('{"a.b":"found"}', JSON_UNQUOTE(JSON_SEARCH('{"a.b":"found"}', 'one', 'found'))) AS val;
+
+# Roundtrip with backslash key
+SELECT JSON_VALUE('{"a\\\\b":"found"}', JSON_UNQUOTE(JSON_SEARCH('{"a\\\\b":"found"}', 'one', 'found'))) AS val;
+
+# Nested object with special keys
+SELECT JSON_SEARCH('{"a.b":{"c[d]":"x"}}', 'one', 'x') AS path;
+
