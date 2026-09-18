@@ -211,7 +211,7 @@ Note	1071	Specified key was too long; max key length is 3072 bytes
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
 alter table t1 drop column b;
-ERROR 42000: Key column 'b' doesn't exist in table
+ERROR 42000: Can't DROP b `it is part of index`; check that it exists
 insert into t1 values(1,1);
 insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1-1' for key 'a'
