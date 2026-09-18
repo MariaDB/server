@@ -26,6 +26,7 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "univ.i"
 
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <my_service_manager.h>
@@ -1478,11 +1479,15 @@ void recv_sys_t::clear()
 
 void recv_sys_t::tmp_free() noexcept
 {
-  if (tmp_buf)
-  {
-    ut_free_dodump(tmp_buf, tmp_buf_size);
-    tmp_buf= nullptr;
-  }
+  if (!tmp_buf)
+    return;
+
+  /* GCC deletes a plain memset() that is followed by free(). */
+  static void *(*const volatile erase)(void*, int, size_t)= memset;
+  erase(tmp_buf, 0, tmp_buf_size);
+  /* The member function recv_sys_t::free() hides the one from <cstdlib>. */
+  std::free(tmp_buf);
+  tmp_buf= nullptr;
 }
 
 /** Free most recovery data structures. */
@@ -1869,8 +1874,7 @@ dberr_t recv_sys_t::find_checkpoint()
 
     if (!tmp_buf)
     {
-      tmp_buf= static_cast<byte*>
-        (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+      tmp_buf= static_cast<byte*>(malloc(tmp_buf_size));
       if (!tmp_buf)
         return DB_OUT_OF_MEMORY;
     }
