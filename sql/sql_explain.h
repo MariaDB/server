@@ -812,6 +812,7 @@ public:
   enum join_type type;
 
   bool used_partitions_set;
+  bool use_parallel_scan;
   
   /* Empty means "NULL" will be printed */
   String_list possible_keys;
