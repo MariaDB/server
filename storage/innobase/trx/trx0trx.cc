@@ -410,6 +410,7 @@ void trx_t::free() noexcept
   trx_sys.deregister_trx(this);
   check_unique_secondary= true;
   check_foreigns= true;
+
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
   mysql_thd= nullptr;
@@ -930,7 +931,7 @@ trx_start_low(
 	/* Check whether it is an AUTOCOMMIT SELECT */
         if (const THD* thd = trx->mysql_thd) {
 		trx->auto_commit = !(thd->variables.option_bits
-                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+	                                     & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 			&& thd->lex->sql_command == SQLCOM_SELECT;
 		trx->read_only = (!trx->dict_operation && thd->tx_read_only)
 			|| srv_read_only_mode;
