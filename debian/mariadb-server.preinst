@@ -87,7 +87,15 @@ get_mariadb_upgrade_info_major_version() {
   fi
 
   # If version is not empty and contains 'MariaDB', get the major version.
-  [[ $full_version =~ MariaDB ]] && echo ${full_version%.*}
+  # This must not return a non-zero status when there is no match: it is
+  # called as "found_version=$(get_mariadb_upgrade_info_major_version ...)"
+  # under "set -e", and a plain assignment is not exempt from errexit, so a
+  # failing "&&" here would silently abort the whole preinst on every fresh
+  # install (no upgrade-info file present yet).
+  if [[ $full_version =~ MariaDB ]]
+  then
+    echo "${full_version%.*}"
+  fi
 }
 
 ################################ main() ##########################
