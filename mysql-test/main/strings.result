@@ -28,3 +28,16 @@ INSERT INTO t2 SELECT * FROM t1;
 ERROR 01000: Data truncated for column 'b' at row 1
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-40422: MSAN use-of-uninitialized-value in my_convert
+#
+SET @old_collation_database= @@collation_database;
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
+SET collation_database= 'latin1_swedish_ci';
+SET CHARACTER SET DEFAULT;
+SELECT CAST(MD5(NOW()) AS CHAR),COUNT(*);
+CAST(MD5(NOW()) AS CHAR)	COUNT(*)
+ffe52811dba9ccadb1763d2c15eb88ae	1
+SET @@collation_database= @old_collation_database;
+SET timestamp=DEFAULT;
+# End of 11.8 tests

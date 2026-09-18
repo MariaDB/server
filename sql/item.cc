@@ -5441,7 +5441,15 @@ void Item_copy_string::copy()
 {
   String *res=item->val_str(&str_value);
   if (res && res != &str_value)
+  {
+    /*
+    item->val_str() reuses buffer when no charset conversion is needed. check if
+    we are borrowing from the buffer owned by other.
+    */
+    if (res->uses_buffer_owned_by(&str_value))
+      res->copy();
     str_value.copy(*res);
+  }
   null_value=item->null_value;
 #ifndef DBUG_OFF
   copied_in= 1;
