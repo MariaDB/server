@@ -1,0 +1,64 @@
+#
+# mysqld appends its own arguments to the SST command line that it runs via
+# sh -c, so a backquote in one of them must not be executed.
+#
+# Steps:
+#  1. Bring up a 2-node rsync-SST cluster.
+#  2. Force a full SST on node_2, restarting it with an argument whose value
+#     contains a backquoted redirection that would create a marker file. It
+#     has to be on the command line: my.cnf values are not forwarded this way.
+#  3. Assert node_2 joins and the marker was not created.
+#  4. Restart node_2 cleanly and rejoin.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+perl;
+    unlink "$ENV{MYSQL_TMP_DIR}/mysqld_args_inj_marker";
+EOF
+
+# ">file" needs no space, so the payload survives being split on whitespace
+--let $start_mysqld_params = --innodb-buffer-pool-filename=x`>$MYSQL_TMP_DIR/mysqld_args_inj_marker`y
+--source include/start_mysqld.inc
+--let $start_mysqld_params =
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+perl;
+    die "FAIL: marker created - backquote in a forwarded mysqld argument was executed\n"
+        if -e "$ENV{MYSQL_TMP_DIR}/mysqld_args_inj_marker";
+    print "backquote injection prevented\n";
+EOF
+
+# restart node_2 cleanly (no payload) and rejoin
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST .* failed');
+# InnoDB took the payload for a file name, which is the point of the test
+call mtr.add_suppression('InnoDB: Cannot open .* for writing');

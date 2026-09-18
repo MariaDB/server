@@ -1,0 +1,82 @@
+#
+# mysqld must reject a shell-unsafe datadir on the DONOR side too:
+# sst_donate_other() single-quotes it into the SST command line, a separate
+# check from the one sst_prepare_other() applies on the joiner.
+#
+# Both nodes bootstrap as independent single-member clusters (so neither
+# depends on the other to start, and node_1's datadir - malicious from its
+# very first boot - is never itself checked by sst_prepare_other(), since a
+# bootstrap member never receives an SST). node_2 is then explicitly joined
+# to node_1, so node_1 is selected as donor and sst_donate_other() runs.
+#
+# Steps:
+#  1. Pre-create the malicious directory (must exist before node_1 boots).
+#  2. Bring up node_1 and node_2 as independent single-member clusters.
+#  3. Join node_2 to node_1, forcing a full SST with node_1 as donor.
+#  4. Assert node_1 refuses to serve as donor and the payload did not run.
+#  5. Restart node_2 standalone again, leaving both nodes up for cleanup.
+#
+
+perl;
+    use File::Path;
+    my $tmp = $ENV{MYSQL_TMP_DIR};
+    unlink "$tmp/donor_dd_inj_marker";
+    mkpath("$tmp/donor_dd_inj'&touch $tmp/donor_dd_inj_marker&'x");
+EOF
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST failed');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('unsafe for shell interpolation');
+call mtr.add_suppression('Illegal character in variable');
+--let $node_1_address = `SELECT @@wsrep_node_address`
+
+# join node_2 to node_1, forcing a full SST with node_1 as donor. node_2
+# aborts once its only donor candidate refuses, so this blocks for exit
+# rather than using start_mysqld.inc, which expects the restart to succeed.
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--error 1,134
+--exec $MYSQLD_LAST_CMD --wsrep_cluster_address=gcomm://$node_1_address
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = unsafe for shell interpolation
+--source include/search_pattern_in_file.inc
+
+perl;
+    die "FAIL: marker created - donor-side datadir injection was NOT prevented\n"
+        if -e "$ENV{MYSQL_TMP_DIR}/donor_dd_inj_marker";
+    print "donor-side datadir injection prevented\n";
+EOF
+
+# node_2's orphaned joiner-side SST script logs its own error a moment
+# after mysqld exits; wait for it so it lands within this test's log
+# window (and gets suppressed) instead of the next test's.
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN = Parent mysqld process .* terminated unexpectedly
+--let SEARCH_WAIT = FOUND
+--source include/search_pattern_in_file.inc
+
+# node_1's datadir stays permanently unsafe, so bring node_2 back up
+# standalone rather than retrying the join.
+perl;
+    unlink "$ENV{MYSQLTEST_VARDIR}/mysqld.2/data/grastate.dat";
+EOF
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://
+--source $MYSQL_TEST_DIR/include/start_mysqld.inc
+--let $start_mysqld_params =
+
+# suppressions are per-server and the restart above wiped node_2's, so
+# add them again now, against the freshly restarted process.
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');

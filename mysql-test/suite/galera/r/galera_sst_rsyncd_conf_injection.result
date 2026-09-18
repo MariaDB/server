@@ -1,0 +1,4 @@
+connection node_2;
+connection node_1;
+REJECTED_newline
+PASS_clean

@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST failed');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('unsafe for shell interpolation');
+call mtr.add_suppression('Illegal character in variable');
+CREATE USER 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+connection node_2;
+FOUND 1 /unsafe for shell interpolation/ in mysqld.1.err
+donor-side datadir injection prevented
+connection node_1;
+SET GLOBAL wsrep_sst_auth = '';
+DROP USER 'sst';
+connection node_2;
+# restart
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');

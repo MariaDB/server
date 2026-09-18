@@ -1,0 +1,42 @@
+#
+# A directory name containing a newline must be rejected before it is written
+# into the generated rsyncd.conf, where it would splice in a directive.
+#
+# check_conf_value() is called directly rather than through a real SST: a
+# newline cannot be delivered end to end here, my.cnf is line oriented and
+# the restart parameters are split on whitespace.
+#
+# Steps:
+#  1. Extract check_conf_value() from the installed wsrep_sst_common.
+#  2. Assert it rejects a value containing a newline.
+#  3. Assert it accepts an ordinary value.
+#
+
+--source include/galera_cluster.inc
+
+perl;
+    my $tmp = $ENV{MYSQL_TMP_DIR};
+    open(my $fh, '>', "$tmp/check_conf_value.sh") or die $!;
+    print $fh <<'SCRIPT';
+#!/usr/bin/env bash
+D=$(dirname "$(command -v wsrep_sst_rsync)")
+eval "$(sed -n '/^check_conf_value()/,/^}/p' "$D/wsrep_sst_common")"
+wsrep_log_error() { :; }
+
+FOO=$'good\nvalue'
+( check_conf_value FOO )
+[ $? -eq 22 ] && echo REJECTED_newline || echo UNEXPECTED_PASS_newline
+
+BAR="a clean value"
+( check_conf_value BAR )
+[ $? -eq 0 ] && echo PASS_clean || echo UNEXPECTED_REJECT_clean
+SCRIPT
+    close $fh;
+    chmod 0755, "$tmp/check_conf_value.sh";
+EOF
+
+--exec $MYSQL_TMP_DIR/check_conf_value.sh
+
+perl;
+    unlink "$ENV{MYSQL_TMP_DIR}/check_conf_value.sh";
+EOF
