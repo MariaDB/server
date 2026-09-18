@@ -2554,6 +2554,7 @@ bool THD::copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
   size_t dst_length= dstcs->mbmaxlen * src_length;
   if (alloc_lex_string(dst, dst_length + 1))
     DBUG_RETURN(true);                          // EOM
+  DBUG_ASSERT(src_length);
   dst->length= status->well_formed_copy(dstcs, dst->str, dst_length,
                                         srccs, src, src_length, src_length);
   dst->str[dst->length]= '\0';
