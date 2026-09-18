@@ -35,6 +35,7 @@ Created 5/7/1996 Heikki Tuuri
 
 struct lock_t;
 struct lock_table_t;
+struct irb_row_t;
 
 /* Basic lock modes */
 enum lock_mode {
@@ -169,6 +170,8 @@ struct ib_lock_t
 {
   /** the owner of the lock */
   trx_t *trx;
+  /** rollback row context that owns the lock */
+  irb_row_t *irb_row;
   /** other locks of the transaction; protected by
   lock_sys.is_writer() and trx->mutex_is_owner(); @see trx_lock_t::trx_locks */
   UT_LIST_NODE_T(ib_lock_t) trx_locks;
