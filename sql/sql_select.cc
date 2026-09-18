@@ -22563,6 +22563,16 @@ bool Create_tmp_table::finalize(THD *thd,
 	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
 	0 : FIELDFLAG_BINARY;
       m_key_part_info->key_part_flag= 0;
+      /*
+        The key is where every temporary-engine creator reads the NULL
+        semantics from, so a group key has to carry HA_NULL_ARE_EQUAL
+        whether it ends up as a real key or as a unique constraint: two
+        NULLs belong in the same group either way.  The branch below sets
+        it for the real-key case, which also needs the group buffer laid
+        out around the NULL flag.
+      */
+      if (m_using_unique_constraint && maybe_null && field->null_bit)
+        keyinfo->flags|= HA_NULL_ARE_EQUAL;
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -23177,7 +23187,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         bzero((char*) &uniquedef,sizeof(uniquedef));
         uniquedef.keysegs= keyinfo->user_defined_key_parts;
         uniquedef.seg=seg;
-        uniquedef.null_are_equal=1;
+        /* Propagated, not decided; see the comment on keydef->flag below. */
+        uniquedef.null_are_equal= MY_TEST(keyinfo->flags & HA_NULL_ARE_EQUAL);
         keyinfo->flags|= HA_UNIQUE_HASH;
         keyinfo->algorithm= HA_KEY_ALG_UNIQUE_HASH;
 
@@ -23198,11 +23209,15 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         /* Create a key */
         bzero((char*) keydef,sizeof(*keydef));
         /*
-          We are using a GROUP BY on something that contains NULL
-          In this case we have to tell Aria that two NULL should
-          on INSERT be regarded at the same value.
+          Take the NULL semantics from the key rather than deciding them
+          here.  A key that carries HA_NULL_ARE_EQUAL wants two NULLs in
+          the same group; a key that does not wants them kept apart, and
+          the in-memory table it may be converted from has been accepting
+          NULL-keyed rows on that basis.  A stricter destination breaks
+          create_internal_tmp_table_from_heap(), which re-inserts every
+          stored row and treats a duplicate among them as fatal.
         */
-        keydef->flag= (keyinfo->flags & HA_NOSAME) | HA_NULL_ARE_EQUAL;
+        keydef->flag= (keyinfo->flags & (HA_NOSAME | HA_NULL_ARE_EQUAL));
         keydef->keysegs=  keyinfo->user_defined_key_parts;
         keydef->seg= seg;
         keydef++;
@@ -23351,7 +23366,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 
   if (share->keys)
   {						// Get keys for ni_create
-    bool using_unique_constraint=0;
     HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
                                             sizeof(*seg) *
                                             share->user_defined_key_parts);
@@ -23373,11 +23387,11 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
       share->keys=    0;
       share->key_parts= share->ext_key_parts= 0;
       share->uniques= 1;
-      using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));
       uniquedef.keysegs=keyinfo->user_defined_key_parts;
       uniquedef.seg=seg;
-      uniquedef.null_are_equal=1;
+      /* Propagated, not decided; see create_internal_tmp_table() for Aria. */
+      uniquedef.null_are_equal= MY_TEST(keyinfo->flags & HA_NULL_ARE_EQUAL);
 
       /* Create extra column for hash value */
       bzero((uchar*) *recinfo,sizeof(**recinfo));
@@ -23393,8 +23407,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
     {
       /* Create an unique key */
       bzero((char*) &keydef,sizeof(keydef));
-      keydef.flag= ((keyinfo->flags & HA_NOSAME) | HA_BINARY_PACK_KEY |
-                    HA_PACK_KEY);
+      keydef.flag= ((keyinfo->flags & (HA_NOSAME | HA_NULL_ARE_EQUAL)) |
+                    HA_BINARY_PACK_KEY | HA_PACK_KEY);
       keydef.keysegs=  keyinfo->user_defined_key_parts;
       keydef.seg= seg;
     }
@@ -23426,13 +23440,6 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
       {
 	seg->null_bit= field->null_bit;
 	seg->null_pos= (uint) (field->null_ptr - (uchar*) table->record[0]);
-	/*
-	  We are using a GROUP BY on something that contains NULL
-	  In this case we have to tell MyISAM that two NULL should
-	  on INSERT be regarded at the same value
-	*/
-	if (!using_unique_constraint)
-	  keydef.flag|= HA_NULL_ARE_EQUAL;
       }
     }
     if (share->keys)
