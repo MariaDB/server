@@ -49,6 +49,7 @@ Smart ALTER TABLE
 #include "row0upd.h"
 #include "trx0trx.h"
 #include "trx0purge.h"
+#include "trx0rec.h"
 #include "handler0alter.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -2629,6 +2630,10 @@ innodb_instant_alter_column_allowed_reason:
 	need_rebuild = need_rebuild
 		|| innobase_need_rebuild(ha_alter_info, table);
 
+	/* Size of the undo log record that innobase_instant_try() will
+	write if it updates the metadata record. */
+	ulint instant_undo_size = 50 + FIELD_REF_SIZE;
+
 	for (Create_field& cf : ha_alter_info->alter_info->create_list) {
 		DBUG_ASSERT(cf.field
 			    || (ha_alter_info->handler_flags
@@ -2675,6 +2680,33 @@ innodb_instant_alter_column_allowed_reason:
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
 		} else if (!is_non_const_value(*af)
 			   && set_default_value(*af)) {
+			if ((*af)->stored_in_db()) {
+				instant_undo_size += 10;
+				if (!(*af)->is_real_null()) {
+					switch ((*af)->type()) {
+					case MYSQL_TYPE_VARCHAR:
+						instant_undo_size +=
+							reinterpret_cast<const
+							Field_varstring*>(*af)
+							->get_length();
+						break;
+					case MYSQL_TYPE_GEOMETRY:
+					case MYSQL_TYPE_TINY_BLOB:
+					case MYSQL_TYPE_MEDIUM_BLOB:
+					case MYSQL_TYPE_BLOB:
+					case MYSQL_TYPE_LONG_BLOB:
+						instant_undo_size +=
+							reinterpret_cast<const
+							Field_blob*>(*af)
+							->get_length();
+						break;
+					default:
+						instant_undo_size +=
+							(*af)->pack_length();
+					}
+				}
+			}
+
 			if (fulltext_indexes > 1
 			    && !my_strcasecmp(system_charset_info,
 					      (*af)->field_name.str,
@@ -2696,9 +2728,28 @@ next_column:
 		af++;
 	}
 
-	const bool supports_instant = instant_alter_column_possible(
-		*m_prebuilt->table, ha_alter_info, table, altered_table,
-		is_innodb_strict_mode());
+	/* An undo log record is never split between pages. If the
+	metadata record already exists, it will be updated rather than
+	inserted, and trx_undo_page_report_modify() would have to write
+	an undo log record of the above size, plus the PRIMARY KEY of
+	the metadata record. */
+	const dict_index_t* pk = dict_table_get_first_index(
+		m_prebuilt->table);
+	const bool instant_undo_too_big = pk->is_instant()
+		&& instant_undo_size + ulint{pk->n_uniq} * 5
+		> trx_undo_max_rec_size();
+
+	if (instant_undo_too_big) {
+		ha_alter_info->unsupported_reason =
+			"DEFAULT values are too large for the undo log"
+			" record that updates the instant ALTER TABLE"
+			" metadata";
+	}
+
+	const bool supports_instant = !instant_undo_too_big
+		&& instant_alter_column_possible(
+			*m_prebuilt->table, ha_alter_info, table,
+			altered_table, is_innodb_strict_mode());
 	if (add_drop_v_cols) {
 		ulonglong flags = ha_alter_info->handler_flags;
 
@@ -6310,22 +6361,11 @@ func_exit:
 			&offsets, &offsets_heap, ctx->heap,
 			&big_rec, update, UPD_NODE_NO_ORD_CHANGE,
 			thr, trx->id, &mtr);
-		if (err == DB_SUCCESS) {
-			offsets = rec_get_offsets(
-				btr_pcur_get_rec(&pcur), index, offsets,
-				index->n_core_fields, ULINT_UNDEFINED,
-				&offsets_heap);
-		}
-
-		if (big_rec) {
-			if (err == DB_SUCCESS) {
-				err = btr_store_big_rec_extern_fields(
-					&pcur, offsets, big_rec, &mtr,
-					BTR_STORE_UPDATE);
-			}
-
-			dtuple_big_rec_free(big_rec);
-		}
+		/* Any off-page columns of the metadata record were
+		stored by btr_cur_pessimistic_update() before the
+		record itself was updated, so that the record never
+		contains incomplete BLOB pointers. */
+		ut_ad(!big_rec);
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
