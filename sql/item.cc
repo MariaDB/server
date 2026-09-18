@@ -11201,6 +11201,8 @@ bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     return true;
   }
 
+  value->bring_value();
+
   while((trigger_field= it_trigger_field++) && i < result_fields)
   {
     if (trigger_field->set_value(thd, (*it)->addr(i)))
