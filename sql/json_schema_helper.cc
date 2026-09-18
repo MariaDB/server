@@ -65,7 +65,7 @@ void json_get_normalized_string(json_engine_t *je, String *res,
   String val("",0,je->s.cs);
   DYNAMIC_STRING a_res;
 
-  if (init_dynamic_string(&a_res, NULL, 0, 0))
+  if (init_dynamic_string(&a_res, "", 32, 32))
     goto error;
 
   if (!json_value_scalar(je))
@@ -95,8 +95,11 @@ void json_get_normalized_string(json_engine_t *je, String *res,
   }
   else if(je->value_type == JSON_VALUE_STRING)
   {
-    dynstr_set(&a_res, val.c_ptr());
+    if (dynstr_realloc(&a_res, je->value_len + 1))
+      goto error;
+    memcpy(a_res.str, val.ptr(), je->value_len);
     a_res.length= je->value_len;
+    a_res.str[je->value_len]= '\0';
   }
 
   res->append(a_res.str, a_res.length, je->s.cs);

@@ -4444,4 +4444,10 @@ SET @value= '
 
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 
+--echo #
+--echo # MDEV-41181: ASAN heap-buffer-overflow after SELECT JSON_SCHEMA_VALID
+--echo #
+
+SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
+
 --echo # End of 11.4 tests
