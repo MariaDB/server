@@ -133,6 +133,7 @@ WHERE TABLE_SCHEMA = 'mysql' LIMIT 1 OFFSET 1
 --echo # needed for an accurate FOUND_ROWS() count)
 --echo #
 --disable_ps_protocol
+--disable_view_protocol
 --replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
 EXPLAIN FORMAT=JSON SELECT SQL_CALC_FOUND_ROWS TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES
@@ -143,6 +144,7 @@ WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
 --enable_result_log
 SELECT FOUND_ROWS();
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo #
 --echo # Test 13: SELECT * - non-field item shape rejected -> fallback path
@@ -157,6 +159,7 @@ WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
 --echo # Verify: simple query temp table behavior
 --echo #
 --disable_ps_protocol
+--disable_view_protocol
 FLUSH STATUS;
 --replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
 EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
@@ -178,6 +181,7 @@ WHERE TABLE_SCHEMA = 'mysql'
 ORDER BY TABLE_NAME LIMIT 3;
 SHOW SESSION STATUS LIKE 'Created_tmp_tables';
 --enable_ps_protocol
+--enable_view_protocol
 
 --echo #
 --echo # EXPLAIN shows no filesort for fast-path query
