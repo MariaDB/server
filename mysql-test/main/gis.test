@@ -3613,3 +3613,40 @@ SELECT ST_GEOMFROMWKB (0x0104000000010000000201000000000000000000000000000000000
 SELECT ST_GEOMFROMWKB (0x0104000000010000008201000000000000000000000000000000000000000000000000) as multipoint_bad_inner_bo;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-36166 support for notation with brackets inside MULTIPOINT
+--echo #
+
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT((0 0))')) AS one_bracketed;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT((0 0),(1 1))')) AS bracketed;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 1)')) AS bare;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT ( ( 0 0 ) , ( 1 1 ) )')) AS spaced;
+SELECT ST_NUMGEOMETRIES(ST_GEOMFROMTEXT('MULTIPOINT((0 0),(1 1),(2 2))')) AS n;
+
+--echo # The two spellings may not be mixed within one MULTIPOINT.
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT((0 0),1 1)')) AS mixed_open;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT(0 0,(1 1))')) AS mixed_close;
+
+--echo # An opened bracket must be closed after the point it opened.
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT((0 0,1 1))')) AS unclosed;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT((0 0),(1 1)')) AS truncated;
+
+--echo # The text may end where the first point would decide the spelling.
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT(')) AS ends_at_decision;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('MULTIPOINT()')) AS empty_list;
+
+--echo # Brackets around a point are a MULTIPOINT spelling only.
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT('LINESTRING((0 0),(1 1))')) AS linestring;
+
+--echo # Both spellings reach the same reader through the other WKT entries.
+SELECT ST_ASTEXT(ST_MPOINTFROMTEXT('MULTIPOINT((0 0),(1 1))')) AS mpointfromtext;
+SELECT ST_ASTEXT(ST_GEOMFROMTEXT(
+         'GEOMETRYCOLLECTION(MULTIPOINT((1 1),(2 2)))')) AS in_collection;
+
+CREATE TABLE t1 (g GEOMETRY);
+INSERT INTO t1 VALUES(ST_GEOMFROMTEXT('MULTIPOINT((1 1),(2 2))'));
+SELECT ST_ASTEXT(g) FROM t1;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
