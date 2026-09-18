@@ -3941,6 +3941,12 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  /*
+    True for types that compare as numbers (INT, REAL, DECIMAL).  False for
+    string, temporal and row types, whose ordering differs from numeric
+    ordering.
+  */
+  virtual bool is_numeric() const { return false; }
   virtual Type_std_attributes Item_type_std_attributes_generic(
                                                        const Item *item) const;
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
@@ -4839,6 +4845,7 @@ public:
 class Type_handler_numeric: public Type_handler
 {
 public:
+  bool is_numeric() const override { return true; }
   const Name &default_value() const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   bool Column_definition_prepare_stage1(THD *thd,

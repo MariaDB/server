@@ -279,9 +279,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         "The declared type of SK shall be numeric, datetime, or interval"
         we don't support datetime or interval, yet.
       */
-      Item_result rtype= win_spec->order_list->first->item[0]->result_type();
-      if (rtype != REAL_RESULT && rtype != INT_RESULT && 
-          rtype != DECIMAL_RESULT)
+      if (!win_spec->order_list->first->item[0]->type_handler()->is_numeric())
       {
         my_error(ER_WRONG_TYPE_FOR_RANGE_FRAME, MYF(0));
         DBUG_RETURN(1);
@@ -301,9 +299,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
             ((*pbound)->precedence_type == Window_frame_bound::FOLLOWING ||
              (*pbound)->precedence_type == Window_frame_bound::PRECEDING))
         {
-          Item_result rtype= (*pbound)->offset->result_type();
-          if (rtype != REAL_RESULT && rtype != INT_RESULT && 
-              rtype != DECIMAL_RESULT)
+          if (!(*pbound)->offset->type_handler()->is_numeric())
           {
             my_error(ER_WRONG_TYPE_FOR_RANGE_FRAME, MYF(0));
             DBUG_RETURN(1);
