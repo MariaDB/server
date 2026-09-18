@@ -154,6 +154,46 @@ select * from t1;
 d1	d2
 -1	0
 drop table t1;
+create table t1 (f float unsigned, key(f));
+insert into t1 values (NULL),(0),(0.5);
+select f, f = "-1" as eq from t1 order by f is null, f;
+f	eq
+0	0
+0.5	0
+NULL	NULL
+select f from t1 where f = "-1";
+f
+select f from t1 ignore index (f) where f = "-1";
+f
+select f from t1 where f > "-1";
+f
+0
+0.5
+select f from t1 ignore index (f) where f > "-1";
+f
+0
+0.5
+drop table t1;
+create table t1 (d double unsigned, key(d));
+insert into t1 values (NULL),(0),(0.5);
+select d, d = "-1" as eq from t1 order by d is null, d;
+d	eq
+0	0
+0.5	0
+NULL	NULL
+select d from t1 where d = "-1";
+d
+select d from t1 ignore index (d) where d = "-1";
+d
+select d from t1 where d > "-1";
+d
+0
+0.5
+select d from t1 ignore index (d) where d > "-1";
+d
+0
+0.5
+drop table t1;
 create table t1 (f float(4,3));
 insert ignore into t1 values (-11.0),(-11),("-11"),(11.0),(11),("11");
 Warnings:

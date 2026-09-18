@@ -9667,6 +9667,18 @@ SEL_ARG *Field_num::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
   if (can_optimize_scalar_range(prm, key_part, cond, op, value) !=
       Data_type_compatibility::OK)
     DBUG_RETURN(0);
+  if (unsigned_flag &&
+      (type() == MYSQL_TYPE_FLOAT || type() == MYSQL_TYPE_DOUBLE))
+  {
+    double item_val= value->val_real();
+    if (!value->null_value && item_val < 0)
+    {
+      if (op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL ||
+          op == SCALAR_CMP_LT || op == SCALAR_CMP_LE)
+        DBUG_RETURN(new (prm->mem_root) SEL_ARG_IMPOSSIBLE(this));
+      DBUG_RETURN(0);
+    }
+  }
   int err= value->save_in_field_no_warnings(this, 1);
   if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
     DBUG_RETURN(&null_element);
