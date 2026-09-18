@@ -8767,3 +8767,14 @@ bool THD::is_cursor_execution() const
 {
   return dynamic_cast<Select_materialize*>(this->lex->result);
 }
+
+#ifdef WITH_WSREP
+void THD::wsrep_clear_table_maps() {
+  m_wsrep_table_maps.clear();
+}
+
+bool THD::wsrep_mark_table_mapped(ulonglong table_id) {
+  auto result = m_wsrep_table_maps.insert(table_id);
+  return result.second;
+}
+#endif /* WITH_WSREP */
