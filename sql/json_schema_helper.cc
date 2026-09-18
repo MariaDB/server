@@ -65,7 +65,7 @@ void json_get_normalized_string(json_engine_t *je, String *res,
   String val("",0,je->s.cs);
   DYNAMIC_STRING a_res;
 
-  if (init_dynamic_string(&a_res, NULL, 0, 0))
+  if (init_dynamic_string(&a_res, "", 32, 32))
     goto error;
 
   if (!json_value_scalar(je))
