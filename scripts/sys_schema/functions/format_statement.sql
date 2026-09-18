@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS format_statement;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_statement (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION format_statement (
         statement LONGTEXT
     )
     RETURNS LONGTEXT
