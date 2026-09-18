@@ -774,7 +774,11 @@ error:
 		if (dfield_is_null(field)) {
 			ut_ad(!(col->prtype & DATA_NOT_NULL));
 			continue;
-		} else if (!ext) {
+		} else if (!ext || !dfield_is_ext(field)) {
+			/* A field that
+			row_merge_buf_redundant_convert() fetched
+			in full is no longer externally stored,
+			and must not be re-flagged as such. */
 		} else if (dict_index_is_clust(index)) {
 			/* Flag externally stored fields. */
 			const byte*	buf = row_ext_lookup(ext, col->ind,
