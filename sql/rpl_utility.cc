@@ -32,7 +32,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
 {
   uint32 length= 0;
 
-  switch (type(col)) {
+  // (uint) so MYSQL_TYPE_JSON_MYSQL, not an enum_field_types, is a legal case
+  switch ((uint) type(col)) {
   case MYSQL_TYPE_NEWDECIMAL:
     length= my_decimal_get_binary_size(m_field_metadata[col] >> 8, 
                                        m_field_metadata[col] & 0xff);
@@ -137,6 +138,7 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_BLOB_COMPRESSED:
   case MYSQL_TYPE_GEOMETRY:
+  case MYSQL_TYPE_JSON_MYSQL: // a blob value with a pack-length prefix
   {
     /*
       Compute the length of the data. We cannot use get_length() here
@@ -222,7 +224,8 @@ table_def::table_def(unsigned char *types, ulong size,
     int index= 0;
     for (unsigned int i= 0; i < m_size; i++)
     {
-      switch (binlog_type(i)) {
+      // (uint): see the cast in calc_field_size() above
+      switch ((uint) binlog_type(i)) {
       case MYSQL_TYPE_TINY_BLOB:
       case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_BLOB_COMPRESSED:
@@ -276,6 +279,9 @@ table_def::table_def(unsigned char *types, ulong size,
       case MYSQL_TYPE_TIME2:
       case MYSQL_TYPE_DATETIME2:
       case MYSQL_TYPE_TIMESTAMP2:
+        m_field_metadata[i]= field_metadata[index++];
+        break;
+      case MYSQL_TYPE_JSON_MYSQL: // one metadata byte (the pack length)
         m_field_metadata[i]= field_metadata[index++];
         break;
       default:

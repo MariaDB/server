@@ -1,0 +1,75 @@
+# MDEV-39143: replicate MySQL binary JSON (full documents and partial diffs)
+# from a MySQL master to a MariaDB slave.
+#
+# No MySQL server runs here.  Both servers started by master-slave.inc below
+# are MariaDB; the MySQL side is supplied by a binlog recorded once on a real
+# MySQL 9.2 server and checked in as
+# std_data/mdev39143_partial_json.000001.  The test stops the MariaDB master,
+# replaces the master's own master-bin.000001 with that file, and restarts it.
+# The master is then only a file server for those bytes, and the slave pulls
+# them over the ordinary replication protocol.  What is under test is the
+# slave apply path: PARTIAL_UPDATE_ROWS_EVENT (39) parsing, Json_diff
+# decoding, and diff application - see unpack_row() in sql/rpl_record.cc.
+#
+# Important points:
+#  - The recorded events are fixed.  The SQL the MySQL master ran is not
+#    visible in this file, only its effect (described at the SELECT below);
+#    extending coverage needs a MySQL server, a re-recording, and a new file.
+#  - The Json_diff encoding exercised is MySQL 9.2's specifically.
+#  - have_binlog_format_row.inc constrains the MariaDB master's own binlog
+#    format; the injected events are row events regardless of it.
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# The slave decodes MySQL binary JSON with the read-only mysql_json plugin,
+# which is not installed by default.  Uninstalled again in the teardown.
+--connection slave
+INSTALL SONAME 'type_mysql_json';
+--source include/stop_slave.inc
+
+# Substitute the recorded MySQL binlog for the master's own.  The server must
+# be down while the file is swapped, and is restarted so it reopens the new
+# master-bin.000001 and starts a fresh master-bin.000002 of its own.
+--connection master
+--let $datadir= `SELECT @@datadir`
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+--remove_file $datadir/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mdev39143_partial_json.000001 $datadir/master-bin.000001
+--source include/rpl_start_server.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+
+# Wait until the last partial JSON update has been applied to id=1.
+# (LIKE avoids '$' which mysqltest would interpolate inside --let.)
+--let $wait_condition= SELECT COUNT(*)=1 FROM testdb.tj WHERE id=1 AND j LIKE '%"a": "zzzz"%' AND j LIKE '%"n": 44%'
+--source include/wait_condition.inc
+
+--echo # id=1: inserted as a full document, then modified by four partial-JSON
+--echo # events (REPLACE of members a and n twice, REMOVE of arr element 2).
+SELECT id, JSON_VALUE(j,'$.a') AS a, JSON_VALUE(j,'$.n') AS n,
+       JSON_QUERY(j,'$.arr') AS arr FROM testdb.tj ORDER BY id;
+
+# Cleanup.
+# The slave is sitting at the end of the injected binlog, which the
+# master did not write and knows nothing about, so save_master_pos/
+# sync_with_master cannot line the two up.  Repoint the slave at
+# master-bin.000002 - the empty binlog the master opened on restart - so that
+# the two agree on a position and rpl_end.inc can shut down cleanly.
+--connection slave
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+DROP DATABASE testdb;
+CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+--connection master
+--save_master_pos
+--connection slave
+--sync_with_master
+# Remove the plugin again: it is installed into mysql.plugin, which MTR's
+# check-testcase compares against the pre-test server state.
+UNINSTALL SONAME 'type_mysql_json';
+--source include/rpl_end.inc

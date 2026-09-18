@@ -1234,6 +1234,15 @@ Log_event *Log_event::read_log_event_no_checksum(
     case UPDATE_ROWS_EVENT:
       ev= new Update_rows_log_event(buf, event_len, fdle);
       break;
+    // MySQL 8.0: partial JSON update
+    case PARTIAL_UPDATE_ROWS_EVENT:
+      /*
+        MDEV-39143: same event structure as UPDATE_ROWS_EVENT; the after-image
+        may carry JSON diffs, handled in unpack_row() via the
+        is_partial_json_after_image flag.
+      */
+      ev= new Update_rows_log_event(buf, event_len, fdle);
+      break;
     case DELETE_ROWS_EVENT_V1:
     case DELETE_ROWS_EVENT:
       ev= new Delete_rows_log_event(buf, event_len, fdle);
@@ -1302,14 +1311,6 @@ Log_event *Log_event::read_log_event_no_checksum(
         "'binlog_transaction_compression=0' in the MySQL server";
       ev= NULL;
       break;
-    case PARTIAL_UPDATE_ROWS_EVENT:             // MySQL 8.0
-      *error=
-        "Found incompatible MySQL 8.0 PARTIAL_UPDATE_ROWS_EVENT event. "
-        "You can avoid this event by specifying "
-        "'binlog-row-value-options=\"\"' in the MySQL server";
-      ev= NULL;
-      break;
-
     case PRE_GA_WRITE_ROWS_EVENT:
     case PRE_GA_UPDATE_ROWS_EVENT:
     case PRE_GA_DELETE_ROWS_EVENT:

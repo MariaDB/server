@@ -1,0 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+INSTALL SONAME 'type_mysql_json';
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+# id=1: inserted as a full document, then modified by four partial-JSON
+# events (REPLACE of members a and n twice, REMOVE of arr element 2).
+SELECT id, JSON_VALUE(j,'$.a') AS a, JSON_VALUE(j,'$.n') AS n,
+JSON_QUERY(j,'$.arr') AS arr FROM testdb.tj ORDER BY id;
+id	a	n	arr
+1	zzzz	44	[1, 2]
+connection slave;
+STOP SLAVE;
+include/wait_for_slave_to_stop.inc
+DROP DATABASE testdb;
+CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+connection master;
+connection slave;
+UNINSTALL SONAME 'type_mysql_json';
+include/rpl_end.inc

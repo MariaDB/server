@@ -50,6 +50,7 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
+#include "rpl_utility.h"         // MYSQL_TYPE_JSON_MYSQL
 #include "vector_mhnsw.h"
 #include "opt_group_by_cardinality.h"
 
@@ -2589,8 +2590,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         enum_field_types field_type= (enum_field_types) strpos[13];
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
         {
-          if (field_type == 245 &&
-              share->mysql_version >= 50700) // a.k.a MySQL 5.7 JSON
+          if (field_type == MYSQL_TYPE_JSON_MYSQL &&
+              share->mysql_version >= 50700)
           {
             share->incompatible_version|= HA_CREATE_USED_ENGINE;
             const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};

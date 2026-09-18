@@ -809,7 +809,9 @@ static inline bool LOG_EVENT_IS_UPDATE_ROW(enum Log_event_type type)
 {
   return type == UPDATE_ROWS_EVENT || type == UPDATE_ROWS_EVENT_V1 ||
     type == UPDATE_ROWS_COMPRESSED_EVENT ||
-    type == UPDATE_ROWS_COMPRESSED_EVENT_V1;
+    type == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||
+    // MySQL 8.0+ partial JSON update (MDEV-39143)
+    type == PARTIAL_UPDATE_ROWS_EVENT;
 }
 
 
@@ -5089,6 +5091,14 @@ protected:
   int find_row(rpl_group_info *);
   int update_sequence();
 
+  /*
+    True for a MySQL PARTIAL_UPDATE_ROWS_EVENT (binlog_row_value_options=
+    PARTIAL_JSON on the master).  Its update after-image may carry JSON diffs
+    instead of full JSON values for some columns.
+  */
+  bool is_partial_json_update() const
+  { return m_type == PARTIAL_UPDATE_ROWS_EVENT; }
+
   // Unpack the current row into m_table->record[0], but with
   // a different columns bitmap.
   int unpack_current_row(rpl_group_info *rgi, MY_BITMAP const *cols)
@@ -5097,7 +5107,8 @@ protected:
 
     ASSERT_OR_RETURN_ERROR(m_curr_row <= m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, cols,
-                        &m_curr_row_end, m_rows_end);
+                        &m_curr_row_end, m_rows_end,
+                        is_partial_json_update() && cols == &m_cols_ai);
   }
 
   // Unpack the current row into m_table->record[0]

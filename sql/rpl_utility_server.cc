@@ -533,6 +533,21 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
                                   const Relay_log_info *rli,
                                   const Conv_param &param) const
 {
+  /*
+    A MySQL binary JSON source (mysql_json plugin), replicated from a MySQL
+    master.  The conversion-table field decodes the binary JSON into text.
+      - target native JSON: same logical type, only the storage format differs,
+        so this is lossless -> CONV_TYPE_VARIANT (allowed without
+        slave_type_conversions).
+      - target plain string/blob: a genuine cross-type conversion ->
+        CONV_TYPE_SUBSET_TO_SUPERSET (requires slave_type_conversions).
+  */
+  {
+    const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
+    if (source.type_handler()->name().eq(mysql_json))
+      return Type_handler_json_common::is_json_type_handler(type_handler()) ?
+             CONV_TYPE_VARIANT : CONV_TYPE_SUBSET_TO_SUPERSET;
+  }
   /**
     @todo
       Implement Field_varstring_compressed::real_type() and
@@ -891,6 +906,23 @@ const Type_handler *table_def::field_type_handler(uint col) const
   */
   if (typecode == MYSQL_TYPE_DATE)
     return &type_handler_newdate;
+  /*
+    MySQL 5.7+ binary JSON is not a native MariaDB type.
+    It is handled by the read-only mysql_json plugin - the same handler used
+    when opening a MySQL table on disk (see open_binary_frm() in table.cc) -
+    which lets a MariaDB slave decode JSON columns in row events replicated
+    from a MySQL master.  handler_by_name() returns NULL if the plugin is not
+    installed; give_compatibility_error() turns that into a message naming
+    the plugin.  Note it must not be handler_by_name_or_error() here: this
+    getter is const, is called speculatively, and is called from inside
+    give_compatibility_error() itself, so it must not raise an error of its
+    own.
+  */
+  if (typecode == MYSQL_TYPE_JSON_MYSQL)
+  {
+    const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
+    return Type_handler::handler_by_name(current_thd, mysql_json);
+  }
   return Type_handler::get_handler_by_real_type(typecode);
 }
 
@@ -1093,11 +1125,27 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
   case SLAVE_FIELD_UNKNOWN_TYPE:
   {
     Field *field= table->field[m_tabledef.master_to_slave_map[col]];
-    my_snprintf(error_msg, sizeof(error_msg),
-                "In RBR mode, Slave received unknown field type field %d "
-                "for column Name: %s.%s.%s",
-                m_tabledef.binlog_type(col), field->table->s->db.str,
-                field->table->s->table_name.str, field->field_name.str);
+    /*
+      field_type_handler() returns NULL for MYSQL_TYPE_JSON_MYSQL only when
+      the mysql_json plugin is absent, so the type code tells the two cases
+      apart: a genuinely unknown type, or a known one we cannot decode
+      because its handler is not loaded.  Name the plugin in the latter case
+      - "unknown field type 245" gives the DBA nothing to act on.
+    */
+    if (m_tabledef.binlog_type(col) == MYSQL_TYPE_JSON_MYSQL)
+      my_snprintf(error_msg, sizeof(error_msg),
+                  "In RBR mode, Slave received a MySQL binary JSON column "
+                  "(type %d) for column Name: %s.%s.%s, but the MYSQL_JSON "
+                  "plugin needed to decode it is not installed. Run "
+                  "INSTALL SONAME 'type_mysql_json' on the slave.",
+                  m_tabledef.binlog_type(col), field->table->s->db.str,
+                  field->table->s->table_name.str, field->field_name.str);
+    else
+      my_snprintf(error_msg, sizeof(error_msg),
+                  "In RBR mode, Slave received unknown field type field %d "
+                  "for column Name: %s.%s.%s",
+                  m_tabledef.binlog_type(col), field->table->s->db.str,
+                  field->table->s->table_name.str, field->field_name.str);
     rgi->rli->report(
         ERROR_LEVEL, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
         ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);

@@ -28,6 +28,22 @@
 #endif
 #include "mysql_com.h"
 
+/*
+  MySQL 5.7+ binary JSON column type code, as it appears in .frm files and in
+  row events replicated from a MySQL master.  MariaDB has no native type for
+  it - the read-only MYSQL_JSON plugin decodes it.
+
+  Defined here rather than in mysql_com.h because that header cannot carry it:
+  the server's include/mysql_com.h and Connector/C's
+  libmariadb/include/mariadb_com.h share the include guard _mysql_com_h, so in
+  a client build (mysqlbinlog compiles rpl_utility.cc and log_event.cc as
+  source) only the latter is seen.  Note that mariadb_com.h does declare
+  MYSQL_TYPE_JSON=245, but the server's enum_field_types does not, and 245 is
+  MYSQL_TYPE_VIRTUAL in MariaDB's own pre-10.2 .frm encoding - which of the
+  two a 245 byte means is decided by the context it was read from.
+*/
+#define MYSQL_TYPE_JSON_MYSQL 245
+
 class Relay_log_info;
 class Log_event;
 class Rows_log_event;
@@ -161,6 +177,21 @@ public:
       return m_field_metadata[index];
     else
       return 0;
+  }
+
+  /*
+    Number of MySQL binary JSON columns in the master table.
+    Used to size the partial_bits bitmap in the after-image of a MySQL
+    PARTIAL_UPDATE_ROWS_EVENT, which carries one bit per JSON column in the
+    table regardless of whether it is present in the row image.
+  */
+  uint json_column_count() const
+  {
+    uint n= 0;
+    for (uint i= 0; i < m_size; i++)
+      if (binlog_type(i) == MYSQL_TYPE_JSON_MYSQL)
+        n++;
+    return n;
   }
 
   /*
