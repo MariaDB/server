@@ -1075,6 +1075,8 @@ public:
 public:
   Item_func_opt_neg(THD *thd, Item *a, Item *b, Item *c):
     Item_bool_func(thd, a, b, c), negated(0) {}
+  Item_func_opt_neg(THD *thd, Item *a, Item *b):
+    Item_bool_func(thd, a, b), negated(0) {}
   Item_func_opt_neg(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), negated(0) {}
 public:
