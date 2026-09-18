@@ -190,14 +190,9 @@ a	js1	size1	color
 2	{"size":2, "color":"hue2"}	2	hue2
 3	{"size":3, "color":"hue3"}	3	hue3
 # Index is used:
-## set collation_connection so that the constant string has the
-## correct collation
-set @old_collation_connection=@@collation_connection;
-set collation_connection=utf8mb4_bin;
 explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	color	color	403	const	1	Using index condition
-set collation_connection=@old_collation_connection;
 explain select * from t1 where json_unquote(json_extract(js1, '$.color')) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	color	color	403	const	1	Using index condition
@@ -241,16 +236,12 @@ select collation(json_value(js1, '$.color')) from t1 limit 1;
 collation(json_value(js1, '$.color'))
 utf8mb4_bin
 # If one is fine with _bin comparisons, they can use index access:
-## same problem with capacity_limit_is_in_characters
 alter table t1
 add color1 varchar(100) collate utf8mb4_bin as (json_value(js1, '$.color')),
 add index(color1);
-set @old_collation_connection=@@collation_connection;
-set collation_connection=utf8mb4_bin;
 explain select * from t1 where json_value(js1, '$.color')='hue10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	color1	color1	403	const	1	Using index condition
-set collation_connection=@old_collation_connection;
 alter table t1 drop column color1;
 # Using different collation in column substitution prevents
 # the optimization from working:
@@ -268,14 +259,11 @@ alter table t1
 add color3 varchar(100) collate utf8mb4_unicode_ci as
 (json_value(js1, '$.color') collate utf8mb4_unicode_ci),
 add index(color3);
-set @old_collation_connection=@@collation_connection;
-set collation_connection=utf8mb4_unicode_ci;
 explain select * from t1
 where
 json_value(js1, '$.color') collate utf8mb4_unicode_ci='hue10';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	color3	color3	403	const	1	Using index condition
-set collation_connection=@old_collation_connection;
 #
 # Alternatively, one can store JSON in a column with the same
 # collation as default and then casts are not needed:

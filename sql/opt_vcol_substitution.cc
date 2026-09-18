@@ -448,12 +448,9 @@ void subst_vcol_if_compatible(Vcol_subst_context *ctx,
   THD *thd= ctx->thd;
 
   const char *fail_cause= NULL;
-  if (cond)
-  {
-    if (vcol_expr->collation.collation != vcol_field->charset() &&
-        cond->compare_collation() != vcol_field->charset())
-      fail_cause= "collation mismatch";
-  }
+  if (vcol_expr->collation.collation != vcol_field->charset() &&
+      (!cond || cond->compare_collation() != vcol_field->charset()))
+    fail_cause= "collation mismatch";
   if (!fail_cause && !skip_supertype_check &&
       !vcol_field->is_supertype(vcol_expr))
   {

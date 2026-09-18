@@ -7268,7 +7268,8 @@ public:
       dynamic_cast<const Type_handler_longstr *>(src_th);
     if (!src_th_longstr)
       return false;
-    const CHARSET_INFO *cs= dst_std_attr.collation.collation;
+    const CHARSET_INFO *dst_cs= dst_std_attr.collation.collation,
+                       *src_cs= src_std_attr.collation.collation;
     if (capacity_limit_is_in_characters())
     {
       /*
@@ -7279,10 +7280,10 @@ public:
       const uint32 src_max_chars=
         src_th_longstr->capacity_limit_is_in_characters() ?
           /* max_length == max_chars * mbmaxlen */
-          src_std_attr.max_length / cs->mbmaxlen :
+          src_std_attr.max_length / src_cs->mbmaxlen :
           /* N octets hold at most (N/mbminlen) chars */
-          src_std_attr.max_length / cs->mbminlen;
-      return src_max_chars <= dst_std_attr.max_length / cs->mbmaxlen;
+          src_std_attr.max_length / src_cs->mbminlen;
+      return src_max_chars <= dst_std_attr.max_length / dst_cs->mbmaxlen;
     }
     /* dst limit is declared in octets, so compare octet limits */
     return src_std_attr.max_length <= dst_std_attr.max_length;
