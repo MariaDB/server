@@ -1734,6 +1734,19 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
   }
   else
   {
+    /*
+      A merged derived table that is not a VIEW has no TABLE* so we
+      can't check privileges on it here.  Besides, the privileges for
+      the underlying base tables are already checked by
+      multi_update_precheck.
+
+      Without this guard, the main.lock_multi_bug38499 test will crash
+      just below when running a prepared statement that is made from an
+      UPDATE.
+    */
+    if (table->is_merged_derived())
+      return false;
+
     /* Must be a base or derived table. */
     const bool updated= table->table->map & tables_for_update;
     if (check_table_access(thd, updated ? UPDATE_ACL : SELECT_ACL, table,
