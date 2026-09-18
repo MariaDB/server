@@ -7819,7 +7819,7 @@ inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 }
 
 
-inline void TABLE::mark_index_columns_for_read(uint index)
+void TABLE::mark_index_columns_for_read(uint index)
 {
   do_mark_index_columns(this, index, read_set, true);
 }
