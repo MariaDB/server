@@ -225,4 +225,37 @@ sync_slave_with_master;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 
 # END 5.1 Test Case
+
+--echo #
+--echo # Bounds check in Field_new_decimal::unpack (heap out-of-bounds read)
+--echo #
+# When the row image carries fewer decimal bytes than the precision/scale in
+# the table map, the conversion branch of Field_new_decimal::unpack used to
+# read my_decimal_get_binary_size() bytes past the end of the row buffer.
+# Feed a DECIMAL(10,2) row image, truncated so its 5-byte value is cut short,
+# into a wider DECIMAL(65,30) column and check the event is rejected instead
+# of over-reading.
+connection master;
+call mtr.add_suppression("BINLOG_BASE64_EVENT.*Could not read field '' of table 'test.t1'");
+call mtr.add_suppression("BINLOG_BASE64_EVENT.*Could not execute Write_rows_v1 event on table test.t1");
+SET @sav_stc= @@global.slave_type_conversions;
+SET GLOBAL slave_type_conversions= 'ALL_NON_LOSSY';
+SET sql_log_bin= 0;
+CREATE TABLE t1 (a DECIMAL(65,30));
+BINLOG '
+fkJLag8BAAAA/AAAAAABAAAAAAQAMTAuMTEuMTktTWFyaWFEQi1kZWJ1Zy1sb2cAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAB+QktqEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoK
+AAAAAAAACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAEEwQADQgICAoKCgDfUnSV
+';
+--error ER_GET_ERRNO,ER_SLAVE_CORRUPT_EVENT
+BINLOG '
+h0JLahMBAAAAKwAAANYCAAAAABIAAAAAAAEABHRlc3QAAnQxAAH2AgoCAYdCS2oXAQAAAB8A
+AAD5AgAAAAASAAAAAAABAAEB/oA=
+';
+DROP TABLE t1;
+SET sql_log_bin= 1;
+SET GLOBAL slave_type_conversions= @sav_stc;
+
 --source include/rpl_end.inc
