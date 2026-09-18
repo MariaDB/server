@@ -9753,7 +9753,8 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
 
   int idx1, idx2;
   key_map::Iterator it1(oredable_keys);
-  while ((idx1= it1++) != key_map::Iterator::BITMAP_END)
+  while ((idx1= it1++) != key_map::Iterator::BITMAP_END
+         && param->key[idx1] && tree1->keys[idx1])
   {
     KEY_PART *key1_init= param->key[idx1]+tree1->keys[idx1]->part;
     KEY_PART *key1_end= param->key[idx1]+tree1->keys[idx1]->max_part_no;
@@ -9763,6 +9764,8 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
       if (idx2 <= idx1)
         continue;
       
+      if (!param->key[idx2] || !tree2->keys[idx2])
+        break;
       KEY_PART *key2_init= param->key[idx2]+tree2->keys[idx2]->part;
       KEY_PART *key2_end= param->key[idx2]+tree2->keys[idx2]->max_part_no;
       if (!is_key_infix(key1_init, key1_end, key2_init, key2_end) &&

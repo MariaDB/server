@@ -942,3 +942,12 @@ drop table t1;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # MDEV-35555 UBSAN runtime error: applying non-zero offset 32 to null pointer in sel_trees_must_be_ored
+--echo #
+
+CREATE TABLE t (a INT,b CHAR,PRIMARY KEY(a,b)) PARTITION BY LINEAR KEY() PARTITIONS 2;
+EXPLAIN SELECT * FROM t WHERE a=1 OR a=2;
+DROP TABLE t;
+
+--echo # End of 10.11 tests
