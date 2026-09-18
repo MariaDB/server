@@ -440,26 +440,36 @@ Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
 
 
 Trans_binlog_info::Trans_binlog_info()
-  : Repl_semi_sync_trx_info(file_name_buf, 0)
+  : Repl_semi_sync_trx_info(nullptr, 0)
 {
   file_name_buf[0]= '\0';
+  /*
+    We pass NULL to the parent constructor for Repl_semi_sync_trx_info::log_file
+    and override it here in the subclass constructor, since otherwise some GCC
+    warn about passing the address of uninitialized file_name_buf as a
+    const char *.
+    (See also https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100417).
+  */
+  log_file= file_name_buf;
 }
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
                                      my_off_t log_pos)
-  : Repl_semi_sync_trx_info(file_name_buf, log_pos)
+  : Repl_semi_sync_trx_info(nullptr, log_pos)
 {
   strmake_buf(file_name_buf, file_name);
+  log_file= file_name_buf;
 }
 
 
 Trans_binlog_info::Trans_binlog_info(const char *file_name,
                                      my_off_t log_pos,
                                      const rpl_gtid *gtid)
-  : Repl_semi_sync_trx_info(file_name_buf, log_pos, gtid)
+  : Repl_semi_sync_trx_info(nullptr, log_pos, gtid)
 {
   strmake_buf(file_name_buf, file_name);
+  log_file= file_name_buf;
 }
 
 
