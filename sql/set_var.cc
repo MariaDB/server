@@ -49,12 +49,12 @@ static ulonglong system_variable_hash_version= 0;
   Return variable name and length for hashing of variables.
 */
 
-static const uchar *get_sys_var_length(const void *var_, size_t *length,
-                                       my_bool)
+static const void *get_sys_var_length(const void *var_, size_t *length,
+                                      my_bool)
 {
   auto var= static_cast<const sys_var *>(var_);
   *length= var->name.length;
-  return reinterpret_cast<const uchar *>(var->name.str);
+  return var->name.str;
 }
 
 sys_var_chain all_sys_vars = { NULL, NULL };

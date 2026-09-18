@@ -588,11 +588,11 @@ static void tdc_hash_initializer(LF_HASH *,
 }
 
 
-static const uchar *tdc_hash_key(const void *element_, size_t *length, my_bool)
+static const void *tdc_hash_key(const void *element_, size_t *length, my_bool)
 {
   auto element= static_cast<const TDC_element *>(element_);
   *length= element->m_key_length;
-  return reinterpret_cast<const uchar *>(element->m_key);
+  return element->m_key;
 }
 
 
@@ -1142,12 +1142,12 @@ struct eliminate_duplicates_arg
 };
 
 
-static const uchar *eliminate_duplicates_get_key(const void *element,
-                                                 size_t *length, my_bool)
+static const void *eliminate_duplicates_get_key(const void *element,
+                                                size_t *length, my_bool)
 {
   auto key= static_cast<const LEX_STRING *>(element);
   *length= key->length;
-  return reinterpret_cast<const uchar *>(key->str);
+  return key->str;
 }
 
 
