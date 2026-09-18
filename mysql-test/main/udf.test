@@ -153,9 +153,12 @@ EXPLAIN EXTENDED SELECT myfunc_int(a AS attr_name) FROM t1;
 EXPLAIN EXTENDED SELECT myfunc_int(a) FROM t1;
 SELECT a,c FROM v1;
 
---error ER_WRONG_PARAMETERS_TO_STORED_FCT
+# Since MDEV-38329 stored functions accept named arguments, so an
+# attribute name that does not match any formal parameter is reported
+# as an unknown parameter name instead of ER_WRONG_PARAMETERS_TO_STORED_FCT
+--error ER_SP_UNDECLARED_VAR
 SELECT a, fn(MIN(b) xx) as c FROM t1 GROUP BY a;
---error ER_WRONG_PARAMETERS_TO_STORED_FCT
+--error ER_SP_UNDECLARED_VAR
 SELECT myfunc_int(fn(MIN(b) xx)) as c FROM t1 GROUP BY a;
 --error ER_PARSE_ERROR
 SELECT myfunc_int(test.fn(MIN(b) xx)) as c FROM t1 GROUP BY a;
