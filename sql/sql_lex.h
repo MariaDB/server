@@ -465,6 +465,7 @@ enum enum_drop_mode
 #define TL_OPTION_ALIAS         8
 #define TL_OPTION_SEQUENCE      16
 #define TL_OPTION_TABLE_FUNCTION        32
+#define TL_OPTION_GTID_TABLE_SLAVE      64
 
 typedef List<Item> List_item;
 typedef Mem_root_array<ORDER*, true> Group_list_ptrs;
