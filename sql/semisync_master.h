@@ -53,9 +53,8 @@ struct Repl_semi_sync_trx_info {
   my_off_t log_pos;
 
   Repl_semi_sync_trx_info();
-  Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos);
-  Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos,
-                          const rpl_gtid *gtid);
+  Repl_semi_sync_trx_info(char *file_name, my_off_t log_pos);
+  Repl_semi_sync_trx_info(char *file_name, my_off_t log_pos, const rpl_gtid *gtid);
 };
 
 
@@ -363,21 +362,21 @@ protected:
   virtual unsigned int get_hash_value(const Repl_semi_sync_trx_info *inf) = 0;
   unsigned int get_hash_value(const Tranx_node *node)
   {
-    Repl_semi_sync_trx_info inf(node->log_name, node->log_pos, &node->gtid);
+    Repl_semi_sync_trx_info inf(const_cast<char *>(node->log_name), node->log_pos, &node->gtid);
     return get_hash_value(&inf);
   }
 
   int compare(const Repl_semi_sync_trx_info *inf1, const Tranx_node *node2) {
-    Repl_semi_sync_trx_info inf2(node2->log_name, node2->log_pos, &node2->gtid);
+    Repl_semi_sync_trx_info inf2(const_cast<char *>(node2->log_name), node2->log_pos, &node2->gtid);
     return compare(inf1, &inf2);
   }
   int compare(const Tranx_node *node1, const Repl_semi_sync_trx_info *inf2) {
-    Repl_semi_sync_trx_info inf1(node1->log_name, node1->log_pos, &node1->gtid);
+    Repl_semi_sync_trx_info inf1(const_cast<char *>(node1->log_name), node1->log_pos, &node1->gtid);
     return compare(&inf1, inf2);
   }
   int compare(const Tranx_node *node1, const Tranx_node *node2) {
-    Repl_semi_sync_trx_info inf1(node1->log_name, node1->log_pos, &node1->gtid);
-    Repl_semi_sync_trx_info inf2(node2->log_name, node2->log_pos, &node2->gtid);
+    Repl_semi_sync_trx_info inf1(const_cast<char *>(node1->log_name), node1->log_pos, &node1->gtid);
+    Repl_semi_sync_trx_info inf2(const_cast<char *>(node2->log_name), node2->log_pos, &node2->gtid);
     return compare(&inf1, &inf2);
   }
 

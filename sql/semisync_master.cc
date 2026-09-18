@@ -419,7 +419,7 @@ Repl_semi_sync_trx_info::Repl_semi_sync_trx_info()
 }
 
 
-Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
+Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(char *file_name_,
                                                  my_off_t log_pos_)
 {
   gtid.domain_id= 0;
@@ -429,7 +429,7 @@ Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
   log_pos= log_pos_;
 }
 
-Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
+Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(char *file_name_,
                                                  my_off_t log_pos_,
                                                  const rpl_gtid *gtid_)
 {
@@ -853,7 +853,7 @@ Repl_semi_sync_master_file_pos::report_reply_binlog_file_pos(uint32 server_id,
   if (get_master_enabled())
   {
     const rpl_gtid zero_gtid= {0, 0, 0};
-    Repl_semi_sync_trx_info inf(log_file_name, log_file_pos, &zero_gtid);
+    Repl_semi_sync_trx_info inf(const_cast<char *>(log_file_name), log_file_pos, &zero_gtid);
     tranx_entry= m_active_tranxs->is_thd_waiter(&inf);
     if (tranx_entry)
       inf.gtid= tranx_entry->gtid;
@@ -946,7 +946,7 @@ int Repl_semi_sync_master::wait_after_sync(const char *log_file,
   if(log_pos &&
      wait_point() == SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC)
   {
-    Repl_semi_sync_trx_info inf(log_file + dirname_length(log_file), log_pos,
+    Repl_semi_sync_trx_info inf(const_cast<char *>(log_file + dirname_length(log_file)), log_pos,
                                 gtid);
     ret= commit_trx(&inf);
   }
@@ -1451,7 +1451,7 @@ int Repl_semi_sync_master::update_sync_header(THD* thd, unsigned char *packet,
     DBUG_RETURN(0);
   }
 
-  Repl_semi_sync_trx_info inf(log_file_name, log_file_pos, gtid);
+  Repl_semi_sync_trx_info inf(const_cast<char *>(log_file_name), log_file_pos, gtid);
   lock();
 
   /* This is the real check inside the mutex. */
