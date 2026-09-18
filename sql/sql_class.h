@@ -280,6 +280,7 @@ public:
 
 #define TC_HEURISTIC_RECOVER_COMMIT   1
 #define TC_HEURISTIC_RECOVER_ROLLBACK 2
+#define TC_HEURISTIC_RECOVER_AUTO     3
 extern ulong tc_heuristic_recover;
 
 typedef struct st_user_var_events
