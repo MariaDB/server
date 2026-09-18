@@ -4491,6 +4491,8 @@ print_tab_data(MYSQL_RES *result)
   }
   while ((cur = mysql_fetch_row(result)))
   {
+    if (interrupted_query)
+      break;
     lengths=mysql_fetch_lengths(result);
     field= mysql_fetch_fields(result);
     if (opt_binhex && is_binary_field(&field[0]))
