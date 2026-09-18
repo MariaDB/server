@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/provider_zstd.cnf
+usr/lib/mysql/plugin/provider_zstd.so

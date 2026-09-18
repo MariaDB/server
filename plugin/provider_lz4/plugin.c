@@ -24,6 +24,7 @@ static int init(void* h)
   provider_service_lz4->LZ4_compressBound_ptr= LZ4_compressBound;
   provider_service_lz4->LZ4_compress_default_ptr= LZ4_compress_default;
   provider_service_lz4->LZ4_decompress_safe_ptr= LZ4_decompress_safe;
+  provider_service_lz4->LZ4_compress_fast_ptr= LZ4_compress_fast;
 
   provider_service_lz4->is_loaded = true;
 

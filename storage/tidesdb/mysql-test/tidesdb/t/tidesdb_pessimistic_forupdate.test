@@ -1,0 +1,127 @@
+--source include/have_tidesdb.inc
+#
+# Test: Pessimistic locking with SELECT ... FOR UPDATE
+# Verifies that the store_lock() fix correctly detects FOR UPDATE
+# and acquires pessimistic row locks, serializing concurrent
+# read-modify-write cycles on the same row (TPC-C NEWORD pattern).
+#
+# With pessimistic_locking=ON:
+#   - Both connections should succeed (serialized via row lock)
+#   - Counter should increment by exactly 2 (no lost updates)
+#   - Zero conflict errors
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+# pessimistic_locking=ON is set via .opt file
+
+--echo #
+--echo # Setup: TPC-C district-like table
+--echo #
+
+CREATE TABLE district (
+  d_w_id INT NOT NULL,
+  d_id   INT NOT NULL,
+  d_next_o_id INT NOT NULL,
+  d_tax  DECIMAL(4,4),
+  PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TidesDB;
+
+INSERT INTO district VALUES (1, 1, 3001, 0.1000);
+
+--echo #
+--echo # TEST 1: Two concurrent SELECT FOR UPDATE + UPDATE
+--echo #   on the same row. Both should succeed with pessimistic
+--echo #   locking serializing access. Counter = 3001 + 2 = 3003
+--echo #
+
+connect (conA, localhost, root,,);
+connect (conB, localhost, root,,);
+
+connection conA;
+BEGIN;
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1 FOR UPDATE;
+
+connection conB;
+# conB's UPDATE should block on the pessimistic row lock until conA commits
+--send UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1
+
+connection conA;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # Both succeeded: 3001 + 1 (conA) + 1 (conB) = 3003
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # TEST 2: Stored procedure with SELECT FOR UPDATE
+--echo #   Mimics TPC-C NEWORD pattern inside a CALL
+--echo #
+
+DELIMITER |;
+CREATE PROCEDURE neword_mini(IN p_w_id INT, IN p_d_id INT)
+BEGIN
+  DECLARE v_next_o_id INT;
+  SELECT d_next_o_id INTO v_next_o_id
+    FROM district WHERE d_w_id = p_w_id AND d_id = p_d_id FOR UPDATE;
+  UPDATE district SET d_next_o_id = v_next_o_id + 1
+    WHERE d_w_id = p_w_id AND d_id = p_d_id;
+END|
+DELIMITER ;|
+
+UPDATE district SET d_next_o_id = 5001 WHERE d_w_id=1 AND d_id=1;
+
+connection conA;
+BEGIN;
+CALL neword_mini(1, 1);
+
+connection conB;
+--send CALL neword_mini(1, 1)
+
+connection conA;
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # Both CALL succeeded: 5001 + 1 + 1 = 5003
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # TEST 3: Serial counter increment (10 iterations)
+--echo #
+
+UPDATE district SET d_next_o_id = 6001 WHERE d_w_id=1 AND d_id=1;
+
+--disable_query_log
+let $i = 0;
+while ($i < 10)
+{
+  CALL neword_mini(1, 1);
+  inc $i;
+}
+--enable_query_log
+
+--echo # Should be 6001 + 10 = 6011
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+disconnect conA;
+disconnect conB;
+connection default;
+
+DROP PROCEDURE neword_mini;
+DROP TABLE district;
+# Note: pessimistic_locking was set to ON via .opt file;
+# we leave it ON so MTR state check does not complain.
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

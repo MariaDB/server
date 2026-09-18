@@ -1,0 +1,182 @@
+--source include/have_tidesdb.inc
+#
+# Test suite for TIDESDB storage engine options.
+# Exercises system variables and per-table CREATE TABLE options.
+#
+
+--echo #
+--echo # === Setup: install the TIDESDB engine plugin ===
+--echo #
+--replace_regex /\.dll/.so/
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: System variables - verify defaults
+--echo # ============================================
+--echo #
+
+SHOW VARIABLES LIKE 'tidesdb_flush_threads';
+SHOW VARIABLES LIKE 'tidesdb_compaction_threads';
+SHOW VARIABLES LIKE 'tidesdb_log_level';
+SHOW VARIABLES LIKE 'tidesdb_block_cache_size';
+SHOW VARIABLES LIKE 'tidesdb_max_open_sstables';
+SHOW VARIABLES LIKE 'tidesdb_max_memory_usage';
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: CREATE TABLE with default options
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_defaults (id INT, val VARCHAR(50)) ENGINE=TIDESDB;
+SHOW CREATE TABLE t_defaults;
+INSERT INTO t_defaults VALUES (1, 'default_opts');
+SELECT * FROM t_defaults;
+DROP TABLE t_defaults;
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: CREATE TABLE with custom compression
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_none (id INT, val VARCHAR(50)) ENGINE=TIDESDB COMPRESSION='NONE';
+SHOW CREATE TABLE t_none;
+INSERT INTO t_none VALUES (1, 'no compression');
+SELECT * FROM t_none;
+DROP TABLE t_none;
+
+CREATE TABLE t_zstd (id INT, val VARCHAR(50)) ENGINE=TIDESDB COMPRESSION='ZSTD';
+SHOW CREATE TABLE t_zstd;
+INSERT INTO t_zstd VALUES (1, 'zstd compressed');
+SELECT * FROM t_zstd;
+DROP TABLE t_zstd;
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: CREATE TABLE with custom bloom filter
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_nobloom (id INT, val VARCHAR(50)) ENGINE=TIDESDB BLOOM_FILTER=0;
+SHOW CREATE TABLE t_nobloom;
+INSERT INTO t_nobloom VALUES (1, 'no bloom');
+SELECT * FROM t_nobloom;
+DROP TABLE t_nobloom;
+
+CREATE TABLE t_lowfpr (id INT, val VARCHAR(50)) ENGINE=TIDESDB BLOOM_FPR=10;
+SHOW CREATE TABLE t_lowfpr;
+INSERT INTO t_lowfpr VALUES (1, 'low fpr 0.1%');
+SELECT * FROM t_lowfpr;
+DROP TABLE t_lowfpr;
+
+--echo #
+--echo # ============================================
+--echo # TEST 5: CREATE TABLE with custom write buffer
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_bigbuf (id INT, val VARCHAR(50)) ENGINE=TIDESDB WRITE_BUFFER_SIZE=16777216;
+SHOW CREATE TABLE t_bigbuf;
+INSERT INTO t_bigbuf VALUES (1, '16MB write buffer');
+SELECT * FROM t_bigbuf;
+DROP TABLE t_bigbuf;
+
+--echo #
+--echo # ============================================
+--echo # TEST 6: CREATE TABLE with sync mode options
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_syncnone (id INT) ENGINE=TIDESDB SYNC_MODE='NONE';
+SHOW CREATE TABLE t_syncnone;
+INSERT INTO t_syncnone VALUES (1);
+SELECT * FROM t_syncnone;
+DROP TABLE t_syncnone;
+
+CREATE TABLE t_syncint (id INT) ENGINE=TIDESDB SYNC_MODE='INTERVAL' SYNC_INTERVAL_US=500000;
+SHOW CREATE TABLE t_syncint;
+INSERT INTO t_syncint VALUES (1);
+SELECT * FROM t_syncint;
+DROP TABLE t_syncint;
+
+--echo #
+--echo # ============================================
+--echo # TEST 7: CREATE TABLE with isolation level
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_rc (id INT, val VARCHAR(50)) ENGINE=TIDESDB ISOLATION_LEVEL='READ_COMMITTED';
+SHOW CREATE TABLE t_rc;
+INSERT INTO t_rc VALUES (1, 'read committed');
+SELECT * FROM t_rc;
+DROP TABLE t_rc;
+
+CREATE TABLE t_ser (id INT, val VARCHAR(50)) ENGINE=TIDESDB ISOLATION_LEVEL='SERIALIZABLE';
+SHOW CREATE TABLE t_ser;
+INSERT INTO t_ser VALUES (1, 'serializable');
+SELECT * FROM t_ser;
+DROP TABLE t_ser;
+
+--echo #
+--echo # ============================================
+--echo # TEST 8: CREATE TABLE with B+tree format
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_btree (id INT, val VARCHAR(50)) ENGINE=TIDESDB USE_BTREE=1;
+SHOW CREATE TABLE t_btree;
+INSERT INTO t_btree VALUES (1, 'btree format');
+SELECT * FROM t_btree;
+DROP TABLE t_btree;
+
+--echo #
+--echo # ============================================
+--echo # TEST 9: CREATE TABLE with multiple options
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_multi (
+  id INT,
+  val VARCHAR(100)
+) ENGINE=TIDESDB
+  COMPRESSION='ZSTD'
+  WRITE_BUFFER_SIZE=8388608
+  BLOOM_FILTER=1
+  BLOOM_FPR=50
+  BLOCK_INDEXES=1
+  SYNC_MODE='FULL'
+  ISOLATION_LEVEL='REPEATABLE_READ'
+  LEVEL_SIZE_RATIO=8
+  MIN_LEVELS=3
+  SKIP_LIST_MAX_LEVEL=16
+  SKIP_LIST_PROBABILITY=50;
+
+SHOW CREATE TABLE t_multi;
+INSERT INTO t_multi VALUES (1, 'multi-option table');
+INSERT INTO t_multi VALUES (2, 'second row');
+SELECT * FROM t_multi;
+UPDATE t_multi SET val = 'updated' WHERE id = 1;
+SELECT * FROM t_multi;
+DELETE FROM t_multi WHERE id = 2;
+SELECT * FROM t_multi;
+DROP TABLE t_multi;
+
+--echo #
+--echo # ============================================
+--echo # TEST 10: Default isolation is REPEATABLE_READ
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_default_iso (id INT) ENGINE=TIDESDB;
+SHOW CREATE TABLE t_default_iso;
+INSERT INTO t_default_iso VALUES (1), (2), (3);
+SELECT * FROM t_default_iso;
+DROP TABLE t_default_iso;
+
+--echo #
+--echo #
+
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

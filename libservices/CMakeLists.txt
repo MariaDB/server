@@ -45,6 +45,7 @@ SET(MYSQLSERVICES_SOURCES
   provider_service_lzma.c
   provider_service_lzo.c
   provider_service_snappy.c
+  provider_service_zstd.c
 )
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
