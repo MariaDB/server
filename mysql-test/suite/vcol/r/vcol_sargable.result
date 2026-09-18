@@ -150,7 +150,7 @@ explain select * from t3 where concat('100', a)=10010;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
 Warnings:
-Note	1105	Cannot substitute virtual column expression concat('100',`t3`.`a`) -> vcol1 due to type mismatch
+Note	1105	Cannot substitute virtual column expression concat('100',`t3`.`a`) -> vcol1 due to collation mismatch
 # Character set change
 explain select * from t3 where concat('hello-', a)='abcd';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -387,16 +387,12 @@ EXPLAIN
     "table": {
       "delete": 1,
       "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["a1"],
-      "key": "a1",
-      "key_length": "5",
-      "used_key_parts": ["a1"],
+      "access_type": "ALL",
       "rows": 2,
-      "attached_condition": "t1.a1 > 'a'"
+      "attached_condition": "t1.v2 + t1.v3 > 'a'"
     }
   }
 }
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Note	1105	Cannot substitute virtual column expression `t1`.`v2` + `t1`.`v3` -> a1 due to failed supertype check
 drop table t1;

@@ -753,7 +753,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> va due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> va due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 100	1
@@ -1044,7 +1044,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 -123	1
@@ -1086,7 +1086,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 12345-aaa	2
@@ -1158,7 +1158,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 -123	1
@@ -1178,8 +1178,6 @@ explain
 SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 aaa	2
@@ -1202,7 +1200,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 12345-aaa	2
@@ -1410,7 +1408,7 @@ SELECT a, COUNT(*) FROM t GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 Warnings:
-Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to failed supertype check
+Note	1105	Cannot substitute virtual column expression `t`.`a` -> b due to collation mismatch
 SELECT a, COUNT(*) FROM t GROUP BY a;
 a	COUNT(*)
 ffffffff-ffff-ffff-ffff-fffffffffffe	2

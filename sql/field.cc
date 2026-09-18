@@ -11610,6 +11610,68 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
   }
 }
 
+bool Field::is_supertype(Item *item) const
+{
+  return type_handler()->is_supertype(type_std_attributes(),
+                                      type_extra_attributes(),
+                                      item->type_handler(),
+                                      *item /*Type_std_attributes*/,
+                                      item->type_extra_attributes());
+}
+
+
+bool Field::is_const_strictly_inside_domain(Item *item)
+{
+  if (!item->can_eval_in_optimize())
+    return false;
+  /*
+    Store into the field's record buffer and examine the stored value.
+    This is what the range optimizer does as well, see
+    Field::get_mm_leaf_int() and friends.
+  */
+  MY_BITMAP *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set,
+                           &table->write_set);
+  const int err= item->save_in_field_no_warnings(this, 1);
+  /* err > 0: the value was adjusted, err < 0: the value was NULL */
+  const bool res= !err && !is_real_null() &&
+                  stored_value_is_strictly_inside_domain();
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
+  return res;
+}
+
+
+bool Field_int::stored_value_is_strictly_inside_domain()
+{
+  /*
+    Examine the value as it was stored into the field: this way the
+    signedness is already normalized, as well as the data type of the
+    constant, which can be of any type storable into an integer field
+    without data loss.
+  */
+  const Type_limits_int *lim= type_limits_int();
+  const Longlong_hybrid val(val_int(), is_unsigned());
+  if (is_unsigned())
+    return val.cmp(Longlong_hybrid(0, true)) > 0 &&
+           val.cmp(Longlong_hybrid((longlong) lim->max_unsigned(), true)) < 0;
+  return val.cmp(Longlong_hybrid(lim->min_signed(), false)) > 0 &&
+         val.cmp(Longlong_hybrid(lim->max_signed(), false)) < 0;
+}
+
+
+bool Field_longstr::stored_value_is_strictly_inside_domain()
+{
+  /*
+    Examine the value as it was stored into the field: this way it is
+    already converted to the field's character set. A longer value would
+    have been truncated to exactly capacity_limit() units, so nothing can
+    be truncated into a shorter value.
+  */
+  StringBuffer<MAX_FIELD_WIDTH> buffer(charset());
+  String *value= val_str(&buffer);
+  return value && value_length_in_capacity_unit(*value) < capacity_limit();
+}
+
 
 /*
   Give warning for unusable key

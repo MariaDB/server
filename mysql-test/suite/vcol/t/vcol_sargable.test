@@ -127,6 +127,7 @@ alter table t1 add index(color);
 select * from t1 limit 3;
 
 --echo # Index is used:
+
 explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue5';
 explain select * from t1 where json_unquote(json_extract(js1, '$.color')) IS NULL;
 explain select * from t1 force index(color)
