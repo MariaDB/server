@@ -2017,3 +2017,12 @@ DROP TABLE t1;
 #
 # End of 10.10 tests
 #
+#
+# Begin 10.11 tests
+#
+#
+# MDEV-31053 UUID(size) should be disallowed
+#
+CREATE TABLE t1 (a INET4(24));
+ERROR HY000: Type 'inet4' does not accept length nor precision values
+# End 10.11 tests

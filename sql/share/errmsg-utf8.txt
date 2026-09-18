@@ -10758,3 +10758,5 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+ER_NO_LENGTH_PRECISION_ALLOWED
+       eng "Type '%s' does not accept length nor precision values"
