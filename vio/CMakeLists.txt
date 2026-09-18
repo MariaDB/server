@@ -13,11 +13,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-${SSL_INCLUDE_DIRS})
-ADD_DEFINITIONS(${SSL_DEFINES})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
 SET(VIO_SOURCES vio.c viosocket.c viossl.c viopipe.c viosslfactories.c)
 ADD_CONVENIENCE_LIBRARY(vio ${VIO_SOURCES})
 TARGET_LINK_LIBRARIES(vio ${LIBSOCKET})
-TARGET_LINK_LIBRARIES(vio ${SSL_LIBRARIES})
+TARGET_LINK_LIBRARIES(vio MariaDB::OpenSSL)
