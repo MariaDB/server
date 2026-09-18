@@ -1,6 +1,7 @@
 # This does not work for RBR yet.
 --source include/have_innodb.inc
 --source include/have_binlog_format_mixed_or_statement.inc
+--source include/have_partition.inc
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 
@@ -64,6 +65,75 @@ drop table t1;
 set sql_mode=default;
 
 --echo # End of 10.4 tests
+
+--echo # Start of 10.11 tests
+
+--echo #
+--echo # MDEV-36990: SIGFPE in get_max_range_rowid_filter_elems_for_table
+--echo #
+
+DROP TABLE IF EXISTS t;
+CREATE TABLE t (a INT,b INT,PRIMARY KEY(a),INDEX (b))Engine=InnoDB;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t CHANGE COLUMN a a BINARY (0);
+SELECT * FROM t WHERE b>-1;
+DROP TABLE IF EXISTS t;
+
+--echo #
+--echo # MDEV-36438: Server hangs or fails on assertion after modifying key column to CHAR(0) or BINARY(0), various UBSAN issues
+--echo #
+
+CREATE TABLE t (id INT PRIMARY KEY) ENGINE=innodb;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t MODIFY id CHAR(0);
+UPDATE t SET id = 1;
+DROP TABLE t;
+
+set sql_mode='';
+CREATE TABLE t (a INT KEY,b INT);
+INSERT INTO t VALUES (2,0);
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t CHANGE COLUMN a a BINARY (0);
+REPLACE INTO t VALUES (4,4);
+DROP TABLE t;
+set sql_mode=default;
+
+CREATE TABLE t1 (id char(10) PRIMARY KEY) engine=innodb partition BY KEY (id) partitions 12;
+INSERT INTO t1 VALUES ('1'),('2'),('3');
+--error ER_WRONG_KEY_COLUMN
+ALTER IGNORE TABLE t1 MODIFY IF EXISTS id CHAR (0);
+--error 0,ER_DUP_ENTRY
+UPDATE t1 SET id = 'a' ORDER BY null;
+DROP TABLE t1;
+
+set sql_mode='';
+CREATE TABLE t (a INT KEY);
+INSERT INTO t VALUES ();
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t CHANGE COLUMN a a BINARY (0);
+UPDATE t SET a=((SELECT * FROM t));
+DROP TABLE t;
+set sql_mode=default;
+
+CREATE TABLE t (c BINARY(0), UNIQUE(c)) ENGINE=InnoDB;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t ADD PRIMARY KEY (c);
+SELECT * FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (c BINARY(0), UNIQUE(c)) ENGINE=InnoDB;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t ADD PRIMARY KEY (c);
+SELECT * FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (c INT KEY) ENGINE=InnoDB;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t CHANGE COLUMN c c BINARY (0);
+UPDATE t SET c=REPEAT(0,0) WHERE c=REPEAT(0,0);
+DROP TABLE t;
+
+--echo # End of 10.11 tests
 
 --echo #
 --echo # MDEV-37998 (Column) CHECK constraints can cause CREATE TABLE (SELECT) queries to fail
