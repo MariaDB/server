@@ -18,14 +18,19 @@ WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 --source ../suite/innodb/include/wait_all_purged.inc
 
 BACKUP STAGE START;
+--sorted_result
 eval SELECT $mdl;
 BACKUP STAGE FLUSH;
+--sorted_result
 eval SELECT $mdl;
 BACKUP STAGE BLOCK_DDL;
+--sorted_result
 eval SELECT $mdl;
 BACKUP STAGE BLOCK_COMMIT;
+--sorted_result
 eval SELECT $mdl;
 BACKUP STAGE END;
+--sorted_result
 eval SELECT $mdl;
 
 --echo #
@@ -62,6 +67,7 @@ let $wait_condition=
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
 backup stage flush;
+--sorted_result
 eval SELECT $mdl;
 #
 # Do first test with max_statement_time, other tests later are done with
@@ -111,10 +117,12 @@ let $wait_condition=
 --source include/wait_condition.inc
 backup stage start;
 backup stage flush;
+--sorted_result
 eval SELECT $mdl;
 backup stage block_ddl;
 backup stage block_commit;
 connection default;
+--sorted_result
 SELECT * FROM t1;
 --send commit
 connection con2;
@@ -155,6 +163,7 @@ let $wait_condition=
 SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 
 backup stage block_ddl;
+--sorted_result
 eval SELECT $mdl;
 backup stage end;
 
