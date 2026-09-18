@@ -1,0 +1,446 @@
+#
+# Binlog-open error injection scenarios triggered by FLUSH BINARY LOGS.
+#
+# STEPS:
+#   - for each DBUG knob: RESET MASTER, inject the knob, FLUSH BINARY LOGS
+#   - record the client error, warnings and post-state via
+#     binlog_open_error_scenario.inc
+#   - restart between scenarios that turn logging off
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("Log filename extension number exhausted.*");
+call mtr.add_suppression("Log filename too large.*");
+#
+# flush.flush_after_rotate_event's missing-DA-set path trips
+# DBUG_ASSERT(0) in Protocol::end_statement -- a real bug this test is
+# designed to surface, not an artifact of the test itself. Anchored on
+# protocol.cc so an unrelated assertion elsewhere is still reported.
+call mtr.add_suppression("protocol.cc.*Assertion .0. failed");
+call mtr.add_suppression("got signal 6");
+call mtr.add_suppression("Attempting backtrace");
+
+# Establish a baseline: we know FLUSH BINARY LOGS works without injection.
+RESET MASTER;
+FLUSH BINARY LOGS;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: error_unique_log_filename
+#   Trigger: FLUSH BINARY LOGS
+#   MDEV-36606 row: find_uniq_filename / "Found log_no is beyond MAX"
+#   Expected: ER_NO_UNIQUE_LOGFILE; binlog stays open.
+#
+RESET MASTER;
+--let $scn_id= flush.find_uniq_filename
+--let $scn_kind= error_inject
+--let $scn_dbug= error_unique_log_filename
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_registering_index
+#   MDEV-36606 row: open / Error in initializing purge_index_file
+#   Expected: ER_CANT_OPEN_FILE; logging turned off.
+#
+RESET MASTER;
+--let $scn_id= flush.registering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_registering_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.purge_index_register
+--source include/binlog_open_error_scenario.inc
+
+# Restart so we have a binlog again.
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_openning_index
+#   MDEV-36606 row: open_index_file / mysql_file_open of .index
+#   Expected: ER_CANT_OPEN_FILE; logging turned off.
+#
+RESET MASTER;
+--let $scn_id= flush.openning_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_openning_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.open
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_recovering_index
+#   MDEV-36606 row: open_index_file / purge index recovery
+#   Expected: ER_CANT_OPEN_FILE; logging turned off.
+#   First runtime exercise of this knob -- no pre-existing test used it.
+#
+RESET MASTER;
+--let $scn_id= flush.recovering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_recovering_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.recover
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_updating_index
+#   MDEV-36606 row: open / write filename to .index
+#   Expected: ER_CANT_OPEN_FILE (via MYSQL_BIN_LOG::open goto err);
+#   logging turned off.
+#
+RESET MASTER;
+--let $scn_id= flush.updating_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_updating_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.update_index
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_new_file_rotate_event
+#   MDEV-36606 row: new_file_impl / write Rotate_log_event
+#   Expected: ER_ERROR_ON_WRITE; logging turned off.
+#
+RESET MASTER;
+--let $scn_id= flush.new_file_rotate_event
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_new_file_rotate_event
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_ERROR_ON_WRITE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= new_file_impl.rotate_event
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# DBUG knobs added below cover previously-untested MDEV-36606 rows.
+#
+
+#
+# Scenario: fail_init_log_file_name
+#
+RESET MASTER;
+--let $scn_id= flush.init_log_file_name
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_init_log_file_name
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.init_log_file_name
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_write_binlog_magic
+#
+RESET MASTER;
+--let $scn_id= flush.write_binlog_magic
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_write_binlog_magic
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.write_binlog_magic
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_fde_invalid
+#
+RESET MASTER;
+--let $scn_id= flush.fde_invalid
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_fde_invalid
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.fde_invalid
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_write_initial_fde
+#
+RESET MASTER;
+--let $scn_id= flush.write_initial_fde
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_write_initial_fde
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.write_initial_fde
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_write_glle
+#
+RESET MASTER;
+--let $scn_id= flush.write_glle
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_write_glle
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.write_glle
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_alloc_xid_list_entry
+#
+RESET MASTER;
+--let $scn_id= flush.alloc_xid_list_entry
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_alloc_xid_list_entry
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.alloc_xid_list_entry
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_b_binlog_name
+#
+RESET MASTER;
+--let $scn_id= flush.b_binlog_name
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_b_binlog_name
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.b_binlog_name
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_write_checkpoint_event
+#
+RESET MASTER;
+--let $scn_id= flush.write_checkpoint_event
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_write_checkpoint_event
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.write_checkpoint_event
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_flush_or_sync_log_file
+#
+RESET MASTER;
+--let $scn_id= flush.flush_or_sync_log_file
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_flush_or_sync_log_file
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.flush_or_sync_log_file
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_state_file_delete
+#
+# State-file deletion error is currently silently ignored — knob makes
+# the path observable so we can confirm whether the silent-ignore
+# behaviour matches the analysis.
+#
+RESET MASTER;
+--let $scn_id= flush.state_file_delete
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_state_file_delete
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.state_file_delete
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fail_flush_after_rotate_event
+#
+# new_file_impl's flush_io_cache() failure right after the rotate-event
+# write never sets the diagnostics area (MDEV-36606 itself predicts
+# "DA set=0" here) -- with nothing setting a reply at all, the connection
+# hits DBUG_ASSERT(0) in Protocol::end_statement and the server crashes.
+# Recorded as a crash scenario since that is the actual observed
+# behaviour (verified deterministic, not flaky).
+#
+RESET MASTER;
+--let $scn_id= flush.flush_after_rotate_event
+--let $scn_kind= crash
+--let $scn_dbug= fail_flush_after_rotate_event
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= new_file_impl.flush_after_rotate
+--source include/binlog_open_error_scenario.inc
+
+#
+# new_file_impl's post-rotate reopen calls open_index_file()/open() directly
+# (log.cc), the same functions exercised by flush.openning_index,
+# flush.registering_index and flush.updating_index above -- FLUSH BINARY
+# LOGS always goes through this reopen path, so no separate "after rotate"
+# knob is needed; those three scenarios already cover it.
+#
+
+#
+# Scenario: fail_find_uniq_filename_max_exceeded
+#
+RESET MASTER;
+--let $scn_id= flush.find_uniq_filename_max_exceeded
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_find_uniq_filename_max_exceeded
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename.max_exceeded
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fail_find_uniq_filename_too_long
+#
+RESET MASTER;
+--let $scn_id= flush.find_uniq_filename_too_long
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_find_uniq_filename_too_long
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename.too_long
+--source include/binlog_open_error_scenario.inc
+
+#
+# fail_find_uniq_filename_dir_enum (my_dir() fails) is NOT reachable here:
+# RESET MASTER's own internal reopen already caches last_used_log_number
+# to a nonzero value (sql/log.cc, find_uniq_filename), so find_uniq_filename's
+# `else` branch (the one that calls my_dir()) never runs again for any
+# FLUSH BINARY LOGS / rotation that follows a RESET MASTER. It's only
+# reachable on the very first-ever open() call, i.e. at server startup --
+# see startup.find_uniq_filename_dir_enum in binlog_open_errors_startup.test.
+#
+
+#
+# Scenario: fail_find_uniq_filename_snprintf1 (extension snprintf fails)
+#
+RESET MASTER;
+--let $scn_id= flush.find_uniq_filename_snprintf1
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_find_uniq_filename_snprintf1
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename.snprintf1
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fail_find_uniq_filename_snprintf2 (final name snprintf fails)
+#
+RESET MASTER;
+--let $scn_id= flush.find_uniq_filename_snprintf2
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_find_uniq_filename_snprintf2
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_NO_UNIQUE_LOGFILE
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename.snprintf2
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fail_close_purge_index_file (close_purge_index_file's own
+# my_close() failure).
+#
+# close_purge_index_file() has seven call sites (log.cc:3927, 4035, 4346,
+# 4361, 5149, 5181, 10741) but only two check its return value (3927 and
+# 10741). FLUSH BINARY LOGS's rotate reaches the checked 3927 site
+# (open_index_file()'s index-recovery step) first, so this knob behaves
+# like fault_injection_recovering_index (ER_CANT_OPEN_FILE, binlog off),
+# NOT a silent MISSING-CHECK. The five unchecked sites are not reachable
+# in isolation from this trigger.
+#
+RESET MASTER;
+--let $scn_id= flush.close_purge_index_file
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_close_purge_index_file
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= close_purge_index_file
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fail_mysql_log_open (MYSQL_LOG::open's own mysql_file_open()
+# call, distinct from every write/alloc knob above which assume this
+# inner open already succeeded)
+#
+RESET MASTER;
+--let $scn_id= flush.mysql_log_open
+--let $scn_kind= error_inject
+--let $scn_dbug= fail_mysql_log_open
+--let $scn_trigger= flush
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= MYSQL_LOG.open
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+# Final cleanup
+RESET MASTER;

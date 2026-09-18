@@ -1,0 +1,93 @@
+#
+# Crash + recovery scenarios for new-binlog opening.
+#
+# STEPS:
+#   - for each crash_create_*/crash_before_*/crash_after_* DBUG knob: kill
+#     the server at that point via the trigger statement
+#   - restart and record the post-restart state via
+#     binlog_open_error_scenario.inc
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+call mtr.add_suppression("Found 1 prepared transactions!.*");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("Recovering after a crash .*");
+call mtr.add_suppression("Aborted .* during recovery .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+
+RESET MASTER;
+FLUSH BINARY LOGS;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: crash_create_non_critical_before_update_index
+#   Trigger: FLUSH BINARY LOGS
+#
+RESET MASTER;
+--let $scn_id= crash.non_critical_before_update_index
+--let $scn_kind= crash
+--let $scn_dbug= crash_create_non_critical_before_update_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.non_critical_before_update_index
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: crash_create_critical_before_update_index
+#
+RESET MASTER;
+--let $scn_id= crash.critical_before_update_index
+--let $scn_kind= crash
+--let $scn_dbug= crash_create_critical_before_update_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.critical_before_update_index
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: crash_create_after_update_index
+#
+RESET MASTER;
+--let $scn_id= crash.after_update_index
+--let $scn_kind= crash
+--let $scn_dbug= crash_create_after_update_index
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.after_update_index
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: crash_before_write_checkpoint_event
+#
+RESET MASTER;
+--let $scn_id= crash.before_write_checkpoint_event
+--let $scn_kind= crash
+--let $scn_dbug= crash_before_write_checkpoint_event
+--let $scn_trigger= flush
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.before_write_checkpoint_event
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: crash_after_reset_master
+#
+RESET MASTER;
+--let $scn_id= crash.after_reset_master
+--let $scn_kind= crash
+--let $scn_dbug= crash_after_reset_master
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= reset_master.crash_after
+--source include/binlog_open_error_scenario.inc
+
+# Final cleanup
+RESET MASTER;

@@ -1,0 +1,146 @@
+#
+# Binlog-open error injection scenarios triggered by SET GLOBAL
+# binlog_checksum, which calls MYSQL_BIN_LOG::rotate() directly from a
+# sys_var update callback (sql/log.cc:binlog_checksum_update) -- a third,
+# differently-locked way into the same new_file_impl()/open() reopen chain
+# already exercised by FLUSH BINARY LOGS and implicit size-rotation.
+#
+# binlog_checksum_update() ignores rotate()'s return value and then asserts
+# DBUG_ASSERT(binlog_checksum_options == value). Any failure *before*
+# new_file_impl's unconditional "binlog_checksum_options= checksum_alg_reset"
+# step leaves that assert false and crashes the server -- both
+# error_unique_log_filename (fails in generate_new_name, before the rotate
+# event is even written) and fault_injection_new_file_rotate_event do. The
+# remaining knobs fail after that step, so the option already matches and
+# they report ER_CANT_OPEN_FILE as usual.
+#
+# STEPS:
+#   - for each DBUG knob: inject it, then SET GLOBAL binlog_checksum to a
+#     different value to force a rotation
+#   - record the client error, warnings and post-state via
+#     binlog_open_error_scenario.inc
+#   - restart between scenarios that turn logging off
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("Assertion .binlog_checksum_options == value. failed");
+call mtr.add_suppression("got signal 6");
+call mtr.add_suppression("Attempting backtrace");
+
+RESET MASTER;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: error_unique_log_filename via SET GLOBAL binlog_checksum
+#
+# Reports ER_NO_UNIQUE_LOGFILE under FLUSH BINARY LOGS and implicit
+# rotation, but crashes here: generate_new_name fails before the
+# checksum-option update, so the assert below it is left false.
+#
+RESET MASTER;
+--let $scn_id= checksum_update.find_uniq_filename
+--let $scn_kind= crash
+--let $scn_dbug= error_unique_log_filename
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_registering_index via SET GLOBAL binlog_checksum
+# Fails after the unconditional checksum-option update, so no assertion --
+# just a normal reopen failure (same as flush.registering_index).
+#
+RESET MASTER;
+--let $scn_id= checksum_update.registering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_registering_index
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.purge_index_register
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_openning_index via SET GLOBAL binlog_checksum
+# Same as registering_index above -- fails after the checksum-option
+# update, no assertion.
+#
+RESET MASTER;
+--let $scn_id= checksum_update.openning_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_openning_index
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.open
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_recovering_index via SET GLOBAL binlog_checksum
+# Same as registering_index above -- fails after the checksum-option
+# update, no assertion.
+#
+RESET MASTER;
+--let $scn_id= checksum_update.recovering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_recovering_index
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open_index_file.recover
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_updating_index via SET GLOBAL binlog_checksum
+# Same as registering_index above -- fails after the checksum-option
+# update, no assertion.
+#
+RESET MASTER;
+--let $scn_id= checksum_update.updating_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_updating_index
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error= ER_CANT_OPEN_FILE
+--let $scn_expected_logging_off= 1
+--let $scn_mdev36606_row= open.update_index
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_new_file_rotate_event via SET GLOBAL binlog_checksum
+#
+RESET MASTER;
+--let $scn_id= checksum_update.new_file_rotate_event
+--let $scn_kind= crash
+--let $scn_dbug= fault_injection_new_file_rotate_event
+--let $scn_trigger= checksum_update
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= new_file_impl.rotate_event
+--source include/binlog_open_error_scenario.inc
+
+# Final cleanup
+RESET MASTER;

@@ -1,0 +1,46 @@
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Failed to enable encryption of binary logs");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+# restart
+SELECT @@global.encrypt_binlog AS encrypt_binlog_baseline;
+encrypt_binlog_baseline
+1
+RESET MASTER;
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+
+### scenario id=startup.my_random_bytes kind=startup trigger=startup dbug=fail_my_random_bytes mdev36606=startup.my_random_bytes
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=startup.encryption_key_lookup kind=startup trigger=startup dbug=fail_encryption_key_lookup mdev36606=write_description_event.encryption_key_lookup
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=startup.write_sele kind=startup trigger=startup dbug=fail_write_sele mdev36606=write_description_event.write_sele
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
+
+### scenario id=startup.crypto_init kind=startup trigger=startup dbug=fail_crypto_init mdev36606=write_description_event.crypto_init
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+RESET MASTER;
