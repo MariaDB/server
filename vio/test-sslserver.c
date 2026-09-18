@@ -61,7 +61,7 @@ do_ssl_stuff(	TH_ARGS*	args)
 	/* TCP connection is ready. Do server side SSL. */
 
 	err = write(server_vio->sd,(uchar*)s, strlen(s));
-	sslaccept(args->ssl_acceptor,server_vio,60L,&ssl_error);
+	sslaccept(args->ssl_acceptor,&server_vio,60L,&ssl_error);
 	err = server_vio->write(server_vio,(uchar*)s, strlen(s));
 	DBUG_VOID_RETURN;
 }
