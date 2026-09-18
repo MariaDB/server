@@ -1,0 +1,72 @@
+include/master-slave.inc
+[connection master]
+# MIXED: UUID()/NOW() switch the statements to row events
+connection master;
+CREATE DATABASE mdev_40957_rpl CHARACTER SET utf8mb4;
+USE mdev_40957_rpl;
+SELECT @@binlog_format;
+@@binlog_format
+MIXED
+CREATE TABLE invoice (
+id UUID DEFAULT UUID() PRIMARY KEY,
+product VARCHAR(64),
+amount DECIMAL(12,2),
+sold_at TIMESTAMP
+) ENGINE=DuckDB DEFAULT CHARSET utf8mb4;
+INSERT INTO invoice (product, amount, sold_at) VALUES
+('MariaDB mug', 12.00, NOW()),
+('DuckDB sticker', 2.50, NOW()),
+('Sea lion plush', 25.00, NOW()),
+('DuckDB sticker', 2.50, NOW());
+connection slave;
+USE mdev_40957_rpl;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+4
+connection master;
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+0
+connection slave;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+0
+# ROW: replicated UPDATE (including a PK change) and DELETE
+connection master;
+SET SESSION binlog_format=ROW;
+CREATE TABLE t_upd (id INT PRIMARY KEY, v VARCHAR(16)) ENGINE=DuckDB;
+INSERT INTO t_upd VALUES (1, 'one'), (2, 'two'), (3, 'three');
+UPDATE t_upd SET v = 'TWO' WHERE v = 'two';
+UPDATE t_upd SET id = 30, v = 'moved' WHERE v = 'three';
+DELETE FROM t_upd WHERE v = 'one';
+SELECT * FROM t_upd ORDER BY id;
+id	v
+2	TWO
+30	moved
+connection slave;
+SELECT * FROM t_upd ORDER BY id;
+id	v
+2	TWO
+30	moved
+connection master;
+DELETE FROM t_upd;
+connection slave;
+SELECT COUNT(*) FROM t_upd;
+COUNT(*)
+0
+# MINIMAL row image: replicated UPDATE preserves unchanged columns
+connection master;
+SET SESSION binlog_row_image=MINIMAL;
+INSERT INTO t_upd VALUES (1, 'one');
+UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
+connection slave;
+SELECT * FROM t_upd;
+id	v
+1	ONE
+connection master;
+SET SESSION binlog_row_image=FULL;
+SET SESSION binlog_format=MIXED;
+DROP DATABASE mdev_40957_rpl;
+connection slave;
+include/rpl_end.inc

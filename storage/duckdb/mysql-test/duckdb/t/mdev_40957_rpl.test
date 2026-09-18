@@ -1,4 +1,5 @@
 --source ../include/have_duckdb.inc
+--source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
 --echo # MIXED: UUID()/NOW() switch the statements to row events
@@ -50,24 +51,20 @@ DELETE FROM t_upd;
 --sync_slave_with_master
 SELECT COUNT(*) FROM t_upd;
 
---echo # MINIMAL row image: replicated UPDATE must fail instead of
---echo # destroying the columns missing from the after-image
+--echo # MINIMAL row image: replicated UPDATE preserves unchanged columns
 --connection master
 SET SESSION binlog_row_image=MINIMAL;
 INSERT INTO t_upd VALUES (1, 'one');
 UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
 
---connection slave
---let $slave_sql_errno= 1296
---source include/wait_for_slave_sql_error.inc
---source include/stop_slave_io.inc
-RESET SLAVE;
-DROP DATABASE mdev_40957_rpl;
+--sync_slave_with_master
+SELECT * FROM t_upd;
 
 --connection master
 SET SESSION binlog_row_image=FULL;
 SET SESSION binlog_format=MIXED;
 DROP DATABASE mdev_40957_rpl;
 
---let $rpl_only_running_threads= 1
+--sync_slave_with_master
+
 --source include/rpl_end.inc
