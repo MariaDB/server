@@ -51,6 +51,7 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#include "sql_repl.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
@@ -834,6 +835,38 @@ String *Item_int_func::val_str(String *str)
     return 0;
   str->set_int(nr, unsigned_flag, collation.collation);
   return str;
+}
+
+
+/**
+  Evaluates the GTID_CHECK_POS() function.
+
+  @retval true   All requested GTIDs are reachable/viable.
+  @retval false  Any requested GTID has been purged or is absent.
+                 Also returns false if the input argument is NULL or if
+                 the check fails (with null_value set to true).
+*/
+bool Item_func_gtid_check_pos::val_bool()
+{
+  DBUG_ASSERT(fixed());
+  String *gtid_str= args[0]->val_str(&tmp_value);
+  if ((null_value= args[0]->null_value))
+    return 0;
+
+#ifdef HAVE_REPLICATION
+  bool is_reachable= false;
+  if (rpl_gtid_pos_check_reachable(gtid_str, &is_reachable))
+  {
+    null_value= 1;
+    return 0;
+  }
+  null_value= 0;
+  return is_reachable;
+#else
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "GTID_CHECK_POS");
+  null_value= 1;
+  return 0;
+#endif
 }
 
 
