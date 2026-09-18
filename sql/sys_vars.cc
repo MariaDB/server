@@ -2496,6 +2496,16 @@ Sys_slave_parallel_workers(
        ON_UPDATE(fix_slave_parallel_threads));
 
 
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_PARALLEL_WORKER_THREADS>
+Sys_parallel_worker_threads(
+       "parallel_worker_threads",
+       "Number of worker threads available for parallel query execution. "
+       "0 means parallel execution is disabled",
+       SESSION_VAR(parallel_worker_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,100), DEFAULT(0), BLOCK_SIZE(1));
+
+
 static bool
 check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {
