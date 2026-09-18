@@ -1,0 +1,43 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+--echo # MDEV-10112
+
+--echo #
+--echo # MDEV-10112: mysql_secure_installation should use DDL (GRANT, REVOKE, etc)
+--echo # instead of DML for Galera compatibility
+--echo #
+
+--echo #
+--echo # Setup dummy accounts and database to be secured
+--echo #
+CREATE USER 'root'@'remote_host' IDENTIFIED BY 'pass';
+CREATE USER 'test_user'@'localhost' IDENTIFIED BY 'pass';
+
+CREATE DATABASE msi_test_db;
+GRANT ALL PRIVILEGES ON msi_test_db.* TO 'test_user'@'localhost';
+
+--write_file $MYSQLTEST_VARDIR/tmp/msi_input.txt
+
+n
+n
+Y
+Y
+Y
+Y
+EOF
+
+--exec $MYSQL_SECURE_INSTALLATION --basedir=$MYSQL_BINDIR -S $MASTER_MYSOCK < $MYSQLTEST_VARDIR/tmp/msi_input.txt > $MYSQLTEST_VARDIR/tmp/msi.log 2>&1
+
+--remove_file $MYSQLTEST_VARDIR/tmp/msi_input.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/msi.log
+
+--echo # Verify: remote root account removed
+SELECT user, host FROM mysql.global_priv WHERE user = 'root' AND host = 'remote_host';
+
+--echo # Verify: test DB privileges removed from mysql.db
+SELECT user, host, db FROM mysql.db WHERE db = 'test' ORDER BY user, host, db;
+
+# Cleanup (unconditional - catches failures if script didn't clean up)
+DROP USER 'test_user'@'localhost';
+DROP DATABASE msi_test_db;
