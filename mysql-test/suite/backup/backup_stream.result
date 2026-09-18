@@ -5,6 +5,9 @@ CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (1);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (0);
+CREATE DATABASE `$$$$$$$$$$$$`;
+CREATE TABLE `$$$$$$$$$$$$`.`$$$$$$$$$$$$`(a SERIAL) ENGINE=InnoDB
+SELECT 1;
 BEGIN;
 DELETE FROM t;
 connect backup,localhost,root;
@@ -20,6 +23,7 @@ a	b
 1	
 DELETE FROM t;
 DROP TABLE at0, at1;
+DROP DATABASE `$$$$$$$$$$$$`;
 # restart: --defaults-file=MYSQLTEST_VARDIR/backup_stream/backup.cnf --datadir=MYSQLTEST_VARDIR/backup_stream
 SELECT * FROM at0;
 i
@@ -30,9 +34,16 @@ i
 SELECT * FROM t;
 a	b
 1	
+SELECT * FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
+a	1
+1	1
 DELETE FROM t;
 ERROR HY000: Table 't' is read only
+DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
+ERROR HY000: Table '$$$$$$$$$$$$' is read only
 # restart
 SELECT * FROM t;
 a	b
 DROP TABLE t;
+DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
+ERROR 42S02: Table '$$$$$$$$$$$$.$$$$$$$$$$$$' doesn't exist
