@@ -7,6 +7,7 @@ variable_name not in (
 'innodb_buffer_pool_size_max',      # default value depends on OS
 'innodb_buffer_pool_in_core_dump',  # only available on Linux and FreeBSD
 'innodb_log_file_buffering',        # only available on Linux and Windows
+'innodb_log_file_mmap',             # default value depends on OS
 'innodb_linux_aio',                 # existence depends on OS
 'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
 order by variable_name;
@@ -945,18 +946,6 @@ NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	INNODB_LOG_FILE_MMAP
-SESSION_VALUE	NULL
-DEFAULT_VALUE	ON
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Whether ib_logfile0 resides in persistent memory (when supported) or should initially be memory-mapped
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	INNODB_LOG_FILE_SIZE
 SESSION_VALUE	NULL
