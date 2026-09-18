@@ -1323,7 +1323,7 @@ LENGTH(a)
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` blob /*M!100301 COMPRESSED*/ NOT NULL DEFAULT ''
+  `a` blob /*M!100301 COMPRESSED*/ NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 DROP TABLE t1;
@@ -3051,3 +3051,127 @@ REPLACE INTO t VALUES ('abcdefghijklm');
 UPDATE t SET c=MID(c,2,4);
 DROP TABLE t;
 # End of 10.6 tests
+#
+# MDEV-40417 A column with compression enabled automatically adds DEFAULT ''
+#
+CREATE TABLE t (
+c1 LONGTEXT COMPRESSED NOT NULL,
+nc1 LONGTEXT NOT NULL,
+c2 LONGTEXT COMPRESSED NOT NULL DEFAULT '',
+nc2 LONGTEXT NOT NULL DEFAULT '',
+c3 VARCHAR(100) COMPRESSED NOT NULL,
+nc3 VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c1` longtext /*M!100301 COMPRESSED*/ NOT NULL,
+  `nc1` longtext NOT NULL,
+  `c2` longtext /*M!100301 COMPRESSED*/ NOT NULL DEFAULT '',
+  `nc2` longtext NOT NULL DEFAULT '',
+  `c3` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL,
+  `nc3` varchar(100) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t' ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	COLUMN_DEFAULT
+c1	NULL
+nc1	NULL
+c2	''
+nc2	''
+c3	NULL
+nc3	NULL
+# A compressed column must be as mandatory as an uncompressed one
+INSERT INTO t (nc1) VALUES ('x');
+ERROR HY000: Field 'c1' doesn't have a default value
+INSERT INTO t (c1, nc1, nc3) VALUES ('x', 'x', 'x');
+ERROR HY000: Field 'c3' doesn't have a default value
+INSERT INTO t (c1, nc1, c3, nc3) VALUES ('x', 'x', 'x', 'x');
+SELECT * FROM t;
+c1	nc1	c2	nc2	c3	nc3
+x	x			x	x
+DROP TABLE t;
+# ALTER TABLE must not add an implicit default either
+CREATE TABLE t (c LONGTEXT COMPRESSED NOT NULL DEFAULT 'x') ENGINE=InnoDB;
+ALTER TABLE t MODIFY c LONGTEXT COMPRESSED NOT NULL;
+ALTER TABLE t ADD c2 VARCHAR(100) COMPRESSED NOT NULL;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c` longtext /*M!100301 COMPRESSED*/ NOT NULL,
+  `c2` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t;
+#
+# MDEV-40417 upgrade: a table created before the fix is repaired when
+# its FRM is read.  Only blobs can be repaired - for VARCHAR the FRM
+# does not tell an explicit DEFAULT '' from the wrong implicit one,
+# so those columns are deliberately left alone.
+#
+# MDEV-40417.frm was created by 10.11.19 as:
+#   CREATE TABLE mdev40417 (
+#     blob_nodef  LONGTEXT COMPRESSED NOT NULL,
+#     blob_def    LONGTEXT COMPRESSED NOT NULL DEFAULT 'x',
+#     vc_nodef    VARCHAR(100) COMPRESSED NOT NULL,
+#     vc_def      VARCHAR(100) COMPRESSED NOT NULL DEFAULT '',
+#     plain_nodef LONGTEXT NOT NULL,
+#     pad         INT) ENGINE=MyISAM CHARSET=latin1;
+#   INSERT INTO mdev40417 (plain_nodef, pad) VALUES ('p', 1);
+#
+call mtr.add_suppression("Found wrong implicit DEFAULT");
+SHOW CREATE TABLE mdev40417;
+Table	Create Table
+mdev40417	CREATE TABLE `mdev40417` (
+  `blob_nodef` longtext /*M!100301 COMPRESSED*/ NOT NULL,
+  `blob_def` longtext /*M!100301 COMPRESSED*/ NOT NULL DEFAULT 'x',
+  `vc_nodef` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL DEFAULT '',
+  `vc_def` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL DEFAULT '',
+  `plain_nodef` longtext NOT NULL,
+  `pad` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# For the error log reporting see main.column_compression_errlog
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='mdev40417' ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	COLUMN_DEFAULT
+blob_nodef	NULL
+blob_def	'x'
+vc_nodef	''
+vc_def	''
+plain_nodef	NULL
+pad	NULL
+# The row that the old server allowed to be inserted is still readable
+SELECT * FROM mdev40417;
+blob_nodef	blob_def	vc_nodef	vc_def	plain_nodef	pad
+	x			p	1
+# blob_nodef is mandatory again
+INSERT INTO mdev40417 (blob_def, vc_nodef, vc_def, plain_nodef)
+VALUES ('a', 'b', 'c', 'd');
+ERROR HY000: Field 'blob_nodef' doesn't have a default value
+# plain_nodef was never affected by the bug
+INSERT INTO mdev40417 (blob_nodef, blob_def, vc_nodef, vc_def)
+VALUES ('a', 'b', 'c', 'd');
+ERROR HY000: Field 'plain_nodef' doesn't have a default value
+# blob_def keeps its explicit DEFAULT
+INSERT INTO mdev40417 (blob_nodef, vc_nodef, vc_def, plain_nodef)
+VALUES ('a', 'b', 'c', 'd');
+# vc_nodef is not touched, it still has the old implicit DEFAULT ''
+INSERT INTO mdev40417 (blob_nodef, blob_def, plain_nodef) VALUES ('a', 'b', 'd');
+SELECT blob_nodef, blob_def, vc_nodef, vc_def, plain_nodef FROM mdev40417;
+blob_nodef	blob_def	vc_nodef	vc_def	plain_nodef
+	x			p
+a	b			d
+a	x	b	c	d
+# ALTER TABLE ... FORCE writes the repaired flag back into the FRM
+ALTER TABLE mdev40417 FORCE;
+SHOW CREATE TABLE mdev40417;
+Table	Create Table
+mdev40417	CREATE TABLE `mdev40417` (
+  `blob_nodef` longtext /*M!100301 COMPRESSED*/ NOT NULL,
+  `blob_def` longtext /*M!100301 COMPRESSED*/ NOT NULL DEFAULT 'x',
+  `vc_nodef` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL DEFAULT '',
+  `vc_def` varchar(100) /*M!100301 COMPRESSED*/ NOT NULL DEFAULT '',
+  `plain_nodef` longtext NOT NULL,
+  `pad` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE mdev40417;
+# End of 10.11 tests
