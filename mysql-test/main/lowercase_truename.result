@@ -1,0 +1,42 @@
+#
+# I_S shows db and table names in the on-disk letter case with
+# lower_case_table_names=2, regardless of the letter case used in
+# the WHERE clause. Routine names are shown as stored in mysql.proc
+# (db lowercased, routine name in the original letter case).
+#
+CREATE DATABASE BouncyDb;
+CREATE TABLE BouncyDb.BouncyCaps (a int);
+CREATE PROCEDURE BouncyDb.BouncyProc() SELECT 1;
+SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema='BOUNCYDB' AND table_name='BOUNCYCAPS';
+table_schema	table_name
+BouncyDb	BouncyCaps
+SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema='bouncydb';
+table_schema	table_name
+BouncyDb	BouncyCaps
+SELECT table_schema, table_name FROM information_schema.tables WHERE table_name='bouncycaps';
+table_schema	table_name
+BouncyDb	BouncyCaps
+SELECT schema_name FROM information_schema.schemata WHERE schema_name='BOUNCYDB';
+schema_name
+BouncyDb
+SELECT routine_schema, routine_name FROM information_schema.routines WHERE routine_schema='BOUNCYDB';
+routine_schema	routine_name
+bouncydb	BouncyProc
+SHOW TABLES FROM BOUNCYDB;
+Tables_in_BOUNCYDB
+BouncyCaps
+SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema='NoSuchDb';
+table_schema	table_name
+DROP DATABASE BouncyDb;
+#
+# Names with characters that need filesystem-name encoding
+#
+CREATE DATABASE `Bouncy.Db 2`;
+CREATE TABLE `Bouncy.Db 2`.`Bouncy#Caps` (a int);
+SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema='BOUNCY.DB 2' AND table_name='BOUNCY#CAPS';
+table_schema	table_name
+Bouncy.Db 2	Bouncy#Caps
+SELECT schema_name FROM information_schema.schemata WHERE schema_name='bouncy.db 2';
+schema_name
+Bouncy.Db 2
+DROP DATABASE `Bouncy.Db 2`;
