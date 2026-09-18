@@ -709,22 +709,6 @@ int ha_duckdb::update_row(const uchar *old_row, const uchar *new_row)
   }
   else
   {
-    /*
-      The batched update is replayed as delete + insert of the complete
-      new row. A replicated after-image is complete only with
-      binlog_row_image=FULL; the columns missing from a partial image
-      hold defaults, not the actual values.
-    */
-    if (myduck::thd_is_replication_applier(thd) &&
-        !bitmap_is_set_all(table->write_set))
-    {
-      sql_print_warning("DuckDB: 'binlog_row_image' is not set to 'FULL', "
-                        "replicated UPDATE replay is not possible!");
-      my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_DML_ERROR,
-               "'binlog_row_image' is not set to 'FULL'", "DuckDB");
-      DBUG_RETURN(HA_DUCKDB_DML_ERROR);
-    }
-
     auto *ctx= get_duckdb_context(thd);
     ret= ctx->append_row_update(table, old_row);
     if (ret == 0)
