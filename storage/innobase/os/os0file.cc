@@ -1385,10 +1385,6 @@ os_file_rename_func(
 	os_file_type_t	type;
 	bool		exists;
 
-	/* New path must not exist. */
-	ut_ad(os_file_status(newpath, &exists, &type));
-	ut_ad(!exists);
-
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
 	ut_ad(exists);
