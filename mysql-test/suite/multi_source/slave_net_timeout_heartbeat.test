@@ -1,0 +1,39 @@
+#
+# MDEV-36841: Lowering @@global.slave_net_timeout below an explicitly
+# configured master_heartbeat_period warns once per replication connection.
+#
+# With multi-source replication there can be more than one connection whose
+# heartbeat period exceeds the new timeout, so the warning names each affected
+# connection.  This test configures two named connections, each with an
+# explicit heartbeat period above the timeout we set next, and verifies that a
+# separate warning is emitted for both.
+#
+--source include/not_embedded.inc
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--connection slave
+SET @restore_slave_net_timeout= @@global.slave_net_timeout;
+SET @@global.slave_net_timeout= 60;
+
+# Two sources, each with an explicit heartbeat period below the current
+# timeout (60), so configuring them does not warn.
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'slave1' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period=40;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'slave2' to master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period=50;
+
+# Lowering the timeout below both heartbeat periods must warn once per
+# connection.  Warnings are pushed in master_info hash order, which is not
+# deterministic, so capture them with a sorted SHOW WARNINGS.
+--disable_warnings
+SET @@global.slave_net_timeout= 20;
+--enable_warnings
+--sorted_result
+SHOW WARNINGS;
+
+# Clean up
+SET @@global.slave_net_timeout= @restore_slave_net_timeout;
+--source include/reset_master_slave.inc
+--disconnect slave
+--connection default

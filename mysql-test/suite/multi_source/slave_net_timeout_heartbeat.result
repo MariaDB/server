@@ -1,0 +1,15 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connection slave;
+SET @restore_slave_net_timeout= @@global.slave_net_timeout;
+SET @@global.slave_net_timeout= 60;
+change master 'slave1' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period=40;
+change master 'slave2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_heartbeat_period=50;
+SET @@global.slave_net_timeout= 20;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4257	This operation leaves replication connection 'slave1' with an invalid configuration: the heartbeat period (40.000 seconds) exceeds the requested slave_net_timeout (20 seconds); a sensible value for the period should be less than the timeout
+Warning	4257	This operation leaves replication connection 'slave2' with an invalid configuration: the heartbeat period (50.000 seconds) exceeds the requested slave_net_timeout (20 seconds); a sensible value for the period should be less than the timeout
+SET @@global.slave_net_timeout= @restore_slave_net_timeout;
+include/reset_master_slave.inc
+disconnect slave;
+connection default;
