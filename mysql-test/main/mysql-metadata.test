@@ -6,12 +6,16 @@
 --echo #
 
 SET NAMES utf8;
+# The check constraints are looked at while the column definitions are
+# validated, which for a prepared CREATE TABLE is prepare time.
+--enable_prepare_warnings
 CREATE TABLE t1 (
   js0 JSON,
   js1 TEXT CHECK (JSON_VALID(js1)),
   js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
   js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
 ) CHARACTER SET utf8;
+--disable_prepare_warnings
 
 --replace_regex /0 rows in set [(].*[)]/0 rows in set (TIME)/
 --exec $MYSQL -vvv --column-type-info --database=test -e "SELECT * FROM t1;"

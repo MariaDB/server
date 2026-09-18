@@ -53,6 +53,12 @@ int Pushdown_derived::execute()
 
   DBUG_ENTER("Pushdown_derived::execute");
 
+  /*
+    Dropped where the table is given to the engine - see
+    Pushdown_query::execute().
+  */
+  DBUG_ASSERT(!table->is_valid_json_static_set);
+
   if ((err= handler->init_scan()))
     goto error;
 
@@ -106,6 +112,12 @@ void derived_handler::set_derived(TABLE_LIST *tbl)
 {
   derived= tbl;
   table= tbl->table;
+  /*
+    The materialisation table was built by the server and is written by
+    this engine, row by row into record[0] - see
+    TABLE::set_filled_by_engine().
+  */
+  table->set_filled_by_engine();
   unit= tbl->derived;
   select= unit->first_select();
   tmp_table_param= ((select_unit *)(unit->result))->get_tmp_table_param();

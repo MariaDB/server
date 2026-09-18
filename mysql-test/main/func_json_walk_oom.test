@@ -1,0 +1,188 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # The room running out at every point of writing a value out.
+--echo #
+--echo # A value that is a document but is not written the loose way is
+--echo # written out again as it joins a document that is, and that
+--echo # writing puts down five kinds of thing: the bracket the value
+--echo # opens with, a comma before an element, a key with its colon,
+--echo # the bracket a value inside it opens with, and the bracket each
+--echo # of them closes with.  Every one of them can be the append that
+--echo # finds no room, and each has its own way of giving up.
+--echo #
+--echo # Reaching them needs the room to run out at a chosen place, and
+--echo # the place is not something a single statement can aim at: what
+--echo # is left for the value is what the document did not spend, and
+--echo # where inside the value that runs out depends on how much
+--echo # punctuation stands before the point of interest.  So the value
+--echo # is swept past the point instead.  Each element of the run
+--echo # before the tail spends a fixed number of characters more in the
+--echo # loose form, and the key in front of the run spends one per
+--echo # letter, so the two together move the stopping point one
+--echo # character at a time across a tail that carries all of them.
+--echo #
+--echo # A function that edits a document takes room for its answer up
+--echo # front and one that reads a document does not, so the two are
+--echo # swept apart: the first runs out of room a fixed distance into
+--echo # the value, the second wherever the buffer last happened to
+--echo # grow to.
+--echo #
+--echo # What is pinned is not which statement fails - that is a fact
+--echo # about allocation sizes and is allowed to move.  It is that
+--echo # every answer that does come back parses, and that some of them
+--echo # were refused, so the sweep is known to have reached the
+--echo # failures at all.  A document with a piece missing out of the
+--echo # middle is not an answer, and no caller checks for one.
+--echo #
+
+SET NAMES utf8mb4;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+
+let $m= 0;
+while ($m < 9)
+{
+  let $n= 96;
+  while ($n < 122)
+  {
+    eval SET @a = CONCAT('{"a', REPEAT('x', $m), '":1,',
+                         REPEAT('"p":1,', $n),
+                         '"kkkk":{"b":[]},"z":[[]],"y":2}');
+    eval SET @b = CONCAT('{"a', REPEAT('x', $m), '":1,',
+                         REPEAT('"p":1,', $n),
+                         '"c":{},"d":[],"e":{"f":{}},"g":3}');
+    eval SET @c = CONCAT('{"a', REPEAT('x', $m), '":1,',
+                         REPEAT('"p":1,', $n),
+                         '"h":[1,2,[3,[4]]],"i":4}');
+    SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+    --error 0,5
+    SELECT JSON_INSERT(JSON_OBJECT('z',1), '$.d', JSON_QUERY(@a,'$'));
+    --error 0,5
+    SELECT JSON_INSERT(JSON_OBJECT('z',1), '$.d', JSON_QUERY(@b,'$'));
+    --error 0,5
+    SELECT JSON_INSERT(JSON_OBJECT('z',1), '$.d', JSON_QUERY(@c,'$'));
+    SET SESSION debug_dbug = DEFAULT;
+    inc $n;
+  }
+  inc $m;
+}
+
+let $m= 0;
+while ($m < 4)
+{
+  let $n= 0;
+  while ($n < 200)
+  {
+    eval SET @d = CONCAT('{"a', REPEAT('x', $m), '":[', REPEAT('1,', $n),
+                         '{"k":[2,3]},[],{},[[4]],5],"b":{"c":[6,[7]]}}');
+    SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+    --error 0,5
+    SELECT JSON_EXTRACT(@d, '$**.k');
+    --error 0,5
+    SELECT JSON_EXTRACT(@d, '$.b');
+    SET SESSION debug_dbug = DEFAULT;
+    inc $n;
+  }
+  inc $m;
+}
+
+# The same shapes again, with each answer read back to see that it
+# parses.  It is a pass of its own because reading the answer back is
+# itself work in the buffer, and that moves the point the room runs out
+# at - so a sweep that checks is not the same sweep as one that does
+# not, and both are wanted.
+SET @bad = 0;
+SET @refused = 0;
+
+let $m= 0;
+while ($m < 4)
+{
+  let $n= 96;
+  while ($n < 122)
+  {
+    eval SET @a = CONCAT('{"a', REPEAT('x', $m), '":1,',
+                         REPEAT('"p":1,', $n),
+                         '"kkkk":{"b":[]},"z":[[]],"y":2}');
+    eval SET @c = CONCAT('{"a', REPEAT('x', $m), '":1,',
+                         REPEAT('"p":1,', $n),
+                         '"h":[1,2,[3,[4]]],"i":4}');
+    SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+
+    SET @r = NULL;
+    --error 0,5
+    SET @r = JSON_INSERT(JSON_OBJECT('z',1), '$.d', JSON_QUERY(@a,'$'));
+    SET @refused = @refused + (@r IS NULL);
+    SET @bad = @bad + IF(@r IS NULL, 0, 1 - JSON_VALID(CONCAT(@r, '')));
+
+    SET @r = NULL;
+    --error 0,5
+    SET @r = JSON_INSERT(JSON_OBJECT('z',1), '$.d', JSON_QUERY(@c,'$'));
+    SET @refused = @refused + (@r IS NULL);
+    SET @bad = @bad + IF(@r IS NULL, 0, 1 - JSON_VALID(CONCAT(@r, '')));
+
+    SET SESSION debug_dbug = DEFAULT;
+    inc $n;
+  }
+  inc $m;
+}
+
+let $m= 0;
+while ($m < 2)
+{
+  let $n= 0;
+  while ($n < 60)
+  {
+    eval SET @d = CONCAT('{"a', REPEAT('x', $m), '":[', REPEAT('1,', $n),
+                         '{"k":[2,3]},[],{},[[4]],5],"b":{"c":[6,[7]]}}');
+    SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+
+    SET @r = NULL;
+    --error 0,5
+    SET @r = JSON_EXTRACT(@d, '$**.k');
+    SET @refused = @refused + (@r IS NULL);
+    SET @bad = @bad + IF(@r IS NULL, 0, 1 - JSON_VALID(CONCAT(@r, '')));
+
+    SET @r = NULL;
+    --error 0,5
+    SET @r = JSON_EXTRACT(@d, '$.b');
+    SET @refused = @refused + (@r IS NULL);
+    SET @bad = @bad + IF(@r IS NULL, 0, 1 - JSON_VALID(CONCAT(@r, '')));
+
+    SET SESSION debug_dbug = DEFAULT;
+    inc $n;
+  }
+  inc $m;
+}
+
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # Nothing came back half written, and the sweep did reach the
+--echo # failures.
+--echo #
+SELECT @bad AS answers_that_do_not_parse, @refused > 0 AS some_were_refused;
+
+--echo #
+--echo # The same values with the room there, so what the sweeps above
+--echo # compare against is an answer that arrives.
+--echo #
+SET @a = CONCAT('{"a":1,', REPEAT('"p":1,', 110),
+                '"kkkk":{"b":[]},"z":[[]],"y":2}');
+SET @d = CONCAT('{"a":[', REPEAT('1,', 40),
+                '{"k":[2,3]},[],{},[[4]],5],"b":{"c":[6,[7]]}}');
+SELECT JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('z',1), '$.d',
+                                     JSON_QUERY(@a,'$')), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_EXTRACT(@d, '$**.k'), '')) AS parses;
+SELECT JSON_EXTRACT(@d, '$.b') AS answer;
+
+--echo #
+--echo # A value that stops in the middle of a key, which is the one way
+--echo # the walk gives up that is not about room.
+--echo #
+SELECT JSON_EXTRACT('{"a":{"bb', '$.a') AS unfinished_key;
+SELECT JSON_EXTRACT('{"a":[1,{"c', '$.a') AS unfinished_key;

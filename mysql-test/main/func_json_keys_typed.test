@@ -1,0 +1,212 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # JSON_KEYS returns a JSON array, so a function given it in value
+--echo # position puts an array in rather than a string that reads as one.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. Value position, in the functions that build a document.
+--echo #
+
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_OBJECT('k', JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1}'), JSON_KEYS('{"b":2,"c":3}')) AS v;
+SELECT JSON_OBJECT('one', JSON_KEYS('{"a":1}'),
+                   'two', JSON_KEYS('{"b":2,"c":3}')) AS v;
+
+--echo #
+--echo # 2. Value position, in the functions that edit one.
+--echo #
+
+SELECT JSON_SET('{"x":1}', '$.y', JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_INSERT('{"x":1}', '$.y', JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_REPLACE('{"x":1}', '$.x', JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_ARRAY_APPEND('[1]', '$', JSON_KEYS('{"a":1,"b":2}')) AS v;
+SELECT JSON_ARRAY_INSERT('[1]', '$[0]', JSON_KEYS('{"a":1,"b":2}')) AS v;
+
+--echo #
+--echo # 3. The same shape from the functions that were already typed as
+--echo #    returning a document, for comparison.
+--echo #
+
+SELECT JSON_ARRAY(JSON_EXTRACT('{"a":[1,2]}','$.a')) AS v;
+SELECT JSON_ARRAY(JSON_QUERY('{"a":[1,2]}','$.a')) AS v;
+SELECT JSON_SET('{"x":1}', '$.y', JSON_EXTRACT('{"a":[1,2]}','$.a')) AS v;
+
+--echo #
+--echo # 4. Document position is unchanged: the value was always a document
+--echo #    when it was read as one.
+--echo #
+
+SELECT JSON_VALID(JSON_KEYS('{"a":1,"b":2}'))  AS valid,
+       JSON_LENGTH(JSON_KEYS('{"a":1,"b":2}')) AS len,
+       JSON_TYPE(JSON_KEYS('{"a":1,"b":2}'))   AS type;
+SELECT JSON_EXTRACT(JSON_KEYS('{"a":1,"b":2}'), '$[0]') AS v;
+SELECT JSON_DEPTH(JSON_KEYS('{"a":{"b":1},"c":2}')) AS v;
+--echo # the workaround that used to be needed still gives the same document
+SELECT JSON_ARRAY(JSON_EXTRACT(JSON_KEYS('{"a":1,"b":2}'), '$')) AS v;
+
+--echo #
+--echo # 5. Keys that have to be written with an escape.  The key goes in as
+--echo #    it was written in the document it came from, so the array is
+--echo #    still one however the key is written.
+--echo #
+
+SELECT JSON_KEYS('{"a\\"b":1,"c\\\\d":2}') AS v;
+SELECT JSON_VALID(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}')) AS ok;
+SELECT JSON_ARRAY(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}')) AS v;
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"a\\"b":1,"c\\\\d":2}'))) AS ok;
+--echo # an escaped control character and an escaped code point
+SELECT JSON_ARRAY(JSON_KEYS('{"a\\nb":1,"c\\u00e4d":2}')) AS v;
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"a\\nb":1,"c\\u00e4d":2}'))) AS ok;
+--echo # a key written in characters of its own rather than in escapes
+SELECT HEX(JSON_ARRAY(JSON_KEYS(_utf8mb4 X'7B22C3A4223A312C22C3B6223A327D')))
+       AS h;
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS(
+         _utf8mb4 X'7B22C3A4223A312C22C3B6223A327D'))) AS ok;
+--echo # an empty key
+SELECT JSON_ARRAY(JSON_KEYS('{"":1,"b":2}')) AS v;
+SELECT JSON_VALID(JSON_ARRAY(JSON_KEYS('{"":1,"b":2}'))) AS ok;
+
+--echo #
+--echo # 6. The answers that are not arrays.  An object with no keys is an
+--echo #    empty array; anything that is not an object is NULL, and a NULL
+--echo #    goes in as a null.
+--echo #
+
+SELECT JSON_ARRAY(JSON_KEYS('{}')) AS v;
+SELECT JSON_ARRAY(JSON_KEYS('[1,2]')) AS v;
+SELECT JSON_ARRAY(JSON_KEYS('7')) AS v;
+SELECT JSON_ARRAY(JSON_KEYS(NULL)) AS v;
+SELECT JSON_OBJECT('k', JSON_KEYS('[1,2]')) AS v;
+--echo # input that does not read as a document at all
+SELECT JSON_ARRAY(JSON_KEYS('{"a":')) AS v;
+
+--echo #
+--echo # 7. The two-argument form, which reaches an object further in.
+--echo #
+
+SELECT JSON_ARRAY(JSON_KEYS('{"a":{"b":1,"c":2}}', '$.a')) AS v;
+SELECT JSON_OBJECT('k', JSON_KEYS('{"a":{"b":1,"c":2}}', '$.a')) AS v;
+--echo # a path that reaches nothing
+SELECT JSON_ARRAY(JSON_KEYS('{"a":{"b":1}}', '$.zz')) AS v;
+
+--echo #
+--echo # 8. Nested one inside the other.
+--echo #
+
+SELECT JSON_ARRAY(JSON_KEYS(JSON_OBJECT('a', 1, 'b', 2))) AS v;
+SELECT JSON_KEYS(JSON_OBJECT('k', JSON_KEYS('{"a":1,"b":2}'))) AS v;
+
+--echo #
+--echo # 9. Over rows, including through an aggregate and through a
+--echo #    temporary table.
+--echo #
+
+CREATE TABLE t1 (id INT, j VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '{"b":2,"c":3}');
+
+SELECT id, JSON_ARRAY(JSON_KEYS(j)) AS v FROM t1 ORDER BY id;
+SELECT JSON_ARRAYAGG(JSON_KEYS(j)) AS v FROM t1;
+SELECT JSON_OBJECTAGG(id, JSON_KEYS(j)) AS v FROM t1;
+--echo # materialised into a temporary table on the way out
+SELECT JSON_ARRAY(k) AS v FROM (SELECT JSON_KEYS(j) AS k FROM t1) d ORDER BY v;
+--echo # MAX() is not typed by what it is taken over, so its result is
+--echo # quoted here as it is for any other document producing function
+SELECT JSON_ARRAY(MAX(JSON_KEYS(j))) AS v FROM t1 GROUP BY id ORDER BY v;
+SELECT JSON_ARRAY(MAX(JSON_EXTRACT(j, '$'))) AS v FROM t1 GROUP BY id ORDER BY v;
+SELECT DISTINCT JSON_ARRAY(JSON_KEYS(j)) AS v FROM t1 ORDER BY v;
+
+--echo # the column a result set of it makes, and the column the already
+--echo # typed function makes beside it
+CREATE TABLE t2 AS SELECT JSON_KEYS(j) AS k FROM t1;
+SHOW CREATE TABLE t2;
+SELECT JSON_ARRAY(k) AS v FROM t2 ORDER BY v;
+DROP TABLE t2;
+CREATE TABLE t3 AS SELECT JSON_EXTRACT(j, '$') AS k FROM t1;
+SHOW CREATE TABLE t3;
+DROP TABLE t3;
+
+DROP TABLE t1;
+
+--echo #
+--echo # 10. The result metadata, which is what decides all of the above.
+--echo #
+
+# What is read here is what the expression itself declares.  A cursor
+# reports the temporary table it materialised the answer into and a view
+# reports its own columns, so neither would be answering the question.
+--disable_cursor_protocol
+--disable_view_protocol
+--enable_metadata
+SELECT JSON_KEYS('{"a":1,"b":2}') AS v;
+SELECT JSON_EXTRACT('{"a":[1,2]}','$.a') AS v;
+SELECT JSON_QUOTE('a') AS v;
+--disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
+
+--echo #
+--echo # 11. JSON_QUOTE is documented to return a string and still does.
+--echo #
+
+SELECT JSON_ARRAY(JSON_QUOTE('a')) AS v;
+SELECT JSON_OBJECT('k', JSON_QUOTE('a')) AS v;
+
+--echo #
+--echo # 12. The array is attested as well as typed, so a splice of it
+--echo #     goes in without being read again - which no result here can
+--echo #     show and Json_scans can, and does in func_json_scan_count.
+--echo #
+--echo #     What stands in the way of that is a character set this
+--echo #     cannot attest to, and there are two kinds of those.
+--echo #
+--echo #     A set that cannot encode a bracket cannot encode a brace
+--echo #     either, so no array is ever answered in it and the question
+--echo #     never comes up - swe7, below.
+--echo #
+--echo #     But the question actually asked is whether the set is
+--echo #     ASCII-compatible, and a set can decode every ASCII byte to
+--echo #     itself and still be flagged as not.  sjis is one: it parses
+--echo #     a document, answers a real array, and has the mark withheld
+--echo #     from it all the same, so a splice reads that array again.
+--echo #     The array is a perfectly good document either way; what is
+--echo #     lost is the reading it was meant to save.
+--echo #
+--echo #     The counts that say which of the two happened are in
+--echo #     func_json_keys_typed_scans, which a debug build runs.
+--echo #
+
+SELECT JSON_KEYS(CONVERT('{"a":1}' USING swe7)) AS no_answer;
+SELECT JSON_VALID(CONVERT('{"a":1}' USING swe7)) AS nor_a_document;
+
+--echo # sjis: a real answer, and one the mark is withheld from
+CREATE TABLE ts (j TEXT) CHARACTER SET sjis;
+INSERT INTO ts VALUES ('{"a":1,"b":2}');
+SELECT JSON_KEYS(j) AS answered, JSON_VALID(JSON_KEYS(j)) AS ok FROM ts;
+DROP TABLE ts;
+
+--echo #
+--echo # 13. What the answer is attested does not say the argument was
+--echo #     a document all the way through.  This reads an object and
+--echo #     stops at its end, so a break past that end is never met - and
+--echo #     one it does meet refuses the answer whole.
+--echo #
+
+--echo # never met: the break is past the object, or past the sub-object
+--echo # the path chose
+SELECT JSON_KEYS('{"a":1} rubbish') AS trailing_text;
+SELECT JSON_KEYS('{"a":1}{"b":2}') AS second_document;
+SELECT JSON_KEYS('{"a":1}}') AS trailing_brace;
+SELECT JSON_KEYS('{"a":{"z":1} "b":2}', '$.a') AS break_after_the_step;
+--echo # and the answers are documents, which is what the mark says
+SELECT JSON_VALID(JSON_KEYS('{"a":1} rubbish')) AS ok;
+SELECT JSON_ARRAY(JSON_KEYS('{"a":1} rubbish')) AS spliced;
+
+--echo # met: refused whole, and reported where it happened
+SELECT JSON_KEYS('{"a":1 "b":2}') AS break_inside;
+SELECT JSON_KEYS('{"a":') AS ends_early;
+SELECT JSON_KEYS('{"a":{"z":1 "y":2}}', '$.a') AS break_inside_the_step;

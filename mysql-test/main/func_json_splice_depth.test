@@ -1,0 +1,182 @@
+#
+# How deep a value put into a document is allowed to end up.
+#
+# A document can hold 32 structures inside one another and no more.
+# A value spliced into one is written where the path reached, so how
+# deep it ends up is how deep the path went plus how deep the value
+# goes on its own, and it is the total the limit is about.
+#
+# The value's own depth is found by reading it.  A value that something
+# else has already read and attested to is not read again, so the
+# reading that would have measured it is not done.  Two things stand in
+# for it, and the smaller is taken.  A value only nests as deeply as it
+# is long, which is exact for a value of nothing but brackets and
+# useless for a long shallow one.  And the function that wrote the value
+# may have counted the depth as it wrote, which is exact whatever the
+# length.
+#
+# The cases below are the ones that tell those apart, and each is set
+# where being wrong by one would show: a value of nothing but brackets
+# is as deep as half its length; a scalar is no deep at all however long
+# the document holding it; and a long padded chain is beyond anything
+# its length can say, so only a count admits it.
+#
+# The answers are the ones the server has always given.
+#
+
+SET @d29= CONCAT(REPEAT('{"a":', 29), '1', REPEAT('}', 29));
+SET @d30= CONCAT(REPEAT('{"a":', 30), '1', REPEAT('}', 30));
+SET @p29= CONCAT('$', REPEAT('.a', 29));
+SET @p30= CONCAT('$', REPEAT('.a', 30));
+
+--echo #
+--echo # 1. Two structures put 30 deep make 32 and do not read back;
+--echo #    the same two put 29 deep make 31 and do
+--echo #
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+                    JSON_EXTRACT('{"b":{"c":1}}', '$')) AS too_deep;
+SELECT JSON_REPLACE(JSON_EXTRACT(@d29, '$'), @p29,
+                    JSON_EXTRACT('{"b":{"c":1}}', '$')) AS in_limit;
+
+--echo #
+--echo # 2. A value of nothing but brackets, where how long it is says
+--echo #    exactly how deep it goes and there is no room to be wrong by
+--echo #
+SELECT JSON_REPLACE(JSON_EXTRACT(@d29, '$'), @p29,
+                    JSON_EXTRACT('[[1]]', '$')) AS br_limit;
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+                    JSON_EXTRACT('[[1]]', '$')) AS br_deep;
+
+--echo #
+--echo # 3. A scalar sits at whatever depth it is put and adds none of
+--echo #    its own
+--echo #
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30,
+                    JSON_EXTRACT('[7]', '$[0]')) AS scalar_deep;
+
+--echo #
+--echo # 4. The same through a document answering is_valid false, which is
+--echo #    read back in full and so is where the limit has always been
+--echo #    noticed
+--echo #
+SELECT JSON_REPLACE(@d30, @p30, JSON_EXTRACT('{"b":{"c":1}}', '$')) AS raw_deep;
+SELECT JSON_REPLACE(@d29, @p29, JSON_EXTRACT('{"b":{"c":1}}', '$')) AS raw_limit;
+
+--echo #
+--echo # 5. A value written out by hand is a string rather than a
+--echo #    document, so it goes in quoted and takes one level whatever
+--echo #    is written in it
+--echo #
+SELECT JSON_REPLACE(JSON_EXTRACT(@d30, '$'), @p30, '{"b":{"c":1}}') AS quoted;
+
+--echo #
+--echo # 6. A function that BUILDS a document puts the value one level
+--echo #    inside the array or object it is making
+--echo #
+SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SET @d30a= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SELECT JSON_ARRAY(JSON_EXTRACT(@d31, '$')) AS built_deep;
+SELECT JSON_ARRAY(JSON_EXTRACT(@d30a, '$')) AS built_limit;
+
+--echo #
+--echo # 7. A chain padded until its length says nothing about it - each
+--echo #    level here is fourteen characters, so half the length is
+--echo #    seven times the limit and only a count can tell one of these
+--echo #    from the other
+--echo #
+SET @k31= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 31),
+                 '1', REPEAT('}', 31));
+SET @k30= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 30),
+                 '1', REPEAT('}', 30));
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(@k31, '$')) AS padded_deep;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k31, '$'))) AS padded_deep_depth;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_EXTRACT(@k30, '$')) AS padded_limit;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))) AS padded_limit_depth;
+
+--echo #
+--echo # 8. The same carried one step further out, where the count is all
+--echo #    there is: the array of case 7 is longer again and is what the
+--echo #    outer one is asked to take
+--echo #
+--disable_result_log
+SELECT JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))) AS padded_two;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(@k30, '$'))))
+       AS padded_two_depth;
+
+--echo #
+--echo # 9. A document that was EDITED is as deep as it was or as deep as
+--echo #    what went into it, whichever is more, and says so without
+--echo #    being read again
+--echo #
+SET @k29= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 29),
+                 '1', REPEAT('}', 29));
+SET @k28= CONCAT(REPEAT(CONCAT('{"', REPEAT('k', 10), '":'), 28),
+                 '1', REPEAT('}', 28));
+SET @kp29= CONCAT('$', REPEAT(CONCAT('.', REPEAT('k', 10)), 29));
+SET @kp28= CONCAT('$', REPEAT(CONCAT('.', REPEAT('k', 10)), 28));
+--disable_result_log
+SELECT JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k28, '$'), @kp28,
+                               JSON_EXTRACT('{"b":{"c":1}}', '$')))
+       AS edited_limit;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k28, '$'), @kp28,
+                             JSON_EXTRACT('{"b":{"c":1}}', '$'))))
+       AS edited_limit_depth;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k29, '$'), @kp29,
+                               JSON_EXTRACT('{"b":{"c":1}}', '$')))
+       AS edited_deep;
+--enable_result_log
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_REPLACE(JSON_EXTRACT(@k29, '$'), @kp29,
+                             JSON_EXTRACT('{"b":{"c":1}}', '$'))))
+       AS edited_deep_depth;
+
+--echo #
+--echo # 10. Wrapping, where the new array is a structure the document
+--echo #     being read never had.  What was found is put inside it and
+--echo #     the value goes in beside them both, so the value sits one
+--echo #     level below where the path reached.
+--echo #
+--echo #     A value written out as a string has nothing inside it, so
+--echo #     where it sits is the whole of how deep the answer goes and
+--echo #     there is nothing left to read to find that out.
+--echo #
+SET @w31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SET @w30= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SET @wp31= CONCAT('$', REPEAT('[0]', 31));
+SET @wp30= CONCAT('$', REPEAT('[0]', 30));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w31, '$'), @wp31, 2) AS wrap_deep;
+SELECT JSON_ARRAY_APPEND(@w31, @wp31, 2) AS wrap_deep_read_back;
+
+--echo #
+--echo #     One level shallower both answer, which is what says the two
+--echo #     above are refused for their depth and not for their shape.
+--echo #
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w30, '$'), @wp30, 2) AS wrap_limit;
+SELECT JSON_ARRAY_APPEND(@w30, @wp30, 2) AS wrap_limit_read_back;
+
+--echo #
+--echo #     A value that is a document of its own is read, and reaches
+--echo #     the same refusal through what the reading found rather than
+--echo #     through where it was put.
+--echo #
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@w31, '$'), @wp31,
+                         JSON_EXTRACT('2', '$')) AS wrap_deep_typed;
+
+--echo #
+--echo #     The functions that wrap while INSERTING name the place they
+--echo #     are inserting at, so reaching this far down takes a path one
+--echo #     step longer than a path is allowed to be, and the path is
+--echo #     what refuses them.  Appending names the value instead and
+--echo #     needs no step for the array it adds, which is why it is the
+--echo #     one that gets here.
+--echo #
+SELECT JSON_INSERT(JSON_EXTRACT(@w31, '$'), CONCAT(@wp31, '[1]'), 2)
+       AS insert_wrap_deep;
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT(@w31, '$'), CONCAT(@wp31, '[1]'), 2)
+       AS ainsert_wrap_deep;

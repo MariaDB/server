@@ -281,3 +281,51 @@ SELECT CONCAT_WS(' ', a, b, PASSWORD(c)) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
 
 --echo # End of 10.5 tests
+
+--echo # Start of 10.11 tests
+
+--echo #
+--echo # CONCAT keeps the value of its first argument when that argument
+--echo # answers in the buffer it was handed, pointing at bytes it does
+--echo # not own
+--echo #
+
+SELECT JSON_TYPE('{"a":1}');
+SELECT CONCAT(JSON_TYPE('{"a":1}'), 'X');
+SELECT CONCAT(JSON_TYPE('{"a":1}'), 'A', 'B');
+SELECT CONCAT(JSON_TYPE('{"a":1}'), JSON_TYPE('[1]'));
+SELECT CONCAT(JSON_TYPE('{"a":1}'), '');
+SELECT LENGTH(CONCAT(JSON_TYPE('{"a":1}'), 'X'));
+
+SELECT GET_FORMAT(DATE, 'USA');
+SELECT CONCAT(GET_FORMAT(DATE, 'USA'), 'X');
+SELECT CONCAT(GET_FORMAT(DATE, 'USA'), GET_FORMAT(DATE, 'ISO'));
+
+--echo # Every other argument position was always right
+
+SELECT CONCAT('P', JSON_TYPE('{"a":1}'));
+SELECT CONCAT('P', GET_FORMAT(DATE, 'USA'));
+SELECT CONCAT_WS('-', JSON_TYPE('{"a":1}'), 'X');
+
+--echo # The same over table data
+
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a":1}'), ('[1,2]');
+SELECT CONCAT(JSON_TYPE(j), '.') AS c FROM t1;
+SELECT CONCAT(JSON_TYPE(j), JSON_TYPE(j)) AS c FROM t1;
+DROP TABLE t1;
+
+--echo # The || operator in sql_mode=ORACLE concatenates the same way
+# A wrapping view is created on a connection of its own, which does not
+# carry this session's sql_mode, so || would be read as an OR there.
+--disable_view_protocol
+
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=ORACLE;
+SELECT JSON_TYPE('{"a":1}') || 'X';
+SELECT GET_FORMAT(DATE, 'USA') || 'X';
+SELECT 'P' || JSON_TYPE('{"a":1}');
+SET sql_mode=@save_sql_mode;
+--enable_view_protocol
+
+--echo # End of 10.11 tests

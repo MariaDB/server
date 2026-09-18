@@ -1986,6 +1986,19 @@ int dump_leaf_key(void* key_arg,
                   void* item_arg);
 C_MODE_END
 
+/*
+  Says that a group was cut to fit group_concat_max_len, naming the row
+  the cut fell on.  'fname' is written into the message ahead of a ')'
+  the message supplies itself, so it is the function's name with its
+  opening bracket already on it.
+
+  Shared with the JSON object aggregate, which cuts its own group and
+  has to say so the same way, having no GROUP_CONCAT machinery under it
+  to say it.
+*/
+void report_cut_value_error(THD *thd, uint row_count, const char *fname);
+
+
 class Item_func_group_concat : public Item_sum
 {
 protected:
@@ -2070,6 +2083,14 @@ protected:
     { return f->val_str(tmp, key + offset); }
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
+  /*
+    How much of the length limit is spoken for by something that is not
+    in the buffer yet.  What this accumulates is the whole of what
+    GROUP_CONCAT returns, so nothing; a subclass that writes anything
+    round the group once it is asked for is handing those bytes back as
+    well, and the limit is on the bytes returned.
+  */
+  virtual uint32 reserved_result_length() const { return 0; }
   bool uses_non_standard_aggregator_for_distinct() const override
     { return distinct; }
 
