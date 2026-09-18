@@ -998,6 +998,7 @@ public:
   @param buf      the data to be read or written
   @param bpage    buffer block (for type.is_async() completion callback)
   @return status and file descriptor */
+  MY_ATTRIBUTE((warn_unused_result))
   fil_io_t io(const IORequest &type, os_offset_t offset, size_t len,
               void *buf, buf_page_t *bpage= nullptr) noexcept;
   /** Flush pending writes from the file system cache to the file. */
