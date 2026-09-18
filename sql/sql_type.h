@@ -7266,13 +7266,26 @@ public:
     */
     const Type_handler_longstr* src_th_longstr=
       dynamic_cast<const Type_handler_longstr *>(src_th);
-    if (!src_th_longstr ||
-        capacity_limit_is_in_characters() !=
-          src_th_longstr->capacity_limit_is_in_characters())
+    if (!src_th_longstr)
       return false;
-    if (dst_std_attr.collation.collation != src_std_attr.collation.collation)
-      return false;
-    return dst_std_attr.max_length >= src_std_attr.max_length;
+    const CHARSET_INFO *cs= dst_std_attr.collation.collation;
+    if (capacity_limit_is_in_characters())
+    {
+      /*
+        dst limit is declared in characters i.e. max_length ==
+        max_chars * mbmaxlen, so express src's limit in characters and
+        compare the char limits
+      */
+      const uint32 src_max_chars=
+        src_th_longstr->capacity_limit_is_in_characters() ?
+          /* max_length == max_chars * mbmaxlen */
+          src_std_attr.max_length / cs->mbmaxlen :
+          /* N octets hold at most (N/mbminlen) chars */
+          src_std_attr.max_length / cs->mbminlen;
+      return src_max_chars <= dst_std_attr.max_length / cs->mbmaxlen;
+    }
+    /* dst limit is declared in octets, so compare octet limits */
+    return src_std_attr.max_length <= dst_std_attr.max_length;
   }
 };
 
