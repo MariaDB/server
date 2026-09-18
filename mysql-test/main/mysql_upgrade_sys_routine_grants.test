@@ -1,0 +1,60 @@
+--source include/mysql_upgrade_preparation.inc
+
+--echo #
+--echo # MDEV-39993 mariadb-upgrade Drops Existing EXECUTE Grants on sys
+--echo # Stored Routines During Upgrade
+--echo #
+
+CREATE USER mdev39993_user@localhost;
+GRANT EXECUTE ON PROCEDURE sys.table_exists TO mdev39993_user@localhost;
+GRANT EXECUTE ON FUNCTION sys.quote_identifier TO mdev39993_user@localhost;
+
+SHOW GRANTS FOR mdev39993_user@localhost;
+
+--echo # Overwrite the routine bodies with a marker so that a passing test
+--echo # below actually proves the routines were reinstalled by the
+--echo # upgrade, rather than merely left untouched (i.e. sys schema
+--echo # install skipped).
+DELIMITER |;
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION sys.quote_identifier(in_identifier TEXT)
+    RETURNS TEXT
+    SQL SECURITY INVOKER
+    DETERMINISTIC
+BEGIN
+    RETURN 'stale_body_marker';
+END|
+
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE sys.table_exists (
+        IN in_db VARCHAR(64), IN in_table VARCHAR(64),
+        OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY', 'SEQUENCE', 'SYSTEM VIEW', 'TEMPORARY SEQUENCE')
+    )
+    SQL SECURITY INVOKER
+BEGIN
+    SET out_exists = '';
+END|
+DELIMITER ;|
+
+SELECT sys.quote_identifier('abc') AS qi;
+CALL sys.table_exists('mysql', 'user', @exists);
+SELECT @exists;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+
+--echo # The EXECUTE grants on sys.table_exists and sys.quote_identifier
+--echo # must survive the reinstall of the sys schema.
+SHOW GRANTS FOR mdev39993_user@localhost;
+
+--echo # The routine bodies must have been replaced back to their real
+--echo # definitions (proves the sys schema was actually reinstalled by
+--echo # the upgrade, not merely skipped).
+SELECT sys.quote_identifier('abc') AS qi;
+CALL sys.table_exists('mysql', 'user', @exists);
+SELECT @exists;
+
+DROP USER mdev39993_user@localhost;
+
+--echo # End of 11.4 tests

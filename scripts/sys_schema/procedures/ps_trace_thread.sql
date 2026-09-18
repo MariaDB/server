@@ -13,10 +13,8 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_trace_thread;
-
 DELIMITER $$
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_thread (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_thread (
         IN in_thread_id BIGINT UNSIGNED,
         IN in_outfile VARCHAR(255),
         IN in_max_runtime DECIMAL(20,2),
