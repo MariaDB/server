@@ -66,7 +66,11 @@ public:
   { }
   bool streq(const Lex_cstring_with_compare& b) const
   {
-    return Lex_cstring::length == b.length && 0 == Compare()(*this, b);
+    if (length != b.length)
+      return false;
+    if (str == NULL || b.str == NULL)
+      return str == b.str;
+    return length == 0 || 0 == Compare()(*this, b);
   }
   operator const char* () const
   {
