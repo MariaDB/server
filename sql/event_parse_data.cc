@@ -51,7 +51,7 @@ Event_parse_data::new_instance(THD *thd)
 Event_parse_data::Event_parse_data()
   :on_completion(Event_parse_data::ON_COMPLETION_DEFAULT),
   status(Event_parse_data::ENABLED), status_changed(false),
-  do_not_create(FALSE), body_changed(FALSE),
+  do_not_create(FALSE), body_changed(FALSE), write_to_binlog_enable(false),
   item_starts(NULL), item_ends(NULL), item_execute_at(NULL),
   starts_null(TRUE), ends_null(TRUE), execute_at_null(TRUE),
   item_expression(NULL), expression(0)
@@ -588,7 +588,8 @@ Event_parse_data::init_definer(THD *thd)
 /**
   Set the originator id of the event to the server_id if executing on
   the master or set to the server_id of the master if executing on 
-  the slave. If executing on slave, also set status to SLAVESIDE_DISABLED.
+  the slave. If executing on slave, also set status to ENABLED
+  if write_to_binlog_enable is true or DISABLED otherwise.
 
   SYNOPSIS
     Event_parse_data::check_originator_id()
@@ -600,13 +601,18 @@ void Event_parse_data::check_originator_id(THD *thd)
       (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL) ||
       (thd->system_thread == SYSTEM_THREAD_SLAVE_IO))
   {
-    DBUG_PRINT("info", ("Invoked object status set to SLAVESIDE_DISABLED."));
-    if ((status == Event_parse_data::ENABLED) ||
-        (status == Event_parse_data::DISABLED))
+    int prev_status = status;
+    if (write_to_binlog_enable)
     {
-      status= Event_parse_data::SLAVESIDE_DISABLED;
-      status_changed= true;
+      DBUG_PRINT("info", ("Invoked object status set to ENABLED."));
+      status= Event_parse_data::ENABLED;
+    } else
+    {
+      DBUG_PRINT("info", ("Invoked object status set to DISABLED."));
+      status= Event_parse_data::DISABLED;
     }
+
+    if (status != prev_status) status_changed= true;
     originator = thd->variables.server_id;
   }
   else
