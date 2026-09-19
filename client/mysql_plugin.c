@@ -54,7 +54,13 @@
 
 #ifndef PKG_DELEGATION
 #include <zlib.h>
+/*
+  Repository access needs libcurl. Builds without it, such as Windows, keep
+  the archive handling but refuse the operations that would use the network.
+*/
+#ifdef HAVE_LIBCURL
 #include <curl/curl.h>
+#endif
 #include <mysql/service_sha2.h>
 #endif
 
@@ -2352,12 +2358,14 @@ static int valid_relative_path(const char *path)
 }
 
 
-/* 1 = line, 0 = EOF, -1 = error. Long manifest headers remain readable. */
-static int read_kv_line(FILE *file, const char *source, char *line,
-                        my_bool manifest)
+/* 1 = line, 0 = EOF, -1 = error; always drain the complete physical line. */
+static int read_metadata_line(FILE *file, const char *source, char *line,
+                              my_bool *oversized)
 {
   size_t len= 0;
-  int c, oversized= 0, invalid= 0;
+  int c, invalid= 0;
+
+  *oversized= FALSE;
 
   while ((c= fgetc(file)) != EOF && c != '\n')
   {
@@ -2366,19 +2374,11 @@ static int read_kv_line(FILE *file, const char *source, char *line,
     if (len < KV_LINE_SIZE - 1)
       line[len++]= (char) c;
     else
-      oversized= 1;
+      *oversized= TRUE;
   }
   line[len]= '\0';
   if (ferror(file) || invalid)
     goto corrupt;
-  if (oversized)
-  {
-    if (!manifest || !strncmp(line, "dir: ", 5) ||
-        !strncmp(line, "file: ", 6))
-      goto corrupt;
-    /* Preserve the prefix so identity checks can reject an oversized name. */
-    return 1;
-  }
   if (c == EOF && !len)
     return 0;
   if (len && line[len - 1] == '\r')
@@ -2392,6 +2392,23 @@ corrupt:
 }
 
 
+/* Never truncate deletion paths. Informational legacy headers can be long. */
+static int read_manifest_line(FILE *file, const char *source, char *line)
+{
+  my_bool oversized;
+  int rc= read_metadata_line(file, source, line, &oversized);
+  if (rc > 0 && oversized &&
+      (!strncmp(line, "dir: ", 5) || !strncmp(line, "file: ", 6)))
+  {
+    fprintf(stderr, "ERROR: '%s' contains an oversized manifest path.\n",
+            source);
+    return -1;
+  }
+  return rc;
+}
+
+
+#ifdef HAVE_LIBCURL
 struct download_target
 {
   FILE *file;
@@ -2409,6 +2426,7 @@ static size_t download_write(char *data, size_t size, size_t count, void *arg)
   target->remaining-= bytes;
   return fwrite(data, 1, bytes, target->file);
 }
+#endif
 
 
 static FILE *plugin_tmpfile(void)
@@ -2474,6 +2492,7 @@ static FILE *copy_local_archive(const char *name)
 
 
 /* Keep downloads open and anonymous, including between verification passes. */
+#ifdef HAVE_LIBCURL
 static FILE *download_file(const char *url, size_t limit)
 {
   char detail[CURL_ERROR_SIZE]= "";
@@ -2546,6 +2565,21 @@ end:
   curl_global_cleanup();
   return target.file;
 }
+#else
+/*
+  Windows builds are not linked with libcurl, so they have no downloader. The
+  commands that would use it are refused first; this stub keeps the tarball
+  code compilable and cannot proceed silently.
+*/
+static FILE *download_file(const char *url, size_t limit)
+{
+  (void) url;
+  (void) limit;
+  fprintf(stderr, "ERROR: Remote plugin download is not supported on "
+          "Windows yet.\n");
+  return NULL;
+}
+#endif
 
 
 static int build_download_url(char *url, size_t size, const char *file)
@@ -2593,7 +2627,6 @@ struct index_entry
   char version[64];
   char server[32];
   char platform[64];
-  char arch[64];
   char file[FN_REFLEN];
   char sha256[65];
   char author[KV_LINE_SIZE];
@@ -2602,93 +2635,273 @@ struct index_entry
 };
 
 
-/* Blank-separated prototype records. Returns 1 = record, 0 = EOF, -1 = error. */
-static int read_index_entry(FILE *file, const char *source,
-                            struct index_entry *e)
+/*
+  Repository YAML uses single-line scalars only. Decode in place; rejecting
+  unsupported YAML features is preferable to treating syntax as field data.
+*/
+static int index_scalar(char *value)
+{
+  char *p= value, *out= value, quote= 0;
+  size_t len;
+
+  if (*p == '\'' || *p == '"')
+    quote= *p++;
+  if (!quote && (*p == '-' || *p == '?' || *p == ':'))
+  {
+    if (!p[1] || p[1] == ' ')
+      return 1;
+  }
+  else if (!quote && *p && strchr(",[]{}#&*!|>@`%", *p))
+    return 1;
+
+  while (*p)
+  {
+    if (quote && *p == quote)
+    {
+      p++;
+      if (quote == '\'' && *p == '\'')
+      {
+        *out++= *p++;
+        continue;
+      }
+      if (*p && *p != ' ')
+        return 1;
+      while (*p == ' ')
+        p++;
+      if (*p && *p != '#')
+        return 1;
+      *out= '\0';
+      return 0;
+    }
+    if (quote == '"' && *p == '\\')
+    {
+      p++;
+      if (*p != '\\' && *p != '"')
+        return 1;
+    }
+    else if (!quote)
+    {
+      if (*p == '#' && (p == value || p[-1] == ' '))
+        break;
+      if (*p == ':' && (!p[1] || p[1] == ' '))
+        return 1;
+    }
+    *out++= *p++;
+  }
+  if (quote)
+    return 1;
+  len= (size_t) (out - value);
+  while (len && value[len - 1] == ' ')
+    len--;
+  value[len]= '\0';
+  /* These plain scalars resolve to null/boolean in YAML, not text. */
+  return !len || !strcmp(value, "~") ||
+         !strcasecmp(value, "null") || !strcasecmp(value, "true") ||
+         !strcasecmp(value, "false");
+}
+
+
+/* Numeric major.minor[.patch], without suffixes or partial numeric matches. */
+static int index_server_series(const char *value, uint *major, uint *minor)
+{
+  uint parts[3]= {0, 0, 0};
+  uint part= 0;
+  const char *p= value;
+  for (;;)
+  {
+    if (*p < '0' || *p > '9')
+      return 1;
+    do
+    {
+      if (parts[part] > (UINT_MAX - (uint) (*p - '0')) / 10)
+        return 1;
+      parts[part]= parts[part] * 10 + (uint) (*p++ - '0');
+    } while (*p >= '0' && *p <= '9');
+    if (!*p)
+      break;
+    if (*p++ != '.' || ++part > 2)
+      return 1;
+  }
+  if (!part)
+    return 1;
+  *major= parts[0];
+  *minor= parts[1];
+  return 0;
+}
+
+
+/* The restricted YAML reader only supports physical, single-line UTF-8. */
+static int index_line_utf8(const char *line)
+{
+  const uchar *p= (const uchar *) line;
+  size_t len= strlen(line);
+  int error;
+
+  if (my_well_formed_length(&my_charset_utf8mb4_bin, line, line + len,
+                            len, &error) != len || error)
+    return 1;
+  for (; *p; p++)
+  {
+    /* YAML treats NEL and the Unicode separators as line breaks. */
+    if ((p[0] == 0xc2 && p[1] >= 0x80 && p[1] <= 0x9f) ||
+        /* The charset helper accepts encoded surrogates, but UTF-8 does not. */
+        (p[0] == 0xed && p[1] >= 0xa0 && p[1] <= 0xbf) ||
+        (p[0] == 0xe2 && p[1] == 0x80 &&
+         (p[2] == 0xa8 || p[2] == 0xa9)))
+      return 1;
+  }
+  return 0;
+}
+
+
+struct index_reader
+{
+  FILE *file;
+  const char *source;
+  my_bool after_separator;
+};
+
+
+/* One package mapping per YAML document. 1 = record, 0 = EOF, -1 = error. */
+static int read_index_entry(struct index_reader *reader, struct index_entry *e)
 {
   char line[KV_LINE_SIZE];
-  const char *keys[]= {"name", "version", "server", "platform", "arch",
+  const char *keys[]= {"name", "version", "server", "platform",
                        "file", "sha256", "author", "description", "license"};
-  char *values[]= {e->name, e->version, e->server, e->platform, e->arch,
+  char *values[]= {e->name, e->version, e->server, e->platform,
                     e->file, e->sha256, e->author, e->description, e->license};
   size_t sizes[]= {sizeof(e->name), sizeof(e->version), sizeof(e->server),
-                    sizeof(e->platform), sizeof(e->arch), sizeof(e->file),
+                    sizeof(e->platform), sizeof(e->file),
                     sizeof(e->sha256), sizeof(e->author),
                     sizeof(e->description), sizeof(e->license)};
-  uint seen= 0;
-  my_bool have_fields= FALSE;
+  uint seen= 0, major, minor;
+  my_bool have_package= FALSE, separator= reader->after_separator;
   int rc;
-  size_t i, len;
+  size_t i, len, indent= 0;
 
   bzero(e, sizeof(*e));
   for (;;)
   {
-    rc= read_kv_line(file, source, line, FALSE);
+    my_bool oversized;
+    char *key, *value;
+    size_t spaces;
+
+    rc= read_metadata_line(reader->file, reader->source, line, &oversized);
     if (rc < 0)
       return -1;
-    if (rc && line[0])
+    if (oversized)
     {
-      char *value= strchr(line, ':');
-      if (!value || value == line || value[1] != ' ')
+      fprintf(stderr, "ERROR: '%s' contains an invalid or oversized line.\n",
+              reader->source);
+      return -1;
+    }
+    if (index_line_utf8(line))
+      goto invalid;
+    for (i= 0; line[i]; i++)
+      if ((uchar) line[i] < 0x20 || line[i] == 0x7f)
         goto invalid;
-      *value++= '\0';
+    key= line;
+    while (*key == ' ')
+      key++;
+    spaces= (size_t) (key - line);
+    if (rc && (!*key || *key == '#'))
+      continue;
+    if (rc && !spaces && !strncmp(key, "---", 3) &&
+        (!key[3] || key[3] == ' '))
+    {
+      value= key + 3;
       while (*value == ' ')
         value++;
-      len= strlen(value);
-      while (len && value[len - 1] == ' ')
-        value[--len]= '\0';
-      for (i= 0; value[i]; i++)
-        if ((uchar) value[i] < 0x20 || value[i] == 0x7f)
-          goto invalid;
-      for (i= 0; i < array_elements(keys); i++)
-        if (!strcmp(line, keys[i]))
-          break;
-      if (i < array_elements(keys))
+      if (*value && *value != '#')
+        goto invalid;
+      if (!have_package)
       {
-        if ((i < 7 && !len) || (seen & (1U << i)) ||
-            safe_strcpy_truncated(values[i], sizes[i], value))
+        if (separator)
           goto invalid;
-        seen|= 1U << i;
+        separator= TRUE;
+        continue;
       }
-      have_fields= TRUE;
-      continue;
-    }
-    if (have_fields)
-    {
-      if ((seen & 127) != 127 || validate_plugin_name(e->name))
-        goto invalid;
-      len= strlen(e->file);
-      if (len < 7 || strcmp(e->file + len - 7, ".tar.gz") ||
-          !valid_relative_path(e->file))
-        goto invalid;
-      for (i= 0; i < len; i++)
-        if (!isalnum((uchar) e->file[i]) && e->file[i] != '.' &&
-            e->file[i] != '_' && e->file[i] != '-')
-          goto invalid;
-      if (strlen(e->sha256) != 64)
-        goto invalid;
-      for (i= 0; i < 64; i++)
-        if (!isxdigit((uchar) e->sha256[i]))
-          goto invalid;
-      return 1;
+      reader->after_separator= TRUE;
+      break;
     }
     if (!rc)
-      return 0;
+    {
+      if (!have_package)
+      {
+        if (separator)
+          goto invalid;
+        return 0;
+      }
+      reader->after_separator= FALSE;
+      break;
+    }
+    if (!have_package)
+    {
+      if (spaces || strncmp(key, "package:", 8))
+        goto invalid;
+      value= key + 8;
+      if (*value && *value != ' ')
+        goto invalid;
+      while (*value == ' ')
+        value++;
+      if (*value && *value != '#')
+        goto invalid;
+      have_package= TRUE;
+      continue;
+    }
+    if (!spaces || (indent && spaces != indent))
+      goto invalid;
+    indent= spaces;
+    value= strchr(key, ':');
+    if (!value || value == key || value[1] != ' ')
+      goto invalid;
+    *value++= '\0';
+    while (*value == ' ')
+      value++;
+    if (index_scalar(value))
+      goto invalid;
+    for (i= 0; i < array_elements(keys); i++)
+      if (!strcmp(key, keys[i]))
+        break;
+    /* Unknown fields require an explicit schema extension, not silent loss. */
+    if (i == array_elements(keys) || (seen & (1U << i)) ||
+        (i < 6 && !*value) ||
+        safe_strcpy_truncated(values[i], sizes[i], value))
+      goto invalid;
+    seen|= 1U << i;
   }
+  if ((seen & 63) != 63 || validate_plugin_name(e->name) ||
+      index_server_series(e->server, &major, &minor))
+    goto invalid;
+  len= strlen(e->file);
+  if (len < 7 || strcmp(e->file + len - 7, ".tar.gz") ||
+      !valid_relative_path(e->file))
+    goto invalid;
+  for (i= 0; i < len; i++)
+    if (!isalnum((uchar) e->file[i]) && e->file[i] != '.' &&
+        e->file[i] != '_' && e->file[i] != '-')
+      goto invalid;
+  if (strlen(e->sha256) != 64)
+    goto invalid;
+  for (i= 0; i < 64; i++)
+    if (!isxdigit((uchar) e->sha256[i]))
+      goto invalid;
+  return 1;
 
 invalid:
-  fprintf(stderr, "ERROR: invalid plugin record in '%s'.\n", source);
+  fprintf(stderr, "ERROR: invalid plugin record in '%s' "
+          "(expected a supported package YAML document).\n", reader->source);
   return -1;
 }
 
 
 static int index_entry_compatible(const struct index_entry *e)
 {
-  char server[32];
-  my_snprintf(server, sizeof(server), "%u.%u", MYSQL_VERSION_ID / 10000,
-              MYSQL_VERSION_ID / 100 % 100);
-  return !strcmp(e->server, server) && !strcmp(e->platform, SYSTEM_TYPE) &&
-         !strcmp(e->arch, MACHINE_TYPE);
+  uint major, minor;
+  return !index_server_series(e->server, &major, &minor) &&
+         major == MYSQL_VERSION_ID / 10000 &&
+         minor == MYSQL_VERSION_ID / 100 % 100 &&
+         !strcasecmp(e->platform, PLUGIN_PACKAGE_PLATFORM);
 }
 
 
@@ -2696,9 +2909,10 @@ static int read_index(FILE *file, const char *source, const char *name,
                        struct index_entry *result)
 {
   struct index_entry e;
+  struct index_reader reader= {file, source, FALSE};
   int rc, found= 0;
 
-  while ((rc= read_index_entry(file, source, &e)) > 0)
+  while ((rc= read_index_entry(&reader, &e)) > 0)
   {
     if (strcmp(e.name, name) || !index_entry_compatible(&e))
       continue;
@@ -2715,8 +2929,9 @@ static int read_index(FILE *file, const char *source, const char *name,
     return 1;
   if (!found)
     fprintf(stderr, "ERROR: no compatible download for '%s' "
-            "(server %u.%u, %s, %s).\n", name, MYSQL_VERSION_ID / 10000,
-            MYSQL_VERSION_ID / 100 % 100, SYSTEM_TYPE, MACHINE_TYPE);
+            "(server %u.%u, platform %s).\n", name,
+            MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
+            PLUGIN_PACKAGE_PLATFORM);
   return !found;
 }
 
@@ -2768,7 +2983,7 @@ static int read_manifest(const char *basedir, const char *manifest,
     my_close(fd, MYF(0));
     return 1;
   }
-  while (!error && (rc= read_kv_line(file, manifest, line, TRUE)) > 0)
+  while (!error && (rc= read_manifest_line(file, manifest, line)) > 0)
   {
     if (!strncmp(line, "name: ", 6))
     {
@@ -2856,7 +3071,7 @@ static int tarball_plugin_installed(const char *basedir, const char *name,
     my_close(fd, MYF(0));
     return 1;
   }
-  while ((rc= read_kv_line(file, manifest, line, TRUE)) > 0)
+  while ((rc= read_manifest_line(file, manifest, line)) > 0)
   {
     char *value;
 
@@ -2900,6 +3115,7 @@ static int search_tarball(const char *basedir)
 {
   char url[KV_LINE_SIZE * 2];
   struct index_entry entry;
+  struct index_reader reader;
   FILE *index;
   int rc, error= 1;
 
@@ -2907,7 +3123,10 @@ static int search_tarball(const char *basedir)
     return 1;
   if (!(index= download_file(url, 8 * 1024 * 1024)))
     return 1;
-  while ((rc= read_index_entry(index, url, &entry)) > 0)
+  reader.file= index;
+  reader.source= url;
+  reader.after_separator= FALSE;
+  while ((rc= read_index_entry(&reader, &entry)) > 0)
   {
     struct plugin_entry *plugin;
 
@@ -4114,11 +4333,37 @@ static int run_new_command(int argc, char **argv)
             "install.\n");
     return 1;
   }
+  if (!strcmp(verb, "uninstall") && (opt_file || opt_sha256 || opt_base_url))
+  {
+    fprintf(stderr, "ERROR: uninstall does not support --file, --sha256 "
+            "or --base-url.\n");
+    return 1;
+  }
 #ifdef PKG_DELEGATION
   if (is_search && opt_base_url)
   {
     fprintf(stderr, "ERROR: --base-url is only for tarball installations; "
             "search uses the native package repositories on this system.\n");
+    return 1;
+  }
+#endif
+
+#if !defined(HAVE_LIBCURL) && !defined(PKG_DELEGATION)
+  /*
+    Tarball builds without libcurl are the Windows builds: they have no
+    downloader, so the repository operations are refused before any path is
+    resolved or any file is touched. A local archive (--file) stays usable.
+  */
+  if (is_search)
+  {
+    fprintf(stderr, "ERROR: Remote plugin search is not supported on "
+            "Windows yet.\n");
+    return 1;
+  }
+  if (!opt_file && strcmp(verb, "install") == 0)
+  {
+    fprintf(stderr, "ERROR: Remote plugin installation is not supported on "
+            "Windows yet.\n");
     return 1;
   }
 #endif

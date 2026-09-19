@@ -1,0 +1,25 @@
+#
+# MDEV-40786: Windows builds are not linked with libcurl, so the operations
+# that reach a remote repository must fail with a clear message and a
+# non-zero exit status, before any path is resolved or any file is touched.
+# Installations from a local archive are still possible.
+#
+--source include/windows.inc
+
+--echo #
+--echo # Remote installation is refused, with or without --dry-run/--base-url
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN install provider_example 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN install provider_example --dry-run 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN install provider_example --base-url=https://example.invalid/plugins/ 2>&1 > /dev/null
+
+--echo #
+--echo # Remote search is refused
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN search 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN search provider 2>&1 > /dev/null

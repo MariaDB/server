@@ -1,49 +1,85 @@
 #
 # MDEV-40786 mariadb-plugin as a plugin package manager.
 #
-# Only the command line handling is tested here, as it is the same for
-# every installation method. Installing, removing and searching for
-# plugins is not testable in mtr: the tool acts only when it runs from
-# the location it was installed to, never from a build tree, so those
-# commands are covered by the install and upgrade builders instead.
+# These checks cover command-line validation and legacy syntax routing.
+# They stop before package-manager or plugin-file operations.
 #
 # Errors are printed on stderr, the usage text on stdout, so only stderr
 # is kept below to leave paths and version strings out of the result.
-#
+# Output normalization: The MSAN container supplies an unversioned libcurl.so.4
+# which emits a dynamic loader diagnostic on startup to stderr.
+# Normalize this environment warning on a line-bounded basis so application
+# diagnostics remain tested.
 
 --echo #
 --echo # Unknown command
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN nosuchcommand foo 2>&1 > /dev/null
 
 --echo #
 --echo # A plugin name is required, and only one
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN uninstall 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install foo bar 2>&1 > /dev/null
 
 --echo #
 --echo # search takes an optional term, but not more than one
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN search foo bar 2>&1 > /dev/null
 
 --echo #
+--echo # search rejects archive-install options before accessing repositories
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN search --file=missing.tar.gz 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN search --sha256=invalid 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN search provider- --file=missing.tar.gz 2>&1 > /dev/null
+
+--echo #
+--echo # uninstall rejects install-only options before accessing the installation
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN uninstall probe --file=missing.tar.gz 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN uninstall probe --sha256=invalid 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN uninstall probe --base-url=http://127.0.0.1:1/ 2>&1 > /dev/null
+
+--echo #
 --echo # Plugin names are validated, as they become package names
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install "a;b" 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install "a b" 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install "../etc" 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install "" 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2>&1 > /dev/null
 
@@ -51,8 +87,10 @@
 --echo # A command word wins over the deprecated keywords, so that a plugin
 --echo # can be searched for by a name containing them
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN search enable extra 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN install disable extra 2>&1 > /dev/null
 
@@ -69,9 +107,38 @@
 --echo # The deprecated syntax still reaches the old code path, which
 --echo # asks for its own options
 --echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN --no-defaults foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN --no-defaults foo DISABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN --no-defaults foo enable 2>&1 > /dev/null
+
+--echo #
+--echo # Option values do not choose between legacy and new commands
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --plugin-ini install foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --plugin_ini install foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults -viinstall foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --file ENABLE install 2>&1 > /dev/null
+
+--echo #
+--echo # Legacy syntax must not silently ignore --dry-run
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --dry-run foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --dry-run foo DISABLE 2>&1 > /dev/null
