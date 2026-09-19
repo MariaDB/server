@@ -10183,6 +10183,19 @@ bool get_schema_tables_result(JOIN *join,
                            !thd->bootstrap && !thd->spcont &&
                            !is_show_command(thd) &&
                            join->result &&
+                           /*
+                             The fast path writes metadata and rows
+                             directly to thd->protocol. That is only
+                             correct when join->result actually is the
+                             client connection. If the result is being
+                             intercepted (e.g. Select_materialize, used
+                             to build a server-side cursor for
+                             COM_STMT_EXECUTE with CURSOR_TYPE_READ_ONLY,
+                             or INSERT/CREATE ... SELECT), writing to
+                             thd->protocol bypasses the interceptor and
+                             desyncs the client-server protocol.
+                           */
+                           !join->result->result_interceptor() &&
                            thd->lex->sql_command == SQLCOM_SELECT &&
                            !(join->select_options & SELECT_DESCRIBE) &&
                            join->table_count == 1 &&
