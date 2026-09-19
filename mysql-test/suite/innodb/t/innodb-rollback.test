@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
 
 #
 # MDEV-18632: wsrep_is_wsrep_xid: Conditional jump or move depends on uninitialised value
@@ -14,4 +15,27 @@ SELECT f() FROM t1;
 --disconnect con2
 --disconnect con1
 --connection default
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41207 Assertion `user_table->get_ref_count() == 1' failed
+--echo # during ALTER TABLE conflicting with rollback of recovered
+--echo # transaction
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+BEGIN;
+UPDATE t1 SET f1=3;
+
+--let $shutdown_timeout=0
+--let $restart_parameters=--debug_dbug=d,rollback_wait
+--source include/restart_mysqld.inc
+
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT innodb_lock_wait_timeout=0 FOR
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+--let $shutdown_timeout=0
+--let $restart_parameters=
+--source include/restart_mysqld.inc
 DROP TABLE t1;

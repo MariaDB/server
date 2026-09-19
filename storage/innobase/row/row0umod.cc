@@ -1451,6 +1451,10 @@ rollback_clust:
 		}
 	}
 
+	DBUG_EXECUTE_IF("rollback_wait",
+			if (!strcmp(node->table->name.m_name, "test/t1"))
+			  sleep(1000););
+
 	node->table->release();
 	node->table = NULL;
 

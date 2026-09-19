@@ -8,3 +8,18 @@ disconnect con2;
 disconnect con1;
 connection default;
 DROP TABLE t1;
+#
+# MDEV-41207 Assertion `user_table->get_ref_count() == 1' failed
+# during ALTER TABLE conflicting with rollback of recovered
+# transaction
+#
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+BEGIN;
+UPDATE t1 SET f1=3;
+# restart: --debug_dbug=d,rollback_wait
+SET STATEMENT innodb_lock_wait_timeout=0 FOR
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+# restart
+DROP TABLE t1;

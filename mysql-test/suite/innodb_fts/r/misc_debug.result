@@ -74,3 +74,11 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t1 ADD FULLTEXT(f2);
 ERROR HY000: Tablespace has been discarded for table `t1`
 DROP TABLE t1;
+#
+#  MDEV-40324 use-of-uninitialized-value after creation of
+#                FULLTEXT table failure
+#
+call mtr.add_suppression("InnoDB: Failed to create FTS index table");
+SET STATEMENT DEBUG_DBUG="+d,fts_index_table_fail" FOR
+CREATE TABLE t1(f1 TEXT, FULLTEXT(f1))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 168 "Unknown (generic) error from engine")
