@@ -76,15 +76,30 @@ TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
 TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB} mysys_ssl)
-IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$")
-  FIND_PACKAGE(CURL REQUIRED)
-  TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
-ENDIF()
 # The tool needs to know how MariaDB was installed to pick the way plugins
 # are installed. The install layout is only known when building, so it is
 # passed to the tool, together with the directories it has to verify.
 SET_TARGET_PROPERTIES(mariadb-plugin PROPERTIES COMPILE_DEFINITIONS
  "INSTALL_LAYOUT_${INSTALL_LAYOUT};INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_BINDIRABS=${INSTALL_BINDIRABS}")
+# A caller can supply CPACK_PACKAGE_FILE_NAME, skipping platform discovery
+# in mysql_version.cmake. Use the same naming rules as package generation.
+FUNCTION(MARIADB_PLUGIN_PACKAGE_PLATFORM)
+  IF(NOT SYSTEM_NAME_AND_PROCESSOR)
+    GET_PACKAGE_FILE_NAME(_plugin_package_name)
+  ENDIF()
+  TARGET_COMPILE_DEFINITIONS(mariadb-plugin PRIVATE
+    PLUGIN_PACKAGE_PLATFORM="${SYSTEM_NAME_AND_PROCESSOR}")
+ENDFUNCTION()
+MARIADB_PLUGIN_PACKAGE_PLATFORM()
+# Tarball installations download plugin archives over HTTP, so those builds
+# link libcurl and define HAVE_LIBCURL for the repository code. RPM and DEB
+# installations delegate to the package manager, and Windows builds have no
+# downloader: mysql_plugin.c refuses the repository operations instead.
+IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$" AND NOT WIN32)
+  FIND_PACKAGE(CURL REQUIRED)
+  TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
+  TARGET_COMPILE_DEFINITIONS(mariadb-plugin PRIVATE HAVE_LIBCURL=1)
+ENDIF()
 
 MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)

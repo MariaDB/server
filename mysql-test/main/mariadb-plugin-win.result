@@ -1,0 +1,11 @@
+#
+# Remote installation is refused, with or without --dry-run/--base-url
+#
+ERROR: Remote plugin installation is not supported on Windows yet.
+ERROR: Remote plugin installation is not supported on Windows yet.
+ERROR: Remote plugin installation is not supported on Windows yet.
+#
+# Remote search is refused
+#
+ERROR: Remote plugin search is not supported on Windows yet.
+ERROR: Remote plugin search is not supported on Windows yet.

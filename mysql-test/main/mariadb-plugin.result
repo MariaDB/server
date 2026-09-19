@@ -13,6 +13,18 @@ ERROR: 'install' requires exactly one plugin name.
 #
 ERROR: 'search' takes at most one search term.
 #
+# search rejects archive-install options before accessing repositories
+#
+ERROR: --file and --sha256 are only supported with install.
+ERROR: --file and --sha256 are only supported with install.
+ERROR: --file and --sha256 are only supported with install.
+#
+# uninstall rejects install-only options before accessing the installation
+#
+ERROR: uninstall does not support --file, --sha256 or --base-url.
+ERROR: uninstall does not support --file, --sha256 or --base-url.
+ERROR: uninstall does not support --file, --sha256 or --base-url.
+#
 # Plugin names are validated, as they become package names
 #
 ERROR: invalid character ';' in plugin name. Use only [a-z0-9_-].
@@ -36,3 +48,15 @@ ERROR: 'install' requires exactly one plugin name.
 ERROR: Missing --basedir option.
 ERROR: Missing --basedir option.
 ERROR: Missing --basedir option.
+#
+# Option values do not choose between legacy and new commands
+#
+ERROR: Missing --basedir option.
+ERROR: Missing --basedir option.
+ERROR: Missing --basedir option.
+ERROR: 'install' requires exactly one plugin name.
+#
+# Legacy syntax must not silently ignore --dry-run
+#
+ERROR: --dry-run is not supported with ENABLE/DISABLE.
+ERROR: --dry-run is not supported with ENABLE/DISABLE.
