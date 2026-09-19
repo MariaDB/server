@@ -11063,12 +11063,16 @@ create_index(
 						 & HA_REVERSE_SORT);
 		}
 
+		/* On failure, row_create_index_for_mysql() may roll
+		back the dictionary transaction, which will remove
+		the table from the cache and free it. */
+		const ulint table_flags = table->flags;
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
 					    index, trx, NULL,
 					    fil_encryption_t(o.encryption),
 					    uint32_t(o.encryption_key_id)),
-				    table->flags, NULL));
+				    table_flags, NULL));
 	}
 
 	ulint ind_type = 0;
