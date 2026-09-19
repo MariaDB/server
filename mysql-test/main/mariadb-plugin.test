@@ -1,11 +1,8 @@
 #
 # MDEV-40786 mariadb-plugin as a plugin package manager.
 #
-# Only the command line handling is tested here, as it is the same for
-# every installation method. Installing, removing and searching for
-# plugins is not testable in mtr: the tool acts only when it runs from
-# the location it was installed to, never from a build tree, so those
-# commands are covered by the install and upgrade builders instead.
+# These checks cover command-line validation and legacy syntax routing.
+# They stop before package-manager or plugin-file operations.
 #
 # Errors are printed on stderr, the usage text on stdout, so only stderr
 # is kept below to leave paths and version strings out of the result.
@@ -32,6 +29,16 @@
 --echo #
 --error 1
 --exec $MYSQL_PLUGIN search foo bar 2>&1 > /dev/null
+
+--echo #
+--echo # search rejects archive-install options before accessing repositories
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN search --file=missing.tar.gz 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN search --sha256=invalid 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN search provider- --file=missing.tar.gz 2>&1 > /dev/null
 
 --echo #
 --echo # Plugin names are validated, as they become package names
@@ -75,3 +82,23 @@
 --exec $MYSQL_PLUGIN --no-defaults foo DISABLE 2>&1 > /dev/null
 --error 1
 --exec $MYSQL_PLUGIN --no-defaults foo enable 2>&1 > /dev/null
+
+--echo #
+--echo # Option values do not choose between legacy and new commands
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --plugin-ini install foo ENABLE 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --plugin_ini install foo ENABLE 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults -viinstall foo ENABLE 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN --file ENABLE install 2>&1 > /dev/null
+
+--echo #
+--echo # Legacy syntax must not silently ignore --dry-run
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --dry-run foo ENABLE 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --dry-run foo DISABLE 2>&1 > /dev/null
