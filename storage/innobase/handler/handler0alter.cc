@@ -6683,8 +6683,6 @@ acquire_lock:
 		}
 	}
 
-	ut_ad(user_table->get_ref_count() == 1);
-
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(ctx->trx);
 	}
@@ -6694,6 +6692,7 @@ acquire_lock:
 		goto error_handling;
 	}
 
+	ut_ad(user_table->get_ref_count() == 1);
 	/* Latch the InnoDB data dictionary exclusively so that no deadlocks
 	or lock waits can happen in it during an index create operation. */
 
