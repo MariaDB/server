@@ -803,7 +803,27 @@ bool Sys_trigger::execute()
 
   m_thd->reset_for_next_command();
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  Security_context trg_sctx, *save_sctx= NULL;
+
+  if (trg_sctx.change_security_context(thd_for_sys_triggers,
+                                       &m_sp->m_definer.user,
+                                       &m_sp->m_definer.host,
+                                       &m_sp->m_db, &save_sctx) ||
+      mysql_change_db(thd_for_sys_triggers, m_sp->m_db, false))
+  {
+    sql_print_error("System trigger execution execution failed, "
+                    "failed to authenticate the user.");
+    return true;
+  }
+#endif
+
   bool ret= m_sp->execute_procedure(m_thd, &empty_item_list);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  if (save_sctx)
+    trg_sctx.restore_security_context(thd_for_sys_triggers, save_sctx);
+#endif
 
   close_thread_tables_for_query(m_thd);
 
@@ -954,6 +974,44 @@ static bool reconstruct_create_trigger_stmt(
 }
 
 
+static bool construct_sp_sql_for_sys_trigger(
+  THD *thd, String *create_trg_stmt,
+  const LEX_CSTRING &trg_definer,
+  const LEX_CSTRING &trg_name,
+  const LEX_CSTRING &body)
+{
+  static const LEX_CSTRING prefix{STRING_WITH_LEN("CREATE PROCEDURE ")};
+  static const LEX_CSTRING security_invoker_str{
+    STRING_WITH_LEN("() SQL SECURITY INVOKER ")};
+  static const LEX_CSTRING oracle_begin_str{STRING_WITH_LEN(" AS BEGIN ")};
+  static const LEX_CSTRING oracle_end_str{STRING_WITH_LEN("; END")};
+  size_t buffer_len= prefix.length +
+                     security_invoker_str.length +
+                     trg_name.length + 1 +
+                     body.length + 1 +
+                     ((thd->variables.sql_mode & MODE_ORACLE) ?
+                       oracle_begin_str.length + oracle_end_str.length : 0);
+  char *buffer= thd->alloc(buffer_len);
+
+  if (buffer == nullptr)
+    return true;
+
+  create_trg_stmt->set(buffer, buffer_len, system_charset_info);
+  create_trg_stmt->length(0);
+
+  bool ret=
+    create_trg_stmt->append(prefix) ||
+    append_identifier(thd, create_trg_stmt, &trg_name) ||
+    create_trg_stmt->append(security_invoker_str) ||
+    create_trg_stmt->append((thd->variables.sql_mode & MODE_ORACLE) ?
+                             oracle_begin_str : empty_clex_str) ||
+    create_trg_stmt->append(&body) ||
+    create_trg_stmt->append((thd->variables.sql_mode & MODE_ORACLE) ?
+                             oracle_end_str : empty_clex_str);
+
+  return ret;
+}
+
 /**
   RAII class to restore original lex object on return from the function
   compile_trigger_stmt().
@@ -1007,6 +1065,12 @@ static sp_head *compile_trigger_stmt(THD *thd,
     return nullptr;
 
   lex_start(thd);
+  /*
+    Nullify lex->sphead explicitly in order to be sure that on return
+    from parse_sql() it either contains a valid pointer on allocated
+    instance of sp_head or null pointer and never contains garbage value.
+  */
+  thd->lex->sphead= nullptr;
   thd->spcont= NULL;
   lex.trg_chistics.events= TRG_EVENT_UNKNOWN;
   lex.trg_chistics.action_time= TRG_ACTION_MAX;
@@ -1014,7 +1078,15 @@ static sp_head *compile_trigger_stmt(THD *thd,
   *parse_error= parse_sql(thd, &parser_state, ctx);
 
   if (*parse_error)
+  {
+    /*
+      Parse error could happen after sp_head has been created
+      so free it explicitly to avoid memory leaks
+    */
+    sp_head::destroy(thd->lex->sphead);
+    thd->lex->sphead= nullptr;
     return nullptr;
+  }
 
   sp_head *sphead= thd->lex->sphead;
   if (sphead != nullptr)
@@ -1038,8 +1110,6 @@ static sp_head *compile_trigger_stmt(THD *thd,
   @param db_name      database name where the trigger is defined
   @param trg_name     trigger name
   @param trg_definer  trigger definer
-  @param trg_kind     trigger event type (ON STARTUP, ON SHUTDOWN, etc)
-  @param trg_when     time (BEFORE, AFTER) when the trigger fired
   @param trg_body     trigger body
   @param sql_mode     sql_mode used on trigger creation
   @param ctx          creation context
@@ -1052,17 +1122,19 @@ static sp_head *compile_trigger_stmt(THD *thd,
 
 static Sys_trigger *
 instantiate_sys_trigger(THD *thd,
-                        const LEX_STRING &db_name,
+                        const LEX_CSTRING&db_name,
                         const LEX_STRING &trg_name,
                         const LEX_STRING &trg_definer,
-                        Event_parse_data::enum_kind trg_kind,
-                        trg_action_time_type trg_when,
                         const LEX_STRING &trg_body,
                         sql_mode_t sql_mode,
                         Stored_program_creation_ctx *ctx,
                         bool *parse_error)
 {
-  String create_trigger_stmt;
+  /*
+    Buffer for storing CREATE PROCEDURE statement constructed for
+    system trigger on loading trigger's metadata from mysql.event table
+  */
+  String create_sp_stmt;
 
   /*
     The method instantiate_sys_trigger() is called before run_main_loop(), so
@@ -1076,17 +1148,17 @@ instantiate_sys_trigger(THD *thd,
   thd->variables.sql_mode= sql_mode;
 
   /*
-    Reconstruct an original CREATE TRIGGER statement based on metadata
-    retrieved for the trigger from the table mysql.event.
+    System triggers in runtime is treated as stored procedures, so
+    construct the CREATE PROCEDURE statement based on metadata
+    retrieved for the system trigger from the table mysql.event.
   */
-  if (reconstruct_create_trigger_stmt(thd, &create_trigger_stmt,
-                                      trg_definer, trg_name,
-                                      trg_kind, trg_when, trg_body))
+  if (construct_sp_sql_for_sys_trigger(thd, &create_sp_stmt,
+                                       trg_definer, trg_name, trg_body))
     return nullptr;
 
   Sys_trigger *sys_trg= nullptr;
 
-  sp_head *sp= compile_trigger_stmt(thd, db_name, &create_trigger_stmt, ctx,
+  sp_head *sp= compile_trigger_stmt(thd, db_name, &create_sp_stmt, ctx,
                                     parse_error);
   if (sp)
   {
@@ -1096,6 +1168,8 @@ instantiate_sys_trigger(THD *thd,
     sp->set_definer(trg_definer.str, trg_definer.length);
   }
   thd->variables.sql_mode= save_sql_mode;
+
+  create_sp_stmt.free();
 
   return sys_trg;
 }
@@ -1437,8 +1511,6 @@ static bool load_system_triggers(THD *thd,
     Sys_trigger *sys_trg=
       instantiate_sys_trigger(thd, db_name, trg_name,
                               trg_definer,
-                              (Event_parse_data::enum_kind)trg_kind_in,
-                              (trg_action_time_type)trg_when_in,
                               trg_body, sql_mode, creation_ctx,
                               &parse_error);
 
@@ -1515,6 +1587,33 @@ static void init_thd_for_on_startup_shutdown_triggers(void *stack_top)
 
 
 /**
+  System triggers are whole instance-wide and instantiated right before their
+  running, so they should be destroyed after their execution on startup and
+  just before database server shutdown
+*/
+
+static void destroy_sys_triggers()
+{
+  for (int i=0; i< TRG_ACTION_MAX; i++)
+  {
+    for (int j= 0; j< TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP; j++)
+    {
+      Sys_trigger *sys_trg= sys_triggers[i][j];
+
+      while (sys_trg)
+      {
+        Sys_trigger *next_trg= sys_trg->next;
+        sys_trg->destroy();
+        sys_trg= next_trg;
+      }
+
+      sys_triggers[i][j]= nullptr;
+    }
+  }
+}
+
+
+/**
   First, load system triggers from the table mysql.event and then run
   ON STARTUP triggers if ones present.
 
@@ -1541,6 +1640,7 @@ bool run_after_startup_triggers(bool bootstrap_or_noacl)
   if (load_system_triggers(thd_for_sys_triggers,
                            Event_parse_data::SYS_TRG_ON_STARTUP))
   {
+    destroy_sys_triggers();
     delete thd_for_sys_triggers;
     thd_for_sys_triggers= nullptr;
 
@@ -1566,36 +1666,11 @@ bool run_after_startup_triggers(bool bootstrap_or_noacl)
       trg= trg->next;
     }
   }
+  destroy_sys_triggers();
   thd_for_sys_triggers->thread_stack= nullptr;
   set_current_thd(original_thd);
 
   return false;
-}
-
-
-/**
-  System triggers are whole instance-wide, therefore they should be destroyed
-  just before database server shutdown
-*/
-
-static void destroy_sys_triggers()
-{
-  for (int i=0; i< TRG_ACTION_MAX; i++)
-  {
-    for (int j= 0; j< TRG_SYS_EVENT_MAX - TRG_EVENT_STARTUP; j++)
-    {
-      Sys_trigger *sys_trg= sys_triggers[i][j];
-
-      while (sys_trg)
-      {
-        Sys_trigger *next_trg= sys_trg->next;
-        sys_trg->destroy();
-        sys_trg= next_trg;
-      }
-
-      sys_triggers[i][j]= nullptr;
-    }
-  }
 }
 
 

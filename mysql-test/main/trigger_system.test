@@ -395,3 +395,29 @@ SHOW CREATE TRIGGER trg1;
 DROP TRIGGER trg1;
 
 --remove_file $MYSQLTEST_VARDIR/tmp/dump.sql
+
+--echo #
+--echo # MDEV-40072: Server crashes in my_hash_first/name_hash_search after load_system_triggers
+--echo #
+CREATE USER a1@localhost;
+CREATE TABLE t1 (a VARCHAR(30));
+GRANT SUPER ON *.* TO a1@localhost;
+
+GRANT INSERT ON test.* TO a1@localhost;
+
+--connect (c1, localhost, a1,, test)
+
+CREATE TRIGGER tr1 AFTER STARTUP INSERT INTO t1 VALUES ('Fired on startup trigger');
+CREATE TRIGGER tr2 BEFORE SHUTDOWN INSERT INTO t1 VALUES ('Fired on shutdown trigger');
+
+--connection default
+
+--disconnect c1
+
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP USER a1@localhost;

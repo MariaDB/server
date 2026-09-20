@@ -328,3 +328,24 @@ SHOW CREATE TRIGGER trg1;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 AFTER STARTUP SET @x=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
 DROP TRIGGER trg1;
+#
+# MDEV-40072: Server crashes in my_hash_first/name_hash_search after load_system_triggers
+#
+CREATE USER a1@localhost;
+CREATE TABLE t1 (a VARCHAR(30));
+GRANT SUPER ON *.* TO a1@localhost;
+GRANT INSERT ON test.* TO a1@localhost;
+connect  c1, localhost, a1,, test;
+CREATE TRIGGER tr1 AFTER STARTUP INSERT INTO t1 VALUES ('Fired on startup trigger');
+CREATE TRIGGER tr2 BEFORE SHUTDOWN INSERT INTO t1 VALUES ('Fired on shutdown trigger');
+connection default;
+disconnect c1;
+# restart
+SELECT * FROM t1;
+a
+Fired on shutdown trigger
+Fired on startup trigger
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP USER a1@localhost;
