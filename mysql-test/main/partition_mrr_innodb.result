@@ -238,3 +238,13 @@ a	tp	a	b	c
 set join_cache_level=@save_join_cache_level;
 set optimizer_switch=@save_optimizer_switch;
 drop table t0,t1,t2;
+#
+# MDEV-40820: DISTINCT with a partitioned multi-range read
+#
+CREATE TABLE pr (c1 INT,c4 BIGINT,d DATETIME,KEY i_dc1(d,c1)) ENGINE=InnoDB PARTITION BY RANGE(c1) (PARTITION p0 VALUES LESS THAN(0),PARTITION p1 VALUES LESS THAN(5),PARTITION p2 VALUES LESS THAN(10),PARTITION p3 VALUES LESS THAN MAXVALUE);
+INSERT INTO pr (c1,c4,d) VALUES (-1,10,'2020-07-01 00:00:01'),(2,10,'2020-07-01 00:00:01'),(-2,10,'2023-08-31 16:00:00'),(3,10,'2023-08-31 16:00:00');
+SELECT DISTINCT d FROM pr WHERE c1<=3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00');
+d
+2020-07-01 00:00:01
+2023-08-31 16:00:00
+DROP TABLE pr;
