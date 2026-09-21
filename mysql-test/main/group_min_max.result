@@ -4407,3 +4407,12 @@ drop table t1;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-40762: Grouped MAX with ascending and descending indexes
+#
+CREATE TABLE t (g CHAR(4) NOT NULL, v INT NOT NULL, PRIMARY KEY (g,v), KEY idx_asc (g,v), KEY idx_desc (g,v DESC));
+INSERT INTO t VALUES ('A',1),('A',2),('A',3);
+SELECT g, MAX(v) FROM t GROUP BY g;
+g	MAX(v)
+A	3
+DROP TABLE t;
