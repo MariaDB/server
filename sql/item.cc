@@ -4207,9 +4207,14 @@ void Item_param::sync_clones()
     c->state= state;
     c->m_empty_string_is_null= m_empty_string_is_null;
 
+    /*
+      A logged LIMIT and OFFSET parameter can have a string bind type but an
+      integer value.  Initialize conversion metadata before copying the value
+      union, so its string conversion fields cannot overwrite the integer.
+    */
+    type_handler()->Item_param_setup_conversion(current_thd, c);
     c->value.PValue_simple::operator=(value);
     c->value.Type_handler_hybrid_field_type::operator=(value);
-    type_handler()->Item_param_setup_conversion(current_thd, c);
 
     /* Class-type members: */
     c->value.m_decimal= value.m_decimal;

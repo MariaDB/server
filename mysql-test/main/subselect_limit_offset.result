@@ -1,0 +1,236 @@
+#
+# MDEV-40565: Honor LIMIT and OFFSET in scalar subqueries without tables
+#
+SELECT (SELECT 1 LIMIT 0) AS zero_limit,
+(SELECT 1 LIMIT 1 OFFSET 1) AS nonzero_offset,
+(SELECT 1 LIMIT 10 OFFSET 5) AS larger_offset,
+(SELECT 1 OFFSET 1 ROWS) AS offset_only,
+(SELECT 1 LIMIT 1 OFFSET 1) IS NULL AS is_null,
+(SELECT 1 LIMIT 1 OFFSET 1)+100 AS arithmetic_result;
+zero_limit	nonzero_offset	larger_offset	offset_only	is_null	arithmetic_result
+NULL	NULL	NULL	NULL	1	NULL
+SELECT (SELECT 1 LIMIT 1) AS positive_limit,
+(SELECT 1 LIMIT 10 OFFSET 0) AS zero_offset,
+(SELECT 1 OFFSET 0 ROWS) AS zero_offset_only;
+positive_limit	zero_offset	zero_offset_only
+1	1	1
+EXPLAIN EXTENDED SELECT (SELECT 1 LIMIT 1 OFFSET 0) AS r;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1249	Select 2 was reduced during optimization
+Note	1003	select 1 AS `r`
+EXPLAIN EXTENDED SELECT (SELECT 1 LIMIT 0) AS r;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+Warnings:
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 limit 0) AS `r`
+PREPARE metadata_stmt FROM
+'CREATE TABLE t1 AS SELECT (SELECT 1 LIMIT 1 OFFSET 0) AS kept,
+                             (SELECT 1 LIMIT 0) AS removed';
+EXECUTE metadata_stmt;
+DEALLOCATE PREPARE metadata_stmt;
+SHOW COLUMNS FROM t1;
+Field	Type	Null	Key	Default	Extra
+kept	int(1)	NO		NULL	#
+removed	int(2)	YES		NULL	#
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, a INT);
+INSERT INTO t1 VALUES (1,(SELECT 1 LIMIT 0)),
+(2,(SELECT 2 LIMIT 1 OFFSET 1)),
+(3,(SELECT 3 LIMIT 1 OFFSET 0));
+SELECT * FROM t1 ORDER BY id;
+id	a
+1	NULL
+2	NULL
+3	3
+UPDATE t1 SET a=(SELECT 2 LIMIT 0);
+SELECT * FROM t1 ORDER BY id;
+id	a
+1	NULL
+2	NULL
+3	NULL
+SELECT id FROM t1 WHERE (SELECT 1 LIMIT 0) IS NULL ORDER BY id;
+id
+1
+2
+3
+SELECT (SELECT 1 OFFSET 1 ROWS) AS r HAVING r IS NULL;
+r
+NULL
+DROP TABLE t1;
+PREPARE stmt FROM 'SELECT (SELECT 7 LIMIT ? OFFSET ?) AS r';
+SET @lim= 1, @off= 0;
+EXECUTE stmt USING @lim, @off;
+r
+7
+SET @lim= 0;
+EXECUTE stmt USING @lim, @off;
+r
+NULL
+SET @lim= 1, @off= 1;
+EXECUTE stmt USING @lim, @off;
+r
+NULL
+SET @off= 0;
+EXECUTE stmt USING @lim, @off;
+r
+7
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'WITH c AS
+  (SELECT (SELECT 7 LIMIT 1 OFFSET ?) AS r)
+  SELECT * FROM c UNION ALL SELECT * FROM c';
+EXECUTE stmt USING @off;
+r
+7
+7
+SET @off= 1;
+EXECUTE stmt USING @off;
+r
+NULL
+NULL
+SET @off= 18446744073709551615;
+EXECUTE stmt USING @off;
+r
+NULL
+NULL
+SET @off= 0;
+EXECUTE stmt USING @off;
+r
+7
+7
+DEALLOCATE PREPARE stmt;
+CREATE VIEW v1 AS SELECT (SELECT 1 OFFSET 1 ROWS) AS r;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (select 1 offset 1 rows) AS `r`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+r
+NULL
+FLUSH TABLES;
+SELECT * FROM v1;
+r
+NULL
+DROP VIEW v1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+PREPARE stmt FROM
+'SELECT a, (SELECT 7 LIMIT 1 OFFSET ?) AS r FROM t1 ORDER BY a';
+EXECUTE stmt USING @off;
+a	r
+1	7
+2	7
+ALTER TABLE t1 ADD COLUMN b INT;
+SET @off= 1;
+EXECUTE stmt USING @off;
+a	r
+1	NULL
+2	NULL
+ALTER TABLE t1 DROP COLUMN b;
+SET @off= 0;
+EXECUTE stmt USING @off;
+a	r
+1	7
+2	7
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(1),(2);
+SET @saved_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'exists_to_in=on';
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE EXISTS
+  (SELECT 1 FROM t2 WHERE t2.a=t1.a LIMIT 1 OFFSET ?) ORDER BY a';
+EXECUTE stmt USING @off;
+a
+1
+2
+SET @off= 1;
+EXECUTE stmt USING @off;
+a
+1
+SELECT a FROM t1 WHERE EXISTS
+(SELECT 1 FROM t2 WHERE t2.a=t1.a LIMIT 1 OFFSET 1) ORDER BY a;
+a
+1
+SET @off= 2;
+EXECUTE stmt USING @off;
+a
+SET @off= 0;
+EXECUTE stmt USING @off;
+a
+1
+2
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1(lim BIGINT UNSIGNED, off BIGINT UNSIGNED)
+BEGIN
+DECLARE l BIGINT UNSIGNED DEFAULT lim;
+DECLARE o BIGINT UNSIGNED DEFAULT off;
+SELECT (SELECT 7 LIMIT lim OFFSET off) AS parameter_result,
+(SELECT 7 LIMIT l OFFSET o) AS local_result;
+SELECT a FROM t1 WHERE EXISTS
+(SELECT 1 FROM t2 WHERE t2.a=t1.a LIMIT 1 OFFSET off) ORDER BY a;
+END|
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE o INT DEFAULT 0;
+DECLARE i INT DEFAULT 0;
+WHILE i < 3 DO
+WITH c AS (SELECT (SELECT 7 LIMIT 1 OFFSET o) AS r)
+SELECT * FROM c UNION ALL SELECT * FROM c;
+SET o= 1-o, i= i+1;
+END WHILE;
+END|
+CALL p1(1, 0);
+parameter_result	local_result
+7	7
+a
+1
+2
+CALL p1(1, 1);
+parameter_result	local_result
+NULL	NULL
+a
+1
+CALL p1(0, 0);
+parameter_result	local_result
+NULL	NULL
+a
+1
+2
+CALL p1(1, 2);
+parameter_result	local_result
+NULL	NULL
+a
+CALL p1(1, 0);
+parameter_result	local_result
+7	7
+a
+1
+2
+CALL p2();
+r
+7
+7
+r
+NULL
+NULL
+r
+7
+7
+CALL p2();
+r
+7
+7
+r
+NULL
+NULL
+r
+7
+7
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+SET optimizer_switch= @saved_optimizer_switch;
+DROP TABLE t1,t2;

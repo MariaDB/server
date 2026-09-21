@@ -19915,6 +19915,99 @@ static void test_bug13001491()
   myquery(rc);
 }
 
+/* Logged scalar limits must retain integer values in every CTE clone. */
+static void test_subquery_limit_offset_clones()
+{
+  static const struct {
+    const char *query;
+    my_bool is_offset;
+  } queries[]= {
+    { "WITH c AS (SELECT (SELECT 1 LIMIT 1 OFFSET ?) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 1 },
+    { "WITH c AS (SELECT (SELECT 1 OFFSET ? ROWS) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 1 },
+    { "WITH c AS (SELECT (SELECT a FROM offset_clone_rows "
+      "LIMIT 1 OFFSET ?) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 1 },
+    { "WITH c AS (SELECT (SELECT 1 LIMIT ?) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 0 }
+  };
+  MYSQL_STMT *stmt;
+  MYSQL_BIND in, out;
+  ulonglong offset= ~(ulonglong) 0;
+  longlong result;
+  my_bool is_null, expected_null;
+  uint q, mode, row;
+  int rc;
+
+  myheader("test_subquery_limit_offset_clones");
+  rc= mysql_query(mysql, "SET @clone_general_log= @@global.general_log");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL general_log= 1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TEMPORARY TABLE offset_clone_rows (a INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO offset_clone_rows VALUES (1)");
+  myquery(rc);
+
+  for (q= 0; q < sizeof(queries)/sizeof(queries[0]); q++)
+  {
+    stmt= mysql_simple_prepare(mysql, queries[q].query);
+    check_stmt(stmt);
+    memset(&out, 0, sizeof(out));
+    out.buffer_type= MYSQL_TYPE_LONGLONG;
+    out.buffer= &result;
+    out.is_null= &is_null;
+    rc= mysql_stmt_bind_result(stmt, &out);
+    check_execute(stmt, rc);
+    for (mode= 0; mode < 6; mode++)
+    {
+      memset(&in, 0, sizeof(in));
+      if (mode == 0 || mode == 5)
+      {
+        offset= mode ? 0 : ~(ulonglong) 0;
+        in.buffer_type= MYSQL_TYPE_LONGLONG;
+        in.buffer= &offset;
+        in.is_unsigned= 1;
+      }
+      else if (mode == 1)
+        in.buffer_type= MYSQL_TYPE_NULL;
+      else
+      {
+        in.buffer_type= MYSQL_TYPE_STRING;
+        in.buffer= (void *) (mode == 3 ? "1" : "0");
+        in.buffer_length= 1;
+      }
+      rc= mysql_stmt_bind_param(stmt, &in);
+      check_execute(stmt, rc);
+      rc= mysql_stmt_execute(stmt);
+      check_execute(stmt, rc);
+      rc= mysql_stmt_store_result(stmt);
+      check_execute(stmt, rc);
+      DIE_UNLESS(mysql_stmt_num_rows(stmt) == 2);
+      expected_null= queries[q].is_offset ? mode == 0 || mode == 3 :
+                                           mode != 0 && mode != 3;
+      for (row= 0; row < 2; row++)
+      {
+        rc= mysql_stmt_fetch(stmt);
+        check_execute(stmt, rc);
+        DIE_UNLESS(is_null == expected_null);
+        if (!is_null)
+          DIE_UNLESS(result == 1);
+      }
+      DIE_UNLESS(mysql_stmt_fetch(stmt) == MYSQL_NO_DATA);
+      rc= mysql_stmt_free_result(stmt);
+      check_execute(stmt, rc);
+    }
+    rc= mysql_stmt_close(stmt);
+    check_execute(stmt, rc);
+  }
+  rc= mysql_query(mysql, "DROP TEMPORARY TABLE offset_clone_rows");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL general_log= @clone_general_log");
+  myquery(rc);
+}
+
 static void test_mdev4326()
 {
   MYSQL_STMT   *stmt;
@@ -23882,6 +23975,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug11754979", test_bug11754979 },
   { "test_bug13001491", test_bug13001491 },
   { "test_mdev4326", test_mdev4326 },
+  { "test_subquery_limit_offset_clones", test_subquery_limit_offset_clones },
   { "test_ps_sp_out_params", test_ps_sp_out_params },
 #ifndef _WIN32
   { "test_bug17512527", test_bug17512527},
