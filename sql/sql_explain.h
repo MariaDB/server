@@ -86,6 +86,7 @@ public:
     cache_tracker(NULL),
     subq_materialization(NULL),
     connection_type(EXPLAIN_NODE_OTHER),
+    is_eliminated(false),
     children(root)
   {}
   /* A type specifying what kind of node this is */
@@ -126,6 +127,15 @@ public:
   */
   enum explain_connection_type connection_type;
 
+  /*
+    true means the tables this node reads were removed by table elimination,
+    so the node is never executed. Such a node is printed in a reduced form:
+    every table it uses is shown as "Eliminated".
+    The flag is set by mark_eliminated(), see its comment for why it cannot be
+    computed by the node itself.
+  */
+  bool is_eliminated;
+
 protected:
   /* 
     A node may have children nodes. When a node's explain structure is 
@@ -137,6 +147,8 @@ public:
   {
     children.append(select_no);
   }
+
+  virtual void mark_eliminated(Explain_query *query);
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
@@ -170,7 +182,8 @@ class Explain_basic_join : public Explain_node
 public:
   enum explain_node_type get_type() override { return EXPLAIN_BASIC_JOIN; }
   
-  Explain_basic_join(MEM_ROOT *root) : Explain_node(root), join_tabs(NULL) {}
+  Explain_basic_join(MEM_ROOT *root) :
+    Explain_node(root), join_tabs(NULL), n_join_tabs(0) {}
   ~Explain_basic_join();
 
   bool add_table(Explain_table_access *tab, Explain_query *query);
@@ -179,6 +192,8 @@ public:
 
   uint select_id;
 
+  void mark_eliminated(Explain_query *query) override;
+
   int print_explain(Explain_query *query, select_result_sink *output,
                     uint8 explain_flags, bool is_analyze) override;
   void print_explain_json(Explain_query *query, Json_writer *writer, 
@@ -186,6 +201,17 @@ public:
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
                                   bool is_analyze);
+
+  /*
+    Print the tables of this join in tabular form. Tables removed by table
+    elimination are printed last, see print_explain_eliminated_tables().
+  */
+  int print_explain_tables(select_result_sink *output, uint8 explain_flags,
+                           bool is_analyze, const char *select_type,
+                           bool using_tmp, bool using_fs);
+  int print_explain_eliminated_tables(select_result_sink *output,
+                                      uint8 explain_flags, bool is_analyze,
+                                      const char *select_type);
 
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
@@ -386,6 +412,7 @@ public:
   {
     union_members.append(select_no);
   }
+  void mark_eliminated(Explain_query *query) override;
   int print_explain(Explain_query *query, select_result_sink *output,
                     uint8 explain_flags, bool is_analyze) override;
   void print_explain_json(Explain_query *query, Json_writer *writer,
@@ -780,6 +807,7 @@ public:
     full_scan_on_null_key(false),
     start_dups_weedout(false),
     end_dups_weedout(false),
+    is_eliminated(false),
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL),
@@ -869,6 +897,13 @@ public:
   bool end_dups_weedout;
   
   /*
+    true means this table was removed by table elimination. The table is not
+    a part of the query plan, so the access method described by the members
+    below was never chosen and must not be printed.
+  */
+  bool is_eliminated;
+
+  /*
     Note: lifespan of WHERE condition is less than lifespan of this object.
     The below two are valid if tags include "ET_USING_WHERE".
     (TODO: indexsubquery may put ET_USING_WHERE without setting where_cond?)
@@ -945,6 +980,16 @@ private:
   void fill_key_len_str(String *key_len_str, bool is_json) const;
   double get_r_filtered();
   void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
+
+  /*
+    Printing of a table removed by table elimination. These do not read any
+    member besides 'table_name' and 'derived_select_number', see is_eliminated.
+  */
+  int print_explain_eliminated(select_result_sink *output, uint8 explain_flags,
+                               bool is_analyze, uint select_id,
+                               const char *select_type);
+  void print_explain_json_eliminated(Explain_query *query,
+                                     Json_writer *writer);
 };
 
 

@@ -45,6 +45,12 @@ const char *pushed_unit_operation_text[4]=
 const char *pushed_derived_text= "PUSHED DERIVED";
 const char *pushed_select_text= "PUSHED SELECT";
 
+/*
+  What is shown in the "type" column (tabular form) or in "access_type" (JSON
+  form) for a table that was removed by table elimination.
+*/
+static const char *eliminated_access_type= "eliminated";
+
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
@@ -647,7 +653,8 @@ int Explain_union::print_explain_regular(Explain_query *query,
     item_list.push_back(item_null, mem_root);
 
   /* `type` column */
-  push_str(thd, &item_list, join_type_str[JT_ALL]);
+  push_str(thd, &item_list,
+           is_eliminated ? eliminated_access_type : join_type_str[JT_ALL]);
 
   /* `possible_keys` column */
   item_list.push_back(item_null, mem_root);
@@ -807,7 +814,9 @@ void Explain_union::print_explain_json_regular(
   {
     make_union_table_name(table_name_buffer);
     writer->add_member("table_name").add_str(table_name_buffer);
-    writer->add_member("access_type").add_str("ALL"); // not very useful
+    writer->add_member("access_type").
+      add_str(is_eliminated ? eliminated_access_type
+                            : "ALL");
 
     /* r_loops (not present in tabular output) */
     if (is_analyze)
@@ -870,6 +879,67 @@ void Explain_union::print_explain_json_pushed_down(Explain_query *query,
 
   writer->end_object(); // union_result
   writer->end_object(); // query_block
+}
+
+
+/*
+  @brief
+    Mark this node, and everything below it, as removed by table elimination
+
+  @detail
+    A node cannot work this out on its own: a derived table is optimized (and
+    saves its query plan) before the parent select reaches
+    make_join_statistics() and calls eliminate_tables(). By the time the
+    parent knows which tables are gone, the child's Explain structures are
+    already built, so the parent has to come back and mark them.
+*/
+
+void Explain_node::mark_eliminated(Explain_query *query)
+{
+  if (is_eliminated)
+    return;                                     // Already marked
+  is_eliminated= true;
+
+  for (int i= 0; i < (int) children.elements(); i++)
+  {
+    /*
+      Note: node may not be present because for certain kinds of subqueries,
+      the optimizer is not able to see that they were eliminated.
+    */
+    Explain_node *node= query->get_node(children.at(i));
+    if (node)
+      node->mark_eliminated(query);
+  }
+}
+
+
+void Explain_basic_join::mark_eliminated(Explain_query *query)
+{
+  if (is_eliminated)
+    return;
+  Explain_node::mark_eliminated(query);
+
+  for (uint i=0; i< n_join_tabs; i++)
+  {
+    join_tabs[i]->is_eliminated= true;
+    if (join_tabs[i]->sjm_nest)
+      join_tabs[i]->sjm_nest->mark_eliminated(query);
+  }
+}
+
+
+void Explain_union::mark_eliminated(Explain_query *query)
+{
+  if (is_eliminated)
+    return;
+  Explain_node::mark_eliminated(query);
+
+  for (int i= 0; i < (int) union_members.elements(); i++)
+  {
+    Explain_select *sel= query->get_select(union_members.at(i));
+    if (sel)
+      sel->mark_eliminated(query);
+  }
 }
 
 
@@ -1078,20 +1148,12 @@ int Explain_select::print_explain(Explain_query *query,
       }
     }
 
-    for (uint i=0; i< n_join_tabs; i++)
-    {
-      join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
-                                  select_type, using_tmp, using_fs);
-      if (i == 0)
-      {
-        /* 
-          "Using temporary; Using filesort" should only be shown near the 1st
-          table
-        */
-        using_tmp= false;
-        using_fs= false;
-      }
-    }
+    if (print_explain_tables(output, explain_flags, is_analyze, select_type,
+                             using_tmp, using_fs) ||
+        print_explain_eliminated_tables(output, explain_flags, is_analyze,
+                                        select_type))
+      return 1;
+
     for (uint i=0; i< n_join_tabs; i++)
     {
       Explain_basic_join* nest;
@@ -1108,13 +1170,69 @@ int Explain_basic_join::print_explain(Explain_query *query,
                                       select_result_sink *output,
                                       uint8 explain_flags, bool is_analyze)
 {
+  return print_explain_tables(output, explain_flags, is_analyze,
+                              "MATERIALIZED" /*select_type*/,
+                              false /*using temporary*/,
+                              false /*using filesort*/) ||
+         print_explain_eliminated_tables(output, explain_flags, is_analyze,
+                                         "MATERIALIZED" /*select_type*/);
+}
+
+
+/*
+  @brief
+    Print the tables of this join that take part in the query plan
+*/
+
+int Explain_basic_join::print_explain_tables(select_result_sink *output,
+                                             uint8 explain_flags,
+                                             bool is_analyze,
+                                             const char *select_type,
+                                             bool using_tmp, bool using_fs)
+{
   for (uint i=0; i< n_join_tabs; i++)
   {
-    if (join_tabs[i]->print_explain(output, explain_flags, is_analyze, 
-                                    select_id,
-                                    "MATERIALIZED" /*select_type*/, 
-                                    FALSE /*using temporary*/, 
-                                    FALSE /*using filesort*/))
+    if (join_tabs[i]->is_eliminated)
+      continue;
+    if (join_tabs[i]->print_explain(output, explain_flags, is_analyze,
+                                    select_id, select_type, using_tmp,
+                                    using_fs))
+      return 1;
+    /*
+      "Using temporary; Using filesort" should only be shown near the 1st
+      printed table
+    */
+    using_tmp= false;
+    using_fs= false;
+  }
+  return 0;
+}
+
+
+/*
+  @brief
+    Print the tables of this join that were removed by table elimination
+
+  @detail
+    Eliminated tables are printed after the tables that are actually used.
+    Printing them in the plan order would put them first, because
+    mark_as_eliminated() turns them into constant tables, and that would
+    read as if they were the outermost tables of the join.
+*/
+
+int Explain_basic_join::
+print_explain_eliminated_tables(select_result_sink *output,
+                                uint8 explain_flags, bool is_analyze,
+                                const char *select_type)
+{
+  for (uint i=0; i< n_join_tabs; i++)
+  {
+    if (!join_tabs[i]->is_eliminated)
+      continue;
+    if (join_tabs[i]->print_explain(output, explain_flags, is_analyze,
+                                    select_id, select_type,
+                                    false /*using temporary*/,
+                                    false /*using filesort*/))
       return 1;
   }
   return 0;
@@ -1148,6 +1266,26 @@ void Explain_select::print_explain_json(Explain_query *query,
 {
   Json_writer_nesting_guard guard(writer);
   
+  /*
+    Note: a degenerate select has no tables to print, so it keeps showing its
+    'message' even when eliminated. The parent already tells the reader that
+    the whole select is gone.
+  */
+  if (is_eliminated && !message)
+  {
+    /*
+      The select was removed by table elimination, so it is never executed and
+      there is no query plan to describe. Print only the list of its tables,
+      each of them marked as eliminated.
+    */
+    writer->add_member("query_block").start_object();
+    writer->add_member("select_id").add_ll(select_id);
+    writer->add_member("eliminated").add_bool(true);
+    print_explain_json_interns(query, writer, is_analyze);
+    writer->end_object();
+    return;
+  }
+
   bool started_cache= print_explain_json_cache(writer, is_analyze);
   bool started_subq_mat= print_explain_json_subq_materialization(writer,
                                                                  is_analyze);
@@ -1355,6 +1493,9 @@ print_explain_json_interns(Explain_query *query,
     Json_writer_array loop(writer, "nested_loop");
     for (uint i=0; i< n_join_tabs; i++)
     {
+      if (join_tabs[i]->is_eliminated)
+        continue;
+
       if (join_tabs[i]->start_dups_weedout)
       {
         writer->start_object();
@@ -1369,6 +1510,13 @@ print_explain_json_interns(Explain_query *query,
         writer->end_array();
         writer->end_object();
       }
+    }
+
+    /* Eliminated tables are listed after the tables that are actually used */
+    for (uint i=0; i< n_join_tabs; i++)
+    {
+      if (join_tabs[i]->is_eliminated)
+        join_tabs[i]->print_explain_json(query, writer, is_analyze);
     }
   } // "nested_loop"
   print_explain_json_for_children(query, writer, is_analyze);
@@ -1532,6 +1680,10 @@ int Explain_table_access::print_explain(select_result_sink *output,
                                         bool using_temporary,
                                         bool using_filesort)
 {
+  if (is_eliminated)
+    return print_explain_eliminated(output, explain_flags, is_analyze,
+                                    select_id, select_type);
+
   THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
   MEM_ROOT *mem_root= thd->mem_root;
 
@@ -1742,6 +1894,71 @@ int Explain_table_access::print_explain(select_result_sink *output,
                       Item_string_sys(thd, extra_buf.ptr(),
                                       extra_buf.length()),
                       mem_root);
+
+  if (output->send_data(item_list))
+    return 1;
+
+  return 0;
+}
+
+
+/*
+  @brief
+    Print a table that was removed by table elimination
+
+  @detail
+    Such a table has no query plan: the only thing we know about it is its
+    name. Everything that describes an access method is printed as NULL.
+    The column order here must match the one in print_explain() above.
+*/
+
+int Explain_table_access::print_explain_eliminated(select_result_sink *output,
+                                                   uint8 explain_flags,
+                                                   bool is_analyze,
+                                                   uint select_id,
+                                                   const char *select_type)
+{
+  THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
+  MEM_ROOT *mem_root= thd->mem_root;
+
+  List<Item> item_list;
+  Item *item_null= new (mem_root) Item_null(thd);
+
+  /* `id` column */
+  item_list.push_back(new (mem_root) Item_int(thd, (int32) select_id),
+                      mem_root);
+
+  /* `select_type` column */
+  push_str(thd, &item_list, select_type);
+
+  /* `table` column */
+  push_string(thd, &item_list, &table_name);
+
+  /* `partitions` column */
+  if (explain_flags & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null, mem_root);
+
+  /* `type` column */
+  push_str(thd, &item_list, eliminated_access_type);
+
+  /* `possible_keys`, `key`, `key_len`, `ref` and `rows` columns */
+  for (uint i= 0; i < 5; i++)
+    item_list.push_back(item_null, mem_root);
+
+  /* `r_rows` column */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `filtered` column */
+  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `r_filtered` column */
+  if (is_analyze)
+    item_list.push_back(item_null, mem_root);
+
+  /* `Extra` column */
+  push_str(thd, &item_list, "");
 
   if (output->send_data(item_list))
     return 1;
@@ -1981,6 +2198,12 @@ void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
+  if (is_eliminated)
+  {
+    print_explain_json_eliminated(query, writer);
+    return;
+  }
+
   Json_writer_object jsobj(writer);
   
   if (pre_join_sort)
@@ -2268,6 +2491,44 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   }
 
   writer->end_object();
+}
+
+
+/*
+  @brief
+    Print a table that was removed by table elimination, in JSON format
+
+  @detail
+    There is no access method to describe, so only the table name is printed.
+    If the table is a derived one, its contents are printed as well: they were
+    eliminated together with it, so everything inside is shown as eliminated,
+    too.
+*/
+
+void Explain_table_access::print_explain_json_eliminated(Explain_query *query,
+                                                         Json_writer *writer)
+{
+  Json_writer_object jsobj(writer);
+  writer->add_member("table").start_object();
+  writer->add_member("table_name").add_str(table_name);
+  writer->add_member("access_type").add_str(eliminated_access_type);
+
+  if (derived_select_number)
+  {
+    Explain_node *node= query->get_node(derived_select_number);
+    if (node)
+    {
+      writer->add_member("materialized").start_object();
+      /*
+        An eliminated table is never read, so there are no ANALYZE statistics
+        to print for anything inside it.
+      */
+      node->print_explain_json(query, writer, false /*is_analyze*/);
+      writer->end_object(); // "materialized"
+    }
+  }
+
+  writer->end_object(); // "table"
 }
 
 

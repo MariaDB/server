@@ -31621,13 +31621,6 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *cur_table= tab->table;
 
-      /* Don't show eliminated tables */
-      if (cur_table->map & join->eliminated_tables)
-      {
-        used_tables|= cur_table->map;
-        continue;
-      }
-
       Explain_table_access *eta= (new (output->mem_root)
                                   Explain_table_access(output->mem_root,
                                                        thd->lex->analyze_stmt));
@@ -31663,6 +31656,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       prev_bush_root_tab= tab->bush_root_tab;
 
       cur_parent->add_table(eta, output);
+      if (cur_table->map & join->eliminated_tables)
+        eta->is_eliminated= true;
       if (tab->save_explain_data(eta, used_tables, distinct_arg, first_top_tab))
         DBUG_RETURN(1);
 
@@ -31686,7 +31681,21 @@ int JOIN::save_explain_data_intern(Explain_query *output,
          tmp_unit;
          tmp_unit= tmp_unit->next_unit())
       if (tmp_unit->explainable())
-        explain->add_child(tmp_unit->first_select()->select_number);
+      {
+        uint child_no= tmp_unit->first_select()->select_number;
+        explain->add_child(child_no);
+        /*
+          A derived table is optimized (and saves its query plan) before this
+          select reaches eliminate_tables(), so the child could not know that
+          it was eliminated. Now that we do know it, mark it.
+        */
+        if (tmp_unit->is_derived_eliminated())
+        {
+          Explain_node *child= output->get_node(child_no);
+          if (child)
+            child->mark_eliminated(output);
+        }
+      }
 
   if (select_lex->is_top_level_node())
     output->query_plan_ready();
@@ -31747,7 +31756,12 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       DBUG_ASSERT(ref == unit->item);
     }
 
-    if (unit->explainable())
+    /*
+      An eliminated derived table is never executed, and its query plan has
+      already been saved (and marked as eliminated) by save_explain_data(),
+      so there is nothing to do for it here.
+    */
+    if (unit->explainable() && !unit->is_derived_eliminated())
     {
       if (mysql_explain_union(thd, unit, unit->result))
         DBUG_VOID_RETURN;
