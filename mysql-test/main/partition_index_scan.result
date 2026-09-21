@@ -1217,3 +1217,72 @@ c
 11
 6
 DROP TABLE t1;
+#
+# MDEV-40820: DISTINCT and GROUP BY with partitioned multi-range reads
+#
+CREATE TABLE t1 (
+c1 INT,
+d DATETIME,
+KEY i_dc1 (d, c1)
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1) (
+PARTITION p0 VALUES LESS THAN (0),
+PARTITION p1 VALUES LESS THAN (5),
+PARTITION p2 VALUES LESS THAN (10),
+PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t1 VALUES
+(-1,'2020-07-01 00:00:01'), (2,'2020-07-01 00:00:01'),
+(-2,'2023-08-31 16:00:00'), (3,'2023-08-31 16:00:00');
+EXPLAIN SELECT DISTINCT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i_dc1	i_dc1	11	NULL	#	Using where; Using index
+SELECT DISTINCT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00');
+d
+2020-07-01 00:00:01
+2023-08-31 16:00:00
+ANALYZE FORMAT=JSON
+SELECT DISTINCT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00');
+ANALYZE
+merge_ordered_scans
+EXPLAIN SELECT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00')
+GROUP BY d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i_dc1	i_dc1	11	NULL	#	Using where; Using index
+SELECT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00')
+GROUP BY d;
+d
+2020-07-01 00:00:01
+2023-08-31 16:00:00
+ANALYZE FORMAT=JSON
+SELECT d FROM t1
+WHERE c1 <= 3 AND d IN ('2020-07-01 00:00:01','2023-08-31 16:00:00')
+GROUP BY d;
+ANALYZE
+merge_ordered_scans
+# A constant prefix permits an unordered scan across several ranges.
+INSERT INTO t1 VALUES
+(1,'2020-07-01 00:00:01'), (7,'2020-07-01 00:00:01');
+EXPLAIN SELECT c1, d FROM t1
+WHERE d = '2020-07-01 00:00:01' AND c1 IN (1, 7)
+ORDER BY c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i_dc1	i_dc1	11	NULL	#	Using where; Using index
+SELECT c1, d FROM t1
+WHERE d = '2020-07-01 00:00:01' AND c1 IN (1, 7)
+ORDER BY c1;
+c1	d
+1	2020-07-01 00:00:01
+7	2020-07-01 00:00:01
+ANALYZE FORMAT=JSON
+SELECT c1, d FROM t1
+WHERE d = '2020-07-01 00:00:01' AND c1 IN (1, 7)
+ORDER BY c1;
+ANALYZE
+iterate_over_partitions
+DROP TABLE t1;
