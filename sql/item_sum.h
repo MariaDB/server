@@ -1297,7 +1297,9 @@ public:
   {
     if (as_window_function)
     {
-      remove_as_window(args[0]->val_int());
+      ulonglong value= (ulonglong) args[0]->val_int();
+      if (!args[0]->null_value)
+        remove_as_window(value);
       return;
     }
     // Unless we're counting bits, we can not remove anything.
