@@ -1101,6 +1101,8 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
     tree->max_flag= NO_MAX_RANGE;
     break;
   case SP_DISJOINT_FUNC:
+    if (!mbr_range_is_exact())
+      DBUG_RETURN(0);
     tree->min_flag= GEOM_FLAG | HA_READ_MBR_DISJOINT;// NEAR_MIN;//512;
     tree->max_flag= NO_MAX_RANGE;
     break;
