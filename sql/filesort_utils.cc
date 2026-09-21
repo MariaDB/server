@@ -161,7 +161,7 @@ void Filesort_buffer::free_sort_buffer()
 
 void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 {
-  size_t size= param->sort_length;
+  size_t size= param->get_cmp_length();
   m_sort_keys= get_sort_keys();
 
   if (count <= 1 || size == 0)
@@ -173,11 +173,11 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 
   uchar **buffer= NULL;
   if (!param->using_packed_sortkeys() &&
-      radixsort_is_appliccable(count, param->sort_length) &&
+      radixsort_is_appliccable(count, size) &&
       (buffer= (uchar**) my_malloc(PSI_INSTRUMENT_ME, count*sizeof(char*),
                                    MYF(MY_THREAD_SPECIFIC))))
   {
-    radixsort_for_str_ptr(m_sort_keys, count, param->sort_length, buffer);
+    radixsort_for_str_ptr(m_sort_keys, count, (uint) size, buffer);
     my_free(buffer);
     return;
   }
