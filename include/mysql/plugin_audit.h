@@ -17,11 +17,15 @@
 #ifndef _my_audit_h
 #define _my_audit_h
 
-/*************************************************************************
-  API for Audit plugin. (MYSQL_AUDIT_PLUGIN)
-*/
 
 #include "plugin.h"
+
+/**
+   @defgroup audit_plugin_data Audit Plugin
+   @ingroup plugin_types
+   API for Audit plugin. (@ref MYSQL_AUDIT_PLUGIN)
+   @{
+*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,14 +36,15 @@ extern "C" {
 #define MYSQL_AUDIT_INTERFACE_VERSION 0x0303
 
 
-/*************************************************************************
-  AUDIT CLASS : GENERAL
+/**
+  @defgroup audit_general_class AUDIT CLASS : GENERAL
   
   LOG events occurs before emitting to the general query log.
   ERROR events occur before transmitting errors to the user. 
   RESULT events occur after transmitting a resultset to the user.
   STATUS events occur after transmitting a resultset or errors
   to the user.
+  @{
 */
 
 #define MYSQL_AUDIT_GENERAL_CLASS 0
@@ -71,13 +76,15 @@ struct mysql_event_general
   MYSQL_CONST_LEX_STRING database;
 };
 
+/** @} */
 
-/*
-  AUDIT CLASS : CONNECTION
-  
+/**
+  @defgroup audit_connection_class AUDIT CLASS : CONNECTION
+
   CONNECT occurs after authentication phase is completed.
   DISCONNECT occurs after connection is terminated.
   CHANGE_USER occurs after COM_CHANGE_USER RPC is completed.
+  @{
 */
 
 #define MYSQL_AUDIT_CONNECTION_CLASS 1
@@ -110,9 +117,11 @@ struct mysql_event_connection
   unsigned int tls_version_length;
 };
 
-/*
-  AUDIT CLASS : TABLE
-  
+/** @} */
+
+/**
+  @defgroup audit_table_class AUDIT CLASS : TABLE
+
   LOCK occurs when a connection "locks" (this does not necessarily mean a table
   lock and also happens for row-locking engines) the table at the beginning of
   a statement. This event is generated at the beginning of every statement for
@@ -121,6 +130,8 @@ struct mysql_event_connection
   the tables are unlocked).
 
   CREATE/DROP/RENAME occur when a table is created, dropped, or renamed.
+
+  @{
 */
 
 #define MYSQL_AUDIT_TABLE_CLASS 15
@@ -154,9 +165,10 @@ struct mysql_event_table
   unsigned long long query_id;
 };
 
-/*************************************************************************
-  Here we define the descriptor structure, that is referred from
-  st_mysql_plugin.
+/** @} */
+
+/**
+  The descriptor structure, that is referred from @ref st_mysql_plugin.
 
   release_thd() event occurs when the event class consumer is to be
   disassociated from the specified THD. This would typically occur
@@ -185,4 +197,5 @@ struct st_mysql_audit
 }
 #endif
 
+/** @} */
 #endif

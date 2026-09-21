@@ -15,10 +15,9 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
-  @file
-  encryption scheme service
-
-  A higher-level access to encryption service.
+  @defgroup plugin_api_service_encryption_scheme Encryption scheme service
+  @ingroup plugin_api_services
+  @brief A higher-level access to encryption service.
 
   This is a helper service that storage engines use to encrypt tables on disk.
   It requests keys from the plugin, generates temporary or local keys
@@ -65,6 +64,7 @@
     any two pages (of the same or different tablespaces) and also that
     they'll change for the same page when it's modified. They don't need
     to be secret (they create the IV, not the encryption key).
+    @{
 */
 
 #ifdef __cplusplus
@@ -131,3 +131,5 @@ int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
 
 #define MYSQL_SERVICE_ENCRYPTION_SCHEME_INCLUDED
 #endif
+
+/** @} */

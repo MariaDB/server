@@ -1,4 +1,3 @@
-#ifndef MYSQL_AUTH_DIALOG_CLIENT_INCLUDED
 /* Copyright (C) 2010 Sergei Golubchik and Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -14,15 +13,22 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#ifndef MYSQL_AUTH_DIALOG_CLIENT_INCLUDED
+#define MYSQL_AUTH_DIALOG_CLIENT_INCLUDED
+
 /**
   @file
 
   Definitions needed to use Dialog client authentication plugin
 */
 
+/**
+  @addtogroup plugin_client_api
+  @{
+ */
+
 struct st_mysql;
 
-#define MYSQL_AUTH_DIALOG_CLIENT_INCLUDED
 
 /**
   type of the mysql_authentication_dialog_ask function
@@ -52,5 +58,7 @@ typedef char *(*mysql_authentication_dialog_ask_t)(struct st_mysql *mysql,
 #define LAST_QUESTION           "\3"
 #define PASSWORD_QUESTION       "\4"
 #define LAST_PASSWORD           "\5"
+
+/** @} */
 
 #endif

@@ -40,7 +40,7 @@ extern "C" {
   @file mysql/psi/psi_base.h
   Performance schema instrumentation interface.
 
-  @defgroup Instrumentation_interface Instrumentation Interface
+  @addtogroup Instrumentation_interface
   @{
 */
 
@@ -167,14 +167,14 @@ extern "C" {
 
 #endif /* HAVE_PSI_INTERFACE */
 
-/** @} */
-
 /**
   Instrumented memory key.
   To instrument memory, a memory key must be obtained using @c register_memory.
   Using a zero key always disable the instrumentation.
 */
 typedef unsigned int PSI_memory_key;
+
+/** @} */
 
 #ifdef __cplusplus
 }
