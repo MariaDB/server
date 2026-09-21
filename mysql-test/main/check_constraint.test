@@ -350,12 +350,13 @@ drop table t1;
 --error ER_DUP_CONSTRAINT_NAME
 CREATE TABLE t1 (a INT CHECK (a>2), CONSTRAINT a CHECK (a < 5));
 
---error ER_DUP_CONSTRAINT_NAME
+# MDEV-38740: JSON is a native type now, so it no longer generates a conflicting implicit CHECK constraint
 CREATE TABLE t2 (
   path VARCHAR(100) NOT NULL,
   json_c1 JSON NOT NULL DEFAULT '{}',
   CONSTRAINT json_c1 CHECK (path > 0)
 );
+DROP TABLE t2;
 
 --error ER_DUP_CONSTRAINT_NAME
 CREATE TABLE t3 (a INT, CONSTRAINT c1 CHECK (a > 0),
