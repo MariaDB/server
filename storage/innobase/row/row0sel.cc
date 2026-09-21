@@ -1230,7 +1230,7 @@ re_scan:
 			if (!cur_block) {
 				goto func_end;
 			}
-			buf_page_make_young_if_needed(&cur_block->page);
+			cur_block->page.flag_accessed();
 		} else {
 			mtr->start();
 			goto func_end;

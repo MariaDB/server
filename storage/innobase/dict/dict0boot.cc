@@ -43,7 +43,7 @@ static buf_block_t *dict_hdr_get(mtr_t *mtr)
   /* We assume that the DICT_HDR page is always readable and available. */
   buf_block_t *b=
     buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr);
-  buf_page_make_young_if_needed(&b->page);
+  b->page.flag_accessed();
   return b;
 }
 
