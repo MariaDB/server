@@ -2999,12 +2999,23 @@ bool Item_func_min_max::get_date_native(THD *thd, MYSQL_TIME *ltime,
 
   for (uint i=0; i < arg_count ; i++)
   {
-    longlong res= args[i]->val_datetime_packed(thd);
+    /*
+      Do not coerce a NULL-producing DATE/DATETIME expression to a zero date.
+      Preserve comparison conversion rules for other argument types, and
+      check SQL mode restrictions on the selected result below.
+    */
+    enum_mysql_timestamp_type type=
+      args[i]->type_handler()->mysql_timestamp_type();
+    Datetime value(thd, args[i], type == MYSQL_TIMESTAMP_DATE ||
+                               type == MYSQL_TIMESTAMP_DATETIME ?
+                               Datetime::Options(TIME_CONV_NONE, thd) :
+                               Datetime::Options_cmp(thd));
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (unlikely(args[i]->null_value))
+    if (unlikely(!value.is_valid_datetime()))
       return (null_value= 1);
 
+    longlong res= value.valid_datetime_to_packed();
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
       min_max= res;
   }
