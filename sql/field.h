@@ -962,6 +962,15 @@ public:
   {
     return store(to, length, cs);
   }
+  /*
+    Store a numeric value serialized as text. Types whose string store uses
+    a binary representation can override this without changing string input.
+    As with store(), a nonzero result can indicate a conversion warning.
+  */
+  virtual int store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
+  {
+    return store(from, length, cs);
+  }
   virtual int  store_binary(const char *to, size_t length)
   {
     return store(to, length, &my_charset_bin);
@@ -5007,6 +5016,7 @@ public:
   int save_in_field(Field *to) override { return to->store(val_int(), true); }
   bool memcpy_field_possible(const Field *from) const override{ return false; }
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  int store_numeric(const char *from, size_t length, CHARSET_INFO *cs) override;
   int store(double nr) override;
   int store(longlong nr, bool unsigned_val) override;
   int store_decimal(const my_decimal *) override;

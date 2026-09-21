@@ -365,7 +365,7 @@ int ha_json_table::rnd_init(bool scan)
 /*
   @brief
      Store JSON value in an SQL field, doing necessary special conversions
-     for JSON's null, true, and false.
+     for JSON's null, true, false, and numeric values.
 */
 
 static void store_json_in_field(Field *f, const json_engine_t *je)
@@ -381,7 +381,7 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
   case JSON_VALUE_TRUE:
   case JSON_VALUE_FALSE:
   {
-    Item_result rt= f->result_type();
+    Item_result rt= f->type_handler()->value_store_type();
     if (rt == INT_RESULT || rt == DECIMAL_RESULT || rt == REAL_RESULT)
     {
       f->store(je->value_type == JSON_VALUE_TRUE, false);
@@ -393,7 +393,10 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
     break;
   };
   st_append_json(&res_tmp, je->s.cs, je->value, je->value_len);
-  f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(), je->s.cs);
+  if (je->value_type == JSON_VALUE_NUMBER)
+    f->store_numeric(res_tmp.ptr(), res_tmp.length(), je->s.cs);
+  else
+    f->store(res_tmp.ptr(), res_tmp.length(), je->s.cs);
 }
 
 
@@ -588,6 +591,7 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
             else if (!(error= !json_value_scalar(&je)))
             {
               store_json_in_field(*f, &je);
+              // Data type conversion warnings do not invoke ON ERROR.
               error= er_handler.errors;
             }
 

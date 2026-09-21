@@ -1404,3 +1404,131 @@ drop table t1;
 #
 # End of 11.0 tests
 #
+#
+# MDEV-39969: JSON_TABLE conversion of numeric values to BIT
+#
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[0,1]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value
+1	0
+2	1
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[0,2,255,256,0.4,0.5,1.5,1e1,1e-1]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(9) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value
+1	0
+2	2
+3	255
+4	256
+5	0
+6	1
+7	2
+8	10
+9	0
+SELECT ord, b+0 AS bit_value, b+0 = u AS matches_unsigned
+FROM JSON_TABLE('[9223372036854775808,18446744073709551615]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(64) PATH '$',
+u BIGINT UNSIGNED PATH '$')) AS jt ORDER BY ord;
+ord	bit_value	matches_unsigned
+1	9223372036854775808	1
+2	18446744073709551615	1
+SELECT ord, b+0 AS bit_value, i, s
+FROM JSON_TABLE('[false,true]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$',
+i INT PATH '$', s VARCHAR(5) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value	i	s
+1	0	0	false
+2	1	1	true
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('["0","1",null]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(8) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value
+1	48
+2	49
+3	NULL
+SELECT i, d, f = 1e100 AS real_value_matches, s, dt
+FROM JSON_TABLE('[{"n":1e2,"f":1e100,"d":20260924}]', '$[*]'
+  COLUMNS (i INT PATH '$.n', d DECIMAL(6,2) PATH '$.n',
+f DOUBLE PATH '$.f', s VARCHAR(10) PATH '$.n',
+dt DATE PATH '$.d')) AS jt;
+i	d	real_value_matches	s	dt
+100	100.00	1	1e2	2026-09-24
+SELECT ord, b+0 AS bit_value, s
+FROM JSON_TABLE(CONVERT('[false,true,0,1]' USING utf8mb4), '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$',
+s VARCHAR(5) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value	s
+1	0	false
+2	1	true
+3	0	0
+4	1	1
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]' COLUMNS (b BIT(1) PATH '$')) AS jt;
+bit_value
+1
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' NULL ON ERROR)) AS jt;
+bit_value
+1
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[256]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$' DEFAULT 'A' ON ERROR)) AS jt;
+bit_value
+255
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+bit_value
+1
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[-1,18446744073709551616,1e1000]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(64) PATH '$')) AS jt ORDER BY ord;
+ord	bit_value
+1	0
+2	18446744073709551615
+3	18446744073709551615
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+Warning	1264	Out of range value for column 'b' at row 2
+Warning	1264	Out of range value for column 'b' at row 3
+SET @save_sql_mode_mdev39969= @@sql_mode;
+SET sql_mode= 'STRICT_TRANS_TABLES';
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+bit_value
+1
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SET sql_mode= @save_sql_mode_mdev39969;
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[{},[]]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$' NULL ON ERROR)) AS jt
+ORDER BY ord;
+ord	bit_value
+1	NULL
+2	NULL
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$' DEFAULT 'A' ON ERROR)) AS jt;
+bit_value
+65
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+ERROR HY000: Can't store an array or an object in the scalar column 'b' of JSON_TABLE 'jt'.
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$.missing' DEFAULT 'A' ON EMPTY)) AS jt;
+bit_value
+65
