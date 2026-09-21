@@ -14,5 +14,5 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 MYSQL_ADD_PLUGIN(type_xmltype
-                 plugin.cc sql_type_xmltype.cc
+                 plugin.cc sql_type_xmltype.cc item_func_xml_isvalid.cc
                  MANDATORY RECOMPILE_FOR_EMBEDDED)
