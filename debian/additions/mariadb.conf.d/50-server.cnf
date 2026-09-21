@@ -82,9 +82,9 @@ expire_logs_days        = 10
 
 # For documentation, please read
 # https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/securing-connections-for-client-and-server
-#ssl-ca = /etc/mysql/cacert.pem
-#ssl-cert = /etc/mysql/server-cert.pem
-#ssl-key = /etc/mysql/server-key.pem
+#ssl-ca = /etc/mariadb/cacert.pem
+#ssl-cert = /etc/mariadb/server-cert.pem
+#ssl-key = /etc/mariadb/server-key.pem
 #require-secure-transport = on
 
 #

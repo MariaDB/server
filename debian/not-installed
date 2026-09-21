@@ -1,9 +1,9 @@
 etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
-etc/my.cnf # Debian packaging has /etc/mysql/my.cnf, which is a symlink to mariadb.cnf
-etc/mysql/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
-etc/mysql/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
-etc/mysql/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
-etc/mysql/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/my.cnf # Debian packaging has /etc/mariadb/my.cnf, which is a symlink to mariadb.cnf
+etc/mariadb/mariadb.conf.d/client.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mariadb/mariadb.conf.d/enable_encryption.preset # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mariadb/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
+etc/mariadb/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 usr/lib/systemd/system/mariadb-extra.socket # Installed by rules file
 usr/lib/systemd/system/mariadb.socket # Installed by rules file
 usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does not make sense

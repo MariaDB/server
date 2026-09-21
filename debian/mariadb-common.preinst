@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+# Move custom config files from /etc/mysql/mariadb.conf.d/ to
+# /etc/mariadb/mariadb.conf.d/
+if [ "$1" = "upgrade" ] && [ -d /etc/mysql/mariadb.conf.d ]
+then
+  mkdir -p /etc/mariadb/mariadb.conf.d
+
+  for f in /etc/mysql/mariadb.conf.d/*.cnf
+  do
+    [ -e "$f" ] || continue
+
+    base=$(basename "$f")
+
+    # Skip files already handled by dpkg
+    if dpkg-query --search "/etc/mysql/mariadb.conf.d/$base" >/dev/null 2>&1
+    then
+      continue
+    fi
+
+    if [ ! -e "/etc/mariadb/mariadb.conf.d/$base" ]
+    then
+      mv "$f" "/etc/mariadb/mariadb.conf.d/$base"
+    fi
+  done
+fi
+
+#DEBHELPER#
