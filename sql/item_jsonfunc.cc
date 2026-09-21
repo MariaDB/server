@@ -4791,6 +4791,9 @@ static bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t *value)
 
 bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value)
 {
+  /* Array end states have already moved the parsers to the parent level. */
+  const int js_level= json_get_level(js);
+  const int value_level= json_get_level(value);
   bool res= false;
   while (json_scan_next(js) == 0 && json_scan_next(value) == 0 &&
          js->state == JST_VALUE && value->state == JST_VALUE)
@@ -4799,19 +4802,22 @@ bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value)
       return FALSE;
     if (js->value_type != value->value_type)
     {
-      json_skip_current_level(js, value);
+      json_skip_to_level(js, js_level);
+      json_skip_to_level(value, value_level);
       return FALSE;
     }
     res= check_overlaps(js, value, true);
     if (!res)
     {
-      json_skip_current_level(js, value);
+      json_skip_to_level(js, js_level);
+      json_skip_to_level(value, value_level);
       return FALSE;
     }
   }
-  res= (value->state == JST_ARRAY_END || value->state == JST_OBJ_END ?
-        TRUE : FALSE);
-  json_skip_current_level(js, value);
+  res= ((js->state == JST_ARRAY_END || js->state == JST_OBJ_END) &&
+        (value->state == JST_ARRAY_END || value->state == JST_OBJ_END));
+  json_skip_to_level(js, js_level);
+  json_skip_to_level(value, value_level);
   return res;
 }
 
