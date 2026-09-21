@@ -41,19 +41,20 @@ CREATE TABLE t_upd (
 INSERT INTO t_upd VALUES
   (1, 'one', 'keep-1'),
   (2, 'two', 'keep-2'),
-  (3, 'three', 'keep-3');
-# Indexed predicates fail while metadata-only DuckDB keys are considered
-# by the range optimizer (MDEV-41223)
---error ER_ILLEGAL_HA
+  (3, 'three', 'keep-3'),
+  (4, 'four', 'keep-4'),
+  (6, 'six', 'keep-6'),
+  (7, 'seven', 'keep-7'),
+  (8, 'eight', 'keep-8');
+# Metadata-only DuckDB keys must not make the optimizer choose an index scan
 UPDATE t_upd SET v = 'TWO' WHERE id = 2;
---error ER_ILLEGAL_HA
 UPDATE t_upd SET id = 30, v = 'moved' WHERE id = 3;
---error ER_ILLEGAL_HA
 DELETE FROM t_upd WHERE id = 1;
-# Continue replication coverage through table scans
-UPDATE t_upd SET v = 'TWO' WHERE v = 'two';
-UPDATE t_upd SET id = 30, v = 'moved' WHERE v = 'three';
-DELETE FROM t_upd WHERE v = 'one';
+UPDATE t_upd FORCE INDEX(PRIMARY) SET v = 'FOUR' WHERE id = 4;
+# Non-indexed predicates continue to use table scans
+UPDATE t_upd SET v = 'SIX' WHERE v = 'six';
+UPDATE t_upd SET id = 70, v = 'moved-non-pk' WHERE v = 'seven';
+DELETE FROM t_upd WHERE v = 'eight';
 SELECT * FROM t_upd ORDER BY id;
 
 --sync_slave_with_master

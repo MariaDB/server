@@ -122,13 +122,9 @@ public:
     return cost;
   }
 
-  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
-                               ulonglong blocks) override
+  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows, ulonglong) override
   {
-    IO_AND_CPU_COST cost;
-    cost.io= blocks * DISK_READ_COST;
-    cost.cpu= (double) rows * 0.001;
-    return cost;
+    return {DBL_MAX, DBL_MAX};
   }
 
   /* Methods implemented in ha_duckdb.cc */
