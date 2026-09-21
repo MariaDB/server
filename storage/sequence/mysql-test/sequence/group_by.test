@@ -68,3 +68,12 @@ select count(NULL) from seq_1_to_3 limit 1 offset 1;
 explain format=json select count(NULL) from seq_1_to_3 limit 1 offset 1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-24943: Implement FILTER clause support for aggregate functions
+--echo #
+explain
+select count(*) filter (where seq < 5) from seq_1_to_15;
+select count(*) filter (where seq < 5) from seq_1_to_15;
+
+--echo # End of 13.2 tests

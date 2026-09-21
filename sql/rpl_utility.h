@@ -100,6 +100,9 @@ public:
     in a Table_map event.
   */
   static uint field_metadata_length(uint binlog_type);
+
+  const uchar *field_types() const { return m_type; }
+
   /*
     Return a representation of the type data for one field.
 

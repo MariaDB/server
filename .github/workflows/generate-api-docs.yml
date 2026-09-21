@@ -28,3 +28,10 @@ jobs:
           mkdir -p "$target_dir"
           cd include/mysql
           bash -x generate_plugin_api_docs.sh "$target_dir"
+
+      - name: Upload docs as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-api-docs
+          path: bld/docs/plugin-api
+          retention-days: 7

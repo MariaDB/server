@@ -197,6 +197,8 @@ public:
 
   size_t size() const { return array.elements; }
 
+  bool is_empty() const { return array.elements == 0; }
+
   const Elem *end() const
   {
     return back() + 1;
