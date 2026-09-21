@@ -73,9 +73,10 @@ ENGINE=InnoDB WITH SYSTEM VERSIONING;
 INSERT INTO t_versioned VALUES (1, 10);
 SET SESSION duckdb_cross_engine_ryow=1;
 SELECT d.id, i.score FROM t_duck d JOIN t_versioned i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+id	score
+1	10
 
-# (6) A trailing invisible column is supported only without RYOW
+# (6) A trailing invisible column uses pushdown only without RYOW
 
 CREATE TABLE t_trailing_invisible (
 id INT PRIMARY KEY,
@@ -91,10 +92,12 @@ id	score
 SET SESSION duckdb_cross_engine_ryow=1;
 SELECT d.id, i.score
 FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+id	score
+1	10
 SELECT d.id, i.hidden
 FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+id	hidden
+1	100
 
 # (7) A non-trailing invisible column always uses handler fallback
 
@@ -105,8 +108,10 @@ score INT
 ) ENGINE=InnoDB;
 INSERT INTO t_nontrailing_invisible (id, hidden, score) VALUES (1, 100, 10);
 SELECT d.id, i.score
-FROM t_duck d JOIN t_nontrailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+FROM t_duck AS d FORCE INDEX(PRIMARY)
+JOIN t_nontrailing_invisible i ON d.id=i.id;
+id	score
+1	10
 
 # Cleanup
 

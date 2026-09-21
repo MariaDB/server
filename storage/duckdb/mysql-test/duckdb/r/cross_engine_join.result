@@ -146,7 +146,13 @@ hidden INT INVISIBLE
 INSERT INTO t_trailing_invisible (id, hidden) VALUES (1, 10);
 SELECT d.id, i.hidden
 FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_join`.`t_duck` doesn't have this option
+id	hidden
+1	10
+SELECT d.id, i.hidden
+FROM t_duck AS d FORCE INDEX(PRIMARY)
+JOIN t_trailing_invisible i ON d.id=i.id;
+id	hidden
+1	10
 
 # (11) Non-trailing invisible column uses MariaDB fallback
 
@@ -158,7 +164,8 @@ val INT
 INSERT INTO t_nontrailing_invisible (id, hidden, val) VALUES (1, 10, 100);
 SELECT d.id, i.val
 FROM t_duck d JOIN t_nontrailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_join`.`t_duck` doesn't have this option
+id	val
+1	100
 
 # (12) Explicit FOR SYSTEM_TIME uses MariaDB fallback
 
@@ -171,10 +178,12 @@ ERROR HY000: Storage engine DUCKDB of the table `cross_engine_join`.`t_duck` doe
 
 SELECT ROW_NUMBER() OVER (PARTITION BY i.hidden)
 FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_join`.`t_duck` doesn't have this option
+ROW_NUMBER() OVER (PARTITION BY i.hidden)
+1
 SELECT ROW_NUMBER() OVER (ORDER BY i.hidden)
 FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
-ERROR HY000: Storage engine DUCKDB of the table `cross_engine_join`.`t_duck` doesn't have this option
+ROW_NUMBER() OVER (ORDER BY i.hidden)
+1
 
 # Cleanup
 
