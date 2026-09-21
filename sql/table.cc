@@ -3052,7 +3052,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
               for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
               {
-                if (curr_key_part->fieldnr == first_key_part[j].fieldnr)
+                if (curr_key_part->fieldnr == first_key_part[j].fieldnr &&
+                    curr_key_part->length == first_key_part[j].length)
                   break;
               }
               if (curr_key_part == curr_key_part_end)
