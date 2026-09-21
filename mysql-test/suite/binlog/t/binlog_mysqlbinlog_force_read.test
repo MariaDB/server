@@ -1,0 +1,29 @@
+# MDEV-40759: mariadb-binlog --force-read --start-position crashes on
+# Unknown event
+#
+# With --force-read, a Format Description event whose checksum is invalid is
+# returned as an Unknown_log_event instead of NULL (Log_event::read_log_event).
+# check_header()'s prelude wrongly treated such an event as a Format
+# Description event, which is undefined behaviour (a vptr error under UBSan)
+# and, in --base64-output modes other than AUTO, silently swallowed the event.
+#
+# The checksum failure is simulated with --debug=d,simulate_checksum_test_failure.
+--source include/mysqlbinlog_have_debug.inc
+--source include/have_binlog_format_mixed.inc
+
+# Grow the current binlog past the Format Description event so that
+# check_header()'s --start-position prelude has to read it.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--let $MYSQL_DATADIR= `SELECT @@datadir`
+--let $binlog_file=  query_get_value(SHOW BINLOG STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW BINLOG STATUS, Position, 1)
+
+# Must not crash, and must report the checksum-failing Format Description event.
+--exec $MYSQL_BINLOG --verify-binlog-checksum --force-read --debug=d,simulate_checksum_test_failure --start-position=$binlog_start $MYSQL_DATADIR/$binlog_file
+
+# Must not silently drop the event when not in AUTO mode either.
+--exec $MYSQL_BINLOG --verify-binlog-checksum --force-read --base64-output=NEVER --debug=d,simulate_checksum_test_failure --start-position=$binlog_start $MYSQL_DATADIR/$binlog_file
+
+DROP TABLE t1;
