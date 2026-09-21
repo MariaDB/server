@@ -6461,14 +6461,7 @@ int subselect_partial_match_engine::exec()
   if (!item_in->left_expr_has_null())
   {
     /* Try to find a matching row by index lookup. */
-    if (lookup_engine->copy_ref_key(false))
-    {
-      /* The result is FALSE based on the outer reference. */
-      item_in->value= 0;
-      item_in->null_value= 0;
-      return 0;
-    }
-    else
+    if (!lookup_engine->copy_ref_key(false))
     {
       /* Search for a complete match. */
       tracker->increment_index_lookups();

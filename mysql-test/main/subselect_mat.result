@@ -3468,3 +3468,13 @@ ANALYZE
 }
 drop table t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-40877: NOT IN with a materialized NULL value
+#
+CREATE TABLE t1 (c1 TINYINT);
+INSERT INTO t1 VALUES (21),(NULL);
+CREATE TABLE t2 (c1 INT);
+INSERT INTO t2 VALUES (1),(2),(3),(9999);
+SELECT * FROM t2 WHERE c1 NOT IN (SELECT c1 FROM t1);
+c1
+DROP TABLE t1, t2;
