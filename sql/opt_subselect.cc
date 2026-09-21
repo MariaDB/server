@@ -3594,7 +3594,7 @@ bool Firstmatch_picker::check_qep(JOIN *join,
 
 /*
   Duplicate_weedout strategy is described at
-  https://mariadb.com/kb/en/duplicateweedout-strategy/
+  https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/optimization-strategies/duplicateweedout-strategy
 
   The idea is that if one has a subquery of type:
 
