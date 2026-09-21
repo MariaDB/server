@@ -181,5 +181,44 @@ SELECT KDF('secret','salt') IS NOT NULL;
 KDF('secret','salt') IS NOT NULL
 1
 #
+# MDEV-41094 KDF() silently reduces large PBKDF2 iteration counts
+# and key widths to weak 32-bit aliases
+#
+SET @@block_encryption_mode=DEFAULT;
+SELECT HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac'));
+HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac'))
+76BA6DEC5C3F6A60704D730A2A4BAA1C
+SELECT KDF('foo', 'bar', 4294968296, 'pbkdf2_hmac');
+KDF('foo', 'bar', 4294968296, 'pbkdf2_hmac')
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 4294968296 in function kdf.
+SELECT KDF('foo', 'bar', 2147483648, 'pbkdf2_hmac');
+KDF('foo', 'bar', 2147483648, 'pbkdf2_hmac')
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 2147483648 in function kdf.
+SELECT HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 256));
+HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 256))
+76BA6DEC5C3F6A60704D730A2A4BAA1C596F278AE35408EE5D67ECE0942C14F4
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 4294967552);
+KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 4294967552)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 4294967552 in function kdf.
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', -4294967040);
+KDF('foo', 'bar', 1000, 'pbkdf2_hmac', -4294967040)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: -4294967040 in function kdf.
+CREATE TABLE t1 (w BIGINT);
+INSERT INTO t1 VALUES (4294967552);
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', w) FROM t1;
+KDF('foo', 'bar', 1000, 'pbkdf2_hmac', w)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: 4294967552 in function kdf.
+DROP TABLE t1;
+#
 # End of 11.4 tests
 #
