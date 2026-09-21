@@ -14849,6 +14849,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     KEY_PART_INFO *last_part;
     KEY_PART_INFO *first_non_group_part;
     KEY_PART_INFO *first_non_infix_part;
+    KEY_PART_INFO *cur_min_max_arg_part= NULL;
     uint key_parts;
     uint key_infix_parts;
     uint cur_group_key_parts= 0;
@@ -15028,7 +15029,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         cause= "aggregate column not suffix in idx";
         goto next_index;
       }
-      min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
+      cur_min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
     }
 
     /*
@@ -15062,19 +15063,21 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     first_non_group_part= (cur_group_key_parts < key_parts) ?
                           cur_index_info->key_part + cur_group_key_parts :
                           NULL;
-    first_non_infix_part= min_max_arg_part ?
-                          (min_max_arg_part < last_part) ?
-                             min_max_arg_part :
+    first_non_infix_part= cur_min_max_arg_part ?
+                          (cur_min_max_arg_part < last_part) ?
+                             cur_min_max_arg_part :
                              NULL :
                            NULL;
     if (first_non_group_part &&
-        (!min_max_arg_part || (min_max_arg_part - first_non_group_part > 0)))
+        (!cur_min_max_arg_part ||
+         (cur_min_max_arg_part - first_non_group_part > 0)))
     {
       if (tree)
       {
         SEL_ARG *index_range_tree= tree->keys[cur_param_idx];
         if (!get_constant_key_infix(cur_index_info, index_range_tree,
-                                    first_non_group_part, min_max_arg_part,
+                                    first_non_group_part,
+                                    cur_min_max_arg_part,
                                     last_part, thd, cur_key_infix, 
                                     &cur_key_infix_len,
                                     &first_non_infix_part))
@@ -15083,8 +15086,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           goto next_index;
         }
       }
-      else if (min_max_arg_part &&
-               (min_max_arg_part - first_non_group_part > 0))
+      else if (cur_min_max_arg_part &&
+               (cur_min_max_arg_part - first_non_group_part > 0))
       {
         /*
           There is a gap but no range tree, thus no predicates at all for the
@@ -15128,7 +15131,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     if (first_non_infix_part)
     {
       cur_part= first_non_infix_part +
-                (min_max_arg_part && (min_max_arg_part < last_part));
+                (cur_min_max_arg_part &&
+                 (cur_min_max_arg_part < last_part));
       for (; cur_part != last_part; cur_part++)
       {
         if (bitmap_is_set(table->read_set, cur_part->field->field_index))
@@ -15148,7 +15152,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     {
       SEL_ARG *index_range_tree= tree->keys[cur_param_idx];
       SEL_ARG *cur_range= NULL;
-      if (get_sel_arg_for_keypart(min_max_arg_part->field,
+      if (get_sel_arg_for_keypart(cur_min_max_arg_part->field,
                                   index_range_tree, &cur_range) ||
           (cur_range && cur_range->type != SEL_ARG::KEY_RANGE))
       {
@@ -15215,6 +15219,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       if (key_infix_len)
         memcpy (key_infix, cur_key_infix, sizeof (key_infix));
       used_key_parts= cur_used_key_parts;
+      min_max_arg_part= cur_min_max_arg_part;
     }
 
   next_index:

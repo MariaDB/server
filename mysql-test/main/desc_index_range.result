@@ -600,3 +600,42 @@ min(kp2)
 3
 3
 drop table t20;
+#
+# MDEV-40762: MIN/MAX with ascending and descending index candidates
+#
+# Ascending index chosen first
+CREATE TABLE t1 (g CHAR(4) NOT NULL, v INT NOT NULL,
+KEY idx_asc (g,v),
+KEY idx_desc (g,v DESC)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('A',1),('A',2),('A',3);
+EXPLAIN SELECT g, MIN(v) FROM t1 GROUP BY g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	idx_asc	16	NULL	#	Using index for group-by
+SELECT g, MIN(v) FROM t1 GROUP BY g;
+g	MIN(v)
+A	1
+EXPLAIN SELECT g, MAX(v) FROM t1 GROUP BY g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	idx_asc	16	NULL	#	Using index for group-by
+SELECT g, MAX(v) FROM t1 GROUP BY g;
+g	MAX(v)
+A	3
+DROP TABLE t1;
+# Descending index chosen first
+CREATE TABLE t1 (g CHAR(4) NOT NULL, v INT NOT NULL,
+KEY idx_desc (g,v DESC),
+KEY idx_asc (g,v)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('A',1),('A',2),('A',3);
+EXPLAIN SELECT g, MIN(v) FROM t1 GROUP BY g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	idx_desc	16	NULL	#	Using index for group-by
+SELECT g, MIN(v) FROM t1 GROUP BY g;
+g	MIN(v)
+A	1
+EXPLAIN SELECT g, MAX(v) FROM t1 GROUP BY g;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	NULL	idx_desc	16	NULL	#	Using index for group-by
+SELECT g, MAX(v) FROM t1 GROUP BY g;
+g	MAX(v)
+A	3
+DROP TABLE t1;
