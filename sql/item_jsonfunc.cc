@@ -3880,8 +3880,13 @@ bool Item_func_json_keys::fix_length_and_dec(THD *thd)
 static int check_key_in_list(String *res,
                              const uchar *key, int key_len)
 {
-  const uchar *c= (const uchar *) res->ptr() + 2; /* beginning '["' */
-  const uchar *end= (const uchar *) res->end() - 1; /* ending '"' */
+  const uchar *c, *end;
+
+  if (!key_len)
+    return 0;
+
+  c= (const uchar *) res->ptr() + 2; /* beginning '["' */
+  end= (const uchar *) res->end() - 1; /* ending '"' */
 
   while (c < end)
   {

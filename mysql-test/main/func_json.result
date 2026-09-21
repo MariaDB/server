@@ -3086,4 +3086,16 @@ NULL	["a", "b"]	NULL
 {"r": 1}	NULL	NULL
 [{"a": 3}, {"d": [1, 2, 3]}]	[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]	1
 DROP TABLE t;
+#
+# MDEV-39049: Memory corruption & crash in check_key_in_list upon
+# using JSON_KEYS after modifying character set name/collation
+#
+SET SESSION character_set_database=utf32;
+SET CHARSET DEFAULT;
+SELECT JSON_KEYS('{"":');
+JSON_KEYS('{"":')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+SET SESSION character_set_database= default;
 # End of 10.11 Test

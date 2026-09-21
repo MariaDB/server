@@ -2185,4 +2185,13 @@ SELECT c1, JSON_OVERLAPS(c1, '{"r": 1E0}') AS jo_c1_const FROM t;
 SELECT c1, c2, JSON_OVERLAPS(c1, c2) AS jo_c1_c2 FROM t;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-39049: Memory corruption & crash in check_key_in_list upon
+--echo # using JSON_KEYS after modifying character set name/collation
+--echo #
+
+SET SESSION character_set_database=utf32;
+SET CHARSET DEFAULT;
+SELECT JSON_KEYS('{"":');
+SET SESSION character_set_database= default;
 --echo # End of 10.11 Test
