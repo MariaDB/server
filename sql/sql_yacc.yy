@@ -1645,6 +1645,7 @@ rule:
         derived_table_list table_reference_list_parens
         nested_table_reference_list join_table_parens
         update_table_list table_function
+        delete_single_table
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -13475,7 +13476,7 @@ delete_part2:
           opt_delete_options single_multi {}
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
-            Lex->last_table()->vers_conditions= Lex->vers_conditions;
+            $2->vers_conditions= Lex->vers_conditions;
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
@@ -13485,12 +13486,12 @@ delete_part2:
 delete_single_table:
           FROM table_ident opt_use_partition
           {
-            if (unlikely(!Select->
-                         add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type,
-                                           NULL,
-                                           $3)))
+            if (!($$= Select->
+                    add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
+                                      YYPS->m_lock_type,
+                                      YYPS->m_mdl_type,
+                                      NULL,
+                                      $3)))
               MYSQL_YYABORT;
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
@@ -13501,7 +13502,7 @@ delete_single_table_for_period:
           delete_single_table opt_for_portion_of_time_clause
           {
             if ($2)
-              Lex->last_table()->period_conditions= Lex->period_conditions;
+              $1->period_conditions= Lex->period_conditions;
           }
         ;
 

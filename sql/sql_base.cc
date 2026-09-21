@@ -1841,8 +1841,6 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
         }
         break;
     }
-    DBUG_ASSERT(!thd->lex->last_table() ||
-                !thd->lex->last_table()->vers_conditions.delete_history);
   }
 
   if (table_list->partition_names)
