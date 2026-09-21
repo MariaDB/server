@@ -2,6 +2,7 @@
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 --source include/word_size.inc
+--source include/have_sequence.inc
 
 call mtr.add_suppression("need more HISTORY partitions");
 
@@ -373,5 +374,21 @@ prepare stmt from 'select * from t for system_time as of timestamp ?';
 drop table t;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+create table t1 (c1 int key) engine innodb;
+create sequence cs1 engine myisam;
+--error ER_VERS_NOT_VERSIONED
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+create or replace table t1 (c1 int key) with system versioning engine innodb;
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+# Cleanup
+drop sequence cs1;
+drop table t1;
+
+--echo # End of 11.8 tests
 
 --source suite/versioning/common_finish.inc
