@@ -697,8 +697,6 @@ static struct
   /** Maintains the last opened defer file name along with lsn */
   struct item
   {
-    /** Log sequence number of latest add() called by fil_name_process() */
-    lsn_t lsn;
     /** File name from the FILE_ record */
     std::string file_name;
     /** whether a FILE_DELETE record was encountered */
@@ -713,9 +711,8 @@ static struct
 
   /** Add the deferred space only if it is latest one
   @param space  space identifier
-  @param f_name file name
-  @param lsn    log sequence number of the FILE_ record */
-  void add(uint32_t space, const std::string &f_name, lsn_t lsn)
+  @param f_name file name */
+  void add(uint32_t space, const std::string &f_name)
   {
     mysql_mutex_assert_owner(&recv_sys.mutex);
     const char *filename= f_name.c_str();
@@ -734,47 +731,13 @@ static struct
 
     char *fil_path= fil_make_filepath(nullptr, {filename, strlen(filename)},
                                       IBD, false);
-    const item defer{lsn, fil_path, false};
+    const item defer{fil_path, false};
     ut_free(fil_path);
 
-    /* The file name must be unique. Keep the one with the latest LSN. */
-    auto d= defers.begin();
-
-    while (d != defers.end())
-    {
-      if (d->second.file_name != defer.file_name)
-        ++d;
-      else if (d->first == space)
-      {
-        /* Neither the file name nor the tablespace ID changed.
-        Update the LSN if needed. */
-        if (d->second.lsn < lsn)
-          d->second.lsn= lsn;
-        return;
-      }
-      else if (d->second.lsn < lsn)
-      {
-        /* Reset the old tablespace name in recovered spaces list */
-        recv_spaces_t::iterator it{recv_spaces.find(d->first)};
-        if (it != recv_spaces.end() &&
-            it->second.name == d->second.file_name)
-          it->second.name = "";
-        defers.erase(d++);
-      }
-      else
-      {
-        ut_ad(d->second.lsn != lsn);
-        return; /* A later tablespace already has this name. */
-      }
-    }
-
     auto p= defers.emplace(space, defer);
-    if (!p.second && p.first->second.lsn <= lsn)
-    {
-      p.first->second.lsn= lsn;
+    if (!p.second)
       p.first->second.file_name= defer.file_name;
-    }
-    /* Add the newly added defered space and change the file name */
+    /* Add the newly added deferred space and change the file name */
     recv_spaces_t::iterator it{recv_spaces.find(space)};
     if (it != recv_spaces.end())
       it->second.name = defer.file_name;
@@ -821,43 +784,31 @@ retry:
       const uint32_t space_id{d->first};
       recv_sys_t::map::iterator p{recv_sys.pages.lower_bound({space_id,0})};
 
-      if (d->second.deleted ||
-          p == recv_sys.pages.end() || p->first.space() != space_id)
+      if (d->second.deleted)
       {
-        /* We found a FILE_DELETE record for the tablespace, or
-        there were no buffered records. Either way, we must create a
-        dummy tablespace with the latest known name,
-        for dict_drop_index_tree(). */
+        /* We found a FILE_DELETE record for the tablespace. */
         recv_sys.pages_it_invalidate(space_id);
         while (p != recv_sys.pages.end() && p->first.space() == space_id)
         {
           ut_ad(!p->second.being_processed);
-          recv_sys_t::map::iterator r= p++;
+          recv_sys_t::map::iterator r{p++};
           recv_sys.erase(r);
         }
+      }
+      else if (p == recv_sys.pages.end() || p->first.space() != space_id)
+      {
+        /* There were no buffered records. We must create a
+        dummy tablespace with the latest known name,
+        for dict_drop_index_tree(). */
         recv_spaces_t::iterator it{recv_spaces.find(space_id)};
-        if (it != recv_spaces.end())
-        {
-          const std::string *name= &d->second.file_name;
-          if (d->second.deleted)
-          {
-            const auto r= renamed_spaces.find(space_id);
-            if (r != renamed_spaces.end())
-              name= &r->second;
-            bool exists;
-            os_file_type_t ftype;
-            if (!os_file_status(name->c_str(), &exists, &ftype) || !exists)
-              goto processed;
-          }
-          if (create(it, *name, static_cast<uint32_t>
-                     (1U << FSP_FLAGS_FCRC32_POS_MARKER |
-                      FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0))
-            mysql_mutex_unlock(&fil_system.mutex);
-        }
+        if (it != recv_spaces.end() &&
+            create(it, d->second.file_name, static_cast<uint32_t>
+                   (1U << FSP_FLAGS_FCRC32_POS_MARKER |
+                    FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0))
+          mysql_mutex_unlock(&fil_system.mutex);
       }
       else
         space= recv_sys.recover_deferred(p, d->second.file_name, free_block);
-processed:
       auto e= d++;
       defers.erase(e);
       if (!space)
@@ -896,31 +847,7 @@ processed:
     fil_space_t *space= fil_space_t::create(it->first, flags, false,
                                             crypt_data);
     ut_ad(space);
-    const char *filename= name.c_str();
-    if (srv_operation == SRV_OPERATION_RESTORE)
-    {
-      if (const char *tbl_name= strrchr(filename, '/'))
-      {
-        while (--tbl_name > filename && *tbl_name != '/');
-        if (tbl_name > filename)
-          filename= tbl_name + 1;
-      }
-    }
-    pfs_os_file_t handle= OS_FILE_CLOSED;
-    if (srv_operation == SRV_OPERATION_RESTORE)
-    {
-      /* During mariadb-backup --backup, a table could be renamed,
-      created and dropped, and we may be missing the file at this
-      point of --prepare. Try to create the file if it does not exist
-      already. If the file exists, we'll pass handle=OS_FILE_CLOSED
-      and the file will be opened normally in fil_space_t::acquire()
-      inside recv_sys_t::recover_deferred(). */
-      bool success;
-      handle= os_file_create(innodb_data_file_key, filename,
-                             OS_FILE_CREATE_SILENT,
-                             OS_DATA_FILE, false, &success);
-    }
-    space->add(filename, handle, size, false, false);
+    space->add(name.c_str(), OS_FILE_CLOSED, size, false, false);
     space->recv_size= it->second.size;
     space->size_in_header= size;
     return space;
@@ -1317,10 +1244,11 @@ inline size_t recv_sys_t::files_size()
 @param[in]	space_id	the tablespace ID
 @param[in]	ftype		FILE_CREATE, FILE_MODIFY, FILE_DELETE,
 				or FILE_RENAME
-@param[in]	lsn		lsn of the redo log
-@param[in]	if_exists	whether to check if the tablespace exists */
-static void fil_name_process(const char *name, ulint len, uint32_t space_id,
-                             mfile_type_t ftype, lsn_t lsn, bool if_exists)
+@param[in]	if_exists	whether to check if the tablespace exists
+@return the file name mapping */
+static file_name_t &
+fil_name_process(const char *name, ulint len, uint32_t space_id,
+                 mfile_type_t ftype, bool if_exists)
 {
 	ut_ad(srv_operation <= SRV_OPERATION_EXPORT_RESTORED
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -1422,8 +1350,7 @@ rename:
 			}
 
 			if (ftype == FILE_CREATE) {
-				f.create_lsn = lsn;
-				break;
+				goto deferred_create;
 			}
 
 			if (s == FIL_LOAD_ID_CHANGED) {
@@ -1453,11 +1380,8 @@ rename:
 			if (d && ftype == FILE_RENAME && f.create_lsn) {
 				goto rename;
 			}
-			/* Skip the deferred spaces
-			when lsn is already processed */
 			if (!if_exists) {
-				deferred_spaces.add(
-					space_id, fname.name.c_str(), lsn);
+				goto deferred_create;
 			}
 			break;
 		case FIL_LOAD_INVALID:
@@ -1482,9 +1406,17 @@ rename:
 					  " due to innodb_force_recovery",
 					  int(len), name, space_id);
 		}
-	} else if (ftype == FILE_CREATE && !f.space) {
-		f.create_lsn = lsn;
+	} else if (ftype == FILE_CREATE) {
+deferred_create:
+		/* fil_ibd_create() writes FILE_MODIFY followed by FILE_CREATE.
+		fil_ibd_load() may have found a valid file when processing the
+		FILE_MODIFY record. */
+		if (!f.space) {
+			deferred_spaces.add(space_id, fname.name.c_str());
+		}
 	}
+
+	return f;
 }
 
 void recv_sys_t::close_files()
@@ -2696,7 +2628,12 @@ bool recv_sys_t::parse_store_if_exists(uint32_t space_id) const noexcept
     if (!size)
       return false;
   }
-  else if (!deferred_spaces.find(space_id))
+  else if (const auto d= deferred_spaces.find(space_id))
+  {
+    if (d->deleted)
+      return false;
+  }
+  else
     return false;
 
   return true;
@@ -2895,15 +2832,14 @@ log_parse_file(const page_id_t id, bool if_exists,
       break;
     }
 
-    fil_name_process(reinterpret_cast<const char*>(l), fnend - l, space_id,
-                     fn2 ? FILE_MODIFY : mfile_type_t(b & 0xf0),
-                     recv_sys.start_lsn, if_exists);
+    file_name_t &fname=
+      fil_name_process(reinterpret_cast<const char*>(l), fnend - l, space_id,
+                       fn2 ? FILE_MODIFY : mfile_type_t(b & 0xf0), if_exists);
 
     if (fn2)
     {
       fil_name_process(reinterpret_cast<const char*>(fn2), fn2end - fn2,
-                       space_id, mfile_type_t(b & 0xf0),
-                       recv_sys.start_lsn, if_exists);
+                       space_id, mfile_type_t(b & 0xf0), if_exists);
       if (recv_sys.file_checkpoint)
       {
         const char *name= reinterpret_cast<const char*>(fn2);
@@ -2913,6 +2849,8 @@ log_parse_file(const page_id_t id, bool if_exists,
           r.first->second= std::string{name, len};
       }
     }
+    else if ((b & 0xf0) == FILE_CREATE)
+      fname.create_lsn= recv_sys.start_lsn;
 
     if (recv_sys.is_corrupt_fs())
       return recv_sys_t::GOT_EOF;
@@ -4570,12 +4508,14 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 		const uint32_t space = p->first.space();
 		if (space == TRX_SYS_SPACE || srv_is_undo_tablespace(space)) {
 next:
-			p++;
+			if (++p == recv_sys.pages.end()) {
+				break;
+			}
+			if (p->first.space() == space) {
+				goto next;
+			}
 			continue;
 		}
-
-		recv_spaces_t::iterator i = recv_spaces.find(space);
-		ut_ad(i != recv_spaces.end());
 
 		if (deferred_spaces.find(space)) {
 			/* Skip redo logs belonging to
@@ -4583,15 +4523,13 @@ next:
 			goto next;
 		}
 
+		recv_spaces_t::iterator i = recv_spaces.find(space);
+		ut_ad(i != recv_spaces.end());
+
 		switch (i->second.status) {
 		case file_name_t::NORMAL:
 			goto next;
 		case file_name_t::MISSING:
-			if (srv_operation != SRV_OPERATION_NORMAL) {
-			} else if (const lsn_t c = i->second.create_lsn) {
-				deferred_spaces.add(space, i->second.name, c);
-				goto next;
-			}
 			err = recv_init_missing_space(err, i);
 			i->second.status = file_name_t::DELETED;
 			/* fall through */
