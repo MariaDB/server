@@ -1815,3 +1815,15 @@ enable_view_protocol;
 disable_metadata;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-40258: Filter a grouped NULL variance
+--echo #
+
+# The group containing only NULL must survive the IS NULL filter.
+CREATE TABLE a (d INT,f DOUBLE);
+INSERT INTO a VALUES (1,1),(2,NULL);
+CREATE VIEW v0 AS SELECT d AS g,VARIANCE(f) AS h,COUNT(DISTINCT d) AS cd FROM a GROUP BY 1;
+SELECT h FROM v0 WHERE h IS NULL;
+DROP VIEW v0;
+DROP TABLE a;

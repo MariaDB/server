@@ -2589,3 +2589,14 @@ def					AVG(1)	253	7	7	Y	0	39	8
 1	1	1.00000
 one	max	avg
 # End of 10.11 tests
+#
+# MDEV-40258: Filter a grouped NULL variance
+#
+CREATE TABLE a (d INT,f DOUBLE);
+INSERT INTO a VALUES (1,1),(2,NULL);
+CREATE VIEW v0 AS SELECT d AS g,VARIANCE(f) AS h,COUNT(DISTINCT d) AS cd FROM a GROUP BY 1;
+SELECT h FROM v0 WHERE h IS NULL;
+h
+NULL
+DROP VIEW v0;
+DROP TABLE a;

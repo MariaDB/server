@@ -2302,6 +2302,7 @@ Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
 void Item_sum_variance::clear()
 {
   m_stddev= Stddev();
+  null_value= 1;
 }
 
 bool Item_sum_variance::add()
