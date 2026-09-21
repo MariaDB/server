@@ -846,3 +846,11 @@ insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
 explain select * from t1 order by a limit 3;
 select * from t1 order by a limit 3;
 drop table t1;
+
+--echo #
+--echo # MDEV-40479: Reverse prefix scan across partitions
+--echo #
+CREATE TABLE t1 (a INT,b INT,c INT,PRIMARY KEY(a,c),KEY(b,c)) PARTITION BY RANGE(c) (PARTITION p1 VALUES LESS THAN(10),PARTITION p2 VALUES LESS THAN(20));
+INSERT INTO t1 VALUES (1,1,15),(2,1,11),(3,1,6);
+SELECT c FROM t1 WHERE b=1 ORDER BY c DESC;
+DROP TABLE t1;

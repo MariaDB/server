@@ -7967,7 +7967,7 @@ int ha_partition::handle_unordered_prev(uchar *buf)
   if (likely(!(error= file->ha_index_prev(buf))))
   {
     if (m_unordered_prefix_len &&
-        key_cmp_if_same(table, m_start_key.key, 0, m_unordered_prefix_len))
+        key_cmp_if_same(table, m_start_key.key, active_index, m_unordered_prefix_len))
       error = HA_ERR_END_OF_FILE;
     else
     {
