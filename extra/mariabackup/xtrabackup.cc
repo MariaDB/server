@@ -5680,13 +5680,14 @@ static bool xtrabackup_backup_func()
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
 	if (innodb_log_checkpoint_now) {
-		msg("Initiating checkpoint");
-		if (mysql_send_query(mysql_connection,
-		    C_STRING_WITH_LEN("SET GLOBAL "
-				      "innodb_log_checkpoint_now=ON;"))) {
-			msg("initiating checkpoint failed");
-			return(false);
-		}
+		/* This had better finish before recv_sys.find_checkpoint()
+		starts executing below. The command may not be recognised
+		by an old server; we can ignore a failure to execute this
+		performance tweak. */
+		xb_mysql_query(
+			mysql_connection,
+			"SET GLOBAL innodb_log_checkpoint_now=ON;",
+			false, false);
 	}
 
 	msg("open files limit requested %lu, set to %lu",
@@ -5798,13 +5799,6 @@ fail:
 		msg("Error: failed to open the target stream"
 		    " for 'ib_logfile0'.");
 		goto fail;
-	}
-
-	/* try to wait for a log checkpoint, but do not fail if the
-	server does not support this */
-	if (innodb_log_checkpoint_now != false) {
-		mysql_read_query_result(mysql_connection);
-		msg("Finished waiting for checkpoint");
 	}
 
 	if (!select_history()) {
