@@ -1,0 +1,23 @@
+#
+# MDEV-40977: Keep the full width of a bit-shift count
+#
+CREATE TABLE t1 (shift_count DOUBLE UNSIGNED NOT NULL);
+INSERT INTO t1 VALUES (9223372036854775807);
+SELECT 1 << shift_count AS shift_left, 1 >> shift_count AS shift_right
+FROM t1;
+shift_left	shift_right
+0	0
+SELECT 1 << (SELECT shift_count FROM t1) AS shift_left,
+1 >> (SELECT shift_count FROM t1) AS shift_right;
+shift_left	shift_right
+0	0
+SELECT 1 << 4294967296 AS shift_left, 1 >> 4294967296 AS shift_right;
+shift_left	shift_right
+0	0
+SELECT 1 << 64 AS shift_left, 1 >> 64 AS shift_right;
+shift_left	shift_right
+0	0
+SELECT 1 << NULL AS shift_left, 1 >> NULL AS shift_right;
+shift_left	shift_right
+NULL	NULL
+DROP TABLE t1;
