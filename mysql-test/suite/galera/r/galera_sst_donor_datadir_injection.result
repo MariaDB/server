@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('SST failed');
+call mtr.add_suppression('SST preparation failed');
+call mtr.add_suppression('Will never receive state. Need to abort');
+call mtr.add_suppression('unsafe for shell interpolation');
+call mtr.add_suppression('Illegal character in variable');
+connection node_2;
+FOUND 1 /unsafe for shell interpolation/ in mysqld.1.err
+donor-side datadir injection prevented
+FOUND 1 /Parent mysqld process .* terminated unexpectedly/ in mysqld.2.err
+# restart
+call mtr.add_suppression('Process completed with error');
+call mtr.add_suppression('WSREP_SST:');
+call mtr.add_suppression('State transfer to .* failed');
+call mtr.add_suppression('Will never receive state. Need to abort');

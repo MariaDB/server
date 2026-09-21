@@ -450,6 +450,7 @@ bool wsrep_filename_char(const unsigned char c);
 bool wsrep_comma_char(const unsigned char c);
 bool wsrep_address_char(const unsigned char c);
 bool wsrep_names_list(const unsigned char c);
+bool wsrep_path_char(const unsigned char c);
 bool wsrep_check_request_str(const char* const str,
                              bool (*check) (const unsigned char),
                              bool log_warn = true);
