@@ -602,3 +602,16 @@ x
 1
 drop table t1, t2, t3, t4;
 # End of 10.11 tests
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+create table t1 (c1 int key);
+create sequence cs1 engine myisam;
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (c1 int key) with system versioning;
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+drop sequence cs1;
+drop table t1;
+# End of 11.8 tests
