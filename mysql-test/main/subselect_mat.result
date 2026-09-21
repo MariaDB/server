@@ -3468,3 +3468,57 @@ ANALYZE
 }
 drop table t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-40877: NOT IN with a materialized NULL value
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
+CREATE TABLE t1 (c1 TINYINT);
+INSERT INTO t1 VALUES (21),(NULL);
+CREATE TABLE t2 (c1 INT);
+INSERT INTO t2 VALUES (1),(2),(3),(9999);
+SELECT * FROM t2 WHERE c1 NOT IN (SELECT c1 FROM t1);
+c1
+INSERT INTO t2 VALUES (21),(-9999),(NULL);
+# A failed key conversion can still yield UNKNOWN when the subquery has NULL.
+PREPARE stmt FROM
+'SELECT c1, c1 IN (SELECT c1 FROM t1) AS in_result,
+            c1 NOT IN (SELECT c1 FROM t1) AS not_in_result
+ FROM t2 ORDER BY c1';
+EXECUTE stmt;
+c1	in_result	not_in_result
+NULL	NULL	NULL
+-9999	NULL	NULL
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+21	1	0
+9999	NULL	NULL
+# A nullable subquery column without NULLs must keep the FALSE fast path.
+DELETE FROM t1 WHERE c1 IS NULL;
+EXECUTE stmt;
+c1	in_result	not_in_result
+NULL	NULL	NULL
+-9999	0	1
+1	0	1
+2	0	1
+3	0	1
+21	1	0
+9999	0	1
+# A NOT NULL subquery column must also keep the FALSE fast path.
+ALTER TABLE t1 MODIFY c1 TINYINT NOT NULL;
+EXECUTE stmt;
+c1	in_result	not_in_result
+NULL	NULL	NULL
+-9999	0	1
+1	0	1
+2	0	1
+3	0	1
+21	1	0
+9999	0	1
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# End of 11.4 tests
+#
