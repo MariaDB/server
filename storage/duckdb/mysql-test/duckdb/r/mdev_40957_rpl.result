@@ -43,25 +43,33 @@ untouched VARCHAR(16)
 INSERT INTO t_upd VALUES
 (1, 'one', 'keep-1'),
 (2, 'two', 'keep-2'),
-(3, 'three', 'keep-3');
+(3, 'three', 'keep-3'),
+(4, 'four', 'keep-4'),
+(6, 'six', 'keep-6'),
+(7, 'seven', 'keep-7'),
+(8, 'eight', 'keep-8');
 UPDATE t_upd SET v = 'TWO' WHERE id = 2;
-ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
 UPDATE t_upd SET id = 30, v = 'moved' WHERE id = 3;
-ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
 DELETE FROM t_upd WHERE id = 1;
-ERROR HY000: Storage engine DUCKDB of the table `mdev_40957_rpl`.`t_upd` doesn't have this option
-UPDATE t_upd SET v = 'TWO' WHERE v = 'two';
-UPDATE t_upd SET id = 30, v = 'moved' WHERE v = 'three';
-DELETE FROM t_upd WHERE v = 'one';
+UPDATE t_upd FORCE INDEX(PRIMARY) SET v = 'FOUR' WHERE id = 4;
+UPDATE t_upd SET v = 'SIX' WHERE v = 'six';
+UPDATE t_upd SET id = 70, v = 'moved-non-pk' WHERE v = 'seven';
+DELETE FROM t_upd WHERE v = 'eight';
 SELECT * FROM t_upd ORDER BY id;
 id	v	untouched
 2	TWO	keep-2
+4	FOUR	keep-4
+6	SIX	keep-6
 30	moved	keep-3
+70	moved-non-pk	keep-7
 connection slave;
 SELECT * FROM t_upd ORDER BY id;
 id	v	untouched
 2	TWO	keep-2
+4	FOUR	keep-4
+6	SIX	keep-6
 30	moved	keep-3
+70	moved-non-pk	keep-7
 connection master;
 DELETE FROM t_upd;
 connection slave;
