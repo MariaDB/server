@@ -99,6 +99,13 @@ public:
 
   /// Serialize and store the ids from domain id lists into a group of fields.
   void store_ids(Field ***field);
+
+  /*
+    User variable names for sending domain ID filter lists from slave to
+    master at connect time (MDEV-28213).
+  */
+  static const LEX_CSTRING var_name_ignore;
+  static const LEX_CSTRING var_name_do;
 };
 
 

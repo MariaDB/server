@@ -1,0 +1,256 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+call mtr.add_suppression("Got fatal error 1236 from master when reading data from binary log");
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+#
+# Test 1: the ignored domain is in the master's binlog state, but the
+# slave has no position at all in it.
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+SET GLOBAL gtid_binlog_state= '1-1-100,2-1-50';
+connection server_2;
+SET GLOBAL gtid_slave_pos= '1-1-100';
+connection server_2;
+# Without a filter the master rejects the connection: it cannot know
+# where in domain 2 the slave wants to start.
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(),
+MASTER_USE_GTID=slave_pos;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1236]
+include/stop_slave_sql.inc
+# With IGNORE_DOMAIN_IDS=(2) the same connection is accepted.
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2);
+include/start_slave.inc
+connection server_1;
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (101);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (51);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (102);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+# Domain 2 was thrown away by the slave, so t2 is still empty.
+SELECT * FROM t2 ORDER BY a;
+a
+# ... but the slave position in the ignored domain did follow along.
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)2-1-51(,|$)' AS domain_2_pos_reached;
+domain_2_pos_reached
+1
+#
+# Test 2: the slave drops the filter again and keeps replicating the
+# previously ignored domain.  No manual repair of gtid_slave_pos is
+# needed, because ignoring a domain still advances the position in it.
+#
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
+include/start_slave.inc
+connection server_1;
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (52);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Only the row from after the filter was dropped; 51 stays skipped.
+SELECT * FROM t2 ORDER BY a;
+a
+52
+#
+# Test 3: DO_DOMAIN_IDS, which filters away every domain not listed.
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+SET GLOBAL gtid_binlog_state= '1-1-200,2-1-100';
+connection server_2;
+SET GLOBAL gtid_slave_pos= '1-1-200';
+connection server_2;
+CHANGE MASTER TO DO_DOMAIN_IDS=(1), IGNORE_DOMAIN_IDS=();
+include/start_slave.inc
+connection server_1;
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (101);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (201);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+201
+SELECT * FROM t2 ORDER BY a;
+a
+52
+#
+# Test 4: every domain is filtered away, and the slave has no GTID
+# position at all.  The master then simply starts from the most recent
+# binlog state record.
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+SET GLOBAL gtid_binlog_state= '1-1-300,2-1-200';
+connection server_2;
+SET GLOBAL gtid_slave_pos= '';
+connection server_2;
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(1,2);
+include/start_slave.inc
+connection server_1;
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (301);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (201);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# Nothing was applied, but the position followed the master.
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+201
+SELECT * FROM t2 ORDER BY a;
+a
+52
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)1-1-301(,|$)' AS domain_1_pos_reached;
+domain_1_pos_reached
+1
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)2-1-201(,|$)' AS domain_2_pos_reached;
+domain_2_pos_reached
+1
+#
+# Test 5: the slave does have a position in the ignored domain, and it
+# is ahead of the master's binlog state (the master lost the events in
+# a purge).  The master must not send those GTIDs again, or it would
+# move the slave position backwards.
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+SET GLOBAL gtid_binlog_state= '1-1-400,2-1-300';
+connection server_2;
+SET GLOBAL gtid_slave_pos= '1-1-400,2-1-350';
+connection server_2;
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(2);
+include/start_slave.inc
+connection server_1;
+# These are all behind the slave position in domain 2.
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (301);
+INSERT INTO t2 VALUES (302);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (401);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+# The domain 2 position did not move backwards to 2-1-302.
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)2-1-350(,|$)' AS domain_2_pos_not_moved_back;
+domain_2_pos_not_moved_back
+1
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+201
+401
+connection server_1;
+# Once the master gets past the slave position, the domain resumes.
+SET SESSION gtid_domain_id= 2;
+SET SESSION gtid_seq_no= 351;
+INSERT INTO t2 VALUES (351);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT @@GLOBAL.gtid_slave_pos RLIKE '(^|,)2-1-351(,|$)' AS domain_2_pos_resumed;
+domain_2_pos_resumed
+1
+#
+# Test 6: START SLAVE UNTIL, with an ignored domain in the master's
+# binlog state that the slave has no position in.
+#
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+include/kill_binlog_dump_threads.inc
+RESET MASTER;
+SET GLOBAL gtid_binlog_state= '1-1-500,2-1-400';
+connection server_2;
+SET GLOBAL gtid_slave_pos= '1-1-500';
+connection server_1;
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (501);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t2 VALUES (401);
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (502);
+INSERT INTO t1 VALUES (503);
+include/save_master_gtid.inc
+connection server_2;
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2);
+START SLAVE UNTIL master_gtid_pos= '1-1-502';
+Warnings:
+Note	1278	It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart
+include/wait_for_slave_to_stop.inc
+# Stopped after 1-1-502, and nothing from the ignored domain applied.
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+201
+401
+501
+502
+SELECT * FROM t2 ORDER BY a;
+a
+52
+# Continuing without UNTIL picks up the rest.
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+101
+102
+201
+401
+501
+502
+503
+#
+# Cleanup
+#
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
+include/start_slave.inc
+connection server_1;
+SET SESSION gtid_domain_id= 0;
+DROP TABLE t1, t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of binlog_in_engine.rpl_gtid_ignored_domain_ids
