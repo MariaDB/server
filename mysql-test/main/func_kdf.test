@@ -73,6 +73,22 @@ SELECT KDF('secret','salt',1000,'pbkdf2_hmac') IS NOT NULL;
 SELECT KDF('secret','salt') IS NOT NULL;
 
 --echo #
+--echo # MDEV-41094 KDF() silently reduces large PBKDF2 iteration counts
+--echo # and key widths to weak 32-bit aliases
+--echo #
+SET @@block_encryption_mode=DEFAULT;
+SELECT HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac'));
+SELECT KDF('foo', 'bar', 4294968296, 'pbkdf2_hmac');
+SELECT KDF('foo', 'bar', 2147483648, 'pbkdf2_hmac');
+SELECT HEX(KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 256));
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', 4294967552);
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', -4294967040);
+CREATE TABLE t1 (w BIGINT);
+INSERT INTO t1 VALUES (4294967552);
+SELECT KDF('foo', 'bar', 1000, 'pbkdf2_hmac', w) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
 
