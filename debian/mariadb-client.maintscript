@@ -1,0 +1,2 @@
+mv_conffile /etc/mysql/mariadb.conf.d/50-client.cnf /etc/mariadb/mariadb.conf.d/50-client.cnf 1:13.2.0~
+mv_conffile /etc/mysql/mariadb.conf.d/50-mariadb-clients.cnf /etc/mariadb/mariadb.conf.d/50-mariadb-clients.cnf 1:13.2.0~

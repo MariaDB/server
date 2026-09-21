@@ -1,0 +1,1 @@
+mv_conffile /etc/mysql/mariadb.conf.d/auth_gssapi.cnf /etc/mariadb/mariadb.conf.d/auth_gssapi.cnf 1:13.2.0~
