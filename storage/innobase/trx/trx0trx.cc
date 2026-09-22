@@ -53,6 +53,9 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <set>
 #include <new>
+#include <map>
+#include <mutex>
+#include <vector>
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
@@ -64,6 +67,62 @@ const byte timestamp_max_bytes[7] = {
 	0x7f, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
 };
 
+
+/** Background connection that owns the metadata locks of recovered
+transactions. @see trx_recovery_thd */
+THD *trx_recovery_thd;
+
+/** Metadata locks that trx_resurrect_table_locks() acquired, by
+transaction. This is kept outside trx_t, because only recovered
+transactions ever have an entry, and it is only consulted while
+trx_recovery_mdl_exists holds. */
+static std::map<const trx_t*, std::vector<MDL_ticket*> > trx_recovery_mdl;
+/** Protects trx_recovery_mdl */
+static std::mutex trx_recovery_mdl_mutex;
+/** Whether trx_recovery_mdl is not empty. trx_t::free() reads this
+for every transaction, so that the map is only consulted while
+some recovered transaction still holds metadata locks.
+It becomes false once the rollback of the recovered transactions
+has completed, long before trx_recovery_thd is destroyed. */
+static Atomic_relaxed<bool> trx_recovery_mdl_exists;
+
+/** Remember a metadata lock that was acquired for a recovered transaction.
+@param trx  recovered transaction
+@param mdl  metadata lock that it holds */
+static void trx_recovery_mdl_add(const trx_t *trx, MDL_ticket *mdl)
+{
+  std::lock_guard<std::mutex> guard{trx_recovery_mdl_mutex};
+  trx_recovery_mdl[trx].push_back(mdl);
+  trx_recovery_mdl_exists= true;
+}
+
+/** Release the metadata locks that were acquired for a recovered
+transaction, once its rollback has completed.
+@param trx  transaction that is being freed */
+static void trx_recovery_mdl_release(const trx_t *trx)
+{
+  std::vector<MDL_ticket*> tickets;
+  {
+    std::lock_guard<std::mutex> guard{trx_recovery_mdl_mutex};
+    auto i= trx_recovery_mdl.find(trx);
+    if (i == trx_recovery_mdl.end())
+      return;
+    tickets.swap(i->second);
+    trx_recovery_mdl.erase(i);
+    trx_recovery_mdl_exists= !trx_recovery_mdl.empty();
+  }
+  for (MDL_ticket *mdl : tickets)
+    mdl_release(trx_recovery_thd, mdl);
+}
+
+void trx_recovery_thd_destroy() noexcept
+{
+  if (!trx_recovery_thd)
+    return;
+  ut_ad(trx_recovery_mdl.empty());
+  destroy_background_thd(trx_recovery_thd);
+  trx_recovery_thd= nullptr;
+}
 
 static const ulint MAX_DETAILED_ERROR_LEN = 512;
 
@@ -387,6 +446,8 @@ void trx_t::free() noexcept
   check_foreigns= true;
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
+  if (UNIV_UNLIKELY(trx_recovery_mdl_exists))
+    trx_recovery_mdl_release(this);
   mysql_thd= nullptr;
 
   autoinc_locks.deep_clear();
@@ -605,10 +666,24 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
   if (err != DB_SUCCESS)
     return err;
 
+  /* Resurrect the metadata locks as well, so that DDL cannot execute
+  concurrently with the rollback of this recovered transaction. The locks
+  are owned by trx_recovery_thd and released in trx_t::free(), once the
+  rollback of this transaction has completed.
+
+  Recovered XA PREPARED transactions are excluded: they are completed by a
+  user connection, possibly long after trx_rollback_recovered(true) has
+  destroyed trx_recovery_thd. */
+  const bool resurrect_mdl= trx->state != TRX_STATE_PREPARED &&
+    trx_recovery_thd;
+
   for (auto p : tables)
   {
+    MDL_ticket *mdl= nullptr;
     if (dict_table_t *table=
-        dict_table_open_on_id(p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE))
+        dict_table_open_on_id(p.first, false, DICT_TABLE_OP_LOAD_TABLESPACE,
+                              resurrect_mdl ? trx_recovery_thd : nullptr,
+                              resurrect_mdl ? &mdl : nullptr))
     {
       if (!table->is_readable())
       {
@@ -616,6 +691,7 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
         table->release();
         dict_sys.remove(table);
         dict_sys.unlock();
+        mdl_release(trx_recovery_thd, mdl);
         continue;
       }
 
@@ -626,8 +702,13 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
 
       DBUG_LOG("ib_trx",
                "resurrect " << ib::hex(trx->id) << " lock on " << table->name);
+      /* Release the table reference, but retain the metadata lock
+      until the rollback of this transaction has completed. */
       table->release();
+      if (mdl) trx_recovery_mdl_add(trx, mdl);
     }
+    else
+      mdl_release(trx_recovery_thd, mdl);
   }
 
   return DB_SUCCESS;
@@ -721,6 +802,16 @@ corrupted:
 func_exit:
 		purge_sys.clone_oldest_view<true>(nullptr);
 		return DB_SUCCESS;
+	}
+
+	/* One background connection owns the metadata locks of all
+	recovered transactions. It is destroyed by innodb_shutdown(),
+	after every transaction that can hold such locks has been
+	freed. */
+	ut_ad(!trx_recovery_thd);
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		trx_recovery_thd =
+			innobase_create_background_thd("InnoDB recovery");
 	}
 
 	/* Look from the rollback segments if there exist undo logs for

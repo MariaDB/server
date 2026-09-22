@@ -5,6 +5,25 @@ connect  con2,localhost,root,,test;
 SELECT f() FROM t1;
 ERROR 42000: FUNCTION test.f does not exist
 disconnect con2;
-disconnect con1;
 connection default;
 DROP TABLE t1;
+#
+# MDEV-41207 Acquire metadata locks for recovered transaction
+#
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL)STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+BEGIN;
+UPDATE t1 SET f1=3;
+connection con1;
+CREATE TABLE t2(f1 INT NOT NULL)ENGINE=InnoDB;
+connection default;
+# restart: --debug_dbug=d,rollback_wait
+SET DEBUG_SYNC='now WAIT_FOR rollback_parked';
+SET STATEMENT lock_wait_timeout=0 FOR
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC='now SIGNAL rollback_resume';
+DROP TABLE t2, t1;
+SET DEBUG_SYNC='RESET';
+disconnect con1;

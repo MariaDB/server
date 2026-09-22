@@ -1994,6 +1994,7 @@ void innodb_shutdown()
 	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
+	trx_recovery_thd_destroy();
 	buf_dblwr.close();
 	lock_sys.close();
 	trx_pool_close();
