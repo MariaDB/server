@@ -59,12 +59,14 @@
 #define OPTION_LOG_OFF          (1ULL << 10)    // THD, user
 #define OPTION_QUOTE_SHOW_CREATE (1ULL << 11)   // THD, user
 /*
-  Include all colums in temporary table, i.e. do not ignore aggregate and
-  constants, i.e. the temporary table created for other purposes than
-  aggregation.
+  This flag has two effects:
+  1. Include all select list columns in the temporary table. Do not skip
+     constant expressions or expressions that include aggregate functions.
+  2. For items in select list, do NOT set item->result_field to point to
+     item's image field in the created temporary table.
 
-  As a side effect it also require do not modify result_field of the
-  Items by which the temporary table created
+  Roughly speaking, TMP_TABLE_ALL_COLUMNS is NOT used for temporary tables
+  that do GROUP BY operation, and used for most other tables.
 */
 #define TMP_TABLE_ALL_COLUMNS   (1ULL << 12)    // SELECT, intern
 #define OPTION_WARNINGS         (1ULL << 13)    // THD, user

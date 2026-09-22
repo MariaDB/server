@@ -22408,23 +22408,19 @@ bool Create_tmp_table::add_fields(THD *thd,
       {
         Item_sum *agg_item= (Item_sum *) item;
         /*
-          Update the result field only if it has never been set, or if the
-          created temporary table is not to be used for subquery
-          materialization.
+          Set agg_item->result_field to point to its image in the temporary
+          table. Do this only when this temporary table is created without
+          TMP_TABLE_ALL_COLUMNS flag (and so not_all_columns=true).
 
-          The reason is that for subqueries that require
-          materialization as part of their plan, we create the
-          'external' temporary table needed for IN execution, after
-          the 'internal' temporary table needed for grouping.  Since
-          both the external and the internal temporary tables are
-          created for the same list of SELECT fields of the subquery,
-          setting 'result_field' for each invocation of
-          create_tmp_table overrides the previous value of
-          'result_field'.
+          In this case, the temporary table will be read by going through the
+          select list and its item->result_field pointers. The most common
+          examples of this are GROUP BY operation and buffering for
+          SQL_BUFFER_RESULT).
 
-          The condition below prevents the creation of the external
-          temp table to override the 'result_field' that was set for
-          the internal temp table.
+          Note that SELECT has one "select list" but may be processed with
+          multiple temporary tables. It is therefore important to only set
+          result_field to point to the right temporary table.
+          That's why we assert here that we don't set it twice.
         */
         if (not_all_columns)
         {
