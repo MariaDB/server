@@ -8190,6 +8190,88 @@ bool Item::find_item_processor(void *arg)
   return (this == ((Item *) arg));
 }
 
+#ifndef DBUG_OFF
+/*
+  The context of Item::check_deep_copy() while it walks an item tree.
+*/
+struct Deep_copy_check
+{
+  /*
+    The root of the tree to check the visited items against, or NULL when
+    only the class names of the visited items are collected.
+  */
+  Item *other_root;
+  /* Class names of the visited items, in walk order */
+  String *classes;
+  /* The first item found in both trees, or NULL */
+  Item *shared;
+  /* How many items are shared by the two trees */
+  uint shared_count;
+};
+
+
+bool Item::deep_copy_check_processor(void *arg)
+{
+  Deep_copy_check *ctx= (Deep_copy_check *) arg;
+  const char *name= typeid(*this).name();
+
+  if (ctx->classes->length())
+    ctx->classes->append(' ');
+  ctx->classes->append(name, strlen(name));
+
+  if (ctx->other_root &&
+      ctx->other_root->walk(&Item::find_item_processor, this,
+                            (item_walk_flags) 0))
+  {
+    if (!ctx->shared)
+      ctx->shared= this;
+    ctx->shared_count++;
+  }
+  return false;                      // Always continue the walk
+}
+
+
+bool Item::check_deep_copy(THD *thd, Item *clone, const char *what)
+{
+  StringBuffer<256> orig_classes, clone_classes;
+  Deep_copy_check orig_ctx= { NULL, &orig_classes, NULL, 0 };
+  Deep_copy_check clone_ctx= { this, &clone_classes, NULL, 0 };
+  bool rc= false;
+
+  walk(&Item::deep_copy_check_processor, &orig_ctx, (item_walk_flags) 0);
+  clone->walk(&Item::deep_copy_check_processor, &clone_ctx,
+              (item_walk_flags) 0);
+
+  if (orig_classes.length() != clone_classes.length() ||
+      memcmp(orig_classes.ptr(), clone_classes.ptr(), orig_classes.length()))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                        "%s: clone is not structurally equal: "
+                        "original=[%.*s] clone=[%.*s]", what,
+                        (int) orig_classes.length(), orig_classes.ptr(),
+                        (int) clone_classes.length(), clone_classes.ptr());
+    rc= true;
+  }
+
+  if (clone_ctx.shared)
+  {
+    const char *name= typeid(*clone_ctx.shared).name();
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                        "%s: clone of [%.*s] shares %u item(s) with the "
+                        "original, first one is %s", what,
+                        (int) orig_classes.length(), orig_classes.ptr(),
+                        clone_ctx.shared_count, name);
+    rc= true;
+  }
+
+  if (!rc)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                        "%s: [%.*s] is deeply cloned", what,
+                        (int) orig_classes.length(), orig_classes.ptr());
+  return rc;
+}
+#endif /* DBUG_OFF */
+
 bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store(result_field);
@@ -11182,6 +11264,41 @@ void Item_cache::store(Item *item)
   if (!item)
     null_value= TRUE;
   value_cached= FALSE;
+}
+
+
+/*
+  Create a deep copy of this cache.
+
+  A cache is filled by store()/cache_value() calls made by the item that owns
+  it, e.g. Item_in_optimizer. Nobody does that for a clone, so a clone that
+  inherited the cached value of the original would keep returning that value
+  forever. The clone is given an empty cache instead, so that it computes the
+  value itself, out of the item the value is read from, when it is first asked
+  for it.
+*/
+
+Item *Item_cache::deep_copy_cache(THD *thd) const
+{
+  Item *example_copy= example;
+  if (example && !example->with_sum_func() && !example->with_window_func())
+  {
+    /*
+      Aggregate and window functions are not clonable yet: a copy of such an
+      item shares the per-execution data of the original, so that both would
+      free it. A cache over one of those has to share it with the original.
+      That is safe, as a cache only reads the value of the item, but it makes
+      the clone not a fully deep one, which Item::check_deep_copy() reports.
+    */
+    if (!(example_copy= example->deep_copy_with_checks(thd)))
+      return NULL;
+  }
+  Item_cache *copy= (Item_cache *) shallow_copy_with_checks(thd);
+  if (!copy)
+    return NULL;
+  copy->example= example_copy;
+  copy->clear();
+  return copy;
 }
 
 void Item_cache::print(String *str, enum_query_type query_type)

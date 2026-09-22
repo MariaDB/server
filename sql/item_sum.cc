@@ -4961,3 +4961,13 @@ bool Item_func_collect::fix_fields_impl(THD *thd,Item **)
   max_length= UINT_MAX32;
   return FALSE;
 }
+
+
+Item_cache* Item::get_cache(THD *thd) const
+{
+  Item_cache *cache= type_handler()->Item_get_cache(thd, this);
+  DBUG_EXECUTE_IF("item_cache_clones",
+    Item_cache *copy= (Item_cache*)cache->deep_copy_with_checks(thd);
+    return copy ? copy : cache;);
+  return cache;
+}

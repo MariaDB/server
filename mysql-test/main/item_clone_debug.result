@@ -1,0 +1,50 @@
+#
+# MDEV-41228 Test deep clones of Item_cache items
+#
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+CREATE TABLE t1 (
+n1 int NOT NULL, n2 int NOT NULL, c1 char(1) NOT NULL,
+KEY c1 (c1), KEY n1_c1_n2 (n1,c1,n2), KEY n2k (n2)
+) ENGINE=InnoDB CHARSET=latin1;
+INSERT INTO t1 VALUES (0,2,'a'), (1,3,'a');
+INSERT INTO t1 SELECT seq+1, seq+2, 'c' FROM seq_1_to_1000;
+CREATE TABLE t0 (a int, b int) ENGINE=InnoDB;
+INSERT INTO t0 VALUES (1,3);
+ANALYZE TABLE t0,t1;
+Table	Op	Msg_type	Msg_text
+test.t0	analyze	status	Engine-independent statistics collected
+test.t0	analyze	status	OK
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN SELECT * FROM t0 WHERE t0.b IN
+(SELECT t.n2 FROM t1, (SELECT n1, n2 FROM t1 GROUP BY n1, n2) t
+WHERE t.n1 = t1.n1 AND t1.c1 = 'a' UNION SELECT -1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	1	Using where
+2	DEPENDENT SUBQUERY	t1	ref	c1,n1_c1_n2	c1	1	const	2	Using index condition
+2	DEPENDENT SUBQUERY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t1.n1,func	1	
+3	LATERAL DERIVED	t1	ref	n1_c1_n2	n1_c1_n2	4	test.t1.n1	1	Using where; Using index
+4	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+SET SESSION debug_dbug="+d,split_materialized_clones";
+SELECT * FROM t0 WHERE t0.b IN
+(SELECT t.n2 FROM t1, (SELECT n1, n2 FROM t1 GROUP BY n1, n2) t
+WHERE t.n1 = t1.n1 AND t1.c1 = 'a' UNION SELECT -1);
+a	b
+1	3
+Warnings:
+Note	1105	producing_item: [10Item_field] is deeply cloned
+Note	1105	key_field->val: [10Item_field] is deeply cloned
+Note	1105	producing_item: [10Item_field] is deeply cloned
+Note	1105	key_field->val: [10Item_field 14Item_cache_int 15Item_direct_ref] is deeply cloned
+SET SESSION debug_dbug="-d,split_materialized_clones";
+SET optimizer_switch='split_materialized=off';
+SELECT * FROM t0 WHERE t0.b IN
+(SELECT t.n2 FROM t1, (SELECT n1, n2 FROM t1 GROUP BY n1, n2) t
+WHERE t.n1 = t1.n1 AND t1.c1 = 'a' UNION SELECT -1);
+a	b
+1	3
+SET optimizer_switch=default;
+DROP TABLE t0,t1;
+SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
