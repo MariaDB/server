@@ -89,3 +89,62 @@ db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_s
 Warnings:
 Note	1105	Database 'db1' does not have a db.opt file. You can create one with ALTER DATABASE if needed
 DROP DATABASE db1;
+#
+# MDEV-41157 CREATE DATABASE COMMENT overflows db.opt comment buffer
+#
+set session sql_mode='';
+create database db comment '<A x4000>';
+Warnings:
+Warning	4160	Comment for database 'db' is too long (max = 1024)
+# Bug 1: put_dbopt() must not overflow when storing a truncated comment
+show create database db;
+Database	Create Database
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */ COMMENT '<A x1024>'
+flush tables;
+# Bug 2: write_db_opt() must persist a properly terminated truncated comment
+show create database db;
+Database	Create Database
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */ COMMENT '<A x1024>'
+# Bug 3: load_db_opt() must clamp an overlong comment loaded from a legacy db.opt file
+flush tables;
+show create database db;
+Database	Create Database
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */ COMMENT '<A x1024>'
+Warnings:
+Warning	4160	Comment in database options file './db/db.opt' is too long (max = 1024), truncated
+# Bug 3: ALTER DATABASE without COMMENT must clamp a legacy overlong comment too
+flush tables;
+alter database db character set 'latin1';
+Warnings:
+Warning	4160	Comment in database options file './db/db.opt' is too long (max = 1024), truncated
+show create database db;
+Database	Create Database
+db	CREATE DATABASE `db` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */ COMMENT '<A x1024>'
+drop database db;
+# Bug 4: multi-byte comment must be truncated at a character boundary
+set names utf8mb3;
+Warnings:
+Warning	4160	Comment for database 'dbmb' is too long (max = 1024)
+select char_length(schema_comment), octet_length(schema_comment)
+from information_schema.schemata where schema_name='dbmb';
+char_length(schema_comment)	octet_length(schema_comment)
+341	1023
+flush tables;
+select char_length(schema_comment), octet_length(schema_comment)
+from information_schema.schemata where schema_name='dbmb';
+char_length(schema_comment)	octet_length(schema_comment)
+341	1023
+drop database dbmb;
+# Bug 4: strict sql_mode must reject an overlong multi-byte comment
+set session sql_mode='TRADITIONAL';
+ERROR HY000: Comment for database 'dbmb' is too long (max = 1024)
+set session sql_mode='';
+# a 1024-character multi-byte table comment must not be byte-clamped
+select char_length(table_comment), octet_length(table_comment)
+from information_schema.tables where table_name='t1';
+char_length(table_comment)	octet_length(table_comment)
+1024	3072
+drop table test.t1;
+set names default;
+set session sql_mode=default;
+# End of 10.11 tests

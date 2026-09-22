@@ -71,3 +71,77 @@ CREATE DATABASE db1;
 SHOW CREATE DATABASE db1;
 SHOW CREATE DATABASE db1;
 DROP DATABASE db1;
+
+--echo #
+--echo # MDEV-41157 CREATE DATABASE COMMENT overflows db.opt comment buffer
+--echo #
+set session sql_mode='';
+--let $long_comment= `select repeat('A', 4000)`
+--replace_regex /A{4000}/<A x4000>/
+eval create database db comment '$long_comment';
+
+--echo # Bug 1: put_dbopt() must not overflow when storing a truncated comment
+--replace_regex /A{1024}/<A x1024>/
+show create database db;
+flush tables;
+--echo # Bug 2: write_db_opt() must persist a properly terminated truncated comment
+--replace_regex /A{1024}/<A x1024>/
+show create database db;
+
+--echo # Bug 3: load_db_opt() must clamp an overlong comment loaded from a legacy db.opt file
+--let $def_charset= `select @@character_set_server`
+--let $def_collation= `select @@collation_server`
+--remove_file $MARIADB_DATADIR/db/db.opt
+--write_file $MARIADB_DATADIR/db/db.opt EOF eval
+default-character-set=$def_charset
+default-collation=$def_collation
+comment=$long_comment
+EOF
+flush tables;
+--replace_regex /A{1024}/<A x1024>/ /[\\]/\//
+show create database db;
+
+--echo # Bug 3: ALTER DATABASE without COMMENT must clamp a legacy overlong comment too
+flush tables;
+--replace_regex /[\\]/\//
+alter database db character set 'latin1';
+--replace_regex /A{1024}/<A x1024>/
+show create database db;
+
+drop database db;
+
+--echo # Bug 4: multi-byte comment must be truncated at a character boundary
+set names utf8mb3;
+--let $mb_comment= `select repeat(convert(0xE4B8AD using utf8mb3), 4000)`
+--disable_query_log
+eval create database dbmb comment '$mb_comment';
+--enable_query_log
+select char_length(schema_comment), octet_length(schema_comment)
+from information_schema.schemata where schema_name='dbmb';
+flush tables;
+select char_length(schema_comment), octet_length(schema_comment)
+from information_schema.schemata where schema_name='dbmb';
+drop database dbmb;
+
+--echo # Bug 4: strict sql_mode must reject an overlong multi-byte comment
+set session sql_mode='TRADITIONAL';
+--disable_query_log
+--error ER_TOO_LONG_DATABASE_COMMENT
+eval create database dbmb comment '$mb_comment';
+--enable_query_log
+set session sql_mode='';
+
+--echo # a 1024-character multi-byte table comment must not be byte-clamped
+--let $mb_table_comment= `select repeat(convert(0xE4B8AD using utf8mb3), 1024)`
+--disable_query_log
+eval create table test.t1 (a int) comment '$mb_table_comment';
+--enable_query_log
+select char_length(table_comment), octet_length(table_comment)
+from information_schema.tables where table_name='t1';
+drop table test.t1;
+
+set names default;
+
+set session sql_mode=default;
+
+--echo # End of 10.11 tests
