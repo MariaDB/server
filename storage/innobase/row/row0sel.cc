@@ -4265,8 +4265,16 @@ bool row_search_with_covering_prefix(
 
 	/* In ha_innobase::build_template() we choose to access the
 	whole row when using exclusive row locks or In case of fts
-	query, we need to read from clustered index */
-	if (prebuilt->select_lock_type == LOCK_X || prebuilt->in_fts_query
+	query, we need to read from clustered index.
+
+	full_scan_covering_read is the exception: for a plain locking
+	SELECT under a full-scan table LOCK_X, the clustered index record
+	would only be visited to place the per-row exclusive lock, which
+	the table-level lock already makes redundant. Keep this test in
+	sync with ha_innobase::build_template(). */
+	if ((prebuilt->select_lock_type == LOCK_X
+	     && !prebuilt->full_scan_covering_read)
+	    || prebuilt->in_fts_query
 	    || !index->is_btree()) {
 		return false;
 	}

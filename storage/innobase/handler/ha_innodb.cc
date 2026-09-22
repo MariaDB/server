@@ -7394,11 +7394,21 @@ ha_innobase::build_template(
 	ibool		fetch_all_in_key	= FALSE;
 	ibool		fetch_primary_key_cols	= FALSE;
 
-	if (m_prebuilt->select_lock_type == LOCK_X || m_prebuilt->table->no_rollback()) {
+	if ((m_prebuilt->select_lock_type == LOCK_X
+	     && !m_prebuilt->full_scan_covering_read)
+	    || m_prebuilt->table->no_rollback()) {
 		/* We always retrieve the whole clustered index record if we
 		use exclusive row level locks, for example, if the read is
 		done in an UPDATE statement or if we are using a no rollback
-                table */
+                table.
+
+		The exception is full_scan_covering_read: a plain locking
+		SELECT under a full-scan table LOCK_X needs the clustered
+		index record neither for writing nor for locking, so it may
+		fall through to the covering-index decision below. If the
+		query does need a column outside the scanned index, that
+		decision still sets whole_row. Keep this test in sync with
+		row_search_with_covering_prefix(). */
 
 		whole_row = true;
 	} else if (!whole_row) {
@@ -16432,7 +16442,19 @@ int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
     case HA_EXTRA_FULL_SCAN:
       if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
           !m_prebuilt->skip_locked && arg == ULONG_MAX)
+      {
         m_prebuilt->full_table_scan = true;
+        /* A plain SELECT modifies no row, so the only reason to visit
+        the clustered index during a covering scan would be to place the
+        per-row exclusive lock, which the table-level LOCK_X taken above
+        makes redundant. UPDATE and DELETE also advise a full scan, but
+        they need the clustered index record in order to write it, hence
+        the restriction to SQLCOM_SELECT. The HANDLER interface keeps a
+        scrollable cursor, so exclude it as well. */
+        m_prebuilt->full_scan_covering_read=
+          thd_sql_command(ha_thd()) == SQLCOM_SELECT &&
+          !m_prebuilt->used_in_HANDLER;
+      }
       return 0;
     default:/* Do nothing */
       ;
@@ -16461,6 +16483,7 @@ ha_innobase::reset()
 
 	m_prebuilt->skip_locked = false;
 	m_prebuilt->full_table_scan = false;
+	m_prebuilt->full_scan_covering_read = false;
 	return(0);
 }
 

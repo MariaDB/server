@@ -704,6 +704,17 @@ struct row_prebuilt_t {
 	of acquiring row-level locks. */
 	bool		full_table_scan;
 
+	/** If TRUE, full_table_scan is in effect and the statement is a
+	plain locking SELECT, that is, it will not modify any row and it
+	needs no column outside the scanned index. Such a scan may use a
+	covering secondary index even under LOCK_X: the clustered index
+	record is normally visited only to place the exclusive record
+	lock that gives SELECT ... FOR UPDATE its row-level exclusivity,
+	and the table-level LOCK_X taken for the full scan already
+	provides that. Never set unless full_table_scan is set, so
+	row-level locking behaviour is unchanged. */
+	bool		full_scan_covering_read;
+
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
 	{
