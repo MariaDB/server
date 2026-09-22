@@ -1,0 +1,8 @@
+--- unencrypted_page_compressed.result
++++ unencrypted_page_compressed,SERVER.result
+@@ -8,5 +8,4 @@
+ # Corrupt the table
+ # restart: --skip-innodb-buffer-pool-load-at-startup
+ # xtrabackup backup
+-FOUND 1 /Database page corruption detected.*/ in backup.log
+ drop table t1;

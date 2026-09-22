@@ -1,5 +1,6 @@
 source include/not_windows.inc;
 source include/have_partition.inc;
+source include/have_mariabackup_combination.inc;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 let $log=$MYSQL_TMP_DIR/backup.log;
 
@@ -14,11 +15,21 @@ create table t1 (
  partition by hash (id)
  partitions 600;
 
-error 1;
+let $errno = 1;
+if ($MTR_COMBINATION_SERVER)
+{
+let $errno = 0;
+}
+--error $errno
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $log 2>&1;
+
+# The "Too many open files" diagnostic only applies to native mariabackup.
+if (!$MTR_COMBINATION_SERVER)
+{
 let SEARCH_FILE=$log;
 let SEARCH_PATTERN=Error 24 on file ./test/t1#P#p\d+\.MY[DI] open during `test`.`t1` table copy: Too many open files;
 source include/search_pattern_in_file.inc;
+}
 
 rmdir $targetdir;
 #remove_file $log;
