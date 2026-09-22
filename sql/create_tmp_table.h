@@ -35,6 +35,7 @@ protected:
   ORDER *m_group;
   bool m_distinct;
   bool m_save_sum_fields;
+  bool m_save_blobs;
   bool m_with_cycle;
   ulonglong m_select_options;
   ha_rows m_rows_limit;
@@ -56,8 +57,21 @@ public:
     cycles)
   */
   counter current_counter;
+  /*
+    save_blobs is independent of save_sum_fields: it only controls whether
+    BLOB/TEXT fields are deep-copied (Copy_field::set()) instead of copying
+    the raw record representation. Callers that want the historical
+    combined behavior (save_blobs same as save_sum_fields) resolve that
+    themselves; see create_tmp_table().
+  */
   Create_tmp_table(ORDER *group, bool distinct, bool save_sum_fields,
-                   ulonglong select_options, ha_rows rows_limit);
+                   ulonglong select_options, ha_rows rows_limit,
+                   bool save_blobs);
+  Create_tmp_table(ORDER *group, bool distinct, bool save_sum_fields,
+                   ulonglong select_options, ha_rows rows_limit) :
+  Create_tmp_table(group, distinct, save_sum_fields, select_options, rows_limit,
+                   save_sum_fields)
+  {}
   virtual ~Create_tmp_table() {}
   virtual bool choose_engine(THD *thd, TABLE *table, TMP_TABLE_PARAM *param);
   void add_field(TABLE *table, Field *field, uint fieldnr,
