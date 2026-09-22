@@ -22320,6 +22320,8 @@ bool Create_tmp_table::add_fields(THD *thd,
     if (type == Item::SUM_FUNC_ITEM && !m_group && !m_save_sum_fields)
     {						/* Can't calc group yet */
       Item_sum *sum_item= (Item_sum *) item;
+      /* There is actually no need to clear result_field */
+      DBUG_ASSERT(!sum_item->result_field);
       sum_item->result_field=0;
       for (uint i= 0 ; i < sum_item->get_arg_count() ; i++)
       {
