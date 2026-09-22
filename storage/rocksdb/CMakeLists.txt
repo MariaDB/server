@@ -198,6 +198,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 )
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib mariadb_private_headers)
 
 # MARIAROCKS-TODO: how to properly depend on -lrt ?
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARIES})

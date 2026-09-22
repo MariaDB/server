@@ -343,17 +343,20 @@ ELSE()
   TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE sql sql_builtins)
 ENDIF()
 
-# create interface target for plugins that depend on server internals
-ADD_LIBRARY(mariadb_private INTERFACE)
-TARGET_INCLUDE_DIRECTORIES(mariadb_private INTERFACE
+ADD_LIBRARY(mariadb_private_headers INTERFACE)
+TARGET_INCLUDE_DIRECTORIES(mariadb_private_headers INTERFACE
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/sql>
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/sql>
   $<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}/server/private>)
 IF(WITH_WSREP)
-  TARGET_INCLUDE_DIRECTORIES(mariadb_private INTERFACE
+  TARGET_INCLUDE_DIRECTORIES(mariadb_private_headers INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/wsrep-lib/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/wsrep-lib/wsrep-API/v26>)
 ENDIF()
+INSTALL(TARGETS mariadb_private_headers EXPORT mariadb-plugin-targets)
+
+ADD_LIBRARY(mariadb_private INTERFACE)
+TARGET_LINK_LIBRARIES(mariadb_private INTERFACE mariadb_private_headers)
 IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
   TARGET_LINK_LIBRARIES(mariadb_private INTERFACE server)
 ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
