@@ -81,13 +81,12 @@ SELECT * FROM t;
 DELETE FROM t;
 DROP TABLE at0, at1;
 
---sorted_result
 if (!$have_debug) {
 # Without involving DEBUG_SYNC, the RENAME TABLE could have been
 # executed before InnoDB_backup::init() collected the file names.
 --replace_result rtt.ibd rt.ibd
 }
---list_files $target_directory/test rt*
+--list_files $target_directory/test rt*.ibd
 
 if ($MARIADB_UPGRADE_EXE) {
 let target_directory=$target_directory;
