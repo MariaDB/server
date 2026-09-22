@@ -113,11 +113,13 @@
 # - See setup section for required files and config.
 #
 # Setup (with "veeam" as an example backup user):
-# - Create a Linux user "veeam" and add its public SSH key to authorized_keys.
-#   - Use the private SSH key for running the scripts via Veeam or other tools
-#     over an SSH connection.
-# - Copy this script and mariadb-post-thaw.sh into the user's home and make
-#   them executable:
+# - Create a Linux user "veeam" (with a home directory).
+# - If the backup tools are working over ssh, then add its public SSH key to authorized_keys.
+# - If the backup tools are using guest utils for communication (like VIX in VSphere with Veeam), then the scripts can
+#   be run directly as the veeam user.
+# - This script does not need root or sudo privileges.
+# - In some Backup-Tools the script must be placed there (Veeam), in others the script can be placed on the VM, then
+#   copy this script and mariadb-post-thaw.sh into the user's home and make them executable:
 #   chmod 700 /home/veeam/mariadb-*.sh
 #
 # Create a DB user:
