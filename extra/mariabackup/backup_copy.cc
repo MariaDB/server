@@ -241,6 +241,10 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	return(it);
 
 error:
+	if (it) {
+		pthread_mutex_destroy(&it->mutex);
+		free(it->datadir_path);
+	}
 	free(it);
 
 	return(NULL);

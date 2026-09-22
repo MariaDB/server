@@ -89,12 +89,23 @@ xb_write_galera_info(bool incremental_prepare)
 	*/
 	if (my_stat(MB_GALERA_INFO_FILENAME, &statinfo, MYF(0))) {
 		FILE* fp_in  = fopen(MB_GALERA_INFO_FILENAME, "r");
+		if (!fp_in) {
+			die("could not open " MB_GALERA_INFO_FILENAME
+			    ", errno = %d\n", errno);
+		}
 		FILE* fp_out = fopen(MB_GALERA_INFO_FILENAME_SST, "w");
+		if (!fp_out) {
+			fclose(fp_in);
+			die("could not open " MB_GALERA_INFO_FILENAME_SST
+			    ", errno = %d\n", errno);
+		}
 
 		char buf[BUFSIZ] = {'\0'};
 		size_t size;
 		while ((size = fread(buf, 1, BUFSIZ, fp_in))) {
 			if (fwrite(buf, 1, size, fp_out) != strlen(buf)) {
+				fclose(fp_out);
+				fclose(fp_in);
 				die(
 				    "could not write to "
 				    MB_GALERA_INFO_FILENAME_SST
@@ -103,6 +114,8 @@ xb_write_galera_info(bool incremental_prepare)
 			}
 		}
 		if (!feof(fp_in)) {
+			fclose(fp_out);
+			fclose(fp_in);
 			die(
 			    MB_GALERA_INFO_FILENAME_SST
 			    " not fully copied\n"

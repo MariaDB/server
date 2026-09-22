@@ -1732,6 +1732,8 @@ dberr_t recv_sys_t::find_checkpoint()
       os_file_close(file);
       return DB_ERROR;
     }
+    // file (log_sys.log) closed later by log_t::close().
+    // @infer-ignore PULSE_RESOURCE_LEAK
     else if (!log_sys.attach(file, size))
       goto err_exit;
     else
@@ -1754,6 +1756,8 @@ dberr_t recv_sys_t::find_checkpoint()
                         int(path.size()), path.data(), sz, size);
         wrong_size= true;
       }
+      // file (in recv_sys.files) closed later by recv_sys_t::close_files().
+      // @infer-ignore PULSE_RESOURCE_LEAK.
       recv_sys.files.emplace_back(file);
     }
 
