@@ -5840,6 +5840,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   }
   case SQLCOM_XA_RECOVER:
+    if (check_global_access(thd, PRIV_STMT_XA_RECOVER))
+      goto error;
     res= mysql_xa_recover(thd);
     break;
   case SQLCOM_INSTALL_PLUGIN:
