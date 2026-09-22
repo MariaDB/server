@@ -8194,6 +8194,107 @@ bool Item::find_item_processor(void *arg)
   return (this == ((Item *) arg));
 }
 
+#ifndef DBUG_OFF
+/*
+  The context of Item::check_deep_copy() while it walks an item tree.
+*/
+struct Deep_copy_check
+{
+  /*
+    The root of the tree to check the visited items against, or NULL when
+    only the class names of the visited items are collected.
+  */
+  Item *other_root;
+  /* Class names of the visited items, in walk order */
+  String *classes;
+  /* The first item found in both trees, or NULL */
+  Item *shared;
+  /* How many items are shared by the two trees */
+  uint shared_count;
+};
+
+
+/*
+  typeid(x).name() is implementation defined: the Itanium ABI returns the
+  mangled name, "10Item_field", MSVC the undecorated one, "class Item_field".
+  Return just the class name, so that the notes do not depend on the compiler.
+*/
+static const char *dbug_item_class_name(const Item *item)
+{
+  const char *name= typeid(*item).name();
+  if (!strncmp(name, "class ", 6))
+    name+= 6;
+  while (*name >= '0' && *name <= '9')
+    name++;
+  return name;
+}
+
+
+bool Item::deep_copy_check_processor(void *arg)
+{
+  Deep_copy_check *ctx= (Deep_copy_check *) arg;
+  const char *name= dbug_item_class_name(this);
+
+  if (ctx->classes->length())
+    ctx->classes->append(' ');
+  ctx->classes->append(name, strlen(name));
+
+  if (ctx->other_root &&
+      ctx->other_root->walk(&Item::find_item_processor, this,
+                            (item_walk_flags) 0))
+  {
+    if (!ctx->shared)
+      ctx->shared= this;
+    ctx->shared_count++;
+  }
+  return false;                      // Always continue the walk
+}
+
+
+bool Item::check_deep_copy(THD *thd, Item *clone, const char *what)
+{
+  StringBuffer<256> orig_classes, clone_classes;
+  Deep_copy_check orig_ctx= { NULL, &orig_classes, NULL, 0 };
+  Deep_copy_check clone_ctx= { this, &clone_classes, NULL, 0 };
+  bool rc= false;
+
+  walk(&Item::deep_copy_check_processor, &orig_ctx, (item_walk_flags) 0);
+  clone->walk(&Item::deep_copy_check_processor, &clone_ctx,
+              (item_walk_flags) 0);
+
+  if (orig_classes.length() != clone_classes.length() ||
+      memcmp(orig_classes.ptr(), clone_classes.ptr(), orig_classes.length()))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                        "%s: clone is not structurally equal: "
+                        "original=[%.*s] clone=[%.*s]", what,
+                        (int) orig_classes.length(), orig_classes.ptr(),
+                        (int) clone_classes.length(), clone_classes.ptr());
+    rc= true;
+  }
+
+  if (clone_ctx.shared)
+  {
+    const char *name= dbug_item_class_name(this);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                        "%s: clone of [%.*s] shares %u item(s) with the "
+                        "original, first one is %s", what,
+                        (int) orig_classes.length(), orig_classes.ptr(),
+                        clone_ctx.shared_count, name);
+    rc= true;
+  }
+
+  DBUG_EXECUTE_IF(
+    "check_deep_copy",
+    if (!rc)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "%s: [%.*s] is deeply cloned", what,
+                          (int) orig_classes.length(), orig_classes.ptr());
+  );
+  return rc;
+}
+#endif /* DBUG_OFF */
+
 bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
   return protocol->store(result_field);
@@ -11187,6 +11288,7 @@ void Item_cache::store(Item *item)
     null_value= TRUE;
   value_cached= FALSE;
 }
+
 
 void Item_cache::print(String *str, enum_query_type query_type)
 {

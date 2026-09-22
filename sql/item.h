@@ -1389,10 +1389,7 @@ public:
   bool is_top_level_item() const
   { return (bool) (base_flags & item_base_t::AT_TOP_LEVEL); }
 
-  Item_cache* get_cache(THD *thd) const
-  {
-    return type_handler()->Item_get_cache(thd, this);
-  }
+  Item_cache* get_cache(THD *thd) const;
   virtual enum Type type() const =0;
   bool is_of_type(Type t, Item_result cmp) const
   {
@@ -1978,6 +1975,25 @@ public:
     shallow_copy() from a concrete parent.
   */
   void dbug_check_shallow_copy_type(THD *thd) const;
+  /*
+    Debug-only validation of a clone produced by deep_copy_with_checks().
+
+    A proper deep clone must
+    - have exactly the same tree shape, with the same Item class at every
+      node, as the original, and
+    - not share a single Item object with the original: every node of the
+      clone must be a separate object, so that the clone can be used (and
+      re-evaluated) independently of the original.
+
+    Both properties are reported as notes, so that a test can see which
+    Item class is not deeply clonable. Returns true if 'clone' is not a
+    proper deep clone of this item.
+
+    'what' names the cloned expression in the notes.
+  */
+  bool check_deep_copy(THD *thd, Item *clone, const char *what);
+  /* walk() processor used by check_deep_copy() */
+  bool deep_copy_check_processor(void *arg);
 #endif
 
   /*
