@@ -78,8 +78,7 @@ MACRO(MARIADB_ADD_PLUGIN)
   IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 
   # Add common include directories
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-                    ${CMAKE_SOURCE_DIR}/sql
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${PCRE_INCLUDE_DIRS}
                     ${SSL_INCLUDE_DIRS}
                     ${ZLIB_INCLUDE_DIRS})
@@ -225,9 +224,7 @@ MACRO(MARIADB_ADD_PLUGIN)
             PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${definitions}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded ${ARG_DEPENDS})
-        IF(ARG_LINK_LIBRARIES)
-          TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES})
-        ENDIF()
+        TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES} mariadb_private)
       ENDIF()
     ENDIF()
 
@@ -297,13 +294,9 @@ MACRO(MARIADB_ADD_PLUGIN)
     # executable to the linker command line (it would result into link error). 
     # Thus we skip TARGET_LINK_LIBRARIES on Linux, as it would only generate
     # an additional dependency.
-    IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
-      IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
-        TARGET_LINK_LIBRARIES(${target} server)
-      ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        TARGET_LINK_LIBRARIES (${target} mariadbd)
-      ENDIF()
-    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_UBSAN AND NOT WITH_MSAN)
+    IF(NOT ARG_RECOMPILE_FOR_EMBEDDED AND NOT ARG_STORAGE_ENGINE AND
+       CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND
+       NOT WITH_TSAN AND NOT WITH_UBSAN AND NOT WITH_MSAN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
@@ -369,6 +362,9 @@ MACRO(MARIADB_ADD_PLUGIN)
     GET_TARGET_PROPERTY(plugin_type ${target} TYPE)
     STRING(REPLACE "_LIBRARY" "" plugin_type ${plugin_type})
     SET(have_target 1)
+    IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
+      TARGET_LINK_LIBRARIES(${target} mariadb_private)
+    ENDIF()
   ELSE()
     SET(plugin_type)
     SET(have_target 0)
