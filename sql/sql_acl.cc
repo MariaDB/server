@@ -2113,7 +2113,11 @@ class User_table_json: public User_table
       if (access & SUPER_ACL)
         access|= ALLOWED_BY_SUPER_BEFORE_101100;
     }
-    if (version_id >= 110300)
+    if (version_id >= 130200)
+    {
+      mask= ALL_KNOWN_ACL_130200;
+    }
+    else if (version_id >= 110300)
     {
       mask= ALL_KNOWN_ACL_110300;
     }
@@ -11032,7 +11036,7 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE"
+  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE", "XA RECOVER ADMIN"
 };
 
 static uint command_lengths[]=
@@ -11045,7 +11049,7 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13, 13, 19
+  13, 13, 19, 16
 };
 
 
