@@ -20,6 +20,7 @@
 #include "set_var.h"
 #include "sql_class.h"
 #include "opt_context_store_replay.h"
+#include "sql_base.h"
 #include "sql_show.h"
 #include "my_json_writer.h"
 #include "hash.h"
@@ -203,6 +204,9 @@ static void append_base_table_name(const TABLE *table, String *buf);
 
 static bool parse_range_cost_estimate(MEM_ROOT*, json_engine_t *je,
                                       String *err_buf, Cost_estimate *cost);
+
+static bool store_db_ddl(THD *thd, HASH *db_name_hash, String &script,
+                         const char *db_name, bool req_use_db_stmt);
 
 static char *strdup_root(MEM_ROOT *root, const String *str)
 {
@@ -451,6 +455,106 @@ static bool get_create_table_stmt(THD *thd, TABLE_LIST *tbl, String *ddl)
   }
   return res;
 }
+
+
+/*
+  @brief
+    Append "SELECT SETVAL(seq_name, <current value>);" for the sequence
+    table @arg tbl into @arg qry_ctx_script, so that replaying the
+    dumped script continues handing out NEXTVAL()s from where the
+    original sequence had reached.
+
+  @return
+    false when no error occurred during the computation
+*/
+static void dump_sequence_current_value(THD *thd, TABLE_LIST *tbl,
+                                         const String *full_tbl_name,
+                                         String &qry_ctx_script)
+{
+  const char *key;
+  uint length= get_table_def_key(tbl, &key); // table def key = hash key
+  SEQUENCE_LAST_VALUE *entry= (SEQUENCE_LAST_VALUE *) my_hash_search(
+      &thd->sequences, (uchar *) key, length);
+  SEQUENCE *seq= tbl->table->s->sequence;
+  DBUG_ASSERT(seq);
+  longlong value;
+  if (entry && !entry->check_version(tbl->table))
+  {
+    /*
+      Set the sequence so that the next NEXTVAL returns the value that
+      was last handed out (entry->value): SETVAL(x) makes the next
+      NEXTVAL return x + increment, so use entry->value - increment.
+      Keep the argument within the sequence bounds - for an ascending
+      sequence it may fall below min_value, for a descending one it may
+      rise above max_value, and SETVAL rejects out-of-range values.
+    */
+    longlong candidate= entry->value - seq->increment;
+    value= seq->increment > 0 ? MY_MAX(candidate, seq->min_value)
+                              : MY_MIN(candidate, seq->max_value);
+  }
+  else
+    value= seq->reserved_until;
+
+  qry_ctx_script.append(STRING_WITH_LEN("SELECT SETVAL("));
+  qry_ctx_script.append(*full_tbl_name);
+  qry_ctx_script.append(STRING_WITH_LEN(", "));
+  qry_ctx_script.append_longlong(value);
+  qry_ctx_script.append(STRING_WITH_LEN(");\n\n"));
+}
+
+
+/*
+  @brief
+    Dump the CREATE SEQUENCE DDL and current value of the sequence table
+    @arg tbl into @arg qry_ctx_script, unless it has already been dumped.
+
+  @detail
+    A table's DEFAULT expression can depend on a sequence
+    (e.g. "a INT DEFAULT NEXTVAL(s1)") that the current statement never
+    opens itself (e.g. a plain SELECT never evaluates DEFAULT NEXTVAL()).
+    Such sequences are reached via TABLE::internal_tables rather than
+    thd->lex->query_tables. This function lets them be dumped the same
+    way as sequences that are used directly in the query.
+
+  @return
+    false when no error occurred during the computation
+*/
+static bool dump_sequence_context(THD *thd, TABLE_LIST *tbl,
+                                  HASH *table_name_hash, HASH *db_name_hash,
+                                  String &qry_ctx_script)
+{
+  String ddl;
+  StringBuffer<256> full_tbl_name;
+  LEX_CSTRING *tbl_name_key;
+
+  append_table_or_view_name(tbl, &full_tbl_name);
+
+  if (my_hash_search(table_name_hash, (uchar *) full_tbl_name.c_ptr_safe(),
+                     full_tbl_name.length()))
+    return false; // Already dumped
+
+  if (!(tbl_name_key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING))) ||
+      !(tbl_name_key->str= strdup_root(thd->mem_root, &full_tbl_name)))
+    return true; // OOM
+  tbl_name_key->length= strlen(tbl_name_key->str);
+
+  if (my_hash_insert(table_name_hash, (uchar *) tbl_name_key))
+    return true; // OOM
+
+  if (store_db_ddl(thd, db_name_hash, qry_ctx_script,
+                   tbl->get_db_name().str, false))
+    return true;
+
+  if (get_create_table_stmt(thd, tbl, &ddl))
+    return true;
+  qry_ctx_script.append(ddl);
+  qry_ctx_script.append(STRING_WITH_LEN(";\n\n"));
+
+  dump_sequence_current_value(thd, tbl, &full_tbl_name, qry_ctx_script);
+
+  return false;
+}
+
 
 /*
   System variables that are required for the optimizer context,
@@ -790,6 +894,41 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
       break;
     }
 
+    /*
+      If this table has a column whose DEFAULT expression depends on a
+      sequence (e.g. "a INT DEFAULT NEXTVAL(s1)"), that sequence must
+      exist before this table's CREATE TABLE statement can run, even if
+      the current statement never evaluates the DEFAULT itself (e.g. a
+      plain SELECT). Such sequences are not opened for a SELECT and so
+      never appear in thd->lex->query_tables; reach them via
+      TABLE::internal_tables instead, and dump them first.
+    */
+    if (!tbl->is_view() && tbl->table->internal_tables &&
+        !tbl->table->internal_tables->table &&
+        open_and_lock_internal_tables(tbl->table, false))
+    {
+      res= true;
+      break;
+    }
+    for (TABLE_LIST *seq_tbl= tbl->is_view() ? NULL
+                                             : tbl->table->internal_tables;
+        seq_tbl; seq_tbl= seq_tbl->next_global)
+    {
+      if (!seq_tbl->table)
+      {
+        res= true;
+        break;
+      }
+      if (dump_sequence_context(thd, seq_tbl, &table_name_hash,
+                                &db_name_hash, qry_ctx_script))
+      {
+        res= true;
+        break;
+      }
+    }
+    if (res)
+      break;
+
     /* Add CREATE TABLE|VIEW statement */
     if (tbl->is_view())
     {
@@ -819,35 +958,8 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
     */
     if (tbl->table->s->sequence)
     {
-      const char *key;
-      uint length= get_table_def_key(tbl, &key); // table def key = hash key
-      SEQUENCE_LAST_VALUE *entry= (SEQUENCE_LAST_VALUE *) my_hash_search(
-          &thd->sequences, (uchar *) key, length);
-      SEQUENCE *seq= tbl->table->s->sequence;
-      longlong value;
-      if (entry && !entry->check_version(tbl->table))
-      {
-        /*
-          Set the sequence so that the next NEXTVAL returns the value that
-          was last handed out (entry->value): SETVAL(x) makes the next
-          NEXTVAL return x + increment, so use entry->value - increment.
-          Keep the argument within the sequence bounds - for an ascending
-          sequence it may fall below min_value, for a descending one it may
-          rise above max_value, and SETVAL rejects out-of-range values.
-        */
-        longlong candidate= entry->value - seq->increment;
-        value= seq->increment > 0 ? MY_MAX(candidate, seq->min_value)
-                                  : MY_MIN(candidate, seq->max_value);
-      }
-      else
-        value= seq->reserved_until;
-
-      qry_ctx_script.append(STRING_WITH_LEN("SELECT SETVAL("));
-      qry_ctx_script.append(full_tbl_name);
-      qry_ctx_script.append(STRING_WITH_LEN(", "));
-      qry_ctx_script.append_longlong(value);
-      qry_ctx_script.append(STRING_WITH_LEN(");\n\n"));
-
+      dump_sequence_current_value(thd, tbl, &full_tbl_name,
+                                  qry_ctx_script);
       continue;
     }
     else if (tbl->table->s->db_type() &&
