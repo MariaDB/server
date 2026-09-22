@@ -4,6 +4,13 @@ set -e
 
 case "$1" in
   configure)
+
+    # Upgrading from a MariaDB version using /run/mysqld, temporarily link /run/mariadbd to it.
+    if [ -n "$2" ] && [ -d /run/mysqld ] && [ ! -e /run/mariadbd ] && [ ! -L /run/mariadbd ]
+    then
+      ln -s mysqld /run/mariadbd
+    fi
+
     # New packaging paradigm for my.cnf handling among MySQL variants
     # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
     #
