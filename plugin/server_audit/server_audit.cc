@@ -74,6 +74,7 @@ static void closelog() {}
 
 #include <my_global.h>
 #include <my_base.h>
+#include <my_sys.h>
 #include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
@@ -149,7 +150,6 @@ struct connection_info
   const char *query;
   int query_length;
   char query_buffer[1024];
-  time_t query_time;
   int log_always;
   unsigned int port;
   char proxy[USERNAME_CHAR_LENGTH+1];
@@ -1103,7 +1103,7 @@ static void change_connection(struct connection_info *cn,
   Write to the log
 */
 
-static int write_log(const char *message, size_t len, time_t ts)
+static int write_log(const char *message, size_t len, unsigned long long ts_us)
 {
 #if defined _WIN32 || !defined SUX_LOCK_GENERIC
   DBUG_ASSERT(lock_operations.is_locked_or_waiting());
@@ -1115,7 +1115,8 @@ static int write_log(const char *message, size_t len, time_t ts)
     if (logfile)
     {
       MYSQL_TIME ltime;
-      thd_gmt_sec_to_TIME(NULL, &ltime, ts);
+      thd_gmt_sec_to_TIME(NULL, &ltime, (time_t) (ts_us / 1000000));
+      ltime.second_part= (ulong) (ts_us % 1000000);
 
       size_t ts_len= 0;
       char *ts_start= (char *) message - TIMESTAMP_OUTPUT_LENGTH;
@@ -1162,10 +1163,10 @@ static int write_log(const char *message, size_t len, time_t ts)
   Write to the log, acquiring the lock.
 */
 
-static int write_log_and_lock(const char *message, size_t len, time_t ts)
+static int write_log_and_lock(const char *message, size_t len, unsigned long long ts_us)
 {
   lock_operations.rd_lock();
-  int result= write_log(message, len, ts);
+  int result= write_log(message, len, ts_us);
   lock_operations.rd_unlock();
   return result;
 }
@@ -1176,12 +1177,13 @@ static int write_log_and_lock(const char *message, size_t len, time_t ts)
 
   @param lock  whether the caller did not acquire lock_operations
 */
-static int write_log_maybe_lock(const char *message, size_t len, bool lock, time_t ts)
+static int write_log_maybe_lock(const char *message, size_t len, bool lock,
+                                unsigned long long ts_us)
 {
   if (unlikely(!lock))
-    return write_log(message, len, ts);
+    return write_log(message, len, ts_us);
   else
-    return write_log_and_lock(message, len, ts);
+    return write_log_and_lock(message, len, ts_us);
 }
 
 
@@ -1237,14 +1239,11 @@ static size_t create_tls_obj(const struct mysql_event_connection *ev, char *obj_
 
 static int log_proxy(const struct connection_info *cn,
                      const struct mysql_event_connection *event)
-                   
 {
-  time_t ctime;
   size_t csize;
   char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
   char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
 
-  (void) time(&ctime);
   csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     cn->user, cn->user_length,
@@ -1258,7 +1257,7 @@ static int log_proxy(const struct connection_info *cn,
                      cn->proxy_host_length, cn->proxy_host,
                      event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1, ctime);
+  return write_log_and_lock(message, csize + 1, my_hrtime().val);
 }
 
 
@@ -1266,14 +1265,12 @@ static int log_connection(const struct connection_info *cn,
                           const struct mysql_event_connection *event,
                           const char *type)
 {
-  time_t ctime;
   size_t csize;
   char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
   char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
   char tls_obj[32];
   size_t obj_len;
 
-  (void) time(&ctime);
   csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     cn->user, cn->user_length,
@@ -1286,21 +1283,19 @@ static int log_connection(const struct connection_info *cn,
     ",%.*s,%.*s,%d", cn->db_length, cn->db, (int) obj_len, tls_obj,
     event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1, ctime);
+  return write_log_and_lock(message, csize + 1, my_hrtime().val);
 }
 
 
 static int log_connection_event(const struct mysql_event_connection *event,
                                 const char *type)
 {
-  time_t ctime;
   size_t csize;
   char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
   char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
   char tls_obj[32];
   size_t obj_len;
 
-  (void) time(&ctime);
   csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, event->user_length,
@@ -1312,7 +1307,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
     ",%.*s,%.*s,%d", (int) event->database.length,event->database.str,
     (int) obj_len, tls_obj, event->status);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1, ctime);
+  return write_log_and_lock(message, csize + 1, my_hrtime().val);
 }
 
 
@@ -1509,9 +1504,10 @@ static int do_log_user(const char *name, int len,
 
 
 static int log_statement_ex(struct connection_info *cn,
-                            time_t ev_time, unsigned long thd_id, int sql_cmd,
-                            const char *query, unsigned int query_len,
-                            int error_code, const char *type, int take_lock)
+                            unsigned long long ev_time_us, unsigned long thd_id,
+                            int sql_cmd, const char *query,
+                            unsigned int query_len, int error_code,
+                            const char *type, int take_lock)
 {
   size_t csize;
   char raw_message_loc[MAX_AUDIT_QUERY_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
@@ -1620,7 +1616,7 @@ static int log_statement_ex(struct connection_info *cn,
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
                       "\',%d", error_code);
   message[csize]= '\n';
-  result= write_log_maybe_lock(message, csize + 1, take_lock, ev_time);
+  result= write_log_maybe_lock(message, csize + 1, take_lock, ev_time_us);
 
   if (cn->sync_statement && output_type == OUTPUT_FILE && logfile)
   {
@@ -1649,7 +1645,8 @@ static int log_statement(struct connection_info *cn,
                         cn->query == (const char *)0x4f4f4f4f4f4f4f4fL ? NULL : cn->query,
                         event->query_id, event->general_query_length,
                         event->general_query, type));
-  return log_statement_ex(cn, event->general_time, event->general_thread_id,
+  return log_statement_ex(cn, event->general_time_microseconds,
+                          event->general_thread_id,
                           sql_command, event->general_query,
                           event->general_query_length,
                           event->general_error_code, type, 1);
@@ -1662,9 +1659,7 @@ static int log_table(const struct connection_info *cn,
   size_t csize;
   char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
   char *message = raw_message + TIMESTAMP_OUTPUT_LENGTH;
-  time_t ctime;
 
-  (void) time(&ctime);
   csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, SAFE_STRLEN_UI(event->user),
@@ -1675,7 +1670,7 @@ static int log_table(const struct connection_info *cn,
                      (int) event->database.length, event->database.str,
                      (int) event->table.length, event->table.str);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1, ctime);
+  return write_log_and_lock(message, csize + 1, my_hrtime().val);
 }
 
 
@@ -1685,9 +1680,7 @@ static int log_rename(const struct connection_info *cn,
   size_t csize;
   char raw_message[MAX_AUDIT_PAYLOAD_LENGTH + TIMESTAMP_OUTPUT_LENGTH];
   char *message= raw_message + TIMESTAMP_OUTPUT_LENGTH;
-  time_t ctime;
 
-  (void) time(&ctime);
   csize= log_header(message, MAX_AUDIT_PAYLOAD_LENGTH - 1,
                     servhost, servhost_len,
                     event->user, SAFE_STRLEN_UI(event->user),
@@ -1702,7 +1695,7 @@ static int log_rename(const struct connection_info *cn,
                       (int) event->new_database.length, event->new_database.str,
                       (int) event->new_table.length, event->new_table.str);
   message[csize]= '\n';
-  return write_log_and_lock(message, csize + 1, ctime);
+  return write_log_and_lock(message, csize + 1, my_hrtime().val);
 }
 
 
@@ -1780,7 +1773,6 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
           cn->query_id= mode ? query_counter++ : event->query_id;
           cn->query= event->general_query;
           cn->query_length= event->general_query_length;
-          cn->query_time= (time_t) event->general_time;
           update_general_user(cn, event);
         }
         else if (init_db_command)
@@ -1838,7 +1830,6 @@ static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
         get_str_n(cn->query_buffer, &cn->query_length, sizeof(cn->query_buffer),
             event->general_query, event->general_query_length);
         cn->query= cn->query_buffer;
-        cn->query_time= (time_t) event->general_time;
         break;
       default:;
     }
@@ -2278,7 +2269,7 @@ static void log_current_query(MYSQL_THD thd)
   if (cn && !ci_needs_setup(cn) && cn->query_length)
   {
     cn->log_always= 1;
-    log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
+    log_statement_ex(cn, my_hrtime().val, thd_get_thread_id(thd),
                      thd_sql_command(thd), cn->query, cn->query_length, 0,
                      "QUERY", 0);
     cn->log_always= 0;

@@ -156,7 +156,7 @@ set global server_audit_timestamp_format='T24=%T';
 select 'fmt_t24';
 fmt_t24
 fmt_t24
-# 2l: Microseconds %f (always 000000 until MDEV-39307 is fixed)
+# 2l: Microseconds %f render six zero-padded digits
 set global server_audit_timestamp_format='US=%f';
 select 'fmt_usec';
 fmt_usec
@@ -179,7 +179,7 @@ FOUND 1 /OD=\d+\w+.*fmt_ord/ in ts_ext_specifiers.log
 FOUND 1 /STATIC-TEXT.*fmt_literal/ in ts_ext_specifiers.log
 FOUND 1 /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*fmt_iso/ in ts_ext_specifiers.log
 FOUND 1 /T24=\d{2}:\d{2}:\d{2}.*fmt_t24/ in ts_ext_specifiers.log
-FOUND 1 /US=000000.*fmt_usec/ in ts_ext_specifiers.log
+FOUND 1 /US=\d{6}.*fmt_usec/ in ts_ext_specifiers.log
 FOUND 1 /TZ=[+-]\d{4}.*fmt_tz/ in ts_ext_specifiers.log
 ########################################################################
 # Section 3: All event types get custom timestamps
@@ -342,6 +342,19 @@ set global server_audit_logging=off;
 FOUND 1 /PS=\d{8}.*persist_cycle1/ in ts_ext_persist.log
 FOUND 1 /PS=\d{8}.*persist_cycle2/ in ts_ext_persist.log
 FOUND 1 /P2=\d{8}.*persist_cycle3/ in ts_ext_persist.log
+########################################################################
+# Section 10: Microsecond resolution of %f (MDEV-39307)
+########################################################################
+set global server_audit_file_path='ts_ext_usec.log';
+set global server_audit_events='query';
+set global server_audit_timestamp_format='US=%f';
+set global server_audit_logging=on;
+# %f must carry real microseconds, not a constant 000000
+set global server_audit_logging=off;
+# A six-digit zero-padded microsecond field is logged
+FOUND 1 /US=\d{6}.*usec_20/ in ts_ext_usec.log
+# At least one entry carries a real (non-zero) microsecond value
+usec_ok
 ########################################################################
 # Cleanup: restore all settings
 ########################################################################
