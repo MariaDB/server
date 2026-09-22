@@ -329,4 +329,144 @@ explain select * from seq_1_to_15_step_2 where seq = 5;
 
 --echo # End of 13.1 tests
 
+--echo #
+--echo # MDEV-40598: Capture sequences used only in column DEFAULT expressions
+--echo #
+create sequence s1;
+create table t1 (a int primary key default nextval(s1), b int);
+
+--echo # The INSERT itself evaluates the DEFAULT, so s1 is already open as
+--echo # part of this very statement; ddls should include both s1 and t1
+insert into t1 (b) values (1),(2),(3);
+--source include/opt_context_list_tables_ddls.inc
+
+--echo #
+--echo # s1 was opened only by the INSERT above and closed again at the
+--echo # end of that statement; this SELECT never evaluates DEFAULT
+--echo # NEXTVAL() itself, so it doesn't reopen s1 through normal means
+--echo # either. It is still captured, resolved independently by name:
+--echo # ddls should include both s1 and t1, with s1 appearing before t1
+--echo # so that replay can recreate them
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+
+--echo #
+--echo # Under LOCK TABLES, s1 sits in thd->open_tables merely because it
+--echo # is locked, not because this particular SELECT touches it - its
+--echo # current value must not be captured just from being locked
+--echo #
+flush tables;
+lock tables t1 read, s1 read;
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+unlock tables;
+
+--echo #
+--echo # A user with SELECT on t1 but no privilege on s1:
+--echo # ddls include both s1 and t1
+--echo #
+create user u1@localhost;
+grant select on db1.t1 to u1@localhost;
+flush tables;
+connect (con_u1,localhost,u1,,db1);
+set optimizer_record_context=ON;
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+disconnect con_u1;
+connection default;
+drop user u1@localhost;
+
+--echo #
+--echo # A table with two columns whose DEFAULT expressions depend on two
+--echo # different sequences: both must be captured, before the table
+--echo #
+create sequence s2;
+create table t2 (a int default nextval(s1), c int default nextval(s2));
+#flush tables;
+select * from t2;
+--source include/opt_context_list_tables_ddls.inc
+drop table t2;
+drop sequence s2;
+
+--echo #
+--echo # The sequence s3 that t3's DEFAULT depends on was dropped:
+--echo # ddls include both s3 and t3
+--echo #
+create sequence s3;
+create table t3 (a int default nextval(s3), d int);
+insert into t3 (d) values (1);
+drop sequence s3;
+flush tables;
+select * from t3;
+--source include/opt_context_list_tables_ddls.inc
+drop table t3;
+
+--echo #
+--echo # A query that also calls a stored function:
+--echo # ddls include both s1 and t1
+--echo #
+create function f1() returns int return 1;
+flush tables;
+select f1() from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+drop function f1;
+
+--echo #
+--echo # The sequence s1 that t1's DEFAULT depends on was dropped and a
+--echo # view s1 created in its place:
+--echo # ddls include both s1 and t1
+--echo #
+drop sequence s1;
+create view s1 as select 1 as x;
+flush tables;
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+
+--echo #
+--echo # Same, as a prepared statement executed twice:
+--echo # ddls include both s1 and t1
+--echo #
+flush tables;
+prepare stmt from 'select * from t1 where b < 10';
+execute stmt;
+execute stmt;
+--source include/opt_context_list_tables_ddls.inc
+deallocate prepare stmt;
+drop view s1;
+
+drop table t1;
+
+--echo #
+--echo # The sequence db2.s1 that db1.t1's DEFAULT depends on is in a
+--echo # different database: ddls include db2.s1 and t1
+--echo #
+create database db2;
+create sequence db2.s1 start 100 increment 10;
+create table t1 (a int default nextval(db2.s1), b int);
+insert into t1 (b) values (1);
+flush tables;
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+drop table t1;
+drop database db2;
+
+--echo #
+--echo # The sequence s1 is used in the query and t1's DEFAULT depends on it.
+--echo # Whichever order they are listed in, ddls include s1's definition
+--echo # with its current value, and t1
+--echo #
+create sequence s1 start 100 increment 10 maxvalue 200 cycle;
+create table t1 (a int default nextval(s1), b int);
+insert into t1 (b) values (1),(2);
+flush tables;
+select * from s1, t1;
+--source include/opt_context_list_tables_ddls.inc
+flush tables;
+select * from t1, s1;
+--source include/opt_context_list_tables_ddls.inc
+drop table t1;
+drop sequence s1;
+
+--echo # End of 13.2 tests
+
 drop database db1;
