@@ -4,6 +4,7 @@ call mtr.add_suppression('An error occurred when loading data from the table mys
 call mtr.add_suppression('Aborting');
 call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
 call mtr.add_suppression('Cannot open mysql.event');
+call mtr.add_suppression('System trigger execution failing 1146.*');
 #
 # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
 #
@@ -349,3 +350,10 @@ DROP TRIGGER tr1;
 DROP TRIGGER tr2;
 DROP TABLE t1;
 DROP USER a1@localhost;
+#
+# MDEV-40951: System triggers give no visibility into slow/failed execution and misreport server readiness
+#
+CREATE TRIGGER tr1 AFTER STARTUP INSERT INTO t1 VALUES ('Shutdown');
+# restart
+# Clean up
+DROP TRIGGER tr1;

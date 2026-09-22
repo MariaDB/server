@@ -812,7 +812,7 @@ bool Sys_trigger::execute()
                                        &m_sp->m_db, &save_sctx) ||
       mysql_change_db(thd_for_sys_triggers, m_sp->m_db, false))
   {
-    sql_print_error("System trigger execution execution failed, "
+    sql_print_error("System trigger execution failing, "
                     "failed to authenticate the user.");
     return true;
   }
@@ -820,6 +820,10 @@ bool Sys_trigger::execute()
 
   bool ret= m_sp->execute_procedure(m_thd, &empty_item_list);
 
+  if (ret)
+    sql_print_error("System trigger execution failing %d (%s)",
+                    m_thd->get_stmt_da()->sql_errno(),
+                    m_thd->get_stmt_da()->message());
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_sctx)
     trg_sctx.restore_security_context(thd_for_sys_triggers, save_sctx);
@@ -1614,6 +1618,56 @@ static void destroy_sys_triggers()
 
 
 /**
+  Run system triggers for specified action time and event type, if any.
+
+  @param action_time  Time when trigger is invoked (before or after)
+  @param event_type   Type of trigger to fire (ON STARTUP, ON SHUTDOWN)
+*/
+
+static void
+run_sys_triggers(enum trg_action_time_type action_time,
+                 enum trg_sys_event_type event_type)
+{
+  if (sys_triggers_enabled)
+  {
+    /*
+      Get a list of triggers by action_time/event_type and
+      execute them one by one if there are such triggers
+    */
+    Sys_trigger *trg=
+      get_trigger_by_type(action_time, event_type);
+
+    if (trg == nullptr)
+      return;
+
+    const bool do_output_info= (trg != nullptr &&
+                                global_system_variables.log_warnings);
+    const LEX_CSTRING &action_type_name=
+      base_event_names[event_type - TRG_EVENT_STARTUP + 1];
+    const LEX_CSTRING &action_time_name= base_event_time[action_time];
+
+    if (do_output_info)
+      sql_print_information("Start execution of %s %s triggers",
+                            action_time_name.str, action_type_name.str);
+    while (trg)
+    {
+      /*
+        Ignore errors that could happen on running any of 'on startup' triggers
+        to start the server regardless of possible trigger errors
+      */
+      (void)trg->execute();
+
+      trg= trg->next;
+    }
+
+    if (do_output_info)
+      sql_print_information("End execution of %s %s triggers",
+                             action_time_name.str, action_type_name.str);
+  }
+}
+
+
+/**
   First, load system triggers from the table mysql.event and then run
   ON STARTUP triggers if ones present.
 
@@ -1648,24 +1702,8 @@ bool run_after_startup_triggers(bool bootstrap_or_noacl)
     return true;
   }
 
-  if (sys_triggers_enabled)
-  {
-    /*
-      Then get a list of AFTER STARTUP triggers and execute them one by one
-    */
-    Sys_trigger *trg=
-      get_trigger_by_type(TRG_ACTION_AFTER, TRG_EVENT_STARTUP);
-    while (trg)
-    {
-      /*
-        Ignore errors that could happen on running any of 'on startup' triggers
-        to start the server regardless of possible trigger errors
-      */
-      (void)trg->execute();
+  run_sys_triggers(TRG_ACTION_AFTER, TRG_EVENT_STARTUP);
 
-      trg= trg->next;
-    }
-  }
   destroy_sys_triggers();
   thd_for_sys_triggers->thread_stack= nullptr;
   set_current_thd(original_thd);
@@ -1723,13 +1761,7 @@ void run_before_shutdown_triggers(bool bootstrap_or_noacl)
     return;
   }
 
-  Sys_trigger *trg=
-    get_trigger_by_type(TRG_ACTION_BEFORE, TRG_EVENT_SHUTDOWN);
-  while (trg)
-  {
-    (void)trg->execute();
-    trg= trg->next;
-  }
+  run_sys_triggers(TRG_ACTION_BEFORE, TRG_EVENT_SHUTDOWN);
 
   release_resources(original_thd);
 }
