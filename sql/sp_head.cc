@@ -2092,6 +2092,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
   Query_arena backup_arena;
+  void *save_bulk_param;
   DBUG_ENTER("sp_head::execute_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
 
@@ -2239,8 +2240,12 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
+  save_bulk_param= thd->bulk_param;
+  thd->bulk_param= nullptr;
+
   MYSQL_RUN_SP(this, err_status= execute(thd, TRUE));
 
+  thd->bulk_param= save_bulk_param;
   thd->restore_active_arena(call_arena, &backup_arena);
 
   if (need_binlog_call)
