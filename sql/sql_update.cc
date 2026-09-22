@@ -1802,6 +1802,13 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
+  /*
+    Already fixed means an abandoned attempt (open_tables() had to
+    close and reopen the tables) fixed these before; unfix so they get
+    marked again on the reopened TABLE.
+  */
+  if (fields->head() && fields->head()->fixed())
+    unfix_fields(*fields);
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), *fields,
                                 MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);
