@@ -66,6 +66,7 @@ bool trx_t::rollback_finish() noexcept
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
     commit();
+    instant_rollback_enabled= false;
     commit_lsn= 0;
     return true;
   }
@@ -75,6 +76,7 @@ bool trx_t::rollback_finish() noexcept
   ut_a(!srv_undo_sources);
   ut_ad(srv_fast_shutdown);
   ut_d(in_rollback= false);
+  instant_rollback_enabled= false;
   if (trx_undo_t *&undo= rsegs.m_redo.undo)
   {
     UT_LIST_REMOVE(rsegs.m_redo.rseg->undo_list, undo);
@@ -100,7 +102,7 @@ dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
 
   roll_node->savept= savept ? *savept : 0;
 
-  ut_ad(!in_rollback);
+  ut_ad(instant_rollback_enabled || !in_rollback);
 #ifdef UNIV_DEBUG
   if (savept)
   {
@@ -133,6 +135,7 @@ dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
   }
   else
   {
+    ut_ad(!instant_rollback_enabled);
     /* There must not be partial rollback if transaction was chosen as deadlock
     victim. Galera transaction abort can be invoked during partial rollback. */
     ut_ad(!(lock.was_chosen_as_deadlock_victim & 1));
@@ -447,6 +450,9 @@ void trx_rollback_recovered(bool all)
         srv_fast_shutdown)
       goto discard;
 
+    if (!all)
+      cal_instant_rollback_recovered_undos(trx);
+
     if (all || trx->dict_operation || trx->has_stats_table_lock())
     {
       trx_rollback_active(trx);
@@ -620,6 +626,8 @@ trx_rollback_step(
 		node->undo_thr = trx_rollback_start(trx, node->savept);
 
 		trx->mutex_unlock();
+
+		consider_instant_rollback_normal_trxs(trx);
 	} else {
 		ut_ad(node->state == ROLL_NODE_WAIT);
 

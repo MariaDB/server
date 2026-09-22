@@ -397,8 +397,20 @@ row_undo(
 		return DB_SUCCESS;
 	}
 
-	dberr_t err = trx_undo_roll_ptr_is_insert(node->roll_ptr)
-		? row_undo_ins(node, thr) : row_undo_mod(node, thr);
+	dberr_t err;
+	if (check_instant_rollback(node->trx)) {
+		irb_row_t irb_row_ctx(node->trx);
+		ut_ad(!irb_row);
+		irb_row = &irb_row_ctx;
+		err = trx_undo_roll_ptr_is_insert(node->roll_ptr)
+			? row_undo_ins(node, thr) : row_undo_mod(node, thr);
+		irb_row->release_collected_locks();
+		irb_row->reset();
+		irb_row = nullptr;
+	} else {
+		err = trx_undo_roll_ptr_is_insert(node->roll_ptr)
+			? row_undo_ins(node, thr) : row_undo_mod(node, thr);
+	}
 	undo_page->unfix();
 	btr_pcur_close(&(node->pcur));
 
