@@ -348,6 +348,7 @@ Event_db_repository_common::open_event_table(THD *thd,
 
   thd->commit_whole_transaction_and_close_tables();
   *table= 0;                                  // Table is now closed
+  my_error(ER_EVENT_OPEN_TABLE_FAILED, MYF(0));
   DBUG_RETURN(true);
 }
 
