@@ -1958,8 +1958,11 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
     ut_ad(!resize_buf || !checkpoint_buf);
     ut_ad(!resize_buf || resize_log.is_opened());
     if (c && is_mmap())
-      /* undo archived_mmap_switch_complete() */
-      old_first_lsn-= capacity();
+      /*
+        archived_mmap_switch_complete() had been invoked;
+        subtract the capacity() as of the start of that invocation
+      */
+      old_first_lsn-= lseek(resize_log.m_file, 0, SEEK_END) - START_OFFSET;
 #else
     ut_ad(!resize_buf);
 #endif
