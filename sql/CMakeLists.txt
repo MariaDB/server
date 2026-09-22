@@ -359,8 +359,6 @@ ADD_LIBRARY(mariadb_private INTERFACE)
 TARGET_LINK_LIBRARIES(mariadb_private INTERFACE mariadb_private_headers)
 IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
   TARGET_LINK_LIBRARIES(mariadb_private INTERFACE server)
-ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  TARGET_LINK_LIBRARIES(mariadb_private INTERFACE mariadbd)
 ENDIF()
 INSTALL(TARGETS mariadb_private EXPORT mariadb-plugin-targets)
 
