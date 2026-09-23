@@ -237,6 +237,7 @@ private:
     */
     void note_hardlink(lsn_t lsn) noexcept
     {
+      ut_ad(!is_log_tracking());
       for (lsn_t last= last_hardlink.load(std::memory_order_relaxed);
            last < lsn && !last_hardlink.
              compare_exchange_weak(last, lsn,
@@ -313,6 +314,7 @@ private:
     */
     ATTRIBUTE_COLD int de_hardlink(lsn_t hl) noexcept try
     {
+      ut_ad(!is_log_tracking());
 #ifdef _WIN32
       std::string src{target->path};
       src.push_back('/');
@@ -437,14 +439,17 @@ private:
       if (hl != LSN_MAX)
       {
         /* abort() had not been invoked for this backup; finish it */
-        log_sys.latch.rd_lock();
-        const lsn_t current_first_lsn{log_sys.get_first_lsn()};
-        log_sys.latch.rd_unlock();
-        ut_ad(hl != current_first_lsn || sink.stream == sink.NO_STREAM);
+        if (hl) /* hl==0 if we had is_log_tracking() before closing log_dst */
+        {
+          log_sys.latch.rd_lock();
+          const lsn_t current_first_lsn{log_sys.get_first_lsn()};
+          log_sys.latch.rd_unlock();
+          ut_ad(hl != current_first_lsn || sink.stream == sink.NO_STREAM);
 
-        if (hl == current_first_lsn ||
-            (last_lsn < current_first_lsn && sink.stream == sink.NO_STREAM))
-          fail= de_hardlink(hl);
+          if (hl == current_first_lsn ||
+              (last_lsn < current_first_lsn && sink.stream == sink.NO_STREAM))
+            fail= de_hardlink(hl);
+        }
 
         if (!fail)
           fail= write_config(*target, sink);
@@ -706,6 +711,7 @@ public:
       const lsn_t write_lsn{log_sys.write_lsn};
       mutex.wr_lock();
       ut_d(const tracked_log &tracked{*ctx.tracked});
+      ut_a(!ctx.last_hardlink.load(std::memory_order_relaxed));
       log_sys.latch.rd_unlock();
       const lsn_t lsn=
         std::min(std::min(last, write_lsn),
@@ -759,15 +765,17 @@ public:
             IF_WIN(!CloseHandle(ctx.log_dst), close(ctx.log_dst)))
           goto error;
         ctx.log_dst= context::log_track_create(*ctx.target, tail->first_lsn);
-        if (IF_WIN(ctx.log_dst == INVALID_HANDLE, ctx.log_dst < 0))
+        if (IF_WIN(ctx.log_dst == INVALID_HANDLE_VALUE, ctx.log_dst < 0))
           goto error;
       }
+
+      ut_ad(lsn != last || !non_log);
+      ut_ad(lsn != last || queue.empty());
 
       mutex.wr_unlock();
 
       if (lsn == last)
       {
-        ut_ad(!non_log);
         if (!extend_log(ctx.log_dst, end))
         {
           err= ctx.log_dst == ctx.first_log_dst
@@ -978,6 +986,7 @@ public:
                          ctx.checkpoint_end_lsn -
                          ctx.first_lsn + log_sys.START_OFFSET);
     return write_checkpoint(ctx.first_log_dst, cp_buf) != 0;
+    /* FIXME: invoke my_error() on failure */
   }
 #endif
 
@@ -1028,6 +1037,7 @@ public:
 #endif
     else
     {
+      ut_ad(ctx.is_log_tracking());
       ut_ad(ctx.last_track_lsn <= last_lsn);
     added:
       ctx.last_lsn= last_lsn;
@@ -1077,6 +1087,7 @@ public:
     ut_ad(ctx.state == PROCESSING);
     ut_ad(!log_sys.resize_in_progress());
     ut_ad(log_sys.archive);
+    ctx.last_lsn= 0;
 
     /* inform cleanup() that we will clean up */
     ctx.last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
