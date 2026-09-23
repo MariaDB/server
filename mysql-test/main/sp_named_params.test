@@ -1,0 +1,293 @@
+--echo #
+--echo # MDEV-38329: Named Parameters in Invocation of Stored Routines
+--echo #
+
+--echo # Test setup
+delimiter $$;
+CREATE PROCEDURE p1(a INT, b INT, c INT)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+--echo # All positional (existing behavior)
+CALL p1(1, 2, 3);
+
+--echo # All named
+CALL p1(a => 1, b => 2, c => 3);
+
+--echo # Named in different order
+CALL p1(c => 3, a => 1, b => 2);
+
+--echo # Mixed positional and named
+CALL p1(1, b => 2, c => 3);
+
+--echo # Mixed: first two positional, last named
+CALL p1(1, 2, c => 3);
+
+--echo # Positional after named should fail
+--error ER_PARSE_ERROR
+CALL p1(a => 1, 2, 3);
+
+--echo # Unknown parameter name
+--error ER_SP_UNDECLARED_VAR
+CALL p1(a => 1, b => 2, x => 3);
+
+--echo # Duplicate parameter name
+--error ER_SP_DUP_PARAM
+CALL p1(a => 1, a => 2, b => 3);
+
+--echo # Positional fills 'a', then 'a' again by name
+--error ER_SP_DUP_PARAM
+CALL p1(1, a => 2, c => 3);
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Test with default values
+--echo #
+delimiter $$;
+CREATE PROCEDURE p2(a INT, b INT DEFAULT 20, c INT DEFAULT 30)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+--echo # Skip middle param (use default for b)
+CALL p2(a => 1, c => 3);
+
+--echo # Only required param
+CALL p2(a => 1);
+
+--echo # All named with defaults overridden
+CALL p2(a => 10, b => 20, c => 30);
+
+--echo # Missing required param should fail
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p2(b => 2, c => 3);
+
+DROP PROCEDURE p2;
+
+--echo #
+--echo # Stored functions with named parameters
+--echo #
+delimiter $$;
+CREATE FUNCTION f1(a INT, b INT, c INT) RETURNS INT
+BEGIN
+  RETURN a * 10000 + b * 100 + c;
+END;
+$$
+delimiter ;$$
+
+--echo # Positional function call
+SELECT f1(1, 2, 3);
+
+--echo # All named with =>
+SELECT f1(a => 1, b => 2, c => 3);
+
+--echo # Named in different order
+SELECT f1(c => 3, a => 1, b => 2);
+
+--echo # Mixed positional and named
+SELECT f1(1, b => 2, c => 3);
+
+--echo # AS alias syntax also names arguments
+SELECT f1(1 AS a, 2 AS b, 3 AS c);
+SELECT f1(3 AS c, 1 AS a, 2 AS b);
+
+--echo # Unknown parameter name
+--error ER_SP_UNDECLARED_VAR
+SELECT f1(a => 1, b => 2, x => 3);
+
+--echo # Duplicate parameter name
+--error ER_SP_DUP_PARAM
+SELECT f1(a => 1, a => 2, b => 3);
+
+DROP FUNCTION f1;
+
+--echo #
+--echo # Stored function with default values
+--echo #
+delimiter $$;
+CREATE FUNCTION f2(a INT, b INT DEFAULT 20, c INT DEFAULT 30) RETURNS INT
+BEGIN
+  RETURN a * 10000 + b * 100 + c;
+END;
+$$
+delimiter ;$$
+
+--echo # Skip middle param (use default for b)
+SELECT f2(a => 1, c => 3);
+
+--echo # Only required param
+SELECT f2(a => 1);
+
+--echo # Missing required param should fail
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f2(b => 2, c => 3);
+
+DROP FUNCTION f2;
+
+--echo #
+--echo # OUT/INOUT parameters with named args
+--echo #
+delimiter $$;
+CREATE PROCEDURE p_out(OUT x INT, IN y INT)
+BEGIN
+  SET x = y * 10;
+END;
+$$
+delimiter ;$$
+
+SET @result = 0;
+CALL p_out(x => @result, y => 5);
+SELECT @result;
+
+SET @result = 0;
+CALL p_out(y => 5, x => @result);
+SELECT @result;
+
+SET @result = 0;
+CALL p_out(@result, y => 5);
+SELECT @result;
+
+DROP PROCEDURE p_out;
+
+delimiter $$;
+CREATE PROCEDURE p_inout(INOUT a INT, IN b INT)
+BEGIN
+  SET a = a + b;
+END;
+$$
+delimiter ;$$
+
+SET @val = 10;
+CALL p_inout(a => @val, b => 5);
+SELECT @val;
+
+DROP PROCEDURE p_inout;
+
+--echo #
+--echo # Prepared statements with named parameters
+--echo #
+delimiter $$;
+CREATE PROCEDURE p_prep(a INT, b INT, c INT DEFAULT 30)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+PREPARE stmt FROM 'CALL p_prep(a => ?, b => ?)';
+SET @a = 1, @b = 2;
+EXECUTE stmt USING @a, @b;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt2 FROM 'CALL p_prep(b => ?, a => ?)';
+EXECUTE stmt2 USING @b, @a;
+DEALLOCATE PREPARE stmt2;
+
+--echo # Re-execute prepared statement
+PREPARE stmt3 FROM 'CALL p_prep(a => ?, b => ?)';
+SET @a = 10, @b = 20;
+EXECUTE stmt3 USING @a, @b;
+SET @a = 100, @b = 200;
+EXECUTE stmt3 USING @a, @b;
+DEALLOCATE PREPARE stmt3;
+
+DROP PROCEDURE p_prep;
+
+--echo #
+--echo # Nested calls with named parameters
+--echo #
+delimiter $$;
+CREATE PROCEDURE p_inner(x INT, y INT)
+BEGIN
+  SELECT x, y;
+END;
+$$
+CREATE PROCEDURE p_outer(a INT, b INT)
+BEGIN
+  CALL p_inner(x => b, y => a);
+END;
+$$
+delimiter ;$$
+
+CALL p_outer(a => 100, b => 200);
+
+DROP PROCEDURE p_outer;
+DROP PROCEDURE p_inner;
+
+--echo #
+--echo # Reserved words as parameter names
+--echo #
+delimiter $$;
+CREATE PROCEDURE p_reserved(`select` INT, `from` INT)
+BEGIN
+  SELECT `select`, `from`;
+END;
+$$
+delimiter ;$$
+
+CALL p_reserved(`select` => 1, `from` => 2);
+
+DROP PROCEDURE p_reserved;
+
+--echo #
+--echo # NULL and expression values
+--echo #
+delimiter $$;
+CREATE PROCEDURE p_expr(a INT, b VARCHAR(50) DEFAULT 'hello', c INT DEFAULT NULL)
+BEGIN
+  SELECT a, b, c;
+END;
+$$
+delimiter ;$$
+
+CALL p_expr(a => 1+2, b => CONCAT('world', '!'));
+CALL p_expr(a => NULL);
+CALL p_expr(a => 1, c => NULL, b => 'test');
+
+DROP PROCEDURE p_expr;
+
+--echo #
+--echo # Function with expression arguments
+--echo #
+delimiter $$;
+CREATE FUNCTION f_expr(a INT, b INT DEFAULT 10) RETURNS INT
+BEGIN
+  RETURN a + b;
+END;
+$$
+delimiter ;$$
+
+SELECT f_expr(a => 1+2);
+SELECT f_expr(a => 5, b => 20);
+
+DROP FUNCTION f_expr;
+
+--echo #
+--echo # Mixed positional and named for functions
+--echo #
+delimiter $$;
+CREATE FUNCTION f_mix(a INT, b INT, c INT) RETURNS INT
+BEGIN
+  RETURN a * 10000 + b * 100 + c;
+END;
+$$
+delimiter ;$$
+
+--echo # Positional first, then named
+SELECT f_mix(1, b => 2, c => 3);
+
+--echo # Named first then positional conflicts with slot 0
+--error ER_SP_DUP_PARAM
+SELECT f_mix(a => 1, 2);
+
+DROP FUNCTION f_mix;
+
+--echo #
+--echo # End of tests
+--echo #

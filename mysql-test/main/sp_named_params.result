@@ -1,0 +1,272 @@
+#
+# MDEV-38329: Named Parameters in Invocation of Stored Routines
+#
+# Test setup
+CREATE PROCEDURE p1(a INT, b INT, c INT)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+# All positional (existing behavior)
+CALL p1(1, 2, 3);
+a	b	c
+1	2	3
+# All named
+CALL p1(a => 1, b => 2, c => 3);
+a	b	c
+1	2	3
+# Named in different order
+CALL p1(c => 3, a => 1, b => 2);
+a	b	c
+1	2	3
+# Mixed positional and named
+CALL p1(1, b => 2, c => 3);
+a	b	c
+1	2	3
+# Mixed: first two positional, last named
+CALL p1(1, 2, c => 3);
+a	b	c
+1	2	3
+# Positional after named should fail
+CALL p1(a => 1, 2, 3);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' 3)' at line 1
+# Unknown parameter name
+CALL p1(a => 1, b => 2, x => 3);
+ERROR 42000: Undeclared variable: x
+# Duplicate parameter name
+CALL p1(a => 1, a => 2, b => 3);
+ERROR 42000: Duplicate parameter: a
+# Positional fills 'a', then 'a' again by name
+CALL p1(1, a => 2, c => 3);
+ERROR 42000: Duplicate parameter: a
+DROP PROCEDURE p1;
+#
+# Test with default values
+#
+CREATE PROCEDURE p2(a INT, b INT DEFAULT 20, c INT DEFAULT 30)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+# Skip middle param (use default for b)
+CALL p2(a => 1, c => 3);
+a	b	c
+1	20	3
+# Only required param
+CALL p2(a => 1);
+a	b	c
+1	20	30
+# All named with defaults overridden
+CALL p2(a => 10, b => 20, c => 30);
+a	b	c
+10	20	30
+# Missing required param should fail
+CALL p2(b => 2, c => 3);
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p2; expected 3, got 2
+DROP PROCEDURE p2;
+#
+# Stored functions with named parameters
+#
+CREATE FUNCTION f1(a INT, b INT, c INT) RETURNS INT
+BEGIN
+RETURN a * 10000 + b * 100 + c;
+END;
+$$
+# Positional function call
+SELECT f1(1, 2, 3);
+f1(1, 2, 3)
+10203
+# All named with =>
+SELECT f1(a => 1, b => 2, c => 3);
+f1(a => 1, b => 2, c => 3)
+10203
+# Named in different order
+SELECT f1(c => 3, a => 1, b => 2);
+f1(c => 3, a => 1, b => 2)
+10203
+# Mixed positional and named
+SELECT f1(1, b => 2, c => 3);
+f1(1, b => 2, c => 3)
+10203
+# AS alias syntax also names arguments
+SELECT f1(1 AS a, 2 AS b, 3 AS c);
+f1(1 AS a, 2 AS b, 3 AS c)
+10203
+SELECT f1(3 AS c, 1 AS a, 2 AS b);
+f1(3 AS c, 1 AS a, 2 AS b)
+10203
+# Unknown parameter name
+SELECT f1(a => 1, b => 2, x => 3);
+ERROR 42000: Undeclared variable: x
+# Duplicate parameter name
+SELECT f1(a => 1, a => 2, b => 3);
+ERROR 42000: Duplicate parameter: a
+DROP FUNCTION f1;
+#
+# Stored function with default values
+#
+CREATE FUNCTION f2(a INT, b INT DEFAULT 20, c INT DEFAULT 30) RETURNS INT
+BEGIN
+RETURN a * 10000 + b * 100 + c;
+END;
+$$
+# Skip middle param (use default for b)
+SELECT f2(a => 1, c => 3);
+f2(a => 1, c => 3)
+12003
+# Only required param
+SELECT f2(a => 1);
+f2(a => 1)
+12030
+# Missing required param should fail
+SELECT f2(b => 2, c => 3);
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f2; expected 3, got 2
+DROP FUNCTION f2;
+#
+# OUT/INOUT parameters with named args
+#
+CREATE PROCEDURE p_out(OUT x INT, IN y INT)
+BEGIN
+SET x = y * 10;
+END;
+$$
+SET @result = 0;
+CALL p_out(x => @result, y => 5);
+SELECT @result;
+@result
+50
+SET @result = 0;
+CALL p_out(y => 5, x => @result);
+SELECT @result;
+@result
+50
+SET @result = 0;
+CALL p_out(@result, y => 5);
+SELECT @result;
+@result
+50
+DROP PROCEDURE p_out;
+CREATE PROCEDURE p_inout(INOUT a INT, IN b INT)
+BEGIN
+SET a = a + b;
+END;
+$$
+SET @val = 10;
+CALL p_inout(a => @val, b => 5);
+SELECT @val;
+@val
+15
+DROP PROCEDURE p_inout;
+#
+# Prepared statements with named parameters
+#
+CREATE PROCEDURE p_prep(a INT, b INT, c INT DEFAULT 30)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+PREPARE stmt FROM 'CALL p_prep(a => ?, b => ?)';
+SET @a = 1, @b = 2;
+EXECUTE stmt USING @a, @b;
+a	b	c
+1	2	30
+DEALLOCATE PREPARE stmt;
+PREPARE stmt2 FROM 'CALL p_prep(b => ?, a => ?)';
+EXECUTE stmt2 USING @b, @a;
+a	b	c
+1	2	30
+DEALLOCATE PREPARE stmt2;
+# Re-execute prepared statement
+PREPARE stmt3 FROM 'CALL p_prep(a => ?, b => ?)';
+SET @a = 10, @b = 20;
+EXECUTE stmt3 USING @a, @b;
+a	b	c
+10	20	30
+SET @a = 100, @b = 200;
+EXECUTE stmt3 USING @a, @b;
+a	b	c
+100	200	30
+DEALLOCATE PREPARE stmt3;
+DROP PROCEDURE p_prep;
+#
+# Nested calls with named parameters
+#
+CREATE PROCEDURE p_inner(x INT, y INT)
+BEGIN
+SELECT x, y;
+END;
+$$
+CREATE PROCEDURE p_outer(a INT, b INT)
+BEGIN
+CALL p_inner(x => b, y => a);
+END;
+$$
+CALL p_outer(a => 100, b => 200);
+x	y
+200	100
+DROP PROCEDURE p_outer;
+DROP PROCEDURE p_inner;
+#
+# Reserved words as parameter names
+#
+CREATE PROCEDURE p_reserved(`select` INT, `from` INT)
+BEGIN
+SELECT `select`, `from`;
+END;
+$$
+CALL p_reserved(`select` => 1, `from` => 2);
+`select`	`from`
+1	2
+DROP PROCEDURE p_reserved;
+#
+# NULL and expression values
+#
+CREATE PROCEDURE p_expr(a INT, b VARCHAR(50) DEFAULT 'hello', c INT DEFAULT NULL)
+BEGIN
+SELECT a, b, c;
+END;
+$$
+CALL p_expr(a => 1+2, b => CONCAT('world', '!'));
+a	b	c
+3	world!	NULL
+CALL p_expr(a => NULL);
+a	b	c
+NULL	hello	NULL
+CALL p_expr(a => 1, c => NULL, b => 'test');
+a	b	c
+1	test	NULL
+DROP PROCEDURE p_expr;
+#
+# Function with expression arguments
+#
+CREATE FUNCTION f_expr(a INT, b INT DEFAULT 10) RETURNS INT
+BEGIN
+RETURN a + b;
+END;
+$$
+SELECT f_expr(a => 1+2);
+f_expr(a => 1+2)
+13
+SELECT f_expr(a => 5, b => 20);
+f_expr(a => 5, b => 20)
+25
+DROP FUNCTION f_expr;
+#
+# Mixed positional and named for functions
+#
+CREATE FUNCTION f_mix(a INT, b INT, c INT) RETURNS INT
+BEGIN
+RETURN a * 10000 + b * 100 + c;
+END;
+$$
+# Positional first, then named
+SELECT f_mix(1, b => 2, c => 3);
+f_mix(1, b => 2, c => 3)
+10203
+# Named first then positional conflicts with slot 0
+SELECT f_mix(a => 1, 2);
+ERROR 42000: Duplicate parameter: a
+DROP FUNCTION f_mix;
+#
+# End of tests
+#
