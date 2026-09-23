@@ -646,4 +646,21 @@ index_name	ranges	num_rows	max_index_blocks	max_row_blocks
 a	["(10) <= (a) <= (10)"]	49	1	11
 # == End of optimizer context
 drop table t1;
+#
+# MDEV-40837: Crash while recording context when
+# character_set_results is set to NULL
+#
+set @saved_character_set_results=@@character_set_results;
+set session character_set_results=NULL;
+select 1;
+1
+1
+# == Optimizer Context
+# === Tables
+# Tables in the context
+table_name	file_stat_records	index_name	rec_per_key
+# === Range accesses
+index_name	ranges	num_rows	max_index_blocks	max_row_blocks
+# == End of optimizer context
+set session character_set_results=@saved_character_set_results;
 # End of 13.1 tests

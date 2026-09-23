@@ -470,4 +470,14 @@ select * from t1 partition (p1) where a=10;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-40837: Crash while recording context when
+--echo # character_set_results is set to NULL
+--echo #
+set @saved_character_set_results=@@character_set_results;
+set session character_set_results=NULL;
+select 1;
+--source include/opt_context_list_tables_and_ranges.inc
+set session character_set_results=@saved_character_set_results;
+
 --echo # End of 13.1 tests
