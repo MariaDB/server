@@ -3091,11 +3091,13 @@ DROP TABLE t;
 # using JSON_KEYS after modifying character set name/collation
 #
 SET SESSION character_set_database=utf32;
-SET CHARSET DEFAULT;
-SELECT JSON_KEYS('{"":');
-JSON_KEYS('{"":')
+SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
+JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}')
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_keys'
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 25
+SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
+JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }')
+["", "k2"]
 SET SESSION character_set_database= default;
 # End of 10.11 Test

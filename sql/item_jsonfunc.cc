@@ -3882,31 +3882,32 @@ static int check_key_in_list(String *res,
 {
   const uchar *c, *end;
 
-  if (!key_len)
+  if (!res || res->length() < 2)
     return 0;
 
-  c= (const uchar *) res->ptr() + 2; /* beginning '["' */
-  end= (const uchar *) res->end() - 1; /* ending '"' */
+  c= (const uchar *) res->ptr() + 1;
+  end= (const uchar *) res->end();
 
   while (c < end)
   {
-    int n_char;
-    for (n_char=0; c[n_char] != '"' && n_char < key_len; n_char++)
+    while (c < end && *c != '"')
+      c++;
+    if (c >= end)
+      break;
+    c++;
+
+    const uchar *key_start= c;
+    int n_char= 0;
+    while (c + n_char < end && c[n_char] != '"')
     {
-      if (c[n_char] != key[n_char])
-        break;
+      n_char++;
     }
-    if (c[n_char] == '"')
-    {
-      if (n_char == key_len)
-        return 1;
-    }
-    else
-    {
-      while (c[n_char] != '"')
-        n_char++;
-    }
-    c+= n_char + 4; /* skip ', "' */
+
+    if (n_char == key_len &&
+        (key_len == 0 || memcmp(key_start, key, key_len) == 0))
+      return 1;
+
+    c+= n_char + 1;
   }
   return 0;
 }

@@ -2189,9 +2189,8 @@ DROP TABLE t;
 --echo # MDEV-39049: Memory corruption & crash in check_key_in_list upon
 --echo # using JSON_KEYS after modifying character set name/collation
 --echo #
-
 SET SESSION character_set_database=utf32;
-SET CHARSET DEFAULT;
-SELECT JSON_KEYS('{"":');
+SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
+SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
 SET SESSION character_set_database= default;
 --echo # End of 10.11 Test
