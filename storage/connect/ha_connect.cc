@@ -2901,6 +2901,36 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 } // end of CondFilter
 
 /***********************************************************************/
+/*  Return true if appending addlen more bytes (plus the terminating   */
+/*  null) to the Body/Having buffer designated by ishav would still    */
+/*  fit within its actually reserved capacity (filp->Blen/Hlen).       */
+/***********************************************************************/
+static bool CondFilFits(PCFIL filp, bool ishav, size_t addlen)
+{
+	char  *s= ishav ? filp->Having : filp->Body;
+	size_t smax= ishav ? filp->Hlen : filp->Blen;
+
+	return strlen(s) + addlen < smax;
+} // end of CondFilFits
+
+/***********************************************************************/
+/*  Append add to the Body/Having buffer designated by ishav, but only */
+/*  if it still fits. Return false, leaving the buffer unchanged, when */
+/*  it does not: the caller then gives up pushing the condition down.  */
+/***********************************************************************/
+static bool CondFilCat(PCFIL filp, bool ishav, const char *add)
+{
+	char  *s= ishav ? filp->Having : filp->Body;
+	size_t len= strlen(s);
+
+	if (!CondFilFits(filp, ishav, strlen(add)))
+		return false;
+
+	strcpy(s + len, add);
+	return true;
+} // end of CondFilCat
+
+/***********************************************************************/
 /*  Check the WHERE condition and return a MYSQL/ODBC/JDBC/WQL filter. */
 /***********************************************************************/
 PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
@@ -2945,12 +2975,18 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     const Item *subitem;
 
     pb0= pb1= body + strlen(body);
-    strcpy(pb0, "(");
+
+    if (!CondFilCat(filp, false, "("))
+      return NULL;
+
     pb2= pb1 + 1;
 
 		if (havg) {
 			ph0= ph1= havg + strlen(havg);
-			strcpy(ph0, "(");
+
+			if (!CondFilCat(filp, true, "("))
+				return NULL;
+
 			ph2= ph1 + 1;
 		} // endif havg
 
@@ -2967,13 +3003,19 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
         } else {
 					if (filp->Bd) {
 						pb1= pb2 + strlen(pb2);
-						strcpy(pb1, GetValStr(vop, false));
+
+						if (!CondFilCat(filp, false, GetValStr(vop, false)))
+							return NULL;
+
 						pb2= pb1 + strlen(pb1);
 					} // endif Bd
 
 					if (filp->Hv) {
 						ph1= ph2 + strlen(ph2);
-						strcpy(ph1, GetValStr(vop, false));
+
+						if (!CondFilCat(filp, true, GetValStr(vop, false)))
+							return NULL;
+
 						ph2= ph1 + strlen(ph1);
 					} // endif Hv
 
@@ -2986,6 +3028,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
         return NULL;
 
     if (bb)	{
+			// Overwrites the trailing operator, so this cannot grow the buffer
       strcpy(pb1, ")");
 			filp->Bd= bb;
 		} else
@@ -2998,6 +3041,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 				*pb0= 0;
 				*ph0= 0;
 			} else if (bh)	{
+				// Overwrites the trailing operator, so this cannot grow the buffer
 				strcpy(ph1, ")");
 				filp->Hv= bh;
 			} else
@@ -3116,10 +3160,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           htrc("Field type=%d\n", pField->field->type());
           htrc("Field_type=%d\n", args[i]->field_type());
         } // endif trace
-        if (tty == TYPE_AM_MYSQL && !(x || ismul))
-          strcat((ishav ? havg : body), strColumn.ptr());
-        else
-          strcat((ishav ? havg : body), fnm);
+        if (!CondFilCat(filp, ishav, (tty == TYPE_AM_MYSQL && !(x || ismul)) ?
+                                      strColumn.ptr() : fnm))
+          return NULL;
       } else if (args[i]->type() == COND::FUNC_ITEM) {
         if (tty == TYPE_AM_MYSQL) {
           if (!CheckCond(g, filp, args[i]))
@@ -3157,6 +3200,14 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 					const char *p;
 					char *s= (ishav) ? havg : body;
 					uint	j, k, n;
+
+					/*
+					  A literal value (e.g. a string constant) can be arbitrarily large.
+					  Refuse to push this condition down rather than write past the end of
+						the pre-allocated buffer; let the caller do the filtering instead.
+					*/
+					if (!CondFilFits(filp, ishav, (size_t)res->length() * 2 + 32))
+						return NULL;
 
           // Append the value to the filter
           switch (args[i]->field_type()) {
@@ -3267,14 +3318,17 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
       } // endif's Type
 
       if (!x) {
-				char *s= (ishav) ? havg : body;
+				const char *add= NULL;
 
 				if (!i)
-          strcat(s, GetValStr(vop, neg));
+          add= GetValStr(vop, neg);
         else if (vop == OP_XX && i == 1)
-          strcat(s, " AND ");
+          add= " AND ";
         else if (vop == OP_IN)
-          strcat(s, (i == condf->argument_count() - 1) ? ")" : ",");
+          add= (i == condf->argument_count() - 1) ? ")" : ",";
+
+				if (add && !CondFilCat(filp, ishav, add))
+					return NULL;
 
         } // endif x
 
@@ -3345,11 +3399,19 @@ const COND *ha_connect::cond_push(const COND *cond)
 				if (rc == RC_INFO) {
 					filp->Having= (char*)PlugSubAlloc(g, NULL, 256);
 					*filp->Having= 0;
+					filp->Hlen= 256;    // HAVING's own dedicated reservation
 				} else if (rc == RC_FX)
 					goto fin;
 
 				filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
 				*filp->Body= 0;
+
+				/*
+				  Body is not (or minimally) pre-reserved; it relies on whatever is
+					left in the work area (Sarea). Record that true remaining capacity so
+					CheckCond can refuse to grow Body past the allocated work area.
+				*/
+				filp->Blen= PlugSubAllocLeft(g, NULL);
 
 				if (CheckCond(g, filp, cond)) {
 					if (filp->Having && strlen(filp->Having) > 255)
