@@ -1222,3 +1222,52 @@ ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
 DO FETCH GROUP NEXT ROW;
 ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
 # End of 10.4 tests
+#
+# MDEV-38004 Double free on repeated execution of prepared aggregate
+# function against empty table in Query_arena::free_items()
+#
+create aggregate function agg_cnt() returns int
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+1;
+end loop;
+end|
+create table t1 (id int);
+prepare stmt from "select agg_cnt() from t1";
+execute stmt;
+agg_cnt()
+NULL
+execute stmt;
+agg_cnt()
+NULL
+insert into t1 values (1),(2),(2);
+execute stmt;
+agg_cnt()
+3
+execute stmt;
+agg_cnt()
+3
+deallocate prepare stmt;
+#
+# Compare with
+select agg_cnt() from t1;
+agg_cnt()
+3
+prepare stmt from "select id, agg_cnt() from t1 group by id with rollup";
+execute stmt;
+id	agg_cnt()
+1	1
+2	2
+NULL	3
+execute stmt;
+id	agg_cnt()
+1	1
+2	2
+NULL	3
+deallocate prepare stmt;
+drop function agg_cnt;
+drop table t1;
+# End of 10.11 tests
