@@ -6964,12 +6964,12 @@ add_key_field(JOIN *join,
 
 static void
 add_key_equal_fields(JOIN *join, KEY_FIELD **key_fields, uint and_level,
-                     Item_bool_func *cond, Item *field_item,
+                     Item_bool_func *cond, Item_field *field_item,
                      bool eq_func, Item **val,
                      uint num_values, table_map usable_tables,
                      SARGABLE_PARAM **sargables, uint row_col_no= 0)
 {
-  Field *field= ((Item_field *) (field_item->real_item()))->field;
+  Field *field= field_item->field;
   add_key_field(join, key_fields, and_level, cond, field,
                 eq_func, val, num_values, usable_tables, sargables,
                 row_col_no);
@@ -7003,16 +7003,19 @@ add_key_equal_fields(JOIN *join, KEY_FIELD **key_fields, uint and_level,
   @param   field  Item expression to check
 
   @return boolean
-     @retval TRUE   the expression is a local field
-     @retval FALSE  it's something else
+     @retval argument cast to Item_field* if the expression is a local field
+     @retval NULL if it's something else
 */
 
-static bool
-is_local_field (Item *field)
+static Item_field *get_local_field (Item *field)
 {
-  return field->real_item()->type() == Item::FIELD_ITEM
-     && !(field->used_tables() & OUTER_REF_TABLE_BIT)
-    && !((Item_field *)field->real_item())->get_depended_from();
+  if (field->real_item()->type() == Item::FIELD_ITEM &&
+      !(field->used_tables() & OUTER_REF_TABLE_BIT))
+  {
+    Item_field *f= (Item_field *)field->real_item();
+    return f->get_depended_from() ? NULL : f;
+  }
+  return NULL;
 }
 
 
@@ -7111,7 +7114,6 @@ Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
     It is handled similar to the equivalent condition 
     'a >= low AND a <= high':
   */
-  Item_field *field_item;
   bool equal_func= false;
   uint num_values= 2;
 
@@ -7133,13 +7135,11 @@ Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
     condition is of the form::
     '<field> BETWEEN value[1] AND value[2]'
   */
-  if (is_local_field(args[0]))
-  {
-    field_item= (Item_field *) (args[0]->real_item());
+  if (Item_field *field_item= get_local_field(args[0]))
     add_key_equal_fields(join, key_fields, *and_level, this,
                          field_item, equal_func, &args[1],
                          num_values, usable_tables, sargables);
-  }
+
   /*
     Append keys for 'value[0] <cmp> field' if the
     condition is of the form:
@@ -7147,13 +7147,9 @@ Item_func_between::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
   */
   for (uint i= 1; i <= num_values; i++)
   {
-    if (is_local_field(args[i]))
-    {
-      field_item= (Item_field *) (args[i]->real_item());
-      add_key_equal_fields(join, key_fields, *and_level, this,
-                           field_item, equal_func, args,
-                           1, usable_tables, sargables);
-    }
+    if (Item_field *field_item= get_local_field(args[i]))
+      add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                           equal_func, args, 1, usable_tables, sargables);
   }
 }
 
@@ -7163,7 +7159,7 @@ Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                              uint *and_level, table_map usable_tables,
                              SARGABLE_PARAM **sargables)
 {
-  if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
+  if (get_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
   {
     DBUG_ASSERT(arg_count != 2);
     add_key_equal_fields(join, key_fields, *and_level, this,
@@ -7177,15 +7173,10 @@ Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
     Item **key_col= key_row->addr(0);
     uint row_cols= key_row->cols();
     for (uint i= 0; i < row_cols; i++, key_col++)
-    {
-      if (is_local_field(*key_col))
-      {
-        Item_field *field_item= (Item_field *)((*key_col)->real_item());
+      if (Item_field *field_item= get_local_field(*key_col))
         add_key_equal_fields(join, key_fields, *and_level, this,
                              field_item, false, args + 1, arg_count - 1,
                              usable_tables, sargables, i + 1);
-      } 
-    }
   }
   
 }
@@ -7199,19 +7190,19 @@ Item_func_ne::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
   if (!(used_tables() & OUTER_REF_TABLE_BIT))
   {
     /*
-      QQ: perhaps test for !is_local_field(args[1]) is not really needed here.
+      QQ: perhaps test for !get_local_field(args[1]) is not really needed here.
       Other comparison functions, e.g. Item_func_le, Item_func_gt, etc,
       do not have this test. See Item_bool_func2::add_key_fieldoptimize_op().
       Check with the optimizer team.
     */
-    if (is_local_field(args[0]) && !is_local_field(args[1]))
+    if (get_local_field(args[0]) && !get_local_field(args[1]))
       add_key_equal_fields(join, key_fields, *and_level, this,
                            (Item_field*) (args[0]->real_item()), false,
                            &args[1], 1, usable_tables, sargables);
     /*
-      QQ: perhaps test for !is_local_field(args[0]) is not really needed here.
+      QQ: perhaps test for !get_local_field(args[0]) is not really needed here.
     */
-    if (is_local_field(args[1]) && !is_local_field(args[0]))
+    if (get_local_field(args[1]) && !get_local_field(args[0]))
       add_key_equal_fields(join, key_fields, *and_level, this,
                            (Item_field*) (args[1]->real_item()), false,
                            &args[0], 1, usable_tables, sargables);
@@ -7224,7 +7215,7 @@ Item_func_like::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                                uint *and_level, table_map usable_tables,
                                SARGABLE_PARAM **sargables)
 {
-  if (is_local_field(args[0]) && with_sargable_pattern())
+  if (get_local_field(args[0]) && with_sargable_pattern())
   {
     /*
       SELECT * FROM t1 WHERE field LIKE const_pattern
@@ -7245,12 +7236,9 @@ Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                                             bool equal_func)
 {
   /* If item is of type 'field op field/constant' add it to key_fields */
-  if (is_local_field(args[0]))
-  {
-    add_key_equal_fields(join, key_fields, *and_level, this,
-                         (Item_field*) args[0]->real_item(), equal_func,
-                         args + 1, 1, usable_tables, sargables);
-  }
+  if (Item_field *field_item= get_local_field(args[0]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         equal_func, args + 1, 1, usable_tables, sargables);
   else
   {
     Item_field *field= NULL;
@@ -7262,12 +7250,9 @@ Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                            false, args + value_idx, 1, usable_tables, sargables);
     }
   }
-  if (is_local_field(args[1]))
-  {
-    add_key_equal_fields(join, key_fields, *and_level, this, 
-                         (Item_field*) args[1]->real_item(), equal_func,
-                         args, 1, usable_tables, sargables);
-  }
+  if (Item_field *field_item= get_local_field(args[1]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         equal_func, args, 1, usable_tables, sargables);
 }
 
 
@@ -7278,15 +7263,13 @@ Item_func_truth::add_key_fields(JOIN *join,
                                 table_map usable_tables,
                                 SARGABLE_PARAM **sargables)
 {
-  if (is_local_field(args[0]))
+  if (Item_field *field_item= get_local_field(args[0]))
   {
     Item *tmp= args[0]->type_handler()->create_boolean_false_item(join->thd);
     if (unlikely(!tmp))
       return;
-    add_key_equal_fields(join, key_fields, *and_level, this,
-                         (Item_field*) args[0]->real_item(),
-                         false/*equal_func*/,
-                         &tmp, 1, usable_tables, sargables);
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false/*equal_func*/, &tmp, 1, usable_tables, sargables);
   }
 }
 
@@ -7298,7 +7281,7 @@ Item_func_null_predicate::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                                          SARGABLE_PARAM **sargables)
 {
   /* column_name IS [NOT] NULL */
-  if (is_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
+  if (get_local_field(args[0]) && !(used_tables() & OUTER_REF_TABLE_BIT))
   {
     Item *tmp= new (join->thd->mem_root) Item_null(join->thd);
     if (unlikely(!tmp))                       // Should never be true
