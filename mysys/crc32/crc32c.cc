@@ -491,7 +491,10 @@ extern "C" my_crc32_t crc32c_aarch64_available(void);
 extern "C" const char *crc32c_aarch64_impl(my_crc32_t);
 #elif defined HAVE_RISCV_ZBC
 extern "C" unsigned crc32c_riscv_zbc(unsigned, const void *, size_t);
-extern "C" int rv_zbc_supported(void *);
+# ifdef HAVE_RISCV_ZVBC
+extern "C" unsigned crc32c_riscv_zvbc(unsigned, const void *, size_t);
+# endif
+extern "C" unsigned rv_riscv_crc_ext(void *);
 extern "C" const char *crc32c_riscv_impl(my_crc32_t);
 #elif defined __i386__||defined __x86_64__||defined _M_X64||defined _M_IX86
 extern "C" my_crc32_t crc32c_x86_available(void);
@@ -501,7 +504,33 @@ extern "C" const char *crc32c_x86_impl(my_crc32_t);
 #if defined HAVE_RISCV_ZBC
 static my_crc32_t crc32c_riscv_choose(void *hwprobe)
 {
-  return rv_zbc_supported(hwprobe) ? crc32c_riscv_zbc : crc32c_slow;
+  unsigned ext= rv_riscv_crc_ext(hwprobe);
+  /* Where scalar Zbc is available, prefer it over the Zvbc vector core.
+
+     The vector core does not buy extra parallelism here. To stay
+     bit-exact with the scalar core it reuses exactly the same fold:
+     four 128-bit lanes over a fixed 64-byte span, with the same
+     constants k1..k4 and the same Barrett step. It therefore caps vl
+     at 4 and folds 64 bytes per iteration however wide VLEN is, and it
+     issues the same number of carry-less multiplies. Its only edge is
+     a single de-interleaving segment load per 64 bytes, which on large
+     input is offset by its per-call overhead (vsetvl, and injecting
+     the CRC into lane 0 through a store/load round trip): on Spacemit
+     X100 (VLEN=256) it ties the scalar fold at 64 KiB (11398 vs 11687
+     MB/s) and loses on small input (128 B: 1147 vs 5540 MB/s,
+     1 KiB: 5466 vs 10277 MB/s).
+
+     Its reason to exist is cores that implement Zvbc but not scalar
+     Zbc, where the only alternative is the slicing-by-4 crc32c_slow.
+     Where Zbc is present, selecting it would only touch the vector
+     register file for no gain. */
+  if (ext & 1)
+    return crc32c_riscv_zbc;
+#ifdef HAVE_RISCV_ZVBC
+  if (ext & 2)                    /* Zvbc only (no scalar Zbc) */
+    return crc32c_riscv_zvbc;
+#endif
+  return crc32c_slow;
 }
 
 /* The RISC-V resolver. Unlike the other architectures, the implementation is
@@ -509,7 +538,7 @@ static my_crc32_t crc32c_riscv_choose(void *hwprobe)
    target operating systems of RISC-V (Linux and FreeBSD) support that.
 
    The dynamic linker calls this at load time, before main(), so it may only
-   run code that is safe there. rv_zbc_supported() is: it uses the
+   run code that is safe there. rv_riscv_crc_ext() is: it uses the
    riscv_hwprobe system call and nothing else.
 
    The resolver must never return NULL. Whereas the *_available() functions

@@ -185,6 +185,35 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64|RISCV64")
         crc32/crc32c_riscv.cc crc32/crc32c_riscv_zbc.cc)
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_riscv_zbc.cc PROPERTIES
         COMPILE_FLAGS "-march=rv64gc_zbc_zbb")
+
+      # Zvbc vector core (optional): separate TU compiled for the vector
+      # extension; the runtime probe/dispatch stay in crc32c_riscv.cc.
+      # Zbc is deliberately left out of the -march: this core is all-vector,
+      # and with Zbc present GCC's -foptimize-crc (on by default at -O2 since
+      # GCC 15) rewrites the bitwise fallback in that file into scalar clmul
+      # instructions, which do not exist on the Zvbc-without-Zbc cores this
+      # code is for.
+      SET(SAVE_REQ_FLAGS2 "${CMAKE_REQUIRED_FLAGS}")
+      SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -march=rv64gc_zbb_zvbc")
+      CHECK_CXX_SOURCE_COMPILES("
+      #include <riscv_vector.h>
+      #include <stdint.h>
+      uint64_t f(uint64_t a, const uint64_t *p, size_t vl) {
+        vuint64m1_t v = __riscv_vle64_v_u64m1(p, vl);
+        return __riscv_vmv_x_s_u64m1_u64(__riscv_vclmul_vx_u64m1(v, a, vl));
+      }
+      int main() { uint64_t x[4]={1,2,3,4}; return (int) f(5, x, 4); }
+      " HAVE_RISCV_ZVBC)
+      SET(CMAKE_REQUIRED_FLAGS "${SAVE_REQ_FLAGS2}")
+      IF(HAVE_RISCV_ZVBC)
+        MESSAGE(STATUS "RISC-V Zvbc detected: enabling vector CRC32C")
+        SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_riscv_zvbc.cc)
+        SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_riscv_zvbc.cc PROPERTIES
+          COMPILE_FLAGS "-march=rv64gc_zbb_zvbc")
+        ADD_DEFINITIONS(-DHAVE_RISCV_ZVBC)
+      ELSE()
+        MESSAGE(STATUS "RISC-V Zvbc not available: using Zbc scalar CRC32C")
+      ENDIF()
     ENDIF()
   ENDIF()
 ENDIF()
