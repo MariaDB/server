@@ -491,7 +491,10 @@ extern "C" my_crc32_t crc32c_aarch64_available(void);
 extern "C" const char *crc32c_aarch64_impl(my_crc32_t);
 #elif defined HAVE_RISCV_ZBC
 extern "C" unsigned crc32c_riscv_zbc(unsigned, const void *, size_t);
-extern "C" int rv_zbc_supported(void *);
+# ifdef HAVE_RISCV_ZVBC
+extern "C" unsigned crc32c_riscv_zvbc(unsigned, const void *, size_t);
+# endif
+extern "C" unsigned rv_riscv_crc_ext(void *);
 extern "C" const char *crc32c_riscv_impl(my_crc32_t);
 #elif defined __i386__||defined __x86_64__||defined _M_X64||defined _M_IX86
 extern "C" my_crc32_t crc32c_x86_available(void);
@@ -501,7 +504,14 @@ extern "C" const char *crc32c_x86_impl(my_crc32_t);
 #if defined HAVE_RISCV_ZBC
 static my_crc32_t crc32c_riscv_choose(void *hwprobe)
 {
-  return rv_zbc_supported(hwprobe) ? crc32c_riscv_zbc : crc32c_slow;
+  unsigned ext= rv_riscv_crc_ext(hwprobe);
+  if (ext & 1)                    /* scalar Zbc available: prefer it */
+    return crc32c_riscv_zbc;
+#ifdef HAVE_RISCV_ZVBC
+  if (ext & 2)                    /* Zvbc only (no scalar Zbc) */
+    return crc32c_riscv_zvbc;
+#endif
+  return crc32c_slow;
 }
 
 /* The RISC-V resolver. Unlike the other architectures, the implementation is
@@ -509,7 +519,7 @@ static my_crc32_t crc32c_riscv_choose(void *hwprobe)
    target operating systems of RISC-V (Linux and FreeBSD) support that.
 
    The dynamic linker calls this at load time, before main(), so it may only
-   run code that is safe there. rv_zbc_supported() is: it uses the
+   run code that is safe there. rv_riscv_crc_ext() is: it uses the
    riscv_hwprobe system call and nothing else.
 
    The resolver must never return NULL. Whereas the *_available() functions
