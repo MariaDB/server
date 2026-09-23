@@ -592,43 +592,59 @@ static void stop_ddl_logging()
 }
 
 
-static inline char *add_str_to_buffer(char *ptr, const LEX_CSTRING *from)
+/*
+  Longest name that can reach add_name_to_buffer(): a #mysql50#-prefixed
+  compatibility name keeps its prefix all the way to backup_log_ddl() (the
+  prefix is only stripped for the filename-length check, see
+  check_n_cut_mysql50_prefix()), so up to NAME_CHAR_LEN characters can
+  follow it. Each such character can expand to 5 bytes once re-encoded into
+  my_charset_filename (see my_wc_mb_filename()).
+*/
+#define BACKUP_LOG_MAX_NAME_LEN \
+  ((NAME_CHAR_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH) * 5)
+
+static inline char *add_str_to_buffer(char *ptr, const LEX_CSTRING *from,
+                                       const char *end)
 {
+  DBUG_ASSERT(ptr + from->length + 1 <= end);
   if (from->length)                           // If length == 0, str may be 0
     memcpy(ptr, from->str, from->length);
   ptr[from->length]= '\t';
   return ptr+ from->length + 1;
 }
 
-static char *add_name_to_buffer(char *ptr, const LEX_CSTRING *from)
+static char *add_name_to_buffer(char *ptr, const LEX_CSTRING *from,
+                                 const char *end)
 {
   LEX_CSTRING tmp;
-  char buff[NAME_LEN*4];
+  char buff[BACKUP_LOG_MAX_NAME_LEN];
   uint errors;
 
   tmp.str= buff;
   tmp.length= strconvert(system_charset_info, from->str, from->length,
                          &my_charset_filename, buff, sizeof(buff), &errors);
-  return add_str_to_buffer(ptr, &tmp);
+  return add_str_to_buffer(ptr, &tmp, end);
 }
 
 
-static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from)
+static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from,
+                               const char *end)
 {
   LEX_CSTRING tmp;
   char buff[MY_UUID_STRING_LENGTH];
 
   if (!from->length)
-    return add_str_to_buffer(ptr, (LEX_CSTRING*) from);
+    return add_str_to_buffer(ptr, (LEX_CSTRING*) from, end);
 
   tmp.str= buff;
   tmp.length= MY_UUID_STRING_LENGTH;
   my_uuid2str(from->str, buff, 1);
-  return add_str_to_buffer(ptr, &tmp);
+  return add_str_to_buffer(ptr, &tmp, end);
 }
 
 
-static char *add_bool_to_buffer(char *ptr, bool value) {
+static char *add_bool_to_buffer(char *ptr, bool value, const char *end) {
+  DBUG_ASSERT(ptr + 2 <= end);
   *(ptr++) = value ? '1' : '0';
   *(ptr++) = '\t';
   return ptr;
@@ -658,8 +674,14 @@ void backup_log_ddl(const backup_log_info *info)
       mysql_mutex_unlock(&LOCK_backup_log);
       return;
     }
-    /* Enough place for db.table *2 + query + engine_name * 2 + tabs+ uuids */
-    char buff[NAME_CHAR_LEN*4+20+40*2+10+MY_UUID_STRING_LENGTH*2], *ptr= buff;
+    /*
+      Enough place for timestamp, query, org/new engine_name, org/new
+      partitioned flag, org/new database, org/new table, org/new table id
+      and tabs.
+    */
+    char buff[20 + 20 + NAME_CHAR_LEN*2 + 2*2 +
+              BACKUP_LOG_MAX_NAME_LEN*4 + MY_UUID_STRING_LENGTH*2 + 16];
+    char *ptr= buff, *const end= buff + sizeof(buff);
     char timebuff[20];
     struct tm current_time;
     LEX_CSTRING tmp_lex;
@@ -675,21 +697,21 @@ void backup_log_ddl(const backup_log_info *info)
                              current_time.tm_hour,
                              current_time.tm_min,
                              current_time.tm_sec);
-    ptr= add_str_to_buffer(ptr, &tmp_lex);
+    ptr= add_str_to_buffer(ptr, &tmp_lex, end);
 
-    ptr= add_str_to_buffer(ptr,  &info->query);
-    ptr= add_str_to_buffer(ptr,  &info->org_storage_engine_name);
-    ptr= add_bool_to_buffer(ptr, info->org_partitioned);
-    ptr= add_name_to_buffer(ptr, &info->org_database);
-    ptr= add_name_to_buffer(ptr, &info->org_table);
-    ptr= add_id_to_buffer(ptr,   &info->org_table_id);
+    ptr= add_str_to_buffer(ptr,  &info->query, end);
+    ptr= add_str_to_buffer(ptr,  &info->org_storage_engine_name, end);
+    ptr= add_bool_to_buffer(ptr, info->org_partitioned, end);
+    ptr= add_name_to_buffer(ptr, &info->org_database, end);
+    ptr= add_name_to_buffer(ptr, &info->org_table, end);
+    ptr= add_id_to_buffer(ptr,   &info->org_table_id, end);
 
     /* The following fields are only set in case of rename */
-    ptr= add_str_to_buffer(ptr,  &info->new_storage_engine_name);
-    ptr= add_bool_to_buffer(ptr, info->new_partitioned);
-    ptr= add_name_to_buffer(ptr, &info->new_database);
-    ptr= add_name_to_buffer(ptr, &info->new_table);
-    ptr= add_id_to_buffer(ptr,   &info->new_table_id);
+    ptr= add_str_to_buffer(ptr,  &info->new_storage_engine_name, end);
+    ptr= add_bool_to_buffer(ptr, info->new_partitioned, end);
+    ptr= add_name_to_buffer(ptr, &info->new_database, end);
+    ptr= add_name_to_buffer(ptr, &info->new_table, end);
+    ptr= add_id_to_buffer(ptr,   &info->new_table_id, end);
 
     ptr[-1]= '\n';                              // Replace last tab with nl
     if (mysql_file_write(backup_log, (uchar*) buff, (size_t) (ptr-buff),
