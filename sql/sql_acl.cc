@@ -3357,6 +3357,7 @@ bool acl_getroot(Security_context *sctx, const char *user, const char *host,
       sctx->master_access= acl_role->access;
 
       strmake_buf(sctx->priv_role, user);
+      strmake_buf(sctx->priv_user, user);
     }
   }
 
