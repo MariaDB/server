@@ -46,7 +46,6 @@ a	b
 DELETE FROM t;
 DROP TABLE at0, at1;
 rt.ibd
-rtt.frm
 # restart: --defaults-file=MYSQLTEST_VARDIR/some_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_directory
 SELECT * FROM rtt;
 a
