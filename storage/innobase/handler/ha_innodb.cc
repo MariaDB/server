@@ -16450,10 +16450,21 @@ int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
         makes redundant. UPDATE and DELETE also advise a full scan, but
         they need the clustered index record in order to write it, hence
         the restriction to SQLCOM_SELECT. The HANDLER interface keeps a
-        scrollable cursor, so exclude it as well. */
+        scrollable cursor, so exclude it as well.
+
+        Placing the lock is not the only thing the clustered index visit
+        does. Under innodb_snapshot_isolation, with a read view already
+        open, lock_clust_rec_read_check_and_lock() also compares the
+        clustered record's DB_TRX_ID against that read view and reports
+        DB_RECORD_CHANGED for a row that the view cannot see. The
+        table-level lock says nothing about read view visibility, and
+        DB_TRX_ID is not stored in a secondary index record, so in that
+        case we must keep visiting the clustered index. */
         m_prebuilt->full_scan_covering_read=
           thd_sql_command(ha_thd()) == SQLCOM_SELECT &&
-          !m_prebuilt->used_in_HANDLER;
+          !m_prebuilt->used_in_HANDLER &&
+          !(m_prebuilt->trx->snapshot_isolation &&
+            m_prebuilt->trx->read_view.is_open());
       }
       return 0;
     default:/* Do nothing */
