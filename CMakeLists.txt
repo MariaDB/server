@@ -537,7 +537,7 @@ ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
-  SET(EXPORTED comp_err comp_sql factorial uca-dump)
+  SET(EXPORTED comp_err comp_sql factorial uca-dump generate_option_list)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
   ENDIF()
