@@ -319,8 +319,8 @@ IF(CONNECT_WITH_ZIP)
     tabzip.cpp filamzip.h tabzip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
   SET_SOURCE_FILES_PROPERTIES(${MINIZIP_SOURCES} PROPERTIES COMPILE_FLAGS "\
-    $<${have_C__Wmissing_declarations}:-Wno-missing-declarations> \
-    $<${have_C__Wdeclaration_after_statement}:-Wno-declaration-after-statement> \
+    $<$<BOOL:${have_C__Wmissing_declarations}>:-Wno-missing-declarations> \
+    $<$<BOOL:${have_C__Wdeclaration_after_statement}>:-Wno-declaration-after-statement> \
   ")
 ENDIF(CONNECT_WITH_ZIP)
 ADD_FEATURE_INFO(CONNECT_ZIP CONNECT_WITH_ZIP "Support for ZIP in the CONNECT storage engine")
