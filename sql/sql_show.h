@@ -21,6 +21,7 @@
 #include "handler.h"                            /* enum_schema_tables */
 #include "table.h"                              /* enum_schema_table_state */
 #include "my_apc.h"
+#include <my_base.h>                            /* HA_POS_ERROR, ha_rows */
 
 /* Forward declarations */
 class JOIN;
@@ -238,7 +239,8 @@ public:
                          is_optimized_query(false), is_single_row(false),
                          abort_scan(false), fp_state(FP_INACTIVE),
                          projection_fields(NULL), partial_cond(NULL),
-                         full_cond(NULL) {}
+                         full_cond(NULL), max_rows(HA_POS_ERROR),
+                         sent_rows(0) {}
 
   bool no_rows;
   /*
@@ -252,7 +254,7 @@ public:
   /* Flags for I_S fast-path optimization */
   bool is_optimized_query;  /* Can this query bypass temp table? */
   bool is_single_row;       /* Does it only need 1 row? */
-  bool abort_scan;          /* Signal to stop I_S scan early */
+  bool abort_scan;          /* Stop I_S scan after a sent-row limit */
   enum fp_state_t {
     FP_INACTIVE=0,   /* fast path not engaged           */
     FP_ACTIVE,       /* fast path on, metadata pending  */
@@ -263,6 +265,8 @@ public:
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Item *partial_cond;
   Item *full_cond;  /* complete original WHERE/HAVING, for fast-path row filtering */
+  ha_rows max_rows;         /* LIMIT / @@sql_select_limit cap */
+  ha_rows sent_rows;        /* Matching rows streamed on the fast path */
 
   bool has_db_lookup_value()
   {

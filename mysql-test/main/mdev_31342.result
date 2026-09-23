@@ -793,3 +793,132 @@ EXPLAIN
     ]
   }
 }
+#
+# MDEV-41164: SELECT INTO OUTFILE must use the fallback path
+#
+SELECT TABLE_NAME INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/mdev_31342_outfile.txt' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+user
+#
+# MDEV-41165: ANALYZE SELECT must not assert / double-EOF
+#
+ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+SELECT 'analyze_ok' AS mdev_41165;
+mdev_41165
+analyze_ok
+#
+# MDEV-41167: LIMIT 1 must stop after a matching row, not the first scan
+#
+CREATE DATABASE mdev41167;
+CREATE TABLE mdev41167.tb1(a INT);
+CREATE TABLE mdev41167.tb2(a INT);
+CREATE TABLE mdev41167.tb3(a INT);
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41167' AND (TABLE_NAME='tb1' OR TABLE_CATALOG='nope')
+LIMIT 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mdev41167' and (information_schema.`TABLES`.`TABLE_NAME` = 'tb1' or information_schema.`TABLES`.TABLE_CATALOG = 'nope')",
+          "skip_open_table": true,
+          "scanned_databases": 1,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41167' AND (TABLE_NAME='tb1' OR TABLE_CATALOG='nope')
+LIMIT 1;
+TABLE_NAME
+tb1
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41167' AND (TABLE_NAME='tb2' OR TABLE_CATALOG='nope')
+LIMIT 1;
+TABLE_NAME
+tb2
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41167' AND (TABLE_NAME='tb3' OR TABLE_CATALOG='nope')
+LIMIT 1;
+TABLE_NAME
+tb3
+DROP DATABASE mdev41167;
+#
+# MDEV-41171: @@sql_select_limit and FOUND_ROWS() on the fast path
+#
+CREATE DATABASE mdev41171;
+CREATE TABLE mdev41171.t1(i INT);
+CREATE TABLE mdev41171.t2(i INT);
+CREATE TABLE mdev41171.t3(i INT);
+SET @@session.sql_select_limit=2;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mdev41171';
+TABLE_CATALOG
+def
+def
+SET @@session.sql_select_limit=DEFAULT;
+SELECT 1;
+1
+1
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mdev41171';
+TABLE_NAME
+t1
+t2
+t3
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+3
+DROP DATABASE mdev41171;
+#
+# MDEV-41196: SQL_BUFFER_RESULT must not return empty column values
+#
+EXPLAIN FORMAT=JSON SELECT SQL_BUFFER_RESULT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "TABLES",
+            "access_type": "ALL",
+            "key": "TABLE_SCHEMA,TABLE_NAME",
+            "loops": 1,
+            "cost": 0.01423506,
+            "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+            "skip_open_table": true,
+            "scanned_databases": 0
+          }
+        }
+      ]
+    }
+  }
+}
+SELECT SQL_BUFFER_RESULT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME
+def	mysql	user
+#
+# MDEV-41199: PROCEDURE ANALYSE() must not be ignored
+#
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user' PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+information_schema.TABLES.TABLE_NAME	user	user	4	4	0	0	4.0000	NULL	ENUM('user') NOT NULL
+#
+# MDEV-41204: client cursor protocol uses fallback
+# (also covered by running this test with --cursor-protocol)
+#
