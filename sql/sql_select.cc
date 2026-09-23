@@ -14481,6 +14481,26 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
 }
 
 
+/*
+  Find the last top level table in the join order that is neither
+  const nor a materialized semijoin nest.  Return its index in
+  join->join_tab, or a value below join->const_tables when no such
+  table exists.
+*/
+
+static uint
+get_last_top_base_tab_idx(const JOIN *join)
+{
+  uint i;
+  for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
+  {
+    if (!join->join_tab[i].bush_children)
+      break;
+  }
+  return i;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -14494,6 +14514,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           "attached_conditions_computation");
     add_not_null_conds(join);
     table_map used_tables;
+
+    /* Step #1 and Step #2 both decide from this index. */
+    const uint last_top_base_tab_idx= get_last_top_base_tab_idx(join);
+
     /*
       Step #1: Extract constant condition
        - Extract and check the constant part of the WHERE 
@@ -14559,40 +14583,43 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           join->exec_const_cond= const_cond;
         }
 
-        if (join->table_count != join->const_tables)
         {
-          COND *outer_ref_cond= make_cond_for_table(thd, cond,
-                                                    join->const_table_map |
-                                                    OUTER_REF_TABLE_BIT,
-                                                    OUTER_REF_TABLE_BIT,
-                                                    -1, FALSE, FALSE);
-          if (outer_ref_cond)
+          /*
+            Collect the conjuncts that refer to at least one pseudo table
+            in pseudo_bits and to no table that is not const.  Each is
+            checked once for each execution of the query, and if it is
+            false the join returns no rows.
+
+            A column of an outer query has one value for each execution,
+            so conjuncts that refer to one are always collected.  rand()
+            takes a new value on each call, and its conjunct is checked
+            for each row of the last top level table that is neither const
+            nor a materialized semijoin nest.  When no such table exists,
+            the join returns at most one row, one check gives the same
+            result, and the conjunct is collected here.
+
+            A join of only const tables checks pseudo_bits_cond, and
+            outer_ref_cond must be empty.
+          */
+          bool only_const= join->only_const_tables();
+          table_map pseudo_bits= OUTER_REF_TABLE_BIT;
+          if (only_const || last_top_base_tab_idx < join->const_tables)
+            pseudo_bits= PSEUDO_TABLE_BITS;
+          COND *pseudo_cond= make_cond_for_table(thd, cond,
+                                                 join->const_table_map |
+                                                 pseudo_bits,
+                                                 pseudo_bits,
+                                                 -1, FALSE, FALSE);
+          if (pseudo_cond)
           {
-            add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
-            join->outer_ref_cond= outer_ref_cond;
+            COND **dest= only_const ? &join->pseudo_bits_cond :
+                                      &join->outer_ref_cond;
+            add_cond_and_fix(thd, &pseudo_cond, *dest);
+            *dest= pseudo_cond;
 
             Json_writer_object trace(thd);
-            trace.add("outer_ref_cond", outer_ref_cond);
-          }
-          else if (thd->is_error())
-            DBUG_RETURN(1);
-        }
-        else
-        {
-          COND *pseudo_bits_cond=
-            make_cond_for_table(thd, cond,
-                                join->const_table_map |
-                                PSEUDO_TABLE_BITS,
-                                PSEUDO_TABLE_BITS,
-                                -1, FALSE, FALSE);
-          if (pseudo_bits_cond)
-          {
-            add_cond_and_fix(thd, &pseudo_bits_cond,
-                             join->pseudo_bits_cond);
-            join->pseudo_bits_cond= pseudo_bits_cond;
-
-            Json_writer_object trace(thd);
-            trace.add("pseudo_bits_cond", pseudo_bits_cond);
+            trace.add(only_const ? "pseudo_bits_cond" : "outer_ref_cond",
+                      pseudo_cond);
           }
           else if (thd->is_error())
             DBUG_RETURN(1);
@@ -14605,13 +14632,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     */
 
     uint i;
-    for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
-    {
-      if (!join->join_tab[i].bush_children)
-        break;
-    }
-    uint last_top_base_tab_idx= i;
-
     table_map save_used_tables= 0;
     used_tables=((select->const_tables=join->const_table_map) |
 		 OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
