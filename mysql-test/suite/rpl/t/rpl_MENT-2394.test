@@ -1,0 +1,38 @@
+#
+# MENT-2394 DEFINER=<role> becomes ''@'' when a SUID routine defined
+# with a role is executed, breaking replication of statements (like an
+# implicitly-DEFINER'd CREATE VIEW) run from inside that routine.
+#
+--source include/master-slave.inc
+
+connection master;
+create role r1;
+grant create view, select, execute on *.* to r1;
+
+delimiter |;
+create definer=r1 procedure p1()
+begin
+  create view v1 as select 1;
+end|
+delimiter ;|
+
+# Must not produce a "no such user ''@''" note, and the statement
+# replicated to the slave must not use an empty definer either.
+call p1();
+show warnings;
+show create view v1;
+
+sync_slave_with_master;
+
+connection slave;
+show create view v1;
+
+connection master;
+drop view v1;
+drop procedure p1;
+drop role r1;
+
+sync_slave_with_master;
+
+connection master;
+--source include/rpl_end.inc

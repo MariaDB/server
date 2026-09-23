@@ -1,21 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection master;
 create role r1;
 grant create view, select, execute on *.* to r1;
 create definer=r1 procedure p1()
 begin
 create view v1 as select 1;
 end|
-show create procedure p1;
-Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`r1` PROCEDURE `p1`()
-begin
-create view v1 as select 1;
-end	latin1	latin1_swedish_ci	latin1_swedish_ci
 call p1();
 show warnings;
 Level	Code	Message
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`r1` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1`	latin1	latin1_swedish_ci
+connection slave;
+connection slave;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`r1` SQL SECURITY DEFINER VIEW `v1` AS select 1 AS `1`	latin1	latin1_swedish_ci
+connection master;
 drop view v1;
 drop procedure p1;
 drop role r1;
+connection slave;
+connection master;
+include/rpl_end.inc
