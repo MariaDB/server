@@ -50,8 +50,9 @@ struct row_file_summary_by_instance
   /** Column EVENT_NAME. */
   PFS_event_name_row m_event_name;
 
-  /** Column OBJECT_INSTANCE_BEGIN */
-  const void *m_identity;
+  /** Column OBJECT_INSTANCE_BEGIN. */
+  pfs_identity m_identity;
+
   /**
     Columns COUNT_STAR, SUM/MIN/AVG/MAX TIMER and NUMBER_OF_BYTES for READ,
     WRITE and MISC operation types.

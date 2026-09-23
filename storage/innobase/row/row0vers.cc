@@ -255,13 +255,47 @@ not_locked:
 		prev_trx_id = row_get_rec_trx_id(prev_version, clust_index,
 						 clust_offsets);
 
-		/* The stack of versions is locked by mtr.  Thus, it
-		is safe to fetch the prefixes for externally stored
-		columns. */
+		const bool extern_cols = rec_offs_any_extern(clust_offsets);
 
-		row = row_build(ROW_COPY_POINTERS, clust_index, prev_version,
-				clust_offsets,
-				NULL, NULL, NULL, &ext, heap);
+		if (!extern_cols || DBUG_IF("purge_no_blob_freeze")) {
+			/* Nothing to dereference: the stack of versions
+			being locked by mtr is enough.
+			purge_no_blob_freeze sends a version that does
+			have externally stored columns here as well,
+			which is how the dereference below behaved
+			before it was protected. */
+			if (extern_cols) {
+				DEBUG_SYNC_C(
+					"row_vers_impl_x_locked_row_build");
+			}
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+					prev_version, clust_offsets,
+					NULL, NULL, NULL, &ext, heap);
+		} else {
+			/* Freeze purge_sys.view across the dereference and
+			confirm that purge has not seen trx, which wrote
+			every undo log record this walk applies (the loop
+			only continues while prev_trx_id is trx->id). If it
+			has, trx is committed and holds no implicit lock.
+			Only the dereference needs the freeze: the prefixes
+			end up copied into heap. */
+			purge_sys_t::view_guard freeze{
+				purge_sys_t::view_guard::VIEW};
+
+			/* row_vers_impl_x_locked_purgeable forces this
+			branch, which is otherwise reached only when trx
+			commits between the walk starting and the freeze. */
+			if (freeze.view().changes_visible(trx->id)
+			    || DBUG_IF("row_vers_impl_x_locked_purgeable")) {
+				goto not_locked;
+			}
+
+			DEBUG_SYNC_C("row_vers_impl_x_locked_row_build");
+
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+					prev_version, clust_offsets,
+					NULL, NULL, NULL, &ext, heap);
+		}
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {

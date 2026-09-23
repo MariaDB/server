@@ -159,6 +159,26 @@ class String;
 
 #define NUM_LOAD_DELIM_STRS 5
 
+
+/*
+  Master-side bugs that we work-around with rpl_master_has_bug().
+  Each define is a bit number (0, 1, 2, ...) set in
+  Relay_log_info::rpl_master_bug_bitmask.
+  These bit numbers are internal-only, can be changed (eg. to drop a bug
+  work-around for ancient version) without concern for backwards compatibility.
+*/
+enum enum_rpl_master_bug_ids {
+  RPL_BUG_MYSQL_24432,
+  RPL_BUG_MYSQL_33029,
+  RPL_BUG_MYSQL_37426,
+  RPL_BUG_MDEV_29621,
+  RPL_BUG_END  /* To check size of Relay_log_info::rpl_master_bug_bitmask */
+};
+
+/* Must be large enough to hold all enum_rpl_master_bug_ids bits. */
+typedef uint32_t rpl_bug_id_t;
+
+
 /*
   The following is the max table_map_id. This is limited by that we
   are using 6 bytes for it in replication

@@ -15,6 +15,7 @@
 #include <m_string.h>
 
 #include "jsonudf.h"
+#include "filechk.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 #define _O_RDONLY O_RDONLY
@@ -4562,6 +4563,16 @@ char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	fn = MakePSZ(g, args, 0);
 
+	if (!fn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*is_null = 1;
+		return NULL;
+	}
+
 	if (args->arg_count > 1) {
 		int    pretty = 3, pty = 3;
 		size_t len;
@@ -4715,7 +4726,10 @@ char *jfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			}	// endswitch arg_type
 
 	if (fn) {
-		if (!Serialize(g, jvp->GetJson(), fn, pretty))
+		if (!connect_can_access_file(fn)) {
+			PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+			fn = NULL;
+		} else if (!Serialize(g, jvp->GetJson(), fn, pretty))
 			PUSH_WARNING(g->Message);
 	} else
 		PUSH_WARNING("Missing file name");
@@ -5767,8 +5781,8 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count < 1 || args->arg_count > 4) {
 		strcpy(message, "This function only accepts 1 to 4 arguments");
 		return true;
-	} else if (args->arg_type[0] != STRING_RESULT || !args->args[0]) {
-		strcpy(message, "First argument must be a constant string (file name)");
+	} else if (args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be a string (file name)");
 		return true;
 	} // endifs
 
@@ -5786,7 +5800,10 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 
 	initid->maybe_null = 1;
 	CalcLen(args, false, reslen, memlen);
-	fl = GetFileLength(args->args[0]);
+	if (args->args[0])
+		fl = GetFileLength(args->args[0]);
+	else
+		fl = 100;		 // What can be done here?
 	reslen += fl;
 	more += fl * M;
 //memlen += more;
@@ -5810,6 +5827,16 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Xchk = NULL;
 	fn = MakePSZ(g, args, 0);
+
+	if (!fn) {
+		PUSH_WARNING("Missing file name");
+		*error = 1;
+		goto fin;
+	} else if (!connect_can_access_file(fn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*error = 1;
+		goto fin;
+	}
 
 	for (unsigned int i = 1; i < args->arg_count; i++)
 		if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {

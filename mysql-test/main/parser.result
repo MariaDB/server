@@ -2277,4 +2277,51 @@ select 1b from test.1a;
 select select.1c from test.select;
 1c
 drop table 1a, `select`;
+#
+# MDEV-37167 Nested BEGINs (4600+) cause a segmentation fault
+#
+#
+# Unclosed BEGINs
+#
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+#
+# Well-formed deep routine
+#
+DROP PROCEDURE p2;
+#
+# Same, with variables, so the contexts are not empty
+#
+DROP PROCEDURE p3;
+#
+# A deep FUNCTION tears down the same way
+#
+DROP FUNCTION f1;
+#
+# Invoking a deep routine must not crash. It is rejected with
+# ER_STACK_OVERRUN_NEED_MORE when the frame does not fit the thread
+# stack, which depends on the build, so both outcomes are accepted.
+#
+CALL p4();
+DROP PROCEDURE p4;
+#
+# Nested scopes must still resolve correctly
+#
+CREATE PROCEDURE p5()
+BEGIN
+DECLARE a INT DEFAULT 1;
+BEGIN
+DECLARE b INT DEFAULT 2;
+BEGIN
+DECLARE c INT DEFAULT 3;
+SELECT a + b + c AS total;
+END;
+END;
+END$$
+CALL p5();
+total
+6
+DROP PROCEDURE p5;
+SELECT 'Server is alive' AS state;
+state
+Server is alive
 # End of 10.11 tests

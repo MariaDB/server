@@ -320,3 +320,26 @@ SESSION_USER()	CURRENT_USER()	msg
 root@localhost	root@localhost	p1.p1
 DROP PACKAGE p1;
 DROP USER xxx@localhost;
+#
+# MDEV-40722 DROP PACKAGE leaves PACKAGE BODY grant in mysql.procs_priv
+#
+CREATE PACKAGE pkg1 AS
+FUNCTION f RETURN VARCHAR2(64);
+END
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f RETURN VARCHAR2(64) AS
+BEGIN RETURN 'f';
+END;
+END$$
+CREATE USER reader@localhost;
+GRANT EXECUTE ON PACKAGE test.pkg1 TO reader@localhost;
+GRANT EXECUTE ON PACKAGE BODY test.pkg1 TO reader@localhost;
+SELECT host,db,user,routine_name,routine_type,proc_priv FROM mysql.procs_priv ORDER BY routine_type;
+host	db	user	routine_name	routine_type	proc_priv
+localhost	test	reader	pkg1	PACKAGE	Execute
+localhost	test	reader	pkg1	PACKAGE BODY	Execute
+DROP PACKAGE pkg1;
+SELECT host,db,user,routine_name,routine_type,proc_priv FROM mysql.procs_priv ORDER BY routine_type;
+host	db	user	routine_name	routine_type	proc_priv
+DROP USER reader@localhost;

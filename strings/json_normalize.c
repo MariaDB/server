@@ -829,7 +829,7 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je)
 
 json_norm_parse_end:
   dynstr_free(&key);
-  return err;
+  return err || je->s.error;
 }
 
 
@@ -859,6 +859,10 @@ json_norm_build(json_engine_t *je, struct json_norm_value *root,
     err= json_norm_parse(root, je);
     if (err)
       return err;
+  }
+  else
+  {
+    while(json_scan_next(je) == 0) /*no-op*/;
   }
   return err;
 }
@@ -908,14 +912,9 @@ json_normalize_engine(json_engine_t *je, DYNAMIC_STRING *result,
     in_size= strlen(s_utf8);
   }
 
-
-  if (!json_valid_engine(je, in, in_size, &my_charset_utf8mb4_bin))
-  {
-    err= 1;
-    goto json_normalize_end;
-  }
-
   err= json_norm_build(je, &root, in, in_size, &my_charset_utf8mb4_bin);
+  if (root.type == JSON_VALUE_UNINITIALIZED || je->s.error)
+    err= 1;
   if (err)
     goto json_normalize_end;
 

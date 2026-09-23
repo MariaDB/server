@@ -106,3 +106,14 @@ DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/dept.dat
 --remove_file $MYSQLD_DATADIR/test/boys.txt
 --remove_file $MYSQLD_DATADIR/test/boyswin.txt
+
+--echo #
+--echo # MDEV-40637 CONNECT crashes on double(255,50) in DOS table
+--echo #
+create table t (x double(255,30)) engine=connect table_type='dos' file_name='t.dos';
+insert into t values (1e50);
+select * from t;
+drop table t;
+--remove_file $MYSQLD_DATADIR/test/t.dos
+
+--echo # End of 10.6 tests

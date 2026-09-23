@@ -3778,7 +3778,7 @@ static int innodb_init_params()
   const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
   if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
-      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
+      my_large_pages_flag /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 
@@ -6212,6 +6212,37 @@ ha_innobase::close()
 /* The following accessor functions should really be inside MySQL code! */
 
 #ifdef WITH_WSREP
+/** Pick the charset struct of a charset number, for the write set key
+encoding. Since the MySQL function get_charset may be slow before Bar
+removes the mutex operation there, we first look at 2 common charsets
+directly.
+@param charset_number	number of the charset
+@return the charset, never NULL */
+static
+CHARSET_INFO*
+wsrep_get_charset(uint charset_number)
+{
+	if (charset_number == default_charset_info->number) {
+		return default_charset_info;
+	}
+
+	if (charset_number == my_charset_latin1.number) {
+		return &my_charset_latin1;
+	}
+
+	CHARSET_INFO* charset = get_charset(charset_number, MYF(MY_WME));
+
+	if (charset == NULL) {
+		sql_print_error("InnoDB needs charset %lu for doing "
+				"a comparison, but MariaDB cannot "
+				"find that charset.",
+				(ulong) charset_number);
+		ut_a(0);
+	}
+
+	return charset;
+}
+
 size_t
 wsrep_normalize_string(
 	int		mysql_type,	/* in: MySQL type */
@@ -6239,28 +6270,7 @@ wsrep_normalize_string(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		CHARSET_INFO* charset;
-
-		/* Use the charset number to pick the right charset struct for
-		the comparison. Since the MySQL function get_charset may be
-		slow before Bar removes the mutex operation there, we first
-		look at 2 common charsets directly. */
-
-		if (charset_number == default_charset_info->number) {
-			charset = default_charset_info;
-		} else if (charset_number == my_charset_latin1.number) {
-			charset = &my_charset_latin1;
-		} else {
-			charset = get_charset(charset_number, MYF(MY_WME));
-
-			if (charset == NULL) {
-				sql_print_error("InnoDB needs charset %lu for doing "
-						"a comparison, but MariaDB cannot "
-						"find that charset.",
-						(ulong) charset_number);
-				ut_a(0);
-			}
-		}
+		CHARSET_INFO* charset = wsrep_get_charset(charset_number);
 
 		if (wsrep_protocol_version < 3) {
 			ret_length = charset->strnxfrm(
@@ -6303,6 +6313,122 @@ wsrep_normalize_string(
 	}
 
 	return ret_length;
+}
+
+/** Store the write set key value of a string column.
+
+Both write set key paths come here, so that one and the same column value
+always produces one and the same key: wsrep_store_key_val_for_row() has the
+value in the MySQL record format and wsrep_rec_get_foreign_key() has it as
+InnoDB stored it, and a CHAR is not padded the same way in the two.
+
+From protocol version 5 on, the MySQL record pads a CHAR to
+n_chars * mbmaxlen bytes, while InnoDB in a compact row format and a
+variable length character set strips that padding down to but not below
+n_chars bytes; as that compares a byte count against a character count, a
+value holding multi byte characters is left with fewer than n_chars
+characters. See row_mysql_store_col_in_innobase_format(). Both forms are
+brought to exactly n_chars characters here, which also makes the key
+independent of the row format. The normalization itself is always done with
+WSREP_MAX_SUPPORTED_KEY_LENGTH as the buffer length, and only the copy into
+out_str is limited by the space the caller has left, because strnxfrm
+truncates to the length it is given and the key of a column must not depend
+on how much room the columns before it happened to leave.
+
+Before protocol version 5 the two paths did neither of those and disagreed
+for a CHAR in a variable length character set. That is kept here so that a
+node still speaking the older protocol produces the same keys as before.
+Note that the old paths did not agree on the strnxfrm buffer length either,
+3072 on one and 3500 on the other; both get WSREP_MAX_SUPPORTED_KEY_LENGTH
+here, which only makes a difference for a value whose normalized form is
+longer than 3072 bytes, where the two never produced the same key anyway.
+
+@param mysql_type	MySQL type of the column
+@param charset_number	number of the charset of the column
+@param n_chars		characters the column holds, 0 if it is not a CHAR
+@param str		column value
+@param str_length	length of str in bytes
+@param out_str		buffer for the key value
+@param out_length	space left in out_str
+@param mysql_format	str is in the MySQL record format, where a CHAR is
+			padded to more characters than the column holds;
+			before protocol 5 that was cut back here
+@return number of bytes written to out_str */
+size_t
+wsrep_store_string_key_val(
+	int			mysql_type,
+	uint			charset_number,
+	size_t			n_chars,
+	const unsigned char*	str,
+	size_t			str_length,
+	unsigned char*		out_str,
+	ulint			out_length,
+	bool			mysql_format)
+{
+	unsigned char	normalized[WSREP_MAX_SUPPORTED_KEY_LENGTH + 1];
+	size_t		len;
+
+	if (wsrep_protocol_version < 5) {
+		CHARSET_INFO* cs = wsrep_get_charset(charset_number);
+
+		if (mysql_format && str_length > 0 && cs->mbmaxlen > 1) {
+			int error;
+
+			str_length = my_well_formed_length(
+				cs, (const char*) str,
+				(const char*) str + str_length,
+				str_length / cs->mbmaxlen, &error);
+		}
+
+		len = wsrep_normalize_string(mysql_type, charset_number, str,
+					     normalized, str_length,
+					     WSREP_MAX_SUPPORTED_KEY_LENGTH);
+	} else {
+		unsigned char padded[REC_VERSION_56_MAX_INDEX_COL_LEN + 1];
+
+		if (n_chars) {
+			CHARSET_INFO* cs = wsrep_get_charset(charset_number);
+			int error;
+
+			/* Cut to at most n_chars characters ... */
+			str_length = my_well_formed_length(
+				cs, (const char*) str,
+				(const char*) str + str_length, n_chars,
+				&error);
+
+			/* ... and pad back up to n_chars where InnoDB had
+			stripped the padding. mbminlen is 1 for every
+			character set whose CHAR padding InnoDB strips, so
+			the pad character is one 0x20. */
+			const size_t chars = cs->numchars(
+				(const char*) str,
+				(const char*) str + str_length);
+
+			if (chars < n_chars) {
+				const size_t pad = n_chars - chars;
+
+				ut_ad(cs->mbminlen == 1);
+				ut_a(str_length + pad <= sizeof padded);
+
+				memcpy(padded, str, str_length);
+				memset(padded + str_length, 0x20, pad);
+				str = padded;
+				str_length += pad;
+			}
+		}
+
+		len = wsrep_normalize_string(mysql_type, charset_number, str,
+					     normalized, str_length,
+					     WSREP_MAX_SUPPORTED_KEY_LENGTH);
+	}
+
+	if (len > out_length) {
+		len = out_length;
+	}
+
+	memcpy(out_str, normalized, len);
+
+	return len;
 }
 #endif /* WITH_WSREP */
 
@@ -6867,47 +6993,56 @@ wsrep_store_key_val_for_row(
 			/* Character set for the field is defined only
 			to fields whose type is string and real field
 			type is not enum or set. For these fields check
-			if character set is multi byte. */
+			if character set is multi byte.
 
+			Fields that InnoDB stores as DATA_BINARY,
+			DATA_FIXBINARY or DATA_BLOB must not be collated
+			here: their bytes are opaque. Note that data types
+			implemented on top of Field_fbt (UUID, INET6, INET4)
+			report type() == MYSQL_TYPE_STRING and charset() ==
+			my_charset_numeric (i.e. latin1), while their values
+			are plain binary and InnoDB maps them to
+			DATA_FIXBINARY. The binary test below mirrors
+			get_innobase_type_from_mysql_type().
+
+			Skipping the collation changes the key bytes on the
+			wire, so it is gated on protocol version 5. Below
+			that version the value is still collated, and
+			wsrep_rec_get_foreign_key() collates the matching
+			reference key the same way, so the two agree in a
+			cluster that has not fully upgraded yet.
+			See MDEV-41012. */
 			if (real_type != MYSQL_TYPE_ENUM
 				&& real_type != MYSQL_TYPE_SET
+				&& (wsrep_protocol_version < 5
+				    || (!field->binary()
+					&& field->key_type()
+					   != HA_KEYTYPE_BINARY))
 				&& ( mysql_type == MYSQL_TYPE_VAR_STRING
 					|| mysql_type == MYSQL_TYPE_STRING)) {
 
 				const CHARSET_INFO* cs= field->charset();
 
-				/* For multi byte character sets we need to
-				calculate the true length of the key */
-
-				if (true_len > 0 && cs->mbmaxlen > 1) {
-					int error;
-
-					true_len= my_well_formed_length(cs,
-							(const char *)src_start,
-							(const char *)src_start
-								+ true_len,
-							(true_len / cs->mbmaxlen),
-							&error);
-				}
+				/* Only a whole CHAR column is brought to the
+				number of characters it holds. A prefix key
+				part is not a column value and is never
+				matched against a foreign key. */
+				const size_t n_chars=
+					(mysql_type == MYSQL_TYPE_STRING
+					 && key_part->length
+					    == field->pack_length())
+					? key_part->length / cs->mbmaxlen : 0;
 
 				/* Normalize string if it is not empty string */
 				if (true_len) {
 					ut_ad(src_start);
-					true_len= wsrep_normalize_string(
-						mysql_type, cs->number,
-						src_start, normalized, true_len,
-						REC_VERSION_56_MAX_INDEX_COL_LEN);
+					true_len= wsrep_store_string_key_val(
+						mysql_type, cs->number, n_chars,
+						src_start, true_len,
+						(uchar*) buff, buff_space, true);
 				} else {
 					ut_ad(src_start == nullptr);
 				}
-
-				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
-						 wsrep_thd_query(thd));
-					true_len   = buff_space;
-				}
-				memcpy(buff, normalized, true_len);
 			} else {
 				/* Copy only if there is data */
 				if (true_len) {
@@ -10928,12 +11063,16 @@ create_index(
 						 & HA_REVERSE_SORT);
 		}
 
+		/* On failure, row_create_index_for_mysql() may roll
+		back the dictionary transaction, which will remove
+		the table from the cache and free it. */
+		const ulint table_flags = table->flags;
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
 					    index, trx, NULL,
 					    fil_encryption_t(o.encryption),
 					    uint32_t(o.encryption_key_id)),
-				    table->flags, NULL));
+				    table_flags, NULL));
 	}
 
 	ulint ind_type = 0;
@@ -16737,31 +16876,75 @@ ha_innobase::store_lock(
 		unexpected if an obsolete consistent read view would be
 		used. */
 
-		/* Use consistent read for checksum table */
+		/* Use consistent read for checksum table
+		and for read-only table accesses in multi-table
+		UPDATE.
+
+		Multi-table UPDATE modifies some tables and only
+		reads others. The read-only tables do not need
+		S locks: the MVCC snapshot provides read
+		consistency, and rows being modified still get
+		X locks via the write-side table handle.
+
+		For TL_READ we use consistent read (LOCK_NONE) at
+		all isolation levels below SERIALIZABLE. This is
+		safe because:
+		 - The MVCC snapshot is stable within a transaction
+		   in REPEATABLE READ.
+		 - Rows being modified still get X locks via the
+		   write-side table handle (F_WRLCK / LOCK_X).
+		SERIALIZABLE must be excluded here: the
+		::external_lock() upgrade of LOCK_NONE to LOCK_S
+		applies only to non-autocommit transactions, so an
+		autocommit multi-table UPDATE would otherwise do a
+		consistent read at SERIALIZABLE.
+
+		We limit this to SQLCOM_UPDATE_MULTI (not
+		SQLCOM_UPDATE) because single-table UPDATE with
+		scalar subqueries on other tables traditionally
+		uses S locks to block concurrent modifications to
+		those tables, and changing that would alter
+		observable behavior for existing applications.
+
+		For TL_READ_NO_INSERT we keep the pre-existing
+		behavior: consistent read only at READ COMMITTED
+		and below, S locks at REPEATABLE READ and above,
+		because statement-based replication needs locking
+		reads for serializable execution ordering. */
 
 		if (sql_command == SQLCOM_CHECKSUM
 		    || sql_command == SQLCOM_CREATE_SEQUENCE
 		    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
+		    || (lock_type == TL_READ
+			&& trx->isolation_level != TRX_ISO_SERIALIZABLE
+			&& sql_command == SQLCOM_UPDATE_MULTI)
 		    || (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 			&& (lock_type == TL_READ
 			    || lock_type == TL_READ_NO_INSERT)
 			&& (sql_command == SQLCOM_INSERT_SELECT
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
+			    || sql_command == SQLCOM_UPDATE_MULTI
 			    || sql_command == SQLCOM_CREATE_SEQUENCE
 			    || sql_command == SQLCOM_CREATE_TABLE))) {
 
-			/* If the transaction isolation level is
-			READ UNCOMMITTED or READ COMMITTED and we are executing
-			INSERT INTO...SELECT or REPLACE INTO...SELECT
-			or UPDATE ... = (SELECT ...) or CREATE  ...
-			SELECT... without FOR UPDATE or IN SHARE
-			MODE in select, then we use consistent read
-			for select. */
+			DBUG_PRINT("ib_lock",
+				   ("consistent read for DML: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
 
 			m_prebuilt->select_lock_type = LOCK_NONE;
 			m_prebuilt->stored_select_lock_type = LOCK_NONE;
 		} else {
+			DBUG_PRINT("ib_lock",
+				   ("LOCK_S for DML read: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
+
 			m_prebuilt->select_lock_type = LOCK_S;
 			m_prebuilt->stored_select_lock_type = LOCK_S;
 		}

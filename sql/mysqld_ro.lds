@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2026, MariaDB plc.
+   Copyright (c) 2026, MariaDB plc, MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,11 +21,11 @@
 */
 SECTIONS
 {
-  ro_after_init ALIGN(CONSTANT(COMMONPAGESIZE)) :
+  ro_after_init ALIGN(CONSTANT(MAXPAGESIZE)) :
   {
     ro_after_init_start = .;
     *(ro_after_init)
-    . = ALIGN(CONSTANT(COMMONPAGESIZE));
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
     ro_after_init_end = .;
   }
 } INSERT AFTER .data;

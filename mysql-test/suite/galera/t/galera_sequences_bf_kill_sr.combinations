@@ -1,0 +1,5 @@
+[binlogon]
+log-bin
+log-slave-updates
+
+[binlogoff]

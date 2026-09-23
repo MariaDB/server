@@ -1746,12 +1746,27 @@ public:
   void cleanup(bool full);
   void clear(table_map *cleared_tables);
   void inline clear_sum_funcs();
+  bool need_empty_set_row(bool end_of_records,
+                          bool *empty_set_send_rollup_total) const
+  {
+    *empty_set_send_rollup_total=
+        end_of_records && !first_record && rollup.state != ROLLUP::STATE_NONE;
+    return (end_of_records && !first_record && !group &&
+            !group_optimized_away) ||
+           *empty_set_send_rollup_total;
+  }
   bool send_row_on_empty_set()
   {
-    return (do_send_rows && implicit_grouping && !group_optimized_away &&
+    return (do_send_rows &&
+            (select_lex->olap == ROLLUP_TYPE ||
+             (implicit_grouping && !group_optimized_away)) &&
             having_value != Item::COND_FALSE);
   }
-  bool empty_result() { return (zero_result_cause && !implicit_grouping); }
+  bool empty_result()
+  {
+    return (zero_result_cause && !implicit_grouping &&
+            select_lex->olap != ROLLUP_TYPE);
+  }
   bool change_result(select_result *new_result, select_result *old_result);
   bool is_top_level_join() const
   {

@@ -943,26 +943,33 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
   {
      /* proxy-protocol-networks variable needs to be set to allow this remote address */
      my_printf_error(ER_HOST_NOT_PRIVILEGED, "Proxy header is not accepted from %s",
-       MYF(0), thd->main_security_ctx.ip);
+       MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0),
+       thd->main_security_ctx.ip);
      return ABORT;
   }
 
   if (parse_proxy_protocol_header(net, &peer_info))
   {
      /* Failed to parse proxy header*/
-     my_printf_error(ER_UNKNOWN_ERROR, "Failed to parse proxy header", MYF(0));
+     my_printf_error(ER_UNKNOWN_ERROR, "Failed to parse proxy header",
+       MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0));
      return ABORT;
   }
 
   if (peer_info.is_local_command)
     /* proxy header indicates LOCAL connection, no action necessary */
     return RETRY;
-  /* Change peer address in THD and ACL structures.*/
+  /*
+    Change peer address in THD and ACL structures. Defer the host checks
+    - see parse_client_handshake_packet().
+  */
   uint host_errors= 0;
   net->using_proxy_protocol= NET_PROXY_PROTOCOL;
   handle_proxy_header_result res=
     (handle_proxy_header_result) thd_set_peer_addr(thd, &(peer_info.peer_addr),
-                                 NULL, peer_info.port, false, &host_errors);
+                                 NULL, peer_info.port,
+                                 HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP,
+                                 &host_errors);
   if (host_errors)
     net->using_proxy_protocol |= NET_PROXY_PROTOCOL_CONNECT_ERRORS;
   return res;

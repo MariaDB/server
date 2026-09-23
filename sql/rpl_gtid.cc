@@ -1404,6 +1404,7 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
   }
   if (state_from_master == end)
     return 0;
+  int err= 0;
   for (;;)
   {
     rpl_gtid gtid;
@@ -1414,14 +1415,26 @@ rpl_slave_state::load(THD *thd, const char *state_from_master, size_t len,
         !(sub_id= next_sub_id(gtid.domain_id)) ||
         record_gtid(thd, &gtid, sub_id, false, in_statement, &hton) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no, hton, NULL))
-      return 1;
+    {
+      err= 1;
+      break;
+    }
     if (state_from_master == end)
       break;
     if (*state_from_master != ',')
-      return 1;
+    {
+      err= 1;
+      break;
+    }
     ++state_from_master;
   }
-  return 0;
+
+  if (unlikely(err))
+    trans_rollback(thd);
+  else
+    err= trans_commit(thd);
+
+  return err;
 }
 
 

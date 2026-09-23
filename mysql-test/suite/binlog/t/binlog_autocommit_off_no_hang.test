@@ -37,6 +37,15 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
 SET GLOBAL gtid_slave_pos=@@gtid_binlog_pos;
 COMMIT;
 
+--echo ### MDEV-22848: SET GLOBAL gtid_slave_pos leaves dangling partial transaction
+CREATE TABLE t1 (c INT) ENGINE=MyISAM;
+SET GLOBAL gtid_slave_pos="0-1-100";
+INSERT INTO t1 VALUES (0);
+--error ER_BAD_TABLE_ERROR
+DROP TABLE not_there;
+DROP TABLE t1;
+
+
 # Revert table type
 --disable_query_log
 --eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine

@@ -196,7 +196,7 @@ int table_table_handles::read_row_values(TABLE *table,
         m_row.m_object.set_field(f->field_index, f);
         break;
       case 3: /* OBJECT_INSTANCE_BEGIN */
-        set_field_ulonglong(f, (intptr) m_row.m_identity);
+        set_field_ulonglong(f, m_row.m_identity);
         break;
       case 4: /* OWNER_THREAD_ID */
         set_field_ulonglong(f, m_row.m_owner_thread_id);
@@ -218,4 +218,3 @@ int table_table_handles::read_row_values(TABLE *table,
 
   return 0;
 }
-

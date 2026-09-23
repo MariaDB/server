@@ -6336,8 +6336,15 @@ lock_clust_rec_read_check_and_lock(
 	const ulint heap_no = lock_get_heap_no(*block, rec);
 
 	trx_t *trx = thr_get_trx(thr);
-	if (lock_table_has(trx, index->table, LOCK_X)
-	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
+	if (heap_no == PAGE_HEAP_NO_SUPREMUM
+	    || lock_table_has(trx, index->table, LOCK_S)) {
+		/* A conflicting record lock (implicit or explicit LOCK_X)
+		may only be acquired by a transaction that holds LOCK_IX
+		on the table; @see lock_rec_lock().
+
+		Our LOCK_S on the table is mutually exclusive with LOCK_IX.
+
+		Any LOCK_S record locks do not conflict with us. */
 	} else if (lock_rec_convert_impl_to_expl<true>(trx, *block, rec, index,
 						       offsets) == trx
 	    && gap_mode == LOCK_REC_NOT_GAP) {

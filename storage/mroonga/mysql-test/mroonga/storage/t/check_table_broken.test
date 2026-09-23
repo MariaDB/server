@@ -31,12 +31,16 @@ CREATE TABLE diaries (
 INSERT INTO diaries VALUES ('Hello');
 
 --remove_file $MYSQLD_DATADIR/check_test.mrn.000010C
-
 FLUSH TABLES;
 
 CHECK TABLE diaries;
 
 REPAIR TABLE diaries;
+
+SELECT *
+  FROM diaries
+ WHERE MATCH(title) AGAINST('+Hello' IN BOOLEAN MODE);
+
 DROP TABLE diaries;
 
 DROP DATABASE check_test;

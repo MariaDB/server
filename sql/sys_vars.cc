@@ -3484,11 +3484,15 @@ static Sys_var_mybool Sys_require_secure_transport(
   ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
 
 static Sys_var_charptr_fscs Sys_secure_file_priv(
-       "secure_file_priv",
-       "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
-       "within specified directory",
-       PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
-       CMD_LINE(REQUIRED_ARG, OPT_SEQURE_FILE_PRIV), DEFAULT(0));
+  "secure_file_priv",
+  "Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to files "
+  "within specified directory."
+#ifndef _WIN32
+  " Empty value means no limits except /proc"
+#endif
+  ,
+  PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
+  CMD_LINE(REQUIRED_ARG, OPT_SEQURE_FILE_PRIV), DEFAULT(0));
 
 static bool check_server_id(sys_var *self, THD *thd, set_var *var)
 {

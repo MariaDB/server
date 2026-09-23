@@ -321,4 +321,13 @@ drop table t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-31808 Server crash upon altering table with NEXTVAL for default under exclusive lock
+#
+CREATE SEQUENCE s ENGINE=Aria;
+CREATE TABLE t (a INT DEFAULT(NEXTVAL(s)), b INT);
+ALTER TABLE t FORCE, ALGORITHM=COPY, LOCK=EXCLUSIVE;
+DROP TABLE t;
+DROP SEQUENCE s;
+# End of 10.6 tests
 set @@default_storage_engine= @save_default_engine;

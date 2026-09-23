@@ -2128,4 +2128,19 @@ let $result5 = $(ifnull(nullif('same', 'same'), 'default'));
 let $result6 = $(coalesce(nullif('test', 'test'), 'backup'));
 --echo coalesce(nullif('test', 'test'), 'backup') -> $result6
 
+--echo #
+--echo # MDEV-37859: Mysqltest hex() not working for string values
+--echo #
+
+let $hex_str1 = $(hex("abc"));
+--echo hex("abc") -> $hex_str1
+
+let $hex_str2 = $(hex("255"));
+--echo hex("255") -> $hex_str2
+
+let $hex_str3 = $(hex(''));
+--echo hex('') -> $hex_str3
+
 --echo # Expression evaluation string functions tests completed successfully
+
+--echo # End of 10.6 tests

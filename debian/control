@@ -676,7 +676,8 @@ Architecture: any
 Suggests: mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl,
-            pv
+            pv,
+            stunnel
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})

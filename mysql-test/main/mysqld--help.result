@@ -1216,7 +1216,8 @@ The following specify which files/extra groups are read (specified before remain
  (Defaults to on; use --skip-secure-auth to disable.)
  --secure-file-priv=name 
  Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to
- files within specified directory
+ files within specified directory. Empty value means no
+ limits except /proc
  --secure-timestamp=name 
  Restricts direct setting of a session timestamp. Possible
  levels are: YES - timestamp cannot deviate from the

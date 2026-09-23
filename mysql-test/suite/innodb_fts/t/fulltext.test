@@ -850,6 +850,16 @@ WHERE EXISTS (
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-41022 Wildcard term returns no rows when combined with a
+--echo #		phrase in boolean search
+--echo #
+CREATE TABLE t1(f1 TEXT, FULLTEXT(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('auth code out');
+SELECT * FROM t1 WHERE MATCH(f1) AGAINST('"zzzz" aut*' IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH(f1) AGAINST('"zzzz yyyy" @3 aut*' IN BOOLEAN MODE);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
 

@@ -44,6 +44,7 @@ FLUSH TABLES;
 --error ER_CANT_OPEN_FILE
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
 
+--replace_result "[io][open] " ""
 REPAIR TABLE diaries;
 
 SELECT * FROM diaries;

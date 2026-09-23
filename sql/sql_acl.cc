@@ -3797,7 +3797,7 @@ privilege_t acl_get(const char *host, const char *ip,
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
+  tmp_db= strmov(strmov(key, safe_str(ip ? ip : host)) + 1, user) + 1;
   end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
 
   if (end >= key + sizeof(key)) // db name was truncated
@@ -11970,6 +11970,61 @@ Silence_routine_definer_errors::handle_condition(
 }
 
 
+/*
+  The low level function to revoke routine privileges for the given sp handler
+  @param thd         the thd
+  @param proc_privs  the table mysql.proc_privs
+  @param sp_db       the routine database
+  @param sp_name     the routine name
+  @param sph         the sp handler
+*/
+static void sp_revoke_privileges_for_handler(THD *thd, TABLE *proc_privs,
+#if MYSQL_VERSION_ID < 110501
+                                             const char *sp_db,
+                                             const char *sp_name,
+#else
+#error Remove the above conditional code
+                                             const Lex_ident_db &sp_db,
+                                             const Lex_ident_routine &sp_name,
+#endif
+                                             const Sp_handler *sph)
+{
+  uint counter, revoked;
+  HASH *hash= sph->get_priv_hash();
+  do
+  {
+    for (counter= 0, revoked= 0 ; counter < hash->records ; )
+    {
+      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
+#if MYSQL_VERSION_ID < 110501
+      if (!my_strcasecmp(&my_charset_utf8mb3_bin, grant_proc->db, sp_db) &&
+	  !my_strcasecmp(system_charset_info, grant_proc->tname, sp_name))
+#else
+#error Remove the above conditional code
+      if (sp_db.streq(Lex_cstring_strlen(grant_proc->db)) &&
+          sp_name.streq(Lex_cstring_strlen(grant_proc->tname)))
+#endif
+      {
+        LEX_USER lex_user;
+	lex_user.user.str= grant_proc->user;
+	lex_user.user.length= strlen(grant_proc->user);
+        lex_user.host.str= safe_str(grant_proc->host.hostname);
+        lex_user.host.length= strlen(lex_user.host.str);
+        if (replace_routine_table(thd, grant_proc,
+                                  proc_privs, lex_user,
+                                  grant_proc->db, grant_proc->tname,
+                                  sph, ALL_KNOWN_ACL, 1) == 0)
+	{
+	  revoked= 1;
+	  continue;
+	}
+      }
+      counter++;
+    }
+  } while (revoked);
+}
+
+
 /**
   Revoke privileges for all users on a stored procedure.  Use an error handler
   that converts errors about missing grants into warnings.
@@ -11990,9 +12045,7 @@ Silence_routine_definer_errors::handle_condition(
 bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
                           const Sp_handler *sph)
 {
-  uint counter, revoked;
   int result;
-  HASH *hash= sph->get_priv_hash();
   Silence_routine_definer_errors error_handler;
   DBUG_ENTER("sp_revoke_privileges");
 
@@ -12012,31 +12065,12 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
   mysql_mutex_lock(&acl_cache->lock);
 
   /* Remove procedure access */
-  do
-  {
-    for (counter= 0, revoked= 0 ; counter < hash->records ; )
-    {
-      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
-      if (!my_strcasecmp(&my_charset_utf8mb3_bin, grant_proc->db, sp_db) &&
-	  !my_strcasecmp(system_charset_info, grant_proc->tname, sp_name))
-      {
-        LEX_USER lex_user;
-	lex_user.user.str= grant_proc->user;
-	lex_user.user.length= strlen(grant_proc->user);
-        lex_user.host.str= safe_str(grant_proc->host.hostname);
-        lex_user.host.length= strlen(lex_user.host.str);
-        if (replace_routine_table(thd, grant_proc,
-                                  tables.procs_priv_table().table(), lex_user,
-                                  grant_proc->db, grant_proc->tname,
-                                  sph, ALL_KNOWN_ACL, 1) == 0)
-	{
-	  revoked= 1;
-	  continue;
-	}
-      }
-      counter++;
-    }
-  } while (revoked);
+  if (sph == &sp_handler_package_spec)
+    sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                     sp_db, sp_name, &sp_handler_package_body);
+
+  sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                   sp_db, sp_name, sph);
 
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
@@ -14083,6 +14117,18 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     }
   }
 
+  /* Deferred host check from thd_set_peer_addr(), raised here instead,
+     now that SSL (if requested) has already been negotiated. */
+  if (net->using_proxy_protocol &
+     (NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED | NET_PROXY_PROTOCOL_HOST_BLOCKED))
+  {
+    myf flag= MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0);
+    uint err= (net->using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED) ?
+      ER_HOST_IS_BLOCKED : ER_HOST_NOT_PRIVILEGED;
+    my_error(err, flag, thd->main_security_ctx.host_or_ip);
+    return packet_error;
+  }
+
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
@@ -14786,7 +14832,18 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_auth_plugin= 1;
       break;
     case CR_AUTH_HANDSHAKE:
-      errors.m_handshake= 1;
+      /*
+        A deferred PROXY host-check rejection lands here as a generic
+        handshake failure; attribute it like the check itself would
+        have, not as m_handshake - that feeds max_connect_errors, which
+        host-privilege/host-blocked failures never did.
+      */
+      if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED)
+        errors.m_host_blocked= 1;
+      else if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED)
+        errors.m_host_acl= 1;
+      else
+        errors.m_handshake= 1;
       break;
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;

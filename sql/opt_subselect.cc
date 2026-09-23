@@ -6805,7 +6805,7 @@ bool JOIN::choose_tableless_subquery_plan()
     */
     if (zero_result_cause)
     {
-      if (!implicit_grouping)
+      if (!implicit_grouping && select_lex->olap != ROLLUP_TYPE)
       {
         /*
           Both group by queries and non-group by queries without aggregate

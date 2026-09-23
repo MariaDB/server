@@ -234,6 +234,19 @@ get_socat_ver()
     fi
 }
 
+check_for_socat_commonname()
+{
+    [ -n "${SOCAT_COMMONNAME+x}" ] && return
+    # Some socat builds don't register "commonname" as an option at all
+    # (parseopts() rejects it as unknown regardless of value), so probe
+    # the actual binary instead of relying on the socat version number.
+    if socat -hhh 2>&1 | grep -qw 'openssl-commonname'; then
+        SOCAT_COMMONNAME=1
+    else
+        SOCAT_COMMONNAME=0
+    fi
+}
+
 get_transfer()
 {
     if [ "$tfmt" = 'nc' ]; then
@@ -434,6 +447,15 @@ get_transfer()
             exit 22
         fi
 
+        if [ -n "$CN_option" ]; then
+            check_for_socat_commonname
+            if [ "$SOCAT_COMMONNAME" -eq 0 ]; then
+                wsrep_log_info \
+                    "socat lacks the 'commonname' option; skipping peer name verification"
+                CN_option=""
+            fi
+        fi
+
         tcmd="$tcmd$CN_option$sockopt"
 
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
@@ -571,6 +593,11 @@ read_cnf()
         if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
             check_server_ssl_config
         fi
+        # MTR test hook: simulate a missing SSL certificate and key.
+        if [ -n "${MTR_SST_SIMULATE_NO_SSL_CERT:-}" ]; then
+            tpem=""
+            tkey=""
+        fi
         if [ "$tmode" != 'DISABLED' ]; then
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
@@ -598,6 +625,16 @@ read_cnf()
     wsrep_log_info "SSL configuration: CA='$tcert', CAPATH='$tcap'," \
                    "CERT='$tpem', KEY='$tkey', MODE='$tmode'," \
                    "encrypt='$encrypt'"
+
+    # ssl-mode requires encryption but none could be set up (no usable
+    # cert/key): abort instead of silently transferring in cleartext.
+    if [ "$tmode" != 'DISABLED' -a $encrypt -eq 0 ]; then
+        wsrep_log_error "ssl-mode is set to '$tmode', but no usable SSL" \
+                        "certificate and key were found. Cannot perform an" \
+                        "encrypted transfer. Please configure ssl-cert and" \
+                        "ssl-key, or set ssl-mode to DISABLED."
+        exit 22 # EINVAL
+    fi
 
     if [ $encrypt -ge 2 ]; then
         ssl_dhparams=$(parse_cnf "$encgroups" 'ssl-dhparams')

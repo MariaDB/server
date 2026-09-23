@@ -62,3 +62,28 @@ create table t2 (
   x int,
   y int
 ) engine=connect table_type=FIX file_name='test.txt' with system versioning;
+
+--echo #
+--echo # MDEV-40867 Stack buffer overflow in TDBTBL::TestFil()
+--echo #
+
+CREATE TABLE t1 (a INT NOT NULL, message CHAR(10)) ENGINE=CONNECT;
+INSERT INTO t1 VALUES (1, 'hello');
+
+CREATE TABLE t2 (a INT NOT NULL, message CHAR(10)) ENGINE=CONNECT;
+INSERT INTO t2 VALUES (2, 'world');
+
+CREATE TABLE total (
+  tabname CHAR(8) NOT NULL SPECIAL='TABID',
+  ta TINYINT NOT NULL FLAG=1,
+  message CHAR(20)
+) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2';
+
+SELECT * FROM total WHERE tabname = 't1';
+SELECT * FROM total WHERE tabname = REPEAT('A', 300);
+SELECT * FROM total WHERE tabname IN (REPEAT('B', 300));
+SELECT * FROM total WHERE tabname NOT IN (REPEAT('C', 300));
+
+DROP TABLE total, t1, t2;
+
+--echo # End of 10.11 tests
