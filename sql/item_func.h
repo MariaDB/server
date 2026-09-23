@@ -3851,6 +3851,7 @@ public:
     ft_handler= 0;
     concat_ws= 0;
     table= 0;           // required by Item_func_match::eq()
+    master= 0;
     DBUG_VOID_RETURN;
   }
   bool is_expensive_processor(void *arg) override { return TRUE; }
