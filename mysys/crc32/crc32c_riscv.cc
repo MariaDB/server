@@ -37,6 +37,9 @@ struct riscv_hwprobe { long long key; unsigned long long value; };
 #ifndef RISCV_HWPROBE_EXT_ZBC
 # define RISCV_HWPROBE_EXT_ZBC (1ULL << 7)
 #endif
+#ifndef RISCV_HWPROBE_EXT_ZVBC
+# define RISCV_HWPROBE_EXT_ZVBC (1ULL << 18)
+#endif
 
 #ifndef SYS_riscv_hwprobe
 # ifdef __NR_riscv_hwprobe
@@ -77,9 +80,50 @@ extern "C" int rv_zbc_supported(void *hwprobe)
 }
 
 extern "C" unsigned crc32c_riscv_zbc(unsigned, const void *, size_t);
+#ifdef HAVE_RISCV_ZVBC
+extern "C" unsigned crc32c_riscv_zvbc(unsigned, const void *, size_t);
+#endif
+
+/* CRC acceleration level for the callers' ifunc resolver:
+   3 = Zbc + Zvbc (prefer Zbc; the optimized scalar fold ties the 4-lane
+       vector core at VLEN 256 and wins below it),
+   2 = Zvbc only (no scalar Zbc -- the vector core is the only
+       accelerated path on such cores), 1 = Zbc only, 0 = none. */
+extern "C" unsigned rv_riscv_crc_ext(void *hwprobe)
+{
+  struct riscv_hwprobe p;
+  p.key= RISCV_HWPROBE_KEY_IMA_EXT_0;
+  p.value= 0;
+  unsigned ext= 0;
+#ifdef HAVE_SYS_HWPROBE_H
+  if (hwprobe != NULL)
+  {
+    unsigned long long value= 0;
+    if (__riscv_hwprobe_one(reinterpret_cast<__riscv_hwprobe_t>(hwprobe),
+                            RISCV_HWPROBE_KEY_IMA_EXT_0, &value) != 0)
+      return 0;
+    ext= (value & RISCV_HWPROBE_EXT_ZBC) ? 1 : 0;
+    if (value & RISCV_HWPROBE_EXT_ZVBC)
+      ext |= 2;
+    return ext;
+  }
+#else
+  (void) hwprobe;
+#endif
+  if (syscall(SYS_riscv_hwprobe, &p, (size_t) 1, (size_t) 0, NULL, 0) != 0)
+    return 0;
+  ext= (p.value & RISCV_HWPROBE_EXT_ZBC) ? 1 : 0;
+  if (p.value & RISCV_HWPROBE_EXT_ZVBC)
+    ext |= 2;
+  return ext;
+}
 
 extern "C" const char *crc32c_riscv_impl(my_crc32_t c)
 {
+#ifdef HAVE_RISCV_ZVBC
+  if (c == crc32c_riscv_zvbc)
+    return "Using RISC-V Zvbc vector carry-less multiply instructions";
+#endif
   if (c == crc32c_riscv_zbc)
     return "Using RISC-V Zbc carry-less multiply instructions";
   return NULL;
