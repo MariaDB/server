@@ -1985,6 +1985,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       else if (c && is_mmap())
       {
       unmap_old_checkpoint:
+        innodb_backup_checkpoint_pmem();
         checkpoint_buf= nullptr;
         my_munmap(c, lseek(resize_log.m_file, 0, SEEK_END));
         goto first_checkpoint_in_new_archive;
@@ -2174,21 +2175,6 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   {
     ut_ad(resize_log.m_file != log.m_file);
     innodb_backup_checkpoint(old_first_lsn);
-    /* Make the previous archived log file read-only */
-#ifdef _WIN32
-    SetFileAttributesA(get_archive_path(old_first_lsn).c_str(),
-                       FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
-#else
-    struct stat st;
-    if (!fstat(resize_log.m_file, &st))
-      st.st_mode&= 0444;
-    else
-      st.st_mode= 0444;
-    if (fchmod(resize_log.m_file, st.st_mode))
-      my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-               get_archive_path(old_first_lsn).c_str(), errno);
-#endif
-    resize_log.close();
   }
   else
     goto checkpoint_completed;
