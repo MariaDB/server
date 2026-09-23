@@ -7224,12 +7224,34 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
     return true;
   }
+  /*
+    Both bounds were parsed before any instruction was added, so give each
+    bound instruction only the items of its own bound. The left bound was
+    parsed first, so split there; with REVERSE the index is the right bound.
+    Splitting here, not in the grammar, keeps the items on THD::free_list,
+    so a parse error cannot leak them.
+  */
+  Item *rest= thd->free_list;
+  sphead->move_expr_items_to_free_list(thd, &rest, bounds.m_direction > 0 ?
+                                       bounds.m_index->get_item() :
+                                       bounds.m_target_bound->get_item());
+  if (bounds.m_direction < 0)
+  {
+    Item *left= thd->free_list;
+    thd->free_list= NULL;
+    sphead->add_to_free_list(thd, rest);
+    rest= left;
+  }
   if (!(loop->m_index=
         bounds.m_index->sp_add_for_loop_variable(thd, index,
                                                  bounds.m_index->get_item(),
                                                  bounds.m_index->get_expr_str())
                                                  ))
+  {
+    sphead->add_to_free_list(thd, rest);
     return true;
+  }
+  sphead->add_to_free_list(thd, rest);
   if (unlikely(!(loop->m_target_bound=
                  bounds.m_target_bound->
                  sp_add_for_loop_target_bound(thd,
