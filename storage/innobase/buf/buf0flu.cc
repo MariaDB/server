@@ -1966,7 +1966,11 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 #else
     ut_ad(!resize_buf);
 #endif
-    if (end_lsn >= old_first_lsn + capacity())
+    if (end_lsn >= first_lsn + (
+#ifdef HAVE_PMEM
+                                c && is_mmap() ? 0 :
+#endif
+                                capacity()))
     {
 #ifdef HAVE_PMEM
       if (resize_buf)
