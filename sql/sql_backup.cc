@@ -1237,6 +1237,8 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   if (context.invalid())
   {
     context.dir_error(mysql_data_home);
+  release_and_exit:
+    thd->mdl_context.release_lock(mdl_request.ticket);
     return true;
   }
   backup_target_phase *target_phase= static_cast<backup_target_phase*>
@@ -1246,9 +1248,8 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   oor:
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
   err_exit:
-    thd->mdl_context.release_lock(mdl_request.ticket);
     delete tp;
-    return true;
+    goto release_and_exit;
   }
 
   if (command)
