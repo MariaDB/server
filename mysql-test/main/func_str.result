@@ -496,7 +496,10 @@ select 1=_latin2'1';
 1=_latin2'1'
 1
 select _latin1'1'=_latin2'1';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+_latin1'1'=_latin2'1'
+1
+select _latin1'1'=_koi8u'1';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (koi8u_general_ci,COERCIBLE) for operation '='
 select row('a','b','c') = row('a','b','c');
 row('a','b','c') = row('a','b','c')
 1
@@ -531,10 +534,16 @@ FIELD('b' COLLATE latin1_bin,'A','B')
 select FIELD('b','A' COLLATE latin1_bin,'B');
 FIELD('b','A' COLLATE latin1_bin,'B')
 0
+select FIELD(_koi8u'b','A','B');
+ERROR HY000: Illegal mix of collations (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'field'
 select FIELD(_latin2'b','A','B');
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'field'
+FIELD(_latin2'b','A','B')
+2
+select FIELD('b',_koi8u'A','B');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'field'
 select FIELD('b',_latin2'A','B');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'field'
+FIELD('b',_latin2'A','B')
+2
 select FIELD('1',_latin2'3','2',1);
 FIELD('1',_latin2'3','2',1)
 3
@@ -549,8 +558,11 @@ POSITION(_latin1'B' COLLATE latin1_bin IN _latin1'abcd')
 0
 select POSITION(_latin1'B' COLLATE latin1_general_ci IN _latin1'abcd' COLLATE latin1_bin);
 ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_general_ci,EXPLICIT) for operation 'locate'
+select POSITION(_latin1'B' IN _koi8u'abcd');
+ERROR HY000: Illegal mix of collations (koi8u_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation 'locate'
 select POSITION(_latin1'B' IN _latin2'abcd');
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation 'locate'
+POSITION(_latin1'B' IN _latin2'abcd')
+2
 select FIND_IN_SET(_latin1'B',_latin1'a,b,c,d');
 FIND_IN_SET(_latin1'B',_latin1'a,b,c,d')
 2
@@ -577,12 +589,21 @@ _latin1'B' between _latin1'a' collate latin1_bin and _latin1'c'
 select _latin1'B' between _latin1'a' and _latin1'c' collate latin1_bin;
 _latin1'B' between _latin1'a' and _latin1'c' collate latin1_bin
 0
+select _koi8u'B' between _latin1'a' and _latin1'b';
+ERROR HY000: Illegal mix of collations (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'between'
 select _latin2'B' between _latin1'a' and _latin1'b';
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'between'
+_latin2'B' between _latin1'a' and _latin1'b'
+1
+select _latin1'B' between _koi8u'a' and _latin1'b';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'between'
 select _latin1'B' between _latin2'a' and _latin1'b';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'between'
+_latin1'B' between _latin2'a' and _latin1'b'
+1
+select _latin1'B' between _latin1'a' and _koi8u'b';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (koi8u_general_ci,COERCIBLE) for operation 'between'
 select _latin1'B' between _latin1'a' and _latin2'b';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation 'between'
+_latin1'B' between _latin1'a' and _latin2'b'
+1
 select _latin1'B' collate latin1_general_ci between _latin1'a' collate latin1_bin and _latin1'b';
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation 'between'
 select _latin1'B' in (_latin1'a',_latin1'b');
@@ -597,12 +618,21 @@ _latin1'B' in (_latin1'a' collate latin1_bin,_latin1'b')
 select _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin);
 _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin)
 0
+select _koi8u'B' in (_latin1'a',_latin1'b');
+ERROR HY000: Illegal mix of collations (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin2'B' in (_latin1'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
+_latin2'B' in (_latin1'a',_latin1'b')
+1
+select _latin1'B' in (_koi8u'a',_latin1'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (koi8u_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin2'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
+_latin1'B' in (_latin2'a',_latin1'b')
+1
+select _latin1'B' in (_latin1'a',_koi8u'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (koi8u_general_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin1'a',_latin2'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation 'in'
+_latin1'B' in (_latin1'a',_latin2'b')
+1
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a' COLLATE latin1_bin,_latin1'b');
 ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a',_latin1'b' COLLATE latin1_bin);

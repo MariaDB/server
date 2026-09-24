@@ -285,8 +285,10 @@ select 1=_latin1'1';
 select _latin1'1'=1;
 select _latin2'1'=1;
 select 1=_latin2'1';
---error 1267
 select _latin1'1'=_latin2'1';
+# koi8u_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select _latin1'1'=_koi8u'1';
 select row('a','b','c') = row('a','b','c');
 select row('A','b','c') = row('a','b','c');
 select row('A' COLLATE latin1_bin,'b','c') = row('a','b','c');
@@ -312,10 +314,16 @@ select FIELD('b' COLLATE latin1_bin,'A','B');
 select FIELD('b','A' COLLATE latin1_bin,'B');
 #enable after fix MDEV-29601
 --disable_service_connection
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select FIELD(_koi8u'b','A','B');
 select FIELD(_latin2'b','A','B');
+
+# koi8u_general_ci has anomalies in the ASCII range
 --error 1270
+select FIELD('b',_koi8u'A','B');
 select FIELD('b',_latin2'A','B');
+
 --enable_service_connection
 select FIELD('1',_latin2'3','2',1);
 
@@ -324,7 +332,9 @@ select POSITION(_latin1'B' IN _latin1'abcd' COLLATE latin1_bin);
 select POSITION(_latin1'B' COLLATE latin1_bin IN _latin1'abcd');
 --error 1267
 select POSITION(_latin1'B' COLLATE latin1_general_ci IN _latin1'abcd' COLLATE latin1_bin);
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1267
+select POSITION(_latin1'B' IN _koi8u'abcd');
 select POSITION(_latin1'B' IN _latin2'abcd');
 
 select FIND_IN_SET(_latin1'B',_latin1'a,b,c,d');
@@ -357,12 +367,22 @@ select _latin1'B' between _latin1'a' and _latin1'c';
 select _latin1'B' collate latin1_bin between _latin1'a' and _latin1'c';
 select _latin1'B' between _latin1'a' collate latin1_bin and _latin1'c';
 select _latin1'B' between _latin1'a' and _latin1'c' collate latin1_bin;
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _koi8u'B' between _latin1'a' and _latin1'b';
 select _latin2'B' between _latin1'a' and _latin1'b';
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _latin1'B' between _koi8u'a' and _latin1'b';
 select _latin1'B' between _latin2'a' and _latin1'b';
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _latin1'B' between _latin1'a' and _koi8u'b';
 select _latin1'B' between _latin1'a' and _latin2'b';
+
 --error 1270
 select _latin1'B' collate latin1_general_ci between _latin1'a' collate latin1_bin and _latin1'b';
 
@@ -370,12 +390,22 @@ select _latin1'B' in (_latin1'a',_latin1'b');
 select _latin1'B' collate latin1_bin in (_latin1'a',_latin1'b');
 select _latin1'B' in (_latin1'a' collate latin1_bin,_latin1'b');
 select _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin);
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _koi8u'B' in (_latin1'a',_latin1'b');
 select _latin2'B' in (_latin1'a',_latin1'b');
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _latin1'B' in (_koi8u'a',_latin1'b');
 select _latin1'B' in (_latin2'a',_latin1'b');
+
+# koi8u_general_ci has anomalies on the ASCII range
 --error 1270
+select _latin1'B' in (_latin1'a',_koi8u'b');
 select _latin1'B' in (_latin1'a',_latin2'b');
+
 --error 1270
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a' COLLATE latin1_bin,_latin1'b');
 --error 1270

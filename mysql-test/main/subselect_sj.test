@@ -2765,7 +2765,10 @@ DROP TABLE t1,t2,t3,t4;
 
 create table t1(a int);
 insert into t1 values(1),(2),(3),(null);
+# koi8u_general_ci has anomalies on the ASCII range
 --error ER_CANT_AGGREGATE_2COLLATIONS
+explain
+select 1 from t1 where _koi8u "1" in (select '1' from t1);
 explain
 select 1 from t1 where _cp932 "1" in (select '1' from t1);
 drop table t1;

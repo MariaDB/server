@@ -4514,6 +4514,11 @@ EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
 CONCAT(?,?)
 xxxyyyzzz
 DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+?
+1
+DEALLOCATE PREPARE stmt;
 #
 # Testing disallowed expressions in USING
 #
@@ -4531,8 +4536,10 @@ DROP FUNCTION f1;
 # Testing erroneous expressions in USING
 #
 PREPARE stmt FROM 'SELECT ?';
-EXECUTE stmt USING _latin1'a'=_latin2'a';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE stmt USING CONCAT(_latin1'a',_latin2'a');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE stmt USING _latin1'a'=_koi8u'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (koi8u_general_ci,COERCIBLE) for operation '='
 DEALLOCATE PREPARE stmt;
 PREPARE stmt FROM 'SELECT ?';
 EXECUTE stmt USING ROW(1,2);
@@ -4693,6 +4700,9 @@ a
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
 a
 20
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+?
+1
 #
 # Erroneous queries
 #
@@ -4710,8 +4720,10 @@ EXECUTE IMMEDIATE 'EXECUTE stmt';
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
 ERROR HY000: This command is not supported in the prepared statement protocol yet
-EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(_latin1'a',_latin2'a');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_koi8u'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (koi8u_general_ci,COERCIBLE) for operation '='
 EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);
 ERROR 21000: Operand should contain 1 column(s)
 #

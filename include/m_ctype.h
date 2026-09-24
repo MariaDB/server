@@ -297,16 +297,51 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
                                   to weights, e.g. contractions, expansions,
                                   ignorable characters */
 #define MY_CS_UPPER_EQUAL_AS_EQUAL 0x80000 /* (UPPER(x)=UPPER(y)) <=> (x=y)*/
+/*
+  ASCII BINARY CI sorting means that the collation maps lower case ASCII
+  letters a-z to their upper case counter parts A-Z, and sorts the ASCII
+  range according to the code point otherwise. Sorting on the non-ASCII
+  range can be any, not necessarily according to the code point.
+*/
+#define MY_CS_ASCII_BINARY_CI     0x100000 /* ASCII BINARY CI sorting */
+#define MY_CS_ASCII_STD_UCA       0x200000 /* Standard UCA sorting on ASCII */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
 typedef enum enum_repertoire_t
 {
-  MY_REPERTOIRE_NONE=        0,
-  MY_REPERTOIRE_ASCII=       1, /* Pure ASCII            U+0000..U+007F */
-  MY_REPERTOIRE_EXTENDED=    2, /* Extended characters:  U+0080..U+FFFF */
-  MY_REPERTOIRE_UNICODE30=   3  /* ASCII | EXTENDED:     U+0000..U+FFFF */
+  MY_REPERTOIRE_NONE= 0,
+  /* ASCII digits 0..9 */
+  MY_REPERTOIRE_ASCII_DIGITS= 1,
+  /* ASCII letters A..Z */
+  MY_REPERTOIRE_ASCII_LETTERS_UPPER= 2,
+  /* ASCII letters a..z */
+  MY_REPERTOIRE_ASCII_LETTERS_LOWER= 4,
+  /* ASCII letters A..Z, a..z */
+  MY_REPERTOIRE_ASCII_LETTERS= MY_REPERTOIRE_ASCII_LETTERS_UPPER |
+                               MY_REPERTOIRE_ASCII_LETTERS_LOWER,
+  /* ASCII leters and digits */
+  MY_REPERTOIRE_ASCII_ALNUM= MY_REPERTOIRE_ASCII_DIGITS |
+                             MY_REPERTOIRE_ASCII_LETTERS,
+  /* ASCII underscore character */
+  MY_REPERTOIRE_ASCII_UNDERSCORE= 8,
+  /* A combination of alnum and underscore */
+  MY_REPERTOIRE_ASCII_IDENT= MY_REPERTOIRE_ASCII_ALNUM |
+                             MY_REPERTOIRE_ASCII_UNDERSCORE,
+  /* Other ASCII characters, not covered by MY_REPERTOIRE_ASCII_IDENT: */
+  MY_REPERTOIRE_ASCII_NOT_IDENT= 16,
+  /* Entire pure ASCII: U+0000..U+007F */
+  MY_REPERTOIRE_ASCII= MY_REPERTOIRE_ASCII_IDENT |
+                       MY_REPERTOIRE_ASCII_NOT_IDENT,
+  /* Extended characters:  U+0080..U+10FFFF */
+  MY_REPERTOIRE_EXTENDED= 32,
+  /* All characters: U+0000..U+10FFFF */
+  MY_REPERTOIRE_UNICODE30= MY_REPERTOIRE_ASCII |
+                           MY_REPERTOIRE_EXTENDED
 } my_repertoire_t;
+
+/*All known repertoire flags */
+#define MY_REPERTOIRE_ALL MY_REPERTOIRE_UNICODE30
 
 
 /* ID compatibility */
@@ -618,6 +653,11 @@ struct my_collation_handler_st
     @return 1  Identical
   */
   my_bool (*eq_collation)(CHARSET_INFO *self, CHARSET_INFO *other);
+
+  /*
+    Get collation rules on the given repertoire.
+  */
+  LEX_CSTRING (*tailoring)(CHARSET_INFO *self, my_repertoire_t repertoire);
 };
 
 

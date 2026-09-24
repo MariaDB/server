@@ -9063,3 +9063,50 @@ Warning	1292	Truncated incorrect INTEGER value: '-9223372036854775809'
 DROP TABLE t1, t2;
 SET @@sql_mode= @old_mode;
 # End of 10.11 tests
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES latin1 COLLATE latin1_danish_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_danish_ci,COERCIBLE) for operation '='
+SET NAMES latin1 COLLATE latin1_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_general_ci,COERCIBLE) for operation '='
+SET NAMES latin1 COLLATE latin1_german1_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_german1_ci,COERCIBLE) for operation '='
+SET NAMES latin1 COLLATE latin1_spanish_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_spanish_ci,COERCIBLE) for operation '='
+SET NAMES latin1 COLLATE latin1_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES DEFAULT;
+# End of 11.8 tests

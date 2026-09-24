@@ -32659,6 +32659,7 @@ typedef struct my_coll_rules_st
   MY_COLL_RULE *rule;        /* Rule array                        */
   MY_CHARSET_LOADER *loader;
   my_coll_shift_method shift_after_method;
+  my_bool with_anomalies_on_ascii_range;
 } MY_COLL_RULES;
 
 
@@ -32686,6 +32687,19 @@ my_coll_rules_realloc(MY_COLL_RULES *rules, size_t n)
 }
 
 
+static my_bool my_coll_rule_has_ascii_anomalies(const MY_COLL_RULE *rule)
+{
+  uint j;
+  DBUG_ASSERT(array_elements(rule->curr) == MY_UCA_MAX_CONTRACTION);
+  for (j= 0 ; j < array_elements(rule->curr) && rule->curr[j]; j++)
+  {
+    if (rule->curr[j] <= 0x007F)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
 /**
   Append one new rule to a rule array
 
@@ -32701,6 +32715,9 @@ my_coll_rules_add(MY_COLL_RULES *rules, MY_COLL_RULE *rule)
   if (my_coll_rules_realloc(rules, rules->nrules + 1))
     return -1;
   rules->rule[rules->nrules++]= rule[0];
+  if (!rules->with_anomalies_on_ascii_range &&
+      my_coll_rule_has_ascii_anomalies(rule))
+    rules->with_anomalies_on_ascii_range= TRUE;
   return 0;
 }
 
@@ -34779,6 +34796,8 @@ create_tailoring(struct charset_info_st *cs,
   else if (!cs->levels_for_order)
     my_ci_set_strength(cs, 1);
 
+  if (!rules.with_anomalies_on_ascii_range)
+    cs->state|= MY_CS_ASCII_STD_UCA;
 
   if (my_collation_id_is_mysql_uca0900(cs->number))
   {
@@ -39424,6 +39443,28 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
   }
 
   return cs->coll_name;
+}
+
+
+LEX_CSTRING my_tailoring_uca(CHARSET_INFO *self, my_repertoire_t repertoire)
+{
+  const LEX_CSTRING nl= {0,0};
+  if (self->state & MY_CS_ASCII_STD_UCA)
+  {
+    if ((repertoire & ~MY_REPERTOIRE_ASCII_ALNUM) == 0)
+    {
+      if ((self->levels_for_order & MY_STRXFRM_LEVEL3) == 0)
+        return my_tailoring_alnum_09_AaZz_ci();
+      return my_tailoring_alnum_09_aAzZ3_cs();
+    }
+    if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+    {
+      if ((self->levels_for_order & MY_STRXFRM_LEVEL3) == 0)
+        return my_tailoring_ident_underscore_09_AaZz_ci();
+      return my_tailoring_ident_underscore_09_aAzZ3_cs();
+    }
+  }
+  return nl;
 }
 
 #endif /* HAVE_UCA_COLLATIONS */

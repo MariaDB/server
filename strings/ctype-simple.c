@@ -1508,11 +1508,56 @@ uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs)
 }
 
 
+static inline uint my_ascii_toupper(uint ch)
+{
+  return (ch >= 'a' && ch <= 'z') ? (ch - 'a' + 'A') : ch;
+}
+
+
+#define DBUG_FLAGS 0
+
+my_bool my_check_binary_order(CHARSET_INFO *cs, uint ch1, uint ch2)
+{
+  uint ch;
+  for (ch= ch1 + 1; ch <= ch2; ch++)
+  {
+    uint weight_prev= cs->sort_order[ch - 1];
+    uint weight_curr= cs->sort_order[ch];
+    if (weight_prev >= weight_curr)
+    {
+#if DBUG_FLAGS
+      fprintf(stderr, "%-20s %c %c %02X %02X ; %02X %02X\n",
+              cs->coll_name.str, ch-1, ch, ch-1, ch,
+              weight_prev, weight_curr);
+#endif
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+my_bool my_check_case_insensitive(CHARSET_INFO *cs)
+{
+  uint ch;
+  for (ch= 'a'; ch <= 'z'; ch++)
+  {
+    uint ch_upper= my_ascii_toupper(ch);
+    if (cs->sort_order[ch_upper] != cs->sort_order[ch])
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
 /*
   Check if case sensitive sort order: A < a < B.
   We need MY_CS_FLAG for regex library, and for
   case sensitivity flag for 5.0 client protocol,
-  to support isCaseSensitive() method in JDBC driver
+  to support isCaseSensitive() method in JDBC driver.
+  Also detect the MY_CS_ASCII_BINARY_CI flag.
+  It's needed to return a collation tailoring
+  from cs->coll->tailoring(), for collation aggregation.
 */
 uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs)
 {
@@ -1520,6 +1565,29 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs)
   if (cs->sort_order && cs->sort_order['A'] < cs->sort_order['a'] &&
                         cs->sort_order['a'] < cs->sort_order['B'])
     flags|= MY_CS_CSSORT;
+
+  /*
+    If MY_CS_CSSORT is in "flags", then it can not be MY_CS_ASCII_BINARY_CI.
+    If MY_CS_ASCII_BINARY_CI is already set in cs->state, then it's a built-in
+    collation from ctype-extra.c. No need to detect the flag again.
+  */
+  if (cs->sort_order &&
+      !(flags & MY_CS_CSSORT) &&
+      !(cs->state & MY_CS_ASCII_BINARY_CI))
+  {
+    uint flag_ascii_binary_ci= MY_CS_ASCII_BINARY_CI;
+    if (my_check_binary_order(cs, 0x0000, 'a' - 1) ||
+        my_check_case_insensitive(cs) ||
+        my_check_binary_order(cs, 'z' + 1, 0x7F))
+    {
+      flag_ascii_binary_ci= 0;
+    }
+#if DBUG_FLAGS
+    fprintf(stderr, "%-20s %s\n", cs->coll_name.str,
+            flag_ascii_binary_ci ? "OK" : "ERROR");
+#endif
+    flags|= flag_ascii_binary_ci;
+  }
   return flags;
 }
 
@@ -2171,6 +2239,21 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
 }
 
 
+LEX_CSTRING my_tailoring_simple_ci_generic(CHARSET_INFO *self,
+                                       my_repertoire_t repertoire)
+{
+  const LEX_CSTRING nl={0,0};
+  if (self->state & MY_CS_ASCII_BINARY_CI)
+  {
+    if ((repertoire & ~MY_REPERTOIRE_ASCII_ALNUM) == 0)
+      return my_tailoring_alnum_09_AaZz_ci();
+    if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+      return my_tailoring_ident_09_AaZz_ci_underscore();
+  }
+  return nl;
+}
+
+
 MY_CHARSET_HANDLER my_charset_8bit_handler=
 {
     my_cset_init_8bit,
@@ -2221,7 +2304,8 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_simple_ci_generic
 };
 
 
@@ -2242,5 +2326,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_simple_ci_generic
 };

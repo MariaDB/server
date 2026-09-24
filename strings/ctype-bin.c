@@ -527,7 +527,8 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_generic
 };
 
 
@@ -548,7 +549,8 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_generic
 };
 
 
@@ -569,7 +571,8 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_generic
 };
 
 

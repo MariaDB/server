@@ -2648,7 +2648,7 @@ public:
       not only numeric/datetime origin.
     */
     if (collation.derivation == DERIVATION_NUMERIC &&
-        collation.repertoire == MY_REPERTOIRE_ASCII &&
+        !(collation.repertoire & ~MY_REPERTOIRE_ASCII) &&
         !(collation.collation->state & MY_CS_NONASCII) &&
         !(tocs->state & MY_CS_NONASCII))
       return false;
@@ -4046,7 +4046,7 @@ public:
     max_length= 0;
     name.str= name_par ? name_par : "NULL";
     name.length= strlen(name.str);
-    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_NONE);
   }
   Type type() const override { return NULL_ITEM; }
   bool vcol_assignment_allowed_value() const override { return true; }

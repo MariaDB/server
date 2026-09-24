@@ -3677,7 +3677,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_dec8
 {
   3,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("dec8") }, /* cset name     */
   { STRING_WITH_LEN("dec8_swedish_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3708,7 +3708,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp850
 {
   4,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp850") }, /* cset name     */
   { STRING_WITH_LEN("cp850_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3739,7 +3739,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin1
 {
   5,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin1") }, /* cset name     */
   { STRING_WITH_LEN("latin1_german1_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3801,7 +3801,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_koi8r
 {
   7,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("koi8r") }, /* cset name     */
   { STRING_WITH_LEN("koi8r_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3832,7 +3832,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin2
 {
   9,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin2") }, /* cset name     */
   { STRING_WITH_LEN("latin2_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3894,7 +3894,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_ascii
 {
   11,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_PUREASCII,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_PUREASCII|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("ascii") }, /* cset name     */
   { STRING_WITH_LEN("ascii_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3925,7 +3925,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1251
 {
   14,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1251") }, /* cset name     */
   { STRING_WITH_LEN("cp1251_bulgarian_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3956,7 +3956,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin1
 {
   15,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin1") }, /* cset name     */
   { STRING_WITH_LEN("latin1_danish_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -3987,7 +3987,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_hebrew
 {
   16,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("hebrew") }, /* cset name     */
   { STRING_WITH_LEN("hebrew_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4142,7 +4142,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_greek
 {
   25,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("greek") }, /* cset name     */
   { STRING_WITH_LEN("greek_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4173,7 +4173,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1250
 {
   26,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1250") }, /* cset name     */
   { STRING_WITH_LEN("cp1250_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4204,7 +4204,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin2
 {
   27,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin2") }, /* cset name     */
   { STRING_WITH_LEN("latin2_croatian_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4297,7 +4297,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_armscii8
 {
   32,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("armscii8") }, /* cset name     */
   { STRING_WITH_LEN("armscii8_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4359,7 +4359,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_keybcs2
 {
   37,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("keybcs2") }, /* cset name     */
   { STRING_WITH_LEN("keybcs2_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4421,7 +4421,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_macroman
 {
   39,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("macroman") }, /* cset name     */
   { STRING_WITH_LEN("macroman_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4452,7 +4452,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp852
 {
   40,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp852") }, /* cset name     */
   { STRING_WITH_LEN("cp852_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4576,7 +4576,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1250
 {
   44,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1250") }, /* cset name     */
   { STRING_WITH_LEN("cp1250_croatian_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4607,7 +4607,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin1
 {
   48,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin1") }, /* cset name     */
   { STRING_WITH_LEN("latin1_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4700,7 +4700,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1251
 {
   51,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1251") }, /* cset name     */
   { STRING_WITH_LEN("cp1251_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4793,7 +4793,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1256
 {
   57,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1256") }, /* cset name     */
   { STRING_WITH_LEN("cp1256_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -4855,7 +4855,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1257
 {
   59,0,0,
-  MY_CS_COMPILED|MY_CS_PRIMARY,
+  MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1257") }, /* cset name     */
   { STRING_WITH_LEN("cp1257_general_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -5506,7 +5506,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_latin1
 {
   94,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("latin1") }, /* cset name     */
   { STRING_WITH_LEN("latin1_spanish_ci") }, /* coll name     */
   "",                       /* comment       */
@@ -5537,7 +5537,7 @@ struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_cp1250
 {
   99,0,0,
-  MY_CS_COMPILED,
+  MY_CS_COMPILED|MY_CS_ASCII_BINARY_CI,
   { STRING_WITH_LEN("cp1250") }, /* cset name     */
   { STRING_WITH_LEN("cp1250_polish_ci") }, /* coll name     */
   "",                       /* comment       */

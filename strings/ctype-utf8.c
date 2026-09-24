@@ -871,7 +871,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general1400_as_ci_handler=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -924,7 +925,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_ci_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_mb_ci_generic
 };
 
 
@@ -945,7 +947,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_mysql500_ci_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_mb_ci_generic
 };
 
 
@@ -966,7 +969,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_bin_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_bin_generic
 };
 
 
@@ -987,7 +991,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_general_nopad_ci_handler =
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -1008,7 +1013,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb3_nopad_bin_handler =
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 
@@ -2682,7 +2688,8 @@ static MY_COLLATION_HANDLER my_collation_filename_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_generic
 };
 
 static MY_CHARSET_HANDLER my_charset_filename_handler=
@@ -3134,7 +3141,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -3155,7 +3163,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_utf8mb4_bin
+    my_ci_eq_collation_utf8mb4_bin,
+    my_tailoring_bin_generic
 };
 
 
@@ -3176,7 +3185,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -3197,7 +3207,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_utf8mb4_bin
+  my_ci_eq_collation_utf8mb4_bin,
+  my_tailoring_bin_generic
 };
 
 
@@ -3297,7 +3308,8 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general1400_as_ci_handler=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 

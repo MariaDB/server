@@ -839,3 +839,15 @@ hex(weight_string('xﬂ' as char(2)))
 #
 drop database latin1_german2_ci;
 use test;
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES latin1 COLLATE latin1_german2_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_german2_ci,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

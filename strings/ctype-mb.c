@@ -1370,4 +1370,16 @@ int my_mb_ctype_mb(CHARSET_INFO *cs, int *ctype,
 }
 
 
+LEX_CSTRING my_tailoring_mb_ci_generic(CHARSET_INFO *self,
+                                       my_repertoire_t repertoire)
+{
+  LEX_CSTRING nl= {0,0};
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_ALNUM) == 0)
+    return my_tailoring_alnum_09_AaZz_ci();
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+    return my_tailoring_ident_09_AaZz_ci_underscore();
+  return nl;
+}
+
+
 #endif

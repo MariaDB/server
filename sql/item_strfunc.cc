@@ -4106,7 +4106,7 @@ String *Item_func_set_collation::val_str(String *str)
   */
   DBUG_ASSERT(my_charset_same(args[0]->collation.collation,
                               collation.collation) ||
-              (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+              (!(args[0]->collation.repertoire & ~MY_REPERTOIRE_ASCII) &&
                !(collation.collation->state & MY_CS_NONASCII)));
   str->set_charset(collation.collation);
   return str;

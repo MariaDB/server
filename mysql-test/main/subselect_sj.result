@@ -3069,8 +3069,13 @@ DROP TABLE t1,t2,t3,t4;
 create table t1(a int);
 insert into t1 values(1),(2),(3),(null);
 explain
+select 1 from t1 where _koi8u "1" in (select '1' from t1);
+ERROR HY000: Illegal mix of collations (koi8u_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+explain
 select 1 from t1 where _cp932 "1" in (select '1' from t1);
-ERROR HY000: Illegal mix of collations (cp932_japanese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	FirstMatch
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
 drop table t1;
 #
 # MDEV-7823: Server crashes in next_depth_first_tab on nested IN clauses with SQ inside

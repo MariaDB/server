@@ -361,13 +361,14 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
 {
   fprintf(f,"{\n");
   fprintf(f,"  %d,%d,%d,\n",cs->number,0,0);
-  fprintf(f,"  MY_CS_COMPILED%s%s%s%s%s%s,\n",
+  fprintf(f,"  MY_CS_COMPILED%s%s%s%s%s%s%s,\n",
           cs->state & MY_CS_BINSORT         ? "|MY_CS_BINSORT"   : "",
           cs->state & MY_CS_PRIMARY         ? "|MY_CS_PRIMARY"   : "",
           cs->state & MY_CS_CSSORT          ? "|MY_CS_CSSORT"    : "",
           cs->state & MY_CS_PUREASCII       ? "|MY_CS_PUREASCII" : "",
           cs->state & MY_CS_NONASCII        ? "|MY_CS_NONASCII"  : "",
-          cs->state & MY_CS_NOPAD           ? "|MY_CS_NOPAD"     : "");
+          cs->state & MY_CS_NOPAD           ? "|MY_CS_NOPAD"     : "",
+          cs->state & MY_CS_ASCII_BINARY_CI ? "|MY_CS_ASCII_BINARY_CI" : "");
   
   if (cs->coll_name.str)
   {

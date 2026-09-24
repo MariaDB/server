@@ -4058,6 +4058,10 @@ PREPARE stmt FROM 'SELECT CONCAT(?,?) FROM DUAL';
 EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
 DEALLOCATE PREPARE stmt;
 
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+DEALLOCATE PREPARE stmt;
+
 --echo #
 --echo # Testing disallowed expressions in USING
 --echo #
@@ -4080,7 +4084,11 @@ DROP FUNCTION f1;
 
 PREPARE stmt FROM 'SELECT ?';
 --error ER_CANT_AGGREGATE_2COLLATIONS
-EXECUTE stmt USING _latin1'a'=_latin2'a';
+EXECUTE stmt USING CONCAT(_latin1'a',_latin2'a');
+# koi8u_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING _latin1'a'=_koi8u'a';
+
 DEALLOCATE PREPARE stmt;
 
 PREPARE stmt FROM 'SELECT ?';
@@ -4206,6 +4214,8 @@ SET @a=10;
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING @a;
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
 
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+
 
 --echo #
 --echo # Erroneous queries
@@ -4233,7 +4243,11 @@ EXECUTE IMMEDIATE 'EXECUTE stmt';
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
-EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(_latin1'a',_latin2'a');
+
+# koi8u_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_koi8u'a';
 
 --error ER_OPERAND_COLUMNS
 EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);

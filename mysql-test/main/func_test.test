@@ -53,7 +53,7 @@ select _koi8r'a' COLLATE koi8r_bin = _koi8r'A';
 --error 1267
 select _koi8r'a' COLLATE koi8r_bin = _koi8r'A' COLLATE koi8r_general_ci;
 --error 1267
-select _koi8r'a' = _latin1'A';
+select concat(_koi8r'a', _latin1'A');
 
 select strcmp(_koi8r'a', _koi8r'A');
 select strcmp(_koi8r'a', _koi8r'A' COLLATE koi8r_general_ci);
@@ -62,8 +62,10 @@ select strcmp(_koi8r'a' COLLATE koi8r_general_ci, _koi8r'A');
 select strcmp(_koi8r'a' COLLATE koi8r_bin, _koi8r'A');
 --error 1267
 select strcmp(_koi8r'a' COLLATE koi8r_general_ci, _koi8r'A' COLLATE koi8r_bin);
---error 1267
 select strcmp(_koi8r'a', _latin1'A');
+# koi8u_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select strcmp(_koi8u'a', _latin1'A');
 
 select _koi8r'a' LIKE _koi8r'A';
 select _koi8r'a' LIKE _koi8r'A' COLLATE koi8r_general_ci;
@@ -72,8 +74,10 @@ select _koi8r'a' COLLATE koi8r_general_ci LIKE _koi8r'A';
 select _koi8r'a' COLLATE koi8r_bin LIKE _koi8r'A';
 --error 1267
 select _koi8r'a' COLLATE koi8r_general_ci LIKE _koi8r'A' COLLATE koi8r_bin;
---error 1267
 select _koi8r'a' LIKE _latin1'A';
+# koi8u_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select _koi8u'a' LIKE _latin1'A';
 
 #
 # Test for LEAST() BUG in LEFT JOIN

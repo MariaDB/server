@@ -3653,3 +3653,18 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 #
 # End of 10.5 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES swe7 COLLATE swe7_swedish_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation '='
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation '='
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_swedish_ci,COERCIBLE) for operation '='
+SET NAMES swe7 COLLATE swe7_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (swe7_bin,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

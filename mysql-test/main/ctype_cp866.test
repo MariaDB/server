@@ -12,3 +12,22 @@ SELECT _cp866'' LIKE _cp866'' ESCAPE _cp866 0xFF;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES cp866 COLLATE cp866_general_ci;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+
+SET NAMES cp866 COLLATE cp866_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

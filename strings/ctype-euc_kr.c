@@ -9977,7 +9977,8 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -9998,7 +9999,8 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 
@@ -10019,7 +10021,8 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_nopad_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_mb_ci_generic
 };
 
 
@@ -10040,7 +10043,8 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_nopad_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 

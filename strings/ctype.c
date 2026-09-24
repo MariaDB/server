@@ -843,27 +843,46 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 }
 
 
+static inline uint my_uint_repertoire_generic(uint ch)
+{
+  if (ch > 0x7F)
+    return MY_REPERTOIRE_EXTENDED;
+  if (ch >= 'A' && ch <= 'Z')
+    return MY_REPERTOIRE_ASCII_LETTERS_UPPER;
+  if (ch >= 'a' && ch <= 'z')
+    return MY_REPERTOIRE_ASCII_LETTERS_LOWER;
+  if (ch >= '0' && ch <= '9')
+    return MY_REPERTOIRE_ASCII_DIGITS;
+  if (ch == '_')
+    return MY_REPERTOIRE_ASCII_UNDERSCORE;
+  return MY_REPERTOIRE_ASCII_NOT_IDENT;
+}
+
+
 uint
 my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
 {
   const char *strend;
+  uint res= 0;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
-    return MY_REPERTOIRE_UNICODE30;
+    return MY_REPERTOIRE_ALL;
   if (!str) // Avoid UBSAN nullptr-with-offset
-    return MY_REPERTOIRE_ASCII;
+    return MY_REPERTOIRE_NONE;
   for (strend= str + length; str < strend; str++)
   {
-    if (((uchar) *str) > 0x7F)
-      return MY_REPERTOIRE_UNICODE30;
+    uint byte_repertoire= my_uint_repertoire_generic((uchar) *str);
+    res|= byte_repertoire;
+    if (res == MY_REPERTOIRE_ALL)
+      return res;
   }
-  return MY_REPERTOIRE_ASCII;
+  return res;
 }
 
 
 static void
 my_string_metadata_init(MY_STRING_METADATA *metadata)
 {
-  metadata->repertoire= MY_REPERTOIRE_ASCII;
+  metadata->repertoire= MY_REPERTOIRE_NONE;
   metadata->char_length= 0;
 }
 
@@ -885,8 +904,8 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
     int mblen= my_ci_mb_wc(cs, &wc, (const uchar *) str, (const uchar *) strend);
     if (mblen > 0) /* Assigned character */
     {
-      if (wc > 0x7F)
-        metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      uint wc_repertoire= my_uint_repertoire_generic((uint) wc);
+      metadata->repertoire|= wc_repertoire;
       str+= mblen;
     }
     else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
@@ -933,6 +952,7 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
 my_repertoire_t
 my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 {
+  uint res= 0;
   if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
     return my_string_repertoire_8bit(cs, str, length);
@@ -946,11 +966,13 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
          (chlen= my_ci_mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
          str+= chlen)
     {
-      if (wc > 0x7F)
-        return MY_REPERTOIRE_UNICODE30;
+      uint wc_repertoire= my_uint_repertoire_generic((uint) wc);
+      res|= wc_repertoire;
+      if (res == MY_REPERTOIRE_ALL)
+        return res;
     }
   }
-  return MY_REPERTOIRE_ASCII;
+  return res;
 }
 
 
@@ -960,7 +982,7 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs)
 {
   return cs->state & MY_CS_PUREASCII ?
-    MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+    MY_REPERTOIRE_ASCII : MY_REPERTOIRE_ALL;
 }
 
 
@@ -1431,6 +1453,23 @@ my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other)
 }
 
 
+LEX_CSTRING my_tailoring_generic(CHARSET_INFO *self,
+                                 my_repertoire_t repertoire)
+{
+  const LEX_CSTRING res={0,0};
+  return res;
+}
+
+
+LEX_CSTRING my_tailoring_bin_generic(CHARSET_INFO *self,
+                                     my_repertoire_t repertoire)
+{
+  const LEX_CSTRING res={0,0};
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+    return my_tailoring_ident_09_AZ_underscore_az();
+  return res;
+}
+
 /*
   Allocate a memory block for a new charset_info_st together with
   its name and its comment in a single once_alloc() call.
@@ -1460,4 +1499,81 @@ struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
   out_comment->length= comment.length;
 
   return csinfo;
+}
+
+
+#define DIGITS "0<1<2<3<4<5<6<7<8<9"
+#define UPPER  "A<B<C<D<E<F<G<H<I<J<K<L<M<N<O<P<Q<R<S<T<U<V<W<X<Y<Z"
+#define LOWER  "a<b<c<d<e<f<g<h<i<j<k<l<m<n<o<p<q<r<s<t<u<v<w<x<y<z"
+
+/* Case insensitive tailoring for letters */
+#define LETTERS_AaZz_CI "A=a<B=b<C=c<D=d<E=e<F=f<G=g<H=h<I=i<J=j<K=k<L=l<M=m" \
+                       "<N=n<O=o<P=p<Q=q<R=r<S=s<T=t<U=u<V=v<W=w<X=x<Y=y<Z=z"
+
+/*
+  Case sensitive tailoring for letters with lower case preference
+  with case difference on the third level.
+*/
+#define LETTERS_aAzZ3_CS "a<<<A<b<<<B<c<<<C<d<<<D<e<<<E<f<<<F<g<<<G<h<<<H" \
+                        "<i<<<I<j<<<J<k<<<K<l<<<L<m<<<M<n<<<N<o<<<O<p<<<P" \
+                        "<q<<<Q<r<<<R<s<<<S<t<<<T<n<<<U<v<<<V<w<<<W<x<<<X" \
+                        "<y<<<Y<z<<<Z"
+
+/*** ALNUM repertoires ***/
+
+
+/* Most _ci collations - both UCA and non-UCA */
+LEX_CSTRING my_tailoring_alnum_09_AaZz_ci()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN(DIGITS "<" LETTERS_AaZz_CI)};
+  return rc;
+}
+
+/* Most UCA case sensitive collations */
+LEX_CSTRING my_tailoring_alnum_09_aAzZ3_cs()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN(DIGITS "<" LETTERS_aAzZ3_CS)};
+  return rc;
+}
+
+/* Most _bin collations */
+LEX_CSTRING my_tailoring_alnum_09_AZ_az()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN(DIGITS "<" UPPER "<" LOWER)};
+  return rc;
+}
+
+
+/*** IDENT repertoires ***/
+
+/* Most UCA _ci collations */
+LEX_CSTRING
+my_tailoring_ident_underscore_09_AaZz_ci()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN("_<" DIGITS "<" LETTERS_AaZz_CI)};
+  return rc;
+}
+
+/* Most UCA _cs collations */
+LEX_CSTRING
+my_tailoring_ident_underscore_09_aAzZ3_cs()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN("_<" DIGITS "<" LETTERS_aAzZ3_CS)};
+  return rc;
+}
+
+/* Most non-UCA _ci collations */
+LEX_CSTRING
+my_tailoring_ident_09_AaZz_ci_underscore()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN(DIGITS "<" LETTERS_AaZz_CI "<_")};
+  return rc;
+}
+
+/* Most _bin collations */
+LEX_CSTRING
+my_tailoring_ident_09_AZ_underscore_az()
+{
+  const LEX_CSTRING rc= {STRING_WITH_LEN(DIGITS "<" UPPER "<_<" LOWER)};
+  return rc;
 }

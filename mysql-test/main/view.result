@@ -3859,6 +3859,9 @@ SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select _latin1'text1' AS `c1`,'text2' AS `c2`	latin1	latin1_general_ci
 SELECT * FROM v1 WHERE c1 = 'text1';
+c1	c2
+text1	text2
+SELECT * FROM v1 WHERE c1 = 'text1+';
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_general_ci,COERCIBLE) for operation '='
 SELECT * FROM v1 WHERE c2 = 'text2';
 c1	c2
@@ -3872,6 +3875,9 @@ SELECT * FROM v1 WHERE c1 = 'text1';
 c1	c2
 text1	text2
 SELECT * FROM v1 WHERE c2 = 'text2';
+c1	c2
+text1	text2
+SELECT * FROM v1 WHERE c2 = 'text2+';
 ERROR HY000: Illegal mix of collations (latin1_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
 DROP VIEW v1;
 create procedure p()

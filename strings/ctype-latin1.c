@@ -434,7 +434,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
 struct charset_info_st my_charset_latin1=
 {
     8,0,0,				/* number    */
-    MY_CS_COMPILED | MY_CS_PRIMARY,	/* state     */
+    MY_CS_COMPILED | MY_CS_PRIMARY | MY_CS_ASCII_BINARY_CI, /* state   */
     { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
     { STRING_WITH_LEN("latin1_swedish_ci") },            /* name       */
     "",					/* comment   */
@@ -465,7 +465,7 @@ struct charset_info_st my_charset_latin1=
 struct charset_info_st my_charset_latin1_nopad=
 {
     MY_NOPAD_ID(8),0,0,           /* number           */
-    MY_CS_COMPILED | MY_CS_NOPAD, /* state            */
+    MY_CS_COMPILED | MY_CS_NOPAD | MY_CS_ASCII_BINARY_CI, /* state     */
     { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
     { STRING_WITH_LEN("latin1_swedish_nopad_ci") },      /* name       */
     "",                           /* comment          */
@@ -738,6 +738,18 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+static LEX_CSTRING my_tailoring_latin1_german2_ci(CHARSET_INFO *self,
+                                                  my_repertoire_t repertoire)
+{
+  LEX_CSTRING nl= {0,0};
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_ALNUM) == 0)
+    return my_tailoring_alnum_09_AaZz_ci(self, repertoire);
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+    return my_tailoring_ident_09_AaZz_ci_underscore(self, repertoire);
+  return nl;
+}
+
+
 static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
 {
   NULL,			/* init */
@@ -755,7 +767,8 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_latin1_german2_ci
 };
 
 
