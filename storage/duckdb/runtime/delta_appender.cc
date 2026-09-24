@@ -153,6 +153,13 @@ int DeltaAppender::append_row_update(TABLE *table, ulonglong trx_no,
 int DeltaAppender::append_row_delete(TABLE *table, ulonglong trx_no,
                                      const uchar *old_row)
 {
+  if (!m_use_tmp_table)
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_DUCKDB_APPEND_ERROR,
+             "Delete requires a mixed batch", "DuckDB Appender");
+    return HA_DUCKDB_APPEND_ERROR;
+  }
+
   ++m_row_count;
   m_has_delete= true;
 
@@ -241,10 +248,11 @@ bool DeltaAppender::Initialize(TABLE *table)
       return true;
     }
 
-    KEY *key_info= table->key_info;
-    if (!key_info)
+    if (table->s->primary_key == MAX_KEY)
       return true;
-    my_bitmap_init(&m_pk_bitmap, nullptr, table->s->fields);
+    KEY *key_info= table->key_info + table->s->primary_key;
+    if (my_bitmap_init(&m_pk_bitmap, nullptr, table->s->fields))
+      return true;
     KEY_PART_INFO *key_part= key_info->key_part;
     for (uint i= 0; i < key_info->user_defined_key_parts; i++, key_part++)
     {
@@ -470,18 +478,16 @@ int DeltaAppender::append_mysql_field(const Field *field_arg,
   return 0;
 }
 
-static void appendSelectQuery(std::stringstream &ss,
-                              const std::string &select_list,
-                              const std::string &pk_list,
-                              const std::string &table_name, int delete_flag)
+static void appendLatestRowsQuery(std::stringstream &ss,
+                                  const std::string &select_list,
+                                  const std::string &pk_list,
+                                  const std::string &table_name)
 {
-  ss << "SELECT UNNEST(r) FROM (SELECT LAST(ROW(" << select_list
-     << ") ORDER BY \"#mdb_row_no\") AS r, "
-        "LAST(\"#mdb_delete_flag\" ORDER BY \"#mdb_row_no\") AS "
-        "\"#mdb_delete_flag\" FROM main."
-     << quote_duckdb_identifier(table_name) << " GROUP BY " << pk_list << ")";
-  if (!delete_flag)
-    ss << " WHERE \"#mdb_delete_flag\" = " << delete_flag;
+  ss << "SELECT " << select_list << " FROM main."
+     << quote_duckdb_identifier(table_name)
+     << " QUALIFY ROW_NUMBER() OVER (PARTITION BY " << pk_list
+     << " ORDER BY \"#mdb_row_no\" DESC) = 1 AND NOT "
+        "\"#mdb_delete_flag\"";
 }
 
 void DeltaAppender::generateQuery(std::stringstream &ss, bool delete_flag)
@@ -493,17 +499,16 @@ void DeltaAppender::generateQuery(std::stringstream &ss, bool delete_flag)
   {
     ss << "INSERT INTO " << quote_duckdb_identifier(m_schema_name) << "."
        << quote_duckdb_identifier(m_table_name) << " ";
-    appendSelectQuery(ss, m_col_list, m_pk_list, m_tmp_table_name,
-                      delete_flag);
+    appendLatestRowsQuery(ss, m_col_list, m_pk_list, m_tmp_table_name);
     ss << ";";
   }
   else
   {
     ss << "DELETE FROM " << quote_duckdb_identifier(m_schema_name) << "."
        << quote_duckdb_identifier(m_table_name) << " WHERE (" << m_pk_list
-       << ") IN (";
-    appendSelectQuery(ss, m_pk_list, m_pk_list, m_tmp_table_name, delete_flag);
-    ss << ");";
+       << ") IN (SELECT " << m_pk_list << " FROM main."
+       << quote_duckdb_identifier(m_tmp_table_name) << " GROUP BY "
+       << m_pk_list << ");";
   }
 }
 

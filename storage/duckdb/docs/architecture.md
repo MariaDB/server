@@ -293,12 +293,14 @@ XA transactions are rejected (`reject_xa_if_active`).
 
 ## Batch DML (DeltaAppender)
 
-For bulk INSERT (and mixed INSERT/UPDATE/DELETE within a single transaction):
+For bulk INSERT, the insert-only path appends directly to the target table. For mixed
+INSERT/UPDATE/DELETE within a transaction:
 
 1. Creates a **temporary table** cloning the target schema + 3 auxiliary columns (`#mdb_delete_flag`, `#mdb_row_no`, `#mdb_trx_no`).
-2. Writes rows via the `duckdb::Appender` API (much faster than per-row SQL INSERT).
-3. On `flush()` (at commit/prepare): executes `INSERT INTO target SELECT … FROM tmp` and/or `DELETE FROM target WHERE pk IN (SELECT pk FROM tmp WHERE delete_flag)`.
-4. The temp table lives in the connection-local temporary catalog — invisible to other sessions.
+2. Writes inserted row versions and delete markers via the `duckdb::Appender` API.
+3. On `flush()` (at commit/prepare), deletes target rows for every primary key present in the temporary table.
+4. For each primary key, selects the temporary row with the greatest `#mdb_row_no` and inserts it unless that latest row is a delete marker.
+5. The temp table lives in the connection-local temporary catalog — invisible to other sessions.
 
 ---
 

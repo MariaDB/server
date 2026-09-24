@@ -93,6 +93,8 @@ public:
   {
     return (HA_BINLOG_STMT_CAPABLE | HA_BINLOG_ROW_CAPABLE |
             HA_NULL_IN_KEY | HA_CAN_INDEX_BLOBS |
+            HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
+            HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
             HA_CAN_DIRECT_UPDATE_AND_DELETE);
   }
 
@@ -120,13 +122,9 @@ public:
     return cost;
   }
 
-  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows rows,
-                               ulonglong blocks) override
+  IO_AND_CPU_COST keyread_time(uint, ulong, ha_rows, ulonglong) override
   {
-    IO_AND_CPU_COST cost;
-    cost.io= blocks * DISK_READ_COST;
-    cost.cpu= (double) rows * 0.001;
-    return cost;
+    return {DBL_MAX, DBL_MAX};
   }
 
   /* Methods implemented in ha_duckdb.cc */
@@ -151,6 +149,7 @@ public:
   int rnd_end() override;
   int rnd_next(uchar *buf) override;
   int rnd_pos(uchar *buf, uchar *pos) override;
+  int rnd_pos_by_record(uchar *record) override;
   void position(const uchar *record) override;
   int info(uint) override;
   int extra(enum ha_extra_function operation) override;
