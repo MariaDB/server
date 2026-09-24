@@ -6393,6 +6393,15 @@ static void store_variable_type(THD *thd,
       field->table= tmptbl;
       tmptbl->in_use= thd;
       store_column_type(table, field, cs, offset);
+      /*
+        CHARACTER SET ANY_CS and CHARACTER SET OF/%CHARSET are resolved from
+        the actual argument at call time. Nothing is known at compile time.
+      */
+      if (def.any_cs || def.has_charset_anchor())
+      {
+        table->field[offset + 6]->set_null();
+        table->field[offset + 7]->set_null();
+      }
     }
   }
   else
@@ -7105,7 +7114,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   LEX *lex= thd->lex;
   CHARSET_INFO *cs= system_charset_info;
   const Sp_handler *sph;
-  LEX_CSTRING db, name, definer, returns= empty_clex_str;
+  LEX_CSTRING db, name, definer, params= empty_clex_str, returns= empty_clex_str;
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
   int rc;
 
@@ -7152,11 +7161,14 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       {
         sp_head *sp;
         bool free_sp_head;
+        proc_table->field[MYSQL_PROC_FIELD_PARAM_LIST]->val_str_nopad(
+                                                           thd->mem_root,
+                                                           &params);
         proc_table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
                                                                    &returns);
         sp= sph->sp_load_for_information_schema(thd, proc_table,
                                                 db, name,
-                                                empty_clex_str /*params*/,
+                                                params /*params*/,
                                                 returns,
                                                 (ulong) proc_table->
                                                 field[MYSQL_PROC_FIELD_SQL_MODE]->

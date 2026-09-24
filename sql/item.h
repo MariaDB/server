@@ -519,6 +519,7 @@ public:
   { return NULL; }
 
   virtual Item_param *get_item_param() { return 0; }
+  virtual bool can_handle_any_cs() const { return false; }
 };
 
 
@@ -3310,7 +3311,7 @@ public:
   { return this_item()->element_index(i); }
   Item** addr(uint i) override { return this_item()->addr(i); }
   bool check_cols(uint c) override;
-
+  bool can_handle_any_cs() const override { return true; }
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
@@ -3375,6 +3376,8 @@ public:
                  pos_in_q, len_in_q)
   { }
 
+  bool can_handle_any_cs() const override { return false; }
+
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
@@ -3434,6 +3437,7 @@ public:
   { }
   bool fix_fields(THD *thd, Item **it) override;
   void print(String *str, enum_query_type query_type) override;
+  bool can_handle_any_cs() const override { return false; }
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
@@ -5976,18 +5980,16 @@ public:
 
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
-  virtual ~Item_sp()
-  {
-    delete sp_result_field;
-    sp_result_field= NULL;
-  }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
   bool execute_impl(THD *thd, Item **args, uint arg_count);
   bool init_result_field(THD *thd, uint max_length, uint maybe_null,
-                         bool *null_value, LEX_CSTRING *name);
+                         bool *null_value, LEX_CSTRING *name,
+                         Item **args, uint arg_count);
+  bool resolve_return_charset(THD *thd, Spvar_definition *def,
+                              Item **args, uint arg_count);
   void process_error(THD *thd)
   {
     if (context)
@@ -7608,6 +7610,7 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
   Item *copy_or_same(THD *) override { return this; }
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
+  bool can_handle_any_cs() const override { return true; }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_trigger_field>(thd, this); }

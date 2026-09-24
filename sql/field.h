@@ -5390,6 +5390,7 @@ public:
   List<String> interval_list;
   engine_option_value *option_list;
   bool explicitly_nullable;
+  bool any_cs;
 
   /*
     This is additinal data provided for any computed(virtual) field.
@@ -5411,7 +5412,7 @@ public:
     comment(null_clex_str),
     on_update(NULL), invisible(VISIBLE), char_length(0),
     flags(0), pack_length(0),
-    option_list(NULL), explicitly_nullable(false),
+    option_list(NULL), explicitly_nullable(false), any_cs(false),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET), period(NULL)
   {
@@ -5670,6 +5671,7 @@ public:
   bool adjust_formal_params_to_actual_params(THD *thd,
                                              Item **args, uint arg_count);
   bool resolve_type_refs(THD *);
+  bool resolve_charset_refs(THD *);
 };
 
 /**
@@ -5698,13 +5700,19 @@ class Spvar_definition: public Column_definition
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
+  bool m_has_charset_anchor;                       // for CHARACTER SET OF/%CHARSET
+  uint m_charset_anchor_offset;                    // sp_variable::offset of the source
 public:
+  Item *default_item_value;
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_has_charset_anchor(false),
+    m_charset_anchor_offset(0),
+    default_item_value(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
    :Column_definition(thd, field, NULL),
@@ -5712,7 +5720,10 @@ public:
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_has_charset_anchor(false),
+    m_charset_anchor_offset(0),
+    default_item_value(NULL)
   { }
   const Type_handler *type_handler() const
   {
@@ -5734,6 +5745,14 @@ public:
   void set_column_type_ref(const Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
+  }
+
+  bool has_charset_anchor() const { return m_has_charset_anchor; }
+  uint charset_anchor_offset() const { return m_charset_anchor_offset; }
+  void set_charset_anchor(uint offset)
+  {
+    m_has_charset_anchor= true;
+    m_charset_anchor_offset= offset;
   }
 
   Table_ident *table_rowtype_ref() const

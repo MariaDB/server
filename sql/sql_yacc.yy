@@ -392,6 +392,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> IMPOSSIBLE_ACTION      /* To avoid warning for yyerrlab1 */
 %token  <NONE> FORCE_LOOKAHEAD        /* INTERNAL never returned by the lexer */
 %token  <NONE> END_OF_INPUT           /* INTERNAL */
+%token  <NONE> CHARSET_OF_SYM         /* INTERNAL */
 %token  <kwd>  COLON_ORACLE_SYM       /* INTERNAL */
 %token  <kwd>  PARAM_MARKER           /* INTERNAL */
 %token  <NONE> FOR_SYSTEM_TIME_SYM    /* INTERNAL */
@@ -762,6 +763,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  AGGREGATE_SYM
 %token  <kwd>  ALGORITHM_SYM
 %token  <kwd>  ALWAYS_SYM
+%token  <kwd>  ANY_CS_SYM                    /* CHARACTER SET ANY_CS, routine parameters */
 %token  <kwd>  ANY_SYM                       /* SQL-2003-R */
 %token  <kwd>  ASCII_SYM                     /* MYSQL-FUNC */
 %token  <kwd>  AT_SYM                        /* SQL-2003-R */
@@ -1881,7 +1883,7 @@ rule:
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_mode sp_param
-%type <spvar> sp_param_init_vars sp_param_default
+%type <spvar> sp_param_init_vars sp_param_type_done sp_param_default
 %type <spvar> sp_param_name_and_mode_init_vars
 %type <spvar> sp_param_anchored
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -3352,7 +3354,17 @@ sp_param_name:
 sp_param_name_and_mode_init_vars:
           sp_param_name_and_mode
           {
+            const bool any_cs_allowed= !Lex->m_sp_cursor_params;
             Lex->sp_variable_declarations_init(thd, 1);
+            Lex->m_any_cs_allowed= any_cs_allowed;
+            $$= $1;
+          }
+        ;
+
+sp_param_type_done:
+          sp_param_init_vars
+          {
+            Lex->m_any_cs_allowed= false;
             $$= $1;
           }
         ;
@@ -3387,7 +3399,7 @@ sp_parenthesized_pdparam_list:
         ;
 
 sp_param_default:
-          sp_param_init_vars sp_opt_default
+          sp_param_type_done sp_opt_default
           {
             if (unlikely(Lex->sp_param_set_default_and_finalize(($$= $1), $2.expr, $2.expr_str)))
               MYSQL_YYABORT;
@@ -3395,7 +3407,7 @@ sp_param_default:
         ;
 
 sp_param:
-          sp_param_init_vars
+          sp_param_type_done
           {
             if (unlikely(Lex->sp_param_set_default_and_finalize(($$= $1), nullptr, empty_clex_str)))
               MYSQL_YYABORT;
@@ -3562,7 +3574,14 @@ sp_decl_handler:
 
 opt_parenthesized_cursor_formal_parameters:
           /* Empty */
-        | '(' sp_fdparams_no_default ')'
+        | '('
+          {
+            Lex->m_sp_cursor_params= true;
+          }
+          sp_fdparams_no_default ')'
+          {
+            Lex->m_sp_cursor_params= false;
+          }
         ;
 
 
@@ -6988,6 +7007,34 @@ binary:
             const Lex_exact_collation bin(&my_charset_bin);
             const Lex_extended_collation tmp(bin);
             $$= Lex_exact_charset_extended_collation_attrs(tmp);
+          }
+%ifdef ORACLE
+        | charset sp_decl_ident PERCENT_ORACLE_SYM CHARSET
+          {
+            $$.set_collate_default();
+            Lex->set_pending_charset_anchor(&$2);
+          }
+%else
+        | CHARSET_OF_SYM ident
+          {
+            $$.set_collate_default();
+            Lex->set_pending_charset_anchor(&$2);
+          }
+%endif
+        /*
+          ANY_CS is valid only in the data type of a routine parameter.
+          m_any_cs_allowed is set in sp_param_name_and_mode_init_vars and
+          cleared in sp_param_type_done, and for ROW and cursor parameters.
+        */
+        | charset ANY_CS_SYM
+          {
+            if (!Lex->m_any_cs_allowed)
+            {
+              my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS",
+                       "non-parameter definitions");
+              MYSQL_YYABORT;
+            }
+            $$.set_collation_contextually_typed_any_cs();
           }
         ;
 
@@ -19014,9 +19061,13 @@ sp_param_init_vars:
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name_and_mode_init_vars ROW_SYM row_type_body
+        | sp_param_name_and_mode_init_vars ROW_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+            Lex->m_any_cs_allowed= false;
+          }
+          row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $4)))
               MYSQL_YYABORT;
           }
         | sp_param_anchored
@@ -19892,9 +19943,13 @@ sp_param_init_vars:
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name_and_mode_init_vars ROW_SYM row_type_body
+        | sp_param_name_and_mode_init_vars ROW_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+            Lex->m_any_cs_allowed= false;
+          }
+          row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $4)))
               MYSQL_YYABORT;
           }
         | sp_param_anchored

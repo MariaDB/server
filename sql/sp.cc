@@ -1151,8 +1151,35 @@ void sp_head::sp_returns_type(THD *thd, String &result) const
   {
     DBUG_ASSERT(m_return_field_def.type_handler()->is_scalar_type());
   }
-
-  field->sql_type_for_sp_returns(result);
+  if (m_return_field_def.has_charset_anchor())
+  {
+    /*
+      CHARACTER SET OF / %CHARSET on a source that is ANY_CS (or anchored to
+      one): the character set is only known per call. Keep the anchor in the
+      text, otherwise it is lost when the function is loaded from mysql.proc.
+    */
+    const sp_variable *src=
+      m_pcont->find_variable(m_return_field_def.charset_anchor_offset());
+    DBUG_ASSERT(src);
+    field->sql_type(result);
+    if (src)
+    {
+      Sql_mode_instant_set sms(thd, m_sql_mode);
+      if (m_sql_mode & MODE_ORACLE)
+      {
+        result.append(STRING_WITH_LEN(" CHARSET "));
+        append_identifier(thd, &result, &src->name);
+        result.append(STRING_WITH_LEN("%CHARSET"));
+      }
+      else
+      {
+        result.append(STRING_WITH_LEN(" CHARSET OF "));
+        append_identifier(thd, &result, &src->name);
+      }
+    }
+  }
+  else
+    field->sql_type_for_sp_returns(result);
 
   delete field;
 }
