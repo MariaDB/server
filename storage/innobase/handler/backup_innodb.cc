@@ -884,6 +884,7 @@ public:
       log_write_up_to(wait_lsn, false);
     }
 
+    sql_print_information("InnoDB_backup::log_track() done");
     return 0;
   }
 

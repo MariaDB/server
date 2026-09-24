@@ -1139,6 +1139,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
                          int threads, tpool::thread_pool *tp)
 {
   assert(!backup_step_callback_pending);
+  sql_print_information("step %d", target_phase->phase);
   if (threads == 1)
     return backup_step_one(thd, target_phase);
   tpool::task *const tasks=
