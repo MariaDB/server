@@ -1,0 +1,53 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_exec_mode= @@GLOBAL.slave_exec_mode;
+SET GLOBAL slave_exec_mode= STRICT;
+SET GLOBAL debug_dbug= "+d,rpl_emulate_old_slave_fk_cascade";
+include/start_slave.inc
+connection master;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (
+id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_c FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE cn (
+id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_cn FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE SET NULL ON UPDATE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO p  VALUES (1,10),(2,20),(3,30);
+INSERT INTO c  VALUES (100,1,1000),(200,2,2000),(300,3,3000);
+INSERT INTO cn VALUES (100,1,1000),(200,2,2000),(300,3,3000);
+UPDATE p SET id=11 WHERE id=1;
+DELETE FROM p WHERE id=2;
+connection slave;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT * FROM p  ORDER BY id;
+id	v
+3	30
+11	10
+SELECT * FROM c  ORDER BY id;
+id	pid	v
+100	11	1000
+300	3	3000
+SELECT * FROM cn ORDER BY id;
+id	pid	v
+100	NULL	1000
+200	NULL	2000
+300	3	3000
+connection slave;
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL slave_exec_mode= @old_exec_mode;
+include/start_slave.inc
+connection master;
+DROP TABLE c, cn, p;
+include/rpl_end.inc

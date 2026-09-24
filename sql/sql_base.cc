@@ -5268,8 +5268,9 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   @note this can be changed to use a hash, instead of scanning the linked
   list, if the performance of this function will ever become an issue
 */
-bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
-                                LEX_CSTRING *table, thr_lock_type lock_type)
+TABLE_LIST *table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
+                                       LEX_CSTRING *table,
+                                       thr_lock_type lock_type)
 {
   for (; tl; tl= tl->next_global )
   {
@@ -5277,9 +5278,9 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
         tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK &&
         strcmp(tl->db.str, db->str) == 0 &&
         strcmp(tl->table_name.str, table->str) == 0)
-      return true;
+      return tl;
   }
-  return false;
+  return NULL;
 }
 
 
@@ -5407,23 +5408,52 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
 
   while ((fk= fk_list_it++))
   {
-    // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-    thr_lock_type lock_type;
+    /*
+      Which trigger event the cascade raises on the *child*, which is not
+      always the one the statement raises on the parent: only ON DELETE
+      CASCADE turns a parent delete into a child delete. ON DELETE SET NULL
+      (and SET DEFAULT) update the child row instead, and every ON UPDATE
+      action that touches the child updates it. Propagating the parent's
+      event verbatim would prelock the wrong set of triggers for those, and
+      trip the DBUG_ASSERT in Table_triggers_list::process_triggers().
 
-    if ((op & trg2bit(TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
-     || (op & trg2bit(TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
-      lock_type= TL_FIRST_WRITE;
-    else
-      lock_type= TL_READ;
+      A zero map means the child is only read (FK_OPTION_RESTRICT and
+      FK_OPTION_NO_ACTION need read access only), which is also what decides
+      the lock type below.
+    */
+    uint8 child_op= 0;
 
-    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table, lock_type))
+    if ((op & trg2bit(TRG_EVENT_DELETE)) &&
+        fk_modifies_child(fk->delete_method))
+      child_op|= (fk->delete_method == FK_OPTION_CASCADE)
+                 ? trg2bit(TRG_EVENT_DELETE) : trg2bit(TRG_EVENT_UPDATE);
+
+    if ((op & trg2bit(TRG_EVENT_UPDATE)) &&
+        fk_modifies_child(fk->update_method))
+      child_op|= trg2bit(TRG_EVENT_UPDATE);
+
+    thr_lock_type lock_type= child_op ? TL_FIRST_WRITE : TL_READ;
+
+    if (TABLE_LIST *prelocked=
+          table_already_fk_prelocked(prelocking_ctx->query_tables,
+            fk->foreign_db, fk->foreign_table, lock_type))
+    {
+      /*
+        The same child is reachable through more than one constraint, and it
+        undergoes the union of their actions -- e.g. ON DELETE CASCADE on one
+        column and ON DELETE SET NULL on another, which delete and update it
+        respectively. Add this constraint's events to the entry rather than
+        letting the first constraint's events stand for all of them.
+      */
+      prelocked->trg_event_map|= child_op;
       continue;
+    }
 
     TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
     tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
-        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+        child_op, &prelocking_ctx->query_tables_last,
+        table_list->for_insert_data);
 
 #ifdef WITH_WSREP
     /*
