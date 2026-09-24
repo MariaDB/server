@@ -1067,15 +1067,25 @@ private:
       std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
                                  POSIX_FADV_SEQUENTIAL);
 #endif
-      const uint64_t min_size= node->space->id
-        /* fil_node_t::read_page0() expects this minimum size */
-        ? uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift
-        /*
-          For the system tablespace, each file must correspond to
-          the configured minimum size, even if we have less payload
-          to copy.
-        */
-        : uint64_t{node->size} << srv_page_size_shift;
+      /*
+        Set the logical size to at least the current file size.
+
+        Tablespaces may be extended during backup, and a recovery from
+        a backup could otherwise flag out-of-bounds page writes.
+
+        fil_node_t::read_page0() expects at least 4 * innodb_page_size
+        bytes. Small ROW_FORMAT=COMPRESSED files may contain less
+        payload than that.
+
+        Yes, this will read the 32-bit quantity node->size without any
+        mutex protection. On any ISA that we support, there is no
+        difference between a non-atomic and a relaxed atomic 32-bit
+        load. It is only a compiler barrier.
+      */
+      const uint64_t min_size=
+        std::max(uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift,
+                 uint64_t{node->size} * page_size);
+
       if (uint64_t{limit} * page_size < min_size)
       {
         /* Expand the target file to the minimum size. */
