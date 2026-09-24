@@ -1,11 +1,11 @@
 # This test should work in embedded server after we fix mysqltest
 -- source include/not_embedded.inc
+-- source include/have_ssl_communication.inc
 
-if (`SELECT COUNT(*) = 0 FROM information_schema.GLOBAL_VARIABLES
-    WHERE (VARIABLE_NAME ='version_compile_os' AND VARIABLE_VALUE LIKE 'Win%' OR
-    VARIABLE_NAME='have_openssl' AND VARIABLE_VALUE='YES')`)
+# GnuTLS does not support --ssl-crlpath
+if ($CLIENT_TLS_LIBRARY == "GnuTLS")
 {
-  skip Need openssl or Windows;
+  skip Not supported with the GnuTLS client library;
 }
 
 --echo # Test clients with and without CRL lists
