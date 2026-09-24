@@ -17,11 +17,11 @@
 
 #include <WinSock2.h>
 #include <windows.h>
-
-struct st_vio;
+#include <violite.h>
 
 struct win_aiosocket
 {
+  class Prefetched_vio;
   /** OVERLAPPED is needed by all Windows AIO*/
   OVERLAPPED m_overlapped{};
   /** Handle to pipe, or socket */
@@ -33,17 +33,8 @@ struct win_aiosocket
 
   /** Pointer to buffer of size READ_BUFSIZ. Can be NULL.*/
   char *m_buf_ptr{};
-  /** Offset to current buffer position*/
-  size_t m_buf_off{};
-  /** Size of valid data in the buffer*/
-  size_t m_buf_datalen{};
-
-  /*  Vio handling */
-  /** Pointer to original vio->vio_read/vio->has_data function */
-  size_t (*m_orig_vio_read)(st_vio *, unsigned char *, size_t){};
-  char (*m_orig_vio_has_data)(st_vio *){};
-
-
+  /** VIO layer which consumes bytes completed by asynchronous reads. */
+  Prefetched_vio *m_prefetched{};
 
   /**
    Begins asynchronous reading from socket/pipe.
@@ -63,13 +54,12 @@ struct win_aiosocket
   void end_read(ULONG nbytes, DWORD err);
 
   /**
-    Override VIO routines with ours, accounting for
-    one-shot buffering.
+    Insert a VIO filter for one-shot buffering.
   */
-  void init(st_vio *vio);
+  void init(st_vio **vio);
 
   /** Return number of unread bytes.*/
-  size_t buffer_remaining();
+  size_t buffer_remaining() const;
 
   /* Frees the read buffer.*/
   ~win_aiosocket();
