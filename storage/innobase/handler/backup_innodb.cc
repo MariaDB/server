@@ -171,7 +171,7 @@ private:
   {
     /** the next tracked log */
     tracked_log *next= nullptr;
-    union source
+    union
     {
       /** source file handle */
       os_file_t file;
@@ -179,15 +179,20 @@ private:
       /** source buffer */
       const byte *buf;
 #endif
-    } src;
+    };
     /** the LSN at log_sys.START_OFFSET */
     lsn_t first_lsn;
     /** the file size */
     lsn_t file_size;
 
     /** Constructor */
-    tracked_log(source src, lsn_t first_lsn, lsn_t file_size) :
-      src(src), first_lsn(first_lsn), file_size(file_size) {}
+    tracked_log(os_file_t file, lsn_t first_lsn, lsn_t file_size) :
+      file(file), first_lsn(first_lsn), file_size(file_size) {}
+#ifdef HAVE_PMEM
+    /** Constructor */
+    tracked_log(const byte *buf, lsn_t first_lsn, lsn_t file_size) :
+      buf(buf), first_lsn(first_lsn), file_size(file_size) {}
+#endif
   };
 
   /** Backup context */
@@ -243,12 +248,12 @@ private:
 
 #ifdef UNIV_DEBUG
     /** @return a tracked log file */
-    const tracked_log *is_log_tracking(os_file_t src) const noexcept
+    const tracked_log *is_log_tracking(os_file_t file) const noexcept
     {
       ut_ad(is_log_tracking());
       ut_ad(!log_sys.is_mmap());
       for (tracked_log *t= tracked; t; t= t->next)
-        if (t->src.file == src)
+        if (t->file == file)
           return t;
       return nullptr;
     }
@@ -259,7 +264,7 @@ private:
       ut_ad(is_log_tracking());
       ut_ad(log_sys.is_mmap_writeable());
       for (tracked_log *t= tracked; t; t= t->next)
-        if (t->src.buf == buf)
+        if (t->buf == buf)
           return t;
       return nullptr;
     }
@@ -557,16 +562,13 @@ public:
     {
       do
       {
-        tracked_log::source src;
-#ifdef HAVE_PMEM
-        if (log_sys.is_mmap())
-          src.buf= log_sys.buf;
-        else
-#endif
-          src.file= log_sys.log.m_file;
-
         try {
-          tracked= new tracked_log{src, first_lsn, log_sys.file_size};
+          tracked=
+#ifdef HAVE_PMEM
+            log_sys.is_mmap()
+            ? new tracked_log{log_sys.buf, first_lsn, log_sys.file_size} :
+#endif
+            new tracked_log{log_sys.log.m_file, first_lsn, log_sys.file_size};
           log_dst= context::log_track_create(target, first_lsn);
           if (IF_WIN(log_dst != INVALID_HANDLE_VALUE, log_dst >= 0))
             continue;
@@ -778,21 +780,21 @@ public:
       const uint64_t begin{prev - first}, end{lsn - first};
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
-        err= copy_file_mmap(tracked.src.buf, ctx.log_dst, begin, end);
+        err= copy_file_mmap(tracked.buf, ctx.log_dst, begin, end);
       else
 #endif
       {
 #ifdef POSIX_FADV_SEQUENTIAL
-        std::ignore= posix_fadvise(tracked.src.file, begin, end - begin,
+        std::ignore= posix_fadvise(tracked.file, begin, end - begin,
                                    POSIX_FADV_SEQUENTIAL);
 #endif
 #ifdef copy_file_shortcut
-        if (1 == (err= copy_file_shortcut(tracked.src.file,
+        if (1 == (err= copy_file_shortcut(tracked.file,
                                           ctx.log_dst, begin, end)))
 #endif
-          err= backup::copy(tracked.src.file, ctx.log_dst, begin, end);
+          err= backup::copy(tracked.file, ctx.log_dst, begin, end);
 #ifdef POSIX_FADV_DONTNEED
-        std::ignore= posix_fadvise(tracked.src.file, begin, end - begin,
+        std::ignore= posix_fadvise(tracked.file, begin, end - begin,
                                    POSIX_FADV_DONTNEED);
 #endif
       }
@@ -812,14 +814,19 @@ public:
       if (end != tracked.file_size);
       else if (tracked_log *tail= tracked.next)
       {
-        ut_ad(tail->src.file != tracked.src.file);
         ut_ad(tail->first_lsn > tracked.first_lsn);
 #ifdef HAVE_PMEM
         if (log_sys.is_mmap())
-          my_munmap(const_cast<byte*>(tracked.src.buf), tracked.file_size);
+        {
+          ut_ad(tail->buf != tracked.buf);
+          my_munmap(const_cast<byte*>(tracked.buf), tracked.file_size);
+        }
         else
 #endif
-          std::ignore= IF_WIN(CloseHandle,close)(tracked.src.file);
+        {
+          ut_ad(tail->file != tracked.file);
+          std::ignore= IF_WIN(CloseHandle,close)(tracked.file);
+        }
         /* Move to the next file */
         delete ctx.tracked;
         ctx.tracked= tail;
@@ -915,8 +922,7 @@ public:
 
       try {
         ctx.log_track_tail()=
-          new tracked_log{{.buf= log_sys.buf},
-                          log_sys.first_lsn, log_sys.file_size};
+          new tracked_log{log_sys.buf, log_sys.first_lsn, log_sys.file_size};
       } catch (std::bad_alloc&) { ctx.last_lsn= 0; goto unmap; }
 
       mutex.wr_unlock();
@@ -1137,7 +1143,7 @@ public:
           log_sys.resize_log.m_file= OS_FILE_CLOSED;
           try {
             ctx.log_track_tail()=
-              new tracked_log{{.file= log_sys.log.m_file},
+              new tracked_log{log_sys.log.m_file,
                               log_sys.first_lsn, log_sys.file_size};
           }
           catch (std::bad_alloc&) { ctx.last_lsn= 0; }
@@ -2126,13 +2132,13 @@ void InnoDB_backup::context::destroy() noexcept
   {
     for (; tracked_log *head= tracked; delete head)
       if ((tracked= tracked->next))
-        my_munmap(const_cast<byte*>(head->src.buf), head->file_size);
+        my_munmap(const_cast<byte*>(head->buf), head->file_size);
   }
   else
 #endif
     for (; tracked_log *head= tracked; delete head)
       if ((tracked= tracked->next))
-        IF_WIN(CloseHandle,close)(head->src.file);
+        IF_WIN(CloseHandle,close)(head->file);
   innodb_backup.ctx.state= IDLE;
   innodb_backup.mutex.wr_unlock();
 }
