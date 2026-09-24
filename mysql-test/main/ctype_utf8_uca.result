@@ -2042,3 +2042,49 @@ DROP TABLE case_folding;
 #
 # End of 10.10 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3 COLLATE utf8mb3_czech_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_cs;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_as_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_as_cs;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+# End of 11.8 tests

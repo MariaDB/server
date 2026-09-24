@@ -62,7 +62,7 @@ public:
     errmsgs(errmsgs_par)
   {}
   my_repertoire_t repertoire() const
-  { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_EXTENDED; }
+  { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_ALL; }
   /*
     Get a non-abbreviated month name by index
     @param month - the month index 0..11

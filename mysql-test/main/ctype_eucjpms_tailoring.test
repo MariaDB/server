@@ -1,0 +1,18 @@
+--source include/have_eucjpms.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^eucjpms';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''eucjpms_japanese_ci''),(''eucjpms_japanese_nopad_ci''),'
+ '(''eucjpms_bin''),(''eucjpms_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo # End of 11.8 tests

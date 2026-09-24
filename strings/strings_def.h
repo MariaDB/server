@@ -227,6 +227,12 @@ uint my_casefold_multiply_2(CHARSET_INFO *cs);
 
 my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other);
 
+LEX_CSTRING my_tailoring_none(CHARSET_INFO *self,
+                              my_repertoire_t repertoire);
+
+LEX_CSTRING my_tailoring_bin_generic(CHARSET_INFO *self,
+                                     my_repertoire_t repertoire);
+
 struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
                                     const LEX_CSTRING name,
                                     LEX_CSTRING *out_name,
@@ -246,5 +252,80 @@ extern const char charset_name_ucs2[];
 #define charset_name_ucs2_length 4
 extern const char charset_name_utf8mb4[];
 #define charset_name_utf8mb4_length 7
+
+
+/*
+  Some common tailoring strings for tailoring based optimization.
+  Used inside my_collation_handler_st::tailoring() virtual functions.
+  See comments in /include/m_ctype.h near the "tailoring" function declaration.
+*/
+
+
+/*** Tailoring strings for ALNUM reperoires */
+
+/* Most case insensitive simple collations */
+LEX_CSTRING my_tailoring_str_pad_alnum_09_AaZz_ci();
+LEX_CSTRING my_tailoring_str_nopad_alnum_09_AaZz_ci();
+
+/* Most UCA case sensitive collations */
+LEX_CSTRING my_tailoring_str_pad_alnum_09_aAzZ3_cs();
+LEX_CSTRING my_tailoring_str_nopad_alnum_09_aAzZ3_cs();
+
+/* Most _bin collations */
+LEX_CSTRING my_tailoring_str_pad_alnum_09_AZ_az();
+LEX_CSTRING my_tailoring_str_nopad_alnum_09_AZ_az();
+
+
+/* Tailoring strings for IDENT repertoires */
+
+/* Most UCA case insensitive collations */
+LEX_CSTRING my_tailoring_str_pad_ident_underscore_09_AaZz_ci();
+LEX_CSTRING my_tailoring_str_nopad_ident_underscore_09_AaZz_ci();
+
+/* Most UCA case sensitive collations */
+LEX_CSTRING my_tailoring_str_pad_ident_underscore_09_aAzZ3_cs();
+LEX_CSTRING my_tailoring_str_nopad_ident_underscore_09_aAzZ3_cs();
+
+/* Most simple _ci collations */
+LEX_CSTRING my_tailoring_str_pad_ident_09_AaZz_ci_underscore();
+LEX_CSTRING my_tailoring_str_nopad_ident_09_AaZz_ci_underscore();
+
+/* Most _bin collations */
+LEX_CSTRING my_tailoring_str_pad_ident_09_AZ_underscore_az();
+LEX_CSTRING my_tailoring_str_nopad_ident_09_AZ_underscore_az();
+
+
+/* Tailoring strings for ASCII repertoires */
+
+LEX_CSTRING my_tailoring_str_pad_ascii_binary_ci();
+LEX_CSTRING my_tailoring_str_nopad_ascii_binary_ci();
+
+LEX_CSTRING my_tailoring_str_pad_ascii_bin();
+LEX_CSTRING my_tailoring_str_nopad_ascii_bin();
+
+LEX_CSTRING my_tailoring_str_pad_ascii_uca400_cs();
+LEX_CSTRING my_tailoring_str_nopad_ascii_uca400_cs();
+
+LEX_CSTRING my_tailoring_str_pad_ascii_uca400_ci();
+LEX_CSTRING my_tailoring_str_nopad_ascii_uca400_ci();
+
+LEX_CSTRING my_tailoring_str_pad_ascii_uca1400_cs();
+LEX_CSTRING my_tailoring_str_nopad_ascii_uca1400_cs();
+
+LEX_CSTRING my_tailoring_str_pad_ascii_uca1400_ci();
+LEX_CSTRING my_tailoring_str_nopad_ascii_uca1400_ci();
+
+
+/* Get a repertoire string by repertoire and flag */
+LEX_CSTRING my_tailoring_simple_ci_by_flags(my_repertoire_t repertoire,
+                                            uint flags);
+
+/* Virtual functions for my_collation_handler_st::tailoring() */
+LEX_CSTRING my_tailoring_ascii_binary_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire);
+
+LEX_CSTRING my_tailoring_ident_binary_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire);
+
 
 #endif /*STRINGS_DEF_INCLUDED */

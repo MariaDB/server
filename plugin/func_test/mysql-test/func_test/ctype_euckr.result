@@ -1,0 +1,35 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET @character_set_name='euckr';
+SELECT
+full_collation_name AS name,
+collation_tailoring(full_collation_name, 'ascii_alnum') AS alnum,
+collation_tailoring(full_collation_name, 'ascii_ident') AS ident,
+collation_tailoring(full_collation_name, 'ascii') AS ascii,
+'---' AS `---`
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE character_set_name=@character_set_name
+ORDER BY collation_name LIKE '%_ci', collation_name;
+name	euckr_bin
+alnum	[EMPTY][20]<[DIGITS]<[UPPER]<[LOWER]
+ident	[EMPTY][20]<[DIGITS][UPPER]<_<[LOWER]
+ascii	ASCII_PAD_BIN
+---	---
+name	euckr_nopad_bin
+alnum	[EMPTY]<[20]<[DIGITS]<[UPPER]<[LOWER]
+ident	[EMPTY]<[20]<[DIGITS][UPPER]<_<[LOWER]
+ascii	ASCII_NOPAD_BIN
+---	---
+name	euckr_korean_ci
+alnum	[EMPTY][20]<[DIGITS]<[LETTER_ci]
+ident	[EMPTY][20]<[DIGITS]<[LETTER_ci]<_
+ascii	ASCII_PAD_BINARY_CI
+---	---
+name	euckr_korean_nopad_ci
+alnum	[EMPTY]<[20]<[DIGITS]<[LETTER_ci]
+ident	[EMPTY]<[20]<[DIGITS]<[LETTER_ci]<_
+ascii	ASCII_NOPAD_BINARY_CI
+---	---
+SET @character_set_name=NULL;
+# End of 11.8 tests

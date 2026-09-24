@@ -10,3 +10,18 @@ _cp866'' LIKE _cp866'' ESCAPE _cp866 0xFF
 #
 # End of 10.2 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES cp866 COLLATE cp866_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp866_general_ci,COERCIBLE) for operation '='
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp866_general_ci,COERCIBLE) for operation '='
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp866_general_ci,COERCIBLE) for operation '='
+SET NAMES cp866 COLLATE cp866_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp866_bin,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

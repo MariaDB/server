@@ -1,0 +1,18 @@
+--source include/have_ujis.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^ujis';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''ujis_japanese_ci''),(''ujis_japanese_nopad_ci''),'
+ '(''ujis_bin''),(''ujis_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo # End of 11.8 tests

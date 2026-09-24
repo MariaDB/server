@@ -25,13 +25,11 @@ SET log_slow_verbosity = 'explain';
 
 CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM CHARSET=latin1;
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo');
---error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' UNION SELECT 'bar' );
 
 create table t2 (b int);
 insert into t2 values (1),(2),(3);
 
---error ER_CANT_AGGREGATE_2COLLATIONS
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' FROM t2);
 
 drop table t1,t2;

@@ -6336,6 +6336,15 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
+/*
+  gb2312_chinese_ci and gb2312_chinese_nopad_ci have
+  an irregularity on the punctuation - the tilde
+  sign is sorted as equal to Y:
+    Xx<Yy~<Zz
+*/
+#define my_tailoring_gb2312_chinese_ci  my_tailoring_ident_binary_ci_generic
+
+
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_chinese_ci
 #define WEIGHT_MB1(x)        (sort_order_gb2312[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
@@ -6381,7 +6390,8 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_gb2312_chinese_ci
 };
 
 
@@ -6402,7 +6412,8 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 
@@ -6423,7 +6434,8 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_nopad_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_gb2312_chinese_ci
 };
 
 
@@ -6444,7 +6456,8 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_nopad_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 

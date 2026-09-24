@@ -1276,3 +1276,24 @@ DROP TABLE t1;
 SET @@sql_mode= @old_mode;
 
 --echo # End of 10.11 tests
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+
+SET NAMES DEFAULT;
+
+--echo End of 11.8 tests

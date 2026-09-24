@@ -2764,7 +2764,7 @@ THD::make_string_literal(const char *str, size_t length,
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);
   if (!charset_is_collation_connection &&
-      (repertoire != MY_REPERTOIRE_ASCII ||
+      ((repertoire & ~MY_REPERTOIRE_ASCII) ||
        !my_charset_is_ascii_based(variables.collation_connection)))
   {
     LEX_STRING to;

@@ -1264,3 +1264,23 @@ SET NAMES utf8mb3, character_set_connection=utf32;
 SELECT CONV('-AzL8n0Y58m8', -62, -10);
 
 --echo # End of 11.4 tests
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

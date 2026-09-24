@@ -297,16 +297,64 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
                                   to weights, e.g. contractions, expansions,
                                   ignorable characters */
 #define MY_CS_UPPER_EQUAL_AS_EQUAL 0x80000 /* (UPPER(x)=UPPER(y)) <=> (x=y)*/
+/*
+  MY_CS_ASCII_BINARY_CI means that the collation maps lower case ASCII
+  letters a-z to their upper case counter parts A-Z, and sorts the ASCII
+  range according to the code point otherwise. Sorting on the non-ASCII
+  range can be any, not necessarily according to the code point.
+*/
+#define MY_CS_ASCII_BINARY_CI     0x100000 /* ASCII BINARY CI sorting */
+/*
+  MY_CS_IDENT_BINARY_CI means that the collation maps lower case ASCII
+  letters a-z to their upper case counter parts A-Z, and sorts "identifier"
+  ranges (0-9,A-Z,_) according to the code point. Sorting on the other
+  ASCII characters is not important, sorting on non-ASCII characters is
+  not important.
+*/
+#define MY_CS_IDENT_BINARY_CI     0x200000 /* BINARY CI sorting on IDENT range*/
+/*
+  MY_CS_ASCII_STD_UCA means that the collation sorts all characters in the
+  range U+0000..U+007F like the default (not-tailored) UCA collations do:
+  utf8mb3_unicode_ci, utf8mb3_uca1400_ai_ci.
+*/
+#define MY_CS_ASCII_STD_UCA       0x400000 /* Standard UCA sorting on ASCII */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
 typedef enum enum_repertoire_t
 {
-  MY_REPERTOIRE_NONE=        0,
-  MY_REPERTOIRE_ASCII=       1, /* Pure ASCII            U+0000..U+007F */
-  MY_REPERTOIRE_EXTENDED=    2, /* Extended characters:  U+0080..U+FFFF */
-  MY_REPERTOIRE_UNICODE30=   3  /* ASCII | EXTENDED:     U+0000..U+FFFF */
+  MY_REPERTOIRE_NONE= 0,
+  /* ASCII digits 0..9 */
+  MY_REPERTOIRE_ASCII_DIGITS= 1,
+  /* ASCII letters A..Z */
+  MY_REPERTOIRE_ASCII_LETTERS_UPPER= 2,
+  /* ASCII letters a..z */
+  MY_REPERTOIRE_ASCII_LETTERS_LOWER= 4,
+  /* ASCII letters A..Z, a..z */
+  MY_REPERTOIRE_ASCII_LETTERS= MY_REPERTOIRE_ASCII_LETTERS_UPPER |
+                               MY_REPERTOIRE_ASCII_LETTERS_LOWER,
+  /* ASCII leters and digits */
+  MY_REPERTOIRE_ASCII_ALNUM= MY_REPERTOIRE_ASCII_DIGITS |
+                             MY_REPERTOIRE_ASCII_LETTERS,
+  /* ASCII underscore character */
+  MY_REPERTOIRE_ASCII_UNDERSCORE= 8,
+  /* A combination of alnum and underscore */
+  MY_REPERTOIRE_ASCII_IDENT= MY_REPERTOIRE_ASCII_ALNUM |
+                             MY_REPERTOIRE_ASCII_UNDERSCORE,
+  /* Other ASCII characters, not covered by MY_REPERTOIRE_ASCII_IDENT: */
+  MY_REPERTOIRE_ASCII_NOT_IDENT= 16,
+  /* Entire pure ASCII: U+0000..U+007F */
+  MY_REPERTOIRE_ASCII= MY_REPERTOIRE_ASCII_IDENT |
+                       MY_REPERTOIRE_ASCII_NOT_IDENT,
+  /* Extended characters:  U+0080..U+10FFFF */
+  MY_REPERTOIRE_EXTENDED= 32,
+  /* All characters: U+0000..U+10FFFF */
+  MY_REPERTOIRE_UNICODE30= MY_REPERTOIRE_ASCII |
+                           MY_REPERTOIRE_EXTENDED
 } my_repertoire_t;
+
+/*All known repertoire flags */
+#define MY_REPERTOIRE_ALL MY_REPERTOIRE_UNICODE30
 
 
 /* ID compatibility */
@@ -618,6 +666,28 @@ struct my_collation_handler_st
     @return 1  Identical
   */
   my_bool (*eq_collation)(CHARSET_INFO *self, CHARSET_INFO *other);
+
+  /*
+    Get collation rules on the given repertoire.
+    This virtual function is used for tailoring-based optimization.
+    If two different collations have equal rules (tailoring) on the
+    given repertoire, then they can be mutualy substituted in a comparison
+    operator instead of raising an "Illegal mix of collations" error.
+    For example:
+      SET NAMES latin1 COLLATE latin1_swedish_ci;
+      CREATE VIEW v1 AS SELECT IF(cond,'Y','N') AS c1 FROM t1;
+      SET NAMES big5 COLLATE big5_chinese_ci;
+      SELECT * FROM v1 WHERE c1='Y';
+    Although latin1_swedish_ci and big5_chinese_ci are different collations,
+    their rules on the given range (i.e. MY_REPERTOIRE_ASCII_ALNUM) are
+    exactly the same, so it does not matter which collation to use for
+    comparison purposes - the result will be the same. There is no need
+    to raise the "Illegal mix of collations".
+    If "tailoring()" returns a null LEX_CSTRING {0,0}, it means this
+    collation can not use tailoring-based optimization in the passed
+    repertoire.
+  */
+  LEX_CSTRING (*tailoring)(CHARSET_INFO *self, my_repertoire_t repertoire);
 };
 
 

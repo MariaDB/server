@@ -275,6 +275,117 @@ public:
   }
 };
 
+
+
+class Item_func_collation_tailoring: public Item_str_func
+{
+  using Self= Item_func_collation_tailoring;
+public:
+
+  /*
+    A helper subclass to get my_repertoire_t from an Item
+    either in numeric or in string (named) format.
+  */
+  class Repertoire: public Longlong_null
+  {
+  public:
+    Repertoire(const Longlong_null &rhs)
+     :Longlong_null(rhs)
+    { }
+    Repertoire(Item *item)
+     :Longlong_null()
+    {
+      if (item->cmp_type() != STRING_RESULT)
+      {
+        *this= item->to_longlong_null();
+        return;
+      }
+      String tmp;
+      String *repertoire= item->val_str_ascii(&tmp);
+      if (!repertoire)
+        return;
+      if ("ASCII_ALNUM"_Lex_ident_charset.streq(repertoire->to_lex_cstring()))
+      {
+        *this= Longlong_null(MY_REPERTOIRE_ASCII_ALNUM);
+        return;
+      }
+      if ("ASCII_IDENT"_Lex_ident_charset.streq(repertoire->to_lex_cstring()))
+      {
+        *this= Longlong_null(MY_REPERTOIRE_ASCII_IDENT);
+        return;
+      }
+      if ("ASCII"_Lex_ident_charset.streq(repertoire->to_lex_cstring()))
+      {
+        *this= Longlong_null(MY_REPERTOIRE_ASCII);
+        return;
+      }
+      DBUG_ASSERT(is_null());
+    }
+  };
+
+  using Item_str_func::Item_str_func;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    collation.set(&my_charset_utf8mb4_bin);
+    max_length= MAX_BLOB_WIDTH;
+    return false;
+  }
+
+  String *val_str(String *to) override
+  {
+    String *clname= args[0]->val_str_ascii(to);
+    Repertoire repertoire(args[1]);
+    if ((null_value= (!clname || repertoire.is_null())))
+      return nullptr;
+    CHARSET_INFO *cl= Charset_loader_mysys().
+                        get_exact_collation(ErrConvString(clname).ptr(),
+                                            MYF(0));
+    LEX_CSTRING tr;
+    if ((null_value=
+          ((cl == nullptr) ||
+           !((tr= (cl->coll->tailoring)(
+                     cl, static_cast<my_repertoire_t>(repertoire.value()))).str))))
+      return nullptr;
+    to->set(tr.str, tr.length, collation.collation);
+    return to;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= "collation_tailoring"_LEX_CSTRING;
+    return name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Self>(thd, this);
+  }
+
+  class Create_func : public Create_native_func
+  {
+  public:
+    using Create_native_func::Create_native_func;
+    Item *create_native(THD *thd, const LEX_CSTRING *name,
+                        List<Item> *item_list) override
+    {
+      uint arg_count= item_list ? item_list->elements : 0;
+      if (arg_count != 2)
+      {
+        my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+        return nullptr;
+      }
+      return new (thd->mem_root) Self(thd, *item_list);
+    }
+  };
+
+  static Plugin_function *plugin_descriptor()
+  {
+    static Create_func creator;
+    static Plugin_function descriptor(&creator);
+    return &descriptor;
+  }
+
+};
+
+
 /*************************************************************************/
 
 maria_declare_plugin(type_test)
@@ -329,6 +440,21 @@ maria_declare_plugin(type_test)
   "strnxfrm_warnings",// plugin name
   "MariaDB Corporation",        // plugin author
   "Function STRNXFRM_WARNINGS()", // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type
+  Item_func_collation_tailoring::plugin_descriptor(),
+  "collation_tailoring",        // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function COLLATION_TAILORING()", // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function

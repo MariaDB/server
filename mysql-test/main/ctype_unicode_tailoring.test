@@ -1,0 +1,60 @@
+--source include/have_utf8mb4.inc
+--source include/have_utf16.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^(utf|uca)';
+
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+
+ '(''ucs2_bin''),(''ucs2_nopad_bin''),'
+ '(''utf16_bin''),(''utf16_nopad_bin''),'
+ '(''utf32_bin''),(''utf32_nopad_bin''),'
+
+ '(''ucs2_swedish_ci''),'
+ '(''utf8mb3_swedish_ci''),'
+ '(''utf8mb4_swedish_ci''),'
+ '(''utf16_swedish_ci''),'
+ '(''utf32_swedish_ci''),'
+
+ '(''ucs2_uca1400_swedish_ai_ci''),'
+ '(''utf8mb3_uca1400_swedish_ai_ci''),'
+ '(''utf8mb4_uca1400_swedish_ai_ci''),'
+ '(''utf16_uca1400_swedish_ai_ci''),'
+ '(''utf32_uca1400_swedish_ai_ci''),'
+
+ '(''ucs2_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf8mb3_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf8mb4_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf16_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf32_uca1400_swedish_nopad_ai_ci''),'
+
+ '(''ucs2_czech_ci''),'
+ '(''utf8mb3_czech_ci''),'
+ '(''utf8mb4_czech_ci''),'
+ '(''utf16_czech_ci''),'
+ '(''utf32_czech_ci''),'
+
+ '(''ucs2_uca1400_czech_ai_ci''),'
+ '(''utf8mb3_uca1400_czech_ai_ci''),'
+ '(''utf8mb4_uca1400_czech_ai_ci''),'
+ '(''utf16_uca1400_czech_ai_ci''),'
+ '(''utf32_uca1400_czech_ai_ci''),'
+
+ '(''ucs2_uca1400_czech_nopad_ai_ci''),'
+ '(''utf8mb3_uca1400_czech_nopad_ai_ci''),'
+ '(''utf8mb4_uca1400_czech_nopad_ai_ci''),'
+ '(''utf16_uca1400_czech_nopad_ai_ci''),'
+ '(''utf32_uca1400_czech_nopad_ai_ci'')'
+
+;
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo # End of 11.8 tests

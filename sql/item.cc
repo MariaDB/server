@@ -2453,14 +2453,98 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
           left->collation->mbminlen == right->collation->mbminlen)))))
     return TRUE;
   /* Allow convert from ASCII */
-  if (right->repertoire == MY_REPERTOIRE_ASCII &&
+  if (!(right->repertoire & ~MY_REPERTOIRE_ASCII) &&
       (left->derivation < right->derivation ||
        (left->derivation == right->derivation &&
-        !(left->repertoire == MY_REPERTOIRE_ASCII))))
+        (left->repertoire & ~MY_REPERTOIRE_ASCII))))
     return TRUE;
   /* Disallow conversion otherwise */
   return FALSE;
 }
+
+
+/*
+  Choose an algorithmically simpler collation for use in
+  collation aggregation.
+*/
+static bool
+left_is_algorithmically_simpler(const DTCollation &left, const DTCollation &right)
+{
+  /*
+    If only left is a single-byte charset with MY_CS_NONASCII (e.g. swe7),
+    then choose the other side even if the other side is multi-byte.
+    Rationale:
+    The constructor Item_func_conv_charset sets Item_func_conv_charset::safe
+    to false if conversion is done to a single-byte MY_CS_NONASCII charset,
+    even on ALNUM and IDENT repertoires.
+    So choosing such a side would raise "Illegal mix of collations".
+  */
+  const bool left_nonascii=
+    left.collation->mbmaxlen == 1 && (left.collation->state & MY_CS_NONASCII);
+  const bool right_nonascii=
+    right.collation->mbmaxlen == 1 && (right.collation->state & MY_CS_NONASCII);
+  if (left_nonascii < right_nonascii)
+    return true;
+  /*
+    - Between a single byte character set and a multibyte character set
+      choose the signle byte one
+    - Between a simple collation (one-two-one mapping) and
+      a complex collation (with contractions and expansions) choose
+      the simple one
+  */
+  if (left.collation->mbmaxlen < right.collation->mbmaxlen ||
+      left.collation->strxfrm_multiply < right.collation->strxfrm_multiply)
+  {
+    return true; // left is simpler
+  }
+  return false; // right is simple
+}
+
+
+/*
+  Handle a special case:
+  both sides have equal repertoire==MY_REPERTOIRE_ASCII_{ALNUM|IDENT|ASCII}
+  and have equal collation rules (tailoring) on the given repertoire,
+  then it does not matter which side collation to use for comparison -
+  the result will be equal.
+  Examples:
+    SELECT _latin1'a' = _latin2'a';
+*/
+bool DTCollation::aggregate_by_repertoire(const DTCollation &dt, uint flags)
+{
+  if ((flags & MY_COLL_ALLOW_BY_REPERTOIRE))
+  {
+    my_repertoire_t repertoire2= repertoire | dt.repertoire;
+    const LEX_CSTRING t1= (collation->coll->tailoring)(collation, repertoire2);
+    const LEX_CSTRING t2= (dt.collation->coll->tailoring)(dt.collation,
+                                                          repertoire2);
+    if (t1.str && t2.str && t1.str == t2.str)
+    {
+      /*
+        Collations are compatible on the given repertoire.
+        It does not matter which side to choose for comparison, both will work
+        and produce the same comparison result. Let's try to choose
+        the algorithmically simplest one, to be more deterministic.
+      */
+      if (left_is_algorithmically_simpler(*this, dt))
+      {
+        return false; // "this" is simpler
+      }
+      if (left_is_algorithmically_simpler(dt, *this))
+      {
+        set(dt);
+        return false; // dt is simpler
+      }
+      /*
+        Let's keep "this" (i.e. the left side in case of a comparison
+        operator).
+      */
+      return false;
+    }
+  }
+  return true;
+}
+
 
 /**
   Aggregate two collations together taking
@@ -2545,6 +2629,18 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
     {
       set(dt);
     }
+    /*
+     Here we have:
+      - Different character sets
+      - Non of the sides is BINARY/VARBINARY/BLOB
+      - Super-set + derivation based aggregation did not find the winner
+      - Derivation based aggregation did not find the winner
+    */
+    else if (!aggregate_by_repertoire(dt, flags))
+    {
+      // Both sides have equal tailoring on the OR-ed repertoires
+      return false;
+    }
     else
     {
       // Cannot apply conversion
@@ -2584,6 +2680,22 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
         set(dt);
         return 0;
       }
+      /*
+        Here we have:
+        - Equal character sets
+        - Equal non-explicit collation derivation
+        - Different collations, both non-binary
+      */
+      if (!aggregate_by_repertoire(dt, flags))
+      {
+        // Both sides have equal tailoring on the OR-ed repertoires
+        return false;
+      }
+      /*
+        Postpone the decision to the upper level which may have
+        an explicit COLLATE clause. Set the collation to the binary
+        collation of this character set with DERIVATION_NONE.
+      */
       THD *thd = current_thd;
       myf utf8_flag= thd ? thd->get_utf8_flag()
         : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
@@ -7399,7 +7511,7 @@ Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
   set_name(thd, &str_value);
-  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  if (!(collation.repertoire & ~MY_REPERTOIRE_ASCII))
   {
     // If the string has been pure ASCII so far, check the new part.
     CHARSET_INFO *cs= thd->variables.collation_connection;
@@ -7421,7 +7533,7 @@ Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
 {
   Item_literal *res;
   const Type_handler *h;
-  if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+  if (!(collation.repertoire & ~MY_REPERTOIRE_ASCII) &&
       str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4 &&
       (h= Type_handler::odbc_literal_type_handler(typestr)) &&
       (res= h->create_literal_item(thd, val_str(NULL), false)))

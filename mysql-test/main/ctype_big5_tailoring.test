@@ -1,0 +1,73 @@
+--source include/have_big5.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^big5';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''big5_chinese_ci''),(''big5_chinese_nopad_ci''),'
+ '(''big5_bin''),(''big5_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo #
+--echo # MDEV-41246 QUOTE(), GROUP_CONCAT(), MAKE_SET() and EXPORT_SET() add
+--echo # characters of their own (quotes/backslashes, the ',' separator) that
+--echo # are not in their arguments' repertoire. The result's repertoire must
+--echo # include them too, or illegal-mix-by-repertoire detection becomes
+--echo # asymmetric.
+--echo #
+--echo # latin1_swedish_ci and big5_chinese_ci are compatible on the ALNUM
+--echo # repertoire, but not on the wider repertoire these functions can add
+--echo # (see the C_ascii1 row above).
+--echo #
+SELECT _latin1'a' = _big5'a';
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT QUOTE(_latin1'a') = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = QUOTE(_latin1'a');
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (SELECT GROUP_CONCAT(_latin1'a')) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = (SELECT GROUP_CONCAT(_latin1'a'));
+
+--echo # MAKE_SET() can add a ',' separator as soon as there is more than one
+--echo # possible value, even when, like here, the chosen bit produces none.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT MAKE_SET(3,_latin1'a',_latin1'b') = _big5'a,b';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT MAKE_SET(1,_latin1'a',_latin1'b') = _big5'a';
+--echo # Only one possible value: no separator can ever appear.
+SELECT MAKE_SET(1,_latin1'a') = _big5'a';
+
+--echo # EXPORT_SET()'s default ',' separator is outside the ALNUM repertoire.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n') = _big5'y';
+--echo # An explicit ALNUM separator does not force the repertoire wider.
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1'x',1) = _big5'y';
+--echo # An explicit non-ALNUM separator is detected through normal argument
+--echo # aggregation, same as for GROUP_CONCAT/MAKE_SET's hard-coded separator.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1',',1) = _big5'y';
+
+--echo # LPAD()/RPAD() with no explicit pad string default to ' ', which is
+--echo # outside the ALNUM repertoire.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LPAD(_latin1'a',3) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT RPAD(_latin1'a',3) = _big5'a';
+--echo # An explicit ALNUM pad string does not force the repertoire wider.
+SELECT LPAD(_latin1'a',3,_latin1'x') = _big5'xxa';
+--echo # An explicit non-ALNUM pad string is detected through normal argument
+--echo # aggregation, same as for the default ' ' above.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LPAD(_latin1'a',3,_latin1'-') = _big5'--a';
+
+--echo # End of 11.8 tests

@@ -1,0 +1,777 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+#
+# ALNUM repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+hp8_english_ci                  	tis620_thai_ci                  	0	NULL	NULL
+latin1_bin                      	tis620_bin                      	0	NULL	NULL
+latin1_german1_ci               	tis620_thai_ci                  	0	NULL	NULL
+latin1_nopad_bin                	tis620_nopad_bin                	0	NULL	NULL
+latin1_swedish_ci               	tis620_thai_ci                  	0	NULL	NULL
+latin1_swedish_nopad_ci         	tis620_thai_nopad_ci            	0	NULL	NULL
+latin5_bin                      	tis620_bin                      	0	NULL	NULL
+swe7_nopad_bin                  	tis620_nopad_bin                	0	NULL	NULL
+swe7_swedish_nopad_ci           	tis620_thai_nopad_ci            	0	NULL	NULL
+tis620_bin                      	latin1_bin                      	0	NULL	NULL
+tis620_bin                      	latin5_bin                      	0	NULL	NULL
+tis620_nopad_bin                	latin1_nopad_bin                	0	NULL	NULL
+tis620_nopad_bin                	swe7_nopad_bin                  	0	NULL	NULL
+tis620_thai_ci                  	hp8_english_ci                  	0	NULL	NULL
+tis620_thai_ci                  	latin1_german1_ci               	0	NULL	NULL
+tis620_thai_ci                  	latin1_swedish_ci               	0	NULL	NULL
+tis620_thai_nopad_ci            	latin1_swedish_nopad_ci         	0	NULL	NULL
+tis620_thai_nopad_ci            	swe7_swedish_nopad_ci           	0	NULL	NULL
+tis620_bin                      	tis620_bin                      	0	0	000 cl1 = cl2
+tis620_nopad_bin                	tis620_nopad_bin                	0	0	000 cl1 = cl2
+tis620_thai_ci                  	tis620_thai_ci                  	0	0	000 cl1 = cl2
+tis620_thai_nopad_ci            	tis620_thai_nopad_ci            	0	0	000 cl1 = cl2
+tis620_bin                      	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_bin                      	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_thai_ci                  	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_ci                  	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	tis620_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_ci                  	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+tis620_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+tis620_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	tis620_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_nopad_ci            	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_ci                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_nopad_ci            	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+tis620_bin                      	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_bin                      	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+tis620_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	tis620_bin                      	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_bin                      	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_general_cs               	1	1	030 diffCS ci vs cs
+tis620_thai_nopad_ci            	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	tis620_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_thai_ci                  	1	1	030 diffCS cs vs ci
+latin1_general_cs               	tis620_thai_nopad_ci            	1	1	030 diffCS cs vs ci
+latin1_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	tis620_thai_ci                  	1	1	030 nopad vs pad
+swe7_nopad_bin                  	tis620_bin                      	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	tis620_thai_ci                  	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	hp8_english_ci                  	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_german1_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_swedish_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	tis620_thai_ci                  	1	1	030 nopad vs pad
+hp8_english_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+latin1_german1_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_swedish_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin5_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+tis620_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_thai_ci                  	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+tis620_thai_ci                  	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+tis620_thai_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+#
+# IDENT repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+hp8_english_ci                  	tis620_thai_ci                  	0	NULL	NULL
+latin1_bin                      	tis620_bin                      	0	NULL	NULL
+latin1_german1_ci               	tis620_thai_ci                  	0	NULL	NULL
+latin1_nopad_bin                	tis620_nopad_bin                	0	NULL	NULL
+latin1_swedish_ci               	tis620_thai_ci                  	0	NULL	NULL
+latin1_swedish_nopad_ci         	tis620_thai_nopad_ci            	0	NULL	NULL
+latin5_bin                      	tis620_bin                      	0	NULL	NULL
+swe7_nopad_bin                  	tis620_nopad_bin                	0	NULL	NULL
+swe7_swedish_nopad_ci           	tis620_thai_nopad_ci            	0	NULL	NULL
+tis620_bin                      	latin1_bin                      	0	NULL	NULL
+tis620_bin                      	latin5_bin                      	0	NULL	NULL
+tis620_nopad_bin                	latin1_nopad_bin                	0	NULL	NULL
+tis620_nopad_bin                	swe7_nopad_bin                  	0	NULL	NULL
+tis620_thai_ci                  	hp8_english_ci                  	0	NULL	NULL
+tis620_thai_ci                  	latin1_german1_ci               	0	NULL	NULL
+tis620_thai_ci                  	latin1_swedish_ci               	0	NULL	NULL
+tis620_thai_nopad_ci            	latin1_swedish_nopad_ci         	0	NULL	NULL
+tis620_thai_nopad_ci            	swe7_swedish_nopad_ci           	0	NULL	NULL
+tis620_bin                      	tis620_bin                      	0	0	000 cl1 = cl2
+tis620_nopad_bin                	tis620_nopad_bin                	0	0	000 cl1 = cl2
+tis620_thai_ci                  	tis620_thai_ci                  	0	0	000 cl1 = cl2
+tis620_thai_nopad_ci            	tis620_thai_nopad_ci            	0	0	000 cl1 = cl2
+tis620_bin                      	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_bin                      	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_thai_ci                  	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_ci                  	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	tis620_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_ci                  	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+tis620_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+tis620_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	tis620_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_nopad_ci            	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_ci                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_nopad_ci            	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+tis620_bin                      	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_bin                      	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+tis620_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	tis620_bin                      	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_bin                      	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_general_cs               	1	1	030 diffCS ci vs cs
+tis620_thai_nopad_ci            	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	tis620_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_thai_ci                  	1	1	030 diffCS cs vs ci
+latin1_general_cs               	tis620_thai_nopad_ci            	1	1	030 diffCS cs vs ci
+latin1_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	tis620_thai_ci                  	1	1	030 nopad vs pad
+swe7_nopad_bin                  	tis620_bin                      	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	tis620_thai_ci                  	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	hp8_english_ci                  	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_german1_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_swedish_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	tis620_thai_ci                  	1	1	030 nopad vs pad
+hp8_english_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+latin1_german1_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_swedish_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin5_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+tis620_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_thai_ci                  	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+tis620_thai_ci                  	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+tis620_thai_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+#
+# Entire ASCII-7 repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+hp8_english_ci                  	tis620_thai_ci                  	1	NULL	NULL
+latin1_bin                      	tis620_bin                      	0	NULL	NULL
+latin1_german1_ci               	tis620_thai_ci                  	1	NULL	NULL
+latin1_nopad_bin                	tis620_nopad_bin                	0	NULL	NULL
+latin1_swedish_ci               	tis620_thai_ci                  	1	NULL	NULL
+latin1_swedish_nopad_ci         	tis620_thai_nopad_ci            	1	NULL	NULL
+latin5_bin                      	tis620_bin                      	0	NULL	NULL
+swe7_nopad_bin                  	tis620_nopad_bin                	0	NULL	NULL
+swe7_swedish_nopad_ci           	tis620_thai_nopad_ci            	1	NULL	NULL
+tis620_bin                      	latin1_bin                      	0	NULL	NULL
+tis620_bin                      	latin5_bin                      	0	NULL	NULL
+tis620_nopad_bin                	latin1_nopad_bin                	0	NULL	NULL
+tis620_nopad_bin                	swe7_nopad_bin                  	0	NULL	NULL
+tis620_thai_ci                  	hp8_english_ci                  	1	NULL	NULL
+tis620_thai_ci                  	latin1_german1_ci               	1	NULL	NULL
+tis620_thai_ci                  	latin1_swedish_ci               	1	NULL	NULL
+tis620_thai_nopad_ci            	latin1_swedish_nopad_ci         	1	NULL	NULL
+tis620_thai_nopad_ci            	swe7_swedish_nopad_ci           	1	NULL	NULL
+tis620_bin                      	tis620_bin                      	0	0	000 cl1 = cl2
+tis620_nopad_bin                	tis620_nopad_bin                	0	0	000 cl1 = cl2
+tis620_thai_ci                  	tis620_thai_ci                  	0	0	000 cl1 = cl2
+tis620_thai_nopad_ci            	tis620_thai_nopad_ci            	0	0	000 cl1 = cl2
+tis620_bin                      	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_bin                      	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_ci                  	0	0	002 LEFT sameCS_bin
+tis620_nopad_bin                	tis620_thai_nopad_ci            	0	0	002 LEFT sameCS_bin
+tis620_thai_ci                  	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_ci                  	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_bin                      	0	0	002 RIGHT sameCS_bin
+tis620_thai_nopad_ci            	tis620_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	tis620_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_ci                  	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_bin                     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_ci                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	003 LEFT superset
+tis620_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_ci                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_bin                     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_bin                     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_ci                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	tis620_thai_nopad_ci            	0	0	004 LEFT superset
+tis620_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_ci                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_bin                     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+tis620_thai_nopad_ci            	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	tis620_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	tis620_thai_nopad_ci            	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_ci                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+tis620_thai_nopad_ci            	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+latin5_bin                      	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_ci                  	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	tis620_thai_nopad_ci            	1	1	030 diffCS bin vs ci
+tis620_bin                      	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_bin                      	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+tis620_nopad_bin                	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+tis620_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+tis620_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	tis620_bin                      	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_bin                      	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	tis620_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	latin5_bin                      	1	1	030 diffCS ci vs bin
+tis620_thai_nopad_ci            	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+tis620_thai_ci                  	latin1_general_cs               	1	1	030 diffCS ci vs cs
+tis620_thai_nopad_ci            	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	tis620_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_general_cs               	tis620_thai_ci                  	1	1	030 diffCS cs vs ci
+latin1_general_cs               	tis620_thai_nopad_ci            	1	1	030 diffCS cs vs ci
+latin1_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	tis620_thai_ci                  	1	1	030 nopad vs pad
+swe7_nopad_bin                  	tis620_bin                      	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	tis620_thai_ci                  	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+tis620_nopad_bin                	tis620_bin                      	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	hp8_english_ci                  	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_german1_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	latin1_swedish_ci               	1	1	030 nopad vs pad
+tis620_thai_nopad_ci            	tis620_thai_ci                  	1	1	030 nopad vs pad
+hp8_english_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+latin1_german1_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin1_swedish_ci               	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+latin5_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+tis620_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+tis620_bin                      	tis620_nopad_bin                	1	1	030 pad vs nopad
+tis620_thai_ci                  	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+tis620_thai_ci                  	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+tis620_thai_ci                  	tis620_thai_nopad_ci            	1	1	030 pad vs nopad
+#
+# Collation pairs having different results on different repertoires
+#
+cl1	cl2	is_error_all
+hp8_english_ci                  	tis620_thai_ci                  	A_alnum0,B_ident0,C_ascii1
+latin1_german1_ci               	tis620_thai_ci                  	A_alnum0,B_ident0,C_ascii1
+latin1_swedish_ci               	tis620_thai_ci                  	A_alnum0,B_ident0,C_ascii1
+latin1_swedish_nopad_ci         	tis620_thai_nopad_ci            	A_alnum0,B_ident0,C_ascii1
+swe7_swedish_nopad_ci           	tis620_thai_nopad_ci            	A_alnum0,B_ident0,C_ascii1
+tis620_thai_ci                  	hp8_english_ci                  	A_alnum0,B_ident0,C_ascii1
+tis620_thai_ci                  	latin1_german1_ci               	A_alnum0,B_ident0,C_ascii1
+tis620_thai_ci                  	latin1_swedish_ci               	A_alnum0,B_ident0,C_ascii1
+tis620_thai_nopad_ci            	latin1_swedish_nopad_ci         	A_alnum0,B_ident0,C_ascii1
+tis620_thai_nopad_ci            	swe7_swedish_nopad_ci           	A_alnum0,B_ident0,C_ascii1
+# End of 11.8 tests

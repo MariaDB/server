@@ -3779,3 +3779,22 @@ DROP TABLE t1;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES DEFAULT;
+# End of 11.8 tests

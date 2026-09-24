@@ -434,7 +434,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
 struct charset_info_st my_charset_latin1=
 {
     8,0,0,				/* number    */
-    MY_CS_COMPILED | MY_CS_PRIMARY,	/* state     */
+    MY_CS_COMPILED | MY_CS_PRIMARY | MY_CS_ASCII_BINARY_CI, /* state   */
     { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
     { STRING_WITH_LEN("latin1_swedish_ci") },            /* name       */
     "",					/* comment   */
@@ -465,7 +465,7 @@ struct charset_info_st my_charset_latin1=
 struct charset_info_st my_charset_latin1_nopad=
 {
     MY_NOPAD_ID(8),0,0,           /* number           */
-    MY_CS_COMPILED | MY_CS_NOPAD, /* state            */
+    MY_CS_COMPILED | MY_CS_NOPAD | MY_CS_ASCII_BINARY_CI, /* state     */
     { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
     { STRING_WITH_LEN("latin1_swedish_nopad_ci") },      /* name       */
     "",                           /* comment          */
@@ -755,7 +755,8 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_ascii_binary_ci_generic
 };
 
 

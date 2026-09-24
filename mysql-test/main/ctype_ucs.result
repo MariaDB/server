@@ -6839,3 +6839,24 @@ Warning	1292	Truncated incorrect INTEGER value: '-9223372036854775809'
 DROP TABLE t1;
 SET @@sql_mode= @old_mode;
 # End of 10.11 tests
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_general_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+Insert_priv
+SET NAMES DEFAULT;
+End of 11.8 tests
