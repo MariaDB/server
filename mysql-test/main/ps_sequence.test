@@ -1,0 +1,74 @@
+--echo #
+--echo # MDEV-41258: Assertion in get_table_def_key() upon EXECUTE of INSERT
+--echo #             into a table with DEFAULT NEXTVAL() after FLUSH TABLES
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE SEQUENCE s2 START WITH 100;
+CREATE TABLE t1 (a INT DEFAULT NEXTVAL(s1),
+                 b INT DEFAULT (NEXTVAL(s1) + NEXTVAL(s2)),
+                 c INT DEFAULT NEXTVAL(s2),
+                 x INT);
+
+PREPARE stmt FROM "INSERT INTO t1 (x) VALUES (?) RETURNING a, b, c, x";
+EXECUTE stmt USING 1;
+FLUSH TABLES;
+EXECUTE stmt USING 2;
+
+FLUSH TABLES;
+EXECUTE stmt USING 3;
+
+--echo # Another connection holds the TABLE used by the previous execution
+connect con1,localhost,root,,;
+HANDLER t1 OPEN;
+connection default;
+EXECUTE stmt USING 4;
+connection con1;
+HANDLER t1 CLOSE;
+disconnect con1;
+connection default;
+EXECUTE stmt USING 5;
+
+DEALLOCATE PREPARE stmt;
+
+SELECT * FROM t1 ORDER BY x;
+
+CREATE TABLE t2 (a INT DEFAULT NEXTVAL(s1), x INT);
+INSERT INTO t2 (x) VALUES (1);
+UPDATE t1 SET a = 0;
+PREPARE stmt FROM "UPDATE t1, t2 SET t1.a = DEFAULT, t2.a = DEFAULT WHERE t1.x = 1";
+EXECUTE stmt;
+FLUSH TABLES;
+EXECUTE stmt;
+SELECT a, x FROM t1 WHERE x = 1;
+SELECT * FROM t2;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "UPDATE t1 SET a = DEFAULT WHERE x = 2";
+EXECUTE stmt;
+FLUSH TABLES;
+EXECUTE stmt;
+SELECT a, x FROM t1 WHERE x = 2;
+DEALLOCATE PREPARE stmt;
+
+DELETE FROM t2;
+PREPARE stmt FROM "INSERT INTO t2 SELECT DEFAULT(a), x FROM t1 WHERE x = 3";
+EXECUTE stmt;
+FLUSH TABLES;
+EXECUTE stmt;
+SELECT * FROM t2;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "UPDATE t1 SET a = ? WHERE x = 4";
+EXECUTE stmt USING DEFAULT;
+FLUSH TABLES;
+EXECUTE stmt USING 0;
+FLUSH TABLES;
+EXECUTE stmt USING DEFAULT;
+SELECT a, x FROM t1 WHERE x = 4;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1, t2;
+DROP SEQUENCE s1, s2;
+
+--echo # End of 11.4 tests

@@ -5078,42 +5078,58 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 }
 
 
-static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
-                                         TABLE_LIST *table)
+/*
+  Find the first table at or after tl that was added to the statement's
+  table list for the internal tables of owner
+*/
+
+static TABLE_LIST *next_internal_table(TABLE_LIST *tl,
+                                       const TABLE_LIST *owner)
 {
-  do
-  {
-    if (global_list->table_name.str == table->table_name.str &&
-        global_list->db.str == table->db.str)
-      return global_list;
-  } while ((global_list= global_list->next_global));
+  for (; tl; tl= tl->next_global)
+    if (tl->linked_table_owner == owner)
+      return tl;
   return 0;
 }
 
 
+/*
+  Add the internal tables (like sequences used in DEFAULT) of the table
+  opened for owner to the statement's table list.
+
+  The TABLE_LIST elements added are kept for further executions of a
+  prepared statement, while the TABLE object that owns 'tables' may be
+  freed (FLUSH TABLES, table cache eviction) or be another instance of
+  the same table in a later execution.  The added elements must not
+  point to memory of that TABLE, and they cannot be matched against
+  'tables' by address.  Instead the elements added for owner by an
+  earlier execution are matched by position: the internal tables list
+  is built in the same order for every TABLE of the same share, and a
+  change of the table definition causes a reprepare.
+*/
+
 static bool
 add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
-                    TABLE_LIST *tables)
+                    TABLE_LIST *owner, TABLE_LIST *tables)
 {
-  TABLE_LIST *global_table_list= prelocking_ctx->query_tables;
+  TABLE_LIST *existing= next_internal_table(prelocking_ctx->query_tables,
+                                            owner);
   DBUG_ENTER("add_internal_tables");
 
   do
   {
-    TABLE_LIST *tmp __attribute__((unused));
     DBUG_PRINT("info", ("table name: %s", tables->table_name.str));
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if ((tmp= internal_table_exists(global_table_list, tables)))
+    if (existing)
     {
       /*
-        Use the original value for the next local, used by the
-        original prepared statement. We cannot trust the original
-        next_local value as it may have been changed by a previous
-        statement using the same table.
+        Update the link to the internal table of the TABLE opened by
+        this execution.
       */
-      tmp->linked_table= tables;
+      existing->linked_table= tables;
+      existing= next_internal_table(existing->next_global, owner);
       continue;
     }
 
@@ -5134,16 +5150,21 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
 #endif
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    /* Names of 'tables' are allocated on the mem_root of its TABLE */
+    LEX_CSTRING db= { thd->strmake(tables->db.str, tables->db.length),
+                      tables->db.length };
+    LEX_CSTRING table_name= { thd->strmake(tables->table_name.str,
+                                           tables->table_name.length),
+                              tables->table_name.length };
 
 #ifdef PROTECT_STATEMENT_MEMROOT
     if (read_only_mem_root)
       thd->mem_root->flags|= ROOT_FLAG_READ_ONLY;
 #endif
 
-    if (!tl)
+    if (!tl || !db.str || !table_name.str)
       DBUG_RETURN(TRUE);
-    tl->init_one_table_for_prelocking(&tables->db,
-                                      &tables->table_name,
+    tl->init_one_table_for_prelocking(&db, &table_name,
                                       NULL, tables->lock_type,
                                       TABLE_LIST::PRELOCK_NONE,
                                       0, 0,
@@ -5154,6 +5175,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       it to point to the opened table.
     */
     tl->linked_table= tables;
+    tl->linked_table_owner= owner;
     DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);
@@ -5324,14 +5346,20 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   DBUG_PRINT("info", ("table: %p  name: %s  db: %s  flags: %u",
                       table_list, table_list->table_name.str,
                       table_list->db.str, table_list->for_insert_data));
+  /*
+    Tables added by an earlier execution of a prepared statement are
+    opened whether or not DEFAULT is used by this execution, so they
+    must be linked to this TABLE as well.
+  */
   if (table->internal_tables &&
       (table_list->for_insert_data ||
-       thd->lex->default_used))
+       thd->lex->default_used ||
+       next_internal_table(prelocking_ctx->query_tables, table_list)))
   {
     Query_arena *arena, backup;
     bool error;
     arena= thd->activate_stmt_arena_if_needed(&backup);
-    error= add_internal_tables(thd, prelocking_ctx,
+    error= add_internal_tables(thd, prelocking_ctx, table_list,
                                table->internal_tables);
     if (arena)
       thd->restore_active_arena(arena, &backup);

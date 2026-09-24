@@ -239,6 +239,8 @@ private:
   sql_mode_t m_sql_mode;
   THD::used_t m_prepare_time_thd_used_flags;
   uint m_prepare_time_charset_collation_map_version;
+  /* DEFAULT is used in the statement text, not only in its parameters */
+  bool m_prepare_time_default_used;
   bool check_charset_collation_map_version(THD *thd,
                                            Reprepare_observer *observer)
   {
@@ -3968,7 +3970,8 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   read_types(0),
   m_sql_mode(thd->variables.sql_mode),
   m_prepare_time_thd_used_flags(0),
-  m_prepare_time_charset_collation_map_version(0)
+  m_prepare_time_charset_collation_map_version(0),
+  m_prepare_time_default_used(false)
 {
   init_sql_alloc(key_memory_prepared_statement_main_mem_root,
                  &main_mem_root, thd_arg->variables.query_alloc_block_size,
@@ -4363,6 +4366,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   m_prepare_time_thd_used_flags= thd->used;
   m_prepare_time_charset_collation_map_version=
     thd->variables.character_set_collations.version();
+  m_prepare_time_default_used= lex->default_used;
   DBUG_RETURN(error);
 }
 
@@ -4415,7 +4419,7 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
-  lex->default_used= thd->lex->default_used;
+  lex->default_used= m_prepare_time_default_used || thd->lex->default_used;
   thd->lex->default_used= false;
   if (res)
   {
@@ -4943,6 +4947,9 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   swap_variables(THD::used_t,
                  m_prepare_time_thd_used_flags,
                  copy->m_prepare_time_thd_used_flags);
+  swap_variables(bool,
+                 m_prepare_time_default_used,
+                 copy->m_prepare_time_default_used);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
