@@ -108,7 +108,7 @@ class Single_line_formatting_helper
 
   Json_writer *owner;
 public:
-  Single_line_formatting_helper() : state(INACTIVE), buf_ptr(buffer) {}
+  Single_line_formatting_helper(): state(INACTIVE), buf_ptr(buffer) {}
 
   void init(Json_writer *owner_arg) { owner= owner_arg; }
 
@@ -249,8 +249,11 @@ public:
   void add_str(const String &str);
   void add_str(Item *item);
 
-  /* Add a string for which the caller has done escaping needed in JSON */
-  void add_escaped_str(const char* val, size_t len);
+  /* 
+    Add a string for which the caller has done both 
+    escaping and quoting needed in JSON
+  */
+  void add_escaped_quoted_str(const char* val, size_t len);
   void add_table_name(const JOIN_TAB *tab);
   void add_table_name(const TABLE* table);
 
@@ -262,8 +265,7 @@ public:
   void add_null();
 
 private:
-  void add_unquoted_str(const char* val);
-  void add_unquoted_str(const char* val, size_t len);
+  void add_escaped_quoted_str(const char* val);
 
   bool on_add_str(const char *str, size_t num_bytes);
   void on_start_object();
@@ -669,7 +671,7 @@ public:
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
-      context.add_ll(static_cast<longlong>(value));
+      my_writer->add_ull(value);
     return *this;
   }
   Json_writer_array& add(longlong value)
@@ -686,12 +688,18 @@ public:
       context.add_double(value);
     return *this;
   }
+  /*
+    On _WIN64, size_t is the same type as ulonglong, so the overload above
+    already covers it. Everywhere else size_t needs its own overload, which
+    must print unsigned, just like the ulonglong one, so that the output does
+    not depend on the platform.
+  */
   #ifndef _WIN64
   Json_writer_array& add(size_t value)
   {
     DBUG_ASSERT(!closed);
     if (my_writer)
-      context.add_ll(static_cast<longlong>(value));
+      my_writer->add_ull(static_cast<ulonglong>(value));
     return *this;
   }
   #endif

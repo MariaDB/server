@@ -213,7 +213,7 @@ private:
       if (!rc)
       {
         writer.add_member(is_start? "start": "end");
-        writer.add_escaped_str(escaped_val.ptr(), escaped_val.length());
+        writer.add_escaped_quoted_str(escaped_val.ptr(), escaped_val.length());
         return false;
       }
     }
