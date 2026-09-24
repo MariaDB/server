@@ -197,6 +197,16 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
 uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs);
 uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 
+/*
+  The flags which tell about the order of ASCII characters.
+  They are detected by my_8bit_collation_flags_from_data(), and stored
+  in ctype-extra.c for compiled collations.
+*/
+#define MY_CS_REPERTOIRE_FLAGS (MY_CS_ASCII_CASEUP_CI | \
+                                MY_CS_IDENT_CASEUP_CI | \
+                                MY_CS_DIGITS_STD | \
+                                MY_CS_ASCII_MINUS_DOT_DIGITS)
+
 
 /* Macros for hashing characters */
 
@@ -227,6 +237,12 @@ uint my_casefold_multiply_2(CHARSET_INFO *cs);
 
 my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other);
 
+LEX_CSTRING my_tailoring_none(CHARSET_INFO *self,
+                              my_repertoire_t repertoire);
+
+LEX_CSTRING my_tailoring_bin_generic(CHARSET_INFO *self,
+                                     my_repertoire_t repertoire);
+
 struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
                                     const LEX_CSTRING name,
                                     LEX_CSTRING *out_name,
@@ -246,5 +262,143 @@ extern const char charset_name_ucs2[];
 #define charset_name_ucs2_length 4
 extern const char charset_name_utf8mb4[];
 #define charset_name_utf8mb4_length 7
+
+
+/*
+  Some common tailoring strings for tailoring based optimization.
+  Used inside my_collation_handler_st::tailoring() virtual functions.
+  See comments in /include/m_ctype.h near the "tailoring" function declaration.
+
+  Tailorings are compared by the pointer value of the string,
+  so tailoring() implementations in strings/ must return these constants.
+  The declarations below can be moved to m_ctype.h later, when
+  implementations outside of strings/ need these constants.
+  Tailoring strings do not depend on PAD/NOPAD: the collations with
+  different MY_CS_NOPAD are never considered compatible by the caller.
+*/
+/* Tailoring strings for the empty (MY_REPERTOIRE_NONE) repertoire */
+extern const LEX_CSTRING my_tailoring_str_empty;
+
+
+/*** Tailoring strings for the ASCII digits repertoire */
+
+/* All collations with MY_CS_DIGITS_STD: digits 0..9 in the code point order */
+extern const LEX_CSTRING my_tailoring_str_digits;
+
+
+/*** Tailoring strings for the ASCII minus, dot and digits repertoire */
+
+/*
+  All collations with MY_CS_ASCII_MINUS_DOT_DIGITS:
+  the minus < the dot < the digits 0..9 in the code point order
+*/
+extern const LEX_CSTRING my_tailoring_str_minus_dot_digits;
+
+
+/*** Tailoring strings for ALNUM repertoires */
+
+/* Most _ci collations - both UCA and non-UCA */
+extern const LEX_CSTRING my_tailoring_str_alnum_09_AaZz_ci;
+
+/* Most UCA case sensitive collations */
+extern const LEX_CSTRING my_tailoring_str_alnum_09_aAzZ3_cs;
+
+/* Most _bin collations */
+extern const LEX_CSTRING my_tailoring_str_alnum_09_AZ_az;
+
+
+/* Tailoring strings for IDENT repertoires */
+
+/* Most UCA case insensitive collations */
+extern const LEX_CSTRING my_tailoring_str_ident_underscore_09_AaZz_ci;
+
+/* Most UCA case sensitive collations */
+extern const LEX_CSTRING my_tailoring_str_ident_underscore_09_aAzZ3_cs;
+
+/* Most simple _ci collations */
+extern const LEX_CSTRING my_tailoring_str_ident_09_AaZz_ci_underscore;
+
+/* Collations folding to lower case, e.g. tis620_thai_ci */
+extern const LEX_CSTRING my_tailoring_str_ident_09_underscore_AaZz_ci;
+
+/* Most _bin collations */
+extern const LEX_CSTRING my_tailoring_str_ident_09_AZ_underscore_az;
+
+
+/* Tailoring strings for ASCII repertoires */
+
+extern const LEX_CSTRING my_tailoring_str_ascii_caseup_ci;
+
+extern const LEX_CSTRING my_tailoring_str_ascii_casedn_ci;
+
+extern const LEX_CSTRING my_tailoring_str_ascii_bin;
+
+
+/*
+  The tailorings of a family of collations on the repertoires
+  DIGITS, MINUS_DOT_DIGITS, ALNUM, IDENT and ASCII. {0,0} means that
+  the collations have no tailoring on the repertoire.
+*/
+typedef struct my_tailoring_set_st
+{
+  const LEX_CSTRING digits;
+  const LEX_CSTRING minus_dot_digits;
+  const LEX_CSTRING alnum;
+  const LEX_CSTRING ident;
+  const LEX_CSTRING ascii;
+} MY_TAILORING_SET;
+
+
+/*
+  Get the tailoring from a set by the repertoire:
+  - MY_REPERTOIRE_NONE: the shared empty tailoring
+  - A subset of DIGITS, MINUS_DOT_DIGITS, ALNUM, IDENT, ASCII:
+    the tailoring of the narrowest
+    repertoire which includes the requested one
+  - Otherwise, or if the set has no tailoring on the repertoire: {0,0}
+*/
+static inline LEX_CSTRING
+my_tailoring_by_set_and_repertoire(const MY_TAILORING_SET *set,
+                                   my_repertoire_t repertoire)
+{
+  const LEX_CSTRING nl= {0,0};
+  if (repertoire == MY_REPERTOIRE_NONE)
+    return my_tailoring_str_empty;
+  if (my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII_DIGITS))
+    return set->digits;
+  if (my_repertoire_is_subset_of(repertoire,
+                                 MY_REPERTOIRE_ASCII_MINUS_DOT_DIGITS))
+    return set->minus_dot_digits;
+  if (my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII_ALNUM))
+    return set->alnum;
+  if (my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII_IDENT))
+    return set->ident;
+  if (my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII))
+    return set->ascii;
+  return nl;
+}
+
+
+/* Get a tailoring string by repertoire and flag */
+LEX_CSTRING my_tailoring_simple_ci_by_flags(my_repertoire_t repertoire,
+                                            uint flags);
+
+/*
+  Get a tailoring of collations by MY_CS_DIGITS_STD and
+  MY_CS_ASCII_MINUS_DOT_DIGITS.
+  It is used for collations which do not have tailorings on wider repertoires.
+*/
+LEX_CSTRING my_tailoring_by_digit_flags(my_repertoire_t repertoire, uint flags);
+
+/* Get a tailoring of collations folding to lower case, e.g. tis620_thai_ci */
+LEX_CSTRING my_tailoring_ascii_casedn_ci(my_repertoire_t repertoire);
+
+/* Virtual functions for my_collation_handler_st::tailoring() */
+LEX_CSTRING my_tailoring_ascii_caseup_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire);
+
+LEX_CSTRING my_tailoring_ident_caseup_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire);
+
 
 #endif /*STRINGS_DEF_INCLUDED */

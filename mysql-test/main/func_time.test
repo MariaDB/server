@@ -768,9 +768,14 @@ insert into t1 values ('070514-000000');
 # is safe with the default locale en_US
 --replace_column 1 #
 select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
-# Error for swe7: it is not ASCII compatible
+# Error for swe7: it is not ASCII compatible,
+# e.g. 0x5B is LATIN CAPITAL LETTER A WITH DIAERESIS in swe7
 set names swe7;
 --error 1267
+select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),'[ull')) from t1;
+# But swe7 strings consisting only of ASCII letters, digits and spaces
+# are the same in swe7 and ASCII, so the conversion is safe
+--replace_column 1 #
 select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
 set names latin1;
 # Conversion of date_format() result to ASCII

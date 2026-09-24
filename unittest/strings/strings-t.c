@@ -1735,13 +1735,69 @@ static int test_mb_wc_filename_truncated()
 }
 
 
+/*
+  my_string_repertoire() must not return a repertoire which is a subset
+  of ASCII (e.g. MY_REPERTOIRE_NONE, which is compatible with everything)
+  for a string with a bad byte sequence, an unassigned character, or
+  an incomplete character: the characters of such strings are unknown.
+*/
+typedef struct
+{
+  CHARSET_INFO *cs;
+  const char *str;
+  size_t length;
+  my_repertoire_t expected_at_least; /* Bits that must be set */
+  my_bool ascii_only;                /* Is the result a subset of ASCII? */
+} STRING_REPERTOIRE_PARAM;
+
+
+static int test_string_repertoire()
+{
+#define LOWER MY_REPERTOIRE_ASCII_LETTERS_LOWER
+#define EXT   MY_REPERTOIRE_EXTENDED
+  static const STRING_REPERTOIRE_PARAM param[]=
+  {
+    /* Valid strings */
+    {&my_charset_utf16_general_ci, "\0a\0b",     4, LOWER, TRUE},
+    {&my_charset_utf16_general_ci, "\0\xE9",     2, EXT,   FALSE},
+    {&my_charset_ucs2_general_ci,  "\0a",         2, LOWER, TRUE},
+    {&my_charset_utf32_general_ci, "\0\0\0a",   4, LOWER, TRUE},
+    /* A lone high surrogate */
+    {&my_charset_utf16_general_ci, "\xD8\0",     2, EXT,   FALSE},
+    /* ASCII characters followed by a lone high surrogate */
+    {&my_charset_utf16_general_ci, "\0a\xD8\0", 4, EXT,   FALSE},
+    /* An incomplete character at the end */
+    {&my_charset_utf16_general_ci, "\0a\0",      3, EXT,   FALSE},
+    /* A code point beyond U+10FFFF */
+    {&my_charset_utf32_general_ci, "\0\x11\0\0", 4, EXT, FALSE}
+  };
+#undef LOWER
+#undef EXT
+  size_t i;
+  int failed= 0;
+  for (i= 0; i < array_elements(param); i++)
+  {
+    const STRING_REPERTOIRE_PARAM *p= &param[i];
+    my_repertoire_t rep= my_string_repertoire(p->cs, p->str, p->length);
+    if ((rep & p->expected_at_least) != p->expected_at_least ||
+        my_repertoire_is_subset_of(rep, MY_REPERTOIRE_ASCII) != p->ascii_only)
+    {
+      diag("my_string_repertoire() failed for %s, test #%d: %d",
+           p->cs->coll_name.str, (int) i, (int) rep);
+      failed++;
+    }
+  }
+  return failed;
+}
+
+
 int main(int ac, char **av)
 {
   size_t i, failed= 0;
 
   MY_INIT(av[0]);
 
-  plan(5);
+  plan(6);
   diag("Testing my_like_range_xxx() functions");
 
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1770,6 +1826,10 @@ int main(int ac, char **av)
   diag("Testing my_charset_filename mb_wc end-pointer bounds");
   ok(test_mb_wc_filename_truncated() == 0,
      "filename decoder does not read past the end pointer");
+
+  diag("Testing my_string_repertoire() for strings with bad characters");
+  ok(test_string_repertoire() == 0,
+     "my_string_repertoire() does not return ASCII for bad strings");
 
   my_end(0);
 

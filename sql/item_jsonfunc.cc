@@ -2106,6 +2106,12 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return TRUE;
 
+  /*
+    The result also contains the hard-coded '[', ']', '{', '}', '"', ':',
+    ',' and ' ' (this is also used by JSON_OBJECT).
+  */
+  collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
+
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
   {
     ulonglong arg_length;
@@ -4601,6 +4607,9 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   /* skip charset aggregation for order columns */
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return 1;
+
+  /* The result also contains the hard-coded '{', '}', '"', ':', ',' and ' ' */
+  collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
 
   result.set_charset(collation.collation);
   result_field= 0;

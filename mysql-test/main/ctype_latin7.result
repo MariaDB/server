@@ -1,0 +1,34 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES latin7 COLLATE latin7_general_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_general_ci,COERCIBLE) for operation '='
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_general_ci,COERCIBLE) for operation '<>'
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_general_ci,COERCIBLE) for operation '<>'
+SET NAMES latin7 COLLATE latin7_estonian_cs;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_estonian_cs,COERCIBLE) for operation '='
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_estonian_cs,COERCIBLE) for operation '<>'
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_estonian_cs,COERCIBLE) for operation '<>'
+SET NAMES latin7 COLLATE latin7_bin;
+SELECT c FROM v_tailoring WHERE c='Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_bin,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

@@ -97,6 +97,12 @@ struct casefold_info_st
   my_wc_t maxchar;
   const MY_CASEFOLD_CHARACTER * const *page;
   const uint16 * const *simple_weight; /* For general_ci-alike collations */
+  /*
+    TRUE if an ASCII character can be converted to a non-ASCII character
+    by LOWER() or UPPER(), e.g. in Turkish: LOWER('I') -> U+0131,
+    UPPER('i') -> U+0130.
+  */
+  my_bool can_convert_to_non_ascii_on_casefolding;
 };
 
 
@@ -297,16 +303,114 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
                                   to weights, e.g. contractions, expansions,
                                   ignorable characters */
 #define MY_CS_UPPER_EQUAL_AS_EQUAL 0x80000 /* (UPPER(x)=UPPER(y)) <=> (x=y)*/
+/*
+  MY_CS_ASCII_CASEUP_CI means that the collation maps lower case ASCII
+  letters a-z to their upper case counter parts A-Z, and sorts the ASCII
+  range according to the code point otherwise. Therefore the underscore
+  (0x5F) sorts after the letters. A collation which converts upper case
+  letters to lower case would sort the underscore before the letters.
+  Sorting on the non-ASCII range can be any, not necessarily
+  according to the code point.
+*/
+#define MY_CS_ASCII_CASEUP_CI     0x100000 /* ASCII CASEUP CI sorting */
+/*
+  MY_CS_IDENT_CASEUP_CI means that the collation maps lower case ASCII
+  letters a-z to their upper case counter parts A-Z, and sorts "identifier"
+  ranges (0-9,A-Z,_) according to the code point. As a-z are folded
+  to A-Z, the order is: digits < letters (case insensitive) < underscore,
+  i.e. the underscore (0x5F) sorts after all letters.
+  Sorting on the other ASCII characters is not important, sorting on
+  non-ASCII characters is not important.
+*/
+#define MY_CS_IDENT_CASEUP_CI     0x200000 /* CASEUP CI sorting, IDENT range */
+/*
+  MY_CS_ASCII_STD_UCA means that the collation sorts all characters in the
+  range U+0000..U+007F like the default (not-tailored) UCA collations do:
+  utf8mb3_unicode_ci, utf8mb3_uca1400_ai_ci.
+*/
+#define MY_CS_ASCII_STD_UCA       0x400000 /* Standard UCA sorting on ASCII */
+/*
+  MY_CS_DIGITS_STD means that the collation sorts the ASCII digits 0..9
+  in the code point order, and does not tailor them (no contractions,
+  expansions or ignorable digits). For a PAD collation it also means that
+  the space sorts before the digits, as a shorter string is padded with
+  spaces for comparison. Therefore strings consisting of ASCII digits
+  are compared in the same way in all collations having this flag
+  (with the same MY_CS_NOPAD), regardless of case sensitivity
+  and the order of letters.
+*/
+#define MY_CS_DIGITS_STD          0x800000 /* Standard sorting of 0..9 */
+/*
+  MY_CS_ASCII_MINUS_DOT_DIGITS means MY_CS_DIGITS_STD, and additionally,
+  the ASCII minus (-) sorts before the ASCII dot (.), which sorts before
+  the digits, and, for PAD collations, the space sorts before the minus.
+  Therefore strings consisting of minuses, dots and digits
+  (e.g. decimal numbers like '-10.5') are compared in the same way
+  in all collations having this flag (with the same MY_CS_NOPAD).
+*/
+#define MY_CS_ASCII_MINUS_DOT_DIGITS 0x1000000 /* Standard order of -.0..9 */
 #define MY_CHARSET_UNDEFINED 0
 
 /* Character repertoire flags */
 typedef enum enum_repertoire_t
 {
-  MY_REPERTOIRE_NONE=        0,
-  MY_REPERTOIRE_ASCII=       1, /* Pure ASCII            U+0000..U+007F */
-  MY_REPERTOIRE_EXTENDED=    2, /* Extended characters:  U+0080..U+FFFF */
-  MY_REPERTOIRE_UNICODE30=   3  /* ASCII | EXTENDED:     U+0000..U+FFFF */
+  MY_REPERTOIRE_NONE= 0,
+  /* ASCII digits 0..9 */
+  MY_REPERTOIRE_ASCII_DIGITS= 1,
+  /* ASCII letters A..Z */
+  MY_REPERTOIRE_ASCII_LETTERS_UPPER= 2,
+  /* ASCII letters a..z */
+  MY_REPERTOIRE_ASCII_LETTERS_LOWER= 4,
+  /* ASCII letters A..Z, a..z */
+  MY_REPERTOIRE_ASCII_LETTERS= MY_REPERTOIRE_ASCII_LETTERS_UPPER |
+                               MY_REPERTOIRE_ASCII_LETTERS_LOWER,
+  /* ASCII letters and digits */
+  MY_REPERTOIRE_ASCII_ALNUM= MY_REPERTOIRE_ASCII_DIGITS |
+                             MY_REPERTOIRE_ASCII_LETTERS,
+  /* ASCII underscore character */
+  MY_REPERTOIRE_ASCII_UNDERSCORE= 8,
+  /* A combination of alnum and underscore */
+  MY_REPERTOIRE_ASCII_IDENT= MY_REPERTOIRE_ASCII_ALNUM |
+                             MY_REPERTOIRE_ASCII_UNDERSCORE,
+  /*
+    Other ASCII characters, not covered by MY_REPERTOIRE_ASCII_IDENT,
+    MY_REPERTOIRE_ASCII_DOT and MY_REPERTOIRE_ASCII_MINUS:
+  */
+  MY_REPERTOIRE_ASCII_NOT_IDENT= 16,
+  /* Extended characters:  U+0080..U+10FFFF */
+  MY_REPERTOIRE_EXTENDED= 32,
+  /* ASCII dot (full stop) character: . */
+  MY_REPERTOIRE_ASCII_DOT= 64,
+  /* ASCII minus (hyphen-minus) character: - */
+  MY_REPERTOIRE_ASCII_MINUS= 128,
+  /* Decimal numbers, e.g. '-10.5': digits, dot and minus */
+  MY_REPERTOIRE_ASCII_MINUS_DOT_DIGITS= MY_REPERTOIRE_ASCII_DIGITS |
+                               MY_REPERTOIRE_ASCII_DOT |
+                               MY_REPERTOIRE_ASCII_MINUS,
+  /* Entire pure ASCII: U+0000..U+007F */
+  MY_REPERTOIRE_ASCII= MY_REPERTOIRE_ASCII_IDENT |
+                       MY_REPERTOIRE_ASCII_NOT_IDENT |
+                       MY_REPERTOIRE_ASCII_DOT |
+                       MY_REPERTOIRE_ASCII_MINUS,
+  /* All characters: U+0000..U+10FFFF */
+  MY_REPERTOIRE_UNICODE30= MY_REPERTOIRE_ASCII |
+                           MY_REPERTOIRE_EXTENDED
 } my_repertoire_t;
+
+
+/*
+  Check if all characters of "repertoire" belong to "of",
+  e.g. my_repertoire_is_subset_of(rep, MY_REPERTOIRE_ASCII) means
+  "rep contains only ASCII".
+  Note, do not use "repertoire == MY_REPERTOIRE_ASCII" for this purpose,
+  as repertoire values are sets of bits.
+*/
+static inline
+my_bool my_repertoire_is_subset_of(my_repertoire_t repertoire,
+                                   my_repertoire_t of)
+{
+  return (repertoire & ~of) == 0;
+}
 
 
 /* ID compatibility */
@@ -618,6 +722,54 @@ struct my_collation_handler_st
     @return 1  Identical
   */
   my_bool (*eq_collation)(CHARSET_INFO *self, CHARSET_INFO *other);
+
+  /*
+    Get collation rules on the given repertoire.
+    This virtual function is used for tailoring-based optimization.
+    If two different collations have equal rules (tailoring) on the
+    given repertoire, then they can be mutually substituted in a comparison
+    operator instead of raising an "Illegal mix of collations" error,
+    if the additional conditions listed below are met.
+    For example:
+      SET NAMES latin1 COLLATE latin1_swedish_ci;
+      CREATE VIEW v1 AS SELECT IF(cond,'Y','N') AS c1 FROM t1;
+      SET NAMES big5 COLLATE big5_chinese_ci;
+      SELECT * FROM v1 WHERE c1='Y';
+    Although latin1_swedish_ci and big5_chinese_ci are different collations,
+    their rules on the given range (i.e. MY_REPERTOIRE_ASCII_ALNUM) are
+    exactly the same, so it does not matter which collation to use for
+    comparison purposes - the result will be the same. There is no need
+    to raise the "Illegal mix of collations".
+    If "tailoring()" returns a null LEX_CSTRING {0,0}, it means this
+    collation can not use tailoring-based optimization in the passed
+    repertoire.
+
+    The tailoring() results must not be compared directly by the callers.
+    Use my_collations_equal_on_repertoire(), which knows how tailorings
+    are compared and which additional properties of the collations
+    (PAD/NOPAD, UCA version) must be checked.
+
+    Currently two tailorings are considered equal when the str pointers
+    of the returned LEX_CSTRING values are equal (not when their texts
+    are equal). So an implementation must return shared constant strings,
+    and never its own literals, even if the text of such a literal is the
+    same. The shared constants (my_tailoring_str_*) are defined in
+    strings/ctype.c and declared in strings/strings_def.h, which is not
+    a public header. So only the implementations inside strings/ can
+    return them. An implementation defined elsewhere should return {0,0}
+    on all repertoires, which disables the optimization for its collations.
+
+    Equal tailorings are necessary, but not sufficient for the collations
+    to be interchangeable. The returned string does not describe the PAD/
+    NOPAD attribute and the UCA version of the collation, which are
+    additionally checked by my_collations_equal_on_repertoire().
+
+    For MY_REPERTOIRE_NONE (the empty repertoire) the implementations
+    inside strings/ return the shared constant my_tailoring_str_empty:
+    any two collations are trivially compatible on the empty repertoire
+    (the additional checks above still apply).
+  */
+  LEX_CSTRING (*tailoring)(CHARSET_INFO *self, my_repertoire_t repertoire);
 };
 
 
@@ -1233,6 +1385,21 @@ struct charset_info_st
     return this == rhs || (coll->eq_collation)(this, rhs);
   }
 
+  /*
+    Check if the character set can store all ASCII characters
+    U+0000..U+007F. An expression with the ASCII repertoire can be safely
+    converted to such a character set.
+    - All supported multibyte character sets can store U+0000..U+007F
+    - All supported 7bit character sets can store U+0000..U+007F
+      except those marked with MY_CS_NONASCII (e.g. swe7).
+    Note, this is not the same as the byte level ASCII compatibility,
+    see my_charset_is_ascii_based().
+  */
+  bool is_ascii_superset() const
+  {
+    return mbmaxlen > 1 || !(state & MY_CS_NONASCII);
+  }
+
 #endif /* __cplusplus */
 };
 
@@ -1803,6 +1970,8 @@ void my_string_metadata_get(MY_STRING_METADATA *metadata,
 my_repertoire_t my_string_repertoire(CHARSET_INFO *cs,
                                      const char *str, size_t len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
+my_bool my_collations_equal_on_repertoire(CHARSET_INFO *cs1, CHARSET_INFO *cs2,
+                                          my_repertoire_t repertoire);
 my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs);
 
 uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags);

@@ -474,6 +474,7 @@ latin1_test	latin1	331			1	cp1252 West European
 latin1_test2	latin1	332			1	cp1252 West European
 latin1_test2_cs	latin1	333			1	cp1252 West European
 latin1_swedish_nopad2_ci	latin1	334			1	cp1252 West European
+latin1_space_after_letters_ci	latin1	335			1	cp1252 West European
 utf8mb3_bengali_standard_ci	utf8mb3	336			8	
 utf8mb3_bengali_traditional_ci	utf8mb3	337			8	
 utf8mb3_implicit_weights_ci	utf8mb3	338			8	

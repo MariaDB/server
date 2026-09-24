@@ -4312,6 +4312,14 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     separator= new_separator;
   }
 
+  /*
+    The result contains not only the aggregated repertoire of the args,
+    but also every character of the separator.
+  */
+  collation.repertoire|= my_string_repertoire(separator->charset(),
+                                              separator->ptr(),
+                                              separator->length());
+
   if (check_sum_func(thd, ref))
     return TRUE;
 

@@ -2791,7 +2791,13 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 bool Item_xml_str_func::fix_length_and_dec(THD *thd)
 {
   max_length= MAX_BLOB_WIDTH;
-  return agg_arg_charsets_for_comparison(collation, args, arg_count);
+  /*
+    The result collation is chosen from the arguments, so
+    MY_COLL_ALLOW_BY_TAILORING is intentionally not passed here:
+    we cannot just pick the collation of one side for a string result.
+  */
+  return agg_arg_charsets(collation, args, arg_count,
+                          MY_COLL_CMP_CONV & ~MY_COLL_ALLOW_BY_TAILORING, 1);
 }
 
 

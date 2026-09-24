@@ -2042,3 +2042,103 @@ DROP TABLE case_folding;
 #
 # End of 10.10 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3 COLLATE utf8mb3_czech_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_cs;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_as_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_as_cs;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+# End of 11.8 tests
