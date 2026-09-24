@@ -141,7 +141,7 @@ bool Row_definition_list::
   Item *arg;
   while ((def= it++) && (arg= it_args++))
   {
-    if (!(arg= thd->sp_fix_func_item(&arg)))
+    if (def->any_cs && !(arg= thd->sp_fix_func_item(&arg)))
       return true;
     if (def->type_handler()->adjust_spparam_charset(def, arg))
       return true;
@@ -177,7 +177,7 @@ bool Row_definition_list::
   for (uint i= 0; (def= it++) && (i < arg_count) ; i++)
   {
     Item *arg= args[i];
-    if (!(arg= thd->sp_fix_func_item(&arg)))
+    if (def->any_cs && !(arg= thd->sp_fix_func_item(&arg)))
       return true;
     if (def->type_handler()->adjust_spparam_charset(def, arg))
       return true;

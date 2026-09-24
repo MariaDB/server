@@ -2813,7 +2813,7 @@ Type_handler::Column_definition_set_attributes(THD *thd,
       return true;
     }
     def->any_cs= true;
-    def->char_length = def->length;
+    def->char_length= def->length;
   }
   return false;
 }
