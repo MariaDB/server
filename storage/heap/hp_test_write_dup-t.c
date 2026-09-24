@@ -22,7 +22,9 @@
      reuses the hash cached in the index entry instead of re-hashing;
    plus rollback behavior: rejected inserts and updates leave the
    table exactly as before, including multi-key rollback, NULL key
-   parts and non-unique keys.
+   parts and non-unique keys.  Last, an empty and an all-space value
+   are one value under a PAD SPACE collation, whichever is stored, and
+   two values under a NO PAD collation.
 
    Record layout (same as hp_test_helpers.h, plus a nullable variant):
      byte 0:       null bitmap (1 byte, bit 2 = blob null)
@@ -88,6 +90,31 @@ static void init_counting_charset(void)
   real_hash_sort= counting_coll.hash_sort;
   counting_coll.hash_sort= counting_hash_sort;
   counting_cs.coll= &counting_coll;
+}
+
+
+/*
+  Colliding NO PAD charset: a copy of latin1_nopad whose hash_sort adds
+  nothing to the hash, so every value lands in the same bucket and only
+  the key comparison can tell two values apart.
+*/
+static struct charset_info_st colliding_nopad_cs;
+static struct my_collation_handler_st colliding_nopad_coll;
+
+static void colliding_hash_sort(my_hasher_st *hasher
+                                  __attribute__((unused)),
+                                CHARSET_INFO *cs __attribute__((unused)),
+                                const uchar *key __attribute__((unused)),
+                                size_t len __attribute__((unused)))
+{
+}
+
+static void init_colliding_nopad_charset(void)
+{
+  colliding_nopad_cs= my_charset_latin1_nopad;
+  colliding_nopad_coll= *my_charset_latin1_nopad.coll;
+  colliding_nopad_coll.hash_sort= colliding_hash_sort;
+  colliding_nopad_cs.coll= &colliding_nopad_coll;
 }
 
 
@@ -805,13 +832,160 @@ static void test_mixed_stress(void)
 }
 
 
+/*
+  Test 10: an empty value and an all-space value are one value under a
+  PAD SPACE collation, whichever of the two is stored.
+
+  A stored empty blob has no continuation chain, so its record holds a
+  NULL pointer.  The duplicate probe (hp_rec_key_cmp) and the key lookup
+  (hp_key_cmp) must compare it as an empty value, not treat it as
+  different from the other value.
+*/
+
+static void test_pad_space_empty_vs_spaces(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  HP_KEYDEF keydef;
+  HA_KEYSEG keyseg;
+  uchar rec[REC_LENGTH];
+  uchar key[BLOB_KEY_LEN];
+  const uchar *empty= (const uchar*) "";
+  const uchar *spaces= (const uchar*) "   ";
+
+  init_blob_keyseg(&keyseg, FALSE);
+  init_keydef(&keydef, &keyseg, BLOB_KEY_LEN, HA_NOSAME);
+
+  if (create_and_open("t_pad_space_empty", 1, &keydef, &share, &info))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(15, "setup failed");
+    return;
+  }
+  ok(1, "created table with unique PAD SPACE blob hash key");
+
+  /*
+    The empty value is stored, the all-space value is the input.  The
+    lookup runs while the stored row is the only row, so a match can
+    only come from comparing against it.
+  */
+  build_record(rec, 1, empty, 0, FALSE);
+  ok(heap_write(info, rec) == 0, "insert (1, '')");
+  build_blob_key(key, spaces, 3);
+  memset(rec, 0, sizeof(rec));
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) == 0,
+     "key '   ' finds stored ''");
+  ok(sint4korr(rec + INT_OFFSET) == 1, "found row 1 (got %d)",
+     (int) sint4korr(rec + INT_OFFSET));
+  build_record(rec, 2, spaces, 3, FALSE);
+  ok(heap_write(info, rec) == HA_ERR_FOUND_DUPP_KEY,
+     "'   ' rejected as a duplicate of stored ''");
+  ok(share->records == 1, "records=1");
+
+  heap_clear(info);
+  ok(share->records == 0, "table emptied");
+
+  /*
+    The all-space value is stored, the empty value is the input.  The
+    server hands an empty value over with a NULL data pointer, so the
+    input is given both with a pointer to "" and with NULL.
+  */
+  build_record(rec, 3, spaces, 3, FALSE);
+  ok(heap_write(info, rec) == 0, "insert (3, '   ')");
+  build_blob_key(key, empty, 0);
+  memset(rec, 0, sizeof(rec));
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) == 0,
+     "key '' finds stored '   '");
+  ok(sint4korr(rec + INT_OFFSET) == 3, "found row 3 (got %d)",
+     (int) sint4korr(rec + INT_OFFSET));
+  build_blob_key(key, NULL, 0);
+  memset(rec, 0, sizeof(rec));
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) == 0,
+     "key '' with a NULL pointer finds stored '   '");
+  ok(sint4korr(rec + INT_OFFSET) == 3, "found row 3 (got %d)",
+     (int) sint4korr(rec + INT_OFFSET));
+  build_record(rec, 4, empty, 0, FALSE);
+  ok(heap_write(info, rec) == HA_ERR_FOUND_DUPP_KEY,
+     "'' rejected as a duplicate of stored '   '");
+  build_record(rec, 5, NULL, 0, FALSE);
+  ok(heap_write(info, rec) == HA_ERR_FOUND_DUPP_KEY,
+     "'' with a NULL pointer rejected as a duplicate of stored '   '");
+  ok(share->records == 1, "records=1");
+
+  ok(heap_check_heap(info, 0) == 0, "heap_check_heap OK");
+
+  heap_drop_table(info);
+  heap_close(info);
+}
+
+
+/*
+  Test 11: under a NO PAD collation an empty value and an all-space
+  value are two values.  Both are stored, and each key finds its own
+  row.  The collation hashes every value alike, so the two values share
+  a bucket and the key comparison is what keeps them apart.
+*/
+
+static void test_no_pad_empty_vs_spaces(void)
+{
+  HP_SHARE *share;
+  HP_INFO *info;
+  HP_KEYDEF keydef;
+  HA_KEYSEG keyseg;
+  uchar rec[REC_LENGTH];
+  uchar key[BLOB_KEY_LEN];
+  const uchar *empty= (const uchar*) "";
+  const uchar *spaces= (const uchar*) "   ";
+
+  init_blob_keyseg(&keyseg, FALSE);
+  keyseg.charset= &colliding_nopad_cs;
+  init_keydef(&keydef, &keyseg, BLOB_KEY_LEN, HA_NOSAME);
+
+  if (create_and_open("t_no_pad_empty", 1, &keydef, &share, &info))
+  {
+    ok(0, "setup failed: %d", my_errno);
+    skip(9, "setup failed");
+    return;
+  }
+  ok(1, "created table with unique NO PAD blob hash key");
+
+  build_record(rec, 1, empty, 0, FALSE);
+  ok(heap_write(info, rec) == 0, "insert (1, '')");
+  build_blob_key(key, spaces, 3);
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) ==
+     HA_ERR_KEY_NOT_FOUND, "key '   ' does not find stored ''");
+  build_record(rec, 2, spaces, 3, FALSE);
+  ok(heap_write(info, rec) == 0, "insert (2, '   ') beside stored ''");
+  ok(share->records == 2, "records=2");
+
+  build_blob_key(key, spaces, 3);
+  memset(rec, 0, sizeof(rec));
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) == 0,
+     "key '   ' finds its own row");
+  ok(sint4korr(rec + INT_OFFSET) == 2, "found row 2 (got %d)",
+     (int) sint4korr(rec + INT_OFFSET));
+  build_blob_key(key, empty, 0);
+  memset(rec, 0, sizeof(rec));
+  ok(heap_rkey(info, rec, 0, key, 1, HA_READ_KEY_EXACT) == 0,
+     "key '' finds its own row");
+  ok(sint4korr(rec + INT_OFFSET) == 1, "found row 1 (got %d)",
+     (int) sint4korr(rec + INT_OFFSET));
+
+  ok(heap_check_heap(info, 0) == 0, "heap_check_heap OK");
+
+  heap_drop_table(info);
+  heap_close(info);
+}
+
+
 int main(int argc __attribute__((unused)),
          char **argv __attribute__((unused)))
 {
   MY_INIT("hp_test_write_dup");
-  plan(105);
+  plan(131);
 
   init_counting_charset();
+  init_colliding_nopad_charset();
 
   diag("Test 1: hashing cost of unique inserts and rejected duplicates");
   test_dup_insert_hash_cost();
@@ -839,6 +1013,12 @@ int main(int argc __attribute__((unused)),
 
   diag("Test 9: duplicate-heavy stress across hash splits");
   test_mixed_stress();
+
+  diag("Test 10: PAD SPACE empty and all-space values are one value");
+  test_pad_space_empty_vs_spaces();
+
+  diag("Test 11: NO PAD empty and all-space values are two values");
+  test_no_pad_empty_vs_spaces();
 
   my_end(0);
   return exit_status();
