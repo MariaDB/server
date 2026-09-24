@@ -46,7 +46,7 @@ let $opt_context_schema=
                 "rec_per_key": {
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "type": "number"
                   }
                 }
               },
@@ -197,13 +197,14 @@ let $opt_context_schema=
                 "copy_cost"
               ]
             }
-          }
+          },
           "subquery_runs": {
             "type": "array",
             "uniqueItems": true,
             "minItems": 1,
             "items": {
               "type": "number"
+            }
           }
         },
         "required": [

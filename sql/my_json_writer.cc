@@ -201,15 +201,15 @@ void Json_writer::start_element()
 void Json_writer::add_ll(longlong val)
 {
   char buf[64];
-  my_snprintf(buf, sizeof(buf), "%lld", val);
-  add_unquoted_str(buf);
+  size_t len= my_snprintf(buf, sizeof(buf), "%lld", val);
+  add_escaped_quoted_str(buf, len);
 }
 
 void Json_writer::add_ull(ulonglong val)
 {
   char buf[64];
-  my_snprintf(buf, sizeof(buf), "%llu", val);
-  add_unquoted_str(buf);
+  size_t len= my_snprintf(buf, sizeof(buf), "%llu", val);
+  add_escaped_quoted_str(buf, len);
 }
 
 
@@ -233,41 +233,24 @@ void Json_writer::add_double(double val)
 {
   char buf[64];
   size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", val);
-  add_unquoted_str(buf, len);
+  add_escaped_quoted_str(buf, len);
 }
 
 
 void Json_writer::add_bool(bool val)
 {
-  add_unquoted_str(val? "true" : "false");
+  if (val)
+    add_escaped_quoted_str("true", (size_t) 4);
+  else
+    add_escaped_quoted_str("false", (size_t) 5);
 }
 
 
 void Json_writer::add_null()
 {
-  add_unquoted_str("null", (size_t) 4);
+  add_escaped_quoted_str("null", (size_t) 4);
 }
 
-
-void Json_writer::add_unquoted_str(const char* str)
-{
-  size_t len= strlen(str);
-  add_unquoted_str(str, len);
-}
-
-void Json_writer::add_unquoted_str(const char* str, size_t len)
-{
-  VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
-                  got_name == named_item_expected());
-  if (on_add_str(str, len))
-    return;
-
-  if (!element_started)
-    start_element();
-
-  output.append(str, len);
-  element_started= false;
-}
 
 inline bool Json_writer::on_add_str(const char *str, size_t num_bytes)
 {
@@ -301,11 +284,11 @@ void Json_writer::add_str(const char* str, size_t num_bytes)
   if ((rc= json_escape_to_string(str, num_bytes, &my_charset_utf8mb4_bin, &buf)))
   {
     if (rc == JSON_ERROR_ILLEGAL_SYMBOL)
-      str= "String with illegal unicode symbol";
+      str= "\"String with illegal unicode symbol\"";
     else
     {
       DBUG_ASSERT(rc == JSON_ERROR_OUT_OF_SPACE);
-      str= "Out of memory writing JSON";
+      str= "\"Out of memory writing JSON\"";
     }
     num_bytes= strlen(str);
   }
@@ -314,28 +297,30 @@ void Json_writer::add_str(const char* str, size_t num_bytes)
     str= buf.ptr();
     num_bytes= buf.length();
   }
-  add_escaped_str(str, num_bytes);
+  add_escaped_quoted_str(str, num_bytes);
 }
 
 
 /*
   @brief
-    Add a string value. The caller guarantees that it doesn't need escaping.
+    Add a value that the caller has already escaped and quoted as needed
+    for JSON (e.g. a quoted string, or a bare number/bool/null literal).
 */
 
-void Json_writer::add_escaped_str(const char* str, size_t num_bytes)
+void Json_writer::add_escaped_quoted_str(const char* str, size_t num_bytes)
 {
   VALIDITY_ASSERT(fmt_helper.is_making_writer_calls() ||
                   got_name == named_item_expected());
+  DBUG_ASSERT((str[0] == '"' && str[num_bytes - 1] == '"') ||  // string
+              (str[0] >= '0' && str[0] <= '9') || str[0] == '-' ||  // number
+              str[0] == 't' || str[0] == 'f' || str[0] == 'n');  // true/false/null
   if (on_add_str(str, num_bytes))
     return;
 
   if (!element_started)
     start_element();
 
-  output.append('"');
   output.append(str, num_bytes);
-  output.append('"');
   element_started= false;
 }
 
@@ -449,9 +434,9 @@ bool Single_line_formatting_helper::on_add_str(const char *str,
     }
 
     // New length will be:
-    //  "$string", 
-    //  quote + quote + comma + space = 4
-    if (line_len + len + 4 > MAX_LINE_LEN)
+    //  str,
+    // str already includes any quotes it needs; comma + space = 2
+    if (line_len + len + 2 > MAX_LINE_LEN)
     {
       disable_and_flush();
       return false; // didn't handle the last element
@@ -461,7 +446,7 @@ bool Single_line_formatting_helper::on_add_str(const char *str,
     memcpy(buf_ptr, str, len);
     buf_ptr+=len;
     *(buf_ptr++)= 0;
-    line_len += (uint)len + 4;
+    line_len += (uint)len + 2;
     return true; // handled
   }
 
@@ -494,9 +479,7 @@ void Single_line_formatting_helper::flush_on_one_line()
     {
       if (nr != 1)
         owner->output.append(STRING_WITH_LEN(", "));
-      owner->output.append('"');
       owner->output.append(str);
-      owner->output.append('"');
     }
     nr++;
 
@@ -535,9 +518,8 @@ void Single_line_formatting_helper::disable_and_flush()
     {
       //if (nr == 1)
       //  owner->start_array();
-      owner->add_str(str, len);
+      owner->add_escaped_quoted_str(str, len);
     }
-    
     nr++;
     ptr+= len+1;
   }
@@ -547,7 +529,7 @@ void Single_line_formatting_helper::disable_and_flush()
 
 /*
   @brief
-    Escape a JSON string and save it into *out.
+    Escape and quote a JSON string and save it into *out.
 
   @detail
     There's no way to tell how much space is needed for the output.
@@ -572,14 +554,17 @@ int json_escape_to_string(const char *str, size_t len, CHARSET_INFO *cs,
     out->length(out->alloced_length());
     const uchar *str_ptr= (const uchar*)str;
 
+    // first, and the last bytes of buf are used for double quote
     int res= json_escape(cs,
                          str_ptr,
                          str_ptr + len,
                          &my_charset_utf8mb4_bin,
-                         buf, buf + out->length());
+                         buf+1, buf + out->length()-1);
     if (res >= 0)
     {
-      out->length(res);
+      buf[0]= '"';
+      buf[res+1]= '"';
+      out->length(res+2);
       return 0; // Ok
     }
 

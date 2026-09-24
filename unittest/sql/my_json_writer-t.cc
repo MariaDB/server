@@ -94,7 +94,7 @@ int main(int args, char **argv)
 {
   MY_INIT(argv[0]);
 
-  plan(130);
+  plan(144);
   diag("Testing Json_writer checks");
 
   {
@@ -236,6 +236,24 @@ int main(int args, char **argv)
        "String with embedded quote properly escaped");
     ok(!w.invalid_json,
        "String with embedded quote remains valid for this writer");
+  }
+
+  /*
+    add_str() on an invalid utf8mb4 byte sequence must still produce a
+    properly quoted string, not a bare unquoted word.
+  */
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("s").add_str("\xff", 1);
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"s\": \"String with illegal unicode symbol\"\n"
+       "}"),
+       "Invalid utf8mb4 input is replaced with a quoted placeholder string");
+    ok(!w.invalid_json,
+       "Invalid utf8mb4 input still produces valid JSON");
   }
 
   {
@@ -566,6 +584,159 @@ int main(int args, char **argv)
     ok(!w.invalid_json, "Named string array is valid");
   }
 
+  diag("Testing arrays of primitive types");
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("arr1");
+    w.start_array();
+    w.add_ll(1);
+    w.add_ll(2);
+    w.add_ll(3);
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"arr1\": [1, 2, 3]\n"
+       "}"),
+       "Named array of integers: numbers are not quoted");
+    ok(!w.invalid_json, "Named array of integers is valid");
+  }
+
+  {
+    Json_writer w;
+    w.start_object();
+    w.add_member("mixed");
+    w.start_array();
+    w.add_str("str");
+    w.add_ll(-42);
+    w.add_ull(ULLONG_MAX);
+    w.add_double(3.14);
+    w.add_bool(true);
+    w.add_bool(false);
+    w.add_null();
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"mixed\": [\"str\", -42, 18446744073709551615, 3.14, true, false, "
+                     "null]\n"
+       "}"),
+       "Named array of mixed types: only strings are quoted");
+    ok(!w.invalid_json, "Named array of mixed types is valid");
+  }
+
+  {
+    /*
+      A memory size is printed as a string, as it can carry a unit suffix.
+    */
+    Json_writer w;
+    w.start_object();
+    w.add_member("sizes");
+    w.start_array();
+    w.add_size(512);
+    w.add_size(2048);
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"sizes\": [\"512\", \"2KiB\"]\n"
+       "}"),
+       "Named array of sizes: sizes are quoted");
+    ok(!w.invalid_json, "Named array of sizes is valid");
+  }
+
+  {
+    /*
+      The array doesn't fit on one line (9 seven-digit numbers overflow the
+      80-column single-line buffer), so it is printed element per line.
+      The numbers must not become strings because of that.
+    */
+    Json_writer w;
+    w.start_object();
+    w.add_member("arr");
+    w.start_array();
+    for (int i= 0; i < 9; i++)
+      w.add_ll(1000000 + i);
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"arr\": [\n"
+       "    1000000,\n"
+       "    1000001,\n"
+       "    1000002,\n"
+       "    1000003,\n"
+       "    1000004,\n"
+       "    1000005,\n"
+       "    1000006,\n"
+       "    1000007,\n"
+       "    1000008\n"
+       "  ]\n"
+       "}"),
+       "Multi-line array of integers: numbers are not quoted");
+    ok(!w.invalid_json, "Multi-line array of integers is valid");
+  }
+
+  {
+    /*
+      A nested object breaks the one-line pattern. The values accumulated
+      before it must keep their types.
+    */
+    Json_writer w;
+    w.start_object();
+    w.add_member("arr");
+    w.start_array();
+    w.add_ll(1);
+    w.add_bool(false);
+    w.start_object();
+    w.add_member("k").add_ll(3);
+    w.end_object();
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"arr\": [\n"
+       "    1,\n"
+       "    false,\n"
+       "    {\n"
+       "      \"k\": 3\n"
+       "    }\n"
+       "  ]\n"
+       "}"),
+       "Values flushed before a nested object keep their types");
+    ok(!w.invalid_json, "Flushed values before nested object stay valid");
+  }
+
+  {
+    /*
+      Strings accumulated by the one-line helper are already escaped, so
+      flushing them must not escape them for the second time.
+    */
+    Json_writer w;
+    w.start_object();
+    w.add_member("arr");
+    w.start_array();
+    w.add_str("a\"b");
+    w.start_object();
+    w.add_member("k").add_ll(1);
+    w.end_object();
+    w.end_array();
+    w.end_object();
+    ok(json_output_eq(w,
+       "{\n"
+       "  \"arr\": [\n"
+       "    \"a\\\"b\",\n"
+       "    {\n"
+       "      \"k\": 1\n"
+       "    }\n"
+       "  ]\n"
+       "}"),
+       "A flushed string is not escaped twice");
+    ok(!w.invalid_json, "Flushed escaped string stays valid");
+  }
+
   {
     Json_writer w;
     w.start_object();
@@ -852,10 +1023,12 @@ int main(int args, char **argv)
     {
       Json_writer_array arr(&w);
       arr.add((ulonglong) 42);
+      arr.add(ULLONG_MAX);
     }
     ok(json_output_eq(w,
        "[\n"
-       "  42\n"
+       "  42,\n"
+       "  18446744073709551615\n"
        "]"),
        "RAII array add(ulonglong) output");
     ok(!w.invalid_json, "RAII array add(ulonglong) valid");

@@ -79,7 +79,7 @@ bool json_unescape_to_string(const char *val, int val_len, String *out);
 
 /*
   @brief
-    Escape a JSON string and save it into *out.
+    Escape and quote a JSON string and save it into *out.
 */
 int json_escape_to_string(const String *str, String *out);
 
