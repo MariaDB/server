@@ -68,7 +68,7 @@ public:
   my_repertoire_t repertoire(CHARSET_INFO *cs) const
   {
     return !m_is_8bit && my_charset_is_ascii_based(cs) ?
-           MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+           my_string_repertoire(cs, str, length) : MY_REPERTOIRE_UNICODE30;
   }
   // Get string repertoire by the 8-bit flag, for ASCII-based character sets
   my_repertoire_t repertoire() const

@@ -3000,17 +3000,21 @@ public:
                                  @@character_set_connection
   MY_COLL_DISALLOW_NONE        - don't allow return DERIVATION_NONE
                                  (e.g. when aggregating for comparison)
+  MY_COLL_ALLOW_BY_REPERTOIRE
   MY_COLL_CMP_CONV             - combination of MY_COLL_ALLOW_CONV
                                  and MY_COLL_DISALLOW_NONE
+                                 and MY_COLL_ALLOW_COECRIBLE_CONV_BY_REPERTOIRE
 */
 
 #define MY_COLL_ALLOW_SUPERSET_CONV   1
 #define MY_COLL_ALLOW_COERCIBLE_CONV  2
 #define MY_COLL_DISALLOW_NONE         4
 #define MY_COLL_ALLOW_NUMERIC_CONV    8
+#define MY_COLL_ALLOW_BY_REPERTOIRE   16
 
 #define MY_COLL_ALLOW_CONV (MY_COLL_ALLOW_SUPERSET_CONV | MY_COLL_ALLOW_COERCIBLE_CONV)
-#define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE)
+#define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE | \
+                            MY_COLL_ALLOW_BY_REPERTOIRE)
 
 
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
@@ -3083,6 +3087,8 @@ enum Derivation
 */
 
 class DTCollation {
+
+  bool aggregate_by_repertoire(const DTCollation &dt, uint flags);
 public:
   CHARSET_INFO     *collation;
   enum Derivation derivation;
@@ -3462,7 +3468,8 @@ public:
   {
     uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
                 MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_DISALLOW_NONE;
+                MY_COLL_DISALLOW_NONE |
+                MY_COLL_ALLOW_BY_REPERTOIRE;
     return agg_arg_charsets(c, func_name, items, nitems, flags, item_sep);
   }
 

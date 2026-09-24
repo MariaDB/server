@@ -1824,7 +1824,8 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     m_arg0_type_handler= args[0]->type_handler();
-    collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+    collation.set(default_charset(), DERIVATION_COERCIBLE,
+                  MY_REPERTOIRE_ASCII_IDENT);
     decimals=0;
     /*
       Reserve space for 16 characters for signed numeric data types:
@@ -2091,7 +2092,7 @@ public:
       safe= (args[0]->collation.collation == &my_charset_bin ||
              cs == &my_charset_bin ||
              (cs->state & MY_CS_UNICODE) ||
-             (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+             (!(args[0]->collation.repertoire & ~MY_REPERTOIRE_ASCII) &&
               (cs->mbmaxlen > 1 || !(cs->state & MY_CS_NONASCII))));
     }
   }

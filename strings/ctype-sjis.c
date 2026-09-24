@@ -34018,6 +34018,25 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 
 
 /*
+  sjin_bin and sjis_nopad_bin reorder ASCII punctuation characters
+  over _bin collations.
+  So a special virtual function is needed.
+*/
+LEX_CSTRING my_tailoring_sjis_bin(CHARSET_INFO *self,
+                                  my_repertoire_t repertoire)
+{
+  const LEX_CSTRING nl= {0,0};
+  if ((repertoire & ~MY_REPERTOIRE_ASCII_IDENT) == 0)
+  {
+    /* No irregularities on the ALNUM and IDENT ranges */
+    return my_tailoring_bin_generic(self, repertoire);
+  }
+  /* ASCII punctuation characters reordered */
+  return nl;
+}
+
+
+/*
   sjis_chinese_ci and sjis_bin sort character blocks in this order:
   1. [00..7F]                - 7BIT characters (ASCII)
   2. [81..9F][40..7E,80..FC] - MB2 characters, part1
@@ -34075,7 +34094,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_ident_binary_ci_generic
 };
 
 
@@ -34096,7 +34116,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_sjis_bin
 };
 
 
@@ -34117,7 +34138,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_nopad_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_ident_binary_ci_generic
 };
 
 
@@ -34138,7 +34160,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_nopad_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_sjis_bin
 };
 
 
