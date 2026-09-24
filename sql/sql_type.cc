@@ -2782,6 +2782,18 @@ bool Type_handler::
 
 /*************************************************************************/
 
+bool Type_handler_longstr::adjust_spparam_charset(Spvar_definition *def, Item *from)
+    const
+{
+  if (def->any_cs)
+  {
+    def->charset= from->collation.collation;
+    def->length = def->char_length > 0 ? def->char_length : from->max_char_length();
+    def->create_length_to_internal_length_string();
+  }
+  return false;
+}
+
 bool
 Type_handler::Column_definition_set_attributes(THD *thd,
                                                Column_definition *def,
@@ -2793,6 +2805,16 @@ Type_handler::Column_definition_set_attributes(THD *thd,
                                    thd->variables.character_set_collations,
                                    attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
+  if (def->charset == &my_collation_contextually_typed_any_cs)
+  {
+    if (type != COLUMN_DEFINITION_ROUTINE_PARAM)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "non-parameter definitions");
+      return true;
+    }
+    def->any_cs= true;
+    def->char_length = def->length;
+  }
   return false;
 }
 

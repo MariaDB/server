@@ -141,8 +141,27 @@ bool Row_definition_list::
   Item *arg;
   while ((def= it++) && (arg= it_args++))
   {
+    if (!(arg= thd->sp_fix_func_item(&arg)))
+      return true;
+    if (def->type_handler()->adjust_spparam_charset(def, arg))
+      return true;
     if (def->type_handler()->adjust_spparam_type(def, arg))
       return true;
+  }
+  while (def)
+  {
+    Item *default_item= def->default_item_value;
+
+    if (default_item && def->any_cs)
+    {
+      if (!(default_item= thd->sp_fix_func_item(&default_item)))
+        return true;
+      if (def->type_handler()->adjust_spparam_charset(def, default_item))
+        return true;
+      if (def->type_handler()->adjust_spparam_type(def, default_item))
+        return true;
+    }
+    def= it++;
   }
   return false;
 }
@@ -157,8 +176,27 @@ bool Row_definition_list::
   Spvar_definition *def;
   for (uint i= 0; (def= it++) && (i < arg_count) ; i++)
   {
+    Item *arg= args[i];
+    if (!(arg= thd->sp_fix_func_item(&arg)))
+      return true;
+    if (def->type_handler()->adjust_spparam_charset(def, arg))
+      return true;
     if (def->type_handler()->adjust_spparam_type(def, args[i]))
       return true;
+  }
+  while (def)
+  {
+    Item *default_item= def->default_item_value;
+    if (default_item && def->any_cs)
+    {
+      if (!(default_item= thd->sp_fix_func_item(&default_item)))
+        return true;
+      if (def->type_handler()->adjust_spparam_charset(def, default_item))
+        return true;
+      if (def->type_handler()->adjust_spparam_type(def, default_item))
+        return true;
+    }
+    def= it++;
   }
   return false;
 }

@@ -519,6 +519,7 @@ public:
   { return NULL; }
 
   virtual Item_param *get_item_param() { return 0; }
+  virtual bool can_handle_any_cs() const { return 0; }
 };
 
 
@@ -3310,7 +3311,7 @@ public:
   { return this_item()->element_index(i); }
   Item** addr(uint i) override { return this_item()->addr(i); }
   bool check_cols(uint c) override;
-
+  bool can_handle_any_cs() const override { return 1; }
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
@@ -3375,6 +3376,8 @@ public:
                  pos_in_q, len_in_q)
   { }
 
+  bool can_handle_any_cs() const override { return 0; }
+
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
@@ -3434,6 +3437,7 @@ public:
   { }
   bool fix_fields(THD *thd, Item **it) override;
   void print(String *str, enum_query_type query_type) override;
+  bool can_handle_any_cs() const override { return 0; }
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
@@ -7608,6 +7612,7 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
   Item *copy_or_same(THD *) override { return this; }
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
+  bool can_handle_any_cs() const override { return 1; }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_trigger_field>(thd, this); }

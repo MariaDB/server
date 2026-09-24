@@ -10786,8 +10786,15 @@ bool Column_definition::set_attributes(THD *thd,
   DBUG_ASSERT(decimals == 0);
 
   set_handler(def.type_handler());
-  return type_handler()->Column_definition_set_attributes(thd, this,
-                                                          def, type);
+  if (type_handler()->Column_definition_set_attributes(thd, this, def, type))
+    return true;
+
+  if (any_cs && type != COLUMN_DEFINITION_ROUTINE_PARAM)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "non-parameter definitions");
+    return true;
+  }
+  return false;
 }
 
 
@@ -11192,6 +11199,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;
+  any_cs= false;
   interval_list.empty(); // prepare_interval_field() needs this
   char_length= (uint) length;
 

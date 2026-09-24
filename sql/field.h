@@ -5390,6 +5390,7 @@ public:
   List<String> interval_list;
   engine_option_value *option_list;
   bool explicitly_nullable;
+  bool any_cs;
 
   /*
     This is additinal data provided for any computed(virtual) field.
@@ -5411,7 +5412,7 @@ public:
     comment(null_clex_str),
     on_update(NULL), invisible(VISIBLE), char_length(0),
     flags(0), pack_length(0),
-    option_list(NULL), explicitly_nullable(false),
+    option_list(NULL), explicitly_nullable(false), any_cs(false),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET), period(NULL)
   {
@@ -5699,12 +5700,14 @@ class Spvar_definition: public Column_definition
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
 public:
+  Item *default_item_value;
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    default_item_value(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
    :Column_definition(thd, field, NULL),
@@ -5712,7 +5715,8 @@ public:
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    default_item_value(NULL)
   { }
   const Type_handler *type_handler() const
   {
