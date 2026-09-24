@@ -907,19 +907,26 @@ int hp_read_blobs(HP_INFO *info, uchar *record, const uchar *pos)
 
 
 /*
-  Materialize a single blob column's data from a continuation chain
-  into info->blob_buff.
+  Get a single blob column's data from a continuation chain as one
+  contiguous block.
 
   Used by hash comparison functions when comparing a stored record
   (where the blob data pointer has been overwritten with a continuation
   chain pointer) against an input record.
 
-  @param info      Table handle (provides blob_buff)
+  @param info      Table handle (provides key_blob_buff)
   @param chain     Pointer to first run of the continuation chain
   @param data_len  Total blob data length (from record's packlength bytes)
 
-  @return Pointer into info->blob_buff with contiguous blob data,
-          or NULL on allocation failure.
+  @return Pointer to the blob data, which is one of:
+          - a pointer into the chain itself, when the data is already
+            contiguous there (cases A and B);
+          - info->key_blob_buff, when the data is spread over several
+            runs and has to be copied (case C).  The next call may
+            overwrite it;
+          - an empty string when data_len is 0;
+          - NULL on allocation failure.
+          The data must not be modified or freed through the pointer.
 */
 
 const uchar *hp_materialize_one_blob(HP_INFO *info,
@@ -930,7 +937,10 @@ const uchar *hp_materialize_one_blob(HP_INFO *info,
   uint visible= share->visible;
   uint recbuffer= share->block.recbuffer;
 
-  if (data_len == 0 || !chain)
+  /* An empty blob has no chain: its record holds a NULL pointer */
+  if (data_len == 0)
+    return (const uchar*) "";
+  if (!chain)
     return chain;
 
   if (hp_is_single_rec(chain, visible))

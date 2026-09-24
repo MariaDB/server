@@ -188,4 +188,114 @@ SHOW STATUS LIKE 'Created_tmp_disk_tables';
 Variable_name	Value
 Created_tmp_disk_tables	0
 DROP TABLE t_grp, t_grp_pad;
+#
+# MDEV-41297 Wrong result upon DISTINCT/GROUP BY/UNION on TEXT with
+# empty and all-space values
+#
+# PAD SPACE: an empty value and an all-space value are one value.
+# A stored empty value has no data of its own, and must still
+# compare equal to the other one, whichever of the two is stored.
+#
+CREATE TABLE t_empty (id INT AUTO_INCREMENT PRIMARY KEY,
+l TEXT CHARACTER SET latin1,
+u TEXT CHARACTER SET utf8mb4);
+INSERT INTO t_empty (l, u) VALUES ('', ''), ('   ', '   ');
+CREATE TABLE t_empty_rev LIKE t_empty;
+INSERT INTO t_empty_rev (l, u) VALUES ('   ', '   '), ('', '');
+FLUSH STATUS;
+# Every count must be 1
+SELECT COUNT(*) FROM (SELECT DISTINCT l FROM t_empty) AS d;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT DISTINCT u FROM t_empty) AS d;
+COUNT(*)
+1
+SELECT COUNT(DISTINCT l), COUNT(DISTINCT u) FROM t_empty;
+COUNT(DISTINCT l)	COUNT(DISTINCT u)
+1	1
+SELECT COUNT(*) FROM (SELECT l FROM t_empty GROUP BY l) AS g;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT u FROM t_empty GROUP BY u) AS g;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT l FROM t_empty WHERE LENGTH(l)=0
+UNION SELECT l FROM t_empty WHERE LENGTH(l)=3) AS un;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT u FROM t_empty WHERE LENGTH(u)=0
+UNION SELECT u FROM t_empty WHERE LENGTH(u)=3) AS un;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT DISTINCT l FROM t_empty_rev) AS d;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT DISTINCT u FROM t_empty_rev) AS d;
+COUNT(*)
+1
+SELECT COUNT(DISTINCT l), COUNT(DISTINCT u) FROM t_empty_rev;
+COUNT(DISTINCT l)	COUNT(DISTINCT u)
+1	1
+SELECT COUNT(*) FROM (SELECT l FROM t_empty_rev GROUP BY l) AS g;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT u FROM t_empty_rev GROUP BY u) AS g;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT l FROM t_empty_rev WHERE LENGTH(l)=3
+UNION SELECT l FROM t_empty_rev WHERE LENGTH(l)=0) AS un;
+COUNT(*)
+1
+SELECT COUNT(*) FROM (SELECT u FROM t_empty_rev WHERE LENGTH(u)=3
+UNION SELECT u FROM t_empty_rev WHERE LENGTH(u)=0) AS un;
+COUNT(*)
+1
+# All temporary tables stayed in MEMORY
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+DROP TABLE t_empty, t_empty_rev;
+#
+# NO PAD: an empty value and an all-space value are two values,
+# whichever of the two is stored
+#
+CREATE TABLE t_nopad (id INT AUTO_INCREMENT PRIMARY KEY,
+n TEXT CHARACTER SET latin1
+COLLATE latin1_swedish_nopad_ci);
+INSERT INTO t_nopad (n) VALUES (''), ('   ');
+CREATE TABLE t_nopad_rev LIKE t_nopad;
+INSERT INTO t_nopad_rev (n) VALUES ('   '), ('');
+FLUSH STATUS;
+# Every count must be 2
+SELECT COUNT(*) FROM (SELECT DISTINCT n FROM t_nopad) AS d;
+COUNT(*)
+2
+SELECT COUNT(DISTINCT n) FROM t_nopad;
+COUNT(DISTINCT n)
+2
+SELECT COUNT(*) FROM (SELECT n FROM t_nopad GROUP BY n) AS g;
+COUNT(*)
+2
+SELECT COUNT(*) FROM (SELECT n FROM t_nopad WHERE LENGTH(n)=0
+UNION SELECT n FROM t_nopad WHERE LENGTH(n)=3) AS un;
+COUNT(*)
+2
+SELECT COUNT(*) FROM (SELECT DISTINCT n FROM t_nopad_rev) AS d;
+COUNT(*)
+2
+SELECT COUNT(DISTINCT n) FROM t_nopad_rev;
+COUNT(DISTINCT n)
+2
+SELECT COUNT(*) FROM (SELECT n FROM t_nopad_rev GROUP BY n) AS g;
+COUNT(*)
+2
+SELECT COUNT(*) FROM (SELECT n FROM t_nopad_rev WHERE LENGTH(n)=3
+UNION SELECT n FROM t_nopad_rev WHERE LENGTH(n)=0) AS un;
+COUNT(*)
+2
+# All temporary tables stayed in MEMORY
+SHOW STATUS LIKE 'Created_tmp_disk_tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+DROP TABLE t_nopad, t_nopad_rev;
 # End of MDEV-38975 blob operations tests
