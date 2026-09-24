@@ -1,0 +1,275 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # Reformatting a document when there is no room to grow the buffer.
+--echo #
+--echo # The reformatting pass asks for the length of its input plus a
+--echo # little, then writes the loose form into it.  The loose form spends
+--echo # two characters where the compact form spends one, so an input
+--echo # carrying enough separators needs more room than was asked for, and
+--echo # the buffer has to grow part way through being written.
+--echo #
+--echo # These tests make that growing fail.  What is being pinned is that
+--echo # every one of them ends either in an error or in a value that
+--echo # parses.  A document with a piece missing out of the middle is not
+--echo # an answer, and no caller checks for one.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. How much bigger the loose form is, which is what makes the
+--echo #    room asked for too little.
+--echo #
+
+SET @compact = CONCAT('[', REPEAT('1,', 49), '1]');
+SET @pairs = CONCAT('{', REPEAT('"a":1,', 24), '"a":1}');
+SET @nested = CONCAT('{"k":[', REPEAT('1,', 49), '1]}');
+SET @small = '[1,2,3]';
+SELECT LENGTH(@compact) AS compact_len,
+       LENGTH(JSON_LOOSE(@compact)) - LENGTH(@compact) AS grew_by;
+SELECT LENGTH(@pairs) AS compact_len,
+       LENGTH(JSON_LOOSE(@pairs)) - LENGTH(@pairs) AS grew_by;
+--echo # a document short enough that the room asked for is enough
+SELECT LENGTH(@small) AS compact_len,
+       LENGTH(JSON_LOOSE(@small)) - LENGTH(@small) AS grew_by;
+
+--echo #
+--echo # 2. Which uses of a formatter actually reformat anything.
+--echo #
+--echo # A formatter handed to something that wants JSON gives it the
+--echo # argument untouched, formatting being no business of a reader.
+--echo # Only a use that wants text runs the reformatting pass at all.
+--echo #
+
+SELECT JSON_LOOSE(@pairs) AS as_text;
+SELECT JSON_TYPE(JSON_LOOSE(@pairs)) AS asked_as_json;
+SELECT CONCAT(JSON_LOOSE(@pairs), '') AS asked_as_text;
+SELECT JSON_VALID(JSON_LOOSE(@pairs)) AS reader_sees_the_argument,
+       JSON_VALID(CONCAT(JSON_LOOSE(@pairs), '')) AS reader_sees_the_output;
+
+--echo #
+--echo # 3. The formatters, with no room to grow.
+--echo #
+
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_LOOSE(@compact), '')) AS parses;
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_LOOSE(@pairs), '')) AS parses;
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_DETAILED(@compact), '')) AS parses;
+--error 0,5
+SELECT LENGTH(JSON_LOOSE(@compact)) AS len;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo # the same statements once the room is there again
+SELECT JSON_VALID(CONCAT(JSON_LOOSE(@compact), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_LOOSE(@pairs), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_DETAILED(@compact), '')) AS parses;
+
+--echo #
+--echo # 4. A document short enough not to need the room, which must be
+--echo #    unaffected.
+--echo #
+
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT JSON_VALID(CONCAT(JSON_LOOSE(@small), '')) AS parses;
+SELECT JSON_LOOSE(@small) AS v;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 5. The editing functions, which reformat what they have built
+--echo #    before returning it.
+--echo #
+
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_SET(@compact, '$[0]', 9), '')) AS parses;
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_REMOVE(@compact, '$[0]'), '')) AS parses;
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_MERGE(@compact, '[7]'), '')) AS parses;
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_ARRAY_APPEND(@compact, '$', 7), '')) AS parses;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo # and once the room is there again
+SELECT JSON_VALID(CONCAT(JSON_SET(@compact, '$[0]', 9), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_REMOVE(@compact, '$[0]'), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_MERGE(@compact, '[7]'), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_ARRAY_APPEND(@compact, '$', 7), '')) AS parses;
+
+--echo #
+--echo # 6. Reading a value out, which reformats what it read.
+--echo #
+
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT JSON_VALID(CONCAT(JSON_EXTRACT(@nested, '$.k'), '')) AS parses;
+SET SESSION debug_dbug = DEFAULT;
+SELECT JSON_VALID(CONCAT(JSON_EXTRACT(@nested, '$.k'), '')) AS parses;
+
+--echo #
+--echo # 7. Where the value would go if it were returned at all.
+--echo #
+--echo # The allocator reports the failure itself, and reports it as
+--echo # fatal, so the statement ends before anything can be assigned and
+--echo # a handler cannot let execution carry on past it.  This is what
+--echo # keeps a half written document from being seen.
+--echo #
+
+SET @out = 'untouched';
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SET @out = JSON_LOOSE(@compact);
+SET SESSION debug_dbug = DEFAULT;
+SELECT @out AS assigned_value;
+
+SET @reached = 0;
+SET @out2 = 'untouched';
+--delimiter $$
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SET @out2 = JSON_LOOSE(@compact);
+  SET @reached = 1;
+END $$
+--delimiter ;
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+CALL p();
+SET SESSION debug_dbug = DEFAULT;
+SELECT @reached AS handler_carried_on, @out2 AS assigned_value;
+DROP PROCEDURE p;
+
+--echo #
+--echo # 8. Several rows, so the failure is met more than once and the
+--echo #    statement does not turn on it happening first.
+--echo #
+
+CREATE TABLE t1 (id INT, j LONGTEXT);
+INSERT INTO t1 VALUES (1, '[1,2,3]');
+INSERT INTO t1 VALUES (2, CONCAT('[', REPEAT('1,', 49), '1]'));
+INSERT INTO t1 VALUES (3, CONCAT('[', REPEAT('2,', 49), '2]'));
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT id, JSON_VALID(CONCAT(JSON_LOOSE(j), '')) AS parses
+  FROM t1 ORDER BY id;
+SET SESSION debug_dbug = DEFAULT;
+SELECT id, JSON_VALID(CONCAT(JSON_LOOSE(j), '')) AS parses
+  FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # The sections above fail a buffer that is being grown, which
+--echo # reaches every write the reformatting pass makes.  The ones below
+--echo # fail a single write instead, and they exist because growing
+--echo # cannot reach those writes at all: the room a document takes is
+--echo # asked for before it is written, so they never run short, and the
+--echo # arms that cope with their failing are arms nobody has run.  Each
+--echo # is a pair - the statement without the failure and with it - so
+--echo # that what comes back is read against what the statement answers
+--echo # when nothing is wrong.
+--echo #
+
+--echo #
+--echo # 9. The quotes around a value.  One at each end of the escaping,
+--echo #    and failing the first never reaches the second, so they are
+--echo #    asked about one at a time.
+--echo #
+SELECT JSON_ARRAY('abc', 'def') AS whole,
+       JSON_OBJECT('k', 'abc') AS whole_value;
+
+SET SESSION debug_dbug = '+d,json_value_open_quote_out_of_memory';
+SELECT JSON_ARRAY('abc', 'def') AS no_open_quote;
+SELECT JSON_OBJECT('k', 'abc') AS no_open_quote_value;
+SET SESSION debug_dbug = DEFAULT;
+
+SET SESSION debug_dbug = '+d,json_value_close_quote_out_of_memory';
+SELECT JSON_ARRAY('abc', 'def') AS no_close_quote;
+SELECT JSON_OBJECT('k', 'abc') AS no_close_quote_value;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 10. The room the escaping asks for, which is asked for once and
+--echo #     up front at the widest the value could come to.
+--echo #
+SET SESSION debug_dbug = '+d,json_escape_reserve_out_of_memory';
+SELECT JSON_ARRAY('abc', 'def') AS no_room_to_escape;
+SELECT JSON_QUOTE('abc') AS no_room_to_quote;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 11. The quote that opens a key.  A key is a string and nothing
+--echo #     else, so it is written the way a value that is a string is.
+--echo #
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS whole;
+
+SET SESSION debug_dbug = '+d,json_keyname_quote_out_of_memory';
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS no_key_quote;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 12. The quotes JSON_QUOTE puts round its argument, which are the
+--echo #     same two writes as section 9 made by the function whose
+--echo #     whole answer they are.
+--echo #
+SELECT JSON_QUOTE('abc') AS whole, JSON_QUOTE('a"b') AS whole_escaped;
+
+SET SESSION debug_dbug = '+d,json_quote_open_out_of_memory';
+SELECT JSON_QUOTE('abc') AS no_open_quote;
+SET SESSION debug_dbug = DEFAULT;
+
+SET SESSION debug_dbug = '+d,json_quote_close_out_of_memory';
+SELECT JSON_QUOTE('abc') AS no_close_quote;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 13. JSON_UNQUOTE returning an argument that is not a quoted
+--echo #     string.  It comes back as it stands, which takes a
+--echo #     conversion where it carries no character set and a copy
+--echo #     where it carries another one.  Both roads are here, failing
+--echo #     as they do in different places.
+--echo #
+SELECT JSON_UNQUOTE(_binary'abc') AS from_binary,
+       JSON_UNQUOTE(_latin1'abc') AS from_latin1;
+
+SET SESSION debug_dbug = '+d,json_unquote_as_is_out_of_memory';
+SELECT JSON_UNQUOTE(_binary'abc') AS no_room_binary;
+SELECT JSON_UNQUOTE(_latin1'abc') AS no_room_latin1;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 14. A value that is a document written in another character set
+--echo #     than the one it is joining, which is converted on the way in
+--echo #     so that what is spliced is written the way the rest of the
+--echo #     document is.  Both directions, a narrow value into a wide
+--echo #     document and a wide one into a narrow document.
+--echo #
+SELECT JSON_VALID(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+                           JSON_COMPACT('{"x":2}'))) AS whole_into_ucs2;
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b',
+                           JSON_COMPACT(CONVERT('{"x":2}' USING latin1))))
+       AS whole_from_latin1;
+
+SET SESSION debug_dbug = '+d,json_splice_convert_out_of_memory';
+SELECT JSON_VALID(JSON_SET(CONVERT('{"a":1}' USING ucs2), '$.b',
+                           JSON_COMPACT('{"x":2}'))) AS no_room_into_ucs2;
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b',
+                           JSON_COMPACT(CONVERT('{"x":2}' USING latin1))))
+       AS no_room_from_latin1;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 15. A path whose key is written in another character set, which
+--echo #     is converted before it can be spliced into the document - a
+--echo #     write of its own, and one that reaches nothing else.
+--echo #
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), _latin1'$.b', 2) AS whole,
+       JSON_SET(JSON_OBJECT('a', 1), _latin1'$.c', 3) AS whole_set;
+
+SET SESSION debug_dbug = '+d,json_path_key_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), _latin1'$.b', 2) AS no_room_for_key;
+SELECT JSON_SET(JSON_OBJECT('a', 1), _latin1'$.c', 3) AS no_room_for_key_set;
+SET SESSION debug_dbug = DEFAULT;

@@ -1,0 +1,586 @@
+CREATE TABLE t1 (id INT, js VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"a":1,"b":2}'), (2, '{"a":3,"b":4}');
+CREATE TABLE t2 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t2 VALUES (1, '{"a":1,"b":2}'), (2, '{"a":3,"b":4}');
+CREATE TABLE t3 (id INT, js VARCHAR(200));
+INSERT INTO t3 VALUES (1, CONCAT('{"a":"', REPEAT('x', 80), '"}')),
+(2, CONCAT('{"a":"', REPEAT('y', 80), '"}'));
+#
+# A function that edits a document reads it once to find the place
+# to edit, and then reads its own result back to find out how to
+# write it.  Two rows, two readings each.
+#
+FLUSH STATUS;
+SELECT JSON_INSERT(js, '$.c', 3) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_SET(js, '$.a', 9) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_REPLACE(js, '$.a', 9) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_REMOVE(js, '$.a') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_ARRAY_APPEND(js, '$.a', 7) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_ARRAY_INSERT(js, '$.a[0]', 7) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# Merging reads both documents, and then reads the result.
+#
+FLUSH STATUS;
+SELECT JSON_MERGE(js, '{"c":3}') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_MERGE_PATCH(js, '{"c":3}') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# A function that only reads pays for ONE reading, not two.  The
+# walk to the path and the writing out of what was found are the
+# same reading carried on, so nothing is read twice; that is what
+# this work did to reading, and the count below is where it says
+# so.
+#
+FLUSH STATUS;
+SELECT JSON_EXTRACT(js, '$.a') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A path that matches nothing costs the same one reading, there
+# being nothing to write out and nothing to read back either way.
+# It is here to say that finding something is what has stopped
+# costing extra, not that finding nothing ever did.
+#
+FLUSH STATUS;
+SELECT JSON_EXTRACT(js, '$.zz') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# Chained edits pay only for the innermost link.  That one is
+# given a document out of a column that attests is_valid false,
+# so it reads its result back before returning it.  Every link
+# after it is handed a document answering is_valid, and
+# attests to its own result the same way.
+#
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d', 4) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_REMOVE(JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d', 4), '$.a')
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+#
+# The same for each of the others, each handed the is_valid
+# result of the one before it.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY_APPEND(JSON_INSERT(js, '$.b', JSON_ARRAY(1, 2)), '$.b', 3)
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_ARRAY_INSERT(JSON_INSERT(js, '$.b', JSON_ARRAY(1, 2)), '$.b[0]', 3)
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# The two above put their value at a key the document already
+# has, so nothing is put there and what they append to is the
+# scalar that was there all along, which has to be wrapped in an
+# array first.  At a key the document does NOT have, the value
+# goes in and the array they append to is that value.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY_APPEND(JSON_INSERT(js, '$.c', JSON_ARRAY(1, 2)), '$.c', 3)
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_ARRAY_INSERT(JSON_INSERT(js, '$.c', JSON_ARRAY(1, 2)), '$.c[0]', 3)
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), JSON_OBJECT('d', 4)) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+FLUSH STATUS;
+SELECT JSON_MERGE_PATCH(JSON_INSERT(js, '$.c', 3), JSON_OBJECT('d', 4))
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+#
+# A merge whose other argument attests is_valid false reads the
+# answer back, every document that goes into it having a say in
+# how it is written.  A written-out literal is such a document:
+# nothing has read it, so nothing can say how it is written.
+#
+FLUSH STATUS;
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), js) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	10
+FLUSH STATUS;
+SELECT JSON_MERGE(JSON_INSERT(js, '$.c', 3), '{"d":4}') FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	10
+#
+# A document answering is_valid but NOT is_nice is read back like
+# one answering is_valid false.
+# Picking a piece out of a document returns the piece as it was
+# formatted where it came from, so that is such a document; picking
+# values out and putting them together writes them out afresh, so
+# that one is not.  The same edit is put to each below, and the
+# difference between the two counts is the reading back.
+#
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_QUERY(js, '$'), '$.c', 3) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_EXTRACT(js, '$'), '$.c', 3) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# Asking for a document in a particular formatting reads nothing at
+# all when what asked for it wanted a document rather than text.
+# Both of these therefore cost what the edit alone costs, and
+# neither the formatting asked for nor the reading it would have
+# taken happens.
+#
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_COMPACT(js), '$.c', 3) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_LOOSE(js), '$.c', 3) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# A value spliced into a document being built is read too, to find
+# out whether it is a document at all.  A column that is not typed
+# as JSON is written out as a string instead and is not read.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(js, js) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# A column that IS typed as JSON is read, the type being a promise
+# nothing on the way here has checked.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(j, j) FROM t2;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# A value that something has already read and attested to is not
+# read again.  Two values, and neither of them costs a reading,
+# so what is left is what the two of them cost to make.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_EXTRACT(js, '$.a'), JSON_EXTRACT(js, '$.b')) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_OBJECT('x', JSON_EXTRACT(js, '$.a'), 'y', JSON_EXTRACT(js, '$.b'))
+FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_INSERT(js, '$.c', 3), JSON_INSERT(js, '$.d', 4)) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	8
+#
+# The same where the value goes into a document being EDITED
+# rather than built.
+#
+FLUSH STATUS;
+SELECT JSON_INSERT(js, '$.c', JSON_EXTRACT(js, '$.a')) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+FLUSH STATUS;
+SELECT JSON_INSERT(JSON_INSERT(js, '$.c', 3), '$.d',
+JSON_INSERT(js, '$.e', 5)) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	10
+#
+# What is skipped there is a reading that would have measured how
+# deep the value goes, and how deep it ends up decides whether the
+# result can be read at all.  Two things answer that without a
+# reading, and the smaller of them is taken.  How long the value
+# is answers it for a short one, which cannot nest deeper than half
+# its length, and says nothing about a long one.  What the function
+# that wrote the value counted as it wrote answers it whatever the
+# length - which is what the documents below are, at eighty-odd
+# characters and one structure deep.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_EXTRACT(js, '$')) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_OBJECT('k', JSON_EXTRACT(js, '$')) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# And it carries, which is what the length could never do: every
+# step out used to read the whole of the long value again.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAY(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_INSERT(JSON_EXTRACT(js, '$'), '$.c', 3)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# A name that only asks for a formatting hands the value straight
+# on, and passes on what was counted about it with it.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_COMPACT(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A value nobody counted is read, as it always was.  The column
+# here is a caller's own text: it is cut into by JSON_QUERY, which
+# can say the piece is a document but not how deep the document it
+# came out of went.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_QUERY(js, '$')) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# A group writes its pairs as they arrive and is as deep as the
+# deepest of them, so the object it makes is spliced without being
+# read.  Its sister gathers its elements through a table, and the
+# column of that table keeps the deepest of the rows put into it,
+# so they are not read on the way back out either.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_OBJECTAGG(id, JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# The elements a group gathers through a table are not read on the
+# way back out either, whatever composed them.  A constructor
+# attests to every value it will ever make, so the column it
+# fills says so once for all its rows, and the reading that used
+# to happen per element does not happen at all - which is the one
+# count here that a released server never paid, it having read
+# nothing anywhere and returned whatever the bytes were.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id, 'b', js)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_ARRAY(id, js)) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# The same through the tree, which gathers the elements first and
+# writes them out when the group is asked for.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', id, 'b', js) ORDER BY id) FROM t3;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# And a group gathering a column of a caller's own, which nothing
+# has attested to, reads every element as it always did.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAYAGG(j) FROM t2;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A name given to a value in the select list and used again later
+# in the same statement reaches it through a reference, and a
+# reference reads what the item's RESULT side passes.  For
+# nearly every item that is the value the item made, so what was
+# said about the value is said about this - and the splice below
+# costs the reading it costs when the expression is written out
+# where it is used.
+#
+FLUSH STATUS;
+SELECT JSON_OBJECT('a', js) AS o FROM t1 HAVING JSON_ARRAY(o) IS NOT NULL;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# A grouped query moves the aggregate out of the expression around
+# it and puts a reference in its place, so the array below is
+# built over a reference rather than over the aggregate.  All
+# three answers travel together through it, the depth among them:
+# the array these gather is long enough that its length says more
+# levels than a document is allowed, so a depth that went missing
+# here would show up as the whole thing being read again.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(JSON_EXTRACT(js, '$'))) FROM t3 GROUP BY id;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A search returns one path as a string and several as an array
+# of strings, so what it makes nests one level at the most and it
+# knows which as it writes.  The paths here are long, so the
+# length says nothing useful and only that count keeps the answer
+# from being read again where it is spliced.
+#
+CREATE TABLE t4 (id INT, js TEXT);
+INSERT INTO t4 VALUES
+(1, '{"customer_record":{"order_lines":[{"sku_code":"xa"},{"sku_code":"xb"}]}}'),
+(2, '{"customer_record":{"order_lines":[{"sku_code":"xc"},{"sku_code":"xd"}]}}');
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'all', 'x%')) FROM t4;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# One path found, which is a string and nests nothing at all
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_SEARCH(js, 'one', 'x%')) FROM t4;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+DROP TABLE t4;
+#
+# Keys are returned as an array of the names, written a name at
+# a time out of the document they were read from.  What that makes,
+# how it is formatted and how deep it goes are all settled by the
+# writing rather than measured afterwards, so a splice of the
+# answer reads nothing.  The names here are long, so the length
+# says more levels than a document is allowed and the depth is the
+# only thing keeping the answer from being read again.
+#
+# Four rows, the last two being the answers that are not arrays of
+# names: an object with no keys at all, and a document that is not
+# an object and returns nothing.
+#
+CREATE TABLE t5 (id INT, js TEXT, jn TEXT);
+INSERT INTO t5 VALUES
+(1, CONCAT('{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}'),
+CONCAT('{"o":{"', REPEAT('a', 40), '":1,"', REPEAT('b', 40), '":2}}')),
+(2, CONCAT('{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}'),
+CONCAT('{"o":{"', REPEAT('c', 40), '":3,"', REPEAT('d', 40), '":4}}')),
+(3, '{}', '{"o":{}}'),
+(4, '[1,2]', '[3,4]');
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_KEYS(js)) FROM t5;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# The two argument form, which finds the object further in and then
+# writes the same answer in the same way.
+#
+FLUSH STATUS;
+SELECT JSON_ARRAY(JSON_KEYS(jn, '$.o')) FROM t5;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+DROP TABLE t5;
+#
+# Asking whether a value is a document reads it once.  There is
+# nothing here left to take away.
+#
+FLUSH STATUS;
+SELECT JSON_VALID(js) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# Nothing read, nothing counted.
+#
+FLUSH STATUS;
+SELECT id FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# A function that only reports on a document parses it through to
+# check that it is one, and that parse is the whole of what it
+# costs on a large document.  Out of a column nothing has attested to
+# anything, so it is made: once to check the document and once to
+# read the value being reported on.
+#
+FLUSH STATUS;
+SELECT JSON_TYPE(js) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+#
+# The same over a document an item has attested is_valid.  The
+# editing costs what it always did, and the reporting costs one
+# reading rather than two: there is nothing left to check.
+#
+FLUSH STATUS;
+SELECT JSON_TYPE(JSON_INSERT(js, '$.c', 3)) FROM t1;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+#
+# The answers are unchanged either way.  JSON_LENGTH,
+# JSON_EXTRACT and JSON_CONTAINS_PATH stop parsing early over an
+# attested value too, which no count here can show - they carry
+# the parse on inside one reading rather than starting another.
+#
+SELECT JSON_TYPE(JSON_INSERT('{"a":1}', '$.b', 2)) AS attested_type,
+JSON_TYPE('{"a":1,"b":2}') AS plain_type;
+attested_type	plain_type
+OBJECT	OBJECT
+SELECT JSON_LENGTH(JSON_INSERT('{"a":1}', '$.b', 2)) AS attested_length,
+JSON_LENGTH('{"a":1,"b":2}') AS plain_length;
+attested_length	plain_length
+2	2
+SELECT JSON_EXTRACT(JSON_INSERT('{"a":1}', '$.b', 2), '$.a') AS attested_x,
+JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS plain_x;
+attested_x	plain_x
+1	1
+SELECT JSON_CONTAINS_PATH(JSON_INSERT('{"a":1}', '$.b', 2),
+'one', '$.a') AS attested_cp,
+JSON_CONTAINS_PATH('{"a":1,"b":2}', 'one', '$.a') AS plain_cp;
+attested_cp	plain_cp
+1	1
+SELECT JSON_CONTAINS_PATH(JSON_INSERT('{"a":1}', '$.b', 2),
+'all', '$.a', '$.b') AS attested_cp_all,
+JSON_CONTAINS_PATH('{"a":1,"b":2}', 'all', '$.a', '$.b') AS plain_cp_all;
+attested_cp_all	plain_cp_all
+1	1
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+#
+# A document attested in one character set, spliced into a
+# result being built in another.  It is converted first, because the
+# result is read in the character set it is built in - and a
+# conversion that lost nothing kept the characters it was given, so
+# what was answered about the value still holds of what came out of
+# it.  One reading for the value that was built, none for putting it
+# in.
+#
+FLUSH STATUS;
+SELECT JSON_SET('{"x":1}', '$.p',
+CONVERT(JSON_OBJECT('a', 1) USING latin1));
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# Two of them, one reading each and none for either splice.
+#
+FLUSH STATUS;
+SELECT JSON_SET('{"x":1}', '$.p',
+CONVERT(JSON_OBJECT('a', 1) USING latin1),
+'$.q',
+CONVERT(JSON_OBJECT('b', 2) USING latin1));
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	3
+#
+# The same value with no conversion in the way, which is what the
+# two above now cost.
+#
+FLUSH STATUS;
+SELECT JSON_SET('{"x":1}', '$.p', JSON_OBJECT('a', 1));
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# A conversion that could not encode a character put a question mark
+# in its place, so the value that comes out is not the value that
+# was attested.  The bytes that arrived go in unchanged, as they
+# always have, and they are read.
+#
+FLUSH STATUS;
+SELECT JSON_SET('{"x":1}', '$.p',
+CONVERT(JSON_OBJECT('a', _utf8mb4 0xE4BDA0) USING latin1));
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	3
+#
+# A conversion FROM the binary character set is not a conversion at
+# all: there is nothing to convert from, so the bytes go across
+# untouched and are read as whatever the other set makes of them.
+# That is a different string of characters and, for a document,
+# usually not one - so nothing carries and the value that comes out
+# is read wherever it is used.
+#
+SELECT HEX(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary;
+from_binary
+5B226162225D
+SELECT JSON_VALID(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary_valid;
+from_binary_valid
+0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+#
+# And the same going the other way, which was always refused
+#
+SELECT HEX(CONVERT(JSON_ARRAY('ab') USING binary)) AS to_binary;
+to_binary
+5B226162225D

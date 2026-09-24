@@ -1,0 +1,380 @@
+#
+# Behavioral baseline: nesting depth.
+#
+# The scanner keeps a fixed stack, so documents nested past its size
+# are rejected.  This test records the exact depth at which each
+# function changes its answer, and what happens when a document that
+# is acceptable on its own is spliced into another document deep
+# enough that the combination is not.
+#
+#
+# 1. Where the limit sits, for arrays and for objects.
+#
+SET @d29 = CONCAT(REPEAT('[', 29), '1', REPEAT(']', 29));
+SET @d30 = CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SET @d31 = CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SET @d32 = CONCAT(REPEAT('[', 32), '1', REPEAT(']', 32));
+SET @d33 = CONCAT(REPEAT('[', 33), '1', REPEAT(']', 33));
+SELECT JSON_VALID(@d29) AS v29, JSON_VALID(@d30) AS v30, JSON_VALID(@d31) AS v31;
+v29	v30	v31
+1	1	1
+SELECT JSON_VALID(@d32) AS v32;
+v32
+0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT JSON_VALID(@d33) AS v33;
+v33
+0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT JSON_DEPTH(@d29) AS d29, JSON_DEPTH(@d30) AS d30, JSON_DEPTH(@d31) AS d31;
+d29	d30	d31
+30	31	32
+SELECT JSON_DEPTH(@d32) AS d32;
+d32
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+# the same depths built from objects
+SET @o30 = CONCAT(REPEAT('{"a":', 30), '1', REPEAT('}', 30));
+SET @o31 = CONCAT(REPEAT('{"a":', 31), '1', REPEAT('}', 31));
+SET @o32 = CONCAT(REPEAT('{"a":', 32), '1', REPEAT('}', 32));
+SELECT JSON_VALID(@o30) AS v30, JSON_VALID(@o31) AS v31, JSON_VALID(@o32) AS v32;
+v30	v31	v32
+1	1	0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 156
+SELECT JSON_DEPTH(@o31) AS d31;
+d31
+32
+SELECT JSON_DEPTH(@o32) AS d32;
+d32
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 156
+# alternating containers reach the same limit
+SET @m30 = CONCAT(REPEAT('[{"a":', 15), '1', REPEAT('}]', 15));
+SET @m32 = CONCAT(REPEAT('[{"a":', 16), '1', REPEAT('}]', 16));
+SELECT JSON_VALID(@m30) AS v30, JSON_VALID(@m32) AS v32;
+v30	v32
+1	0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 92
+SELECT JSON_DEPTH(@m30) AS d30;
+d30
+31
+#
+# 2. Every function at, and one past, the limit.
+#
+SELECT JSON_VALID(@d31) AS ok, JSON_VALID(@d32) AS over_limit;
+ok	over_limit
+1	0
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_valid' at position 32
+SELECT JSON_DEPTH(@d31) AS ok;
+ok
+32
+SELECT JSON_DEPTH(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_depth' at position 32
+SELECT JSON_TYPE(@d31) AS ok;
+ok
+ARRAY
+SELECT JSON_TYPE(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_type' at position 32
+SELECT JSON_LENGTH(@d31) AS ok;
+ok
+1
+SELECT JSON_LENGTH(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_length' at position 32
+SELECT JSON_COMPACT(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_compact' at position 32
+SELECT JSON_LOOSE(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_loose' at position 32
+SELECT JSON_DETAILED(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_detailed' at position 32
+SELECT JSON_NORMALIZE(@d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_normalize' at position 32
+SELECT JSON_EXTRACT(@d32, '$') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_extract' at position 32
+SELECT JSON_QUERY(@d32, '$') AS over_limit;
+over_limit
+NULL
+SELECT JSON_VALUE(@d32, '$[0]') AS over_limit;
+over_limit
+NULL
+SELECT JSON_KEYS(@o32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_keys' at position 156
+SELECT JSON_SET(@d32, '$[0]', 2) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 32
+SELECT JSON_INSERT(@d32, '$.a', 2) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 32
+SELECT JSON_REPLACE(@d32, '$[0]', 2) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_replace' at position 32
+SELECT JSON_REMOVE(@d32, '$[0]') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_remove' at position 32
+SELECT JSON_ARRAY_APPEND(@d32, '$', 2) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 32
+SELECT JSON_ARRAY_INSERT(@d32, '$[0]', 2) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_insert' at position 35
+SELECT JSON_MERGE(@d32, '[1]') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 32
+SELECT JSON_MERGE('[1]', @d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_merge_preserve' at position 32
+SELECT JSON_MERGE_PATCH(@d32, '{"a":1}') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_patch' at position 32
+SELECT JSON_MERGE_PATCH('{"a":1}', @d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 2 to function 'json_merge_patch' at position 32
+SELECT JSON_CONTAINS(@d32, '1') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_contains' at position 32
+SELECT JSON_CONTAINS_PATH(@d32, 'one', '$') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_contains_path' at position 32
+SELECT JSON_OVERLAPS(@d32, '[1]') AS over_limit;
+over_limit
+0
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_overlaps' at position 32
+SELECT JSON_EQUALS(@d32, @d32) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_equals' at position 32
+SELECT JSON_SEARCH(@d32, 'one', '1') AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_search' at position 32
+SELECT JSON_EXISTS(@d32, '$') AS over_limit;
+over_limit
+1
+#
+# 3. Path depth is limited independently of document depth.
+#
+SET @p31 = CONCAT('$', REPEAT('[0]', 31));
+SET @p32 = CONCAT('$', REPEAT('[0]', 32));
+SET @p33 = CONCAT('$', REPEAT('[0]', 33));
+SELECT JSON_EXTRACT(@d31, @p31) AS p31;
+p31
+1
+SELECT JSON_EXTRACT(@d31, @p32) AS p32;
+p32
+NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_extract' at position 96
+SELECT JSON_EXTRACT(@d31, @p33) AS p33;
+p33
+NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_extract' at position 96
+SELECT JSON_EXISTS(@d31, @p32) AS p32;
+p32
+NULL
+SELECT JSON_SET('[1]', @p33, 2) AS p33;
+p33
+NULL
+Warnings:
+Warning	4043	Limit of 32 on JSON path depth is reached in argument 2 to function 'json_set' at position 96
+#
+# 4. Composed depth.  A document that is acceptable on its own can be
+#    placed inside another document, and the sum is what the result
+#    has to carry.  These record what happens today when the sum goes
+#    past the limit.
+#
+# a JSON-typed argument is embedded as a document, not as a string
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_COMPACT(@d29))) AS d30;
+d30
+31
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_COMPACT(@d30))) AS d31;
+d31
+32
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_COMPACT(@d31))) AS d32;
+d32
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT JSON_VALID(JSON_ARRAY(JSON_COMPACT(@d31))) AS still_valid;
+still_valid
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT LENGTH(JSON_ARRAY(JSON_COMPACT(@d31))) AS produced_bytes;
+produced_bytes
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+# the same through an object constructor
+SELECT JSON_DEPTH(JSON_OBJECT('a', JSON_COMPACT(@d30))) AS d32;
+d32
+32
+SELECT JSON_VALID(JSON_OBJECT('a', JSON_COMPACT(@d30))) AS still_valid;
+still_valid
+1
+# two levels of constructor
+SELECT JSON_VALID(JSON_ARRAY(JSON_ARRAY(JSON_COMPACT(@d30)))) AS still_valid;
+still_valid
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array' at position 63
+SELECT JSON_DEPTH(JSON_ARRAY(JSON_ARRAY(JSON_COMPACT(@d29)))) AS d31;
+d31
+32
+# a mutator splicing a deep value into a shallow document
+SELECT JSON_DEPTH(JSON_SET('{"a":1}', '$.b', JSON_COMPACT(@d29))) AS d30;
+d30
+31
+SELECT JSON_DEPTH(JSON_SET('{"a":1}', '$.b', JSON_COMPACT(@d30))) AS d31;
+d31
+32
+SELECT JSON_SET('{"a":1}', '$.b', JSON_COMPACT(@d31)) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 43
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b', JSON_COMPACT(@d31))) AS still_valid;
+still_valid
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 43
+SELECT JSON_INSERT('{"a":1}', '$.b', JSON_COMPACT(@d31)) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 43
+SELECT JSON_ARRAY_APPEND('[1]', '$', JSON_COMPACT(@d31)) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 35
+SELECT JSON_ARRAY_INSERT('[1]', '$[0]', JSON_COMPACT(@d31)) AS over_limit;
+over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_insert' at position 32
+# a mutator splicing a deep value into an already deep document
+SET @d15 = CONCAT(REPEAT('[', 15), '1', REPEAT(']', 15));
+SET @d16 = CONCAT(REPEAT('[', 16), '1', REPEAT(']', 16));
+SET @p15 = CONCAT('$', REPEAT('[0]', 15));
+SELECT JSON_DEPTH(JSON_SET(@d16, @p15, JSON_COMPACT(@d15))) AS composed;
+composed
+31
+SELECT JSON_VALID(JSON_SET(@d16, @p15, JSON_COMPACT(@d15))) AS still_valid;
+still_valid
+1
+SELECT JSON_DEPTH(JSON_SET(@d16, @p15, JSON_COMPACT(@d16))) AS composed;
+composed
+32
+SELECT JSON_VALID(JSON_SET(@d16, @p15, JSON_COMPACT(@d16))) AS still_valid;
+still_valid
+1
+# merging two deep documents
+SELECT JSON_DEPTH(JSON_MERGE(@d30, @d30)) AS merged;
+merged
+31
+SELECT JSON_DEPTH(JSON_MERGE(JSON_ARRAY(JSON_COMPACT(@d29)), '[1]')) AS merged;
+merged
+31
+# merging two objects, which nest rather than concatenate, so the
+# composed depth is the sum and can cross the limit
+SELECT JSON_DEPTH(JSON_MERGE(@o30, @o30)) AS composed_at_limit;
+composed_at_limit
+32
+SELECT JSON_VALID(JSON_MERGE(@o30, @o30)) AS still_valid;
+still_valid
+1
+SELECT JSON_MERGE(@o31, @o31) AS composed_over_limit;
+composed_over_limit
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 156
+SELECT JSON_VALID(JSON_MERGE(@o31, @o31)) AS still_valid;
+still_valid
+NULL
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 156
+# this one stays within the limit and succeeds
+SELECT JSON_MERGE_PATCH(CONCAT('{"a":', @d30, '}'), '{"b":1}') AS at_limit_ok;
+at_limit_ok
+{"a": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], "b": 1}
+# a deep value spliced as a plain string is escaped, not embedded
+SELECT JSON_DEPTH(JSON_ARRAY(CONCAT(@d31, ''))) AS as_string;
+as_string
+2
+SELECT JSON_VALID(JSON_ARRAY(CONCAT(@d31, ''))) AS still_valid;
+still_valid
+1
+#
+# 5. Depth reached through repeated mutation, one level at a time.
+#
+SELECT JSON_DEPTH(JSON_SET(JSON_SET(JSON_SET('{}', '$.a', JSON_ARRAY()),
+'$.a[0]', JSON_ARRAY()),
+'$.a[0][0]', JSON_ARRAY())) AS d;
+d
+4
+SELECT JSON_SET(JSON_SET(JSON_SET('{}', '$.a', JSON_ARRAY()),
+'$.a[0]', JSON_ARRAY()),
+'$.a[0][0]', JSON_ARRAY()) AS v;
+v
+{"a": [[[]]]}

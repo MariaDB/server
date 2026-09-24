@@ -1,0 +1,56 @@
+#
+# Writing out a character the document cannot carry.
+#
+# A character outside the first plane is two UTF-16 units, and JSON
+# spells it as two escapes, one unit apiece.  Anything shorter is not a
+# document: a reader takes the first escape, looks for the second, and
+# stops where it is not.
+#
+# Only a document whose character set cannot carry the character is
+# written this way, so the functions that meet it are the ones that take
+# their character set from the document they were handed and aggregate
+# nothing with it.
+#
+
+CREATE TABLE t1 (n VARCHAR(20) CHARACTER SET latin1,
+                 t VARCHAR(20) CHARACTER SET utf8mb3,
+                 w VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES ('{}', '{}', _utf8mb4 0xEFBFBF),
+                      ('{}', '{}', _utf8mb4 0xF0908080),
+                      ('{}', '{}', _utf8mb4 0xF09F9880),
+                      ('{}', '{}', _utf8mb4 0xF48FBFBF);
+
+--echo #
+--echo # The last character of the first plane takes one escape, and the
+--echo # three past it take two.
+--echo #
+SELECT JSON_SET(n, '$.b', w) AS written,
+       JSON_VALID(JSON_SET(n, '$.b', w)) AS valid FROM t1;
+
+--echo #
+--echo # The same into a document written in the other set that stops at
+--echo # the first plane.  That set carries the first of the four as it
+--echo # stands, so that one is not escaped at all - read here as bytes,
+--echo # to keep the connection's own set out of the answer.
+--echo #
+SELECT HEX(JSON_SET(t, '$.b', w)) AS bytes,
+       JSON_VALID(JSON_SET(t, '$.b', w)) AS valid FROM t1;
+
+--echo #
+--echo # The four other functions that write a value into a document they
+--echo # were handed answer the same way.
+--echo #
+SELECT JSON_INSERT(n, '$.b', w) AS inserted,
+       JSON_REPLACE(JSON_SET(n, '$.b', 1), '$.b', w) AS replaced FROM t1;
+SELECT JSON_ARRAY_APPEND(CONCAT('[', 1, ']'), '$', w) AS appended,
+       JSON_ARRAY_INSERT(CONCAT('[', 1, ']'), '$[0]', w) AS array_inserted
+  FROM t1;
+
+--echo #
+--echo # What the writing put there, read as bytes.  The escape is ASCII
+--echo # whatever the document is written in, so the two units stand out
+--echo # as two of them.
+--echo #
+SELECT HEX(JSON_SET(n, '$.b', w)) AS bytes FROM t1;
+
+DROP TABLE t1;

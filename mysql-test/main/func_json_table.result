@@ -1,0 +1,87 @@
+#
+# Behavioral baseline: JSON_TABLE.
+#
+# JSON_TABLE parses its document itself and presents the pieces as
+# columns of a table that only exists for the duration of the query.
+# This test records what those columns are treated as when they are
+# fed back into JSON functions, what happens when the document comes
+# from a column whose stored bytes are not valid, and what a DEFAULT
+# clause is allowed to put into a column declared JSON.
+#
+SET NAMES utf8mb4;
+#
+# 1. A column declared JSON, consumed by JSON functions.  Compare the
+#    embedding decision here with the one a JSON table column gets in
+#    func_json_columns.
+#
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('[{"a": {"x":  1}}, {"a":{"y":2}}]');
+# the fragment keeps the spacing it had in the input document
+SELECT jt.frag AS v, HEX(jt.frag) AS h
+FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+v	h
+{"x":  1}	7B2278223A2020317D
+{"y":2}	7B2279223A327D
+# fed to a constructor it is quoted, not embedded
+SELECT JSON_ARRAY(jt.frag) AS embedded, JSON_VALID(JSON_ARRAY(jt.frag)) AS ok
+FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+embedded	ok
+["{\"x\":  1}"]	1
+["{\"y\":2}"]	1
+SELECT JSON_OBJECT('k', jt.frag) AS v
+FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+v
+{"k": "{\"x\":  1}"}
+{"k": "{\"y\":2}"}
+# but a mutator and JSON_TYPE both take it as a document
+SELECT JSON_SET(jt.frag, '$.z', 3) AS v, JSON_TYPE(jt.frag) AS t
+FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (frag JSON PATH '$.a')) jt;
+v	t
+{"x": 1, "z": 3}	OBJECT
+{"y": 2, "z": 3}	OBJECT
+# a column declared VARCHAR over the same path
+SELECT JSON_ARRAY(jt.txt) AS quoted
+FROM t1, JSON_TABLE(t1.j, '$[*]' COLUMNS (txt VARCHAR(50) PATH '$.a' NULL ON ERROR)) jt;
+quoted
+[null]
+[null]
+DROP TABLE t1;
+#
+# 2. The document coming from a column whose stored bytes no longer
+#    satisfy its check constraint.
+#
+CREATE TABLE tp (id INT PRIMARY KEY, j JSON);
+INSERT INTO tp VALUES (1, '[{"a":1},{"a":2}]');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tp VALUES (2, '[{"a":1},'), (3, CONCAT(REPEAT('[',32),'1',REPEAT(']',32)));
+SET SESSION check_constraint_checks = ON;
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+WHERE id = 1;
+id	a
+1	1
+1	2
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+WHERE id = 2;
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'JSON_TABLE'
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+WHERE id = 3;
+ERROR HY000: Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'JSON_TABLE' at position 32
+# one bad row aborts the whole statement, it is not skipped
+SELECT id, jt.a FROM tp, JSON_TABLE(tp.j, '$[*]' COLUMNS (a INT PATH '$.a')) jt
+ORDER BY id;
+ERROR HY000: Unexpected end of JSON text in argument 1 to function 'JSON_TABLE'
+DROP TABLE tp;
+#
+# 3. A DEFAULT clause supplying a value for a column declared JSON.
+#    The default is stored as given, without being checked.
+#
+SELECT jt.frag AS v, JSON_ARRAY(jt.frag) AS embedded,
+JSON_VALID(JSON_ARRAY(jt.frag)) AS still_valid
+FROM JSON_TABLE('[{"b":1}]', '$[*]'
+    COLUMNS (frag JSON PATH '$.a' DEFAULT '{"broken":' ON EMPTY)) jt;
+v	embedded	still_valid
+{"broken":	["{\"broken\":"]	1
+SELECT * FROM JSON_TABLE('[{"a":1},{"a":2}]', '$'
+    COLUMNS (frag JSON PATH '$[*].a' DEFAULT 'not json' ON ERROR)) jt;
+frag
+not json

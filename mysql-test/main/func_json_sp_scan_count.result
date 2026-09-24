@@ -1,0 +1,274 @@
+#
+# How many times a value out of a stored program's variable is read
+# to find out whether it is a document.
+#
+# No query can see the difference - the reading could only have found
+# out what was already known - so nothing but Json_scans says whether
+# it happened.  The counts below are the record of it.  A count that
+# goes up is a reading that came back.
+#
+# A debug build reads values back to check what was claimed about
+# them, and none of those readings are counted: they are the debug
+# build's work and not the server's.  A count of 0 below therefore
+# means nothing read, not that a reading went uncounted.
+#
+SET NAMES utf8mb4;
+#
+# 1. A variable assigned by hand, then edited twice.  Nobody said
+# anything about what was typed, so the first edit reads it and then
+# reads back what it composed.  The second edit is over what the
+# first one put there, which was attested to as it went in, so it
+# reads once.
+#
+CREATE PROCEDURE p_literal()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+SET v= '{"a":1}';
+SET v= JSON_SET(v, '$.b', 2);
+SET v= JSON_SET(v, '$.c', 3);
+END $$
+FLUSH STATUS;
+CALL p_literal();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	3
+#
+# 2. The same three statements, with the first one assigning what a
+# function attested rather than what somebody typed.
+#
+CREATE PROCEDURE p_attested()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+SET v= JSON_OBJECT('a', 1);
+SET v= JSON_SET(v, '$.b', 2);
+SET v= JSON_SET(v, '$.c', 3);
+END $$
+FLUSH STATUS;
+CALL p_attested();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 3. One edit on its own, either way round.
+#
+CREATE PROCEDURE p_one_literal()
+BEGIN
+DECLARE v LONGTEXT DEFAULT '{"a":1}';
+SET v= JSON_SET(v, '$.b', 2);
+END $$
+CREATE PROCEDURE p_one_attested()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+SET v= JSON_OBJECT('a', 1);
+SET v= JSON_SET(v, '$.b', 2);
+END $$
+FLUSH STATUS;
+CALL p_one_literal();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+CALL p_one_attested();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	1
+#
+# 4. One variable assigned from another.  Moving a value from one
+# variable to another reads nothing, and what was said about it
+# arrives with it.
+#
+CREATE PROCEDURE p_var_to_var()
+BEGIN
+DECLARE a LONGTEXT DEFAULT NULL;
+DECLARE b LONGTEXT DEFAULT NULL;
+SET a= JSON_OBJECT('a', 1);
+SET b= a;
+SET b= JSON_SET(b, '$.b', 2);
+END $$
+FLUSH STATUS;
+CALL p_var_to_var();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	1
+#
+# 5. The other mutators over the same variable, once each.
+#
+CREATE PROCEDURE p_mutators()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+DECLARE r LONGTEXT DEFAULT NULL;
+SET v= JSON_OBJECT('a', 1, 'arr', JSON_ARRAY(1, 2));
+SET r= JSON_INSERT(v, '$.b', 2);
+SET r= JSON_REPLACE(v, '$.a', 9);
+SET r= JSON_REMOVE(v, '$.a');
+SET r= JSON_ARRAY_APPEND(v, '$.arr', 3);
+SET r= JSON_ARRAY_INSERT(v, '$.arr[0]', 0);
+END $$
+FLUSH STATUS;
+CALL p_mutators();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	5
+#
+# 6. A member of a row variable, written one member at a time and
+# then a whole row at a time.  A row is written a member at a time
+# either way - the whole-row form walks the members and puts each
+# one through the same funnel - so both say the same thing and both
+# are read the same number of times.
+#
+CREATE PROCEDURE p_row_member()
+BEGIN
+DECLARE r ROW(a LONGTEXT, b LONGTEXT);
+DECLARE out1 LONGTEXT DEFAULT NULL;
+SET r.a= JSON_OBJECT('x', 1);
+SET r.b= JSON_ARRAY(1, 2);
+SET out1= JSON_SET(r.a, '$.y', 2);
+SET out1= JSON_ARRAY_APPEND(r.b, '$', 3);
+END $$
+CREATE PROCEDURE p_row_whole()
+BEGIN
+DECLARE r ROW(a LONGTEXT, b LONGTEXT);
+DECLARE out1 LONGTEXT DEFAULT NULL;
+SET r= ROW(JSON_OBJECT('x', 1), JSON_ARRAY(1, 2));
+SET out1= JSON_SET(r.a, '$.y', 2);
+SET out1= JSON_ARRAY_APPEND(r.b, '$', 3);
+END $$
+FLUSH STATUS;
+CALL p_row_member();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+FLUSH STATUS;
+CALL p_row_whole();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	2
+#
+# 7. A value that does not fit what it is being assigned to.  What
+# was said about it was said about the value passed and not
+# about what fitted, so the answer goes with the part that did not.
+#
+# Which of the two things happens depends on the mode.  Under the
+# strict one the assignment does not land at all and the variable is
+# left holding nothing, so there is nothing to read; under the loose
+# one the front of the value is put down, quietly and without so
+# much as a warning, and what is there is not a document.  It is the
+# second that the store having to be asked what it kept is for: no
+# error is raised on that path and nothing else would say.
+CREATE PROCEDURE p_truncated()
+BEGIN
+DECLARE fits VARCHAR(64) DEFAULT NULL;
+DECLARE cut VARCHAR(8) DEFAULT NULL;
+DECLARE out1 LONGTEXT DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET fits= JSON_OBJECT('a', 1);
+SET out1= JSON_SET(fits, '$.b', 2);
+SET cut= JSON_OBJECT('aaaaaaaaaa', 1);
+SELECT cut AS what_landed, JSON_VALID(cut) AS reads_as_document;
+SET out1= JSON_SET(cut, '$.b', 2);
+END $$
+FLUSH STATUS;
+CALL p_truncated();
+what_landed	reads_as_document
+NULL	NULL
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	1
+# the same body under the mode that lets a short store through, which
+# a procedure keeps from the moment it is created and not from the
+# moment it is called
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+CREATE PROCEDURE p_truncated_loose()
+BEGIN
+DECLARE fits VARCHAR(64) DEFAULT NULL;
+DECLARE cut VARCHAR(8) DEFAULT NULL;
+DECLARE out1 LONGTEXT DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET fits= JSON_OBJECT('a', 1);
+SET out1= JSON_SET(fits, '$.b', 2);
+SET cut= JSON_OBJECT('aaaaaaaaaa', 1);
+SELECT cut AS what_landed, JSON_VALID(cut) AS reads_as_document;
+SET out1= JSON_SET(cut, '$.b', 2);
+END $$
+SET sql_mode= @save_sql_mode;
+FLUSH STATUS;
+CALL p_truncated_loose();
+what_landed	reads_as_document
+{"aaaaaa	0
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_set'
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	3
+#
+# 8. An assignment that never landed.  The answer the one before it
+# left is given up with it, and the variable is left holding
+# nothing, so what a reader finds is a NULL and not a stale
+# document with a stale answer beside it.
+#
+CREATE PROCEDURE p_failed()
+BEGIN
+DECLARE v VARCHAR(20) DEFAULT NULL;
+DECLARE out1 LONGTEXT DEFAULT NULL;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET v= JSON_OBJECT('a', 1);
+SET v= JSON_OBJECT('bbbbbbbbbbbbbbbbbbbb', 2);
+SELECT v AS after_failure;
+SET out1= JSON_SET(v, '$.c', 3);
+END $$
+FLUSH STATUS;
+CALL p_failed();
+after_failure
+NULL
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	0
+#
+# 9. A value out of a table by SELECT INTO, from a column that says
+# nothing and from a function that does.  Two edits rather than one,
+# so that the reading the function's own scan pays for does not hide
+# the readings the edits do or do not do.
+#
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '[1,2]');
+CREATE PROCEDURE p_from_column()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+DECLARE out1 LONGTEXT DEFAULT NULL;
+SELECT j INTO v FROM t1 WHERE id= 1;
+SET out1= JSON_SET(v, '$.b', 2);
+SET out1= JSON_SET(v, '$.c', 3);
+END $$
+CREATE PROCEDURE p_from_function()
+BEGIN
+DECLARE v LONGTEXT DEFAULT NULL;
+DECLARE out1 LONGTEXT DEFAULT NULL;
+SELECT JSON_EXTRACT(j, '$') INTO v FROM t1 WHERE id= 1;
+SET out1= JSON_SET(v, '$.b', 2);
+SET out1= JSON_SET(v, '$.c', 3);
+END $$
+FLUSH STATUS;
+CALL p_from_column();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+FLUSH STATUS;
+CALL p_from_function();
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	3
+DROP PROCEDURE p_literal;
+DROP PROCEDURE p_attested;
+DROP PROCEDURE p_one_literal;
+DROP PROCEDURE p_one_attested;
+DROP PROCEDURE p_var_to_var;
+DROP PROCEDURE p_mutators;
+DROP PROCEDURE p_row_member;
+DROP PROCEDURE p_row_whole;
+DROP PROCEDURE p_truncated;
+DROP PROCEDURE p_truncated_loose;
+DROP PROCEDURE p_failed;
+DROP PROCEDURE p_from_column;
+DROP PROCEDURE p_from_function;
+DROP TABLE t1;

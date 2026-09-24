@@ -1,0 +1,108 @@
+#
+# What a path's last step is allowed to be, when it becomes a key in
+# the document being written.
+#
+# The step is copied into the result between two quotes.  A step that
+# holds a quote of its own therefore closes the key early, and what
+# follows it lands in the document as punctuation rather than as part
+# of the name.  Sometimes that makes nonsense of the document and
+# sometimes it makes a perfectly good one saying something else, and
+# which of the two it is depends on the whole result and not on the
+# step - so a step that reaches past its quotes is not turned down, it
+# is only left to the reading back to judge, exactly as before.
+#
+# The cases below are here because the reading back is now skipped for
+# a document answering is_valid and is_nice.  Each key is put to such a
+# document and to one answering is_valid false, and the two must give
+# the same answer.
+#
+# The wide character sets are the second half of it.  A key is written
+# in characters and not in bytes: 'b' in ucs2 is the two bytes 00 62,
+# and anything reading those one at a time finds a control character
+# where there is none.
+#
+
+--echo #
+--echo # 1. A plain key, and one holding a quote that makes nonsense of
+--echo #    the document
+--echo #
+SELECT JSON_INSERT('{}', '$.b', 1) AS plain;
+SELECT JSON_INSERT(JSON_OBJECT(), '$.b', 1) AS plain_is_valid;
+SELECT JSON_INSERT('{}', '$.a"b', 1) AS broken;
+SELECT JSON_INSERT(JSON_OBJECT(), '$.a"b', 1) AS broken_is_valid;
+
+--echo #
+--echo # 2. A key that closes its own member and opens another, which
+--echo #    reads as a document saying something the caller did not
+--echo #    write and is returned all the same
+--echo #
+SELECT JSON_INSERT('{}', '$.a":1,"b', 1) AS smuggled;
+SELECT JSON_INSERT(JSON_OBJECT(), '$.a":1,"b', 1) AS smuggled_is_valid;
+
+--echo #
+--echo # 3. A backslash begins an escape, so a key holding one may or
+--echo #    may not still end where it looks like it ends
+--echo #
+SELECT JSON_INSERT('{}', '$.a\\b', 1) AS backslash;
+SELECT JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1) AS backslash_is_valid;
+
+--echo #
+--echo # 4. The same keys in character sets that write a letter in more
+--echo #    than one byte
+--echo #
+SET @old_coll= @@collation_connection;
+# A wrapping view is created on a connection of its own, which does not
+# carry the connection collation set below, so the answers would come back
+# encoded in the default set instead of the wide one being tested.
+--disable_view_protocol
+
+--echo #    All four of the keys above run again here, and the last two
+--echo #    are the reason the section exists: a key that closes its own
+--echo #    member, and a key holding a backslash, are where a reader
+--echo #    stepping by bytes and one stepping by characters part
+--echo #    company.  Running only the plain and the quoted key would
+--echo #    leave that untried.
+SET @@collation_connection='ucs2_general_ci';
+SELECT HEX(JSON_INSERT('{}', '$.b', 1)) AS ucs2_plain;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.b', 1)) AS ucs2_plain_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS ucs2_broken;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS ucs2_broken_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS ucs2_smuggled;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a":1,"b', 1))
+       AS ucs2_smuggled_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a\\b', 1)) AS ucs2_backslash;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1))
+       AS ucs2_backslash_is_valid;
+
+SET @@collation_connection='utf16_general_ci';
+SELECT HEX(JSON_INSERT('{}', '$.b', 1)) AS utf16_plain;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.b', 1)) AS utf16_plain_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS utf16_broken;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS utf16_broken_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS utf16_smuggled;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a":1,"b', 1))
+       AS utf16_smuggled_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a\\b', 1)) AS utf16_backslash;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1))
+       AS utf16_backslash_is_valid;
+
+SET @@collation_connection='utf32_general_ci';
+SELECT HEX(JSON_INSERT('{}', '$.b', 1)) AS utf32_plain;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.b', 1)) AS utf32_plain_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS utf32_broken;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS utf32_broken_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS utf32_smuggled;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a":1,"b', 1))
+       AS utf32_smuggled_is_valid;
+SELECT HEX(JSON_INSERT('{}', '$.a\\b', 1)) AS utf32_backslash;
+SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a\\b', 1))
+       AS utf32_backslash_is_valid;
+
+SET @@collation_connection= @old_coll;
+--enable_view_protocol
+
+--echo #
+--echo # 5. Removing a key reads the path the same way
+--echo #
+SELECT JSON_REMOVE('{"a":1,"b":2}', '$.a') AS removed;
+SELECT JSON_REMOVE(JSON_INSERT('{"b":2}', '$.a', 1), '$.a') AS removed_is_valid;

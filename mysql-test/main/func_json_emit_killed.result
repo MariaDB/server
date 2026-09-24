@@ -1,0 +1,160 @@
+SET @old_debug= @@debug_dbug;
+SET debug_dbug='+d,json_kill_while_emitting';
+#
+# 1. Values written out during the reading
+#
+#    An object and an array, each with more than one member, so
+#    the walk takes several steps and the kill lands inside it.
+#
+SELECT JSON_EXTRACT('{"a": {"b": 1, "c": 2}}', '$.a') AS obj_value;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_EXTRACT('{"a": [1, 2, 3]}', '$.a') AS array_value;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_EXTRACT('{"a": {"b": [1, 2], "c": {"d": 3}}}', '$.a') AS nested;
+ERROR 70100: Query execution was interrupted
+#
+#    Written the same way when more than one path is asked for,
+#    and when the value is reached through a wildcard.
+#
+SELECT JSON_EXTRACT('{"a": [1, 2], "b": [3, 4]}', '$.a', '$.b') AS two_paths;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_EXTRACT('{"a": [1, 2], "b": [3, 4]}', '$.*') AS wildcard;
+ERROR 70100: Query execution was interrupted
+#
+# 2. Values that are copied rather than written out
+#
+#    A scalar is punctuated with nothing, so it is taken across as
+#    it stands and there is no walk to be stopped in.  These are
+#    answered, and that is what says the arming above reaches the
+#    walk and only the walk.
+#
+SELECT JSON_EXTRACT('{"a": 1}', '$.a') AS scalar_value;
+scalar_value
+1
+SELECT JSON_EXTRACT('{"a": "text"}', '$.a') AS scalar_string;
+scalar_string
+"text"
+SELECT JSON_EXTRACT('{"a": null, "b": true}', '$.a', '$.b') AS two_scalars;
+two_scalars
+[null, true]
+#    Nothing matched, so nothing was written at all.
+SELECT JSON_EXTRACT('{"a": 1}', '$.zz') AS no_match;
+no_match
+NULL
+#
+# 3. Answers that are read back after being composed
+#
+#    These build an answer by copying the parts of the document
+#    they are not changing and putting the new part between them,
+#    which is no walk of their own.  Then they read the whole of
+#    it back to settle its formatting, and that reading writes as it
+#    goes: it is the same walk section 1 is stopped in, reached
+#    from the other end.  So the kill lands in it.
+#
+#    The reading that finds the place to edit lets go of a killed
+#    query as well, a token at a time, and is covered by
+#    func_json_notembedded.
+#
+SELECT JSON_INSERT('{"a": {"b": 1, "c": 2}}', '$.d', 4) AS insert_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_REMOVE('{"a": {"b": 1, "c": 2}}', '$.a.b') AS remove_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_SET('{"a": [1, 2, 3]}', '$.a[0]', 9) AS set_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_REPLACE('{"a": [1, 2, 3]}', '$.a[0]', 9) AS replace_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_ARRAY_APPEND('{"a": [1, 2]}', '$.a', 3) AS append_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_ARRAY_INSERT('{"a": [1, 2]}', '$.a[0]', 9) AS array_insert_done;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_MERGE_PATCH('{"a": {"b": 1}}', '{"a": {"c": 2}}') AS merge_patch_done;
+ERROR 70100: Query execution was interrupted
+#
+#    The same with a document answering is_valid, so that the
+#    answer is passed as it is composed and there is no
+#    reading back at all.  Answered - which is what says the
+#    ones above they match are stopped in the reading back and
+#    nowhere else, the composing being the same either way.
+#
+SELECT JSON_INSERT(JSON_OBJECT('a', JSON_OBJECT('b', 1, 'c', 2)), '$.d', 4)
+AS insert_is_valid;
+insert_is_valid
+{"a": {"b": 1, "c": 2}, "d": 4}
+SELECT JSON_REMOVE(JSON_OBJECT('a', JSON_OBJECT('b', 1, 'c', 2)), '$.a.b')
+AS remove_is_valid;
+remove_is_valid
+{"a": {"c": 2}}
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a', JSON_OBJECT('b', 1)),
+JSON_OBJECT('a', JSON_OBJECT('c', 2)))
+AS merge_patch_is_valid;
+merge_patch_is_valid
+{"a": {"b": 1, "c": 2}}
+#
+# 4. A value written out during the reading
+#
+#    A value going into a document is written out again where the
+#    document it joins is is_valid and is_nice and the value is
+#    not, that being the one way the value's own formatting can
+#    still be put right.  That writing IS a walk, so the kill
+#    below is raised inside it.
+#
+#    What these show is that a kill arriving in the middle of that
+#    walk is carried out - the walk gives up, the bytes fall back
+#    to what they were, and the statement ends the way a killed
+#    statement ends.  They do NOT show which reading noticed it:
+#    the flag stays raised once it is raised, and a statement that
+#    ignored it here would still end this way at the next step.
+#    How soon it is noticed is the part that cannot be written
+#    down as an expected result.
+#
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, '{"b":1,"c":2}'), (2, '[1,2,3]');
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', j) AS value_walked FROM t1;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.a', j) AS value_walked_set FROM t1;
+ERROR 70100: Query execution was interrupted
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(1), '$', j) AS value_walked_append
+FROM t1;
+ERROR 70100: Query execution was interrupted
+#
+#    Three more, sorted by whether anything walks in them.
+#
+#    A value already formatted the way the answer needs is taken
+#    across without being read at all, so there is no walk.  It
+#    has to come from something that does not walk either - a
+#    document BUILT out of values, not one cut out of another,
+#    since cutting one out is itself a walk and would be what the
+#    kill landed in.
+#
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_OBJECT('x', 1, 'y', 2))
+AS value_taken;
+value_taken
+{"a": 1, "d": {"x": 1, "y": 2}}
+#
+#    A document nobody attested sends the whole answer through
+#    the reading back, and a value going into that is left as it
+#    arrived - so there is no walk of the value's own here.  The
+#    reading back is one, though, so this is stopped where the
+#    statements in section 3 are.
+#
+SELECT JSON_INSERT('{"a": 1}', '$.d', j) AS value_left FROM t1;
+ERROR 70100: Query execution was interrupted
+#
+#    A scalar carries no punctuation, so it is copied like the
+#    scalars in section 2 and attests to the same reason.
+#
+CREATE TABLE t2 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t2 VALUES (1, '11'), (2, '"text"');
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', j) AS scalar_value FROM t2;
+scalar_value
+{"a": 1, "d": 11}
+{"a": 1, "d": "text"}
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# 5. A kill is let go of once the statement it was aimed at is over
+#
+SET debug_dbug= @old_debug;
+SELECT JSON_EXTRACT('{"a": {"b": 1, "c": 2}}', '$.a') AS after_disarming;
+after_disarming
+{"b": 1, "c": 2}

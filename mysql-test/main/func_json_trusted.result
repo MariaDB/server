@@ -1,0 +1,301 @@
+#
+# 1. A key both documents hold
+#
+#    Merging writes the value of such a key itself rather than
+#    copying it out of either document, so the punctuation in
+#    front of it is the composer's to get right.
+#
+SELECT JSON_MERGE_PRESERVE('{"a": 1}', '{"a": 2}') AS literal;
+literal
+{"a": [1, 2]}
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('a', 2)) AS built;
+built
+{"a": [1, 2]}
+SELECT JSON_MERGE(JSON_EXTRACT('{"a": 1}', '$'),
+JSON_EXTRACT('{"a": 2, "b": 3}', '$')) AS cut;
+cut
+{"a": [1, 2], "b": 3}
+#
+#    The same where the shared value is a container, which the
+#    merging walks into and composes a level further down.
+#
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', JSON_OBJECT('x', 1)),
+JSON_OBJECT('a', JSON_OBJECT('y', 2))) AS objects;
+objects
+{"a": {"x": 1, "y": 2}}
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', JSON_ARRAY(1, 2)),
+JSON_OBJECT('a', JSON_ARRAY(3, 4))) AS arrays;
+arrays
+{"a": [1, 2, 3, 4]}
+#
+#    A key only one of them holds is copied across with the
+#    spacing it was written with, and is the control for the
+#    three above.
+#
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2)) AS apart;
+apart
+{"a": 1, "b": 2}
+#
+# 2. Removing the first element of an array
+#
+#    What is taken out reaches to the comma; the space after it
+#    belongs to the element that stays, and has to end up in
+#    front of it and not behind the bracket.
+#
+SELECT JSON_REMOVE('[1, 2, 3]', '$[0]') AS literal;
+literal
+[2, 3]
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[0]') AS cut;
+cut
+[2, 3]
+SELECT JSON_REMOVE(JSON_ARRAY(1, 2, 3), '$[0]') AS built;
+built
+[2, 3]
+SELECT JSON_REMOVE(JSON_EXTRACT('{"a": [1, 2, 3]}', '$'), '$.a[0]') AS nested;
+nested
+{"a": [2, 3]}
+SELECT JSON_REMOVE(JSON_EXTRACT('[[1], 2, 3]', '$'), '$[0]') AS container;
+container
+[2, 3]
+#
+#    Taking out anything other than the first element ends at a
+#    comma with nothing after it, so those are the controls.
+#
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[1]') AS middle;
+middle
+[1, 3]
+SELECT JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[2]') AS last;
+last
+[1, 2]
+SELECT JSON_REMOVE(JSON_EXTRACT('{"a": 1, "b": 2}', '$'), '$.a') AS first_key;
+first_key
+{"b": 2}
+#
+#    Where the document is nobody's word, what is composed is not
+#    the answer but what the reading back at the end is made
+#    from, and that reading is what complains about anything
+#    written after the document.  It counts from the start of the
+#    text it was handed, so that text has to be the one a
+#    released server would have handed it - including the space
+#    the taking out would otherwise carry off, which that server
+#    leaves standing and drops later while writing the answer.
+#
+SELECT JSON_REMOVE('[1, 2] x', '$[0]') AS pos_first;
+pos_first
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 6
+SELECT JSON_REMOVE('[1, 2, 3] x', '$[0]') AS pos_first_three;
+pos_first_three
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 9
+#
+#    The controls, none of which has such a space to lose: one
+#    document written with no spacing at all, one where what is
+#    taken out is not the first piece, and one where it is a key.
+#
+SELECT JSON_REMOVE('[1,2] x', '$[0]') AS pos_compact;
+pos_compact
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 5
+SELECT JSON_REMOVE('[1, 2] x', '$[1]') AS pos_second;
+pos_second
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 5
+SELECT JSON_REMOVE('{"a": 1, "b": 2} x', '$.a') AS pos_key;
+pos_key
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_remove' at position 10
+#
+# 3. A value put where the document would end up too deep
+#
+#    How deep the value ends up is the level it is put at plus
+#    its own; the level it is put at is read off the scanner,
+#    which by then has already left the thing being put into.
+#
+SET @deep30= CONCAT(REPEAT('[', 30), '{"k": 1}', REPEAT(']', 30));
+SET @newkey= CONCAT('$', REPEAT('[0]', 30), '.n');
+SET @pastend= CONCAT('$', REPEAT('[0]', 30), '[1]');
+SELECT JSON_INSERT(@deep30, @newkey, JSON_EXTRACT('[5]', '$'))
+IS NULL AS literal_isnull;
+literal_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 44
+SELECT JSON_INSERT(JSON_EXTRACT(@deep30, '$'), @newkey,
+JSON_EXTRACT('[5]', '$')) IS NULL AS cut_isnull;
+cut_isnull
+1
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_insert' at position 3
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 45
+SELECT JSON_SET(JSON_EXTRACT(@deep30, '$'), @newkey,
+JSON_EXTRACT('[5]', '$')) IS NULL AS set_isnull;
+set_isnull
+1
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_set' at position 3
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_set' at position 45
+SET @arr30= CONCAT(REPEAT('[', 30), '[1]', REPEAT(']', 30));
+SELECT JSON_INSERT(@arr30, @pastend, JSON_EXTRACT('[5]', '$'))
+IS NULL AS end_literal_isnull;
+end_literal_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 35
+SELECT JSON_INSERT(JSON_EXTRACT(@arr30, '$'), @pastend,
+JSON_EXTRACT('[5]', '$')) IS NULL AS end_cut_isnull;
+end_cut_isnull
+1
+Warnings:
+Note	4040	Limit of 32 on JSON nested structures depth is reached in argument 3 to function 'json_insert' at position 3
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 35
+#
+#    One level shallower, the same statements answer, and that
+#    is what says the two above are refused for their depth and
+#    not for their shape.
+#
+SET @deep20= CONCAT(REPEAT('[', 20), '{"k": 1}', REPEAT(']', 20));
+SET @newkey20= CONCAT('$', REPEAT('[0]', 20), '.n');
+SELECT JSON_INSERT(JSON_EXTRACT(@deep20, '$'), @newkey20,
+JSON_EXTRACT('[5]', '$')) IS NULL AS shallow_isnull;
+shallow_isnull
+0
+#
+#    And what it actually composed, which is where a document
+#    that came out a character longer or shorter than a released
+#    server's would show itself.  Asking only whether an answer
+#    came back would not.
+#
+SELECT JSON_INSERT(JSON_EXTRACT('[[{"k": 1}]]', '$'), '$[0][0].n',
+JSON_EXTRACT('[5]', '$')) AS composed;
+composed
+[[{"k": 1, "n": [5]}]]
+SELECT JSON_INSERT(JSON_EXTRACT('[[1, 2]]', '$'), '$[0][2]',
+JSON_EXTRACT('[5]', '$')) AS composed_past_end;
+composed_past_end
+[[1, 2, [5]]]
+SELECT JSON_SET(JSON_EXTRACT('{"a": {"b": 1}}', '$'), '$.a.c',
+JSON_EXTRACT('{"z": 9}', '$')) AS composed_set;
+composed_set
+{"a": {"b": 1, "c": {"z": 9}}}
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('[1, 2]', '$'), '$',
+JSON_EXTRACT('[3, 4]', '$')) AS composed_append;
+composed_append
+[1, 2, [3, 4]]
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1, 2]', '$'), '$[0]',
+JSON_EXTRACT('[3, 4]', '$')) AS composed_ainsert;
+composed_ainsert
+[[3, 4], 1, 2]
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('{"a": 1}', '$'), '$',
+JSON_EXTRACT('[3, 4]', '$')) AS composed_autowrap;
+composed_autowrap
+[{"a": 1}, [3, 4]]
+SELECT JSON_EXTRACT('{"a": [1, 2], "b": {"c": 3}}', '$.a', '$.b')
+AS composed_two_paths;
+composed_two_paths
+[[1, 2], {"c": 3}]
+SELECT JSON_MERGE(JSON_EXTRACT('{"a": 1}', '$'), JSON_EXTRACT('2', '$'))
+AS composed_merge_wrap;
+composed_merge_wrap
+[{"a": 1}, 2]
+#
+# 4. The bracket a reading of more than one path adds
+#
+#    Two matches are returned wrapped in an array, and that
+#    wrapper is a level nobody asked the document about.
+#
+SET @d31= CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31));
+SELECT JSON_VALID(@d31) AS legal_on_its_own;
+legal_on_its_own
+1
+SELECT JSON_EXTRACT(@d31, '$') IS NULL AS one_path_isnull;
+one_path_isnull
+0
+SELECT JSON_EXTRACT(@d31, '$', '$') IS NULL AS two_paths_isnull;
+two_paths_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_extract' at position 32
+SET @d30= CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30));
+SELECT JSON_EXTRACT(@d30, '$', '$') IS NULL AS two_paths_fit_isnull;
+two_paths_fit_isnull
+0
+#
+# 5. The bracket a merge adds
+#
+#    Merging a document with something it cannot be merged into
+#    puts both in a new array, which is a level as well.
+#
+SET @o31= CONCAT(REPEAT('{"a":', 31), '1', REPEAT('}', 31));
+SELECT JSON_VALID(@o31) AS legal_on_its_own;
+legal_on_its_own
+1
+SELECT JSON_MERGE(JSON_EXTRACT(@o31, '$'), JSON_EXTRACT('1', '$'))
+IS NULL AS scalar_wrap_isnull;
+scalar_wrap_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 182
+SELECT JSON_MERGE(JSON_EXTRACT(@o31, '$'), JSON_EXTRACT('{"a": 1}', '$'))
+IS NULL AS shared_key_isnull;
+shared_key_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_merge_preserve' at position 182
+SET @o30= CONCAT(REPEAT('{"a":', 30), '1', REPEAT('}', 30));
+SELECT JSON_MERGE(JSON_EXTRACT(@o30, '$'), JSON_EXTRACT('1', '$'))
+IS NULL AS wrap_fits_isnull;
+wrap_fits_isnull
+0
+#
+# 6. The value an autowrap keeps
+#
+#    Appending to something that is not an array wraps what is
+#    already there, so the KEPT value goes a level down too -
+#    not only the one being appended.
+#
+SET @p30= CONCAT('$', REPEAT('.a', 30));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@o31, '$'), @p30, 1)
+IS NULL AS append_wrap_isnull;
+append_wrap_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_array_append' at position 182
+SELECT JSON_INSERT(JSON_EXTRACT(@o31, '$'), CONCAT(@p30, '[1]'), 1)
+IS NULL AS insert_wrap_isnull;
+insert_wrap_isnull
+1
+Warnings:
+Warning	4040	Limit of 32 on JSON nested structures depth is reached in argument 1 to function 'json_insert' at position 182
+SET @p29= CONCAT('$', REPEAT('.a', 29));
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT(@o30, '$'), @p29, 1)
+IS NULL AS append_wrap_fits_isnull;
+append_wrap_fits_isnull
+0
+#
+# 7. A document that fits, and the diagnostic it must not get
+#
+#    The level a value is appended at is read off the scanner
+#    after it has already been counted, so counting it again
+#    refuses a document that fits - or lets it through with a
+#    note saying it did not fit, which is worse, the note being
+#    the only thing an application would go by.
+#
+SET @nest30= CONCAT(REPEAT('[', 30), REPEAT(']', 30));
+SELECT JSON_ARRAY_APPEND('[1]', '$', JSON_EXTRACT(@nest30, '$'))
+IS NULL AS literal_isnull;
+literal_isnull
+0
+SELECT JSON_ARRAY_APPEND(JSON_EXTRACT('[1]', '$'), '$',
+JSON_EXTRACT(@nest30, '$')) IS NULL AS cut_isnull;
+cut_isnull
+0
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1]', '$'), '$[0]',
+JSON_EXTRACT(@nest30, '$')) IS NULL AS insert_isnull;
+insert_isnull
+0

@@ -1,0 +1,200 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # No room to grow the buffer while a value is being written out
+--echo # into the document it is joining.
+--echo #
+--echo # A value that is a document but is not written the loose way is
+--echo # written out again as it is spliced, whenever the document it
+--echo # joins is loose and would stop being so otherwise.  That writing
+--echo # grows the buffer the same way every other writing here does,
+--echo # and can fail the same way.
+--echo #
+--echo # The failure has to be reachable from this writing and not only
+--echo # from the older ones.  A writing that no injection can fail is a
+--echo # writing whose handling of failure nobody has ever run, and this
+--echo # file is what keeps that from happening quietly.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. A value that is a document, and is not loose
+--echo #
+--echo #    Read out of a document written the compact way, so it is
+--echo #    formatted that way itself and has to be written out again when
+--echo #    it joins one that is loose.
+--echo #
+SET @compact = CONCAT('[', REPEAT('1,', 999), '1]');
+SET @small = '[1,2]';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@small, '$'))
+       AS spliced;
+SELECT LENGTH(@compact) AS compact_len,
+       LENGTH(JSON_LOOSE(@compact)) - LENGTH(@compact) AS grew_by;
+
+--echo #
+--echo # 2. The same splice with no room to grow
+--echo #
+--echo #    This must not answer.  If it does, the injection is not
+--echo #    reaching the writing above and this file is testing nothing.
+--echo #
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 5
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@compact, '$'))
+       AS spliced;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 3. The same statement once the room is there again
+--echo #
+SELECT JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+                                     JSON_QUERY(@compact, '$')), ''))
+       AS parses;
+
+--echo #
+--echo # 4. The other functions that splice a value the same way
+--echo #
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.a', JSON_QUERY(@compact, '$'))
+       AS st;
+--error 0,5
+SELECT JSON_REPLACE(JSON_OBJECT('a', 1), '$.a', JSON_QUERY(@compact, '$'))
+       AS rep;
+--error 0,5
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(1), '$', JSON_QUERY(@compact, '$'))
+       AS app;
+--error 0,5
+SELECT JSON_ARRAY_INSERT(JSON_ARRAY(1), '$[0]', JSON_QUERY(@compact, '$'))
+       AS ari;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo # and once the room is there again
+SELECT JSON_VALID(CONCAT(JSON_SET(JSON_OBJECT('a', 1), '$.a',
+                                  JSON_QUERY(@compact, '$')), '')) AS parses;
+SELECT JSON_VALID(CONCAT(JSON_ARRAY_APPEND(JSON_ARRAY(1), '$',
+                                  JSON_QUERY(@compact, '$')), '')) AS parses;
+
+--echo #
+--echo # 5. A value short enough that the room asked for is enough,
+--echo #    which must be unaffected
+--echo #
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@small, '$'))
+       AS spliced;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 6. Several rows, so the failure is met more than once
+--echo #
+CREATE TABLE t1 (id INT, j LONGTEXT);
+INSERT INTO t1 VALUES (1, '[1,2]');
+INSERT INTO t1 VALUES (2, CONCAT('[', REPEAT('1,', 49), '1]'));
+INSERT INTO t1 VALUES (3, CONCAT('[', REPEAT('2,', 49), '2]'));
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+--error 0,5
+SELECT id, JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+                                         JSON_QUERY(j, '$')), '')) AS parses
+  FROM t1 ORDER BY id;
+SET SESSION debug_dbug = DEFAULT;
+SELECT id, JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+                                         JSON_QUERY(j, '$')), '')) AS parses
+  FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # 7. No room to pass a document that was composed in place
+--echo #
+--echo #    Where the item behind every document a function was given attests
+--echo #    is_valid and is_nice, what it composed is the answer and is
+--echo #    returned rather than read back.  Returning it is a copy, and
+--echo #    a copy is a write that can run short of room like any other.
+--echo #
+--echo #    Every argument is built by a producer that attests to what
+--echo #    it passes.  A string literal attests is_valid false for
+--echo #    its document, so a statement built out of literals
+--echo #    never composes an answer at all and would say nothing here.
+--echo #
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2) AS whole;
+
+SET SESSION debug_dbug = '+d,json_return_out_of_memory';
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2)
+       AS appended;
+SELECT JSON_ARRAY_INSERT(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a[0]', 2)
+       AS inserted;
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS added;
+SELECT JSON_REMOVE(JSON_OBJECT('a', 1, 'b', 2), '$.b') AS removed;
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+       AS merged;
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+       AS patched;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #    and the same six once the room is there again, which is what
+--echo #    says the refusals above are about the copy and not about the
+--echo #    statements
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2)
+       AS appended;
+SELECT JSON_ARRAY_INSERT(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a[0]', 2)
+       AS inserted;
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS added;
+SELECT JSON_REMOVE(JSON_OBJECT('a', 1, 'b', 2), '$.b') AS removed;
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+       AS merged;
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+       AS patched;
+
+--echo #
+--echo # 8. No room while the values a path asked for are written out
+--echo #
+--echo #    A reading function writes the values it found into the answer
+--echo #    itself, with a comma between them where more than one was
+--echo #    asked for, rather than composing a document and reading it
+--echo #    back.  Both writes are its own and both can run short.
+--echo #
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS whole,
+       JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS whole_one;
+
+SET SESSION debug_dbug = '+d,json_extract_comma_out_of_memory';
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS no_comma;
+--echo #    one value alone needs no comma, so this one is untouched
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS one_value;
+SET SESSION debug_dbug = DEFAULT;
+
+SET SESSION debug_dbug = '+d,json_extract_scalar_out_of_memory';
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS no_value;
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS no_value_of_several;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 9. No room for a key the document did not have
+--echo #
+--echo #    A path naming a key that is not there has the key written
+--echo #    into the document, which is a write the composing does
+--echo #    rather than one a reading back would have done.
+--echo #
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS whole;
+
+SET SESSION debug_dbug = '+d,json_insert_key_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS no_key;
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.c', 3) AS no_key_set;
+SET SESSION debug_dbug = DEFAULT;
+
+--echo #
+--echo # 10. The colon that joins a key to its value, and the key a path
+--echo #     names that the document did not have
+--echo #
+--echo #     Both are written in the formatting this commit settled, so
+--echo #     both are failed here rather than where the key itself is.
+--echo #
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS whole,
+       JSON_INSERT(JSON_OBJECT('a', 1), _latin1'$.b', 2) AS whole_added;
+
+SET SESSION debug_dbug = '+d,json_keyname_colon_out_of_memory';
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS no_colon;
+SET SESSION debug_dbug = DEFAULT;
+
+SET SESSION debug_dbug = '+d,json_insert_path_key_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS no_room_added_key;
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.c', 3) AS no_room_added_key_set;
+SET SESSION debug_dbug = DEFAULT;

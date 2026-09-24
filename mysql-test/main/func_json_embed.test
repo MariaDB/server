@@ -1,0 +1,419 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Splicing a value that is typed as JSON into a document.
+--echo #
+--echo # A value whose type is JSON is spliced into the result as it
+--echo # stands rather than quoted as a string.  This is not only about
+--echo # objects and arrays: a JSON number, string or boolean is spliced
+--echo # the same way, which is what keeps a stored "a string" from coming
+--echo # back out with its quotes escaped.
+--echo #
+--echo # Being typed as JSON and being JSON are different things: the type
+--echo # comes from a check constraint, and a constraint can be switched
+--echo # off for a statement, leaving bytes behind that it would have
+--echo # rejected.  Nothing between the column and the result reads those
+--echo # bytes.
+--echo #
+--echo # The constructors are the interesting half, because they have no
+--echo # closing pass over what they built.  Whatever they splice is what
+--echo # the caller gets.
+--echo #
+--echo # A value that does not parse is spliced all the same, byte for
+--echo # byte.  What the constructor has then built is not a document, so
+--echo # it returns NULL instead of it, and a warning names the argument
+--echo # that was responsible.  A warning and not a note, because it is
+--echo # the only word the statement gets about why it was given NULL,
+--echo # and because a statement running under strict mode then stops at
+--echo # the value rather than finishing without one.  A function that
+--echo # reads its whole answer back has a second complaint to make about
+--echo # the same value, and leaves this one a note.
+--echo #
+--echo # Non ASCII characters below are written as the bytes that encode
+--echo # them, so this file needs no character set of its own:
+--echo #   C3 A9       is U+00E9, one byte in latin1 (E9)
+--echo #   E6 BC A2    is U+6F22, which latin1 has no room for
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. Which values are spliced as documents and which are quoted.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON, txt LONGTEXT);
+INSERT INTO t1 VALUES (1, '{"a": 1}', '{"a": 1}');
+SELECT JSON_ARRAY(j) AS typed, JSON_ARRAY(txt) AS untyped FROM t1;
+--echo # a function that returns JSON is typed the same way
+SELECT JSON_ARRAY(JSON_COMPACT('[1, 2]')) AS from_function;
+SELECT JSON_ARRAY(CONCAT(j, '')) AS through_concat FROM t1;
+
+--echo #
+--echo # 2. A column holding bytes its constraint would have rejected.
+--echo #
+
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (10, '{"a":1,', NULL);
+INSERT INTO t1 VALUES (11, 'not json at all', NULL);
+INSERT INTO t1 VALUES (12, '{"a":1} and then some', NULL);
+SET SESSION check_constraint_checks = ON;
+
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS built_a_document
+  FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS built_a_document
+  FROM t1 WHERE id >= 10 ORDER BY id;
+
+--echo # more than one element, so the value is spliced in the middle of a
+--echo # document rather than as the whole of it
+SELECT id, JSON_ARRAY(1, j, 'z') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_OBJECT('before', 1, 'k', j, 'after', 2) AS v
+  FROM t1 WHERE id >= 10 ORDER BY id;
+
+--echo # the aggregates, which splice a value per row
+SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10;
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS built_a_document
+  FROM t1 WHERE id >= 10;
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10;
+SELECT JSON_VALID(JSON_OBJECTAGG(id, j)) AS built_a_document
+  FROM t1 WHERE id >= 10;
+--echo # a group mixing a good row with a bad one
+SELECT JSON_ARRAYAGG(j) AS v FROM t1 WHERE id = 1 OR id = 10;
+
+--echo # the mutators splice the same way, but read back what they built
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS v
+  FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_ARRAY_APPEND('[0]', '$', j) AS v
+  FROM t1 WHERE id >= 10 ORDER BY id;
+
+--echo #
+--echo # 3. Bytes that are not a document and would not have looked wrong
+--echo #    afterwards.
+--echo #
+--echo # An empty value leaves nothing behind at all, so what is built
+--echo # round it parses and reports one element fewer than it was given.
+--echo # A document like that gives no sign of what happened to it, and
+--echo # is exactly what is not returned: the row is refused, and the
+--echo # warning says which argument it was.
+--echo #
+
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (20, '', NULL);
+INSERT INTO t1 VALUES (21, '   ', NULL);
+INSERT INTO t1 VALUES (22, '// nothing here', NULL);
+SET SESSION check_constraint_checks = ON;
+
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS looks_fine,
+       JSON_LENGTH(JSON_ARRAY(j)) AS elements
+  FROM t1 WHERE id >= 20 ORDER BY id;
+SELECT id, JSON_ARRAY(1, j, 2) AS v, JSON_VALID(JSON_ARRAY(1, j, 2)) AS looks_fine,
+       JSON_LENGTH(JSON_ARRAY(1, j, 2)) AS elements
+  FROM t1 WHERE id >= 20 ORDER BY id;
+SELECT id, JSON_OBJECT('k', j) AS v, JSON_VALID(JSON_OBJECT('k', j)) AS looks_fine
+  FROM t1 WHERE id >= 20 ORDER BY id;
+SELECT JSON_ARRAYAGG(j) AS v, JSON_VALID(JSON_ARRAYAGG(j)) AS looks_fine
+  FROM t1 WHERE id >= 20;
+
+--echo #
+--echo # 4. Nesting that only goes over the limit once the value is wrapped.
+--echo #
+--echo # The scanner takes 31 nested structures.  A document of exactly 31
+--echo # is a document; put it inside one more and it is not, so the
+--echo # constructor that wrapped it has nothing to return.  A mutator
+--echo # reads its whole answer back and finds out there, as it always
+--echo # did.
+--echo #
+
+CREATE TABLE t2 (id INT, j JSON);
+INSERT INTO t2 VALUES (31, CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31)));
+INSERT INTO t2 VALUES (30, CONCAT(REPEAT('[', 30), '1', REPEAT(']', 30)));
+SELECT id, JSON_VALID(j) AS on_its_own, JSON_DEPTH(j) AS deep FROM t2 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS wrapped_once,
+       LENGTH(JSON_ARRAY(j)) AS bytes FROM t2 ORDER BY id;
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS wrapped_once FROM t2 ORDER BY id;
+--echo # without a table in the way
+SELECT JSON_VALID(JSON_ARRAY(JSON_COMPACT(
+         CONCAT(REPEAT('[', 31), '1', REPEAT(']', 31))))) AS wrapped_once;
+--echo # a mutator splices at the depth the path reaches, and reads back
+SELECT id, JSON_VALID(JSON_SET('{}', '$.k', j)) AS spliced FROM t2 ORDER BY id;
+
+--echo #
+--echo # 5. A document written in a different character set from the one it
+--echo #    is being spliced into.
+--echo #
+--echo # The constructors agree a character set across their arguments
+--echo # first, so the value arrives already converted.  The mutators take
+--echo # the character set of the document they are editing and convert
+--echo # nothing, so the value arrives as it was written.
+--echo #
+
+CREATE TABLE t3 (id INT, j JSON);
+INSERT INTO t3 VALUES (1, _utf8mb4 0x5B22C3A9225D);
+INSERT INTO t3 VALUES (2, _utf8mb4 0x5B22E6BCA2225D);
+SELECT id, CHARSET(j) AS column_cs, HEX(j) AS bytes FROM t3 ORDER BY id;
+
+--echo # spliced by a constructor whose other argument is latin1
+SELECT id, CHARSET(JSON_ARRAY(CONVERT('x' USING latin1), j)) AS result_cs,
+       HEX(JSON_ARRAY(CONVERT('x' USING latin1), j)) AS bytes
+  FROM t3 ORDER BY id;
+
+--echo # spliced by a mutator into a latin1 document
+SELECT id, CHARSET(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j))
+         AS result_cs,
+       HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j)) AS bytes
+  FROM t3 ORDER BY id;
+SELECT id, HEX(JSON_ARRAY_APPEND(CONVERT(_utf8mb4'[1]' USING latin1), '$', j))
+         AS bytes
+  FROM t3 ORDER BY id;
+--echo # read the spliced value back out of the document it landed in
+SELECT id, HEX(JSON_EXTRACT(
+             JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1), '$.b', j),
+             '$.b')) AS read_back
+  FROM t3 ORDER BY id;
+
+--echo #
+--echo # 6. Values that are what they say they are, which must not move.
+--echo #
+--echo # Note the scalars among them.  A column holding a JSON string is
+--echo # spliced with one set of quotes, not two, which is the difference
+--echo # between being spliced as JSON and being quoted as a string.
+--echo #
+
+CREATE TABLE t4 (id INT, j JSON);
+INSERT INTO t4 VALUES (1, '{"a": 1, "b": [1, 2]}');
+INSERT INTO t4 VALUES (2, '[1, 2, 3]');
+INSERT INTO t4 VALUES (3, '"a string"');
+INSERT INTO t4 VALUES (4, '42');
+INSERT INTO t4 VALUES (5, 'null');
+INSERT INTO t4 VALUES (6, 'true');
+INSERT INTO t4 VALUES (7, '{"compact":[1,2],"no":"spaces"}');
+SELECT id, JSON_ARRAY(j) AS v FROM t4 ORDER BY id;
+SELECT id, JSON_OBJECT('k', j) AS v FROM t4 ORDER BY id;
+SELECT id, JSON_ARRAY(1, j, 'z') AS v FROM t4 ORDER BY id;
+SELECT JSON_ARRAYAGG(j) AS v FROM t4;
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4;
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS v FROM t4 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS built_a_document FROM t4 ORDER BY id;
+--echo # a NULL value is spliced as the JSON null, not as the document
+INSERT INTO t4 VALUES (8, NULL);
+SELECT id, JSON_ARRAY(j) AS v FROM t4 WHERE id = 8;
+SELECT id, JSON_OBJECT('k', j) AS v FROM t4 WHERE id = 8;
+
+--echo #
+--echo # 7. Whether what the constructors build is already in the loose
+--echo #    form, or would still be changed by reformatting it.
+--echo #
+--echo # A value that is spliced is copied exactly as it was written, so
+--echo # the spacing of the result is the spacing the value arrived with.
+--echo # A constructor is therefore only in the loose form when the
+--echo # documents given to it are.
+--echo #
+
+CREATE TABLE t5 (id INT, j JSON);
+INSERT INTO t5 VALUES (1, '{"a": 1, "b": [1, 2]}');
+INSERT INTO t5 VALUES (2, '{"a":1,"b":[1,2]}');
+INSERT INTO t5 VALUES (3, '[ 1 ,2, 3 ]');
+
+--echo # with nothing spliced, and with a document spliced in
+# A view keeps its body as printed text, and a boolean literal prints as the
+# number it equals, so read through one this array would hold a 1 rather
+# than a true.
+--disable_view_protocol
+SELECT JSON_ARRAY(1, 'a', TRUE, NULL) AS built,
+       JSON_ARRAY(1, 'a', TRUE, NULL) = JSON_LOOSE(JSON_ARRAY(1, 'a', TRUE, NULL))
+         AS already_loose;
+--enable_view_protocol
+SELECT JSON_OBJECT('a', 1, 'b', 'x') AS built,
+       JSON_OBJECT('a', 1, 'b', 'x') = JSON_LOOSE(JSON_OBJECT('a', 1, 'b', 'x'))
+         AS already_loose;
+SELECT id, JSON_ARRAY(j) AS built,
+       JSON_ARRAY(j) = JSON_LOOSE(JSON_ARRAY(j)) AS already_loose
+  FROM t5 ORDER BY id;
+SELECT id, JSON_OBJECT('k', j) AS built,
+       JSON_OBJECT('k', j) = JSON_LOOSE(JSON_OBJECT('k', j)) AS already_loose
+  FROM t5 ORDER BY id;
+
+--echo # the aggregates write their own separators, which are not the
+--echo # loose ones.  A group of one never writes a separator at all, so
+--echo # both a single row and several are recorded here.
+INSERT INTO t5 VALUES (4, '{"c": 3}');
+SELECT JSON_ARRAYAGG(j) AS built,
+       JSON_ARRAYAGG(j) = JSON_LOOSE(JSON_ARRAYAGG(j)) AS already_loose
+  FROM t5 WHERE id = 1;
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS built,
+       JSON_ARRAYAGG(j ORDER BY id) = JSON_LOOSE(JSON_ARRAYAGG(j ORDER BY id))
+         AS already_loose
+  FROM t5 WHERE id IN (1, 4);
+SELECT JSON_OBJECTAGG(id, j) AS built,
+       JSON_OBJECTAGG(id, j) = JSON_LOOSE(JSON_OBJECTAGG(id, j)) AS already_loose
+  FROM t5 WHERE id = 1;
+SELECT JSON_OBJECTAGG(id, j) AS built,
+       JSON_OBJECTAGG(id, j) = JSON_LOOSE(JSON_OBJECTAGG(id, j)) AS already_loose
+  FROM t5 WHERE id IN (1, 4);
+
+--echo # a mutator reads back everything it built, so its spacing is its
+--echo # own regardless of what was spliced
+SELECT id, JSON_SET('{"x": 0}', '$.k', j) AS built,
+       JSON_SET('{"x": 0}', '$.k', j) = JSON_LOOSE(JSON_SET('{"x": 0}', '$.k', j))
+         AS already_loose
+  FROM t5 ORDER BY id;
+
+--echo #
+--echo # 8. What the aggregates do with a row they cannot write out.
+--echo #
+--echo # An aggregate writes the separator before it asks for the element,
+--echo # so a row that yields nothing leaves a separator with nothing on
+--echo # one side of it.  There are two reasons a row can yield nothing
+--echo # and they are not reported alike.  A character that cannot be
+--echo # written into a document at all is a property of the data, and
+--echo # gets a note naming the row; a buffer that would not grow is not,
+--echo # and has already stopped the statement by the time it is noticed.
+--echo # Either way what is left is a group with a gap in it, which is not
+--echo # a document and is not returned.
+--echo #
+--echo # A KEY that cannot be written is neither of those.  It goes in as
+--echo # the empty key with its pair finished round it, so the object is a
+--echo # document whose keys are not the ones that were asked for, and the
+--echo # note is the whole of what is said about it.
+--echo #
+--echo # cp1250 is used here because it admits every byte, so a column can
+--echo # hold one that stands for no character at all.
+--echo #
+
+CREATE TABLE t6 (id INT, c VARCHAR(16) CHARACTER SET cp1250);
+INSERT INTO t6 VALUES (1, X'81'), (2, 'ok'), (3, X'8881');
+SELECT id, HEX(c) AS stored FROM t6 ORDER BY id;
+SELECT JSON_ARRAYAGG(c) AS v FROM t6;
+SELECT JSON_OBJECTAGG(id, c) AS v FROM t6;
+--echo # and where it is the key that cannot be written
+SELECT JSON_OBJECTAGG(c, id) AS v FROM t6;
+--echo # a group with no such row is untouched
+SELECT JSON_ARRAYAGG(c) AS v FROM t6 WHERE id = 2;
+
+--echo # the same rows through the tree path, which writes the elements out
+--echo # when the group is asked for rather than as they arrive
+SELECT JSON_ARRAYAGG(c ORDER BY id) AS v FROM t6;
+SELECT JSON_ARRAYAGG(DISTINCT c) AS v FROM t6;
+
+--echo # a copy of the aggregate, which is made without fixing it again.
+--echo # The values here are valid, so nothing should be said about them.
+SELECT id, HEX(JSON_ARRAYAGG(JSON_ARRAY(CONVERT('x' USING ucs2)))) AS v
+  FROM t6 GROUP BY id WITH ROLLUP;
+SELECT id, HEX(JSON_ARRAYAGG(JSON_ARRAY(CONVERT('x' USING ucs2)))) AS v
+  FROM t6 GROUP BY id;
+
+--echo # nesting composed by the aggregate itself, which puts each value
+--echo # inside one array or object of its own
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
+       JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
+  FROM t2 WHERE id = 31;
+SELECT JSON_VALID(JSON_ARRAYAGG(j)) AS wrapped_once,
+       JSON_VALID(JSON_OBJECTAGG(id, j)) AS wrapped_once_obj
+  FROM t2 WHERE id = 30;
+
+--echo #
+--echo # 9. The same character in a key of a constructor.
+--echo #
+--echo # A key is written by the same routine that writes one for the
+--echo # aggregate, and a character no document can carry stops it the
+--echo # same way.  The constructors read nothing back, so a key and a
+--echo # value alike throw the whole result away here; all that is left
+--echo # of either is what is said about it, and both sides say which
+--echo # argument it was.
+--echo #
+--echo # Said at note level, where the same constructor refusing a value
+--echo # that did not parse says it at warning level.  Both answer NULL.
+--echo # The difference is that refusing a character is what a released
+--echo # server did and refusing an unparsed value is not, so only the
+--echo # second is raised to where strict mode can act on it.
+--echo #
+
+--echo # the value side, which has always been named
+SELECT JSON_ARRAY(c) AS v FROM t6 WHERE id = 1;
+SELECT JSON_OBJECT('k', c) AS v FROM t6 WHERE id = 1;
+--echo # the key side, in the first pair and in a later one
+SELECT JSON_OBJECT(c, 1) AS v FROM t6 WHERE id = 1;
+SELECT JSON_OBJECT('a', 1, c, 2) AS v FROM t6 WHERE id = 3;
+--echo # a key and a value of the same row, which stops at the key
+SELECT JSON_OBJECT(c, c) AS v FROM t6 WHERE id = 1;
+--echo # a row whose key can be written says nothing
+SELECT JSON_OBJECT(c, 1) AS v FROM t6 WHERE id = 2;
+
+--echo #
+--echo # 10. The same character through JSON_QUOTE, which writes a value out
+--echo #     with the routine the constructors use but is not building a
+--echo #     document of its own.
+--echo #
+--echo # It has always answered NULL for a character it cannot write and
+--echo # still does.  What it never did was say so, and it was the only
+--echo # caller of that routine which did not.
+--echo #
+
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 1;
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 3;
+--echo # a row it can write says nothing
+SELECT JSON_QUOTE(c) AS v FROM t6 WHERE id = 2;
+--echo # the same value reaching a constructor instead, which has always
+--echo # named the argument
+SELECT JSON_ARRAY(c) AS v FROM t6 WHERE id = 1;
+
+--echo #
+--echo # 11. What a constructor or an aggregate returns when what it put
+--echo #     together is not a document.
+--echo #
+--echo # These four have no closing pass over what they built, so whatever
+--echo # went in wrong is in the answer, and every way that can happen is
+--echo # above: a value typed as JSON that does not parse, one that parses
+--echo # as nothing at all, a nesting that only goes over the limit once
+--echo # the value is wrapped, and a character no document can carry, which
+--echo # leaves an aggregate's separator with nothing beside it.
+--echo #
+--echo # None of the four is a document and none of them is returned.  The
+--echo # complaint saying what was wrong is raised where it always was;
+--echo # what follows it is NULL rather than the bytes.
+--echo #
+--echo # Two cases that look like these and are not stay as they were.  A
+--echo # KEY that could not be written leaves the pair around it whole, so
+--echo # the object is a document whose keys are not the ones asked for.
+--echo # A group cut to fit its length limit is cut back to the last whole
+--echo # element, so the brackets go round a document as well.
+--echo #
+
+--disable_warnings
+--echo # a value typed as JSON that does not parse, and one that parses as
+--echo # nothing at all
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+       JSON_OBJECT('k', j) IS NULL AS refused_obj
+  FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+       JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+  FROM t1 WHERE id >= 10;
+--echo # a nesting that only goes over the limit once the value is wrapped
+SELECT id, JSON_ARRAY(j) IS NULL AS refused,
+       JSON_OBJECT('k', j) IS NULL AS refused_obj
+  FROM t2 ORDER BY id;
+SELECT JSON_ARRAYAGG(j) IS NULL AS refused,
+       JSON_OBJECTAGG(id, j) IS NULL AS refused_obj
+  FROM t2 WHERE id = 31;
+--echo # a character no document can carry, in a value
+SELECT JSON_ARRAYAGG(c) IS NULL AS refused,
+       JSON_OBJECTAGG(id, c) IS NULL AS refused_obj FROM t6;
+--echo # the same character in a KEY, which leaves a document behind
+SELECT JSON_OBJECTAGG(c, id) AS v FROM t6;
+--enable_warnings
+
+--echo # a group cut to fit its length limit
+SET SESSION group_concat_max_len= 28;
+--disable_warnings
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+--enable_warnings
+SET SESSION group_concat_max_len= DEFAULT;
+
+--echo # and what IS a document comes back as it always did
+SELECT id, JSON_ARRAY(j) AS v FROM t4 WHERE id <= 2 ORDER BY id;
+SELECT JSON_ARRAYAGG(j ORDER BY id) AS v FROM t4 WHERE id <= 2;
+SELECT JSON_OBJECTAGG(id, j) AS v FROM t4 WHERE id <= 2;
+
+DROP TABLE t1, t2, t3, t4, t5, t6;

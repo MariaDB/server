@@ -1,0 +1,62 @@
+CREATE TABLE t1 (n VARCHAR(20) CHARACTER SET latin1,
+t VARCHAR(20) CHARACTER SET utf8mb3,
+w VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES ('{}', '{}', _utf8mb4 0xEFBFBF),
+('{}', '{}', _utf8mb4 0xF0908080),
+('{}', '{}', _utf8mb4 0xF09F9880),
+('{}', '{}', _utf8mb4 0xF48FBFBF);
+#
+# The last character of the first plane takes one escape, and the
+# three past it take two.
+#
+SELECT JSON_SET(n, '$.b', w) AS written,
+JSON_VALID(JSON_SET(n, '$.b', w)) AS valid FROM t1;
+written	valid
+{"b": "\uFFFF"}	1
+{"b": "\uD800\uDC00"}	1
+{"b": "\uD83D\uDE00"}	1
+{"b": "\uDBFF\uDFFF"}	1
+#
+# The same into a document written in the other set that stops at
+# the first plane.  That set carries the first of the four as it
+# stands, so that one is not escaped at all - read here as bytes,
+# to keep the connection's own set out of the answer.
+#
+SELECT HEX(JSON_SET(t, '$.b', w)) AS bytes,
+JSON_VALID(JSON_SET(t, '$.b', w)) AS valid FROM t1;
+bytes	valid
+7B2262223A2022EFBFBF227D	1
+7B2262223A20225C75443830305C7544433030227D	1
+7B2262223A20225C75443833445C7544453030227D	1
+7B2262223A20225C75444246465C7544464646227D	1
+#
+# The four other functions that write a value into a document they
+# were handed answer the same way.
+#
+SELECT JSON_INSERT(n, '$.b', w) AS inserted,
+JSON_REPLACE(JSON_SET(n, '$.b', 1), '$.b', w) AS replaced FROM t1;
+inserted	replaced
+{"b": "\uFFFF"}	{"b": "\uFFFF"}
+{"b": "\uD800\uDC00"}	{"b": "\uD800\uDC00"}
+{"b": "\uD83D\uDE00"}	{"b": "\uD83D\uDE00"}
+{"b": "\uDBFF\uDFFF"}	{"b": "\uDBFF\uDFFF"}
+SELECT JSON_ARRAY_APPEND(CONCAT('[', 1, ']'), '$', w) AS appended,
+JSON_ARRAY_INSERT(CONCAT('[', 1, ']'), '$[0]', w) AS array_inserted
+FROM t1;
+appended	array_inserted
+[1, "\uFFFF"]	["\uFFFF", 1]
+[1, "\uD800\uDC00"]	["\uD800\uDC00", 1]
+[1, "\uD83D\uDE00"]	["\uD83D\uDE00", 1]
+[1, "\uDBFF\uDFFF"]	["\uDBFF\uDFFF", 1]
+#
+# What the writing put there, read as bytes.  The escape is ASCII
+# whatever the document is written in, so the two units stand out
+# as two of them.
+#
+SELECT HEX(JSON_SET(n, '$.b', w)) AS bytes FROM t1;
+bytes
+7B2262223A20225C7546464646227D
+7B2262223A20225C75443830305C7544433030227D
+7B2262223A20225C75443833445C7544453030227D
+7B2262223A20225C75444246465C7544464646227D
+DROP TABLE t1;

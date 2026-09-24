@@ -1118,10 +1118,7 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
                                 const char *from, size_t from_length,
                                 size_t nchars)
 {
-  if ((to_cs == &my_charset_bin) || 
-      (from_cs == &my_charset_bin) ||
-      (to_cs == from_cs) ||
-      my_charset_same(from_cs, to_cs))
+  if (conversion_copies_bytes(to_cs, from_cs))
   {
     m_cannot_convert_error_pos= NULL;
     return (uint) to_cs->copy_fix(to, to_length, from, from_length,
