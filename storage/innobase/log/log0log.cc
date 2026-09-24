@@ -2134,6 +2134,7 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
     else
       goto done;
 
+    ut_ad(lsn <= get_lsn());
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     /* We must wait to prevent the tail of the log overwriting the head. */

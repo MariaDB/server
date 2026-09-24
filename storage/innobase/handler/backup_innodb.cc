@@ -231,6 +231,17 @@ private:
       return *next;
     }
 
+    /** @return whether a log file is being tracked */
+    bool is_log_tracking(os_file_t src) const noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(!log_sys.is_mmap_writeable());
+      for (tracked_log *t= tracked; t; t= t->next)
+        if (t->src == src)
+          return true;
+      return false;
+    }
+
     /**
        Note that a log file was hard-linked.
        @param lsn   start LSN of a hard-linked file
@@ -638,6 +649,7 @@ public:
     {
       /* An error was flagged. */
       size= size_t(-1);
+      my_error(ER_UNKNOWN_ERROR, MYF(0));
     done:
       mutex.wr_unlock();
       return int(size);
@@ -754,13 +766,13 @@ public:
       if (end != ctx.tracked->file_size);
       else if (tracked_log *tail= ctx.tracked->next)
       {
+        ut_ad(tail->src != ctx.tracked->src);
+        ut_ad(tail->first_lsn > ctx.tracked->first_lsn);
         /* Move to the next file if checkpoint_complete() added one */
         delete ctx.tracked;
         ctx.tracked= tail;
         std::ignore= IF_WIN(CloseHandle(src), close(src));
         err= -1;
-        if (ctx.old_size && ctx.delete_log(first + log_sys.START_OFFSET))
-          goto error;
         if (ctx.log_dst != ctx.first_log_dst &&
             IF_WIN(!CloseHandle(ctx.log_dst), close(ctx.log_dst)))
           goto error;
@@ -1179,26 +1191,9 @@ public:
   void checkpoint_complete(lsn_t lsn) noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-
-    /* Make the previous archived log file read-only */
-#ifdef _WIN32
-    try {
-      SetFileAttributesA(log_sys.get_archive_path(lsn).c_str(),
-                         FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
-    } catch (std::bad_alloc&) {}
-#else
-    struct stat st;
-    if (!fstat(log_sys.resize_log.m_file, &st))
-      st.st_mode&= 0444;
-    else
-      st.st_mode= 0444;
-    if (fchmod(log_sys.resize_log.m_file, st.st_mode))
-      try {
-        my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-                 log_sys.get_archive_path(lsn).c_str(), errno);
-      }
-      catch (std::bad_alloc&) {}
-#endif
+    const os_file_t log{log_sys.resize_log.m_file};
+    ut_ad(log != OS_FILE_CLOSED);
+    uint64_t old_size{0};
 
     if (ctx.state == PROCESSING)
     {
@@ -1208,7 +1203,7 @@ public:
       else if (!ctx.is_log_tracking())
       {
         if (lsn > ctx.last_lsn)
-          goto cleanup;
+          old_size= ctx.old_size;
         if (ctx.last_lsn == LSN_MAX)
           /* commit() was not invoked yet */
           queue.emplace_back(lsn);
@@ -1221,24 +1216,54 @@ public:
           /* checkpoint_complete_pmem() copied this */;
 #endif
         else
+        {
+          ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
+          log_sys.resize_log.m_file= OS_FILE_CLOSED;
           try {
-            /* Create a new log file and enqueue the log */
             ctx.log_track_tail()=
               new tracked_log{nullptr, log_sys.log.m_file,
                               log_sys.first_lsn, log_sys.file_size};
-            mutex.wr_unlock();
-            log_sys.resize_log.m_file= OS_FILE_CLOSED;
-            return;
           }
           catch (std::bad_alloc&) { ctx.last_lsn= 0; }
-      cleanup:
-        if (ctx.old_size)
-          ctx.delete_log(lsn);
+        }
+        old_size= ctx.old_size;
       }
       mutex.wr_unlock();
     }
 
-    log_sys.resize_log.close();
+    int error_on_close{0};
+    if (old_size)
+      context::delete_log(lsn);
+    else
+    {
+      /* Make the previous archived log file read-only */
+#ifdef _WIN32
+      try {
+        SetFileAttributesA(log_sys.get_archive_path(lsn).c_str(),
+                           FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+      } catch (std::bad_alloc&) {}
+#else
+      struct stat st;
+      if (!fstat(log, &st))
+        st.st_mode&= 0444;
+      else
+        st.st_mode= 0444;
+      error_on_close= fchmod(log, st.st_mode);
+#endif
+    }
+
+    if (UNIV_LIKELY(log_sys.resize_log.m_file != OS_FILE_CLOSED))
+    {
+      ut_ad(log_sys.resize_log.m_file == log);
+      log_sys.resize_log.m_file= OS_FILE_CLOSED;
+      error_on_close|= IF_WIN(!CloseHandle,close)(log);
+    }
+    if (error_on_close)
+      try {
+        my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+                 log_sys.get_archive_path(lsn).c_str(), errno);
+      }
+      catch (std::bad_alloc&) {}
   }
 
 private:
