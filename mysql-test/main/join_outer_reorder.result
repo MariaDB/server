@@ -62,14 +62,14 @@ DEPS
             "row_may_be_null": true,
             "map_bit": 1,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t2",
             "row_may_be_null": true,
             "map_bit": 2,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         }
     ]
 ]
@@ -103,14 +103,14 @@ DEPS
             "row_may_be_null": true,
             "map_bit": 1,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t3",
             "row_may_be_null": true,
             "map_bit": 2,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         }
     ]
 ]
@@ -142,7 +142,7 @@ DEPS
             "row_may_be_null": true,
             "map_bit": 1,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t3",
@@ -150,8 +150,8 @@ DEPS
             "map_bit": 2,
             "depends_on_map_bits": 
             [
-                "0",
-                "1"
+                0,
+                1
             ]
         }
     ]
@@ -193,28 +193,28 @@ DEPS
             "row_may_be_null": true,
             "map_bit": 1,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t4_2",
             "row_may_be_null": true,
             "map_bit": 2,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t3",
             "row_may_be_null": true,
             "map_bit": 3,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         },
         {
             "table": "t4_3",
             "row_may_be_null": true,
             "map_bit": 4,
             "depends_on_map_bits": 
-            ["0"]
+            [0]
         }
     ]
 ]
