@@ -80,3 +80,41 @@ select strcmp(_cp932'' collate cp932_nopad_bin, _cp932 0x0001050001) as c1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES cp932 COLLATE cp932_japanese_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES cp932 COLLATE cp932_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo #
+--echo # MDEV-41246 ExtractValue() and UpdateXML() return a string, so they
+--echo # must not use the tailoring-based collation aggregation, which is only
+--echo # intended for comparison operators.
+--echo #
+
+SET NAMES latin1;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT COLLATION(ExtractValue(_cp932'<a>x</a>', _latin1'a'));
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT COLLATION(ExtractValue(_latin1'<a>x</a>', _cp932'a'));
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT COLLATION(UpdateXML(_latin1'<a>x</a>', _cp932'/a', _cp932'<a>y</a>'));
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT COLLATION(UpdateXML(_cp932'<a>x</a>', _latin1'/a', _latin1'<a>y</a>'));
+
+--echo # Same character set arguments still work
+SELECT ExtractValue(_cp932'<a>x</a>', _cp932'/a');
+SELECT UpdateXML(_latin1'<a>x</a>', _latin1'/a', _latin1'<a>y</a>');
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

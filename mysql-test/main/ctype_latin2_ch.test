@@ -248,3 +248,15 @@ set names latin2 collate latin2_czech_cs;
 --echo # End of 5.6 tests
 --echo #
 
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES latin2 COLLATE latin2_czech_cs;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_02_probe_error.inc
+--source include/ctype_tailoring_view_drop.inc
+
+
+--echo # End of 11.8 tests

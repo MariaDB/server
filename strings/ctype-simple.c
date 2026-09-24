@@ -1508,11 +1508,132 @@ uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs)
 }
 
 
+static inline uint my_ascii_toupper(uint ch)
+{
+  return (ch >= 'a' && ch <= 'z') ? (ch - 'a' + 'A') : ch;
+}
+
+
+typedef struct
+{
+  uchar first;
+  uchar last;
+} uchar_range_t;
+
+static const uchar_range_t range0_control_punct= {0x00,0x2F}; /* NULL.. '/' */
+static const uchar_range_t range1_digits=        {0x30,0x39}; /* '0' .. '9' */
+static const uchar_range_t range2_punct=         {0x3A,0x40}; /* ':' .. '@' */
+static const uchar_range_t range3_upper=         {0x41,0x5A}; /* 'A' .. 'Z' */
+static const uchar_range_t range4_punct=         {0x5B,0x60}; /* '[' .. '`' */
+static const uchar_range_t range6_punct=         {0x7B,0x7F}; /* '{' .. DEL */
+
+
+static my_bool my_check_binary_order(CHARSET_INFO *cs, uint ch1, uint ch2)
+{
+  uint ch;
+  for (ch= ch1 + 1; ch <= ch2; ch++)
+  {
+    uint weight_prev= cs->sort_order[ch - 1];
+    uint weight_curr= cs->sort_order[ch];
+    if (weight_prev >= weight_curr)
+    {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+
+static my_bool my_check_range_binary_order(CHARSET_INFO *cs,
+                                           const uchar_range_t range)
+{
+  return my_check_binary_order(cs, range.first, range.last);
+}
+
+
+static my_bool my_check_range2_order(CHARSET_INFO *cs,
+                                     const uchar_range_t range1,
+                                     const uchar_range_t range2)
+{
+  if (cs->sort_order[range1.last] < cs->sort_order[range2.first])
+    return FALSE;
+  return TRUE;
+}
+
+
+static my_bool my_check_case_insensitive(CHARSET_INFO *cs)
+{
+  uint ch;
+  for (ch= 'a'; ch <= 'z'; ch++)
+  {
+    uint ch_upper= my_ascii_toupper(ch);
+    if (cs->sort_order[ch_upper] != cs->sort_order[ch])
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+
+
+/*
+  Detect MY_CS_DIGITS_STD and MY_CS_ASCII_MINUS_DOT_DIGITS from sort_order:
+  - The digits are sorted in the code point order, and for PAD collations
+    the space sorts before the digits.
+  - The minus (0x2D) < the dot (0x2E) < the digits.
+    For PAD collations, the space sorts before the minus.
+  This does not depend on the order of the letters and on the case
+  sensitivity. It can be used for any collation having sort_order,
+  including multi-byte collations.
+*/
+static uint my_8bit_collation_digit_flags_from_data(CHARSET_INFO *cs)
+{
+  uint flags= 0;
+  if (cs->sort_order &&
+      ((cs->state & MY_CS_NOPAD) ||
+       cs->sort_order[' '] < cs->sort_order[range1_digits.first]) &&
+      !my_check_range_binary_order(cs, range1_digits))
+  {
+    flags|= MY_CS_DIGITS_STD;
+    if (((cs->state & MY_CS_NOPAD) ||
+         cs->sort_order[' '] < cs->sort_order['-']) &&
+        cs->sort_order['-'] < cs->sort_order['.'] &&
+        cs->sort_order['.'] < cs->sort_order[range1_digits.first])
+      flags|= MY_CS_ASCII_MINUS_DOT_DIGITS;
+  }
+  return flags;
+}
+
+
 /*
   Check if case sensitive sort order: A < a < B.
   We need MY_CS_FLAG for regex library, and for
   case sensitivity flag for 5.0 client protocol,
-  to support isCaseSensitive() method in JDBC driver
+  to support isCaseSensitive() method in JDBC driver.
+
+  Also detect the MY_CS_ASCII_CASEUP_CI and MY_CS_IDENT_CASEUP_CI flags.
+  It's needed to return a collation tailoring
+  from cs->coll->tailoring(), for collation aggregation.
+  The flags are detected from the weights of the 7bit ASCII characters:
+  - The collation is case insensitive: weights of a-z are equal to
+    weights of A-Z. This alone does not tell the direction of the case
+    conversion, so it is not enough.
+  - The letters are sorted at the positions of the UPPER case letters, i.e.
+    digits < letters < underscore. This means that a-z are converted
+    to A-Z (a collation converting A-Z to a-z would sort letters after
+    the underscore, and would not pass this check).
+    This is checked by:
+      sort_order['9'] < sort_order['A'] and sort_order['Z'] < sort_order['_']
+    together with the strictly increasing order of the digits and of A-Z.
+  - For PAD collations the space sorts before the digits, as the shorter
+    string is padded with spaces for comparison.
+  - For MY_CS_ASCII_CASEUP_CI, additionally all other ASCII characters
+    (control characters and punctuation) are sorted in the code point order
+    inside their own ranges, and the ranges are sorted in the code point
+    order relative to the digits and the letters.
+  If the first three conditions are satisfied, but the fourth one is not,
+  then only MY_CS_IDENT_CASEUP_CI is set (the order of the digits, letters
+  and the underscore is regular, punctuation can have irregularities).
 */
 uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs)
 {
@@ -1520,6 +1641,57 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs)
   if (cs->sort_order && cs->sort_order['A'] < cs->sort_order['a'] &&
                         cs->sort_order['a'] < cs->sort_order['B'])
     flags|= MY_CS_CSSORT;
+
+  /*
+    If any of the flags describing the repertoires (CASEUP, DIGITS,
+    MINUS_DOT_DIGITS) is already set in cs->state, then it's a built-in
+    collation from ctype-extra.c, which has all the flags detected
+    by conf_to_src. No need to detect the flags again.
+  */
+  if (cs->state & MY_CS_REPERTOIRE_FLAGS)
+    return flags;
+
+  flags|= my_8bit_collation_digit_flags_from_data(cs);
+
+  /*
+    If MY_CS_CSSORT is in "flags", then it can not be MY_CS_ASCII_CASEUP_CI
+    or MY_CS_IDENT_CASEUP_CI.
+  */
+  if (cs->sort_order &&
+      !(flags & MY_CS_CSSORT))
+  {
+    if (cs->sort_order[range3_upper.last] < cs->sort_order[0x5F] &&
+        /*
+          PAD collations pad a shorter string with spaces for comparison,
+          e.g. "ab" is compared to "abc" as "ab " to "abc".
+          So the space must sort before the digits and the letters,
+          even if the compared strings do not contain spaces.
+        */
+        ((cs->state & MY_CS_NOPAD) ||
+         cs->sort_order[' '] < cs->sort_order[range1_digits.first]) &&
+        !my_check_range2_order(cs, range1_digits, range3_upper) &&
+        !my_check_range_binary_order(cs, range1_digits) &&
+        !my_check_range_binary_order(cs, range3_upper) &&
+        !my_check_case_insensitive(cs))
+    {
+      if (!my_check_range2_order(cs, range0_control_punct, range1_digits) &&
+          !my_check_range2_order(cs, range1_digits, range2_punct) &&
+          !my_check_range2_order(cs, range2_punct, range3_upper) &&
+          !my_check_range2_order(cs, range3_upper, range4_punct) &&
+          !my_check_range2_order(cs, range4_punct, range6_punct) &&
+          !my_check_range_binary_order(cs, range0_control_punct) &&
+          !my_check_range_binary_order(cs, range2_punct) &&
+          !my_check_range_binary_order(cs, range4_punct) &&
+          !my_check_range_binary_order(cs, range6_punct))
+      {
+        flags|= MY_CS_ASCII_CASEUP_CI;
+      }
+      else
+      {
+        flags|= MY_CS_IDENT_CASEUP_CI;
+      }
+    }
+  }
   return flags;
 }
 
@@ -2171,6 +2343,13 @@ my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
 }
 
 
+static LEX_CSTRING my_tailoring_8bit(CHARSET_INFO *self,
+                                     my_repertoire_t repertoire)
+{
+  return my_tailoring_simple_ci_by_flags(repertoire, self->state);
+}
+
+
 MY_CHARSET_HANDLER my_charset_8bit_handler=
 {
     my_cset_init_8bit,
@@ -2221,7 +2400,8 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_8bit
 };
 
 
@@ -2242,5 +2422,6 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_8bit
 };

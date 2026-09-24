@@ -285,8 +285,21 @@ select 1=_latin1'1';
 select _latin1'1'=1;
 select _latin2'1'=1;
 select 1=_latin2'1';
---error 1267
 select _latin1'1'=_latin2'1';
+
+# The tests using latin7_general_ci below expect an error: this collation
+# has anomalies on the ASCII letters, so it is not compatible with other
+# collations even on ASCII-only strings with letters.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select _latin1'a'=_latin7'a';
+
+# But the ASCII digits are sorted in the same way in all collations
+select _latin1'1'=_latin7'1';
+
+# The empty string has repertoire NONE on both sides, so it is always
+# compatible, regardless of collation anomalies.
+select _latin1'' = _latin7'';
+
 select row('a','b','c') = row('a','b','c');
 select row('A','b','c') = row('a','b','c');
 select row('A' COLLATE latin1_bin,'b','c') = row('a','b','c');
@@ -298,8 +311,10 @@ select row('A' COLLATE latin1_general_ci,'b','c') = row('a' COLLATE latin1_bin,'
 select concat(_latin1'a',_latin2'a');
 --error 1270
 select concat(_latin1'a',_latin2'a',_latin5'a');
---error 1271
+
+--error ER_CANT_AGGREGATE_NCOLLATIONS
 select concat(_latin1'a',_latin2'a',_latin5'a',_latin7'a');
+
 --error 1267
 select concat_ws(_latin1'a',_latin2'a');
 
@@ -312,10 +327,14 @@ select FIELD('b' COLLATE latin1_bin,'A','B');
 select FIELD('b','A' COLLATE latin1_bin,'B');
 #enable after fix MDEV-29601
 --disable_service_connection
---error 1270
 select FIELD(_latin2'b','A','B');
---error 1270
 select FIELD('b',_latin2'A','B');
+
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select FIELD(_latin7'b','A','B');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select FIELD('b',_latin7'A','B');
+
 --enable_service_connection
 select FIELD('1',_latin2'3','2',1);
 
@@ -324,10 +343,12 @@ select POSITION(_latin1'B' IN _latin1'abcd' COLLATE latin1_bin);
 select POSITION(_latin1'B' COLLATE latin1_bin IN _latin1'abcd');
 --error 1267
 select POSITION(_latin1'B' COLLATE latin1_general_ci IN _latin1'abcd' COLLATE latin1_bin);
---error 1267
 select POSITION(_latin1'B' IN _latin2'abcd');
 
 select FIND_IN_SET(_latin1'B',_latin1'a,b,c,d');
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select POSITION(_latin1'B' IN _latin7'abcd');
 
 # fix this:
 --disable_parsing
@@ -337,8 +358,10 @@ select FIND_IN_SET(_latin1'B' COLLATE latin1_bin,_latin1'a,b,c,d');
 
 --error 1267
 select FIND_IN_SET(_latin1'B' COLLATE latin1_general_ci,_latin1'a,b,c,d' COLLATE latin1_bin);
---error 1267
 select FIND_IN_SET(_latin1'B',_latin2'a,b,c,d');
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+select FIND_IN_SET(_latin1'B',_latin7'a,b,c,d');
 
 select SUBSTRING_INDEX(_latin1'abcdabcdabcd',_latin1'd',2);
 
@@ -357,12 +380,17 @@ select _latin1'B' between _latin1'a' and _latin1'c';
 select _latin1'B' collate latin1_bin between _latin1'a' and _latin1'c';
 select _latin1'B' between _latin1'a' collate latin1_bin and _latin1'c';
 select _latin1'B' between _latin1'a' and _latin1'c' collate latin1_bin;
---error 1270
 select _latin2'B' between _latin1'a' and _latin1'b';
---error 1270
 select _latin1'B' between _latin2'a' and _latin1'b';
---error 1270
 select _latin1'B' between _latin1'a' and _latin2'b';
+
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin1'B' between _latin7'a' and _latin1'b';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin1'B' between _latin1'a' and _latin7'b';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin7'B' between _latin1'a' and _latin1'b';
+
 --error 1270
 select _latin1'B' collate latin1_general_ci between _latin1'a' collate latin1_bin and _latin1'b';
 
@@ -370,12 +398,17 @@ select _latin1'B' in (_latin1'a',_latin1'b');
 select _latin1'B' collate latin1_bin in (_latin1'a',_latin1'b');
 select _latin1'B' in (_latin1'a' collate latin1_bin,_latin1'b');
 select _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin);
---error 1270
 select _latin2'B' in (_latin1'a',_latin1'b');
---error 1270
 select _latin1'B' in (_latin2'a',_latin1'b');
---error 1270
 select _latin1'B' in (_latin1'a',_latin2'b');
+
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin1'B' in (_latin1'a',_latin7'b');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin7'B' in (_latin1'a',_latin1'b');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+select _latin1'B' in (_latin7'a',_latin1'b');
+
 --error 1270
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a' COLLATE latin1_bin,_latin1'b');
 --error 1270

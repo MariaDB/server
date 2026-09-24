@@ -297,3 +297,309 @@ select strcmp(_big5'' collate big5_nopad_bin, _big5 0x0001050001) as c1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--echo # Two different explicit COLLATE clauses are still not accepted,
+--echo # whether the character sets are different or the same
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _latin1'a' COLLATE latin1_swedish_ci = _big5'a' COLLATE big5_chinese_ci;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _latin1'a' COLLATE latin1_german1_ci = _latin1'a' COLLATE latin1_swedish_ci;
+
+
+SET NAMES big5 COLLATE big5_chinese_ci;
+--source include/ctype_tailoring_03_mysql_user_Insert_priv_last_error.inc
+
+--echo # Same as above, but using BETWEEN (3-operand aggregation)
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z_' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A_' AND 'Z' LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z+' LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A+' AND 'Z' LIMIT 0;
+
+--echo # Same as above, but using IN() (N-operand aggregation)
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N') LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y_','N') LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N+') LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y+','N') LIMIT 0;
+
+--echo # Same as above, but using STRCMP()
+SELECT STRCMP(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+SELECT STRCMP(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT STRCMP(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+
+--echo # Same as above, but using LOCATE()/POSITION()/INSTR()
+SELECT LOCATE('Y',Insert_priv) FROM mysql.user LIMIT 0;
+SELECT LOCATE('Y_',Insert_priv) FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LOCATE('Y+',Insert_priv) FROM mysql.user LIMIT 0;
+SELECT POSITION('Y' IN Insert_priv) FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT POSITION('Y+' IN Insert_priv) FROM mysql.user LIMIT 0;
+SELECT INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT INSTR(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+
+--echo # Same as above, but using FIELD()
+SELECT FIELD(Insert_priv,'Y','N') FROM mysql.user LIMIT 0;
+SELECT FIELD(Insert_priv,'Y_','N') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(Insert_priv,'Y','N+') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(Insert_priv,'Y+','N') FROM mysql.user LIMIT 0;
+
+--echo # Same as above, but using FIND_IN_SET()
+--echo # (a single-value haystack, so the ',' separator does not
+--echo # itself force a wider repertoire)
+SELECT FIND_IN_SET(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+SELECT FIND_IN_SET(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT FIND_IN_SET(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+
+--echo # Same as above, but using LIKE
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y_' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y+' LIMIT 0;
+
+--echo # Same as above, but using RLIKE
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y' LIMIT 0;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y_' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y+' LIMIT 0;
+
+--echo # Same as above, but using REGEXP_INSTR()
+SELECT REGEXP_INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+SELECT REGEXP_INSTR(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT REGEXP_INSTR(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+
+--echo # Same as above, but using MATCH ... AGAINST().
+--echo # Unlike the other comparison functions above, MATCH ... AGAINST()
+--echo # does not aggregate the AGAINST phrase's collation for the illegal-mix
+--echo # check: Item_func_match::fix_fields() calls
+--echo # agg_arg_charsets_for_comparison() on args+1 (the indexed column(s)
+--echo # only), skipping args[0], which is the AGAINST phrase (key_item()).
+--echo # The phrase is instead silently converted to the column's collation
+--echo # (search_value), so none of the queries below raise an error, even
+--echo # with a _bin column.
+CREATE TABLE t1 (a VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+                 FULLTEXT(a));
+INSERT INTO t1 VALUES ('Y'),('N');
+SET NAMES big5 COLLATE big5_chinese_ci;
+SELECT MATCH(a) AGAINST('Y') FROM t1;
+SELECT MATCH(a) AGAINST('Y_') FROM t1;
+SELECT MATCH(a) AGAINST('Y+') FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_bin,
+                 FULLTEXT(a));
+INSERT INTO t1 VALUES ('Y'),('N');
+SELECT MATCH(a) AGAINST('Y') FROM t1;
+DROP TABLE t1;
+
+--echo # Same as above, but using the simple CASE operator
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+SELECT CASE Insert_priv WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N+' THEN 0 END FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE Insert_priv WHEN 'Y+' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+
+SET NAMES big5 COLLATE big5_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y' LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT REGEXP_INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z' LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N') LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT STRCMP(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LOCATE('Y',Insert_priv) FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(Insert_priv,'Y','N') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT FIND_IN_SET(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+--echo #
+--echo # The same checks using an own view instead of mysql.user.
+--echo # The view has exactly one row, so every query below returns
+--echo # a row, or raises an error.
+--echo #
+
+--source include/ctype_tailoring_view_create.inc
+SET NAMES big5 COLLATE big5_chinese_ci;
+--source include/ctype_tailoring_03_probe_last_error.inc
+
+--echo # Same as above, but using BETWEEN (3-operand aggregation)
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z';
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z_';
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A_' AND 'Z';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z+';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A+' AND 'Z';
+
+--echo # Same as above, but using IN() (N-operand aggregation)
+SELECT c FROM v_tailoring WHERE c IN ('Y','N');
+SELECT c FROM v_tailoring WHERE c NOT IN ('Y_','N');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c IN ('Y','N+');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c NOT IN ('Y+','N');
+
+--echo # Same as above, but using STRCMP()
+SELECT STRCMP(c,'Y') FROM v_tailoring;
+SELECT STRCMP(c,'Y_') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT STRCMP(c,'Y+') FROM v_tailoring;
+
+--echo # Same as above, but using LOCATE()/POSITION()/INSTR()
+SELECT LOCATE('Y',c) FROM v_tailoring;
+SELECT LOCATE('Y_',c) FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LOCATE('Y+',c) FROM v_tailoring;
+SELECT POSITION('Y' IN c) FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT POSITION('Y+' IN c) FROM v_tailoring;
+SELECT INSTR(c,'Y') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT INSTR(c,'Y+') FROM v_tailoring;
+
+--echo # Same as above, but using FIELD()
+SELECT FIELD(c,'Y','N') FROM v_tailoring;
+SELECT FIELD(c,'Y_','N') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(c,'Y','N+') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(c,'Y+','N') FROM v_tailoring;
+
+--echo # Same as above, but using FIND_IN_SET()
+--echo # (a single-value haystack, so the ',' separator does not
+--echo # itself force a wider repertoire)
+SELECT FIND_IN_SET(c,'Y') FROM v_tailoring;
+SELECT FIND_IN_SET(c,'Y_') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT FIND_IN_SET(c,'Y+') FROM v_tailoring;
+
+--echo # Same as above, but using LIKE
+SELECT c FROM v_tailoring WHERE c LIKE 'Y';
+SELECT c FROM v_tailoring WHERE c NOT LIKE 'Y_';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c NOT LIKE 'Y+';
+
+--echo # Same as above, but using RLIKE
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y';
+SELECT c FROM v_tailoring WHERE c NOT RLIKE 'Y_';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y+';
+
+--echo # Same as above, but using REGEXP_INSTR()
+SELECT REGEXP_INSTR(c,'Y') FROM v_tailoring;
+SELECT REGEXP_INSTR(c,'Y_') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT REGEXP_INSTR(c,'Y+') FROM v_tailoring;
+
+--echo # Same as above, but using the simple CASE operator
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+SELECT CASE c WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N+' THEN 0 END FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE c WHEN 'Y+' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+
+SET NAMES big5 COLLATE big5_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c LIKE 'Y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT REGEXP_INSTR(c,'Y') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT c FROM v_tailoring WHERE c IN ('Y','N');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT STRCMP(c,'Y') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LOCATE('Y',c) FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT FIELD(c,'Y','N') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT FIND_IN_SET(c,'Y') FROM v_tailoring;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+--source include/ctype_tailoring_view_drop.inc
+
+--echo # The originally reported scenario: a view is created under latin1
+--echo # and queried under big5. The comparison must return the right rows.
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+CREATE VIEW v1 AS SELECT 'Y' AS c1 UNION SELECT 'N';
+SET NAMES big5 COLLATE big5_chinese_ci;
+SELECT * FROM v1 WHERE c1='y';
+SELECT * FROM v1 WHERE c1='Y';
+SELECT * FROM v1 WHERE 'n'=c1;
+SELECT * FROM v1 WHERE c1='N';
+SELECT * FROM v1 WHERE c1='x';
+SELECT * FROM v1 WHERE c1 IN ('y','n') ORDER BY c1;
+SELECT * FROM v1 WHERE c1 BETWEEN 'm' AND 'z' ORDER BY c1;
+
+--echo # The same view with prepared statement parameters.
+--echo # A parameter with a non-ALNUM value makes the collations incompatible.
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1=? ORDER BY c1';
+SET @y='y', @n='N', @y_plus='Y+';
+EXECUTE stmt USING @y;
+EXECUTE stmt USING @n;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING @y_plus;
+EXECUTE stmt USING 'y';
+EXECUTE stmt USING 'x';
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1 IN (?,?) ORDER BY c1';
+EXECUTE stmt USING 'y', 'n';
+--error ER_CANT_AGGREGATE_3COLLATIONS
+EXECUTE stmt USING 'y', 'Y+';
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'Y+';
+DROP VIEW v1;
+
+--echo # Prepared statement parameters compared to a literal of another charset.
+--echo # A parameter with a non-ALNUM value makes the collations incompatible.
+PREPARE stmt FROM 'SELECT _latin1''Y'' = ? AS r';
+EXECUTE stmt USING @y;
+EXECUTE stmt USING @n;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING @y_plus;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT _latin1''Y+'' = ? AS r';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING 'y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING 'Y+';
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'Y+';
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

@@ -513,3 +513,20 @@ select strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001);
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES gbk COLLATE gbk_chinese_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_03_probe_last_error.inc
+
+SET NAMES gbk COLLATE gbk_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

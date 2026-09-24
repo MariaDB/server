@@ -254,3 +254,26 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES tis620 COLLATE tis620_thai_ci;
+--echo # tis620_thai_ci sorts the underscore before the letters, so it is
+--echo # compatible only on the ALNUM repertoire.
+--source include/ctype_tailoring_view_create.inc
+SELECT c FROM v_tailoring WHERE c='Y';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+
+SET NAMES tis620 COLLATE tis620_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

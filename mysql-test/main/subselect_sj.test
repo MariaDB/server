@@ -2765,7 +2765,13 @@ DROP TABLE t1,t2,t3,t4;
 
 create table t1(a int);
 insert into t1 values(1),(2),(3),(null);
+# latin7_general_ci has anomalies on the ASCII letters
 --error ER_CANT_AGGREGATE_2COLLATIONS
+explain
+select 1 from t1 where _latin7 "a" in (select 'a' from t1);
+# But the ASCII digits are sorted in the same way in all collations
+explain
+select 1 from t1 where _latin7 "1" in (select '1' from t1);
 explain
 select 1 from t1 where _cp932 "1" in (select '1' from t1);
 drop table t1;

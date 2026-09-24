@@ -683,6 +683,18 @@ my_like_range_win1250ch(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+/*
+  cp1250_czech_cs: the minus, the dot and the digits are sorted
+  in the code point order (verified on strings made of them and spaces),
+  even though the letters are sorted by the Czech multi-pass algorithm.
+*/
+static LEX_CSTRING my_tailoring_cp1250_czech_cs(CHARSET_INFO *self,
+                                                my_repertoire_t repertoire)
+{
+  return my_tailoring_by_digit_flags(repertoire, MY_CS_ASCII_MINUS_DOT_DIGITS);
+}
+
+
 static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
 {
   NULL,				/* init */
@@ -700,7 +712,8 @@ static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_cp1250_czech_cs
 };
 
 

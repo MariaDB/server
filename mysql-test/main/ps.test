@@ -4058,6 +4058,10 @@ PREPARE stmt FROM 'SELECT CONCAT(?,?) FROM DUAL';
 EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
 DEALLOCATE PREPARE stmt;
 
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+DEALLOCATE PREPARE stmt;
+
 --echo #
 --echo # Testing disallowed expressions in USING
 --echo #
@@ -4080,7 +4084,11 @@ DROP FUNCTION f1;
 
 PREPARE stmt FROM 'SELECT ?';
 --error ER_CANT_AGGREGATE_2COLLATIONS
-EXECUTE stmt USING _latin1'a'=_latin2'a';
+EXECUTE stmt USING CONCAT(_latin1'a',_latin2'a');
+# latin7_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING _latin1'a'=_latin7'a';
+
 DEALLOCATE PREPARE stmt;
 
 PREPARE stmt FROM 'SELECT ?';
@@ -4206,6 +4214,8 @@ SET @a=10;
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING @a;
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
 
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+
 
 --echo #
 --echo # Erroneous queries
@@ -4233,7 +4243,11 @@ EXECUTE IMMEDIATE 'EXECUTE stmt';
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
-EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(_latin1'a',_latin2'a');
+
+# latin7_general_ci has anomalies on the ASCII range
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin7'a';
 
 --error ER_OPERAND_COLUMNS
 EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);
@@ -5634,5 +5648,52 @@ delete from t1 where a=1 or b=2;
 drop table t1, t2;
 
 --echo # End of 11.7 tests
+
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo # Parameters of prepared statements
+--echo #
+
+SET NAMES latin2 COLLATE latin2_general_ci;
+PREPARE stmt FROM 'SELECT _latin1''Y'' = ? AS r';
+SET @y='y', @n='N', @y_plus='Y+';
+EXECUTE stmt USING @y;
+EXECUTE stmt USING @n;
+EXECUTE stmt USING @y_plus;
+EXECUTE stmt USING 'y';
+EXECUTE stmt USING 'Y+';
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT _latin1''Y+'' = ? AS r';
+EXECUTE stmt USING 'y';
+EXECUTE stmt USING 'Y+';
+DEALLOCATE PREPARE stmt;
+
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'y';
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'Y+';
+
+--echo # Parameters compared to a view column created under another charset
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+CREATE VIEW v1 AS SELECT 'Y' AS c1 UNION SELECT 'N';
+SET NAMES latin2 COLLATE latin2_general_ci;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1=? ORDER BY c1';
+EXECUTE stmt USING @y;
+EXECUTE stmt USING @n;
+EXECUTE stmt USING @y_plus;
+EXECUTE stmt USING 'y';
+EXECUTE stmt USING 'x';
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1 IN (?,?) ORDER BY c1';
+EXECUTE stmt USING 'y', 'n';
+EXECUTE stmt USING 'y', 'Y+';
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'y';
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'Y+';
+DROP VIEW v1;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests
 
 --source include/test_db_charset_restore.inc

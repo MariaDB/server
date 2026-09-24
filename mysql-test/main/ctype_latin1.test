@@ -579,3 +579,32 @@ DROP TABLE t1, t2;
 SET @@sql_mode= @old_mode;
 
 --echo # End of 10.11 tests
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES latin1 COLLATE latin1_danish_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES latin1 COLLATE latin1_general_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES latin1 COLLATE latin1_german1_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES latin1 COLLATE latin1_spanish_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES latin1 COLLATE latin1_bin;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

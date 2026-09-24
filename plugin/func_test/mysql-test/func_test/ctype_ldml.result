@@ -1,0 +1,187 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+#
+# Collations loaded at runtime from Index.xml.
+# - 8bit collations get their tailoring flags detected from the
+#   collation weights (my_8bit_collation_flags_from_data())
+# - Unicode collations get theirs from the LDML rules (whether they
+#   reorder the ASCII range).
+#
+SELECT full_collation_name AS name,
+collation_tailoring(full_collation_name, 'ascii_digits') AS digits,
+collation_tailoring(full_collation_name, 'ascii_minus_dot_digits') AS minus_dot_digits,
+collation_tailoring(full_collation_name, 'ascii_alnum') AS alnum,
+collation_tailoring(full_collation_name, 'ascii_ident') AS ident,
+collation_tailoring(full_collation_name, 'ascii') AS ascii,
+'---' AS `---`
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE full_collation_name IN
+('ascii2_general_ci', 'ascii2_bin', 'ascii2_general_nopad_ci',
+'ascii2_nopad_bin', 'ascii2_general_inherited_ci',
+'latin1_test', 'latin1_test2', 'latin1_test2_cs',
+'latin1_swedish_nopad2_ci', 'latin1_space_after_letters_ci',
+'utf8mb3_test_ci', 'utf8mb3_phone_ci', 'utf8mb3_5624_1',
+'utf8mb3_implicit_weights_ci',
+'utf8mb4_test_ci', 'utf8mb4_test_520_nopad_ci',
+'utf8mb4_uca1400_test01_as_ci',
+'ucs2_test_ci', 'ucs2_vn_ci', 'utf16_test_ci', 'utf32_test_ci')
+ORDER BY full_collation_name;
+name	ascii2_bin
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	[digit7]<[upper7]<[lower7]
+ident	[digit7]<[upper7]<_<[lower7]
+ascii	ascii7_bin
+---	---
+name	ascii2_general_ci
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	[digit7]<[letter7_ci]<_
+ascii	ascii7_caseup_ci
+---	---
+name	ascii2_general_inherited_ci
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	[digit7]<[letter7_ci]<_
+ascii	ascii7_caseup_ci
+---	---
+name	ascii2_general_nopad_ci
+digits	[nopad][digit7]
+minus_dot_digits	[nopad]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad][digit7]<[letter7_ci]<_
+ascii	[nopad]ascii7_caseup_ci
+---	---
+name	ascii2_nopad_bin
+digits	[nopad][digit7]
+minus_dot_digits	[nopad]-<.<[digit7]
+alnum	[nopad][digit7]<[upper7]<[lower7]
+ident	[nopad][digit7]<[upper7]<_<[lower7]
+ascii	[nopad]ascii7_bin
+---	---
+name	latin1_space_after_letters_ci
+digits	NULL
+minus_dot_digits	NULL
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	latin1_swedish_nopad2_ci
+digits	[nopad][digit7]
+minus_dot_digits	[nopad]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad][digit7]<[letter7_ci]<_
+ascii	[nopad]ascii7_caseup_ci
+---	---
+name	latin1_test
+digits	[digit7]
+minus_dot_digits	NULL
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	latin1_test2
+digits	[digit7]
+minus_dot_digits	NULL
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	latin1_test2_cs
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	ucs2_test_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	ucs2_vn_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_test_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf32_test_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb3_5624_1
+digits	NULL
+minus_dot_digits	NULL
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb3_implicit_weights_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb3_phone_ci
+digits	[digit7]
+minus_dot_digits	NULL
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb3_test_ci
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb4_test_520_nopad_ci
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 5.2.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 5.2.0]ascii7_uca_ci
+---	---
+name	utf8mb4_test_ci
+digits	[digit7]
+minus_dot_digits	[version 5.2.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf8mb4_uca1400_test01_as_ci
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+#
+# latin1_space_after_letters_ci is a PAD collation where the space
+# sorts after the letters, so "ab" is greater than "abc". It must not
+# have a tailoring on ALNUM and IDENT, otherwise it would be considered
+# compatible with collations where the space sorts before the letters.
+#
+SELECT 'ab' COLLATE latin1_swedish_ci < 'abc' AS swedish,
+'ab' COLLATE latin1_space_after_letters_ci < 'abc' AS space_after;
+swedish	space_after
+1	0
+# End of 11.8 tests

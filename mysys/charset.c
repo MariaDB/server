@@ -460,6 +460,7 @@ static int add_collation(struct charset_info_st *cs)
         newcs->coll_name.length= cs->coll_name.length;
       }
     }
+    DBUG_ASSERT(!newcs->coll || newcs->coll->tailoring);
     cs->number= 0;
     cs->primary_number= 0;
     cs->binary_number= 0;
@@ -600,6 +601,7 @@ CHARSET_INFO *default_charset_info = &my_charset_latin1;
 int add_compiled_collation(struct charset_info_st *cs)
 {
   DBUG_ASSERT(cs->number < array_elements(all_charsets));
+  DBUG_ASSERT(cs->coll->tailoring);
   all_charsets[cs->number]= cs;
   cs->state|= MY_CS_AVAILABLE;
   if ((my_hash_insert(&charset_name_hash, (uchar*) cs)))
@@ -629,6 +631,7 @@ int add_compiled_collation(struct charset_info_st *cs)
 void add_compiled_extra_collation(struct charset_info_st *cs)
 {
   DBUG_ASSERT(cs->number < array_elements(all_charsets));
+  DBUG_ASSERT(cs->coll->tailoring);
   all_charsets[cs->number]= cs;
   cs->state|= MY_CS_AVAILABLE;
   if ((my_hash_insert(&charset_name_hash, (uchar*) cs)))

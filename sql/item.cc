@@ -2453,14 +2453,122 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
           left->collation->mbminlen == right->collation->mbminlen)))))
     return TRUE;
   /* Allow convert from ASCII */
-  if (right->repertoire == MY_REPERTOIRE_ASCII &&
+  if (right->repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
       (left->derivation < right->derivation ||
        (left->derivation == right->derivation &&
-        !(left->repertoire == MY_REPERTOIRE_ASCII))))
+        !left->repertoire_is_subset_of(MY_REPERTOIRE_ASCII))))
     return TRUE;
   /* Disallow conversion otherwise */
   return FALSE;
 }
+
+
+/*
+  Choose an algorithmically simpler collation for use in
+  collation aggregation.
+*/
+static bool
+left_is_algorithmically_simpler(const DTCollation &left,
+                                const DTCollation &right)
+{
+  /*
+    If only left is a character set which cannot store all ASCII characters
+    (e.g. swe7, see CHARSET_INFO::is_ascii_superset()),
+    then choose the other side even if the other side is multi-byte.
+    Rationale:
+    The constructor Item_func_conv_charset sets Item_func_conv_charset::safe
+    to false if conversion is done to such a character set,
+    even on ALNUM and IDENT repertoires.
+    So choosing such a side would raise "Illegal mix of collations".
+  */
+  const bool left_ascii_superset= left.collation->is_ascii_superset();
+  const bool right_ascii_superset= right.collation->is_ascii_superset();
+  if (left_ascii_superset != right_ascii_superset)
+    return left_ascii_superset;
+  /*
+    - Between a single byte character set and a multibyte character set
+      choose the single byte one
+    - Between a simple collation (one-to-one mapping) and
+      a complex collation (with contractions and expansions) choose
+      the simple one
+  */
+  if (left.collation->mbmaxlen != right.collation->mbmaxlen)
+    return left.collation->mbmaxlen < right.collation->mbmaxlen;
+  return left.collation->strxfrm_multiply < right.collation->strxfrm_multiply;
+}
+
+
+/*
+  Handle a special case:
+  if both collations have equal collation rules (tailoring) on
+  the cumulative repertoire of all aggregated arguments
+  (e.g. MY_REPERTOIRE_ASCII_{ALNUM|IDENT|ASCII}),
+  then it does not matter which side collation to use for comparison -
+  the result will be equal.
+  Note, the repertoires of the two sides are not compared with each other:
+  both tailorings are requested on the same cumulative_repertoire.
+  Examples:
+    SELECT _latin1'a' = _latin2'a';
+
+  @param dt                     the collation to aggregate with
+  @param flags                  MY_COLL_XXX flags;
+                                MY_COLL_ALLOW_BY_TAILORING must be set,
+                                otherwise this method does nothing
+  @param cumulative_repertoire  the OR-ed repertoires of all arguments
+                                being aggregated
+
+  @retval false  The collations are compatible on cumulative_repertoire.
+                 Either "this" or "dt" was chosen (see
+                 left_is_algorithmically_simpler()). Only the collation
+                 and the derivation are set, the repertoire is not changed:
+                 the caller merges the repertoires of both sides.
+  @retval true   The special case is not applicable, "this" is not changed.
+                 Note, the return value is inverted: true means failure.
+*/
+bool DTCollation::aggregate_by_tailoring(const DTCollation &dt, uint flags,
+                                         my_repertoire_t cumulative_repertoire)
+{
+  // Collation equality should have been handled earlier in the caller
+  DBUG_ASSERT(collation != dt.collation);
+  if ((flags & MY_COLL_ALLOW_BY_TAILORING) &&
+     /*
+       Explicit COLLATE clause with different collations
+       on both sides is an error in the SQL standard.
+       A side with DERIVATION_NONE is an earlier unresolved conflict
+       which can only be resolved by an explicit COLLATE clause.
+     */
+      derivation != DERIVATION_EXPLICIT &&
+      dt.derivation != DERIVATION_EXPLICIT &&
+      derivation != DERIVATION_NONE &&
+      dt.derivation != DERIVATION_NONE &&
+      my_collations_equal_on_repertoire(collation, dt.collation,
+                                        cumulative_repertoire))
+  {
+    /*
+      Collations are compatible on the given repertoire.
+      It does not matter which side to choose for comparison, both will work
+      and produce the same comparison result. Let's try to choose
+      the algorithmically simplest one, to be more deterministic.
+    */
+    /*
+      Do not use set(dt) here: it would also replace the repertoire.
+      The repertoire is not changed here, the caller
+      merges the repertoires of both sides in the common ending
+      of DTCollation::aggregate().
+      If "this" is chosen (i.e. the left side in case of a comparison
+      operator), then nothing needs to be done.
+    */
+    if (left_is_algorithmically_simpler(dt, *this))
+    {
+      // dt is simpler
+      collation= dt.collation;
+      derivation= dt.derivation;
+    }
+    return false;
+  }
+  return true;
+}
+
 
 /**
   Aggregate two collations together taking
@@ -2479,6 +2587,11 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
   Currently processed flags are:
   MY_COLL_ALLOW_SUPERSET_CONV  - allow conversion to a superset
   MY_COLL_ALLOW_COERCIBLE_CONV - allow conversion of a coercible value
+  MY_COLL_ALLOW_BY_TAILORING   - if none of the above chose a winner,
+  allow choosing either side's collation without conversion when both
+  collations have equal comparison rules (tailoring) on the
+  cumulative_repertoire, see aggregate_by_tailoring().
+  Only comparison operators pass this flag.
   - two EXPLICIT collations produce an error, e.g. this is wrong:
   CONCAT(expr1 collate latin1_swedish_ci, expr2 collate latin1_german_ci)
   - the side with smaller derivation value wins,
@@ -2493,10 +2606,27 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
               latin1_german1_ci_column,
               expr COLLATE latin1_german2_ci)
   @endcode
+
+  @param dt                     the collation to aggregate with
+  @param flags                  MY_COLL_XXX flags, see above
+  @param cumulative_repertoire  the OR-ed repertoires of all arguments
+                                being aggregated (not only of the two
+                                collations aggregated at this step).
+                                It is used to compare tailorings
+                                if MY_COLL_ALLOW_BY_TAILORING is set.
+
+  @return false on success, true if the collations cannot be aggregated
 */
 
-bool DTCollation::aggregate(const DTCollation &dt, uint flags)
+bool DTCollation::aggregate(const DTCollation &dt, uint flags,
+                            my_repertoire_t cumulative_repertoire)
 {
+  /*
+    set(dt) replaces the repertoire of "this" with the repertoire of dt.
+    The repertoire of the result must include the repertoires of both sides,
+    otherwise it can be too narrow for the following aggregation steps.
+  */
+  const my_repertoire_t merged_repertoire= repertoire | dt.repertoire;
   if (!my_charset_same(collation, dt.collation))
   {
     /* 
@@ -2545,6 +2675,20 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
     {
       set(dt);
     }
+    /*
+     Here we have:
+      - Different character sets
+      - None of the sides is BINARY/VARBINARY/BLOB
+      - Super-set + derivation based aggregation did not find the winner
+      - Coercible-conversion (derivation) aggregation did not find the winner
+    */
+    else if (!aggregate_by_tailoring(dt, flags, cumulative_repertoire))
+    {
+      /*
+        Both sides have equal tailoring on the OR-ed repertoires.
+        The repertoires are merged in the common ending of this function.
+      */
+    }
     else
     {
       // Cannot apply conversion
@@ -2578,21 +2722,44 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
           dt.collation->state & MY_CS_BINSORT)
         return 1;
       if (collation->state & MY_CS_BINSORT)
+      {
+        repertoire= merged_repertoire;
         return 0;
+      }
       if (dt.collation->state & MY_CS_BINSORT)
       {
         set(dt);
+        repertoire= merged_repertoire;
         return 0;
       }
-      THD *thd = current_thd;
-      myf utf8_flag= thd ? thd->get_utf8_flag()
-        : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
-      CHARSET_INFO *bin= get_charset_by_csname(collation->cs_name.str,
-                                               MY_CS_BINSORT,MYF(utf8_flag));
-      set(bin, DERIVATION_NONE);
+      /*
+        Here we have:
+        - Equal character sets
+        - Equal non-explicit collation derivation
+        - Different collations, both non-binary
+      */
+      /*
+        If both sides have equal tailoring on the OR-ed repertoires,
+        then aggregate_by_tailoring() chooses the collation, and the
+        repertoires are merged in the common ending of this function.
+      */
+      if (aggregate_by_tailoring(dt, flags, cumulative_repertoire))
+      {
+        /*
+          Postpone the decision to the upper level which may have
+          an explicit COLLATE clause. Set the collation to the binary
+          collation of this character set with DERIVATION_NONE.
+        */
+        THD *thd = current_thd;
+        myf utf8_flag= thd ? thd->get_utf8_flag()
+          : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
+        CHARSET_INFO *bin= get_charset_by_csname(collation->cs_name.str,
+                                                 MY_CS_BINSORT,MYF(utf8_flag));
+        set(bin, DERIVATION_NONE);
+      }
     }
   }
-  repertoire|= dt.repertoire;
+  repertoire= merged_repertoire;
   return 0;
 }
 
@@ -2642,11 +2809,14 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c,
   uint i;
   Item **arg;
   bool unknown_cs= 0;
+  my_repertoire_t cumulative_repertoire= av[0]->collation.repertoire;
+  for (i= 1, arg= &av[item_sep]; i < count; i++, arg+= item_sep)
+    cumulative_repertoire|= arg[0]->collation.repertoire;
 
   c.set(av[0]->collation);
   for (i= 1, arg= &av[item_sep]; i < count; i++, arg+= item_sep)
   {
-    if (c.aggregate((*arg)->collation, flags))
+    if (c.aggregate((*arg)->collation, flags, cumulative_repertoire))
     {
       if (c.derivation == DERIVATION_NONE &&
           c.collation == &my_charset_bin)
@@ -7399,7 +7569,7 @@ Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
   set_name(thd, &str_value);
-  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  if (collation.repertoire_is_subset_of(MY_REPERTOIRE_ASCII))
   {
     // If the string has been pure ASCII so far, check the new part.
     CHARSET_INFO *cs= thd->variables.collation_connection;
@@ -7421,7 +7591,7 @@ Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
 {
   Item_literal *res;
   const Type_handler *h;
-  if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+  if (collation.repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
       str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4 &&
       (h= Type_handler::odbc_literal_type_handler(typestr)) &&
       (res= h->create_literal_item(thd, val_str(NULL), false)))

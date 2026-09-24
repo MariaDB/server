@@ -3000,17 +3000,25 @@ public:
                                  @@character_set_connection
   MY_COLL_DISALLOW_NONE        - don't allow return DERIVATION_NONE
                                  (e.g. when aggregating for comparison)
+  MY_COLL_ALLOW_BY_TAILORING   - allow choosing either side's collation
+                                 without conversion, when both collations
+                                 have an equal tailoring on the repertoire
+                                 of the aggregated arguments (see
+                                 DTCollation::aggregate_by_tailoring())
   MY_COLL_CMP_CONV             - combination of MY_COLL_ALLOW_CONV
                                  and MY_COLL_DISALLOW_NONE
+                                 and MY_COLL_ALLOW_BY_TAILORING
 */
 
 #define MY_COLL_ALLOW_SUPERSET_CONV   1
 #define MY_COLL_ALLOW_COERCIBLE_CONV  2
 #define MY_COLL_DISALLOW_NONE         4
 #define MY_COLL_ALLOW_NUMERIC_CONV    8
+#define MY_COLL_ALLOW_BY_TAILORING   16
 
 #define MY_COLL_ALLOW_CONV (MY_COLL_ALLOW_SUPERSET_CONV | MY_COLL_ALLOW_COERCIBLE_CONV)
-#define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE)
+#define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE | \
+                            MY_COLL_ALLOW_BY_TAILORING)
 
 
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
@@ -3083,6 +3091,9 @@ enum Derivation
 */
 
 class DTCollation {
+
+  bool aggregate_by_tailoring(const DTCollation &dt, uint flags,
+                              my_repertoire_t cumulative_repertoire);
 public:
   CHARSET_INFO     *collation;
   enum Derivation derivation;
@@ -3093,6 +3104,39 @@ public:
     repertoire= cs->state & MY_CS_PUREASCII ?
                 MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
   }
+
+  /*
+    Case conversion (e.g. LOWER, UPPER) turns ASCII upper case letters
+    into lower case ones and vice versa, so the result can contain letters
+    of both cases if the argument contained letters of any case.
+    In Turkish collations, ASCII letters can also be converted to non-ASCII
+    ones: LOWER('I') returns the dotless 'i' (U+0131) and UPPER('i') returns
+    the dotted 'I' (U+0130).
+  */
+  void fix_repertoire_for_case_conversion()
+  {
+    if (repertoire & MY_REPERTOIRE_ASCII_LETTERS)
+    {
+      repertoire|= MY_REPERTOIRE_ASCII_LETTERS;
+      if ((collation->casefold &&
+           collation->casefold->can_convert_to_non_ascii_on_casefolding) ||
+          (collation->to_lower && collation->to_lower['I'] != 'i') ||
+          (collation->to_upper && collation->to_upper['i'] != 'I'))
+        repertoire|= MY_REPERTOIRE_EXTENDED;
+    }
+  }
+
+  /*
+    Check if all characters of this repertoire belong to the given repertoire,
+    e.g. repertoire_is_subset_of(MY_REPERTOIRE_ASCII) means "only ASCII".
+    Note, do not use "repertoire == MY_REPERTOIRE_ASCII" for this purpose,
+    as repertoire values are sets of bits.
+  */
+  bool repertoire_is_subset_of(my_repertoire_t repertoire_arg) const
+  {
+    return my_repertoire_is_subset_of(repertoire, repertoire_arg);
+  }
+
   DTCollation()
   {
     collation= &my_charset_bin;
@@ -3158,9 +3202,13 @@ public:
   }
   void set(Derivation derivation_arg)
   { derivation= derivation_arg; }
-  bool aggregate(const DTCollation &dt, uint flags= 0);
-  bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
-  { set(dt1); return aggregate(dt2, flags); }
+  bool aggregate(const DTCollation &dt, uint flags,
+                 my_repertoire_t cumulative_repertoire);
+  bool set(DTCollation &dt1, DTCollation &dt2, uint flags)
+  {
+    set(dt1);
+    return aggregate(dt2, flags, dt1.repertoire | dt2.repertoire);
+  }
   bool merge_charset_and_collation(Sql_used *used,
                                    const Charset_collation_map_st &map,
                                    CHARSET_INFO *cs,
@@ -3462,7 +3510,8 @@ public:
   {
     uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
                 MY_COLL_ALLOW_COERCIBLE_CONV |
-                MY_COLL_DISALLOW_NONE;
+                MY_COLL_DISALLOW_NONE |
+                MY_COLL_ALLOW_BY_TAILORING;
     return agg_arg_charsets(c, func_name, items, nitems, flags, item_sep);
   }
 

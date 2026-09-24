@@ -91,6 +91,23 @@ public:
     return *this;
   }
 
+  // Append an unsigned 8-bit number, in decimal, without leading zeros
+  CharBuffer<buff_sz> & append_uint8(uint8 nr)
+  {
+    DBUG_ASSERT(is_sane());
+    if (available_size() >= 3) // The maximum number is "255"
+    {
+      if (nr >= 100)
+        m_buff[m_length++]= (char) ('0' + nr / 100);
+      if (nr >= 10)
+        m_buff[m_length++]= (char) ('0' + (nr / 10) % 10);
+      m_buff[m_length++]= (char) ('0' + nr % 10);
+      m_buff[m_length]= '\0';
+    }
+    DBUG_ASSERT(is_sane());
+    return *this;
+  }
+
   // Append one character
   CharBuffer<buff_sz> & append_char(char ch)
   {

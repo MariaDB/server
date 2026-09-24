@@ -3779,3 +3779,57 @@ DROP TABLE t1;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES DEFAULT;
+#
+# MDEV-41246 LOWER() and UPPER() can convert ASCII letters to
+# non-ASCII ones in Turkish collations (I -> dotless i, i -> dotted I),
+# which is not the case in non-Turkish collations
+#
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci;
+SELECT HEX(LOWER('I')), LOWER('I') = _latin1'i';
+HEX(LOWER('I'))	LOWER('I') = _latin1'i'
+C4B1	0
+SELECT HEX(UPPER('i')), UPPER('i') = _latin1'I';
+HEX(UPPER('i'))	UPPER('i') = _latin1'I'
+C4B0	0
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+SELECT HEX(LOWER('I')), LOWER('I') = _latin1'i';
+HEX(LOWER('I'))	LOWER('I') = _latin1'i'
+69	1
+SET NAMES DEFAULT;
+# End of 11.8 tests

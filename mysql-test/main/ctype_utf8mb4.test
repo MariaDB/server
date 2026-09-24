@@ -2205,3 +2205,31 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo #
+--echo # MDEV-41246 LOWER() and UPPER() can convert ASCII letters to
+--echo # non-ASCII ones in Turkish collations (I -> dotless i, i -> dotted I),
+--echo # which is not the case in non-Turkish collations
+--echo #
+SET NAMES utf8mb4 COLLATE utf8mb4_turkish_ci;
+SELECT HEX(LOWER('I')), LOWER('I') = _latin1'i';
+SELECT HEX(UPPER('i')), UPPER('i') = _latin1'I';
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+SELECT HEX(LOWER('I')), LOWER('I') = _latin1'i';
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

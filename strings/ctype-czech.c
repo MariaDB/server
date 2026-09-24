@@ -592,6 +592,19 @@ static MY_UNI_IDX idx_uni_8859_2[]={
 };
 
 
+/*
+  latin2_czech_cs: the digits are sorted regularly (verified on strings
+  of digits and spaces). The minus and the dot are not, they are sorted
+  by the Czech multi-pass algorithm differently from the code point order,
+  so only the DIGITS repertoire is declared.
+*/
+static LEX_CSTRING my_tailoring_latin2_czech_cs(CHARSET_INFO *self,
+                                                my_repertoire_t repertoire)
+{
+  return my_tailoring_by_digit_flags(repertoire, MY_CS_DIGITS_STD);
+}
+
+
 static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
 {
   NULL,			/* init */
@@ -609,7 +622,8 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   my_max_str_8bit_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_latin2_czech_cs
 };
 
 struct charset_info_st my_charset_latin2_czech_cs =

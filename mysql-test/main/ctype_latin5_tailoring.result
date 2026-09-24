@@ -1,0 +1,1255 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+#
+# ASCII digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+latin5_bin                      	latin5_bin                      	0	0	000 cl1 = cl2
+latin5_nopad_bin                	latin5_nopad_bin                	0	0	000 cl1 = cl2
+latin5_turkish_ci               	latin5_turkish_ci               	0	0	000 cl1 = cl2
+latin5_turkish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	000 cl1 = cl2
+latin5_bin                      	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_bin                      	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_turkish_ci               	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_ci               	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	latin5_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_ci               	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+latin5_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+latin5_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin1_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin1_nopad_bin                	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	latin5_bin                      	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	hp8_english_ci                  	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_general_cs               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_german1_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_swedish_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	hp8_english_ci                  	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_bin                      	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_general_cs               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_german1_ci               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_swedish_ci               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin5_turkish_ci               	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	latin5_bin                      	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	latin5_turkish_ci               	1	1	030 nopad vs pad
+hp8_english_ci                  	latin5_nopad_bin                	1	1	030 pad vs nopad
+hp8_english_ci                  	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_bin                      	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_general_cs               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_general_cs               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_german1_ci               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_german1_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_swedish_ci               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_swedish_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin5_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+latin5_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin5_turkish_ci               	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	latin5_bin                      	0	0	100 equal tailoring
+hp8_english_ci                  	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_bin                      	latin5_bin                      	0	0	100 equal tailoring
+latin1_bin                      	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_general_cs               	latin5_bin                      	0	0	100 equal tailoring
+latin1_general_cs               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_german1_ci               	latin5_bin                      	0	0	100 equal tailoring
+latin1_german1_ci               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_nopad_bin                	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+latin1_swedish_ci               	latin5_bin                      	0	0	100 equal tailoring
+latin1_swedish_ci               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+latin5_bin                      	hp8_english_ci                  	0	0	100 equal tailoring
+latin5_bin                      	latin1_bin                      	0	0	100 equal tailoring
+latin5_bin                      	latin1_general_cs               	0	0	100 equal tailoring
+latin5_bin                      	latin1_german1_ci               	0	0	100 equal tailoring
+latin5_bin                      	latin1_swedish_ci               	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_nopad_bin                  	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+latin5_turkish_ci               	hp8_english_ci                  	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_bin                      	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_general_cs               	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_german1_ci               	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_swedish_ci               	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_nopad_bin                	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+#
+# ASCII minus, dot and digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+latin5_bin                      	latin5_bin                      	0	0	000 cl1 = cl2
+latin5_nopad_bin                	latin5_nopad_bin                	0	0	000 cl1 = cl2
+latin5_turkish_ci               	latin5_turkish_ci               	0	0	000 cl1 = cl2
+latin5_turkish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	000 cl1 = cl2
+latin5_bin                      	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_bin                      	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_turkish_ci               	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_ci               	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	latin5_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_ci               	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+latin5_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+latin5_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin1_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin1_nopad_bin                	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	latin5_bin                      	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	hp8_english_ci                  	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_general_cs               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_german1_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_swedish_ci               	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	hp8_english_ci                  	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_bin                      	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_general_cs               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_german1_ci               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin1_swedish_ci               	1	1	030 nopad vs pad
+latin5_turkish_nopad_ci         	latin5_turkish_ci               	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	latin5_bin                      	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	latin5_turkish_ci               	1	1	030 nopad vs pad
+hp8_english_ci                  	latin5_nopad_bin                	1	1	030 pad vs nopad
+hp8_english_ci                  	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_bin                      	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_general_cs               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_general_cs               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_german1_ci               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_german1_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin1_swedish_ci               	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin1_swedish_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin5_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+latin5_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+latin5_turkish_ci               	latin5_turkish_nopad_ci         	1	1	030 pad vs nopad
+latin5_turkish_ci               	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	latin5_bin                      	0	0	100 equal tailoring
+hp8_english_ci                  	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_bin                      	latin5_bin                      	0	0	100 equal tailoring
+latin1_bin                      	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_general_cs               	latin5_bin                      	0	0	100 equal tailoring
+latin1_general_cs               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_german1_ci               	latin5_bin                      	0	0	100 equal tailoring
+latin1_german1_ci               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_nopad_bin                	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+latin1_swedish_ci               	latin5_bin                      	0	0	100 equal tailoring
+latin1_swedish_ci               	latin5_turkish_ci               	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+latin5_bin                      	hp8_english_ci                  	0	0	100 equal tailoring
+latin5_bin                      	latin1_bin                      	0	0	100 equal tailoring
+latin5_bin                      	latin1_general_cs               	0	0	100 equal tailoring
+latin5_bin                      	latin1_german1_ci               	0	0	100 equal tailoring
+latin5_bin                      	latin1_swedish_ci               	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_nopad_bin                  	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+latin5_turkish_ci               	hp8_english_ci                  	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_bin                      	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_general_cs               	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_german1_ci               	0	0	100 equal tailoring
+latin5_turkish_ci               	latin1_swedish_ci               	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	0	0	100 equal tailoring
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_nopad_bin                	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	0	0	100 equal tailoring
+#
+# ALNUM repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+latin5_bin                      	latin5_bin                      	0	0	000 cl1 = cl2
+latin5_nopad_bin                	latin5_nopad_bin                	0	0	000 cl1 = cl2
+latin5_turkish_ci               	latin5_turkish_ci               	0	0	000 cl1 = cl2
+latin5_turkish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	000 cl1 = cl2
+latin5_bin                      	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_bin                      	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_turkish_ci               	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_ci               	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	latin5_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_ci               	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+latin5_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+latin5_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+hp8_english_ci                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+hp8_english_ci                  	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	hp8_english_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	swe7_swedish_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	hp8_english_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_swedish_nopad_ci           	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_bin                      	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_bin                      	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+latin5_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	latin5_bin                      	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	latin5_bin                      	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_general_cs               	latin5_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	latin5_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	latin5_bin                      	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_nopad_bin                	0	0	100 equal tailoring
+latin5_bin                      	latin1_bin                      	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_nopad_bin                  	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_nopad_bin                	0	0	100 equal tailoring
+#
+# IDENT repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+latin5_bin                      	latin5_bin                      	0	0	000 cl1 = cl2
+latin5_nopad_bin                	latin5_nopad_bin                	0	0	000 cl1 = cl2
+latin5_turkish_ci               	latin5_turkish_ci               	0	0	000 cl1 = cl2
+latin5_turkish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	000 cl1 = cl2
+latin5_bin                      	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_bin                      	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_turkish_ci               	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_ci               	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	latin5_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_ci               	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+latin5_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+latin5_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+hp8_english_ci                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+hp8_english_ci                  	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	hp8_english_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	swe7_swedish_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	hp8_english_ci                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_swedish_nopad_ci           	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_bin                      	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_bin                      	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+latin5_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	latin5_bin                      	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	latin5_bin                      	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_general_cs               	latin5_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	latin5_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	latin5_bin                      	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_nopad_bin                	0	0	100 equal tailoring
+latin5_bin                      	latin1_bin                      	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_nopad_bin                  	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_nopad_bin                	0	0	100 equal tailoring
+#
+# Entire ASCII-7 repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+latin5_bin                      	latin5_bin                      	0	0	000 cl1 = cl2
+latin5_nopad_bin                	latin5_nopad_bin                	0	0	000 cl1 = cl2
+latin5_turkish_ci               	latin5_turkish_ci               	0	0	000 cl1 = cl2
+latin5_turkish_nopad_ci         	latin5_turkish_nopad_ci         	0	0	000 cl1 = cl2
+latin5_bin                      	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_bin                      	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_ci               	0	0	002 LEFT sameCS_bin
+latin5_nopad_bin                	latin5_turkish_nopad_ci         	0	0	002 LEFT sameCS_bin
+latin5_turkish_ci               	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_ci               	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_bin                      	0	0	002 RIGHT sameCS_bin
+latin5_turkish_nopad_ci         	latin5_nopad_bin                	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	latin5_bin                      	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_nopad_bin                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_ci               	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_bin                     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_bin                      	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_nopad_bin                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_ci               	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	003 LEFT superset
+latin5_bin                      	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_bin                      	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_nopad_bin                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_ci               	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_bin                     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_bin                     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_bin                      	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_nopad_bin                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_ci               	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	latin5_turkish_nopad_ci         	0	0	004 LEFT superset
+latin5_bin                      	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_bin                      	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_nopad_bin                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_ci               	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_bin                     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+latin5_turkish_nopad_ci         	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+hp8_english_ci                  	latin5_bin                      	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+hp8_english_ci                  	latin5_nopad_bin                	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+hp8_english_ci                  	latin5_turkish_ci               	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+hp8_english_ci                  	latin5_turkish_nopad_ci         	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+latin5_bin                      	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+latin5_nopad_bin                	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+latin5_turkish_ci               	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+latin5_turkish_nopad_ci         	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+latin1_bin                      	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_general_cs               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_german1_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_bin                      	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_general_cs               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_german1_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_bin                      	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+latin5_turkish_ci               	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	latin5_bin                      	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	latin5_turkish_ci               	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+latin5_bin                      	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+latin5_bin                      	latin1_general_cs               	1	1	030 diffCS bin vs cs
+latin5_nopad_bin                	latin1_general_cs               	1	1	030 diffCS bin vs cs
+latin1_german1_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_bin                      	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	1	1	030 diffCS ci vs bin
+latin1_general_cs               	latin5_bin                      	1	1	030 diffCS cs vs bin
+latin1_general_cs               	latin5_nopad_bin                	1	1	030 diffCS cs vs bin
+latin1_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin1_bin                      	1	1	030 nopad vs pad
+latin5_nopad_bin                	latin5_bin                      	1	1	030 nopad vs pad
+swe7_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin1_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	latin5_nopad_bin                	1	1	030 pad vs nopad
+latin5_bin                      	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	latin5_bin                      	0	0	100 equal tailoring
+latin1_nopad_bin                	latin5_nopad_bin                	0	0	100 equal tailoring
+latin5_bin                      	latin1_bin                      	0	0	100 equal tailoring
+latin5_nopad_bin                	latin1_nopad_bin                	0	0	100 equal tailoring
+latin5_nopad_bin                	swe7_nopad_bin                  	0	0	100 equal tailoring
+swe7_nopad_bin                  	latin5_nopad_bin                	0	0	100 equal tailoring
+#
+# Collation pairs having different results on different repertoires
+#
+cl1	cl2	is_error_all
+hp8_english_ci                  	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+hp8_english_ci                  	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_bin                      	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_german1_ci               	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_german1_ci               	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_nopad_bin                	latin5_turkish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_ci               	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_ci               	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_nopad_ci         	latin5_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_nopad_ci         	latin5_turkish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_nopad_bin                	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_nopad_bin                	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	latin1_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_nopad_ci         	latin1_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_nopad_ci         	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_nopad_ci         	swe7_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_nopad_ci         	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_nopad_bin                  	latin5_turkish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_swedish_nopad_ci           	latin5_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_swedish_nopad_ci           	latin5_turkish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+#
+# DATE_FORMAT() result repertoire depends on the locale
+# which is actually used: the explicit third argument, or
+# @@lc_time_names. Locale names (e.g. of days) can be non-ASCII.
+# latin1 and latin5_turkish_ci are not compatible on ASCII, unless
+# the DATE_FORMAT() result is allowed to be non-ASCII, so its collation
+# can be preferred.
+#
+SET NAMES latin1;
+# en_US names are ASCII
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin5_turkish_ci,COERCIBLE) for operation '='
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin5_turkish_ci,COERCIBLE) for operation '='
+# An explicit non-ASCII locale is not ignored
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin5'a';
+DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin5'a'
+0
+# A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin5'a';
+DATE_FORMAT('2024-01-02','%W',@loc) = _latin5'a'
+0
+# The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+DATE_FORMAT('2024-01-02','%W') = _latin5'a'
+0
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin5_turkish_ci,COERCIBLE) for operation '='
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+# End of 11.8 tests

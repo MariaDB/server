@@ -843,27 +843,53 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 }
 
 
+/*
+  Return a repertoire the given character belongs to.
+*/
+static inline uint my_uint_repertoire_generic(uint ch)
+{
+  if (ch > 0x7F)
+    return MY_REPERTOIRE_EXTENDED;
+  if (ch >= 'A' && ch <= 'Z')
+    return MY_REPERTOIRE_ASCII_LETTERS_UPPER;
+  if (ch >= 'a' && ch <= 'z')
+    return MY_REPERTOIRE_ASCII_LETTERS_LOWER;
+  if (ch >= '0' && ch <= '9')
+    return MY_REPERTOIRE_ASCII_DIGITS;
+  if (ch == '_')
+    return MY_REPERTOIRE_ASCII_UNDERSCORE;
+  if (ch == '.')
+    return MY_REPERTOIRE_ASCII_DOT;
+  if (ch == '-')
+    return MY_REPERTOIRE_ASCII_MINUS;
+  return MY_REPERTOIRE_ASCII_NOT_IDENT;
+}
+
+
 uint
 my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
 {
   const char *strend;
+  uint res= 0;
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
   if (!str) // Avoid UBSAN nullptr-with-offset
-    return MY_REPERTOIRE_ASCII;
+    return MY_REPERTOIRE_NONE;
   for (strend= str + length; str < strend; str++)
   {
-    if (((uchar) *str) > 0x7F)
-      return MY_REPERTOIRE_UNICODE30;
+    uint byte_repertoire= my_uint_repertoire_generic((uchar) *str);
+    res|= byte_repertoire;
+    if (res == MY_REPERTOIRE_UNICODE30)
+      return res;
   }
-  return MY_REPERTOIRE_ASCII;
+  return res;
 }
 
 
 static void
 my_string_metadata_init(MY_STRING_METADATA *metadata)
 {
-  metadata->repertoire= MY_REPERTOIRE_ASCII;
+  metadata->repertoire= MY_REPERTOIRE_NONE;
   metadata->char_length= 0;
 }
 
@@ -885,8 +911,8 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
     int mblen= my_ci_mb_wc(cs, &wc, (const uchar *) str, (const uchar *) strend);
     if (mblen > 0) /* Assigned character */
     {
-      if (wc > 0x7F)
-        metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      uint wc_repertoire= my_uint_repertoire_generic((uint) wc);
+      metadata->repertoire|= wc_repertoire;
       str+= mblen;
     }
     else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
@@ -933,6 +959,7 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
 my_repertoire_t
 my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 {
+  uint res= 0;
   if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
     return my_string_repertoire_8bit(cs, str, length);
@@ -942,15 +969,28 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
     const char *strend= str + length;
     my_wc_t wc;
     int chlen;
-    for (;
-         (chlen= my_ci_mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
-         str+= chlen)
+    uint wc_repertoire;
+    for (; str < strend; str+= chlen)
     {
-      if (wc > 0x7F)
-        return MY_REPERTOIRE_UNICODE30;
+      chlen= my_ci_mb_wc(cs, &wc, (uchar*) str, (uchar*) strend);
+      if (chlen <= 0)
+      {
+        /*
+          A bad byte sequence, an unassigned character,
+          or an incomplete character at the end of the string.
+          Do not stop with the repertoire found so far, which can even be
+          MY_REPERTOIRE_NONE (compatible with everything): the rest of
+          the string is unknown, so it can contain any characters.
+        */
+        return (my_repertoire_t) (res | MY_REPERTOIRE_EXTENDED);
+      }
+      wc_repertoire= my_uint_repertoire_generic((uint) wc);
+      res|= wc_repertoire;
+      if (res == MY_REPERTOIRE_UNICODE30)
+        return res;
     }
   }
-  return MY_REPERTOIRE_ASCII;
+  return res;
 }
 
 
@@ -1432,6 +1472,37 @@ my_bool my_ci_eq_collation_generic(CHARSET_INFO *self, CHARSET_INFO *other)
 
 
 /*
+  A tailoring() handler for collations which cannot be proven compatible
+  with any other collation on any non-empty repertoire.
+  It returns the null tailoring {0,0} for every repertoire except
+  MY_REPERTOIRE_NONE. On the empty repertoire there are no characters
+  to disagree on, so it returns the shared empty-repertoire tailoring.
+*/
+LEX_CSTRING my_tailoring_none(CHARSET_INFO *self,
+                             my_repertoire_t repertoire)
+{
+  const LEX_CSTRING res={0,0};
+  if (repertoire == MY_REPERTOIRE_NONE)
+    return my_tailoring_str_empty;
+  return res;
+}
+
+
+LEX_CSTRING my_tailoring_bin_generic(CHARSET_INFO *self,
+                                     my_repertoire_t repertoire)
+{
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_AZ_az, /* ALNUM */
+    my_tailoring_str_ident_09_AZ_underscore_az, /* IDENT */
+    my_tailoring_str_ascii_bin /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+/*
   Allocate a memory block for a new charset_info_st together with
   its name and its comment in a single once_alloc() call.
   Copy the name and the comment into the new block.
@@ -1460,4 +1531,246 @@ struct charset_info_st *my_ci_alloc(MY_CHARSET_LOADER *loader,
   out_comment->length= comment.length;
 
   return csinfo;
+}
+
+
+/*
+  The empty repertoire (MY_REPERTOIRE_NONE) has no characters to disagree
+  on, so any two collations are trivially compatible on it. Every
+  my_collation_handler_st::tailoring() implementation returns this shared
+  singleton for MY_REPERTOIRE_NONE, regardless of how incompatible
+  the two collations otherwise are.
+*/
+const LEX_CSTRING my_tailoring_str_empty=
+  {STRING_WITH_LEN("")};
+
+
+/*** ASCII digits repertoire ***/
+
+/*
+  Collations with MY_CS_DIGITS_STD, including those which have irregular
+  order of the letters: the digits 0..9 are sorted in the code point order.
+*/
+const LEX_CSTRING my_tailoring_str_digits=
+  {STRING_WITH_LEN("[digit7]")};
+
+
+/*** ASCII minus, dot and digits repertoire ***/
+
+const LEX_CSTRING my_tailoring_str_minus_dot_digits=
+  {STRING_WITH_LEN("-<.<[digit7]")};
+
+
+/*** ALNUM repertoires ***/
+
+/* Most _ci collations - both UCA and non-UCA */
+const LEX_CSTRING my_tailoring_str_alnum_09_AaZz_ci=
+  {STRING_WITH_LEN("[digit7]<[letter7_ci]")};
+
+
+/*
+  Most UCA case sensitive _cs collations:
+  case difference of the third level with lower letter preference
+*/
+const LEX_CSTRING my_tailoring_str_alnum_09_aAzZ3_cs=
+  {STRING_WITH_LEN("[digit7]<[letter7_cs3_LowerFirst]")};
+
+/* Most _bin collations */
+const LEX_CSTRING my_tailoring_str_alnum_09_AZ_az=
+  {STRING_WITH_LEN("[digit7]<[upper7]<[lower7]")};
+
+
+/*** IDENT repertoires ***/
+
+/* Most UCA _ci collations */
+const LEX_CSTRING my_tailoring_str_ident_underscore_09_AaZz_ci=
+  {STRING_WITH_LEN("_<[digit7]<[letter7_ci]")};
+
+/*
+  Most UCA case sensitive _cs collations:
+  case difference of the third level with lower letter preference
+*/
+const LEX_CSTRING my_tailoring_str_ident_underscore_09_aAzZ3_cs=
+  {STRING_WITH_LEN("_<[digit7]<[letter7_cs3_LowerFirst]")};
+
+/* Most non-UCA _ci collations */
+const LEX_CSTRING my_tailoring_str_ident_09_AaZz_ci_underscore=
+  {STRING_WITH_LEN("[digit7]<[letter7_ci]<_")};
+
+/* Collations folding to lower case, e.g. tis620_thai_ci */
+const LEX_CSTRING my_tailoring_str_ident_09_underscore_AaZz_ci=
+  {STRING_WITH_LEN("[digit7]<_<[letter7_ci]")};
+
+/* Most _bin collations */
+const LEX_CSTRING my_tailoring_str_ident_09_AZ_underscore_az=
+  {STRING_WITH_LEN("[digit7]<[upper7]<_<[lower7]")};
+
+/*** ASCII repertoires ***/
+const LEX_CSTRING my_tailoring_str_ascii_caseup_ci=
+  {STRING_WITH_LEN("ascii7_caseup_ci")};
+
+const LEX_CSTRING my_tailoring_str_ascii_casedn_ci=
+  {STRING_WITH_LEN("ascii7_casedn_ci")};
+
+const LEX_CSTRING my_tailoring_str_ascii_bin=
+  {STRING_WITH_LEN("ascii7_bin")};
+
+
+/*** Repertoires for simple collations ***/
+static LEX_CSTRING my_tailoring_ascii_caseup_ci(my_repertoire_t repertoire)
+{
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_AaZz_ci, /* ALNUM */
+    my_tailoring_str_ident_09_AaZz_ci_underscore, /* IDENT */
+    my_tailoring_str_ascii_caseup_ci /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+/*
+  A tailoring for collations which fold upper case letters to lower case
+  and then compare by the code point on the entire ASCII range,
+  e.g. tis620_thai_ci. Unlike caseup collations, punctuation between
+  the upper and the lower letters ([ \ ] ^ _ `) sorts before the letters.
+*/
+LEX_CSTRING my_tailoring_ascii_casedn_ci(my_repertoire_t repertoire)
+{
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_AaZz_ci, /* ALNUM */
+    my_tailoring_str_ident_09_underscore_AaZz_ci, /* IDENT */
+    my_tailoring_str_ascii_casedn_ci /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+static LEX_CSTRING my_tailoring_ident_caseup_ci(my_repertoire_t repertoire,
+                                                uint flags)
+{
+  const LEX_CSTRING nl= {0,0};
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    /* MINUS_DOT_DIGITS: irregularities are possible on ASCII punctuation */
+    (flags & MY_CS_ASCII_MINUS_DOT_DIGITS) ?
+      my_tailoring_str_minus_dot_digits : nl,
+    my_tailoring_str_alnum_09_AaZz_ci, /* ALNUM */
+    my_tailoring_str_ident_09_AaZz_ci_underscore, /* IDENT */
+    nl /* ASCII: Irregularities are possible on ASCII punctuation */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+/*
+  A tailoring for collations which are known to sort the digits 0..9
+  regularly (MY_CS_DIGITS_STD), and optionally the minus and the dot
+  (MY_CS_ASCII_MINUS_DOT_DIGITS), but have no tailorings on wider
+  repertoires.
+*/
+LEX_CSTRING my_tailoring_by_digit_flags(my_repertoire_t repertoire, uint flags)
+{
+  const LEX_CSTRING nl= {0,0};
+  const MY_TAILORING_SET set=
+  {
+    (flags & (MY_CS_DIGITS_STD | MY_CS_ASCII_MINUS_DOT_DIGITS)) ?
+      my_tailoring_str_digits : nl, /* DIGITS */
+    /* MINUS_DOT_DIGITS */
+    (flags & MY_CS_ASCII_MINUS_DOT_DIGITS) ?
+      my_tailoring_str_minus_dot_digits : nl,
+    nl, /* ALNUM */
+    nl, /* IDENT */
+    nl  /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+LEX_CSTRING my_tailoring_simple_ci_by_flags(my_repertoire_t repertoire,
+                                            uint flags)
+{
+  const LEX_CSTRING nl= {0,0};
+  if (flags & MY_CS_ASCII_CASEUP_CI)
+    return my_tailoring_ascii_caseup_ci(repertoire);
+  if (flags & MY_CS_IDENT_CASEUP_CI)
+    return my_tailoring_ident_caseup_ci(repertoire, flags);
+  if (flags & (MY_CS_DIGITS_STD | MY_CS_ASCII_MINUS_DOT_DIGITS))
+    return my_tailoring_by_digit_flags(repertoire, flags);
+  if (repertoire == MY_REPERTOIRE_NONE)
+    return my_tailoring_str_empty;
+  return nl;
+}
+
+
+/*
+  Check if two collations compare strings consisting of characters
+  of the given repertoire in the same way, so they can be mutually
+  replaced in a comparison operator.
+
+  Equal tailorings are necessary, but not sufficient:
+  - PAD and NOPAD collations compare trailing spaces differently.
+  - The order of ASCII punctuation depends on the UCA version
+    (e.g. UCA-6.2.0 moved GRAVE ACCENT and CIRCUMFLEX ACCENT
+    after PERCENT SIGN). So UCA collations of different versions are
+    not compatible on the repertoire which includes this punctuation.
+    The version is not a part of the tailoring string.
+
+  @return 0  The collations are not known to be equal on the repertoire
+  @return 1  The collations are equal on the repertoire
+*/
+my_bool my_collations_equal_on_repertoire(CHARSET_INFO *cs1, CHARSET_INFO *cs2,
+                                          my_repertoire_t repertoire)
+{
+  LEX_CSTRING t1, t2;
+  if ((cs1->state & MY_CS_NOPAD) != (cs2->state & MY_CS_NOPAD))
+    return FALSE;
+  if (!my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII_IDENT) &&
+      cs1->uca && cs2->uca && cs1->uca->version != cs2->uca->version)
+    return FALSE;
+  t1= (cs1->coll->tailoring)(cs1, repertoire);
+  t2= (cs2->coll->tailoring)(cs2, repertoire);
+  return t1.str && t2.str && t1.str == t2.str;
+}
+
+
+/*
+  A tailoring() handler for collations (e.g. multibyte or Unicode
+  *_general_ci) which do not have MY_CS_ASCII_CASEUP_CI in CHARSET_INFO::state
+  but are known to have no irregularities on the ASCII repertoire.
+  The flag is supplied here, on behalf of the collation, rather than
+  taken from self->state.
+*/
+LEX_CSTRING my_tailoring_ascii_caseup_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire)
+{
+  return my_tailoring_simple_ci_by_flags(repertoire, MY_CS_ASCII_CASEUP_CI);
+}
+
+
+/*
+  Like my_tailoring_ascii_caseup_ci_generic(), but for collations which
+  are known to have no irregularities on the IDENT repertoire only
+  (but possibly have irregularities on ASCII punctuation),
+  e.g. big5_chinese_ci, gbk_chinese_ci, gb2312_chinese_ci.
+  Supplies MY_CS_IDENT_CASEUP_CI.
+  These collations also sort the minus, the dot and the digits in the code
+  point order (MY_CS_ASCII_MINUS_DOT_DIGITS, MY_CS_DIGITS_STD),
+  so these flags are supplied too. This is checked by the func_test
+  test ctype_digits_verify. Do not use this handler for a collation
+  which does not sort -.0123456789 in this way.
+*/
+LEX_CSTRING my_tailoring_ident_caseup_ci_generic(CHARSET_INFO *self,
+                                                 my_repertoire_t repertoire)
+{
+  return my_tailoring_simple_ci_by_flags(repertoire,
+                                         MY_CS_IDENT_CASEUP_CI |
+                                         MY_CS_DIGITS_STD |
+                                         MY_CS_ASCII_MINUS_DOT_DIGITS);
 }

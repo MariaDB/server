@@ -1,0 +1,1554 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+#
+# ASCII digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+big5_bin                        	big5_bin                        	0	0	000 cl1 = cl2
+big5_chinese_ci                 	big5_chinese_ci                 	0	0	000 cl1 = cl2
+big5_chinese_nopad_ci           	big5_chinese_nopad_ci           	0	0	000 cl1 = cl2
+big5_nopad_bin                  	big5_nopad_bin                  	0	0	000 cl1 = cl2
+big5_bin                        	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_bin                        	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_chinese_ci                 	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_ci                 	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	big5_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_ci                 	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+big5_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+big5_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_bin                      	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_general_cs               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin5_bin                      	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin5_turkish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_nopad_bin                  	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_general_cs               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_bin                        	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_chinese_ci                 	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_bin                        	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_bin                        	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_general_cs               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_general_cs               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_turkish_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	hp8_english_ci                  	0	0	100 equal tailoring
+big5_bin                        	latin1_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin1_general_cs               	0	0	100 equal tailoring
+big5_bin                        	latin1_german1_ci               	0	0	100 equal tailoring
+big5_bin                        	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_bin                        	latin5_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin5_turkish_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	hp8_english_ci                  	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_general_cs               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_german1_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin5_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	latin5_turkish_ci               	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+hp8_english_ci                  	big5_bin                        	0	0	100 equal tailoring
+hp8_english_ci                  	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin1_bin                      	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_general_cs               	big5_bin                        	0	0	100 equal tailoring
+latin1_general_cs               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_german1_ci               	big5_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_bin                        	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	0	0	100 equal tailoring
+latin5_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin5_bin                      	big5_chinese_ci                 	0	0	100 equal tailoring
+latin5_turkish_ci               	big5_bin                        	0	0	100 equal tailoring
+latin5_turkish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	0	0	100 equal tailoring
+#
+# ASCII minus, dot and digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+big5_bin                        	big5_bin                        	0	0	000 cl1 = cl2
+big5_chinese_ci                 	big5_chinese_ci                 	0	0	000 cl1 = cl2
+big5_chinese_nopad_ci           	big5_chinese_nopad_ci           	0	0	000 cl1 = cl2
+big5_nopad_bin                  	big5_nopad_bin                  	0	0	000 cl1 = cl2
+big5_bin                        	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_bin                        	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_chinese_ci                 	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_ci                 	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	big5_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_ci                 	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+big5_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+big5_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_bin                      	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_general_cs               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin5_bin                      	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin5_turkish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_nopad_bin                  	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_general_cs               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_bin                        	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_chinese_ci                 	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_bin                        	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_bin                        	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_general_cs               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_general_cs               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_turkish_ci               	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	hp8_english_ci                  	0	0	100 equal tailoring
+big5_bin                        	latin1_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin1_general_cs               	0	0	100 equal tailoring
+big5_bin                        	latin1_german1_ci               	0	0	100 equal tailoring
+big5_bin                        	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_bin                        	latin5_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin5_turkish_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	hp8_english_ci                  	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_general_cs               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_german1_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin5_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	latin5_turkish_ci               	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+hp8_english_ci                  	big5_bin                        	0	0	100 equal tailoring
+hp8_english_ci                  	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin1_bin                      	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_general_cs               	big5_bin                        	0	0	100 equal tailoring
+latin1_general_cs               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_german1_ci               	big5_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_bin                        	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	0	0	100 equal tailoring
+latin5_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin5_bin                      	big5_chinese_ci                 	0	0	100 equal tailoring
+latin5_turkish_ci               	big5_bin                        	0	0	100 equal tailoring
+latin5_turkish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	0	0	100 equal tailoring
+#
+# ALNUM repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+big5_bin                        	big5_bin                        	0	0	000 cl1 = cl2
+big5_chinese_ci                 	big5_chinese_ci                 	0	0	000 cl1 = cl2
+big5_chinese_nopad_ci           	big5_chinese_nopad_ci           	0	0	000 cl1 = cl2
+big5_nopad_bin                  	big5_nopad_bin                  	0	0	000 cl1 = cl2
+big5_bin                        	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_bin                        	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_chinese_ci                 	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_ci                 	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	big5_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_ci                 	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+big5_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+big5_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_chinese_ci                 	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_chinese_nopad_ci           	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_bin                        	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_chinese_ci                 	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_chinese_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_bin                        	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_bin                        	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin1_bin                      	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin1_bin                      	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_bin                      	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin5_bin                      	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_general_cs               	1	1	030 diffCS bin vs cs
+big5_nopad_bin                  	latin1_general_cs               	1	1	030 diffCS bin vs cs
+big5_chinese_ci                 	latin1_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin5_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin1_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin5_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	big5_bin                        	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	big5_bin                        	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin1_general_cs               	1	1	030 diffCS ci vs cs
+big5_chinese_nopad_ci           	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	big5_bin                        	1	1	030 diffCS cs vs bin
+latin1_general_cs               	big5_nopad_bin                  	1	1	030 diffCS cs vs bin
+latin1_general_cs               	big5_chinese_ci                 	1	1	030 diffCS cs vs ci
+latin1_general_cs               	big5_chinese_nopad_ci           	1	1	030 diffCS cs vs ci
+big5_chinese_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_bin                        	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_chinese_ci                 	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin5_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	hp8_english_ci                  	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_german1_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+hp8_english_ci                  	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin5_bin                      	big5_bin                        	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+#
+# IDENT repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+big5_bin                        	big5_bin                        	0	0	000 cl1 = cl2
+big5_chinese_ci                 	big5_chinese_ci                 	0	0	000 cl1 = cl2
+big5_chinese_nopad_ci           	big5_chinese_nopad_ci           	0	0	000 cl1 = cl2
+big5_nopad_bin                  	big5_nopad_bin                  	0	0	000 cl1 = cl2
+big5_bin                        	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_bin                        	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_chinese_ci                 	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_ci                 	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	big5_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_ci                 	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+big5_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+big5_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_chinese_ci                 	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_chinese_nopad_ci           	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_bin                        	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_chinese_ci                 	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_chinese_nopad_ci           	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_bin                        	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_bin                        	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+latin1_bin                      	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin1_bin                      	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+latin5_bin                      	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+latin5_bin                      	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	big5_chinese_ci                 	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_general_cs               	1	1	030 diffCS bin vs cs
+big5_nopad_bin                  	latin1_general_cs               	1	1	030 diffCS bin vs cs
+big5_chinese_ci                 	latin1_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin5_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin1_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	latin5_bin                      	1	1	030 diffCS ci vs bin
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	big5_bin                        	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	big5_bin                        	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+big5_chinese_ci                 	latin1_general_cs               	1	1	030 diffCS ci vs cs
+big5_chinese_nopad_ci           	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	big5_bin                        	1	1	030 diffCS cs vs bin
+latin1_general_cs               	big5_nopad_bin                  	1	1	030 diffCS cs vs bin
+latin1_general_cs               	big5_chinese_ci                 	1	1	030 diffCS cs vs ci
+latin1_general_cs               	big5_chinese_nopad_ci           	1	1	030 diffCS cs vs ci
+big5_chinese_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	hp8_english_ci                  	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_german1_ci               	1	1	030 nopad vs pad
+big5_chinese_nopad_ci           	latin1_swedish_ci               	1	1	030 nopad vs pad
+big5_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	big5_chinese_ci                 	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	big5_chinese_ci                 	1	1	030 nopad vs pad
+big5_bin                        	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+big5_chinese_ci                 	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+big5_chinese_ci                 	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+big5_chinese_ci                 	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin1_swedish_ci               	big5_chinese_nopad_ci           	1	1	030 pad vs nopad
+latin5_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin5_bin                      	0	0	100 equal tailoring
+big5_chinese_ci                 	hp8_english_ci                  	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_german1_ci               	0	0	100 equal tailoring
+big5_chinese_ci                 	latin1_swedish_ci               	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+hp8_english_ci                  	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	big5_chinese_ci                 	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+latin5_bin                      	big5_bin                        	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	0	0	100 equal tailoring
+#
+# Entire ASCII-7 repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+big5_bin                        	big5_bin                        	0	0	000 cl1 = cl2
+big5_chinese_ci                 	big5_chinese_ci                 	0	0	000 cl1 = cl2
+big5_chinese_nopad_ci           	big5_chinese_nopad_ci           	0	0	000 cl1 = cl2
+big5_nopad_bin                  	big5_nopad_bin                  	0	0	000 cl1 = cl2
+big5_bin                        	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_bin                        	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_ci                 	0	0	002 LEFT sameCS_bin
+big5_nopad_bin                  	big5_chinese_nopad_ci           	0	0	002 LEFT sameCS_bin
+big5_chinese_ci                 	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_ci                 	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_bin                        	0	0	002 RIGHT sameCS_bin
+big5_chinese_nopad_ci           	big5_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	big5_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_ci                 	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_bin                     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	big5_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_ci                 	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	big5_nopad_bin                  	0	0	003 LEFT superset
+big5_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_ci                 	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+big5_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_bin                     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	big5_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_ci                 	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_chinese_nopad_ci           	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	big5_nopad_bin                  	0	0	004 LEFT superset
+big5_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_ci                 	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_chinese_nopad_ci           	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+big5_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+big5_bin                        	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+big5_nopad_bin                  	hp8_english_ci                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+hp8_english_ci                  	big5_bin                        	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+hp8_english_ci                  	big5_nopad_bin                  	1	1	010 hp8_english_ci has anomalies on ASCII punctuation
+big5_bin                        	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_bin                        	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	big5_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+big5_chinese_ci                 	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	hp8_english_ci                  	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_general_cs               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_german1_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_nopad_bin                	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_swedish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin1_swedish_nopad_ci         	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin5_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	latin5_turkish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	swe7_nopad_bin                  	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_ci                 	swe7_swedish_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	hp8_english_ci                  	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_general_cs               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_german1_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_nopad_bin                	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_swedish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin5_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	latin5_turkish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	1	1	010 no tailoring on the entire ASCII repertoire
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+hp8_english_ci                  	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+hp8_english_ci                  	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_bin                      	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_bin                      	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_general_cs               	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_general_cs               	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_german1_ci               	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_german1_ci               	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_nopad_bin                	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_nopad_bin                	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_ci               	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_ci               	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_nopad_ci         	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_bin                      	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_bin                      	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_turkish_ci               	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_turkish_ci               	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_nopad_bin                  	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_swedish_nopad_ci           	big5_chinese_ci                 	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+big5_bin                        	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	big5_bin                        	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	1	1	010 swe7_swedish_nopad_ci reorders ASCII punctuation
+big5_bin                        	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+big5_bin                        	latin1_general_cs               	1	1	030 diffCS bin vs cs
+big5_nopad_bin                  	latin1_general_cs               	1	1	030 diffCS bin vs cs
+latin1_german1_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_general_cs               	big5_bin                        	1	1	030 diffCS cs vs bin
+latin1_general_cs               	big5_nopad_bin                  	1	1	030 diffCS cs vs bin
+big5_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+big5_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+latin1_nopad_bin                	big5_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	big5_bin                        	1	1	030 nopad vs pad
+big5_bin                        	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+big5_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	big5_nopad_bin                  	1	1	030 pad vs nopad
+big5_bin                        	latin1_bin                      	0	0	100 equal tailoring
+big5_bin                        	latin5_bin                      	0	0	100 equal tailoring
+big5_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+big5_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+latin1_bin                      	big5_bin                        	0	0	100 equal tailoring
+latin1_nopad_bin                	big5_nopad_bin                  	0	0	100 equal tailoring
+latin5_bin                      	big5_bin                        	0	0	100 equal tailoring
+swe7_nopad_bin                  	big5_nopad_bin                  	0	0	100 equal tailoring
+#
+# Collation pairs having different results on different repertoires
+#
+cl1	cl2	is_error_all
+big5_chinese_ci                 	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+big5_chinese_ci                 	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+big5_chinese_ci                 	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+big5_chinese_nopad_ci           	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+big5_chinese_nopad_ci           	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+hp8_english_ci                  	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_german1_ci               	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_swedish_ci               	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_swedish_nopad_ci         	big5_chinese_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+swe7_swedish_nopad_ci           	big5_chinese_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+big5_bin                        	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_bin                        	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_bin                        	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_bin                        	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_bin                        	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_ci                 	latin1_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_ci                 	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_ci                 	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_ci                 	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_nopad_ci           	latin1_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_chinese_nopad_ci           	swe7_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_nopad_bin                  	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+big5_nopad_bin                  	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+hp8_english_ci                  	big5_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_bin                      	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	big5_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_german1_ci               	big5_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_nopad_bin                	big5_chinese_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_ci               	big5_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_nopad_ci         	big5_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	big5_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	big5_chinese_ci                 	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_nopad_bin                  	big5_chinese_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_swedish_nopad_ci           	big5_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+# HEX() output is only [0-9A-F], so its repertoire is
+# MY_REPERTOIRE_ASCII_ALNUM. It can tailoring-match a collation pair
+# that is incompatible on the full ASCII repertoire.
+SELECT HEX('a') = _big5'61';
+HEX('a') = _big5'61'
+1
+# Item_null has the repertoire MY_REPERTOIRE_NONE, the identity element
+# for repertoire aggregation: a NULL operand does not widen
+# the repertoire of an IN()/CASE/BETWEEN aggregate...
+SELECT _latin1'Y' in (NULL, _big5'Y');
+_latin1'Y' in (NULL, _big5'Y')
+1
+# ... and does not mask a genuine incompatibility either.
+SELECT _latin1'Y+' in (NULL, _big5'Y+');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (binary,IGNORABLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+# The empty string has the repertoire NONE on both sides, so it is
+# always compatible, regardless of collation.
+SELECT _latin1'' = _big5'';
+_latin1'' = _big5''
+1
+#
+# MDEV-41246 QUOTE(), GROUP_CONCAT(), MAKE_SET() and EXPORT_SET() add
+# characters of their own (quotes/backslashes, the ',' separator) that
+# are not in their arguments' repertoire. The result's repertoire must
+# include them too, or illegal-mix-by-repertoire detection becomes
+# asymmetric.
+#
+# latin1_swedish_ci and big5_chinese_ci are compatible on the ALNUM
+# repertoire, but not on the wider repertoire these functions can add
+# (see the C_ascii1 row above).
+#
+SELECT _latin1'a' = _big5'a';
+_latin1'a' = _big5'a'
+1
+SELECT QUOTE(_latin1'a') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = QUOTE(_latin1'a');
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+SELECT (SELECT GROUP_CONCAT(_latin1'a')) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = (SELECT GROUP_CONCAT(_latin1'a'));
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+# An explicit ALNUM or empty separator does not force the repertoire wider
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR 'x')) = _big5'a';
+(SELECT GROUP_CONCAT(_latin1'a' SEPARATOR 'x')) = _big5'a'
+1
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR '')) = _big5'a';
+(SELECT GROUP_CONCAT(_latin1'a' SEPARATOR '')) = _big5'a'
+1
+# An explicit non-ALNUM separator widens the repertoire
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR ',')) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR '+')) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR ' '));
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+# MAKE_SET() can add a ',' separator as soon as there is more than one
+# possible value, even when, like here, the chosen bit produces none.
+SELECT MAKE_SET(3,_latin1'a',_latin1'b') = _big5'a,b';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT MAKE_SET(1,_latin1'a',_latin1'b') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# Only one possible value: no separator can ever appear.
+SELECT MAKE_SET(1,_latin1'a') = _big5'a';
+MAKE_SET(1,_latin1'a') = _big5'a'
+1
+# EXPORT_SET()'s default ',' separator is outside the ALNUM repertoire.
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n') = _big5'y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# An explicit ALNUM separator does not force the repertoire wider.
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1'x',1) = _big5'y';
+EXPORT_SET(1,_latin1'y',_latin1'n',_latin1'x',1) = _big5'y'
+1
+# An explicit non-ALNUM separator is detected through normal argument
+# aggregation, same as for GROUP_CONCAT/MAKE_SET's hard-coded separator.
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1',',1) = _big5'y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# LPAD()/RPAD() with no explicit pad string default to ' ', which is
+# outside the ALNUM repertoire.
+SELECT LPAD(_latin1'a',3) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT RPAD(_latin1'a',3) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# An explicit ALNUM pad string does not force the repertoire wider.
+SELECT LPAD(_latin1'a',3,_latin1'x') = _big5'xxa';
+LPAD(_latin1'a',3,_latin1'x') = _big5'xxa'
+1
+# An explicit non-ALNUM pad string is detected through normal argument
+# aggregation, same as for the default ' ' above.
+SELECT LPAD(_latin1'a',3,_latin1'-') = _big5'--a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# JSON_OBJECTAGG() adds '{', '}', '"', ':', ',' and ' ' of its own,
+# which are outside the ALNUM repertoire.
+SELECT JSON_OBJECTAGG(_latin1'a',_latin1'b') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = JSON_OBJECTAGG(_latin1'a',_latin1'b');
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+# JSON_ARRAY() and JSON_OBJECT() also add '[', ']', '{', '}', '"', ':',
+# ',' and ' ' of their own, so the same applies to them.
+SELECT JSON_ARRAY(_latin1'a') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = JSON_ARRAY(_latin1'a');
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+SELECT JSON_OBJECT(_latin1'a',_latin1'b') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _big5'a' = JSON_OBJECT(_latin1'a',_latin1'b');
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+SELECT JSON_MERGE_PRESERVE(_latin1'1',_latin1'2') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# JSON_ARRAY() without arguments returns '[]', which is ASCII
+SELECT JSON_ARRAY() = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# JSON_ARRAYAGG() already inherits the ',' repertoire from GROUP_CONCAT()
+SELECT JSON_ARRAYAGG(_latin1'a') = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+#
+# DATE_FORMAT() result repertoire depends on the locale
+# which is actually used: the explicit third argument, or
+# @@lc_time_names. Locale names (e.g. of days) can be non-ASCII.
+# big5_chinese_ci and latin1_swedish_ci are not compatible on ASCII,
+# unless the DATE_FORMAT() result is allowed to be non-ASCII,
+# so its collation can be preferred.
+#
+SET NAMES big5;
+# en_US names are ASCII
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+# An explicit non-ASCII locale is not ignored
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin1'a';
+DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin1'a'
+0
+# A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin1'a';
+DATE_FORMAT('2024-01-02','%W',@loc) = _latin1'a'
+0
+# The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+DATE_FORMAT('2024-01-02','%W') = _latin1'a'
+0
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+#
+# MDEV-41246 Negative cases: the collations are still incompatible
+# when the strings are not ASCII only, or when a string result
+# function mixes arguments of different collations.
+#
+SET NAMES latin1;
+# Non-ASCII literals. If only one side is non-ASCII, the ASCII side
+# is converted to the character set of the non-ASCII one.
+SELECT _latin1 0xE9 = _big5'a';
+_latin1 0xE9 = _big5'a'
+0
+SELECT _latin1'a' = _big5 0xA4A4;
+_latin1'a' = _big5 0xA4A4
+0
+SELECT _latin1 0xE9 IN (_big5'a', _big5'b');
+_latin1 0xE9 IN (_big5'a', _big5'b')
+0
+# If both sides are non-ASCII, no conversion is possible
+SELECT _latin1 0xE9 = _big5 0xA4A4;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT CONCAT(_latin1'a',_latin1 0xE9) = _big5 0xA4A4;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT _latin1 0xE9 IN (_big5 0xA4A4, _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+# String result functions do not use the tailoring optimization:
+# the collation of the result must be calculated precisely
+SELECT REPLACE(_latin1'abc', _big5'a', _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'replace'
+SELECT REPLACE(_latin1'abc', _latin1'a', _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'replace'
+SELECT SUBSTRING_INDEX(_latin1'a,b', _big5',', 1);
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'substring_index'
+SELECT SUBSTRING_INDEX(_latin1'a,b', _big5'x', 1);
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'substring_index'
+SELECT TRIM(_big5'a' FROM _latin1'abc');
+ERROR HY000: Illegal mix of collations (big5_chinese_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation 'trim'
+SELECT GREATEST(_latin1'a', _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'greatest'
+SELECT LEAST(_latin1'a', _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'least'
+SELECT COALESCE(_latin1'a', _big5'b');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'coalesce'
+# A non-ASCII argument makes the ASCII argument converted
+SELECT COALESCE(_latin1'a', _big5 0xA4A4);
+COALESCE(_latin1'a', _big5 0xA4A4)
+a
+# The same functions with arguments of the same collation
+# can be compared with a string of a compatible collation,
+# unless the result can contain non-ALNUM characters
+SELECT COALESCE(_latin1'a', _latin1'b') = _big5'a';
+COALESCE(_latin1'a', _latin1'b') = _big5'a'
+1
+SELECT GREATEST(_latin1'a', _latin1'b') = _big5'b';
+GREATEST(_latin1'a', _latin1'b') = _big5'b'
+1
+SELECT REPLACE(_latin1'abc', _latin1'a', _latin1'b') = _big5'bbc';
+REPLACE(_latin1'abc', _latin1'a', _latin1'b') = _big5'bbc'
+1
+SELECT TRIM(_latin1' abc ') = _big5'abc';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SELECT SUBSTRING_INDEX(_latin1'a,b', _latin1',', 1) = _big5'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# Indexed columns. A column has a stronger derivation than a literal,
+# so the collation of the column is used and the index is used.
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('b'),('Y'),('y'),('x');
+CREATE TABLE t2 (a VARCHAR(10) CHARACTER SET big5 COLLATE big5_chinese_ci,
+KEY(a)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('a'),('b'),('Y'),('y'),('x');
+SET NAMES big5;
+EXPLAIN SELECT * FROM t1 WHERE a='y';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	13	const	2	Using where; Using index
+SELECT * FROM t1 WHERE a='y' ORDER BY a;
+a
+Y
+y
+EXPLAIN SELECT * FROM t1 WHERE a=_big5'Y+';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	13	const	1	Using where; Using index
+SELECT * FROM t1 WHERE a=_big5'Y+';
+a
+SET NAMES latin1;
+EXPLAIN SELECT * FROM t2 WHERE a=_latin1'y';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	a	a	23	const	2	Using where; Using index
+SELECT * FROM t2 WHERE a=_latin1'y' ORDER BY a;
+a
+Y
+y
+# Two columns of different collations are still incompatible,
+# as they have equal derivation, and the repertoire of a column
+# is not limited
+EXPLAIN SELECT * FROM t2, t1 WHERE t1.a=t2.a;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (big5_chinese_ci,IMPLICIT) for operation '='
+DROP TABLE t1, t2;
+SET NAMES DEFAULT;
+# End of 11.8 tests

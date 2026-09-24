@@ -2051,6 +2051,7 @@ bool Item_func_lcase::fix_length_and_dec(THD *thd)
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
   multiply= collation.collation->casedn_multiply();
+  collation.fix_repertoire_for_case_conversion();
   converter= collation.collation->cset->casedn;
   fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * multiply);
   return FALSE;
@@ -2062,6 +2063,7 @@ bool Item_func_ucase::fix_length_and_dec(THD *thd)
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
   multiply= collation.collation->caseup_multiply();
+  collation.fix_repertoire_for_case_conversion();
   converter= collation.collation->cset->caseup;
   fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * multiply);
   return FALSE;
@@ -3370,7 +3372,11 @@ bool Item_func_make_set::fix_length_and_dec(THD *thd)
 
   if (agg_arg_charsets_for_string_result(collation, args + 1, arg_count - 1))
     return TRUE;
-  
+
+  /* The result also contains the hard-coded ',' separator between items. */
+  if (arg_count > 2)
+    collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
+
   for (uint i=1 ; i < arg_count ; i++)
     char_length+= args[i]->max_char_length();
   fix_char_length(char_length);
@@ -3731,6 +3737,8 @@ bool Item_func_pad::fix_length_and_dec(THD *thd)
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return TRUE;
     default_pad_str(&pad_str, collation.collation);
+    /* The result also contains the default ' ' pad character. */
+    collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
@@ -4106,7 +4114,8 @@ String *Item_func_set_collation::val_str(String *str)
   */
   DBUG_ASSERT(my_charset_same(args[0]->collation.collation,
                               collation.collation) ||
-              (args[0]->collation.repertoire == MY_REPERTOIRE_ASCII &&
+              (args[0]->collation.
+                 repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
                !(collation.collation->state & MY_CS_NONASCII)));
   str->set_charset(collation.collation);
   return str;
@@ -4582,6 +4591,11 @@ bool Item_func_export_set::fix_length_and_dec(THD *thd)
   if (agg_arg_charsets_for_string_result(collation,
                                          args + 1, MY_MIN(4, arg_count) - 1))
     return TRUE;
+
+  /* With no separator argument, the result contains the hard-coded ','. */
+  if (arg_count < 4)
+    collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
+
   fix_char_length(length * 64 + sep_length * 63);
   return FALSE;
 }

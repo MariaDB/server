@@ -2423,7 +2423,8 @@ bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
     return non-unique values 'a' and 'A'.
   */
   DTCollation tmp(dtcollation());
-  return !tmp.aggregate(item->collation) && tmp.collation == field_charset();
+  return !tmp.aggregate(item->collation, 0, MY_REPERTOIRE_UNICODE30) &&
+         tmp.collation == field_charset();
 }
 
 

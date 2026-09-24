@@ -1,0 +1,32 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+#
+# Query only simple character sets and collations which are always
+# available no matter what compilation flags are.
+# Exclude compilation dependent components:
+# - character set tis620
+# - collation latin2_czech_cs
+# - collation cp1250_czech_cs
+#
+
+--vertical_results
+SELECT full_collation_name AS name,
+  collation_tailoring(full_collation_name, 'ascii_digits') AS digits,
+  collation_tailoring(full_collation_name, 'ascii_minus_dot_digits') AS minus_dot_digits,
+  collation_tailoring(full_collation_name, 'ascii_alnum') AS alnum,
+  collation_tailoring(full_collation_name, 'ascii_ident') AS ident,
+  collation_tailoring(full_collation_name, 'ascii') AS ascii,
+  '---' AS `---`
+FROM INFORMATION_SCHEMA.CHARACTER_SETS AS cs,
+     INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY AS cl
+WHERE
+  cs.character_set_name=cl.character_set_name
+  AND cs.maxlen=1
+  AND cs.character_set_name<>'tis620'
+  AND cl.collation_name NOT IN
+    ('latin2_czech_cs','cp1250_czech_cs')
+ORDER BY cs.character_set_name, cl.collation_name LIKE '%_ci', collation_name;
+
+--horizontal_results

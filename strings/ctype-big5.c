@@ -807,7 +807,8 @@ static MY_CASEFOLD_INFO my_casefold_big5=
 {
   0xFFFF,
   my_casefold_pages_big5,
-  NULL /* ws */
+  NULL, /* ws */
+  FALSE
 };
 
 
@@ -6681,6 +6682,15 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+/*
+  big5_chinese_ci and big5_chinese_nopad_ci have
+  an irregularity on the punctuation - the backtick
+  sign is sorted as equal to E:
+    Dd<E`e<Ff
+*/
+#define my_tailoring_big5_chinese_ci  my_tailoring_ident_caseup_ci_generic
+
+
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_chinese_ci
 #define WEIGHT_MB1(x)        (sort_order_big5[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
@@ -6730,7 +6740,8 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_big5_chinese_ci
 };
 
 
@@ -6751,7 +6762,8 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 
@@ -6772,7 +6784,8 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_nopad_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_big5_chinese_ci
 };
 
 
@@ -6793,7 +6806,8 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_nopad_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_bin_generic
 };
 
 

@@ -1,0 +1,89 @@
+--source include/have_ucs2.inc
+--source include/have_utf8mb4.inc
+--source include/have_utf16.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^(utf|uca)';
+
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+
+ '(''ucs2_bin''),(''ucs2_nopad_bin''),'
+ '(''utf16_bin''),(''utf16_nopad_bin''),'
+ '(''utf32_bin''),(''utf32_nopad_bin''),'
+
+ '(''ucs2_swedish_ci''),'
+ '(''utf8mb3_swedish_ci''),'
+ '(''utf8mb4_swedish_ci''),'
+ '(''utf16_swedish_ci''),'
+ '(''utf32_swedish_ci''),'
+
+ '(''ucs2_uca1400_swedish_ai_ci''),'
+ '(''utf8mb3_uca1400_swedish_ai_ci''),'
+ '(''utf8mb4_uca1400_swedish_ai_ci''),'
+ '(''utf16_uca1400_swedish_ai_ci''),'
+ '(''utf32_uca1400_swedish_ai_ci''),'
+
+ '(''ucs2_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf8mb3_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf8mb4_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf16_uca1400_swedish_nopad_ai_ci''),'
+ '(''utf32_uca1400_swedish_nopad_ai_ci''),'
+
+ '(''ucs2_czech_ci''),'
+ '(''utf8mb3_czech_ci''),'
+ '(''utf8mb4_czech_ci''),'
+ '(''utf16_czech_ci''),'
+ '(''utf32_czech_ci''),'
+
+ '(''ucs2_uca1400_czech_ai_ci''),'
+ '(''utf8mb3_uca1400_czech_ai_ci''),'
+ '(''utf8mb4_uca1400_czech_ai_ci''),'
+ '(''utf16_uca1400_czech_ai_ci''),'
+ '(''utf32_uca1400_czech_ai_ci''),'
+
+ '(''ucs2_uca1400_czech_nopad_ai_ci''),'
+ '(''utf8mb3_uca1400_czech_nopad_ai_ci''),'
+ '(''utf8mb4_uca1400_czech_nopad_ai_ci''),'
+ '(''utf16_uca1400_czech_nopad_ai_ci''),'
+ '(''utf32_uca1400_czech_nopad_ai_ci'')'
+
+;
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+
+SET NAMES utf8mb3 COLLATE utf8mb3_general_ci;
+CREATE VIEW v1 AS SELECT 'a' c1, 'c' c2;
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
+SELECT 'b' BETWEEN c1 AND c2 FROM v1;
+SELECT 'c' IN (c1, c2) FROM v1;
+DROP VIEW v1;
+
+SET NAMES utf8mb3 COLLATE utf8mb3_general_ci;
+CREATE VIEW v1 AS SELECT 'a' c1, '_' c2;
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT 'b' BETWEEN c1 AND c2 FROM v1;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT 'c' IN (c1, c2) FROM v1;
+DROP VIEW v1;
+
+--echo # LOWER() in a Turkish collation can return a non-ASCII character
+--echo # (the dotless i), so its result is not ASCII-only
+SET NAMES utf8mb3 COLLATE utf8mb3_turkish_ci;
+CREATE VIEW v1 AS SELECT 'I' AS c;
+SET NAMES utf8mb3 COLLATE utf8mb3_unicode_ci;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM v1 WHERE LOWER(c)='i';
+DROP VIEW v1;
+
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

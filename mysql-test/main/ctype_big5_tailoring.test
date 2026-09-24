@@ -1,0 +1,235 @@
+--source include/have_big5.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^big5';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''big5_chinese_ci''),(''big5_chinese_nopad_ci''),'
+ '(''big5_bin''),(''big5_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+
+--echo # HEX() output is only [0-9A-F], so its repertoire is
+--echo # MY_REPERTOIRE_ASCII_ALNUM. It can tailoring-match a collation pair
+--echo # that is incompatible on the full ASCII repertoire.
+SELECT HEX('a') = _big5'61';
+
+--echo # Item_null has the repertoire MY_REPERTOIRE_NONE, the identity element
+--echo # for repertoire aggregation: a NULL operand does not widen
+--echo # the repertoire of an IN()/CASE/BETWEEN aggregate...
+SELECT _latin1'Y' in (NULL, _big5'Y');
+
+--echo # ... and does not mask a genuine incompatibility either.
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT _latin1'Y+' in (NULL, _big5'Y+');
+
+--echo # The empty string has the repertoire NONE on both sides, so it is
+--echo # always compatible, regardless of collation.
+SELECT _latin1'' = _big5'';
+
+
+--echo #
+--echo # MDEV-41246 QUOTE(), GROUP_CONCAT(), MAKE_SET() and EXPORT_SET() add
+--echo # characters of their own (quotes/backslashes, the ',' separator) that
+--echo # are not in their arguments' repertoire. The result's repertoire must
+--echo # include them too, or illegal-mix-by-repertoire detection becomes
+--echo # asymmetric.
+--echo #
+--echo # latin1_swedish_ci and big5_chinese_ci are compatible on the ALNUM
+--echo # repertoire, but not on the wider repertoire these functions can add
+--echo # (see the C_ascii1 row above).
+--echo #
+SELECT _latin1'a' = _big5'a';
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT QUOTE(_latin1'a') = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = QUOTE(_latin1'a');
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (SELECT GROUP_CONCAT(_latin1'a')) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = (SELECT GROUP_CONCAT(_latin1'a'));
+
+--echo # An explicit ALNUM or empty separator does not force the repertoire wider
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR 'x')) = _big5'a';
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR '')) = _big5'a';
+--echo # An explicit non-ALNUM separator widens the repertoire
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR ',')) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR '+')) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = (SELECT GROUP_CONCAT(_latin1'a' SEPARATOR ' '));
+
+
+--echo # MAKE_SET() can add a ',' separator as soon as there is more than one
+--echo # possible value, even when, like here, the chosen bit produces none.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT MAKE_SET(3,_latin1'a',_latin1'b') = _big5'a,b';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT MAKE_SET(1,_latin1'a',_latin1'b') = _big5'a';
+--echo # Only one possible value: no separator can ever appear.
+SELECT MAKE_SET(1,_latin1'a') = _big5'a';
+
+--echo # EXPORT_SET()'s default ',' separator is outside the ALNUM repertoire.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n') = _big5'y';
+--echo # An explicit ALNUM separator does not force the repertoire wider.
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1'x',1) = _big5'y';
+--echo # An explicit non-ALNUM separator is detected through normal argument
+--echo # aggregation, same as for GROUP_CONCAT/MAKE_SET's hard-coded separator.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT EXPORT_SET(1,_latin1'y',_latin1'n',_latin1',',1) = _big5'y';
+
+--echo # LPAD()/RPAD() with no explicit pad string default to ' ', which is
+--echo # outside the ALNUM repertoire.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LPAD(_latin1'a',3) = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT RPAD(_latin1'a',3) = _big5'a';
+--echo # An explicit ALNUM pad string does not force the repertoire wider.
+SELECT LPAD(_latin1'a',3,_latin1'x') = _big5'xxa';
+--echo # An explicit non-ALNUM pad string is detected through normal argument
+--echo # aggregation, same as for the default ' ' above.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LPAD(_latin1'a',3,_latin1'-') = _big5'--a';
+
+--echo # JSON_OBJECTAGG() adds '{', '}', '"', ':', ',' and ' ' of its own,
+--echo # which are outside the ALNUM repertoire.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_OBJECTAGG(_latin1'a',_latin1'b') = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = JSON_OBJECTAGG(_latin1'a',_latin1'b');
+
+--echo # JSON_ARRAY() and JSON_OBJECT() also add '[', ']', '{', '}', '"', ':',
+--echo # ',' and ' ' of their own, so the same applies to them.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_ARRAY(_latin1'a') = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = JSON_ARRAY(_latin1'a');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_OBJECT(_latin1'a',_latin1'b') = _big5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _big5'a' = JSON_OBJECT(_latin1'a',_latin1'b');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_MERGE_PRESERVE(_latin1'1',_latin1'2') = _big5'a';
+--echo # JSON_ARRAY() without arguments returns '[]', which is ASCII
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_ARRAY() = _big5'a';
+--echo # JSON_ARRAYAGG() already inherits the ',' repertoire from GROUP_CONCAT()
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT JSON_ARRAYAGG(_latin1'a') = _big5'a';
+
+--echo #
+--echo # DATE_FORMAT() result repertoire depends on the locale
+--echo # which is actually used: the explicit third argument, or
+--echo # @@lc_time_names. Locale names (e.g. of days) can be non-ASCII.
+--echo # big5_chinese_ci and latin1_swedish_ci are not compatible on ASCII,
+--echo # unless the DATE_FORMAT() result is allowed to be non-ASCII,
+--echo # so its collation can be preferred.
+--echo #
+SET NAMES big5;
+--echo # en_US names are ASCII
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+--echo # An explicit non-ASCII locale is not ignored
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin1'a';
+--echo # A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin1'a';
+--echo # The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+
+--echo #
+--echo # MDEV-41246 Negative cases: the collations are still incompatible
+--echo # when the strings are not ASCII only, or when a string result
+--echo # function mixes arguments of different collations.
+--echo #
+
+SET NAMES latin1;
+
+--echo # Non-ASCII literals. If only one side is non-ASCII, the ASCII side
+--echo # is converted to the character set of the non-ASCII one.
+SELECT _latin1 0xE9 = _big5'a';
+SELECT _latin1'a' = _big5 0xA4A4;
+SELECT _latin1 0xE9 IN (_big5'a', _big5'b');
+--echo # If both sides are non-ASCII, no conversion is possible
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT _latin1 0xE9 = _big5 0xA4A4;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT CONCAT(_latin1'a',_latin1 0xE9) = _big5 0xA4A4;
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT _latin1 0xE9 IN (_big5 0xA4A4, _big5'b');
+
+--echo # String result functions do not use the tailoring optimization:
+--echo # the collation of the result must be calculated precisely
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT REPLACE(_latin1'abc', _big5'a', _big5'b');
+--error ER_CANT_AGGREGATE_3COLLATIONS
+SELECT REPLACE(_latin1'abc', _latin1'a', _big5'b');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT SUBSTRING_INDEX(_latin1'a,b', _big5',', 1);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT SUBSTRING_INDEX(_latin1'a,b', _big5'x', 1);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT TRIM(_big5'a' FROM _latin1'abc');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT GREATEST(_latin1'a', _big5'b');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT LEAST(_latin1'a', _big5'b');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT COALESCE(_latin1'a', _big5'b');
+--echo # A non-ASCII argument makes the ASCII argument converted
+SELECT COALESCE(_latin1'a', _big5 0xA4A4);
+
+--echo # The same functions with arguments of the same collation
+--echo # can be compared with a string of a compatible collation,
+--echo # unless the result can contain non-ALNUM characters
+SELECT COALESCE(_latin1'a', _latin1'b') = _big5'a';
+SELECT GREATEST(_latin1'a', _latin1'b') = _big5'b';
+SELECT REPLACE(_latin1'abc', _latin1'a', _latin1'b') = _big5'bbc';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT TRIM(_latin1' abc ') = _big5'abc';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT SUBSTRING_INDEX(_latin1'a,b', _latin1',', 1) = _big5'a';
+
+--echo # Indexed columns. A column has a stronger derivation than a literal,
+--echo # so the collation of the column is used and the index is used.
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+                 KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('b'),('Y'),('y'),('x');
+CREATE TABLE t2 (a VARCHAR(10) CHARACTER SET big5 COLLATE big5_chinese_ci,
+                 KEY(a)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('a'),('b'),('Y'),('y'),('x');
+SET NAMES big5;
+EXPLAIN SELECT * FROM t1 WHERE a='y';
+SELECT * FROM t1 WHERE a='y' ORDER BY a;
+EXPLAIN SELECT * FROM t1 WHERE a=_big5'Y+';
+SELECT * FROM t1 WHERE a=_big5'Y+';
+SET NAMES latin1;
+EXPLAIN SELECT * FROM t2 WHERE a=_latin1'y';
+SELECT * FROM t2 WHERE a=_latin1'y' ORDER BY a;
+--echo # Two columns of different collations are still incompatible,
+--echo # as they have equal derivation, and the repertoire of a column
+--echo # is not limited
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXPLAIN SELECT * FROM t2, t1 WHERE t1.a=t2.a;
+DROP TABLE t1, t2;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

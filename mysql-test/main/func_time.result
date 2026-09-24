@@ -1266,8 +1266,11 @@ select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
 concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull'))
 #
 set names swe7;
-select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
+select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),'[ull')) from t1;
 ERROR HY000: Illegal mix of collations (ascii_general_ci,IMPLICIT) and (swe7_swedish_ci,COERCIBLE) for operation 'concat'
+select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;
+concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull'))
+#
 set names latin1;
 set lc_time_names=fr_FR;
 select concat(a,ifnull(min(date_format(now(), '%Y-%m-%d')),' ull')) from t1;

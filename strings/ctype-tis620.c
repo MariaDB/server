@@ -881,6 +881,19 @@ int my_wc_mb_tis620(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
+/*
+  tis620_thai_ci and tis620_thai_nopad_ci fold upper case letters
+  to lower case and then compare by the code point on the entire ASCII range.
+  Thai specific rules (leading vowels, level 2 characters) affect
+  only non-ASCII characters.
+*/
+static LEX_CSTRING my_tailoring_tis620_thai_ci(CHARSET_INFO *self,
+                                               my_repertoire_t repertoire)
+{
+  return my_tailoring_ascii_casedn_ci(repertoire);
+}
+
+
 static MY_COLLATION_HANDLER my_collation_ci_handler =
 {
     NULL,		/* init */
@@ -898,7 +911,8 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_tis620_thai_ci
 };
 
 static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
@@ -918,7 +932,8 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_max_str_8bit_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_tis620_thai_ci
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=
@@ -969,7 +984,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
     to_upper_tis620,
     sort_order_tis620,
     NULL,		/* uca          */
-    NULL,		/* tab_to_uni   */
+    cs_to_uni,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     NULL,               /* casefold     */
     NULL,		/* state_map    */
@@ -999,7 +1014,7 @@ struct charset_info_st my_charset_tis620_bin=
     to_upper_tis620,
     NULL,		/* sort_order   */
     NULL,		/* uca          */
-    NULL,		/* tab_to_uni   */
+    cs_to_uni,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
     NULL,               /* casefold     */
     NULL,		/* state_map    */
@@ -1030,7 +1045,7 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
     to_upper_tis620,
     sort_order_tis620,
     NULL,                  /* uca              */
-    NULL,                  /* tab_to_uni       */
+    cs_to_uni,             /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
     NULL,                  /* casefold         */
     NULL,                  /* state_map        */
@@ -1061,7 +1076,7 @@ struct charset_info_st my_charset_tis620_nopad_bin=
     to_upper_tis620,
     NULL,                  /* sort_order       */
     NULL,                  /* uca              */
-    NULL,                  /* tab_to_uni       */
+    cs_to_uni,             /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
     NULL,                  /* casefold         */
     NULL,                  /* state_map        */

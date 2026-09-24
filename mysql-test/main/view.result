@@ -3859,7 +3859,8 @@ SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select _latin1'text1' AS `c1`,'text2' AS `c2`	latin1	latin1_general_ci
 SELECT * FROM v1 WHERE c1 = 'text1';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin1_general_ci,COERCIBLE) for operation '='
+c1	c2
+text1	text2
 SELECT * FROM v1 WHERE c2 = 'text2';
 c1	c2
 text1	text2
@@ -3872,7 +3873,31 @@ SELECT * FROM v1 WHERE c1 = 'text1';
 c1	c2
 text1	text2
 SELECT * FROM v1 WHERE c2 = 'text2';
-ERROR HY000: Illegal mix of collations (latin1_general_ci,COERCIBLE) and (latin1_swedish_ci,COERCIBLE) for operation '='
+c1	c2
+text1	text2
+DROP VIEW v1;
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+# A view created under latin1_general_ci, queried under latin1.
+# The probes match a row on each of the ALNUM, IDENT and ASCII
+# repertoires.
+#
+SET collation_connection = latin1_general_ci;
+CREATE VIEW v1 AS
+SELECT 'text1' AS c1 UNION SELECT 'text_1' UNION SELECT 'te+xt';
+SET NAMES latin1;
+# ALNUM repertoire
+SELECT * FROM v1 WHERE c1 = 'TEXT1';
+c1
+text1
+# IDENT repertoire
+SELECT * FROM v1 WHERE c1 = 'TEXT_1';
+c1
+text_1
+# ASCII repertoire
+SELECT * FROM v1 WHERE c1 = 'TE+XT';
+c1
+te+xt
 DROP VIEW v1;
 create procedure p()
 begin

@@ -1,0 +1,15 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES greek COLLATE greek_general_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES greek COLLATE greek_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

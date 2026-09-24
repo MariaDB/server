@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES latin5 COLLATE latin5_turkish_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_02_probe_error.inc
+
+SET NAMES latin5 COLLATE latin5_bin;
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT c FROM v_tailoring WHERE c='Y';
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo #
+--echo # MDEV-41246 LOWER() and UPPER() can convert ASCII letters to
+--echo # non-ASCII ones in Turkish collations (I -> dotless i, i -> dotted I),
+--echo # so their results are not ASCII-only and are converted to latin5
+--echo # when mixed with a latin1 string, rather than the other way round.
+--echo #
+SET NAMES latin5 COLLATE latin5_turkish_ci;
+SELECT HEX(LOWER('I')), LOWER('I') = _latin1'i';
+SELECT HEX(UPPER('i')), UPPER('i') = _latin1'I';
+SELECT _latin1'i' = LOWER('I');
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

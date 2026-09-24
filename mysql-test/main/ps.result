@@ -4514,6 +4514,11 @@ EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
 CONCAT(?,?)
 xxxyyyzzz
 DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+?
+1
+DEALLOCATE PREPARE stmt;
 #
 # Testing disallowed expressions in USING
 #
@@ -4531,8 +4536,10 @@ DROP FUNCTION f1;
 # Testing erroneous expressions in USING
 #
 PREPARE stmt FROM 'SELECT ?';
-EXECUTE stmt USING _latin1'a'=_latin2'a';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE stmt USING CONCAT(_latin1'a',_latin2'a');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE stmt USING _latin1'a'=_latin7'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_general_ci,COERCIBLE) for operation '='
 DEALLOCATE PREPARE stmt;
 PREPARE stmt FROM 'SELECT ?';
 EXECUTE stmt USING ROW(1,2);
@@ -4693,6 +4700,9 @@ a
 EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
 a
 20
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+?
+1
 #
 # Erroneous queries
 #
@@ -4710,8 +4720,10 @@ EXECUTE IMMEDIATE 'EXECUTE stmt';
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
 ERROR HY000: This command is not supported in the prepared statement protocol yet
-EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(_latin1'a',_latin2'a');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin7'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin7_general_ci,COERCIBLE) for operation '='
 EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);
 ERROR 21000: Operand should contain 1 column(s)
 #
@@ -6146,4 +6158,78 @@ delete from t1 where a=1 or b=2;
 ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 drop table t1, t2;
 # End of 11.7 tests
+# Start of 11.8 tests
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+# Parameters of prepared statements
+#
+SET NAMES latin2 COLLATE latin2_general_ci;
+PREPARE stmt FROM 'SELECT _latin1''Y'' = ? AS r';
+SET @y='y', @n='N', @y_plus='Y+';
+EXECUTE stmt USING @y;
+r
+1
+EXECUTE stmt USING @n;
+r
+0
+EXECUTE stmt USING @y_plus;
+r
+0
+EXECUTE stmt USING 'y';
+r
+1
+EXECUTE stmt USING 'Y+';
+r
+0
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT _latin1''Y+'' = ? AS r';
+EXECUTE stmt USING 'y';
+r
+0
+EXECUTE stmt USING 'Y+';
+r
+1
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'y';
+r
+1
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'Y+';
+r
+0
+# Parameters compared to a view column created under another charset
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+CREATE VIEW v1 AS SELECT 'Y' AS c1 UNION SELECT 'N';
+SET NAMES latin2 COLLATE latin2_general_ci;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1=? ORDER BY c1';
+EXECUTE stmt USING @y;
+c1
+Y
+EXECUTE stmt USING @n;
+c1
+N
+EXECUTE stmt USING @y_plus;
+c1
+EXECUTE stmt USING 'y';
+c1
+Y
+EXECUTE stmt USING 'x';
+c1
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1 IN (?,?) ORDER BY c1';
+EXECUTE stmt USING 'y', 'n';
+c1
+N
+Y
+EXECUTE stmt USING 'y', 'Y+';
+c1
+Y
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'y';
+c1
+Y
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'Y+';
+c1
+DROP VIEW v1;
+SET NAMES DEFAULT;
+# End of 11.8 tests
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
