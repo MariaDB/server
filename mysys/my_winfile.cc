@@ -305,8 +305,16 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     filecreate, fileattrib, NULL)) == INVALID_HANDLE_VALUE)
   {
     DWORD last_error= GetLastError();
-    if (last_error == ERROR_PATH_NOT_FOUND && strlen(path) >= MAX_PATH)
-      errno= ENAMETOOLONG;
+    if (last_error == ERROR_PATH_NOT_FOUND)
+    {
+      char full_path[MAX_PATH];
+      DWORD full_len= GetFullPathName(path, sizeof(full_path), full_path, 0);
+      if (full_len >= MAX_PATH ||
+          (full_len == 0 && GetLastError() == ERROR_FILENAME_EXCED_RANGE))
+        errno= ENAMETOOLONG;
+      else
+        my_osmaperr(last_error);     /* map error */
+    }
     else
       my_osmaperr(last_error);     /* map error */
     DBUG_RETURN(-1);

@@ -8,3 +8,15 @@
 let $t = `SELECT(REPEAT('.',51))`;
 --error ER_CANT_CREATE_TABLE
 eval create table `$t`(i int);
+
+--echo #
+--echo # MDEV-28746 continued: a *relative* path can overflow MAX_PATH too
+--echo #
+# mariadbd opens table files via relative (to datadir) paths, so a short
+# identifier can still overflow MAX_PATH (260) once resolved against a long
+# enough datadir. '!' encodes to 5 bytes; pick the fewest of them that push
+# datadir + "test\<name>.frm" (9 fixed bytes) to 260.
+--let $t2= `SELECT REPEAT('!', GREATEST(1, CEIL((260 - LENGTH(@@datadir) - 9) / 5)))`
+--replace_regex /!+/NAME/
+--error ER_CANT_CREATE_TABLE
+eval CREATE TABLE `$t2` (id INT);
