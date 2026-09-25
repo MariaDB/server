@@ -1,0 +1,87 @@
+call mtr.add_suppression("File '.*aria_log.000.*' not found");
+drop database if exists mysqltest;
+create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
+use mysqltest;
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+create table t1 (a int, b varchar(200), key(b))
+transactional=1 row_format=page engine=aria;
+insert into t1 (a,b)
+select seq, concat('k',lpad(seq*7919%100003,6,'0'),repeat('q',150))
+from seq_1_to_2000;
+set session debug_dbug="+d,corrupt_add_prefix_changed";
+delete from t1 where a % 4 <> 0;
+select count(*) from t1;
+count(*)
+500
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+# Recovery must refuse the record, not apply it and notice later.
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40497.err
+NOT FOUND /header == header_end|insert_length <= changed_length/ in mdev40497.err
+use mysqltest;
+#
+# Case 2: the logged insert_length pushes the move past the page.
+#
+create table t2 (a int, b varchar(200), key(b))
+transactional=1 row_format=page engine=aria;
+insert into t2 (a,b)
+select seq, concat('k',lpad(seq*7919%100003,6,'0'),repeat('q',150))
+from seq_1_to_2000;
+set session debug_dbug="+d,corrupt_add_prefix_insert";
+delete from t2 where a % 4 <> 0;
+select count(*) from t2;
+count(*)
+500
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40497b.err
+NOT FOUND /header == header_end|insert_length <= changed_length/ in mdev40497b.err
+use mysqltest;
+#
+# Case 3: a record that really carries more prefix data than the page
+# can hold. Only the bound on the memcpy destination refuses this one.
+#
+create table t3 (a int, b varchar(200), key(b))
+transactional=1 row_format=page engine=aria;
+insert into t3 (a,b)
+select seq, concat('k',lpad(seq*7919%100003,6,'0'),repeat('q',150))
+from seq_1_to_2000;
+set session debug_dbug="+d,corrupt_add_prefix_big";
+delete from t3 where a % 4 <> 0;
+select count(*) from t3;
+count(*)
+500
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40497c.err
+NOT FOUND /header == header_end|insert_length <= changed_length/ in mdev40497c.err
+use mysqltest;
+#
+# Case 4: insert_length larger than changed_length. Every bound above is
+# satisfied, but the record cannot be applied: it would leave the gap
+# between the two lengths holding whatever was on the page.
+#
+create table t4 (a int, b varchar(200), key(b))
+transactional=1 row_format=page engine=aria;
+insert into t4 (a,b)
+select seq, concat('k',lpad(seq*7919%100003,6,'0'),repeat('q',150))
+from seq_1_to_2000;
+set session debug_dbug="+d,corrupt_add_prefix_gap";
+delete from t4 where a % 4 <> 0;
+select count(*) from t4;
+count(*)
+500
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40497d.err
+NOT FOUND /header == header_end|insert_length <= changed_length/ in mdev40497d.err
+drop database mysqltest;
