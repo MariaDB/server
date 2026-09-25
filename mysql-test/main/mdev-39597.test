@@ -1,0 +1,39 @@
+--echo #
+--echo # MDEV-39597: SHOW PROFILE reports duplicate sending data
+--echo # stage for INSERT...SELECT due to save/restore in free_tmp_table
+--echo #
+
+--source include/have_profiling.inc
+--disable_ps2_protocol
+
+CREATE TABLE profile_test (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100),
+  value INT
+);
+INSERT INTO profile_test (name, value) VALUES
+  ('alpha',1),('beta',2),('gamma',3),('delta',4),('epsilon',5),
+  ('zeta',6),('eta',7),('theta',8),('iota',9),('kappa',10);
+SET profiling = 1;
+INSERT INTO profile_test (name, value)
+  SELECT name, value FROM profile_test LIMIT 5;
+
+--echo # Check that no stage appears twice consecutively around removing tmp table
+
+SELECT COUNT(*) AS duplicate_stage_found
+FROM (
+  SELECT
+    STATE,
+    LAG(STATE) OVER (ORDER BY SEQ) AS prev_status,
+    LEAD(STATE) OVER (ORDER BY SEQ) AS next_status
+  FROM information_schema.profiling
+  WHERE QUERY_ID = 1
+) t
+WHERE STATE = 'Removing tmp table'
+AND prev_status = next_status;
+
+--enable_ps2_protocol
+
+# clean up
+SET profiling = 0;
+DROP TABLE profile_test;
