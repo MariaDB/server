@@ -4444,4 +4444,45 @@ SET @value= '
 
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 
+--echo #
+--echo # MDEV-41153 json_escape() omits the second \\u in surrogate pairs for
+--echo #            non-BMP characters
+--echo #
+--echo # A character outside the BMP needs a UTF-16 surrogate pair, i.e. two
+--echo # separate \\uXXXX escapes.  json_escape() emitted a single \\u followed
+--echo # by both halves' hex digits, producing invalid JSON that could not be
+--echo # parsed back.
+
+--echo # U+1F600 GRINNING FACE, escaped because latin1 cannot represent it
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880) AS non_bmp;
+
+--echo # The escaped output must be valid JSON and survive a round trip
+SELECT JSON_VALID(JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880)) AS valid;
+SELECT HEX(JSON_UNQUOTE(JSON_EXTRACT(
+         JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880), '$.x'))) AS round_trip;
+
+--echo # Boundary cases: first and last non-BMP code points
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF0908080) AS u10000;
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF48FBFBF) AS u10ffff;
+
+--echo # Several non-BMP characters in one string
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880F09F9881) AS two_non_bmp;
+
+--echo # A BMP character that latin1 cannot represent is still escaped with
+--echo # exactly one \\uXXXX (unchanged behaviour).  U+0100 and U+FFFD sit below
+--echo # and just above the surrogate range respectively.
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xC480) AS bmp_u0100;
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xEFBFBD) AS bmp_ufffd;
+
+--echo # A character latin1 CAN represent is not escaped at all
+SELECT JSON_VALID(JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xC3B6)) AS latin1_ok;
+
+--echo # The declared result length must accommodate the escaped form.  It used
+--echo # to be computed without any escaping factor, so the value was silently
+--echo # truncated when stored.
+CREATE TABLE t_json_len AS
+  SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880) AS c;
+SELECT CHAR_LENGTH(c), c FROM t_json_len;
+DROP TABLE t_json_len;
+
 --echo # End of 11.4 tests

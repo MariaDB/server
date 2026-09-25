@@ -3400,10 +3400,12 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
     paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
     /*
       In the resulting JSON we can insert the property
-      name from the path, and the value itself.
+      name from the path, and the value itself.  Both are escaped on the
+      way in, and in the worst case a single character becomes
+      '\uXXXX\uXXXX', i.e. 12 characters -- see st_append_escaped().
     */
-    char_length+= args[n_arg/2]->max_char_length() + 6;
-    char_length+= args[n_arg/2+1]->max_char_length() + 4;
+    char_length+= args[n_arg]->max_char_length() * 12 + 6;
+    char_length+= args[n_arg + 1]->max_char_length() * 12 + 4;
   }
 
   fix_char_length_ulonglong(char_length);

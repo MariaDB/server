@@ -5770,4 +5770,57 @@ SET @value= '
 SELECT JSON_SCHEMA_VALID(@schema, @value);
 JSON_SCHEMA_VALID(@schema, @value)
 1
+#
+# MDEV-41153 json_escape() omits the second \u in surrogate pairs for
+#            non-BMP characters
+#
+# A character outside the BMP needs a UTF-16 surrogate pair, i.e. two
+# separate \uXXXX escapes.  json_escape() emitted a single \u followed
+# by both halves' hex digits, producing invalid JSON that could not be
+# parsed back.
+# U+1F600 GRINNING FACE, escaped because latin1 cannot represent it
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880) AS non_bmp;
+non_bmp
+{"x": "\uD83D\uDE00"}
+# The escaped output must be valid JSON and survive a round trip
+SELECT JSON_VALID(JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880)) AS valid;
+valid
+1
+SELECT HEX(JSON_UNQUOTE(JSON_EXTRACT(
+JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880), '$.x'))) AS round_trip;
+round_trip
+F09F9880
+# Boundary cases: first and last non-BMP code points
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF0908080) AS u10000;
+u10000
+{"x": "\uD800\uDC00"}
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF48FBFBF) AS u10ffff;
+u10ffff
+{"x": "\uDBFF\uDFFF"}
+# Several non-BMP characters in one string
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880F09F9881) AS two_non_bmp;
+two_non_bmp
+{"x": "\uD83D\uDE00\uD83D\uDE01"}
+# A BMP character that latin1 cannot represent is still escaped with
+# exactly one \uXXXX (unchanged behaviour).  U+0100 and U+FFFD sit below
+# and just above the surrogate range respectively.
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xC480) AS bmp_u0100;
+bmp_u0100
+{"x": "\u0100"}
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xEFBFBD) AS bmp_ufffd;
+bmp_ufffd
+{"x": "\uFFFD"}
+# A character latin1 CAN represent is not escaped at all
+SELECT JSON_VALID(JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xC3B6)) AS latin1_ok;
+latin1_ok
+1
+# The declared result length must accommodate the escaped form.  It used
+# to be computed without any escaping factor, so the value was silently
+# truncated when stored.
+CREATE TABLE t_json_len AS
+SELECT JSON_SET(_latin1'{}', '$.x', _utf8mb4 0xF09F9880) AS c;
+SELECT CHAR_LENGTH(c), c FROM t_json_len;
+CHAR_LENGTH(c)	c
+21	{"x": "\uD83D\uDE00"}
+DROP TABLE t_json_len;
 # End of 11.4 tests
