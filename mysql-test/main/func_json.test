@@ -1969,6 +1969,48 @@ select json_detailed('[[123],456]');
 SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
 
 --echo #
+--echo # MDEV-40972: JSON_TABLE scalar conversion error responses
+--echo #
+
+SELECT * FROM JSON_TABLE('{"a":"str"}', '$' COLUMNS(c INT PATH '$.a' NULL ON ERROR)) jt;
+# A handled failure must not affect another column or the next row.
+SELECT * FROM JSON_TABLE('[{"a":"str","b":7},{"a":3,"b":8}]', '$[*]'
+  COLUMNS(ord FOR ORDINALITY,
+          c INT PATH '$.a' NULL ON ERROR,
+          d INT PATH '$.a' DEFAULT '42' ON ERROR,
+          good INT PATH '$.b' ERROR ON ERROR,
+          js JSON PATH '$.b' ERROR ON ERROR)) jt;
+# Missing values use ON EMPTY; JSON null and booleans convert successfully.
+SELECT * FROM JSON_TABLE('[{}, {"a":null}, {"a":true}, {"a":false}]', '$[*]'
+  COLUMNS(ord FOR ORDINALITY,
+          c INT PATH '$.a' DEFAULT '9' ON EMPTY DEFAULT '8' ON ERROR)) jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT * FROM JSON_TABLE('{}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON EMPTY)) jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT * FROM JSON_TABLE('{"a":"str"}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON ERROR)) jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT * FROM JSON_TABLE('{"a":1000}', '$'
+  COLUMNS(c TINYINT PATH '$.a' ERROR ON ERROR)) jt;
+# Non-scalar values keep their existing diagnostic and response.
+--error ER_JSON_TABLE_SCALAR_EXPECTED
+SELECT * FROM JSON_TABLE('{"a":[1,2]}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON ERROR)) jt;
+SELECT * FROM JSON_TABLE('{"a":{}}', '$'
+  COLUMNS(c INT PATH '$.a' DEFAULT '42' ON ERROR)) jt;
+# Rounding notes are not conversion failures.
+SELECT * FROM JSON_TABLE('{"a":1.239}', '$'
+  COLUMNS(c DECIMAL(5,2) PATH '$.a' DEFAULT '9.99' ON ERROR,
+          d INT PATH '$.missing' DEFAULT '7' ON EMPTY ERROR ON ERROR)) jt;
+SET @mdev40972_sql_mode= @@sql_mode;
+SET sql_mode= 'STRICT_ALL_TABLES';
+SELECT * FROM JSON_TABLE('{"a":"str","b":7}', '$'
+  COLUMNS(c INT PATH '$.a' DEFAULT '42' ON ERROR,
+          d INT PATH '$.b' ERROR ON ERROR)) jt;
+SET sql_mode= @mdev40972_sql_mode;
+
+--echo #
 --echo # MDEV-36319: Wrong result json_table
 --echo #
 
