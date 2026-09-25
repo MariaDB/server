@@ -1769,30 +1769,47 @@ int json_escape(CHARSET_INFO *str_cs,
       {
         /* We have to use /uXXXX escaping. */
         uchar utf16buf[4];
-        uchar code_str[8];
+        uchar code_str[4];
         int u_len= my_uni_utf16(0, c_chr, utf16buf, utf16buf + 4);
+        int i;
 
-        code_str[0]= hexconv[utf16buf[0] >> 4];
-        code_str[1]= hexconv[utf16buf[0] & 15];
-        code_str[2]= hexconv[utf16buf[1] >> 4];
-        code_str[3]= hexconv[utf16buf[1] & 15];
+        if (u_len <= 0)
+          return JSON_ERROR_ILLEGAL_SYMBOL;
 
-        if (u_len > 2)
+        /*
+          my_uni_utf16() returns 2 bytes for a BMP character and 4 for a
+          surrogate pair.  Each UTF-16 code unit needs its own \uXXXX
+          escape, so emit one per 2 bytes.  The first "\u" is already
+          written above.
+        */
+        for (i= 0; i < u_len; i+= 2)
         {
-          code_str[4]= hexconv[utf16buf[2] >> 4];
-          code_str[5]= hexconv[utf16buf[2] & 15];
-          code_str[6]= hexconv[utf16buf[3] >> 4];
-          code_str[7]= hexconv[utf16buf[3] & 15];
-        }
-        
-        if ((c_len= json_append_ascii(json_cs, json, json_end,
-                                      code_str, code_str+u_len*2)) > 0)
-        {
+          if (i)
+          {
+            if ((c_len= my_ci_wc_mb(json_cs, '\\', json, json_end)) <= 0 ||
+                (c_len= my_ci_wc_mb(json_cs, ESC_U, json+= c_len,
+                                    json_end)) <= 0)
+            {
+              /* JSON buffer is depleted. */
+              return JSON_ERROR_OUT_OF_SPACE;
+            }
+            json+= c_len;
+          }
+
+          code_str[0]= hexconv[utf16buf[i] >> 4];
+          code_str[1]= hexconv[utf16buf[i] & 15];
+          code_str[2]= hexconv[utf16buf[i + 1] >> 4];
+          code_str[3]= hexconv[utf16buf[i + 1] & 15];
+
+          if ((c_len= json_append_ascii(json_cs, json, json_end,
+                                        code_str, code_str + 4)) <= 0)
+          {
+            /* JSON buffer is depleted. */
+            return JSON_ERROR_OUT_OF_SPACE;
+          }
           json+= c_len;
-          continue;
         }
-        /* JSON buffer is depleted. */
-        return JSON_ERROR_OUT_OF_SPACE;
+        continue;
       }
     }
     else /* c_len == 0, an illegal symbol. */
