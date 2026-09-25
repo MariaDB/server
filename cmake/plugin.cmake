@@ -160,9 +160,9 @@ MACRO(MYSQL_ADD_PLUGIN)
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDS})
     RESTRICT_SYMBOL_EXPORTS(${target})
     IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
-      # Embedded library should contain PIC code and be linkable
+      # Embedded library should be linkable
       # to shared libraries (on systems that need PIC)
-      IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
+      IF(ARG_RECOMPILE_FOR_EMBEDDED)
         # Recompile some plugins for embedded
         ADD_CONVENIENCE_LIBRARY(${target}_embedded ${SOURCES})
         RESTRICT_SYMBOL_EXPORTS(${target}_embedded)
