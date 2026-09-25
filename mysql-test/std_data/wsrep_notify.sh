@@ -104,6 +104,13 @@ trim_string()
     fi
 }
 
+# Escape a value for embedding inside '...' before it is re-parsed by eval.
+# Single quote is the only character with special meaning inside '...'.
+quote_sq()
+{
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+}
+
 COM='status_update' # not a configuration change by default
 
 STATUS=""
@@ -174,13 +181,13 @@ SSL_PARAM=""
 if [ -n "$ssl_key$ssl_cert$ssl_ca$ssl_capath$ssl_cipher$ssl_crl$ssl_crlpath" ]
 then
     SSL_PARAM=' --ssl'
-    [ -n "$ssl_key" ]     && SSL_PARAM="$SSL_PARAM --ssl-key='$ssl_key'"
-    [ -n "$ssl_cert" ]    && SSL_PARAM="$SSL_PARAM --ssl-cert='$ssl_cert'"
-    [ -n "$ssl_ca" ]      && SSL_PARAM="$SSL_PARAM --ssl-ca='$ssl_ca'"
-    [ -n "$ssl_capath" ]  && SSL_PARAM="$SSL_PARAM --ssl-capath='$ssl_capath'"
-    [ -n "$ssl_cipher" ]  && SSL_PARAM="$SSL_PARAM --ssl-cipher='$ssl_cipher'"
-    [ -n "$ssl_crl" ]     && SSL_PARAM="$SSL_PARAM --ssl-crl='$ssl_crl'"
-    [ -n "$ssl_crlpath" ] && SSL_PARAM="$SSL_PARAM --ssl-crlpath='$ssl_crlpath'"
+    [ -n "$ssl_key" ]     && SSL_PARAM="$SSL_PARAM --ssl-key='$(quote_sq "$ssl_key")'"
+    [ -n "$ssl_cert" ]    && SSL_PARAM="$SSL_PARAM --ssl-cert='$(quote_sq "$ssl_cert")'"
+    [ -n "$ssl_ca" ]      && SSL_PARAM="$SSL_PARAM --ssl-ca='$(quote_sq "$ssl_ca")'"
+    [ -n "$ssl_capath" ]  && SSL_PARAM="$SSL_PARAM --ssl-capath='$(quote_sq "$ssl_capath")'"
+    [ -n "$ssl_cipher" ]  && SSL_PARAM="$SSL_PARAM --ssl-cipher='$(quote_sq "$ssl_cipher")'"
+    [ -n "$ssl_crl" ]     && SSL_PARAM="$SSL_PARAM --ssl-crl='$(quote_sq "$ssl_crl")'"
+    [ -n "$ssl_crlpath" ] && SSL_PARAM="$SSL_PARAM --ssl-crlpath='$(quote_sq "$ssl_crlpath")'"
     if [ -n "$ssl_verify_server_cert" ]; then
         if [ "$ssl_verify_server_cert" != "0" -o \
              "$ssl_verify_server_cert" = "on" ]
@@ -192,8 +199,8 @@ fi
 
 case "$STATUS" in
     'joined' | 'donor' | 'synced')
-        "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
-                      "-h'$HOST'" "-P$PORT"$SSL_PARAM
+        "$COM" | eval "$CLIENT" -B "-u'$(quote_sq "$USER")'"${PSWD:+" -p'$(quote_sq "$PSWD")'"}\
+                      "-h'$(quote_sq "$HOST")'" "-P$PORT" "$SSL_PARAM"
         ;;
     *)
         # The node might be shutting down or not initialized

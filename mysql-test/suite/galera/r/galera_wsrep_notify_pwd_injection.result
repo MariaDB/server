@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SELECT 1;
+1
+1
+-B
+-uroot
+-px' y='z
+-h127.0.0.1
+-P3306

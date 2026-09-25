@@ -1,0 +1,30 @@
+#
+# MDEV-41230: the shipped wsrep_notify.sh reparsed configured credentials
+# through eval, so a password containing an apostrophe and a space was
+# split into two client arguments instead of staying one.
+#
+# STEPS:
+#  - node 1's wsrep_notify_cmd is configured with such a password, and a
+#    fake argv-recording client instead of a real mysql client
+#  - wait for the 2-node cluster to fully form (node 1 reaches Synced)
+#  - check that the notify script's recorded client invocation shows the
+#    password as a single, unsplit -p argument
+#
+
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+
+--connection node_1
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'WSREP_LOCAL_STATE_COMMENT'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--sleep 2
+
+--let $argv_file = $MYSQLTEST_VARDIR/tmp/wsrep_notify_pwd_injection.argv
+cat_file $argv_file;
+--remove_file $argv_file
