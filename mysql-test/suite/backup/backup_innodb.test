@@ -11,6 +11,9 @@ INSERT INTO at1 VALUES (2), (3), (5), (7);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
 
+# Create a table that must be copied and dropped during the backup
+CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
+SELECT seq a, '' b FROM seq_1_to_100000;
 # Create a table that must be copied and renamed during the backup
 CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 # Because log checkpoint will complete before BACKUP SERVER,
@@ -65,6 +68,7 @@ SET DEBUG_SYNC='now WAIT_FOR start';
 }
 --connect rename,localhost,root
 RENAME TABLE rt TO rtt;
+DROP TABLE dt;
 --disconnect rename
 --connection default
 INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
@@ -79,6 +83,8 @@ ROLLBACK;
 SELECT * FROM rtt;
 SELECT * FROM t;
 DELETE FROM t;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM dt;
 DROP TABLE at0, at1;
 
 if (!$have_debug) {
@@ -103,8 +109,11 @@ if (!$MARIADB_UPGRADE_EXE) {
 }
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
 --source include/restart_mysqld.inc
+--list_files $target_directory/test ?t*.ibd
 
 SELECT * FROM rtt;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM dt;
 SELECT * FROM t;
 # A nonzero innodb_log_recovery_target makes InnoDB read-only.
 --error ER_OPEN_AS_READONLY

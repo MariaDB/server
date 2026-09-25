@@ -866,6 +866,7 @@ private:
      @param space    tablespace that is being backed up
      @param end_page first page not to copy
      @return pointer to the new end of the array, of write-fixed blocks
+     @retval nullptr if the tablespace is being dropped
   */
   static buf_page_t **backup_batch_start(buf_page_t **end,
                                          fil_space_t *space, uint32_t end_page)
@@ -874,6 +875,8 @@ private:
     ut_ad(end_page);
     ut_ad(!(end_page % fil_space_t::BACKUP_BATCH_SIZE));
     space->backup_start(end_page);
+    if (space->is_stopping())
+      return nullptr;
     /* Block any writes that might be posted after checking
     fil_space_t::backup_page_end(). */
     return innodb_backup_batch_wait(end, space->id, end_page - 1);
@@ -887,13 +890,13 @@ private:
   static void backup_batch_stop(fil_space_t *space,
                                 buf_page_t **begin, buf_page_t **end) noexcept
   {
-    space->backup_stop();
     while (begin != end)
     {
       buf_page_t *b= *begin++;
       b->write_unfix_try();
       b->unfix();
     }
+    space->backup_stop();
   }
 
   /**
@@ -931,8 +934,10 @@ private:
      @param page_size    node->space->physical_size()
      @param final_limit  the size of the file at init(), or 0 if no dblwr
      @param blocks       descriptor array of fil_space_t::BACKUP_BATCH_SIZE
-     @return error code (non-positive)
+     @return error code
      @retval 0 on success
+     @retval 1 if the operation is not supported
+     @retval 2 if the tablespace is being dropped
   */
   static int copy_file_shortcut_try(int dst, fil_node_t *node,
                                     uint32_t start, uint32_t limit,
@@ -948,13 +953,22 @@ private:
       while (page < limit)
       {
         start+= fil_space_t::BACKUP_BATCH_SIZE;
+        int err;
         buf_page_t **end= backup_batch_start(blocks, node->space, start);
-        const uint64_t o{uint64_t{page} * page_size};
-        page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
-        /* TODO: avoid copying freed page ranges, or pages that were
-        allocated after the backup started */
-        int err{copy_file_shortcut(node->handle, dst,
-                                   o, uint64_t{page} * page_size)};
+        if (end)
+        {
+          const uint64_t o{uint64_t{page} * page_size};
+          page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+          /* TODO: avoid copying freed page ranges, or pages that were
+             allocated after the backup started */
+          err= copy_file_shortcut(node->handle, dst,
+                                  o, uint64_t{page} * page_size);
+        }
+        else
+        {
+          err= 2;
+          end= blocks;
+        }
         backup_batch_stop(node->space, blocks, end);
         if (err)
           return err;
@@ -1126,11 +1140,19 @@ private:
             {
               start+= fil_space_t::BACKUP_BATCH_SIZE;
               buf_page_t **end= backup_batch_start(blocks, node->space, start);
-              const uint64_t o{uint64_t{page} * page_size};
-              page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
-              /* TODO: avoid copying freed page ranges, or pages that were
-              allocated after the backup started */
-              err= copy_file_mmap(p, f, o, uint64_t{page} * page_size);
+              if (end)
+              {
+                const uint64_t o{uint64_t{page} * page_size};
+                page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+                /* TODO: avoid copying freed page ranges, or pages that were
+                allocated after the backup started */
+                err= copy_file_mmap(p, f, o, uint64_t{page} * page_size);
+              }
+              else
+              {
+                end= blocks;
+                err= 2;
+              }
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
@@ -1156,12 +1178,20 @@ private:
             {
               start+= fil_space_t::BACKUP_BATCH_SIZE;
               buf_page_t **end= backup_batch_start(blocks, node->space, start);
-              const uint64_t o{uint64_t{page} * page_size};
-              page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
-              /* TODO: avoid copying freed page ranges, or pages that were
-              allocated after the backup started */
-              err=
-                backup::copy(node->handle, f, o, uint64_t{page} * page_size);
+              if (end)
+              {
+                const uint64_t o{uint64_t{page} * page_size};
+                page= std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+                /* TODO: avoid copying freed page ranges, or pages that were
+                allocated after the backup started */
+                err=
+                  backup::copy(node->handle, f, o, uint64_t{page} * page_size);
+              }
+              else
+              {
+                end= blocks;
+                err= 2;
+              }
               backup_batch_stop(node->space, blocks, end);
               if (err)
                 break;
@@ -1179,8 +1209,14 @@ private:
           }
       }
 
-      if (IF_WIN(!CloseHandle(f), close(f)) | err)
-        goto fail;
+      if (IF_WIN(!CloseHandle,close)(f) | err)
+      {
+        if (err != 2)
+          goto fail;
+        /* The tablespace is being dropped. */
+        IF_WIN(DeleteFile(path.c_str()), unlinkat(target, name, 0));
+      }
+
       break;
     }
     return 0;
@@ -1243,11 +1279,7 @@ private:
       chunk[1].length-= chunk[1].offset;
     }
 
-    int err= backup_stream_start(stream, name, 0644,
-                                 physical_size, chunk, n_chunk);
-    if (err)
-      limit= 0;
-
+    int err{0};
     uint32_t page{0};
 
   loop:
@@ -1259,13 +1291,43 @@ private:
         end= backup_batch_start(end, node->space, end_page);
         start= end_page;
       }
-      uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
-      /* TODO: avoid copying freed page ranges, or pages that were
-      allocated after the backup started */
-      err= backup::append(node->handle, stream,
-                          uint64_t{page} * page_size,
-                          uint64_t{last} * page_size);
-      page= last;
+      if (end)
+      {
+        if (page == 0 &&
+            (err= backup_stream_start(stream, name, 0644,
+                                      physical_size, chunk, n_chunk)))
+          break;
+        /* TODO: avoid copying freed page ranges, or pages that were
+        allocated after the backup started */
+        uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
+        err= backup::append(node->handle, stream,
+                            uint64_t{page} * page_size,
+                            uint64_t{last} * page_size);
+        page= last;
+      }
+      else
+      {
+        if (page == 0)
+          /* The tablespace was dropped before we started streaming. */
+          return 0;
+        /* We must stream the expected amount of dummy data. */
+        constexpr size_t sz{1U << 20};
+        if (void *zerofill= calloc(sz, 1))
+        {
+          uint64_t size= (limit - page) * page_size;
+          do
+          {
+            const size_t s= size < uint64_t{sz} ? size_t(size) : sz;
+            err= backup_stream_write(stream, zerofill, s);
+            size-= s;
+          }
+          while (!err && size);
+          free(zerofill);
+        }
+        else
+          err= -1;
+        end= blocks;
+      }
       backup_batch_stop(node->space, blocks, end);
       if (err)
         goto fail;

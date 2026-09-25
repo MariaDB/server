@@ -2,6 +2,8 @@ CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (2), (3), (5), (7);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
+CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
+SELECT seq a, '' b FROM seq_1_to_100000;
 CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 SET GLOBAL innodb_log_checkpoint_now=ON;
 CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
@@ -28,6 +30,7 @@ BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
 connection default;
 connect rename,localhost,root;
 RENAME TABLE rt TO rtt;
+DROP TABLE dt;
 disconnect rename;
 connection default;
 INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
@@ -41,11 +44,16 @@ SELECT * FROM t;
 a	b
 1	
 DELETE FROM t;
+SELECT * FROM dt;
+ERROR 42S02: Table 'test.dt' doesn't exist
 DROP TABLE at0, at1;
 rt.ibd
 # restart: --defaults-file=MYSQLTEST_VARDIR/some_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_directory
+rtt.ibd
 SELECT * FROM rtt;
 a
+SELECT * FROM dt;
+ERROR 42S02: Table 'test.dt' doesn't exist
 SELECT * FROM t;
 a	b
 1	

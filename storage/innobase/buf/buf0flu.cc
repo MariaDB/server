@@ -1249,10 +1249,20 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
-  const uint32_t n= space ? space->acquire_low(STOPPING_WRITES) : 0;
+  const uint32_t n= space ? space->acquire_low(0) : 0;
 
   if (n & STOPPING_WRITES)
-    space= nullptr;
+  {
+    mysql_mutex_unlock(&fil_system.mutex);
+    /*
+      Wait for a BACKUP SERVER batch to end, so that we can safely
+      invoke buf_flush_discard_page().
+    */
+    while (space->backup_page_end())
+      std::this_thread::yield();
+    space->release();
+    return nullptr;
+  }
   else if ((n & CLOSING) && !space->prepare_acquired())
     space= nullptr;
 

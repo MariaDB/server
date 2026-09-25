@@ -1,6 +1,6 @@
 --- backup_innodb.result
 +++ backup_innodb,debug.result
-@@ -24,13 +24,16 @@
+@@ -26,14 +26,17 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
@@ -10,6 +10,7 @@
 +SET DEBUG_SYNC='now WAIT_FOR start';
  connect rename,localhost,root;
  RENAME TABLE rt TO rtt;
+ DROP TABLE dt;
  disconnect rename;
  connection default;
  INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
