@@ -1414,7 +1414,7 @@ public:
         return -1;
       }
 
-      if (lsn < ctx.checkpoint)
+      if (lsn <= ctx.checkpoint)
       {
         if (!SetFileAttributes(destname, FILE_ATTRIBUTE_NORMAL))
           goto fail;
@@ -1452,7 +1452,7 @@ public:
       b.append(basename);
       destname= b.c_str();
 
-      if (lsn >= ctx.checkpoint && lsn < ctx.max_first_lsn)
+      if (lsn > ctx.checkpoint && lsn < ctx.max_first_lsn)
       {
         /* Copy a middle log file entirely. */
         while (!CopyFileEx(path, basename, nullptr, nullptr, nullptr,
@@ -1555,7 +1555,7 @@ public:
 #endif
     backup_chunk chunks[3], *chunk{chunks};
     *chunk++= {log_sys.START_OFFSET, ctx.last_lsn - lsn};
-    if (lsn < ctx.checkpoint)
+    if (lsn <= ctx.checkpoint)
     {
       /* Copy the necessary part of the first log file. */
       ut_ad(lsn == ctx.first_lsn);
@@ -1642,7 +1642,7 @@ public:
 #endif
         backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
                      chunk[-1].length) ||
-        (lsn < ctx.checkpoint && write_checkpoint(dst, cp_buf));
+        (lsn <= ctx.checkpoint && write_checkpoint(dst, cp_buf));
 #ifdef _WIN32
       err|= !CloseHandle(dst);
 #else
