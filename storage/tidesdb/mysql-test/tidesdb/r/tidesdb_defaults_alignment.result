@@ -1,0 +1,75 @@
+# library-aligned column-family defaults
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_min_levels';
+Variable_name	Value
+tidesdb_default_min_levels	1
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_dividing_level_offset';
+Variable_name	Value
+tidesdb_default_dividing_level_offset	1
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_level_size_ratio';
+Variable_name	Value
+tidesdb_default_level_size_ratio	10
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_klog_value_threshold';
+Variable_name	Value
+tidesdb_default_klog_value_threshold	512
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_bloom_filter';
+Variable_name	Value
+tidesdb_default_bloom_filter	ON
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_bloom_fpr';
+Variable_name	Value
+tidesdb_default_bloom_fpr	100
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_block_indexes';
+Variable_name	Value
+tidesdb_default_block_indexes	ON
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_index_sample_ratio';
+Variable_name	Value
+tidesdb_default_index_sample_ratio	1
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_block_index_prefix_len';
+Variable_name	Value
+tidesdb_default_block_index_prefix_len	16
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_skip_list_max_level';
+Variable_name	Value
+tidesdb_default_skip_list_max_level	12
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_skip_list_probability';
+Variable_name	Value
+tidesdb_default_skip_list_probability	25
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_min_disk_space';
+Variable_name	Value
+tidesdb_default_min_disk_space	104857600
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_l1_file_count_trigger';
+Variable_name	Value
+tidesdb_default_l1_file_count_trigger	4
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_l0_queue_stall_threshold';
+Variable_name	Value
+tidesdb_default_l0_queue_stall_threshold	10
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_tombstone_density_trigger';
+Variable_name	Value
+tidesdb_default_tombstone_density_trigger	0
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_tombstone_density_min_entries';
+Variable_name	Value
+tidesdb_default_tombstone_density_min_entries	1024
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_compression';
+Variable_name	Value
+tidesdb_default_compression	LZ4
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_use_btree';
+Variable_name	Value
+tidesdb_default_use_btree	OFF
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_object_lazy_compaction';
+Variable_name	Value
+tidesdb_default_object_lazy_compaction	OFF
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_object_prefetch_compaction';
+Variable_name	Value
+tidesdb_default_object_prefetch_compaction	ON
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_sync_interval_us';
+Variable_name	Value
+tidesdb_default_sync_interval_us	128000
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_write_buffer_size';
+Variable_name	Value
+tidesdb_default_write_buffer_size	67108864
+# deliberate deviations from the library default, see README
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_sync_mode';
+Variable_name	Value
+tidesdb_default_sync_mode	FULL
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_default_isolation_level';
+Variable_name	Value
+tidesdb_default_isolation_level	REPEATABLE_READ
+# Done.

@@ -1,0 +1,108 @@
+#
+# === Setup: TPC-C district table (simplified) ===
+#
+CREATE TABLE district (
+d_w_id INT NOT NULL,
+d_id   INT NOT NULL,
+d_next_o_id INT NOT NULL,
+d_tax  DECIMAL(4,4),
+PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TIDESDB;
+INSERT INTO district VALUES (1, 1, 3001, 0.1000);
+CREATE TABLE orders (
+o_id   INT NOT NULL,
+o_w_id INT NOT NULL,
+o_d_id INT NOT NULL,
+o_c_id INT NOT NULL,
+PRIMARY KEY (o_w_id, o_d_id, o_id)
+) ENGINE=TIDESDB;
+CREATE TABLE new_order (
+no_w_id INT NOT NULL,
+no_d_id INT NOT NULL,
+no_o_id INT NOT NULL,
+PRIMARY KEY (no_w_id, no_d_id, no_o_id)
+) ENGINE=TIDESDB;
+#
+# === TEST 1: Single-session NEWORD (baseline) ===
+#
+BEGIN;
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1 FOR UPDATE;
+d_next_o_id
+3001
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+INSERT INTO orders VALUES (3001, 1, 1, 42);
+INSERT INTO new_order VALUES (1, 1, 3001);
+COMMIT;
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+3002
+#
+# === TEST 2: Two concurrent UPDATEs on same district row ===
+# With pessimistic_locking=ON, the second UPDATE blocks on the
+# row lock until the first commits.  Both succeed, counter
+# increments by 2 with no conflicts and no lost updates.
+#
+connect  connA, localhost, root,,;
+connect  connB, localhost, root,,;
+connection connA;
+BEGIN;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection connB;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection connA;
+COMMIT;
+connection connB;
+connection default;
+# Both UPDATEs succeeded: 3002 + 2 = 3004
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+3004
+#
+# === TEST 3: Serial counter increment (10 iterations) ===
+# Verify the counter works correctly when serialized.
+#
+# Should be initial(3004) + 10 = 3014
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+3014
+#
+# === TEST 4: 4 concurrent autocommit UPDATEs on same row ===
+# With pessimistic_locking=ON, all 4 serialize through the row lock.
+# Counter should advance by exactly 4.
+#
+UPDATE district SET d_next_o_id = 5001 WHERE d_w_id=1 AND d_id=1;
+connect  storm1, localhost, root,,;
+connect  storm2, localhost, root,,;
+connect  storm3, localhost, root,,;
+connect  storm4, localhost, root,,;
+connection storm1;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm2;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm3;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm4;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection storm1;
+connection storm2;
+connection storm3;
+connection storm4;
+connection default;
+# All 4 UPDATEs succeeded through serialized row locks: 5001 + 4 = 5005
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+5005
+#
+# === Cleanup ===
+#
+disconnect connA;
+disconnect connB;
+disconnect storm1;
+disconnect storm2;
+disconnect storm3;
+disconnect storm4;
+connection default;
+DROP TABLE district;
+DROP TABLE orders;
+DROP TABLE new_order;
+# Done.

@@ -1,0 +1,26 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE churn (
+id   INT NOT NULL PRIMARY KEY,
+val  INT
+) ENGINE=TidesDB;
+connect  conA, localhost, root,,;
+connect  conB, localhost, root,,;
+#
+# Each session churns 2500 unique PKs in batches of 50.  Every
+# batch commits, releasing all its row locks; the next batch
+# acquires fresh locks that should land on freelisted slots.
+#
+connection default;
+SELECT @verdict;
+@verdict
+CHAIN_BOUNDED
+SELECT COUNT(*) FROM churn;
+COUNT(*)
+0
+SELECT @recycled_some;
+@recycled_some
+RECYCLED
+disconnect conA;
+disconnect conB;
+DROP TABLE churn;
+# Done.

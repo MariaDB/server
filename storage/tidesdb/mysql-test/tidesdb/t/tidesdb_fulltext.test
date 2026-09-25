@@ -1,0 +1,141 @@
+--source include/have_tidesdb.inc
+#
+# Test: Full-text search (FULLTEXT indexes with BM25 ranking)
+#
+# Covers:
+#   1. CREATE TABLE with FULLTEXT index
+#   2. Natural language mode search with BM25 ranking
+#   3. Boolean mode: required (+), excluded (-), optional terms
+#   4. Boolean mode: prefix wildcard (term*)
+#   5. Multi-column FULLTEXT index
+#   6. UPDATE updates FTS index correctly
+#   7. DELETE removes FTS entries correctly
+#   8. No-match queries return empty result
+#
+
+--echo #
+--echo # Setup
+--echo #
+
+CREATE TABLE articles (
+  id    INT NOT NULL PRIMARY KEY,
+  title VARCHAR(200),
+  body  TEXT,
+  FULLTEXT ft_content (title, body)
+) ENGINE=TidesDB;
+
+INSERT INTO articles VALUES (1, 'MySQL Tutorial', 'DBMS stands for DataBase Management System');
+INSERT INTO articles VALUES (2, 'How To Use MySQL', 'After you went through a tutorial you can start');
+INSERT INTO articles VALUES (3, 'Optimizing MySQL', 'In this tutorial we show optimization techniques');
+INSERT INTO articles VALUES (4, 'TidesDB Guide', 'TidesDB is an LSM tree storage engine');
+INSERT INTO articles VALUES (5, 'Database Systems', 'A database management system manages data efficiently');
+
+--echo #
+--echo # TEST 1: Natural language search
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+
+--echo #
+--echo # TEST 2: Multi-term natural language search
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('database management')
+ORDER BY MATCH(title, body) AGAINST('database management') DESC;
+
+--echo #
+--echo # TEST 3: No match returns empty
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('nonexistent');
+
+--echo #
+--echo # TEST 4: Boolean mode - required term
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('+mysql +tutorial' IN BOOLEAN MODE)
+ORDER BY id;
+
+--echo #
+--echo # TEST 5: Boolean mode - excluded term
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('+mysql -tutorial' IN BOOLEAN MODE)
+ORDER BY id;
+
+--echo #
+--echo # TEST 6: Boolean mode - prefix wildcard
+--echo #
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('optim*' IN BOOLEAN MODE)
+ORDER BY id;
+
+--echo #
+--echo # TEST 7: UPDATE changes FTS results
+--echo #
+
+UPDATE articles SET body = 'This tutorial covers advanced optimization and tuning' WHERE id = 4;
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+
+--echo #
+--echo # TEST 8: DELETE removes from FTS results
+--echo #
+
+DELETE FROM articles WHERE id = 3;
+
+SELECT id, title FROM articles
+WHERE MATCH(title, body) AGAINST('tutorial')
+ORDER BY MATCH(title, body) AGAINST('tutorial') DESC;
+
+--echo #
+--echo # TEST 9: Single-column FULLTEXT index
+--echo #
+
+DROP TABLE articles;
+CREATE TABLE articles (
+  id    INT NOT NULL PRIMARY KEY,
+  title VARCHAR(200),
+  FULLTEXT (title)
+) ENGINE=TidesDB;
+
+INSERT INTO articles VALUES (1, 'Introduction to MySQL');
+INSERT INTO articles VALUES (2, 'Advanced PostgreSQL');
+INSERT INTO articles VALUES (3, 'MySQL Performance Tuning');
+
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST('mysql')
+ORDER BY MATCH(title) AGAINST('mysql') DESC;
+
+--echo #
+--echo # TEST 10: Oversize query terms must not overflow the stack key buffer.
+--echo # fts_build_key truncates inserted keys to 512 bytes, but a user can pass
+--echo # a multi-byte search term whose byte length exceeds the on-disk cap.
+--echo # The query must complete without crashing and return no match.
+--echo #
+
+# 1024 ASCII characters -> 1024 bytes, double the FTS_MAX_TERM_BYTES cap.
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST(REPEAT('a', 1024) IN BOOLEAN MODE);
+
+# Wildcard variant exercises the per-length seek path.
+SELECT id, title FROM articles
+WHERE MATCH(title) AGAINST(CONCAT(REPEAT('a', 1024), '*') IN BOOLEAN MODE);
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP TABLE articles;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

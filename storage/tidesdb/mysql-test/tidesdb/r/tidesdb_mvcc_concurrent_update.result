@@ -1,0 +1,32 @@
+call mtr.add_suppression("\\[TIDESDB\\].*hton_commit: tidesdb_txn_commit returned");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+DROP TABLE IF EXISTS district;
+DROP TABLE IF EXISTS txn_log;
+CREATE TABLE district (
+d_w_id      INT NOT NULL,
+d_id        INT NOT NULL,
+d_next_o_id INT NOT NULL,
+PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TidesDB;
+CREATE TABLE txn_log (
+id BIGINT NOT NULL AUTO_INCREMENT,
+vu INT NOT NULL,
+ts BIGINT NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=TidesDB;
+INSERT INTO district VALUES (1, 1, 3001);
+SELECT
+d_next_o_id - 3001 AS counter_delta,
+(SELECT COUNT(*) FROM txn_log) AS commits_logged,
+CASE
+WHEN d_next_o_id - 3001 = (SELECT COUNT(*) FROM txn_log)
+THEN 'OK'
+    WHEN d_next_o_id - 3001 < (SELECT COUNT(*) FROM txn_log)
+THEN 'LOST_UPDATE'
+    ELSE 'PHANTOM_INCREMENT'
+  END AS verdict
+FROM district WHERE d_w_id=1 AND d_id=1;
+counter_delta	commits_logged	verdict
+#	#	OK
+DROP TABLE district;
+DROP TABLE txn_log;

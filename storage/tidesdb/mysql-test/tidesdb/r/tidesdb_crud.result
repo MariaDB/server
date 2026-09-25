@@ -1,0 +1,379 @@
+#
+# === Setup: install the TIDESDB engine plugin ===
+#
+#
+# ============================================
+# TEST 1: CREATE TABLE / SHOW CREATE TABLE
+# ============================================
+#
+CREATE TABLE t1 (
+id    INT,
+name  VARCHAR(100),
+score DECIMAL(10,2),
+bio   TEXT,
+born  DATE
+) ENGINE=TIDESDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `score` decimal(10,2) DEFAULT NULL,
+  `bio` text DEFAULT NULL,
+  `born` date DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+#
+# ============================================
+# TEST 2: INSERT - single row
+# ============================================
+#
+INSERT INTO t1 VALUES (1, 'Alice', 95.50, 'First student', '2000-01-15');
+SELECT * FROM t1;
+id	name	score	bio	born
+1	Alice	95.50	First student	2000-01-15
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+1
+#
+# ============================================
+# TEST 3: INSERT - multiple rows at once
+# ============================================
+#
+INSERT INTO t1 VALUES
+(2, 'Bob',     88.00, 'Second student', '1999-06-20'),
+(3, 'Charlie', 72.25, 'Third student',  '2001-11-03'),
+(4, 'Diana',   91.10, 'Fourth student', '1998-03-30'),
+(5, 'Eve',     67.80, 'Fifth student',  '2002-08-12');
+SELECT * FROM t1;
+id	name	score	bio	born
+1	Alice	95.50	First student	2000-01-15
+2	Bob	88.00	Second student	1999-06-20
+3	Charlie	72.25	Third student	2001-11-03
+4	Diana	91.10	Fourth student	1998-03-30
+5	Eve	67.80	Fifth student	2002-08-12
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+5
+#
+# ============================================
+# TEST 4: SELECT with WHERE (full scan + filter)
+# ============================================
+#
+SELECT * FROM t1 WHERE id = 3;
+id	name	score	bio	born
+3	Charlie	72.25	Third student	2001-11-03
+SELECT * FROM t1 WHERE score > 90;
+id	name	score	bio	born
+1	Alice	95.50	First student	2000-01-15
+4	Diana	91.10	Fourth student	1998-03-30
+SELECT * FROM t1 WHERE name LIKE '%li%';
+id	name	score	bio	born
+1	Alice	95.50	First student	2000-01-15
+3	Charlie	72.25	Third student	2001-11-03
+SELECT id, name FROM t1 WHERE id >= 2 AND id <= 4;
+id	name
+2	Bob
+3	Charlie
+4	Diana
+#
+# ============================================
+# TEST 5: SELECT with ORDER BY
+#   (exercises position() and rnd_pos())
+# ============================================
+#
+SELECT * FROM t1 ORDER BY score ASC;
+id	name	score	bio	born
+5	Eve	67.80	Fifth student	2002-08-12
+3	Charlie	72.25	Third student	2001-11-03
+2	Bob	88.00	Second student	1999-06-20
+4	Diana	91.10	Fourth student	1998-03-30
+1	Alice	95.50	First student	2000-01-15
+SELECT * FROM t1 ORDER BY name DESC;
+id	name	score	bio	born
+5	Eve	67.80	Fifth student	2002-08-12
+4	Diana	91.10	Fourth student	1998-03-30
+3	Charlie	72.25	Third student	2001-11-03
+2	Bob	88.00	Second student	1999-06-20
+1	Alice	95.50	First student	2000-01-15
+#
+# ============================================
+# TEST 6: SELECT aggregate functions
+# ============================================
+#
+SELECT MIN(score) AS min_s, MAX(score) AS max_s, AVG(score) AS avg_s FROM t1;
+min_s	max_s	avg_s
+67.80	95.50	82.930000
+SELECT SUM(id) AS sum_id FROM t1;
+sum_id
+15
+#
+# ============================================
+# TEST 7: UPDATE - single row via WHERE
+# ============================================
+#
+UPDATE t1 SET score = 99.99 WHERE id = 1;
+SELECT * FROM t1 WHERE id = 1;
+id	name	score	bio	born
+1	Alice	99.99	First student	2000-01-15
+#
+# ============================================
+# TEST 8: UPDATE - multiple rows
+# ============================================
+#
+UPDATE t1 SET bio = 'Updated bio' WHERE id IN (2, 4);
+SELECT id, bio FROM t1 WHERE id IN (2, 4);
+id	bio
+2	Updated bio
+4	Updated bio
+#
+# ============================================
+# TEST 9: UPDATE - all rows (no WHERE)
+# ============================================
+#
+UPDATE t1 SET name = CONCAT(name, '!');
+SELECT id, name FROM t1;
+id	name
+1	Alice!
+2	Bob!
+3	Charlie!
+4	Diana!
+5	Eve!
+#
+# ============================================
+# TEST 10: DELETE - single row
+# ============================================
+#
+DELETE FROM t1 WHERE id = 3;
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+4
+SELECT * FROM t1;
+id	name	score	bio	born
+1	Alice!	99.99	First student	2000-01-15
+2	Bob!	88.00	Updated bio	1999-06-20
+4	Diana!	91.10	Updated bio	1998-03-30
+5	Eve!	67.80	Fifth student	2002-08-12
+#
+# ============================================
+# TEST 11: DELETE - multiple rows via WHERE
+# ============================================
+#
+DELETE FROM t1 WHERE score < 90;
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+2
+SELECT * FROM t1;
+id	name	score	bio	born
+1	Alice!	99.99	First student	2000-01-15
+4	Diana!	91.10	Updated bio	1998-03-30
+#
+# ============================================
+# TEST 12: SELECT from empty result set
+# ============================================
+#
+SELECT * FROM t1 WHERE id = 999;
+id	name	score	bio	born
+#
+# ============================================
+# TEST 13: DELETE - all remaining rows via DELETE
+# ============================================
+#
+DELETE FROM t1;
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+0
+SELECT * FROM t1;
+id	name	score	bio	born
+#
+# ============================================
+# TEST 14: Re-insert after full delete
+# ============================================
+#
+INSERT INTO t1 VALUES (10, 'Zara', 100.00, 'Re-inserted', '2005-05-05');
+SELECT * FROM t1;
+id	name	score	bio	born
+10	Zara	100.00	Re-inserted	2005-05-05
+#
+# ============================================
+# TEST 15: TRUNCATE TABLE (delete_all_rows)
+# ============================================
+#
+INSERT INTO t1 VALUES (11, 'Yuki', 55.00, 'Will be truncated', '2006-06-06');
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+2
+TRUNCATE TABLE t1;
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+0
+#
+# ============================================
+# TEST 16: NULL handling
+# ============================================
+#
+INSERT INTO t1 VALUES (20, NULL, NULL, NULL, NULL);
+INSERT INTO t1 VALUES (21, 'NotNull', 50.00, 'has data', '2010-01-01');
+SELECT * FROM t1;
+id	name	score	bio	born
+20	NULL	NULL	NULL	NULL
+21	NotNull	50.00	has data	2010-01-01
+SELECT * FROM t1 WHERE name IS NULL;
+id	name	score	bio	born
+20	NULL	NULL	NULL	NULL
+SELECT * FROM t1 WHERE name IS NOT NULL;
+id	name	score	bio	born
+21	NotNull	50.00	has data	2010-01-01
+#
+# ============================================
+# TEST 17: Multiple data types stress
+# ============================================
+#
+DROP TABLE t1;
+CREATE TABLE t2 (
+tiny_col   TINYINT,
+small_col  SMALLINT,
+med_col    MEDIUMINT,
+int_col    INT,
+big_col    BIGINT,
+float_col  FLOAT,
+double_col DOUBLE,
+dec_col    DECIMAL(20,5),
+char_col   CHAR(50),
+vchar_col  VARCHAR(200),
+text_col   TEXT,
+date_col   DATE,
+dt_col     DATETIME,
+ts_col     TIMESTAMP NULL
+) ENGINE=TIDESDB;
+INSERT INTO t2 VALUES (
+127, 32767, 8388607, 2147483647, 9223372036854775807,
+3.14, 2.718281828, 12345.67890,
+'fixed', 'variable length', 'long text here',
+'2025-12-31', '2025-12-31 23:59:59', '2025-06-15 12:00:00'
+);
+SELECT * FROM t2;
+tiny_col	small_col	med_col	int_col	big_col	float_col	double_col	dec_col	char_col	vchar_col	text_col	date_col	dt_col	ts_col
+127	32767	8388607	2147483647	9223372036854775807	3.14	2.718281828	12345.67890	fixed	variable length	long text here	2025-12-31	2025-12-31 23:59:59	2025-06-15 12:00:00
+UPDATE t2 SET char_col = 'UPDATED', int_col = 42;
+SELECT char_col, int_col FROM t2;
+char_col	int_col
+UPDATED	42
+DELETE FROM t2;
+SELECT COUNT(*) AS cnt FROM t2;
+cnt
+0
+DROP TABLE t2;
+#
+# ============================================
+# TEST 18: Multiple independent tables
+# ============================================
+#
+CREATE TABLE ta (a INT, val VARCHAR(20)) ENGINE=TIDESDB;
+CREATE TABLE tb (b INT, val VARCHAR(20)) ENGINE=TIDESDB;
+INSERT INTO ta VALUES (1, 'ta_one'), (2, 'ta_two');
+INSERT INTO tb VALUES (1, 'tb_one'), (3, 'tb_three');
+SELECT * FROM ta;
+a	val
+1	ta_one
+2	ta_two
+SELECT * FROM tb;
+b	val
+1	tb_one
+3	tb_three
+SELECT ta.a, ta.val, tb.b, tb.val FROM ta, tb WHERE ta.a = tb.b;
+a	val	b	val
+1	ta_one	1	tb_one
+DROP TABLE ta, tb;
+#
+# ============================================
+# TEST 19: Empty table scan (no rows ever inserted)
+# ============================================
+#
+CREATE TABLE t_empty (x INT) ENGINE=TIDESDB;
+SELECT * FROM t_empty;
+x
+SELECT COUNT(*) AS cnt FROM t_empty;
+cnt
+0
+DROP TABLE t_empty;
+#
+# ============================================
+# TEST 20: REPLACE (DELETE + INSERT internally)
+# ============================================
+#
+CREATE TABLE t3 (id INT, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t3 VALUES (1, 'original');
+SELECT * FROM t3;
+id	val
+1	original
+DROP TABLE t3;
+#
+# ============================================
+# TEST 21: INSERT ... SELECT
+# ============================================
+#
+CREATE TABLE t_src (id INT, val VARCHAR(50)) ENGINE=TIDESDB;
+CREATE TABLE t_dst (id INT, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_src VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc');
+INSERT INTO t_dst SELECT * FROM t_src;
+SELECT * FROM t_dst;
+id	val
+1	aaa
+2	bbb
+3	ccc
+DROP TABLE t_src, t_dst;
+#
+# ============================================
+# TEST 22: UPDATE with expression
+# ============================================
+#
+CREATE TABLE t4 (id INT, counter INT) ENGINE=TIDESDB;
+INSERT INTO t4 VALUES (1, 0), (2, 10), (3, 20);
+UPDATE t4 SET counter = counter + 5;
+SELECT * FROM t4;
+id	counter
+1	5
+2	15
+3	25
+UPDATE t4 SET counter = counter * 2 WHERE id > 1;
+SELECT * FROM t4;
+id	counter
+1	5
+2	30
+3	50
+DROP TABLE t4;
+#
+# ============================================
+# TEST 23: Large-ish batch insert + delete
+# ============================================
+#
+CREATE TABLE t_batch (id INT, padding VARCHAR(100)) ENGINE=TIDESDB;
+SELECT COUNT(*) AS cnt FROM t_batch;
+cnt
+100
+DELETE FROM t_batch WHERE id > 50;
+SELECT COUNT(*) AS cnt FROM t_batch;
+cnt
+50
+DELETE FROM t_batch WHERE id <= 25;
+SELECT COUNT(*) AS cnt FROM t_batch;
+cnt
+25
+TRUNCATE TABLE t_batch;
+SELECT COUNT(*) AS cnt FROM t_batch;
+cnt
+0
+DROP TABLE t_batch;
+#
+# ============================================
+# TEST 24: DROP TABLE (delete_table)
+# ============================================
+#
+CREATE TABLE t_drop (a INT) ENGINE=TIDESDB;
+INSERT INTO t_drop VALUES (1), (2), (3);
+DROP TABLE t_drop;
+SELECT * FROM t_drop;
+ERROR 42S02: Table 'test.t_drop' doesn't exist
+#
+#
+# Done.

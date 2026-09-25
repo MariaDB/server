@@ -1,0 +1,188 @@
+# ---- Setup ----
+CREATE TABLE t_ddl (
+id INT PRIMARY KEY,
+a INT,
+b VARCHAR(100),
+c INT DEFAULT 0
+) ENGINE=TidesDB;
+INSERT INTO t_ddl VALUES (1, 10, 'alpha', 100);
+INSERT INTO t_ddl VALUES (2, 20, 'beta', 200);
+INSERT INTO t_ddl VALUES (3, 30, 'gamma', 300);
+INSERT INTO t_ddl VALUES (4, 10, 'delta', 400);
+INSERT INTO t_ddl VALUES (5, 50, 'epsilon', 500);
+# ---- INSTANT: change column default ----
+ALTER TABLE t_ddl ALTER COLUMN c SET DEFAULT 999, ALGORITHM=INSTANT;
+INSERT INTO t_ddl (id, a, b) VALUES (6, 60, 'zeta');
+SELECT id, c FROM t_ddl WHERE id = 6;
+id	c
+6	999
+# ---- INSTANT: rename column ----
+ALTER TABLE t_ddl CHANGE b b_name VARCHAR(100), ALGORITHM=INSTANT;
+SELECT id, b_name FROM t_ddl WHERE id = 1;
+id	b_name
+1	alpha
+# ---- INSTANT: change table option (SYNC_MODE) ----
+ALTER TABLE t_ddl SYNC_MODE='NONE', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t_ddl;
+Table	Create Table
+t_ddl	CREATE TABLE `t_ddl` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b_name` varchar(100) DEFAULT NULL,
+  `c` int(11) DEFAULT 999,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `SYNC_MODE`='NONE'
+# ---- INPLACE: add secondary index ----
+ALTER TABLE t_ddl ADD INDEX idx_a (a), ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_ddl	0	PRIMARY	1	id	A	2	NULL	NULL		LSM			NO
+t_ddl	1	idx_a	1	a	A	2	NULL	NULL	YES	LSM			NO
+# Verify index is usable
+SELECT id, a FROM t_ddl WHERE a = 10 ORDER BY id;
+id	a
+1	10
+4	10
+SELECT id, a FROM t_ddl WHERE a >= 30 ORDER BY a;
+id	a
+3	30
+5	50
+6	60
+# ---- INPLACE: add another index ----
+ALTER TABLE t_ddl ADD INDEX idx_c (c), ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_ddl	0	PRIMARY	1	id	A	2	NULL	NULL		LSM			NO
+t_ddl	1	idx_a	1	a	A	2	NULL	NULL	YES	LSM			NO
+t_ddl	1	idx_c	1	c	A	2	NULL	NULL	YES	LSM			NO
+EXPLAIN SELECT id, c FROM t_ddl WHERE c = 200;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_ddl	ref	idx_c	idx_c	5	const	1	Using index
+SELECT id, c FROM t_ddl WHERE c = 200;
+id	c
+2	200
+# ---- INPLACE: drop index ----
+ALTER TABLE t_ddl DROP INDEX idx_a, ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_ddl	0	PRIMARY	1	id	A	2	NULL	NULL		LSM			NO
+t_ddl	1	idx_c	1	c	A	2	NULL	NULL	YES	LSM			NO
+# Verify remaining index still works
+SELECT id, c FROM t_ddl WHERE c = 300;
+id	c
+3	300
+# ---- INPLACE: add + drop in one statement ----
+ALTER TABLE t_ddl ADD INDEX idx_a2 (a), DROP INDEX idx_c, ALGORITHM=INPLACE;
+SHOW INDEX FROM t_ddl;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_ddl	0	PRIMARY	1	id	A	2	NULL	NULL		LSM			NO
+t_ddl	1	idx_a2	1	a	A	2	NULL	NULL	YES	LSM			NO
+EXPLAIN SELECT id, a FROM t_ddl WHERE a = 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_ddl	ref	idx_a2	idx_a2	5	const	1	Using index
+SELECT id, a FROM t_ddl WHERE a = 20;
+id	a
+2	20
+# ---- INSTANT: add column (NOT NULL DEFAULT) ----
+ALTER TABLE t_ddl ADD COLUMN d INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
+SELECT id, d FROM t_ddl WHERE id = 1;
+id	d
+1	0
+# ---- Verify old rows readable after ADD COLUMN ----
+SELECT id, a, b_name, c, d FROM t_ddl ORDER BY id;
+id	a	b_name	c	d
+1	10	alpha	100	0
+2	20	beta	200	0
+3	30	gamma	300	0
+4	10	delta	400	0
+5	50	epsilon	500	0
+6	60	zeta	999	0
+# ---- Insert with new schema and verify ----
+INSERT INTO t_ddl VALUES (7, 70, 'eta', 700, 42);
+SELECT id, d FROM t_ddl WHERE id IN (1, 7) ORDER BY id;
+id	d
+1	0
+7	42
+# ---- INSTANT: drop column ----
+ALTER TABLE t_ddl DROP COLUMN d, ALGORITHM=INSTANT;
+SELECT * FROM t_ddl WHERE id = 1;
+id	a	b_name	c
+1	10	alpha	100
+# ---- Verify all rows readable after DROP COLUMN ----
+SELECT id, a, b_name, c FROM t_ddl ORDER BY id;
+id	a	b_name	c
+1	10	alpha	100
+2	20	beta	200
+3	30	gamma	300
+4	10	delta	400
+5	50	epsilon	500
+6	60	zeta	999
+7	70	eta	700
+# ---- Cleanup ----
+DROP TABLE t_ddl;
+# ---- Test with data and hidden PK (no explicit PK) ----
+CREATE TABLE t_nopk (
+a INT,
+b VARCHAR(50)
+) ENGINE=TidesDB;
+INSERT INTO t_nopk VALUES (1, 'one');
+INSERT INTO t_nopk VALUES (2, 'two');
+INSERT INTO t_nopk VALUES (3, 'three');
+# Add index on hidden-PK table
+ALTER TABLE t_nopk ADD INDEX idx_a (a), ALGORITHM=INPLACE;
+SELECT a, b FROM t_nopk WHERE a = 2;
+a	b
+2	two
+# Drop it
+ALTER TABLE t_nopk DROP INDEX idx_a, ALGORITHM=INPLACE;
+DROP TABLE t_nopk;
+# ---- ADD UNIQUE must reject duplicates ----
+CREATE TABLE t_dup (
+i INT NOT NULL,
+j INT NOT NULL DEFAULT 0
+) ENGINE=TidesDB;
+INSERT INTO t_dup VALUES (1, 0);
+INSERT INTO t_dup VALUES (2, 0);
+SELECT * FROM t_dup ORDER BY i;
+i	j
+1	0
+2	0
+ALTER TABLE t_dup ADD UNIQUE unq_j (j);
+ERROR 23000: Duplicate entry '0' for key 'unq_j'
+SELECT * FROM t_dup ORDER BY i;
+i	j
+1	0
+2	0
+SELECT COUNT(*) FROM t_dup;
+COUNT(*)
+2
+DROP TABLE t_dup;
+# ---- ADD FULLTEXT must back-fill pre-existing rows ----
+CREATE TABLE t_ft (
+id INT PRIMARY KEY,
+body VARCHAR(200)
+) ENGINE=TidesDB;
+INSERT INTO t_ft VALUES (1, 'tides db rocks'), (2, 'sql plugin lives'), (3, 'tides again');
+ALTER TABLE t_ft ADD FULLTEXT (body), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: TidesDB cannot add FULLTEXT index inplace. Try ALGORITHM=COPY
+ALTER TABLE t_ft ADD FULLTEXT (body);
+SELECT id FROM t_ft WHERE MATCH(body) AGAINST('tides') ORDER BY id;
+id
+1
+3
+DROP TABLE t_ft;
+# ---- ADD SPATIAL must back-fill pre-existing rows ----
+CREATE TABLE t_sp (
+id INT PRIMARY KEY,
+g GEOMETRY NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO t_sp VALUES (1, ST_GeomFromText('POINT(0 0)'));
+INSERT INTO t_sp VALUES (2, ST_GeomFromText('POINT(10 10)'));
+ALTER TABLE t_sp ADD SPATIAL INDEX (g), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: TidesDB cannot add SPATIAL index inplace. Try ALGORITHM=COPY
+ALTER TABLE t_sp ADD SPATIAL INDEX (g);
+SELECT id FROM t_sp WHERE MBRWithin(g, ST_GeomFromText('POLYGON((-1 -1, -1 5, 5 5, 5 -1, -1 -1))'))
+ORDER BY id;
+id
+1
+DROP TABLE t_sp;

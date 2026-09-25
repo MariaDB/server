@@ -1,0 +1,190 @@
+--source include/have_tidesdb.inc
+#
+# Test: pessimistic S/X lock manager
+#
+# Verifies the four invariants of the two-mode lock manager:
+#   1. S / S compatible -- two readers under REPEATABLE-READ on the same
+#      row both hold S concurrently with no blocking
+#   2. X waits for S readers -- an UPDATE blocks while readers hold S,
+#      then proceeds after every S releases
+#   3. Writer fairness -- a new S blocks while an X is queued, so a
+#      stream of readers can't starve a writer
+#   4. RC / SNAPSHOT reads take no lock -- a plain SELECT under
+#      READ-COMMITTED returns immediately even with an X held on the row
+#
+# pessimistic_locking is ON by default in this engine, no .opt needed.
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+CREATE TABLE acct (
+  id  INT PRIMARY KEY,
+  bal INT NOT NULL
+) ENGINE=TidesDB;
+
+INSERT INTO acct VALUES (1, 100);
+
+connect (s1, localhost, root,,);
+connect (s2, localhost, root,,);
+connect (s3, localhost, root,,);
+
+--echo #
+--echo # TEST 1: S / S compatible under REPEATABLE-READ
+--echo #         Both s1 and s2 acquire S on the same row, neither blocks.
+--echo #
+
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+
+connection s2;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+
+--echo # Both holders of S read successfully -- no deadlock, no block.
+connection default;
+SELECT bal FROM acct WHERE id = 1;
+
+connection s1;
+COMMIT;
+connection s2;
+COMMIT;
+
+--echo #
+--echo # TEST 2: X waits for S readers, then proceeds
+--echo #         s1 + s2 hold S; s3 fires UPDATE that must wait until
+--echo #         both readers release.
+--echo #
+
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+
+connection s2;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+
+connection s3;
+BEGIN;
+--send UPDATE acct SET bal = bal + 50 WHERE id = 1
+
+# Release readers; X should proceed after the second one commits.
+connection s1;
+COMMIT;
+connection s2;
+COMMIT;
+
+connection s3;
+--reap
+COMMIT;
+
+connection default;
+--echo # 100 + 50 = 150
+SELECT bal FROM acct WHERE id = 1;
+
+--echo #
+--echo # TEST 3: writer fairness -- new S blocks behind a waiting X
+--echo #         s1 holds S; s2 fires UPDATE (X-waiting); s3 fires a
+--echo #         SELECT under REPEATABLE-READ that wants S.  s3 must
+--echo #         NOT jump ahead of s2's queued X.
+--echo #
+
+UPDATE acct SET bal = 200 WHERE id = 1;
+
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+
+# Snapshot the lock-wait counter so we can detect s2 entering cond_wait.
+connection default;
+--disable_query_log
+let $waits_before_s2 = `SELECT VARIABLE_VALUE+0 FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='TIDESDB_LOCK_WAITS'`;
+--enable_query_log
+
+connection s2;
+BEGIN;
+--send UPDATE acct SET bal = bal + 1 WHERE id = 1
+
+# Without this barrier s3's SELECT can reach the lock manager before s2's
+# UPDATE does, take S alongside s1, and prevent s2 from ever being
+# promoted (writer fairness only applies when the X request is already
+# queued).  Wait until Tidesdb_lock_waits increments to confirm s2 is
+# parked in the wait queue before firing s3.
+connection default;
+let $wait_condition =
+  SELECT (VARIABLE_VALUE+0) > $waits_before_s2
+    FROM information_schema.GLOBAL_STATUS
+   WHERE VARIABLE_NAME = 'TIDESDB_LOCK_WAITS';
+--source include/wait_condition.inc
+
+connection s3;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+--send SELECT bal FROM acct WHERE id = 1
+
+connection s1;
+COMMIT;
+
+connection s2;
+--reap
+COMMIT;
+
+# The bal value s3 reads is intentionally not recorded.  Under
+# REPEATABLE-READ the snapshot is taken at first data access, and that
+# moment is racey relative to s2's commit.  If s3's thread reaches
+# external_lock before s2 commits the read returns 200; if it reaches it
+# after, the read returns 201.  Both are valid REPEATABLE-READ.  What
+# the test actually proves -- writer fairness, that s3's S grant was
+# deferred behind s2's queued X -- is demonstrated by the --send /
+# --reap ordering above, not by the value.
+connection s3;
+--disable_result_log
+--reap
+--enable_result_log
+COMMIT;
+
+connection default;
+--echo # s2 incremented 200 -> 201; s3 then read either 200 or 201 (both valid)
+SELECT bal FROM acct WHERE id = 1;
+
+--echo #
+--echo # TEST 4: READ-COMMITTED reads take no lock
+--echo #         s1 holds an uncommitted X via UPDATE; s2 under RC reads
+--echo #         the latest committed value without blocking.
+--echo #
+
+UPDATE acct SET bal = 300 WHERE id = 1;
+
+connection s1;
+BEGIN;
+UPDATE acct SET bal = bal + 100 WHERE id = 1;
+
+connection s2;
+SET SESSION transaction_isolation = 'READ-COMMITTED';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+COMMIT;
+
+connection s1;
+COMMIT;
+
+connection default;
+--echo # 300 + 100 = 400
+SELECT bal FROM acct WHERE id = 1;
+
+--echo #
+--echo # Cleanup
+--echo #
+disconnect s1;
+disconnect s2;
+disconnect s3;
+connection default;
+DROP TABLE acct;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

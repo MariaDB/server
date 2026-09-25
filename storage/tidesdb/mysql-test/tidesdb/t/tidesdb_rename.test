@@ -1,0 +1,195 @@
+--source include/have_tidesdb.inc
+#
+# Test suite for TIDESDB rename_table functionality.
+# Covers: RENAME TABLE, ALTER TABLE (table copy), ALTER TABLE with option changes,
+# and secondary index preservation across renames.
+#
+
+--echo #
+--echo # === Setup: install the TIDESDB engine plugin ===
+--echo #
+--replace_regex /\.dll/.so/
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: Basic RENAME TABLE
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_orig (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_orig VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+SELECT * FROM t_orig ORDER BY id;
+
+RENAME TABLE t_orig TO t_renamed;
+
+# Old name should not exist
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_orig;
+
+# New name should have all data
+SELECT * FROM t_renamed ORDER BY id;
+
+# DML on renamed table should work
+INSERT INTO t_renamed VALUES (4, 'delta');
+UPDATE t_renamed SET val = 'BETA' WHERE id = 2;
+DELETE FROM t_renamed WHERE id = 3;
+SELECT * FROM t_renamed ORDER BY id;
+
+DROP TABLE t_renamed;
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: RENAME TABLE with secondary index
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_idx (
+  id INT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL,
+  KEY idx_name (name)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_idx VALUES (1, 'alice'), (2, 'bob'), (3, 'charlie'), (4, 'alice');
+
+# Verify index scan works before rename
+SELECT id, name FROM t_idx WHERE name = 'alice' ORDER BY id;
+
+RENAME TABLE t_idx TO t_idx_new;
+
+# Index scan should still work after rename
+SELECT id, name FROM t_idx_new WHERE name = 'alice' ORDER BY id;
+SELECT id, name FROM t_idx_new WHERE name = 'bob';
+
+# Insert + index lookup on renamed table
+INSERT INTO t_idx_new VALUES (5, 'bob');
+SELECT id, name FROM t_idx_new WHERE name = 'bob' ORDER BY id;
+
+DROP TABLE t_idx_new;
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: ALTER TABLE changes table options
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_alter (id INT PRIMARY KEY, val VARCHAR(100)) ENGINE=TIDESDB;
+INSERT INTO t_alter VALUES (1, 'before'), (2, 'alter'), (3, 'table');
+SELECT * FROM t_alter ORDER BY id;
+
+SHOW CREATE TABLE t_alter;
+
+# ALTER TABLE to change SYNC_MODE (triggers full table copy + rename)
+ALTER TABLE t_alter SYNC_MODE='NONE';
+SHOW CREATE TABLE t_alter;
+
+# Data must survive the ALTER
+SELECT * FROM t_alter ORDER BY id;
+
+# DML must work after ALTER
+INSERT INTO t_alter VALUES (4, 'after_alter');
+UPDATE t_alter SET val = 'ALTERED' WHERE id = 2;
+DELETE FROM t_alter WHERE id = 1;
+SELECT * FROM t_alter ORDER BY id;
+
+DROP TABLE t_alter;
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: ALTER TABLE ADD COLUMN (schema change)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_schema (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_schema VALUES (1, 'one'), (2, 'two');
+
+ALTER TABLE t_schema ADD COLUMN extra INT DEFAULT 0;
+SHOW CREATE TABLE t_schema;
+
+# Existing rows should have default for new column
+SELECT * FROM t_schema ORDER BY id;
+
+# New inserts should use all columns
+INSERT INTO t_schema VALUES (3, 'three', 99);
+SELECT * FROM t_schema ORDER BY id;
+
+DROP TABLE t_schema;
+
+--echo #
+--echo # ============================================
+--echo # TEST 5: ALTER TABLE with secondary index
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_altidx (
+  id INT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL,
+  KEY idx_name (name)
+) ENGINE=TIDESDB;
+
+INSERT INTO t_altidx VALUES (1, 'alice'), (2, 'bob'), (3, 'charlie');
+
+# Index works before ALTER
+SELECT id FROM t_altidx WHERE name = 'bob';
+
+# ALTER TABLE option change (full copy with index rebuild)
+ALTER TABLE t_altidx SYNC_MODE='NONE';
+
+# Index must still work after ALTER
+SELECT id FROM t_altidx WHERE name = 'bob';
+SELECT id FROM t_altidx WHERE name = 'alice';
+
+# Full scan still works
+SELECT * FROM t_altidx ORDER BY id;
+
+# DML + index after ALTER
+INSERT INTO t_altidx VALUES (4, 'alice');
+SELECT id FROM t_altidx WHERE name = 'alice' ORDER BY id;
+
+DROP TABLE t_altidx;
+
+--echo #
+--echo # ============================================
+--echo # TEST 6: Double rename
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_a (id INT PRIMARY KEY, val INT) ENGINE=TIDESDB;
+INSERT INTO t_a VALUES (1, 10), (2, 20);
+
+RENAME TABLE t_a TO t_b;
+SELECT * FROM t_b ORDER BY id;
+
+RENAME TABLE t_b TO t_c;
+SELECT * FROM t_c ORDER BY id;
+
+# Original names should not exist
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_a;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t_b;
+
+DROP TABLE t_c;
+
+--echo #
+--echo # ============================================
+--echo # TEST 7: ALTER TABLE without explicit PK (hidden PK)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_nopk (val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_nopk VALUES ('row1'), ('row2'), ('row3');
+SELECT * FROM t_nopk;
+
+ALTER TABLE t_nopk SYNC_MODE='NONE';
+SELECT * FROM t_nopk;
+
+INSERT INTO t_nopk VALUES ('row4');
+SELECT * FROM t_nopk;
+
+DROP TABLE t_nopk;
+
+--echo #
+--echo #
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

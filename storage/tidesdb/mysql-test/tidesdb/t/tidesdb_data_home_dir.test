@@ -1,0 +1,17 @@
+--source include/have_tidesdb.inc
+#
+# Issue #76: tidesdb_data_home_dir system variable
+#
+
+--echo #
+--echo # Verify tidesdb_data_home_dir is visible and read-only
+--echo #
+
+SHOW VARIABLES LIKE 'tidesdb_data_home_dir';
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL tidesdb_data_home_dir = '/tmp/test';
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

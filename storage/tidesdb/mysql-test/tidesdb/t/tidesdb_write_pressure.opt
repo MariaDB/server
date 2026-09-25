@@ -1,0 +1,2 @@
+--tidesdb-pessimistic-locking=OFF
+--tidesdb-unified-memtable-sync-mode=NONE
