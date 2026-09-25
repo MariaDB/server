@@ -1,0 +1,63 @@
+--echo #
+--echo # MDEV-39245: Check that plugin name is pure ASCII
+--echo #
+
+--source include/have_utf8mb4.inc
+
+if (!$PLUGIN_NAME_ASCII_SO)
+{
+  skip plugin_name_ascii plugin not available;
+}
+if (!$PLUGIN_NAME_NON_ASCII_SO)
+{
+  skip plugin_name_non_ascii plugin not available;
+}
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # Case 1: INSTALL SONAME with non-ASCII plugin name should fail
+--echo #
+--error ER_PLUGIN_IS_NOT_LOADED
+INSTALL SONAME 'plugin_name_non_ascii';
+
+--echo # Verify mysql.plugin table is clean
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_non_ascii';
+
+SET NAMES utf8mb4;
+--echo #
+--echo # Case 2: INSTALL PLUGIN targeting non-ASCII plugin directly should fail
+--echo #
+--error ER_PLUGIN_IS_NOT_LOADED
+INSTALL PLUGIN plügïn_non_ascii SONAME 'plugin_name_non_ascii';
+
+--echo #
+--echo # Case 3: INSTALL SONAME with all ASCII names should succeed
+--echo #
+INSTALL SONAME 'plugin_name_ascii';
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ascii_plugin_one', 'ascii_plugin_two');
+
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_ascii';
+
+UNINSTALL SONAME 'plugin_name_ascii';
+
+--echo # Verify plugins are gone after uninstall
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ascii_plugin_one', 'ascii_plugin_two');
+
+SELECT COUNT(*) FROM mysql.plugin WHERE dl='plugin_name_ascii';
+
+--echo #
+--echo # Case 4: INSTALL PLUGIN with ASCII name should succeed
+--echo #
+INSTALL PLUGIN ascii_plugin_one SONAME 'plugin_name_ascii';
+
+SELECT PLUGIN_NAME, PLUGIN_STATUS
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME = 'ascii_plugin_one';
+
+UNINSTALL PLUGIN ascii_plugin_one;
