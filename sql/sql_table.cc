@@ -4777,7 +4777,7 @@ int create_table_impl(THD *thd,
           my_error(ER_BAD_LOG_STATEMENT, MYF(0), "CREATE OR REPLACE");
           goto err;
         }
-        
+
         /*
           Rollback the empty transaction started in mysql_create_table()
           call to open_and_lock_tables() when we are using LOCK TABLES.
@@ -6115,6 +6115,21 @@ int mysql_discard_or_import_tablespace(THD *thd,
     }
   }
 
+  /*
+    open_and_lock_tables() acquires MDL_EXCLUSIVE in normal flow
+    but under LOCK TABLES it only holds SNRW, we need to explicitly
+    upgrade before flush() is called
+  */
+  if (thd->locked_tables_mode && !table->s->tmp_table)
+  {
+    DBUG_ASSERT(thd->locked_tables_mode == LTM_LOCK_TABLES);
+    if (wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED))
+    {
+      thd->tablespace_op= false;
+      DBUG_RETURN(-1);
+    }
+  }
+
   error= table->file->ha_discard_or_import_tablespace(discard);
 
   THD_STAGE_INFO(thd, stage_end);
@@ -6143,6 +6158,19 @@ err:
 
   if (mdl_downgrade > MDL_NOT_INITIALIZED)
     table->mdl_ticket->downgrade_lock(mdl_downgrade);
+
+  /*
+    If we upgraded the lock above, downgrade back to SNRW
+    so that the LOCK TABLES session state is preserved
+    after DISCARD/IMPORT completes.
+    This matches the downgrade pattern at the end of
+    mysql_alter_table().
+  */
+  if (thd->locked_tables_mode && table->mdl_ticket)
+  {
+    table->mdl_ticket->downgrade_lock(
+        MDL_SHARED_NO_READ_WRITE);
+  }
 
   if (likely(error == 0))
   {
