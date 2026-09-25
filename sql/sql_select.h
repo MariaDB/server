@@ -1871,9 +1871,12 @@ private:
     @param tmp_table_fields List of items that will be used to define
                             column types of the table.
     @param tmp_table_group  Group key to use for temporary table, NULL if none.
-    @param save_sum_fields  If true, do not replace Item_sum items in 
-                            @c tmp_fields list with Item_field items referring 
+    @param save_sum_fields  If true, do not replace Item_sum items in
+                            @c tmp_fields list with Item_field items referring
                             to fields in temporary table.
+    @param save_blobs       Deep-copy BLOB/TEXT field values
+                            (Copy_field::set()) instead of copying the raw
+                            record representation.
 
     @returns false on success, true on failure
   */
@@ -1881,7 +1884,8 @@ private:
                                   ORDER *tmp_table_group,
                                   bool save_sum_fields,
                                   bool distinct,
-                                  bool keep_row_ordermake);
+                                  bool keep_row_ordermake,
+                                  bool save_blobs);
   /**
     Optimize distinct when used on a subset of the tables.
 
@@ -2527,7 +2531,7 @@ TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
                         const LEX_CSTRING *alias, bool do_not_open=FALSE,
-                        bool keep_row_order= FALSE);
+                        bool keep_row_order= FALSE, int save_blobs= -1);
 TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    const ST_SCHEMA_TABLE &schema_table,
                                    longlong select_options,
