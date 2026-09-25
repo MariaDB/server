@@ -611,10 +611,11 @@ static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
                         const char *prefix,const char *name,
                         int string_value);
 static int dump_selected_tables(char *db, char **table_names, int tables);
-static int dump_all_tables_in_db(char *db);
+static int dump_all_tables_in_db(char *db, my_bool skip_sequences);
+static int dump_all_sequences_in_db(char *db, my_bool *dumped_any);
 static int init_dumping_views(char *);
 static int init_dumping_tables(char *);
-static int init_dumping(char *, int init_func(char*));
+static int init_dumping(char *, int init_func(char*), my_bool skip_create);
 static int dump_databases(char **);
 static int dump_all_databases();
 static int dump_all_users_roles_and_grants();
@@ -4677,6 +4678,25 @@ static char *getTableName(int reset, int want_sequences)
 } /* getTableName */
 
 
+/**
+  Free the getTableName() result cache.
+
+  A caller that only ever drives getTableName() in "reset" (rewind) mode --
+  e.g. a sequences-only pass over several databases -- never triggers the
+  free-on-exhaustion built into getTableName() itself, and must call this
+  between databases instead.
+*/
+
+static void free_table_name_result()
+{
+  if (get_table_name_result)
+  {
+    mysql_free_result(get_table_name_result);
+    get_table_name_result= NULL;
+  }
+}
+
+
 /*
   dump user/role grants
   ARGS
@@ -5412,14 +5432,54 @@ static my_bool include_database(const char *hash_key)
 }
 
 
+/**
+  Allocate the per-database "did dump_all_sequences_in_db() already dump
+  this database's sequences" flags used by dump_all_databases() and
+  dump_databases().
+
+  @param n_databases  Number of databases to be dumped; assumes glob_root
+                      is already initialized by the caller.
+
+  @return Zero-filled array of n_databases flags, or NULL if n_databases is 0.
+*/
+
+static my_bool *alloc_seq_dumped_flags(uint n_databases)
+{
+  my_bool *seq_dumped;
+
+  if (!n_databases)
+    return NULL;
+
+  if (!(seq_dumped= (my_bool*) alloc_root(&glob_root,
+                                          n_databases * sizeof(my_bool))))
+    die(EX_EOM, "alloc_root failure.");
+  memset(seq_dumped, 0, n_databases * sizeof(my_bool));
+  return seq_dumped;
+}
+
+
 static int dump_all_databases()
 {
   MYSQL_ROW row;
   MYSQL_RES *tableres;
   int result=0;
+  char **db_name;
+  my_bool *seq_dumped;
+  uint n_databases= 0, i;
 
   if (mysql_query_with_error_report(mysql, &tableres, "SHOW DATABASES"))
     return 1;
+
+  /*
+    Allocated from the same glob_root that dump_selected_tables() uses, so
+    that it is reclaimed by free_resources() even if a later error takes the
+    exit(3) path straight out of the program instead of returning here.
+  */
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
+  if (!(db_name= (char**) alloc_root(&glob_root,
+                                     (size_t) mysql_num_rows(tableres) *
+                                     sizeof(char*))))
+    die(EX_EOM, "alloc_root failure.");
   while ((row= mysql_fetch_row(tableres)))
   {
     if (mysql_get_server_version(mysql) >= FIRST_INFORMATION_SCHEMA_VERSION &&
@@ -5435,10 +5495,24 @@ static int dump_all_databases()
      continue;
 
     if (include_database(row[0]))
-      if (dump_all_tables_in_db(row[0]))
-        result=1;
+    {
+      if (!(db_name[n_databases++]= strdup_root(&glob_root, row[0])))
+        die(EX_EOM, "strdup_root failure.");
+    }
   }
   mysql_free_result(tableres);
+
+  seq_dumped= alloc_seq_dumped_flags(n_databases);
+  for (i= 0; i < n_databases; i++)
+    if (dump_all_sequences_in_db(db_name[i], &seq_dumped[i]))
+      result=1;
+
+  for (i= 0; i < n_databases; i++)
+    if (dump_all_tables_in_db(db_name[i], seq_dumped[i]))
+      result=1;
+
+  free_root(&glob_root, MYF(0));
+
   if (seen_views)
   {
     if (mysql_query(mysql, "SHOW DATABASES") ||
@@ -5477,13 +5551,28 @@ static int dump_databases(char **db_names)
 {
   int result=0;
   char **db;
+  my_bool *seq_dumped= NULL;
+  uint n_databases= 0, i;
   DBUG_ENTER("dump_databases");
 
   for (db= db_names ; *db ; db++)
+    n_databases++;
+
+  if (n_databases)
+    init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
+  seq_dumped= alloc_seq_dumped_flags(n_databases);
+  for (db= db_names, i= 0 ; *db ; db++, i++)
   {
-    if (dump_all_tables_in_db(*db))
+    if (dump_all_sequences_in_db(*db, &seq_dumped[i]))
       result=1;
   }
+  for (db= db_names, i= 0 ; *db ; db++, i++)
+  {
+    if (dump_all_tables_in_db(*db, seq_dumped[i]))
+      result=1;
+  }
+  if (n_databases)
+    free_root(&glob_root, MYF(0));
   if (!result && seen_views)
   {
     for (db= db_names ; *db ; db++)
@@ -5617,7 +5706,8 @@ int init_dumping_tables(char *qdatabase)
 } /* init_dumping_tables */
 
 
-static int init_dumping(char *database, int init_func(char*))
+static int init_dumping(char *database, int init_func(char*),
+                        my_bool skip_create)
 {
   if (mysql_select_db(mysql, database))
   {
@@ -5638,8 +5728,12 @@ static int init_dumping(char *database, int init_func(char*))
                     "\n--\n-- Current Database: %s\n--\n",
                     fix_for_comment(qdatabase));
 
-      /* Call the view or table specific function */
-      init_func(qdatabase);
+      /*
+        skip_create: the database was already created (and possibly
+        dropped) by an earlier pass, e.g. dump_all_sequences_in_db().
+      */
+      if (!skip_create)
+        init_func(qdatabase);
 
       fprintf(md_result_file,"\nUSE %s;\n", qdatabase);
       check_io(md_result_file);
@@ -5661,7 +5755,81 @@ static my_bool ignore_table_data(const uchar *hash_key, size_t len)
 }
 
 
-static int dump_all_tables_in_db(char *database)
+/**
+  Dump a database's sequences, ahead of dump_all_tables_in_db().
+
+  Run for every database before any of them are handed to
+  dump_all_tables_in_db(), so every sequence exists before any CREATE TABLE
+  that might default a column to nextval() of a sequence in another
+  database -- databases are otherwise dumped in SHOW DATABASES order, which
+  doesn't honour such cross-database dependencies.
+
+  Only creates the database (CREATE DATABASE/USE) if it actually owns a
+  sequence, so output stays byte-for-byte unchanged otherwise; *dumped_any
+  then tells dump_all_tables_in_db() to skip re-creating the database and
+  re-dumping the sequences.
+
+  No-op (leaves *dumped_any FALSE) for --xml (get_sequence_structure() isn't
+  XML-aware, so its output would land outside any <database> element) and
+  for "mysql" (its LOG_OUTPUT save/restore only closes in the table pass;
+  "mysql" never owns user sequences anyway).
+
+  @param database    Database to dump the sequences of.
+  @param[out] dumped_any  Set to TRUE if a sequence was dumped (and so the
+                          database was created) for this database, FALSE
+                          otherwise.
+
+  @return 0 on success, 1 on error (e.g. --force with an unselectable
+          database).
+*/
+
+static int dump_all_sequences_in_db(char *database, my_bool *dumped_any)
+{
+  char *table;
+  char hash_key[2*NAME_LEN+2];  /* "db.tablename" */
+  char *afterdot;
+  int using_mysql_db= !my_strcasecmp(charset_info, database, "mysql");
+  DBUG_ENTER("dump_all_sequences_in_db");
+
+  *dumped_any= FALSE;
+
+  if (opt_xml || using_mysql_db ||
+      mysql_get_server_version(mysql) < FIRST_SEQUENCE_VERSION ||
+      opt_no_create_info)
+    DBUG_RETURN(0);
+
+  if (mysql_select_db(mysql, database))
+  {
+    DB_error(mysql, "when selecting the database");
+    DBUG_RETURN(1);              /* If --force */
+  }
+
+  afterdot= strnmov(hash_key, database, NAME_LEN);
+  *afterdot++= '.';
+
+  while ((table= getTableName(1, DUMP_TABLE_SEQUENCE)))
+  {
+    char *end= strnmov(afterdot, table, NAME_LEN);
+    if (include_table((uchar*) hash_key, end - hash_key))
+    {
+      if (!*dumped_any)
+      {
+        if (init_dumping(database, init_dumping_tables, FALSE))
+        {
+          free_table_name_result();
+          DBUG_RETURN(1);
+        }
+        *dumped_any= TRUE;
+      }
+      get_sequence_structure(table, database);
+    }
+  }
+  free_table_name_result();
+  DBUG_RETURN(0);
+} /* dump_all_sequences_in_db */
+
+
+static int dump_all_tables_in_db(char *database, my_bool skip_sequences)
 {
   char *table;
   uint numrows;
@@ -5676,7 +5844,7 @@ static int dump_all_tables_in_db(char *database)
   *afterdot++= '.';
 
   if (init_dumping(database, using_mysql_db ? init_dumping_mysql_tables
-                   : init_dumping_tables))
+                   : init_dumping_tables, skip_sequences))
     DBUG_RETURN(1);
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
@@ -5723,7 +5891,7 @@ static int dump_all_tables_in_db(char *database)
     }
   }
 
-  if (mysql_get_server_version(mysql) >= FIRST_SEQUENCE_VERSION &&
+  if (!skip_sequences && mysql_get_server_version(mysql) >= FIRST_SEQUENCE_VERSION &&
       !opt_no_create_info)
   {
     // First process sequences
@@ -5853,7 +6021,7 @@ static my_bool dump_all_views_in_db(char *database)
   afterdot= strnmov(hash_key, database, NAME_LEN);
   *afterdot++= '.';
 
-  if (init_dumping(database, init_dumping_views))
+  if (init_dumping(database, init_dumping_views, FALSE))
     return 1;
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
@@ -6021,7 +6189,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   int lower_case_table_names;
   DBUG_ENTER("dump_selected_tables");
 
-  if (init_dumping(db, init_dumping_tables))
+  if (init_dumping(db, init_dumping_tables, FALSE))
     DBUG_RETURN(1);
 
   init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
