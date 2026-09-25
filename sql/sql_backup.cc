@@ -610,6 +610,8 @@ struct backup_context
   bool fail{};
   /** mutex protecting d, subdir, fail */
   std::mutex mutex;
+  /** Number of background tasks executing backup_step_callback */
+  Atomic_counter<int> pending{0};
 #ifdef _WIN32
   /** FindFirstFileA()/FindNextFile() buffer for dir */
   WIN32_FIND_DATAA d{};
@@ -630,6 +632,7 @@ struct backup_context
   bool invalid() const noexcept { return !dir; }
   ~backup_context()
   {
+    assert(!pending);
     if (dir)
       closedir(dir);
     if (subdir)
@@ -640,6 +643,7 @@ struct backup_context
   bool invalid() const noexcept { return dir == INVALID_HANDLE_VALUE; }
   ~backup_context()
   {
+    assert(!pending);
     if (dir != INVALID_HANDLE_VALUE)
       FindClose(dir);
     if (subdir != INVALID_HANDLE_VALUE)
@@ -1103,9 +1107,6 @@ static bool backup_step_one(THD *thd, backup_target_phase *target_phase)
                                   target_phase);
 }
 
-/** Number of background tasks executing backup_step_callback */
-static Atomic_counter<int> backup_step_callback_pending{0};
-
 /** Invoke backup_step() in a background task */
 static void backup_step_callback(void *arg) noexcept
 {
@@ -1124,7 +1125,7 @@ static void backup_step_callback(void *arg) noexcept
 #ifndef NDEBUG
   auto was_pending=
 #endif
-    backup_step_callback_pending--;
+    t.context.pending--;
   assert(was_pending);
 }
 
@@ -1138,12 +1139,13 @@ static void backup_step_callback(void *arg) noexcept
 static bool backup_steps(THD *thd, backup_target_phase *target_phase,
                          int threads, tpool::thread_pool *tp)
 {
-  assert(!backup_step_callback_pending);
+  auto &pending{target_phase->context.pending};
+  assert(!pending);
   if (threads == 1)
     return backup_step_one(thd, target_phase);
   tpool::task *const tasks=
     static_cast<tpool::task*>(alloca(threads * sizeof *tasks));
-  backup_step_callback_pending= threads - 1;
+  pending= threads - 1;
   for (int n{threads}; --n; )
   {
     target_phase[n].phase= target_phase->phase;
@@ -1151,7 +1153,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
                                                 &target_phase[n]});
   }
   bool fail= backup_step_one(thd, target_phase);
-  while (backup_step_callback_pending)
+  while (pending)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   if (fail)
