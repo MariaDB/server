@@ -1,0 +1,99 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+--echo ### MDEV-36025 backup taken from a slave with optimistic parallel replication fails to restore most of the time
+--echo ### Test provisioning a slave from an existing server running optimistic
+--echo ### parallel replication so that prepared transactions are left in the
+--echo ### backup when the restored server is started.
+
+
+RESET MASTER;
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+INSERT INTO t1 VALUES(2, NULL);
+INSERT INTO t1 VALUES(3, NULL);
+
+--connect (server2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+let MYSQLD_DATADIR=`select @@datadir`;
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= '';
+
+--replace_result $SERVER_MYPORT_1 PORT
+eval CHANGE MASTER TO
+  master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+  master_use_gtid= slave_pos;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL slave_parallel_mode=optimistic;
+START SLAVE;
+
+--connection default
+--source include/save_master_gtid.inc
+--connection server2
+--source include/sync_with_master_gtid.inc
+
+# Block transaction T1 from committing on the slave, forcing a following
+# T2 to remain in "prepared" state when the backup is taken.
+--connect (server2a,127.0.0.1,root,,,$SERVER_MYPORT_2)
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+
+--connection default
+UPDATE t1 SET b='xyzzy' WHERE a=1;
+INSERT INTO t1 VALUES (4, NULL);
+UPDATE t1 SET b='foobar' WHERE a=2;
+--source include/save_master_gtid.inc
+
+# Sleep a small amount to give a higher chance for the transactions to reach
+# their prepared state when the backup runs.
+--sleep 0.3
+
+--echo *** Doing backup...
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --socket=$SERVER_MYSOCK_2 --backup --target-dir=$basedir
+--echo *** Doing prepare...
+--exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir
+
+--connection server2a
+ROLLBACK;
+--source include/sync_with_master_gtid.inc
+
+--connection server2
+--echo *** Provision a new slave from the backup
+
+--echo *** Stopping provisioned server
+--source include/shutdown_mysqld.inc
+
+--echo *** Removing old datadir for provisioned server
+--rmdir $MYSQLD_DATADIR
+
+--echo *** Provision new server from backup
+--exec $XTRABACKUP --copy-back --datadir=$MYSQLD_DATADIR --target-dir=$basedir
+
+--disconnect server2a
+--source include/start_mysqld.inc
+
+--replace_result $SERVER_MYPORT_1 PORT
+eval CHANGE MASTER TO
+  master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+  master_use_gtid= slave_pos;
+# The slave GTID position was saved transactionally to mysql.gtid_slave_pos
+# as part of the backup.
+START SLAVE;
+
+--connection default
+--source include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+STOP SLAVE;
+RESET SLAVE ALL;
+DROP TABLE t1;
+
+--connection default
+DROP TABLE t1;
+
+rmdir $basedir;
