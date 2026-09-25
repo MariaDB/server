@@ -46,6 +46,10 @@ MACRO(BUNDLE_PCRE2)
     TARGET_INCLUDE_DIRECTORIES(${lib} INTERFACE ${dir}/src/pcre2-build/interface)
   ENDFOREACH()
 
+  # pcre2-posix calls into pcre2-8; as static libs the linker needs -8 after
+  # -posix. Make it a dependency so consumers get the order right.
+  TARGET_LINK_LIBRARIES(pcre2-posix INTERFACE pcre2-8)
+
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINSIZEREL")
     SET(pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     IF(MSVC)
@@ -106,6 +110,21 @@ MACRO (CHECK_PCRE)
         SET(PCRE2_DEBIAN_HACK "-Dregcomp=PCRE2regcomp -Dregexec=PCRE2regexec -Dregerror=PCRE2regerror -Dregfree=PCRE2regfree")
       ENDIF()
     ENDIF()
+  ENDIF()
+  # MariaDB::pcre2-8 and MariaDB::pcre2-posix - the pcre2 libraries plus their
+  # headers, pointing at the bundled imported targets or the system libraries.
+  # For the bundled case the include dir comes from the pcre2 targets; for
+  # system from PCRE_INCLUDE_DIRS.
+  IF(NOT TARGET mariadb_pcre2_8)
+    ADD_LIBRARY(mariadb_pcre2_8 INTERFACE)
+    TARGET_LINK_LIBRARIES(mariadb_pcre2_8 INTERFACE pcre2-8)
+    TARGET_INCLUDE_DIRECTORIES(mariadb_pcre2_8 INTERFACE ${PCRE_INCLUDE_DIRS})
+    ADD_LIBRARY(MariaDB::pcre2-8 ALIAS mariadb_pcre2_8)
+
+    ADD_LIBRARY(mariadb_pcre2_posix INTERFACE)
+    TARGET_LINK_LIBRARIES(mariadb_pcre2_posix INTERFACE pcre2-posix)
+    TARGET_INCLUDE_DIRECTORIES(mariadb_pcre2_posix INTERFACE ${PCRE_INCLUDE_DIRS})
+    ADD_LIBRARY(MariaDB::pcre2-posix ALIAS mariadb_pcre2_posix)
   ENDIF()
 ENDMACRO()
 

@@ -64,6 +64,12 @@ MACRO (MYSQL_USE_BUNDLED_SSL)
   CHANGE_SSL_SETTINGS("bundled")
   ADD_SUBDIRECTORY(extra/wolfssl)
   MESSAGE_ONCE(SSL_LIBRARIES "SSL_LIBRARIES = ${SSL_LIBRARIES}")
+  ADD_LIBRARY(mariadb_ssl INTERFACE)
+  TARGET_LINK_LIBRARIES(mariadb_ssl INTERFACE wolfssl)
+  TARGET_INCLUDE_DIRECTORIES(mariadb_ssl INTERFACE ${INC_DIRS})
+  # HAVE_WOLFSSL / WOLFSSL_USER_SETTINGS travel with the wolfssl target now;
+  # HAVE_OPENSSL is the provider-agnostic "SSL via OpenSSL API" flag.
+  TARGET_COMPILE_DEFINITIONS(mariadb_ssl INTERFACE HAVE_OPENSSL)
 ENDMACRO()
 
 # MYSQL_CHECK_SSL
@@ -141,11 +147,29 @@ MACRO (MYSQL_CHECK_SSL)
       SET(SSL_INTERNAL_INCLUDE_DIRS "")
       SET(SSL_DEFINES "-DHAVE_OPENSSL")
 
+      ADD_LIBRARY(mariadb_ssl INTERFACE)
+      TARGET_LINK_LIBRARIES(mariadb_ssl INTERFACE
+        OpenSSL::SSL OpenSSL::Crypto)
+      # Put the include dir on the target itself (not only transitively via
+      # OpenSSL::SSL) so $<TARGET_PROPERTY:mariadb_ssl,INTERFACE_INCLUDE_DIRECTORIES>
+      # also works for consumers that need the openssl headers but do not link
+      # the library (violite.h pulls in <openssl/ssl.h> under HAVE_OPENSSL).
+      TARGET_INCLUDE_DIRECTORIES(mariadb_ssl INTERFACE ${OPENSSL_INCLUDE_DIR})
+      IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")
+        TARGET_LINK_LIBRARIES(mariadb_ssl INTERFACE ${LIBSOCKET})
+      ENDIF()
+      IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
+        TARGET_LINK_LIBRARIES(mariadb_ssl INTERFACE ${CMAKE_DL_LIBS})
+      ENDIF()
+      TARGET_COMPILE_DEFINITIONS(mariadb_ssl INTERFACE HAVE_OPENSSL)
+
       # Silence "deprecated in OpenSSL 3.0"
       IF((NOT OPENSSL_VERSION) # 3.0 not determined by older cmake
          OR NOT(OPENSSL_VERSION VERSION_LESS "3.0.0"))
         SET(SSL_DEFINES "${SSL_DEFINES} -DOPENSSL_API_COMPAT=0x10100000L")
         SET(CMAKE_REQUIRED_DEFINITIONS -DOPENSSL_API_COMPAT=0x10100000L)
+        TARGET_COMPILE_DEFINITIONS(mariadb_ssl INTERFACE
+          OPENSSL_API_COMPAT=0x10100000L)
       ENDIF()
 
       SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
@@ -174,6 +198,7 @@ MACRO (MYSQL_CHECK_SSL)
     MESSAGE(FATAL_ERROR
       "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}")
   ENDIF()
+  ADD_LIBRARY(MariaDB::OpenSSL ALIAS mariadb_ssl)
 ENDMACRO()
 
 
