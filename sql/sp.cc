@@ -1122,8 +1122,10 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   @param table  A pointer to the opened mysql.proc table
 
   @returns      Error code.
-  @return       SP_OK on success, or SP_DELETE_ROW_FAILED on error.
-  used to indicate about errors.
+  @return       SP_OK on success, or SP_DELETE_ROW_FAILED on error. On
+  SP_DELETE_ROW_FAILED the storage engine's error has already been reported
+  via print_error(), so callers must not assume the Diagnostics_area is
+  still empty.
 */
 
 int
@@ -1133,8 +1135,25 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
 {
   DBUG_ENTER("sp_drop_routine_internal");
 
-  if (table->file->ha_delete_row(table->record[0]))
+  int error= 0;
+  /*
+    Simulate a storage-engine failure, for testing: skip the real
+    ha_delete_row() call below and pretend it returned this error instead.
+    The second fault point only fires when dropping a PACKAGE's spec row
+    (never its PACKAGE BODY row, which this same function is also called
+    for, with type() == SP_TYPE_PACKAGE_BODY), letting a test target
+    specifically "the body row is already gone, now the spec delete fails".
+  */
+  DBUG_EXECUTE_IF("sp_drop_routine_internal_fail", error= HA_ERR_GENERIC;);
+  DBUG_EXECUTE_IF("sp_drop_routine_internal_fail_package_spec_only",
+                  if (type() == SP_TYPE_PACKAGE)
+                    error= HA_ERR_GENERIC;);
+
+  if (error || (error= table->file->ha_delete_row(table->record[0])))
+  {
+    table->file->print_error(error, MYF(0));
     DBUG_RETURN(SP_DELETE_ROW_FAILED);
+  }
 
   /* Make change permanent and avoid 'table is marked as crashed' errors */
   table->file->extra(HA_EXTRA_FLUSH);
@@ -1274,17 +1293,34 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     {
       if (lex->create_info.or_replace())
       {
+        /*
+          The my_error(ER_SP_DROP_FAILED) calls below are a safety net, not
+          dead code: sp_drop_routine_internal() and
+          Sp_handler_package_spec::sp_find_and_drop_routine() usually report
+          a more specific error themselves (e.g. via print_error()) before
+          returning non-SP_OK, and the first error raised always wins
+          (Diagnostics_area::set_error_status() is a no-op once an error is
+          set), so this generic message is only seen when the failure comes
+          from a path that didn't report one itself (e.g. SP_KEY_NOT_FOUND
+          from a concurrent drop).
+        */
         switch (type()) {
         case SP_TYPE_PACKAGE:
           // Drop together with its PACKAGE BODY mysql.proc record
           if (sp_handler_package_spec.sp_find_and_drop_routine(thd, table, sp))
+          {
+            my_error(ER_SP_DROP_FAILED, MYF(0), type_str(), sp->m_name.str);
             goto done;
+          }
           break;
         case SP_TYPE_PACKAGE_BODY:
         case SP_TYPE_FUNCTION:
         case SP_TYPE_PROCEDURE:
           if (sp_drop_routine_internal(thd, sp, table))
+          {
+            my_error(ER_SP_DROP_FAILED, MYF(0), type_str(), sp->m_name.str);
             goto done;
+          }
           break;
         case SP_TYPE_TRIGGER:
         case SP_TYPE_EVENT:
@@ -1470,9 +1506,26 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       goto done;
     }
 
-    if (table->file->ha_write_row(table->record[0]))
+    int wr_error= 0;
+    DBUG_EXECUTE_IF("sp_create_routine_write_row_fail",
+                    wr_error= HA_ERR_GENERIC;);
+    if (wr_error || (wr_error= table->file->ha_write_row(table->record[0])))
     {
-      my_error(ER_SP_ALREADY_EXISTS, MYF(0), type_str(), sp->m_name.str);
+      if (wr_error == HA_ERR_FOUND_DUPP_KEY)
+        my_error(ER_SP_ALREADY_EXISTS, MYF(0), type_str(), sp->m_name.str);
+      else
+      {
+        table->file->print_error(wr_error, MYF(0));
+        /*
+          print_error() has a couple of silent exits (e.g. HA_ERR_ABORTED_BY_
+          USER when the kill isn't diagnostics-worthy, or a handler-specific
+          default with an empty message), so fall back to a generic error
+          rather than risk an empty Diagnostics_area -- exactly this MDEV's
+          bug, one call site over.
+        */
+        if (!thd->is_error())
+          my_error(ER_SP_STORE_FAILED, MYF(0), type_str(), sp->m_name.str);
+      }
       goto done;
     }
     /* Make change permanent and avoid 'table is marked as crashed' errors */
