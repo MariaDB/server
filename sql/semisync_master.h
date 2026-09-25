@@ -19,6 +19,7 @@
 #ifndef SEMISYNC_MASTER_H
 #define SEMISYNC_MASTER_H
 
+#include "my_counter.h"
 #include "semisync.h"
 #include "semisync_master_ack_receiver.h"
 
@@ -430,6 +431,13 @@ class Repl_semi_sync_master
    */
   mysql_mutex_t LOCK_binlog;
 
+  /* Number of connected semi-sync slaves that did *not* ask the master to
+   * filter away @@skip_replication events, i.e. that connected with a
+   * --replicate-events-marked-for-skip other than FILTER_ON_MASTER. Those are
+   * the only slaves which can ever ACK a skip_replication event.
+   */
+  Atomic_counter<uint32> m_slaves_replicating_skip_events;
+
   /* This is set to true when m_reply_file_name contains meaningful data. */
   bool            m_reply_file_name_inited;
 
@@ -556,11 +564,36 @@ class Repl_semi_sync_master
   /* Disable the object to disable semi-sync replication inside the master. */
   void disable_master();
 
-  /* Add a semi-sync replication slave */
-  void add_slave();
-    
-  /* Remove a semi-sync replication slave */
-  void remove_slave();
+  /* Add a semi-sync replication slave. filters_skip_events is true when the
+     slave asked the master to filter away @@skip_replication events
+     (--replicate-events-marked-for-skip=FILTER_ON_MASTER). */
+  void add_slave(bool filters_skip_events);
+
+  /* Remove a semi-sync replication slave. filters_skip_events must match the
+     value passed to the corresponding add_slave() call. */
+  void remove_slave(bool filters_skip_events);
+
+  /*
+    Returns true if at least one semi-sync slave is connected and none of them
+    replicates @@skip_replication events. In that state such an event is sent
+    to nobody and can therefore never be ACKed, so the commit path must
+    neither register it for an ACK nor wait for one.
+
+    Read without LOCK_binlog, so the answer may be stale if a slave connects or
+    disconnects concurrently. That is harmless: a slave which connects after
+    the event was binlogged still receives (and ACKs) it, and a commit which
+    stops waiting for a slave that just disconnected would not have been ACKed
+    by it anyway.
+  */
+  bool no_slave_receives_skip_replication_events();
+
+  /*
+    Called instead of report_binlog_update() for a transaction whose ACK is
+    deliberately not awaited. It drops the binlog coordinates cached on the
+    transaction thread, so that a later wait at the AFTER_COMMIT wait point
+    does not wait for, and account for, an ACK which was never requested.
+  */
+  void skip_ack_wait(THD *trans_thd);
 
   /* It parses a reply packet and call report_reply_binlog to handle it. */
   int report_reply_packet(uint32 server_id, const uchar *packet,
