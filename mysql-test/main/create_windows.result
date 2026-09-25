@@ -1,2 +1,7 @@
 create table `...................................................`(i int);
 ERROR HY000: Can't create table `test`.`...................................................` (errno: 38 "Filename too long")
+#
+# MDEV-28746 continued: a *relative* path can overflow MAX_PATH too
+#
+CREATE TABLE `NAME` (id INT);
+ERROR HY000: Can't create table `test`.`NAME` (errno: 38 "Filename too long")
