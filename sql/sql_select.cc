@@ -12546,7 +12546,7 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
       uint flags=field->flags;
       fields++;
       rec_length+=field->pack_length();
-      if (flags & BLOB_FLAG)
+      if (field->data_is_out_of_line())
 	blobs++;
       if (!(flags & NOT_NULL_FLAG))
 	null_fields++;
@@ -21728,6 +21728,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     if (result && ! param->modify_item())
       result->field_name= *new_name;
   }
+  result= heap_move_out_of_line(root, new_table, result);
   if (result && param->modify_item())
     result_field= result;
   return result;
@@ -21762,6 +21763,7 @@ Field *Item_default_value::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
     */
      get_tmp_field_src(src, param);
      Field *result= tmp_table_field_from_field_type(root, table, param);
+     result= heap_move_out_of_line(root, table, result);
      if (result && param->modify_item())
        result_field= result;
      return result;
@@ -21836,9 +21838,11 @@ Field *Item_type_holder::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
     }
     return field;
   }
-  return type_handler->
-    make_and_init_table_field(root, &name, Record_addr(maybe_null()),
-                              *this, table);
+  return heap_move_out_of_line(root, table,
+                               type_handler->
+                                 make_and_init_table_field(root, &name,
+                                                Record_addr(maybe_null()),
+                                                *this, table));
 }
 
 
@@ -21881,6 +21885,7 @@ Item_result_field::create_tmp_field_ex_from_handler(
                                                      Record_addr(maybe_null()),
                                                      *this, param, table);
 
+  result= heap_move_out_of_line(root, table, result);
   if (result && param->modify_item())
     result_field= result;
   return result;
@@ -21896,6 +21901,7 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   if ((result= sp_result_field->create_tmp_field(root, table, param)))
   {
     result->field_name= name;
+    result= heap_move_out_of_line(root, table, result);
     if (param->modify_item())
       result_field= result;
   }
@@ -22044,8 +22050,7 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
   m_field_count[Create_tmp_table::other]= 0;
   m_null_count[Create_tmp_table::distinct]= 0;
   m_null_count[Create_tmp_table::other]= 0;
-  m_blobs_count[Create_tmp_table::distinct]= 0;
-  m_blobs_count[Create_tmp_table::other]= 0;
+  m_distinct_has_unbounded_blob= false;
   m_uneven_bit[Create_tmp_table::distinct]= 0;
   m_uneven_bit[Create_tmp_table::other]= 0;
 }
@@ -22069,10 +22074,11 @@ void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr,
   table->s->reclength+= field->pack_length();
 
   // Assign it here, before update_data_type_statistics() changes m_blob_count
-  if (field->flags & BLOB_FLAG)
+  if (field->data_is_out_of_line())
   {
     table->s->blob_field[m_blob_count]= fieldnr;
-    m_blobs_count[current_counter]++;
+    if ((field->flags & BLOB_FLAG) && current_counter == distinct)
+      m_distinct_has_unbounded_blob= true;
   }
 
   table->field[fieldnr]= field;
@@ -22273,6 +22279,13 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
   table->group_concat= param->group_concat;
+  /*
+    The columns are made after this point, and each of them asks whether
+    it is worth keeping its payload out of the record.  The table carries
+    the answer because create_tmp_field() reaches the column factories
+    through the table, which is how group_concat above reaches them too.
+  */
+  table->heap_expected= m_heap_expected;
   table->expr_arena= thd;
 
   table->s= share;
@@ -22493,7 +22506,6 @@ bool Create_tmp_table::add_fields(THD *thd,
   }
 
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
-  DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
   share->fields= fieldnr;
   share->blob_fields= m_blob_count;
   table->field[fieldnr]= 0;                     // End marker
@@ -22819,6 +22831,12 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->length= (uint16) field->key_length();
       m_key_part_info->type=   (uint8) field->key_type();
       m_key_part_info->key_type= field->binary() ? FIELDFLAG_BINARY : 0;
+      /*
+        This describes the table field, which is where the engine reads
+        the value from.  cur_group->field, built below, addresses the
+        group buffer instead, and that buffer always holds the value
+        inline, so the two disagree for a promoted column by design.
+      */
       m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
@@ -22853,11 +22871,11 @@ bool Create_tmp_table::finalize(THD *thd,
                                    (MAX_BLOB_WIDTH - 4 - 1));
           /*
             Verify that the group buffer has room for this blob key
-            field.  For native blob columns calc_group_buffer() sees
-            the blob type from the start and always allocates enough
-            space.  This can only overflow when a varchar is promoted
-            to blob after calc_group_buffer() has already sized the
-            buffer (varchar-to-blob promotion path).
+            field.  Only a declared blob reaches here, and
+            calc_group_buffer() sees its type from the start and always
+            allocates enough space, so this cannot overflow.  The check
+            stays because a mis-sized group buffer would otherwise be a
+            silent overwrite.
           */
           uint32 need= key_field_length + 4 /* length_bytes */ +
                         MY_TEST(maybe_null);
@@ -22869,16 +22887,6 @@ bool Create_tmp_table::finalize(THD *thd,
             break;
           }
         }
-        /*
-          Set key_part_flag from the actual field type AFTER the overflow
-          check.  This ensures that if we break out due to a promoted
-          blob overflowing the group buffer, key_part_flag retains the
-          original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
-          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff()
-          from being called on a key buffer that has varchar format.
-        */
-        m_key_part_info->key_part_flag= field->key_part_flag();
-
         /* Create a new field which value is stored in the group buffer */
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
@@ -22901,6 +22909,13 @@ bool Create_tmp_table::finalize(THD *thd,
           /* Tell engine to that this key includes a blob */
           keyinfo->flags|= HA_BLOB_PART_KEY;
         }
+        /*
+          A promoted VARCHAR needs nothing here.  HA_BLOB_PART_KEY says
+          the key has a segment of unbounded length and so cannot be a
+          key at all once the table converts to Aria; a promoted column
+          is still as wide as it was declared, and the engine learns
+          about the indirection from the key part's own HA_BLOB_PART.
+        */
 
         /*
           Verify key_part_info consistency with the GROUP BY key field.
@@ -22917,8 +22932,6 @@ bool Create_tmp_table::finalize(THD *thd,
                      HA_KEYTYPE_VARBINARY4 ||
                      (ha_base_keytype) m_key_part_info->type ==
                      HA_KEYTYPE_VARTEXT4));
-        DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
-                    (cur_group->field->flags & BLOB_FLAG));
         /*
           Set store_length for all GROUP BY key parts so
           rebuild_key_from_group_buff() can advance through the key buffer.
@@ -22968,12 +22981,18 @@ bool Create_tmp_table::finalize(THD *thd,
     DBUG_PRINT("info",("hidden_field_count: %d", param->hidden_field_count));
 
     keyinfo->flags= 0;
-    if (m_blobs_count[distinct])
+    if (m_distinct_has_unbounded_blob)
     {
       /*
         Special mode for index creation in MyISAM used to support unique
         indexes on blobs with arbitrary length. Such indexes cannot be
         used for lookups.
+
+        Only a declared blob needs it.  A promoted VARCHAR is reached
+        through a pointer too, but its width is still the declared one,
+        so it is indexed like any other VARCHAR -- and it has to be,
+        because the optimizer decided from that declared type that this
+        table could be looked up by key.
       */
       keyinfo->flags|= HA_UNIQUE_HASH;
     }
@@ -23103,6 +23122,14 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->type=     (uint8) field->key_type();
       m_key_part_info->key_type= field->binary() ? FIELDFLAG_BINARY : 0;
 
+      /*
+        Only a declared blob comes here.  A promoted VARCHAR keeps the
+        key part it would have had inline: a VARTEXT of the declared
+        width, whose HA_BLOB_PART tells the engine to follow the
+        pointer.  It must not add HA_BLOB_PART_KEY, which would turn
+        this key into a unique constraint the moment the table converted
+        to Aria, after the optimizer had planned a lookup on it.
+      */
       if (field->flags & BLOB_FLAG)
       {
         /*
@@ -23119,9 +23146,22 @@ bool Create_tmp_table::finalize(THD *thd,
                                 HA_KEYTYPE_VARTEXT4);
       }
 
+      /*
+        The length and the type above are set from field->flags, the flag
+        from field->key_part_flag(), so these compare two answers the
+        field gives separately rather than restating either one.
+
+        HA_BLOB_PART means the record holds a pointer, which is true of a
+        promoted VARCHAR as well as of a declared blob.  Only the blob
+        carries the four-byte prefix that goes with it; the VARCHAR keeps
+        its own one or two bytes and says so by keeping
+        HA_VAR_LENGTH_PART, which Field_blob::key_part_flag() never sets.
+      */
       DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  (m_key_part_info->key_part_flag & HA_VAR_LENGTH_PART) ||
                   m_key_part_info->length == 4 + portable_sizeof_char_ptr);
       DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  (m_key_part_info->key_part_flag & HA_VAR_LENGTH_PART) ||
                   ((ha_base_keytype) m_key_part_info->type ==
                    HA_KEYTYPE_VARBINARY4 ||
                    (ha_base_keytype) m_key_part_info->type ==
@@ -23210,6 +23250,7 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
     }
     field->init(table);
     field->flags|= NO_DEFAULT_VALUE_FLAG;
+    field= heap_move_out_of_line(&table->mem_root, table, field);
     add_field(table, field, fieldnr, param->force_not_null_cols);
   }
 
@@ -23614,6 +23655,30 @@ bool Virtual_tmp_table::sp_save_in_target_list(THD *thd,
   return false;
 }
 
+/*
+  Describe a key segment over a column whose payload lives outside the
+  record.  Aria and MyISAM read one the same way: the record holds a
+  length prefix followed by a pointer, `bit_start' says how wide that
+  prefix is, and HA_BLOB_PART tells the engine to follow the pointer.
+
+  A declared blob has no bounded width, so a unique constraint over one
+  covers the whole value and the segment length is zero.  A promoted
+  VARCHAR is still as wide as it was declared and keeps the length the
+  caller assigned, because a real key over it would otherwise have
+  nothing in it.
+*/
+
+static void setup_out_of_line_keyseg(HA_KEYSEG *seg, const Field *field,
+                                     const KEY_PART_INFO *key_part)
+{
+  seg->type= (key_part->key_type & FIELDFLAG_BINARY) ?
+             HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2;
+  seg->bit_start= (uint8) field->length_size();
+  seg->flag= HA_BLOB_PART;
+  if (field->flags & BLOB_FLAG)
+    seg->length= 0;                     // Whole blob in unique constraint
+}
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
 /*
   Create internal (MyISAM or Maria) temporary table
@@ -23739,16 +23804,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
         seg->language= field->charset()->number;
         seg->length=   keyinfo->key_part[i].length;
         seg->start=    keyinfo->key_part[i].offset;
-        if (field->flags & BLOB_FLAG)
-        {
-          seg->type=
-            ((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
-             HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-          seg->bit_start= (uint8)(field->pack_length() -
-                                  portable_sizeof_char_ptr);
-          seg->flag= HA_BLOB_PART;
-          seg->length=0;		// Whole blob in unique constraint
-        }
+        if (field->data_is_out_of_line())
+          setup_out_of_line_keyseg(seg, field, keyinfo->key_part + i);
         else
         {
           seg->type= keyinfo->key_part[i].type;
@@ -23930,15 +23987,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
       seg->language= field->charset()->number;
       seg->length=   keyinfo->key_part[i].length;
       seg->start=    keyinfo->key_part[i].offset;
-      if (field->flags & BLOB_FLAG)
-      {
-	seg->type=
-	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
-	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-        seg->bit_start= (uint8) ((Field_blob*) field)->pack_length_no_ptr();
-	seg->flag= HA_BLOB_PART;
-	seg->length=0;			// Whole blob in unique constraint
-      }
+      if (field->data_is_out_of_line())
+        setup_out_of_line_keyseg(seg, field, keyinfo->key_part + i);
       else
       {
 	seg->type= keyinfo->key_part[i].type;
@@ -24082,11 +24132,12 @@ int Window_rowid_remapper::materialize_pending_blobs(TABLE *from)
   uint *bf_end= from->s->blob_field + from->s->blob_fields;
   DBUG_ENTER("Window_rowid_remapper::materialize_pending_blobs");
 
+  /* Each value is written as the record image of its own column */
   for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
   {
-    Field_blob *fb= (Field_blob*) from->field[*bf];
+    Field *fb= from->field[*bf];
     if (!fb->is_null())
-      total+= fb->get_length();
+      total+= fb->out_of_line_image_length();
   }
   if (!total)
     DBUG_RETURN(0);
@@ -24098,13 +24149,14 @@ int Window_rowid_remapper::materialize_pending_blobs(TABLE *from)
   pos= pending_blob_buf;
   for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
   {
-    Field_blob *fb= (Field_blob*) from->field[*bf];
-    uint32 length;
-    if (fb->is_null() || !(length= fb->get_length()))
+    Field *fb= from->field[*bf];
+    uint32 image_length;
+    if (fb->is_null())
       continue;
-    memcpy(pos, fb->get_ptr(), length);
-    fb->set_ptr(length, pos);
-    pos+= length;
+    /* Write the image first: set_out_of_line_image() overwrites the source */
+    image_length= fb->store_out_of_line_image(pos);
+    fb->set_out_of_line_image(pos);
+    pos+= image_length;
   }
   DBUG_RETURN(0);
 }
@@ -28938,8 +28990,8 @@ static bool copy_blobs(Field **ptr)
 {
   for (; *ptr ; ptr++)
   {
-    if ((*ptr)->flags & BLOB_FLAG)
-      if (((Field_blob *) (*ptr))->copy())
+    if ((*ptr)->data_is_out_of_line())
+      if ((*ptr)->copy())
 	return 1;				// Error
   }
   return 0;
@@ -28949,8 +29001,8 @@ static void free_blobs(Field **ptr)
 {
   for (; *ptr ; ptr++)
   {
-    if ((*ptr)->flags & BLOB_FLAG)
-      ((Field_blob *) (*ptr))->free();
+    if ((*ptr)->data_is_out_of_line())
+      (*ptr)->free();
   }
 }
 
@@ -29063,8 +29115,13 @@ JOIN_TAB::remove_duplicates()
     fields, sort_length() returns UINT_MAX32, making the key buffer
     impractically large.  Fall back to the row-by-row compare path
     for tables with blobs.
+
+    The reason is the missing maximum width, not where the payload is
+    kept: a VARCHAR whose payload has moved out of the record still
+    answers a bounded sort_length(), and make_sort_key_part() reads it
+    through the pointer like any other value.
   */
-  if (!table->s->blob_fields &&
+  if (!table->has_unbounded_blob_field() &&
       (table->s->db_type() == heap_hton ||
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
@@ -30359,7 +30416,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
         item->name= ref->name;
       }
       pos= item;
-      if (item->field->flags & BLOB_FLAG)
+      if (item->field->data_is_out_of_line())
       {
 	if (!(pos= new (thd->mem_root) Item_copy_string(thd, pos)))
 	  goto err;

@@ -1323,10 +1323,14 @@ Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
     {
       DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
+      field= heap_move_out_of_line(root, table, field);
     }
     DBUG_RETURN(field);
   }
-  DBUG_RETURN(tmp_table_field_from_field_type(root, table, param));
+  DBUG_RETURN(heap_move_out_of_line(root, table,
+                                    tmp_table_field_from_field_type(root,
+                                                                    table,
+                                                                    param)));
 }
 
 /***********************************************************************
@@ -3955,12 +3959,18 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
           what was cut, which val_str() reports as a warning. A value cut
           for a row that never gets here may have changed nothing.
         */
-        if (table->blob_storage && (field->flags & BLOB_FLAG))
+        if (table->blob_storage && field->data_is_out_of_line())
         {
-          /* A NULL blob was never stored, so there is no mark to read. */
+          /*
+            A value that was never stored has no mark in front of it.
+            The question is where the value lives, not whether the column
+            was declared a blob: a VARCHAR wide enough to be kept out of
+            the record carries the same mark.
+          */
           const uchar *rec= key + offset + item->get_null_bytes();
-          const uchar *val= ((Field_blob*) field)->get_ptr(rec);
-          if (val && Blob_mem_storage::was_cut((const char*) val))
+          if (field->has_out_of_line_data(rec) &&
+              Blob_mem_storage::was_cut((const char*)
+                                        field->out_of_line_data(rec)))
             item->value_cut_in_result= true;
         }
       }

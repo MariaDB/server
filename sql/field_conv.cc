@@ -653,7 +653,66 @@ static void do_varstring2_mb(const Copy_field *copy)
   int2store(copy->to_ptr, prefix.length());
   memcpy(copy->to_ptr+HA_KEY_BLOB_LENGTH, from_beg, prefix.length());
 }
- 
+
+
+/*
+  The same copy where one side keeps its payload outside the record.
+
+  The record slot holds a pointer there, so the copiers above would move
+  the pointer and leave two records sharing one value.  The value has to
+  be read and stored instead, and store() is also the only way to give
+  the target a set of bytes it owns.
+
+  What store() would not do the same way is report the cut: it answers
+  with a note where only spaces were lost, while the copiers above answer
+  with a warning for any cut at all.  Cutting here leaves store() nothing
+  to report, so what the statement says does not depend on where the
+  payload sits.
+*/
+
+static void do_varstring_out_of_line(const Copy_field *copy)
+{
+  char buff[MAX_FIELD_WIDTH];
+  Field *from_field= copy->from_field, *to_field= copy->to_field;
+  CHARSET_INFO *cs= from_field->charset();
+  String tmp(buff, sizeof(buff), cs);
+
+  from_field->val_str(&tmp);
+  Well_formed_prefix prefix(cs, tmp.ptr(), tmp.length(),
+                            to_field->field_length / cs->mbmaxlen);
+  if (prefix.length() < tmp.length())
+  {
+    if (current_thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
+      to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
+                            WARN_DATA_TRUNCATED, 1);
+    tmp.length(prefix.length());
+  }
+  to_field->store(tmp.ptr(), tmp.length(), cs);
+}
+
+
+/*
+  The same copy again, where the value cannot be cut.
+
+  get_copy_func() picks this over do_varstring_out_of_line() on the
+  terms the inline cases pick do_varstring1_no_truncation() over
+  do_varstring1(): the two columns agree on type, charset and length
+  prefix, and the destination is at least as wide as the source.  So
+  nothing converts and nothing is cut, and store() would spend a walk of
+  the value establishing that.  The bytes were checked on their way into
+  the column they are read from, which is the same reason the inline
+  case gives for skipping the same work.
+*/
+
+static void do_varstring_no_cut(const Copy_field *copy)
+{
+  Field_varstring *from_field= (Field_varstring*) copy->from_field;
+  Field_varstring *to_field= (Field_varstring*) copy->to_field;
+
+  to_field->store_exact((const char*) from_field->get_data(),
+                        from_field->get_length());
+}
+
 
 /***************************************************************************
 ** The different functions that fills in a Copy_field class
@@ -821,6 +880,36 @@ Field::Copy_func *Field_varstring::get_copy_func(const Field *from) const
 {
   if (from->type() == MYSQL_TYPE_BIT)
     return do_field_int;
+  /*
+    A promoted record slot holds a pointer where the bytes would be, so
+    the inline copiers chosen below would move the pointer and leave two
+    records sharing one value.  Copying through the value instead is
+    correct whichever side is promoted.
+
+    Which copier goes through the value is the choice the inline cases
+    make below, and it is made on the same terms.  A copy that cannot
+    cut only has to move the bytes; one that can has to decide what to
+    cut and say so, and the copiers of their own report a cut
+    differently from do_field_string.  That is why a compressed column
+    is excluded here as well as below -- a compressed copy that can cut
+    goes through do_field_string inline, so it goes through it promoted
+    too, and the statement says the same thing either way.
+  */
+  if (data_is_out_of_line() || from->data_is_out_of_line())
+  {
+    /*
+      The same terms the inline cases below are chosen on.  A blob
+      answers data_is_out_of_line() as well, and is excluded here by
+      real_type(), which is what makes the cast beneath it safe.
+    */
+    if (Field_varstring::real_type() != from->real_type() ||
+        Field_varstring::charset() != from->charset() ||
+        length_bytes != ((const Field_varstring*) from)->length_bytes ||
+        compression_method() || from->compression_method())
+      return do_field_string;
+    return field_length < from->field_length ? do_varstring_out_of_line
+                                             : do_varstring_no_cut;
+  }
   /*
     Detect copy from pre 5.0 varbinary to varbinary as of 5.0 and
     use special copy function that removes trailing spaces and thus

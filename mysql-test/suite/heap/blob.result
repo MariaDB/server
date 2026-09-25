@@ -431,12 +431,11 @@ set @@max_heap_table_size= 65536;
 create table t1 (a int not null, b blob, primary key(a)) engine=memory;
 insert into t1 values (1, repeat('x', 30000));
 insert into t1 values (2, repeat('y', 30000));
-ERROR HY000: The table 't1' is full
 insert into t1 values (3, repeat('z', 30000));
 ERROR HY000: The table 't1' is full
 select count(*) as row_count from t1;
 row_count
-1
+2
 select a, length(b) from t1 where a=1;
 a	length(b)
 1	30000
@@ -447,7 +446,7 @@ corrupted
 0
 select count(*) as scan_count from t1;
 scan_count
-1
+2
 set @@max_heap_table_size= @save_max;
 drop table t1;
 #
