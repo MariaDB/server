@@ -6684,6 +6684,7 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
     }
 
     spvar->default_value= default_value;
+    spvar->field_def.default_item_value= default_value;
 
     sp_instr_set_default_param *is= new (thd->mem_root)
                       sp_instr_set_default_param(sphead->instructions(),

@@ -1164,6 +1164,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  VALUE_SYM                     /* SQL-2003-R */
 %token  <kwd>  VARCHAR2_MARIADB_SYM
 %token  <kwd>  VARCHAR2_ORACLE_SYM           /* Oracle-R, PLSQL-R */
+%token  <kwd>  ANY_CS_SYM
 %token  <kwd>  VARIABLES
 %token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  VIA_SYM
@@ -6988,6 +6989,10 @@ binary:
             const Lex_exact_collation bin(&my_charset_bin);
             const Lex_extended_collation tmp(bin);
             $$= Lex_exact_charset_extended_collation_attrs(tmp);
+          }
+        | charset ANY_CS_SYM
+          {
+            $$.set_collation_contextually_typed_any_cs();
           }
         ;
 

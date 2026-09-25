@@ -1,0 +1,685 @@
+--echo #
+--echo # ANY_CS character set clause on stored routine parameters
+--echo #
+--echo # ANY_CS is a MariaDB extension (not sql_mode dependent): a parameter's
+--echo # CHARACTER SET is resolved per CALL from the actual argument's charset,
+--echo # instead of being fixed at CREATE time.
+--echo #
+
+--echo # mysqltest defaults to a latin1 client connection; this file writes
+--echo # literal multi-byte utf8mb4 characters (section 4d), so switch first.
+SET NAMES utf8mb4;
+
+SET @save_sql_mode= @@sql_mode;
+
+--echo #
+--echo # Section 1: grammar acceptance / rejection
+--echo #
+
+--echo # 1a. Accepted on a routine parameter, default dialect
+SET sql_mode= '';
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_default(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x;
+END;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p_any_cs_default;
+
+--echo # 1b. Accepted on a routine parameter, sql_mode=ORACLE
+SET sql_mode= 'ORACLE';
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_oracle(x IN VARCHAR2(20) CHARACTER SET ANY_CS)
+IS
+BEGIN
+  SELECT x;
+END;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p_any_cs_oracle;
+SET sql_mode= @save_sql_mode;
+
+--echo # 1c. Bare ANY_CS (no CHARACTER SET keyword) must be rejected
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p_bare_should_fail(IN x VARCHAR(20) ANY_CS)
+BEGIN
+  SELECT x;
+END;
+$$
+DELIMITER ;$$
+
+--echo # 1d. ANY_CS must not leak into SET NAMES
+--error ER_PARSE_ERROR
+SET NAMES ANY_CS;
+
+--echo # 1e. ANY_CS must not leak into CONVERT(...USING...)
+--error ER_PARSE_ERROR
+SELECT CONVERT('x' USING ANY_CS);
+
+--echo #
+--echo # Section 2: restricted to routine parameters only
+--echo #
+
+--echo # 2a. Table column must fail
+--error ER_WRONG_USAGE
+CREATE TABLE t_any_cs_should_fail (a VARCHAR(20) CHARACTER SET ANY_CS);
+
+--echo # 2b. Function RETURNS type must fail
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE FUNCTION f_any_cs_should_fail() RETURNS VARCHAR(20) CHARACTER SET ANY_CS
+BEGIN
+  RETURN 'x';
+END;
+$$
+DELIMITER ;$$
+
+--echo # 2c. DECLARE local variable must fail
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p_any_cs_local_should_fail()
+BEGIN
+  DECLARE v VARCHAR(20) CHARACTER SET ANY_CS DEFAULT NULL;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Section 3: type coverage (CHAR / VARCHAR / TEXT all share
+--echo # Type_handler_longstr, so all three must work)
+--echo #
+
+--echo # 3a. VARCHAR parameter
+DELIMITER $$;
+CREATE PROCEDURE p_varchar_any_cs(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHARSET(x), CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_varchar_any_cs('hello');
+DROP PROCEDURE p_varchar_any_cs;
+
+--echo # 3b. CHAR parameter
+DELIMITER $$;
+CREATE PROCEDURE p_char_any_cs(IN x CHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHARSET(x), CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_char_any_cs('hello');
+DROP PROCEDURE p_char_any_cs;
+
+--echo # 3c. TEXT parameter
+DELIMITER $$;
+CREATE PROCEDURE p_text_any_cs(IN x TEXT CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHARSET(x), CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_text_any_cs('hello text world');
+DROP PROCEDURE p_text_any_cs;
+
+--echo #
+--echo # Section 4: CALL-time correctness (the real feature)
+--echo #
+
+--echo # 4a. Basic ASCII round-trip
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_test(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x;
+END;
+$$
+DELIMITER ;$$
+CALL p_any_cs_test('hello');
+
+--echo # 4b. Declared length cap (20) is still enforced -- under strict sql_mode
+--echo # an over-long argument is a hard error, same as an ordinary VARCHAR(20)
+--error ER_DATA_TOO_LONG
+CALL p_any_cs_test('this string is definitely longer than twenty chars');
+
+--echo # 4b-ii. Under non-strict sql_mode, the same over-long argument silently
+--echo # truncates to the declared 20-character cap instead of erroring.
+--echo # A routine runs under its OWN stored sql_mode (captured at CREATE
+--echo # time), not the caller's current one -- so re-create under non-strict.
+SET @save_sql_mode_4b= @@sql_mode;
+SET sql_mode= '';
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_nonstrict(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_any_cs_nonstrict('this string is definitely longer than twenty chars');
+DROP PROCEDURE p_any_cs_nonstrict;
+SET sql_mode= @save_sql_mode_4b;
+
+--echo # 4c. Repeated CALLs with different argument charsets/content must not
+--echo # "stick" to a previous call's resolution (regression test for the
+--echo # shared-Column_definition mutation bug)
+CALL p_any_cs_test('hi');
+CALL p_any_cs_test('a medium string');
+CALL p_any_cs_test('short');
+DROP PROCEDURE p_any_cs_test;
+
+--echo # 4d. Real multi-byte content, exact-length and over-length
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_multibyte(IN x VARCHAR(10) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHAR_LENGTH(x), CHARSET(x);
+END;
+$$
+DELIMITER ;$$
+--echo # exactly 10 characters (multi-byte)
+CALL p_any_cs_multibyte('héllo wörl');
+--echo # more than 10 characters (multi-byte) -- the cap is enforced in
+--echo # CHARACTERS, not bytes; under strict sql_mode this is a hard error
+--error ER_DATA_TOO_LONG
+CALL p_any_cs_multibyte('héllo wörld, this is too long');
+DROP PROCEDURE p_any_cs_multibyte;
+
+--echo # 4e. sql_mode=ORACLE, implicit length (no size given) combined with ANY_CS
+SET sql_mode= 'ORACLE';
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_implicit_length(x IN VARCHAR2 CHARACTER SET ANY_CS)
+IS
+BEGIN
+  SELECT x, CHAR_LENGTH(x), CHARSET(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_any_cs_implicit_length('a string much longer than the usual twenty character default cap');
+DROP PROCEDURE p_any_cs_implicit_length;
+SET sql_mode= @save_sql_mode;
+
+--echo #
+--echo # Section 5: multiple parameters mixing fixed charsets and ANY_CS,
+--echo # IN and OUT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p_multi_charset_test(
+    IN  p_latin1_in   VARCHAR(20) CHARACTER SET latin1,
+    OUT p_latin1_out  VARCHAR(20) CHARACTER SET latin1,
+    IN  p_utf8_in     VARCHAR(20) CHARACTER SET utf8mb4,
+    OUT p_utf8_out    VARCHAR(20) CHARACTER SET utf8mb4,
+    IN  p_any_cs_in   VARCHAR(20) CHARACTER SET ANY_CS,
+    OUT p_any_cs_out  VARCHAR(20) CHARACTER SET ANY_CS
+)
+BEGIN
+    SET p_latin1_out = p_latin1_in;
+    SET p_utf8_out   = p_utf8_in;
+    SET p_any_cs_out = p_any_cs_in;
+END;
+$$
+DELIMITER ;$$
+
+SELECT PARAMETER_NAME, PARAMETER_MODE, DATA_TYPE,
+       CHARACTER_SET_NAME, COLLATION_NAME
+FROM information_schema.parameters
+WHERE SPECIFIC_SCHEMA = DATABASE() AND SPECIFIC_NAME = 'p_multi_charset_test'
+ORDER BY ORDINAL_POSITION;
+
+CALL p_multi_charset_test('one', @lo, 'two', @uo, 'three', @ao);
+SELECT @lo, @uo, @ao;
+DROP PROCEDURE p_multi_charset_test;
+
+--echo #
+--echo # Section 6: OUT parameter declared as ANY_CS. The charset is resolved
+--echo # from the caller's OUT-argument variable, not from anything written
+--echo # inside the routine body. This was verified against real Oracle
+--echo # (PL/SQL) behavior: a fixed OUT ANY_CS procedure body, called with
+--echo # host variables of two different charsets, returns the value encoded
+--echo # in whichever charset the actual argument had -- e.g.
+--echo #   VARCHAR2 actual  -> result CharacterSet=AL32UTF8
+--echo #   NVARCHAR2 actual -> result CharacterSet=AL16UTF16
+--echo # confirming MariaDB's implementation matches Oracle's design, not
+--echo # merely an implementation artifact.
+--echo #
+
+--echo # 6a. Basic OUT ANY_CS usage: passthrough from an IN argument, into a
+--echo # fresh (never previously set) caller variable
+DELIMITER $$;
+CREATE PROCEDURE p_out_any_cs(IN x VARCHAR(20) CHARACTER SET utf8mb4, OUT y VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SET y = x;
+END;
+$$
+DELIMITER ;$$
+CALL p_out_any_cs('hello', @out1);
+SELECT @out1, COLLATION(@out1);
+DROP PROCEDURE p_out_any_cs;
+
+--echo # 6b. The Oracle-equivalent experiment: a FIXED procedure body (the
+--echo # same literal assignment every time) called with OUT-argument
+--echo # variables pre-seeded in two different charsets. The resulting
+--echo # charset must track the caller's variable, not the body.
+DELIMITER $$;
+CREATE PROCEDURE p_out_any_cs_fixed(OUT y VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SET y = 'hello';
+END;
+$$
+DELIMITER ;$$
+SET @out_latin1= _latin1'seed';
+SET @out_utf8mb4= _utf8mb4'seed';
+CALL p_out_any_cs_fixed(@out_latin1);
+CALL p_out_any_cs_fixed(@out_utf8mb4);
+SELECT @out_latin1, COLLATION(@out_latin1), @out_utf8mb4, COLLATION(@out_utf8mb4);
+DROP PROCEDURE p_out_any_cs_fixed;
+
+--echo # 6c. Edge case: OUT ANY_CS argument variable that was never
+--echo # previously set (no prior charset to inherit) -- documents what
+--echo # charset a fresh user variable resolves to
+DELIMITER $$;
+CREATE PROCEDURE p_out_any_cs_unset(OUT y VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SET y = 'hello';
+END;
+$$
+DELIMITER ;$$
+CALL p_out_any_cs_unset(@out_unset);
+SELECT @out_unset, COLLATION(@out_unset);
+DROP PROCEDURE p_out_any_cs_unset;
+
+--echo #
+--echo # Section 7: remaining verification -- body-level expression use,
+--echo # a real table INSERT, cache-reload from mysql.proc via a fresh
+--echo # connection, ALTER PROCEDURE, and CREATE OR REPLACE PROCEDURE
+--echo #
+
+--echo # 7a. Comparing two ANY_CS locals to each other, including across
+--echo # two genuinely different explicit charset introducers
+DELIMITER $$;
+CREATE PROCEDURE p_cmp_any_cs(IN x VARCHAR(20) CHARACTER SET ANY_CS, IN y VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  IF x = y THEN
+    SELECT 'equal';
+  ELSE
+    SELECT 'not equal';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+CALL p_cmp_any_cs('hello', 'hello');
+CALL p_cmp_any_cs(_latin1'hello', _utf8mb4'hello');
+DROP PROCEDURE p_cmp_any_cs;
+
+--echo # 7b. An ANY_CS local's value flowing into a real table column
+CREATE TABLE t_any_cs_insert_target (c VARCHAR(20) CHARACTER SET utf8mb4);
+DELIMITER $$;
+CREATE PROCEDURE p_insert_any_cs(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  INSERT INTO t_any_cs_insert_target (c) VALUES (x);
+END;
+$$
+DELIMITER ;$$
+CALL p_insert_any_cs('hello');
+SELECT * FROM t_any_cs_insert_target;
+DROP PROCEDURE p_insert_any_cs;
+DROP TABLE t_any_cs_insert_target;
+
+--echo # 7c. Cache-reload path: a fresh connection has an empty sp_cache,
+--echo # forcing db_load_routine() to re-parse the routine's stored
+--echo # param_list/body text from mysql.proc from scratch
+DELIMITER $$;
+CREATE PROCEDURE p_reload_any_cs(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHARSET(x), CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_reload_any_cs('first call');
+
+connect (any_cs_con2, localhost, root,,test);
+connection any_cs_con2;
+CALL p_reload_any_cs('second call');
+disconnect any_cs_con2;
+connection default;
+
+--echo # 7d. ALTER PROCEDURE (characteristic-only change) must not disturb
+--echo # subsequent CALLs
+ALTER PROCEDURE p_reload_any_cs COMMENT 'updated comment';
+CALL p_reload_any_cs('after alter');
+
+--echo # 7e. CREATE OR REPLACE PROCEDURE forces a full re-parse; the new
+--echo # declared length must take effect correctly
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p_reload_any_cs(IN x VARCHAR(30) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, CHARSET(x), CHAR_LENGTH(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_reload_any_cs('after replace');
+DROP PROCEDURE p_reload_any_cs;
+
+--echo #
+--echo # Section 8: DEFAULT expressions on ANY_CS parameters -- when no
+--echo # argument is passed for a defaulted parameter at all, its charset
+--echo # must be resolved from the DEFAULT expression itself, since there is
+--echo # no caller argument to derive it from
+--echo #
+
+--echo # 8a. Called with no argument at all, and with an explicit one, on
+--echo # the same routine
+DELIMITER $$;
+CREATE FUNCTION f_any_cs_default(a VARCHAR(20) CHARACTER SET ANY_CS DEFAULT 'fallback')
+RETURNS VARCHAR(50)
+BEGIN
+  RETURN CONCAT(CHARSET(a), ':', a);
+END;
+$$
+DELIMITER ;$$
+SELECT f_any_cs_default();
+SELECT f_any_cs_default('explicit');
+DROP FUNCTION f_any_cs_default;
+
+--echo # 8b. The exact scenario that originally crashed: a non-string
+--echo # DEFAULT expression (RAND()), function called with no argument
+DELIMITER $$;
+CREATE FUNCTION f_any_cs_default_rand(a VARCHAR(20) CHARACTER SET ANY_CS DEFAULT RAND())
+RETURNS INT
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f_any_cs_default_rand();
+SELECT f_any_cs_default_rand('explicit');
+DROP FUNCTION f_any_cs_default_rand;
+
+--echo # 8c. Regression test for the bug found while building this: a
+--echo # routine with a defaulted ANY_CS parameter that ALSO declares a
+--echo # local variable in its body. Row_definition_list mixes parameters
+--echo # and locals together, so resolving a defaulted parameter's charset
+--echo # must not mistake a local variable for one (this crashed on MTR's
+--echo # own check_warnings procedure, which has exactly this shape)
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_default_with_local(IN a VARCHAR(20) CHARACTER SET ANY_CS DEFAULT 'fallback')
+BEGIN
+  DECLARE local_var INT DEFAULT 0;
+  SET local_var = 1;
+  SELECT a, CHARSET(a), local_var;
+END;
+$$
+DELIMITER ;$$
+CALL p_any_cs_default_with_local();
+CALL p_any_cs_default_with_local('explicit');
+DROP PROCEDURE p_any_cs_default_with_local;
+
+--echo # 8d. Multiple parameters, mixed -- some with DEFAULT, some without,
+--echo # called supplying progressively more of the trailing defaulted ones
+DELIMITER $$;
+CREATE PROCEDURE p_any_cs_mixed_defaults(
+    IN a VARCHAR(20) CHARACTER SET utf8mb4,
+    IN b VARCHAR(20) CHARACTER SET ANY_CS DEFAULT 'b_default',
+    IN c VARCHAR(20) CHARACTER SET ANY_CS DEFAULT 'c_default'
+)
+BEGIN
+  SELECT a, b, CHARSET(b), c, CHARSET(c);
+END;
+$$
+DELIMITER ;$$
+CALL p_any_cs_mixed_defaults('a_value');
+CALL p_any_cs_mixed_defaults('a_value', 'b_value');
+CALL p_any_cs_mixed_defaults('a_value', 'b_value', 'c_value');
+DROP PROCEDURE p_any_cs_mixed_defaults;
+
+--echo # 8e. All three tricky interactions stacked at once: sql_mode=ORACLE
+--echo # implicit length (no size given) + DEFAULT + ANY_CS, called with no
+--echo # argument at all. The default has no real declared cap to respect
+--echo # (same as the plain implicit-length case), so it must come through
+--echo # un-truncated even though it is far longer than the usual 20-char cap
+SET sql_mode= 'ORACLE';
+DELIMITER $$;
+CREATE PROCEDURE p_implicit_default_any_cs(x IN VARCHAR2 CHARACTER SET ANY_CS DEFAULT 'a string longer than the usual twenty character cap')
+IS
+BEGIN
+  SELECT x, CHAR_LENGTH(x), CHARSET(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_implicit_default_any_cs();
+CALL p_implicit_default_any_cs('explicit');
+DROP PROCEDURE p_implicit_default_any_cs;
+
+SET sql_mode= @save_sql_mode;
+
+--echo #
+--echo # Section 9: ANY_CS charset resolution across different kinds of
+--echo # actual arguments (not just literals). The charset must be read
+--echo # from the argument only after it has gone through fix_fields(),
+--echo # otherwise argument classes whose type/collation is only known at
+--echo # evaluation time (a session user variable, a trigger column, a
+--echo # table subquery) silently resolve to binary instead of their real
+--echo # charset. Item_param (prepared statement placeholders) is excluded
+--echo # here: it has no charset of its own until a value is bound to it,
+--echo # and is expected to be rejected outright, not resolved.
+--echo #
+
+--echo # 9a. Session user variable, IN and INOUT (OUT is covered in
+--echo # Section 6)
+DELIMITER $$;
+CREATE PROCEDURE p_9a_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9a_inout(INOUT x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+DELIMITER ;$$
+
+SET @v_latin1= _latin1'test';
+SET @v_utf8mb4= _utf8mb4'test';
+CALL p_9a_in(@v_latin1);
+CALL p_9a_in(@v_utf8mb4);
+CALL p_9a_inout(@v_latin1);
+SELECT @v_latin1, COLLATION(@v_latin1);
+DROP PROCEDURE p_9a_in;
+DROP PROCEDURE p_9a_inout;
+
+--echo # 9b. SP-local variable with a declared charset, IN / OUT / INOUT,
+--echo # passed from a wrapper procedure into an inner one
+DELIMITER $$;
+CREATE PROCEDURE p_9b_inner_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9b_inner_out(OUT x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SET x = 'hello';
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9b_inner_inout(INOUT x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9b_wrapper()
+BEGIN
+  DECLARE v_latin1 VARCHAR(20) CHARACTER SET latin1 DEFAULT 'test';
+  DECLARE v_utf8mb4 VARCHAR(20) CHARACTER SET utf8mb4 DEFAULT 'test';
+  DECLARE v_out VARCHAR(20) CHARACTER SET latin1;
+
+  CALL p_9b_inner_in(v_latin1);
+  CALL p_9b_inner_in(v_utf8mb4);
+  CALL p_9b_inner_out(v_out);
+  SELECT v_out, COLLATION(v_out);
+  CALL p_9b_inner_inout(v_latin1);
+  SELECT v_latin1, COLLATION(v_latin1);
+END;
+$$
+DELIMITER ;$$
+CALL p_9b_wrapper();
+DROP PROCEDURE p_9b_inner_in;
+DROP PROCEDURE p_9b_inner_out;
+DROP PROCEDURE p_9b_inner_inout;
+DROP PROCEDURE p_9b_wrapper;
+
+--echo # 9c. TYPE OF anchored SP-local variable (data type/charset resolved
+--echo # at rcontext-creation time rather than at DECLARE time) -- rejected
+--echo # for ANY_CS regardless of mode, matching Oracle's own restriction on
+--echo # %TYPE-declared variables combined with ANY_CS
+CREATE TABLE t_9c (col1 VARCHAR(20) CHARACTER SET latin1);
+DELIMITER $$;
+CREATE PROCEDURE p_9c_inner_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9c_wrapper()
+BEGIN
+  DECLARE v1 TYPE OF t_9c.col1 DEFAULT 'test';
+  CALL p_9c_inner_in(v1);
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_USAGE
+CALL p_9c_wrapper();
+DROP PROCEDURE p_9c_inner_in;
+DROP PROCEDURE p_9c_wrapper;
+DROP TABLE t_9c;
+
+--echo # 9d. Trigger NEW.col / OLD.col passed into an ANY_CS parameter
+CREATE TABLE t_9d (id INT, col_latin1 VARCHAR(20) CHARACTER SET latin1, col_utf8mb4 VARCHAR(20) CHARACTER SET utf8mb4);
+CREATE TABLE t_9d_log (id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(100), coll VARCHAR(64));
+DELIMITER $$;
+CREATE PROCEDURE p_9d_log(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  INSERT INTO t_9d_log(msg, coll) VALUES (x, COLLATION(x));
+END;
+$$
+CREATE TRIGGER trg_9d_ins BEFORE INSERT ON t_9d FOR EACH ROW
+BEGIN
+  CALL p_9d_log(NEW.col_latin1);
+  CALL p_9d_log(NEW.col_utf8mb4);
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t_9d VALUES (1, 'test', 'test');
+SELECT msg, coll FROM t_9d_log ORDER BY id;
+DROP TRIGGER trg_9d_ins;
+DROP PROCEDURE p_9d_log;
+DROP TABLE t_9d;
+DROP TABLE t_9d_log;
+
+--echo # 9e. Table column read via a scalar subquery, no intermediate
+--echo # variable at all (IN only -- not assignable, so OUT/INOUT do not
+--echo # apply)
+CREATE TABLE t_9e (id INT PRIMARY KEY, col_latin1 VARCHAR(20) CHARACTER SET latin1, col_utf8mb4 VARCHAR(20) CHARACTER SET utf8mb4);
+INSERT INTO t_9e VALUES (1, 'test', 'test');
+DELIMITER $$;
+CREATE PROCEDURE p_9e_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_9e_in((SELECT col_latin1 FROM t_9e WHERE id = 1));
+CALL p_9e_in((SELECT col_utf8mb4 FROM t_9e WHERE id = 1));
+DROP PROCEDURE p_9e_in;
+DROP TABLE t_9e;
+
+--echo # 9f. Prepared-statement placeholder (Item_param) -- rejected for
+--echo # ANY_CS regardless of mode: it has no charset of its own until a
+--echo # value is bound to it at EXECUTE time
+DELIMITER $$;
+CREATE PROCEDURE p_9f_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9f_out(OUT x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SET x = 'hello';
+END;
+$$
+DELIMITER ;$$
+
+PREPARE stmt_9f_in FROM 'CALL p_9f_in(?)';
+SET @p_latin1= _latin1'test';
+--error ER_WRONG_USAGE
+EXECUTE stmt_9f_in USING @p_latin1;
+DEALLOCATE PREPARE stmt_9f_in;
+
+PREPARE stmt_9f_out FROM 'CALL p_9f_out(?)';
+--error ER_WRONG_USAGE
+EXECUTE stmt_9f_out USING @p_out;
+DEALLOCATE PREPARE stmt_9f_out;
+
+DROP PROCEDURE p_9f_in;
+DROP PROCEDURE p_9f_out;
+
+--echo # 9g. Row-field access by name on a ROW TYPE OF variable
+--echo # (Item_splocal_row_field_by_name) -- rejected for ANY_CS, since the
+--echo # field is not resolved until fix_fields() time, same reasoning as
+--echo # the TYPE OF delayed-type case in 9c
+CREATE TABLE t_9g (col1 VARCHAR(20) CHARACTER SET latin1, col2 INT);
+DELIMITER $$;
+CREATE PROCEDURE p_9g_inner_in(IN x VARCHAR(20) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9g_wrapper()
+BEGIN
+  DECLARE r ROW TYPE OF t_9g DEFAULT ROW ('test', 0);
+  CALL p_9g_inner_in(r.col1);
+END;
+$$
+DELIMITER ;$$
+--error ER_WRONG_USAGE
+CALL p_9g_wrapper();
+DROP PROCEDURE p_9g_inner_in;
+DROP PROCEDURE p_9g_wrapper;
+DROP TABLE t_9g;
+
+--echo # 9h. DEFAULT expression that is not a self-typed literal (a session
+--echo # variable), for a parameter whose actual argument is omitted at
+--echo # CALL time. Exercises the same fix_fields()-before-charset-read
+--echo # requirement as 9a, but for the DEFAULT-value path rather than the
+--echo # actual-argument path (procedure, List<Item>* overload)
+SET @default_src_latin1= _latin1'from_default';
+SET @default_src_utf8mb4= _utf8mb4'from_default';
+DELIMITER $$;
+CREATE PROCEDURE p_9h_default_var(IN x VARCHAR(30) CHARACTER SET ANY_CS DEFAULT @default_src_latin1)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+CREATE PROCEDURE p_9h_default_var2(IN x VARCHAR(30) CHARACTER SET ANY_CS DEFAULT @default_src_utf8mb4)
+BEGIN
+  SELECT x, COLLATION(x);
+END;
+$$
+DELIMITER ;$$
+CALL p_9h_default_var();
+CALL p_9h_default_var2();
+DROP PROCEDURE p_9h_default_var;
+DROP PROCEDURE p_9h_default_var2;
+
+--echo # 9i. Same as 9h, but for a FUNCTION (Item **args, uint arg_count
+--echo # overload), to cover the second overload of
+--echo # adjust_formal_params_to_actual_params as well
+DELIMITER $$;
+CREATE FUNCTION f_9i_default_var(x VARCHAR(30) CHARACTER SET ANY_CS DEFAULT @default_src_latin1) RETURNS VARCHAR(64) CHARACTER SET utf8mb4
+BEGIN
+  RETURN CONCAT(x, ':', COLLATION(x));
+END;
+$$
+DELIMITER ;$$
+SELECT f_9i_default_var();
+DROP FUNCTION f_9i_default_var;
