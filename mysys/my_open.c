@@ -50,7 +50,10 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
   if (!(MyFlags & (MY_WME | MY_FAE | MY_FFNF)))
     MyFlags|= my_global_flags;
 #if defined(_WIN32)
-  fd= my_win_open(FileName, Flags);
+  if (MyFlags & MY_NOSYMLINKS)
+    fd= my_win_open_nosymlinks(FileName, Flags);
+  else
+    fd= my_win_open(FileName, Flags);
 #else
   if (MyFlags & MY_NOSYMLINKS)
     fd = open_nosymlinks(FileName, Flags | O_CLOEXEC, my_umask);
