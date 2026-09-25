@@ -1072,6 +1072,13 @@ public:
   void clear() override final;
   bool add() override final;
   double val_real() override;
+  bool is_null() override
+  {
+    if (aggr)
+      aggr->endup();
+    null_value= m_stddev.count() <= sample;
+    return null_value;
+  }
   void reset_field() override final;
   void update_field() override final;
   Item *result_item(THD *thd, Field *field) override;
