@@ -245,3 +245,8 @@ drop view v2;
 drop table t1,t2,t3,t20;
 
 --echo # end of 10.4 tests
+
+--echo #
+--echo # MDEV-40565: Scalar subquery with LIMIT 0
+--echo #
+SELECT (SELECT 1 LIMIT 0) AS r;

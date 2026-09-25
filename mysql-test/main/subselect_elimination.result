@@ -276,3 +276,9 @@ drop procedure p2;
 drop view v2;
 drop table t1,t2,t3,t20;
 # end of 10.4 tests
+#
+# MDEV-40565: Scalar subquery with LIMIT 0
+#
+SELECT (SELECT 1 LIMIT 0) AS r;
+r
+NULL
