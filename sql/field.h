@@ -857,6 +857,11 @@ public:
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
   enum imagetype { itRAW, itMBR};
+  /*
+    Form in which an index stores its column values: itMBR for a SPATIAL
+    (RTREE) index, which stores the column's MBR instead of its value;
+    itRAW for every other index algorithm.
+  */
   static enum imagetype image_type(enum ha_key_alg alg)
   { return alg == HA_KEY_ALG_RTREE ? itMBR : itRAW; }
 
@@ -1759,7 +1764,14 @@ public:
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment, ulong current_row=0) const;
   virtual void print_key_value(String *out, uint32 length);
-  void print_key_part_value(String *out, const uchar *key, uint32 length);
+  /*
+    Virtual (unlike print_key_value()) because Field_geom's itMBR key
+    image is four raw doubles, not the field's normal on-disk
+    representation, so it cannot be loaded via set_key_image() and
+    handed to print_key_value() the way every other Field subclass does.
+  */
+  virtual void print_key_part_value(String *out, const uchar *key, uint32 length,
+                                    imagetype image_type);
   void print_key_value_binary(String *out, const uchar* key, uint32 length);
   void raise_note_cannot_use_key_part(THD *thd, uint keynr, uint part,
                                       const LEX_CSTRING &op,

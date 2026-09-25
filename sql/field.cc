@@ -11833,11 +11833,16 @@ void Field_blob::print_key_value(String *out, uint32 length)
     key                value of the key
     length             Length of field in bytes,
                        excluding NULL flag and length bytes
+    image_type         Form in which the value is stored in the key,
+                       see Field::image_type(). Ignored by this base
+                       implementation; overridden by Field_geom to
+                       interpret itMBR key images.
 */
 
 
 void
-Field::print_key_part_value(String *out, const uchar* key, uint32 length)
+Field::print_key_part_value(String *out, const uchar* key, uint32 length,
+                            imagetype image_type)
 {
   StringBuffer<128> tmp(system_charset_info);
   uint null_byte= 0;

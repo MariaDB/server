@@ -463,10 +463,8 @@ public:
   bool load_data_set_null(THD *thd) override;
   bool load_data_set_no_data(THD *thd, bool fixed_format) override;
 
-  void print_key_value(String *out, uint32 length) override
-  {
-    out->append(STRING_WITH_LEN("unprintable_geometry_value"));
-  }
+  void print_key_part_value(String *out, const uchar *key, uint32 length,
+                            imagetype image_type) override;
   Binlog_type_info binlog_type_info() const override;
 };
 

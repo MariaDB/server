@@ -147,7 +147,7 @@ analyze select * from t1 where t1.a=5 and t1.b=0 union select * from t1 where t1
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_context)'
+         '(REPLACE INTO.*)([\n\r].*)*(?=set @opt_ctx_sql_mode)'
         )
         from information_schema.optimizer_context
     );
@@ -182,7 +182,7 @@ analyze select * from t1 where t1.a=1 and t1.b=1;
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -218,7 +218,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -235,7 +235,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -252,7 +252,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -284,7 +284,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -301,7 +301,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -318,7 +318,7 @@ select count(*) from t1;
 set @stats_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -350,7 +350,7 @@ explain select * from t0, t1 where t0.a=1;
 set @const_table_inserts=
     (select REGEXP_SUBSTR(
          context,
-         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_context))'
+         '(REPLACE INTO.*)([\n\r].*)*(?=(set @opt_ctx_sql_mode))'
         )
         from information_schema.optimizer_context
     );
@@ -469,5 +469,10 @@ select * from t1 partition (p1) where a=10;
 --source include/opt_context_list_tables_and_ranges.inc
 
 drop table t1;
+
+--echo #
+--echo # MDEV-40553: unprintable gis ranges in trace and context
+--echo #
+--source include/opt_gis_range_print.inc
 
 --echo # End of 13.1 tests

@@ -525,9 +525,15 @@ void Single_line_formatting_helper::disable_and_flush()
     }
     else
     {
-      //if (nr == 1)
-      //  owner->start_array();
-      owner->add_str(str, len);
+      /*
+        Every value that can reach this buffer (add_escaped_str(), and
+        add_unquoted_str() and everything built on it: add_str(),
+        add_double(), add_bool(), add_null()) is already in its final,
+        ready-to-print form, so print it as-is, the way
+        flush_on_one_line() does. Passing it through Json_writer::add_str()
+        here would escape an already-escaped string a second time.
+      */
+      owner->add_escaped_str(str, len);
     }
     
     nr++;
