@@ -18,6 +18,13 @@ drop table t1;
 select * from fed;
 Got one of the listed errors
 drop table fed;
+#
+# MDEV-40854 Use of uninitialized table_will_be_deleted in federated engine
+#
+create table t1 (c int);
+create temporary table t2 (c int) connection='mysql://root@127.0.0.1:MASTER_PORT/test/t1' engine=federated;
+insert into t2 values (),();
+drop tables t1, t2;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

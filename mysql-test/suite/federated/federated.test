@@ -21,5 +21,15 @@ drop table t1;
 select * from fed;
 drop table fed;
 
+--echo #
+--echo # MDEV-40854 Use of uninitialized table_will_be_deleted in federated engine
+--echo #
+
+create table t1 (c int);
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval create temporary table t2 (c int) connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1' engine=federated;
+insert into t2 values (),();
+drop tables t1, t2;
+
 source include/federated_cleanup.inc;
 
