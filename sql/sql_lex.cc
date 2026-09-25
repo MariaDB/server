@@ -12604,8 +12604,12 @@ bool SELECT_LEX_UNIT::explainable() const
     EXPLAIN/ANALYZE unit, when:
     (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
     (2) if it's a CTE - it's not hanging (needed for execution)
-    (3) if it's a derived - it's not merged or eliminated
+    (3) if it's a derived - it's not merged and not completely optimized out
     if it's not 1/2/3 - it's some weird internal thing, ignore it
+
+    Note that a derived table removed by table elimination is still
+    explainable: it is printed in a reduced form, see
+    Explain_node::mark_eliminated().
   */
 
   return item ?
@@ -12614,8 +12618,8 @@ bool SELECT_LEX_UNIT::explainable() const
              derived && derived->derived_result &&
                !with_element->is_hanging_recursive(): // (2)
              derived ?
-               derived->is_materialized_derived() && // (3)
-                 !is_derived_eliminated() :
+               derived->table &&                      // (3)
+                 derived->is_materialized_derived() :
                false;
 }
 
@@ -12700,17 +12704,19 @@ void st_select_lex::optimize_out_order_list()
 
 
 /*
-  Determines whether the derived table was eliminated during
-  the call of eliminate_tables(JOIN *) made at the optimization stage
-  or completely optimized out (for such degenerate statements like
-  "SELECT 1", for example)
+  Determines whether the derived table was removed by table elimination
+  during the call of eliminate_tables(JOIN *) made at the optimization stage.
+
+  Note: a derived table that was completely optimized out (so that it has no
+  TABLE at all, like in "SELECT 1") is not "eliminated" in this sense.
 */
 
 bool SELECT_LEX_UNIT::is_derived_eliminated() const
 {
-  if (!derived)
+  if (!derived || !derived->table)
     return false;
-  if (!derived->table)
-    return true;
-  return derived->table->map & outer_select()->join->eliminated_tables;
+  st_select_lex *outer= outer_select();
+  if (!outer || !outer->join)
+    return false;
+  return derived->table->map & outer->join->eliminated_tables;
 }
