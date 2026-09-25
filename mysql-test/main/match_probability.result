@@ -1,0 +1,148 @@
+# Setup: Two tables with skewed foreign key distribution
+CREATE TABLE t_ndv100 (a INT);
+CREATE TABLE t_ndv3 (a INT, b VARCHAR(50), KEY idx_a (a));
+# All values in t_ndv100.a are different (100 distinct values)
+INSERT INTO t_ndv100 (a) SELECT seq FROM seq_1_to_100;
+# There are only 3 distinct values in t_ndv3.a
+INSERT INTO t_ndv3 (a, b) SELECT seq/100, 'def' FROM seq_1_to_300;
+set optimizer_trace=1;
+# Inefficient plan until EITS is collected (full scan of t_ndv3)
+EXPLAIN SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t_ndv3	ALL	idx_a	NULL	NULL	NULL	300	Using where; Using join buffer (flat, BNL join)
+# Collect statistics only for the driving table (t_ndv100)
+ANALYZE TABLE t_ndv100 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_ndv100	analyze	status	Engine-independent statistics collected
+test.t_ndv100	analyze	status	OK
+# It is not enough until there are statistics for the inner table (t_ndv3)
+EXPLAIN SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t_ndv3	ALL	idx_a	NULL	NULL	NULL	300	Using where; Using join buffer (flat, BNL join)
+ANALYZE TABLE t_ndv3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_ndv3	analyze	status	Engine-independent statistics collected
+test.t_ndv3	analyze	status	Table is already up to date
+# After EITS is collected for both tables, the plan is efficient
+# (index scan of t_ndv3). "rows" in the output are close to actual "r_rows"
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+1	SIMPLE	t_ndv3	ref	idx_a	idx_a	5	test.t_ndv100.a	3	2.51	100.00	100.00	
+# Optimization must be reflected in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+[
+    0.04,
+    75
+]
+# Match probability is not applicable because the left part of the
+# join condition is not a field but an expression (t_ndv100.a + 10). See the
+# difference between "rows" and "r_rows"
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a + 10 = t_ndv3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	
+1	SIMPLE	t_ndv3	ALL	idx_a	NULL	NULL	NULL	300	300.00	25.00	0.00	Using where; Using join buffer (flat, BNL join)
+# Must be no records in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+NULL
+# If all values are NULL, match probability is not applicable
+CREATE TABLE t_nulls (a INT, b VARCHAR(50), KEY idx_a (a));
+INSERT INTO t_nulls (a, b) SELECT NULL, 'def' FROM seq_1_to_300;
+ANALYZE TABLE t_nulls PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_nulls	analyze	status	Engine-independent statistics collected
+test.t_nulls	analyze	status	Table is already up to date
+EXPLAIN SELECT t_ndv100.a, t_nulls.b
+FROM t_ndv100
+STRAIGHT_JOIN t_nulls ON t_ndv100.a = t_nulls.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t_nulls	ref	idx_a	idx_a	5	test.t_ndv100.a	1	
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+NULL
+#------------------------------
+# Test multi-part index
+#------------------------------
+CREATE TABLE t_ndv30 (a INT, b INT, c VARCHAR(50), KEY idx_ab (a, b));
+INSERT INTO t_ndv30 (a, b, c) SELECT seq/10, seq/10, 'def' FROM seq_1_to_300;
+ANALYZE TABLE t_ndv30 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t_ndv30	analyze	status	Engine-independent statistics collected
+test.t_ndv30	analyze	status	Table is already up to date
+# If more than one key part is used, match probability is not applicable.
+# See the mismatch between "rows" and "r_rows" in ANALYZE output
+ANALYZE SELECT t_ndv100.a, t_ndv30.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv30 ON t_ndv100.a = t_ndv30.a 
+AND t_ndv100.a = t_ndv30.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+1	SIMPLE	t_ndv30	ref	idx_ab	idx_ab	10	test.t_ndv100.a,test.t_ndv100.a	9	2.96	100.00	100.00	Using index
+# Must be no records in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+NULL
+# Only first key part of `idx_ab` is used, match probability is applicable.
+# "rows" is now much closer to actual "r_rows".
+ANALYZE SELECT t_ndv100.a, t_ndv30.b
+FROM t_ndv100
+STRAIGHT_JOIN t_ndv30 ON t_ndv100.a = t_ndv30.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+1	SIMPLE	t_ndv30	ref	idx_ab	idx_ab	5	test.t_ndv100.a	3	2.96	100.00	100.00	Using index
+# Must be reflected in the trace
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+[
+    0.31000062,
+    9.6774
+]
+# Three tables with equality propagation.
+# min_driving_ndv = min(NDV(t_ndv30.a), NDV(t_ndv100.a)) = min(30, 100) = 30
+ANALYZE SELECT t_ndv100.a, t_ndv3.b
+FROM t_ndv30
+STRAIGHT_JOIN t_ndv100 ON t_ndv30.a = t_ndv100.a
+STRAIGHT_JOIN t_ndv3 ON t_ndv100.a = t_ndv3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t_ndv30	index	idx_ab	idx_ab	10	NULL	300	300.00	100.00	100.00	Using where; Using index
+1	SIMPLE	t_ndv100	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	0.99	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t_ndv3	ref	idx_a	idx_a	5	test.t_ndv30.a	9	8.48	100.00	100.00	
+# Must be reflected in the trace (match_prob ~= 0.1)
+SELECT json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+FROM information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.match_probability',
+'$**.rows_before_adjustment'))
+[
+    0.129032,
+    75
+]
+DROP TABLE t_ndv100, t_ndv3, t_ndv30, t_nulls;

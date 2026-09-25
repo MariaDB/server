@@ -81,6 +81,13 @@ typedef struct keyuse_t {
   */
   bool *validity_ref;
 
+  /*
+    Number of distinct values in `val`, if `val` is a real table column.
+    Computed from EITS statistics when KEYUSE is created.
+    0 means statistics not available or `val` is not a real table column
+  */
+  double num_distinct_values;
+
   bool is_for_hash_join() { return is_hash_join_key_no(key); }
 } KEYUSE;
 
