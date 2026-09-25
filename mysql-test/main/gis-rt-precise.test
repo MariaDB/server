@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 -- source include/have_geometry.inc
 
 #
@@ -83,4 +84,15 @@ SELECT astext(coordinate) FROM t1 WHERE ST_Intersects(ST_LineFromText("LINESTRIN
    
 SHOW COLUMNS FROM t1;
    
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41091: Disjoint geometries with overlapping bounding boxes
+--echo #
+# InnoDB is required to reproduce this access path; Aria and MyISAM
+# return the expected rows without the fix.
+CREATE TABLE t1 (id INT PRIMARY KEY,g GEOMETRY NOT NULL,SPATIAL KEY(g)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,ST_GeomFromText('POLYGON((0 0,10 0,0 10,0 0))')),(2,ST_GeomFromText('POLYGON((100 100,101 100,101 101,100 101,100 100))'));
+--sorted_result
+SELECT id FROM t1 WHERE ST_Disjoint(ST_GeomFromText('POLYGON((8 8,9 8,9 9,8 9,8 8))'),g);
 DROP TABLE t1;
