@@ -13960,7 +13960,8 @@ delete_part2:
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
             LEX *lex= Lex;
-            lex->last_table()->vers_conditions= lex->vers_conditions;
+            TABLE_LIST *table_from= Lex->auxiliary_table_list.first->correspondent_table;
+            table_from->vers_conditions= lex->vers_conditions;
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
                   new (thd->mem_root) Sql_cmd_delete(false)))
@@ -14006,7 +14007,10 @@ delete_single_table_for_period:
           delete_single_table opt_for_portion_of_time_clause
           {
             if ($2)
-              Lex->last_table()->period_conditions= Lex->period_conditions;
+            {
+              TABLE_LIST *table_from= Lex->auxiliary_table_list.first->correspondent_table;
+              table_from->period_conditions= Lex->period_conditions;
+            }
           }
         ;
 

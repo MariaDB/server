@@ -1,6 +1,7 @@
 source suite/period/engines.inc;
 source include/have_log_bin.inc;
 source include/have_partition.inc;
+source include/have_sequence.inc;
 
 create table t (id int, s date, e date, period for apptime(s,e));
 
@@ -268,3 +269,19 @@ select * from t1;
 drop table t1;
 drop table log_tbl;
 drop procedure log;
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+create table t1 (c1 int key) engine innodb;
+create sequence cs1 engine myisam;
+--error ER_PERIOD_NOT_FOUND
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+create or replace table t1 (c1 int key, s date, e date, period for app(s,e)) engine innodb;
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+# Cleanup
+drop sequence cs1;
+drop table t1;
+
+--echo # End of 11.8 tests
