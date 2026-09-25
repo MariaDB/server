@@ -168,3 +168,25 @@ f1	f3	check_row(row_start, row_end)
 2	2	HISTORICAL ROW
 # Cleanup
 drop tables t1, t2;
+#
+# MDEV-41050 versioned DELETE via row_end index leaves a row undeleted
+#
+create table t (
+id int primary key,
+row_start timestamp(6) generated always as row start,
+row_end   timestamp(6) generated always as row end,
+period for system_time(row_start, row_end),
+key row_end_idx (row_end)
+) engine=ENGINE with system versioning;
+insert into t (id) values (1), (2), (3);
+delete from t force index (row_end_idx);
+# Expected: no current rows remain, all history rows sane.
+select id from t;
+id
+select id, check_row_ts(row_start, row_end) from t for system_time all order by id;
+id	check_row_ts(row_start, row_end)
+1	HISTORICAL ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+drop table t;
+# End of 11.8 tests

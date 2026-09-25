@@ -42,6 +42,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
   ulong cache_size;
   MARIA_SHARE *share= info->s;
   my_bool block_records= share->data_file_type == BLOCK_RECORD;
+  uint save_update;
   DBUG_ENTER("maria_extra");
   DBUG_PRINT("enter",("function: %d",(int) function));
 
@@ -209,7 +210,25 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       bmove(info->last_key.data,
 	    info->last_key.data + share->base.max_key_length*2,
 	    info->save_lastkey_data_length + info->save_lastkey_ref_length);
-      info->update=	info->save_update | HA_STATE_WRITTEN;
+      /*
+        Preserve current HA_STATE_RNEXT_SAME state: a wrapped ha_update_row may
+        have reused lastkey_buff2 and cleared the bit. Restoring the saved value
+        would resurrect it, so maria_rnext_same would compare against a stale
+        reference key and end the scan early, leading to Halloween-like skip.
+        Only for RESTORE_POS: NO_KEYREAD ends a key-read scan and must restore
+        save_update as is, otherwise the temporary scan's bit/reference leaks in.
+        This targets only the known REMEMBER_POS/RESTORE_POS pair around a
+        wrapped ha_update_row (TABLE::delete_row); it does not make the
+        lastkey_buff2 reuse itself reentrant for other callers.
+
+        See also: hp_update.c HA_STATE_NEXT_FOUND, mi_extra.c (MDEV-41050).
+      */
+      if (function == HA_EXTRA_RESTORE_POS)
+        save_update= (info->save_update & ~HA_STATE_RNEXT_SAME) |
+                     (info->update & HA_STATE_RNEXT_SAME);
+      else
+        save_update= info->save_update;
+      info->update=	save_update | HA_STATE_WRITTEN;
       if (info->lastinx != info->save_lastinx)             /* Index changed */
       {
         info->lastinx = info->save_lastinx;

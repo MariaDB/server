@@ -40,6 +40,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
   int error=0;
   ulong cache_size;
   MYISAM_SHARE *share=info->s;
+  uint save_update;
   DBUG_ENTER("mi_extra");
   DBUG_PRINT("enter",("function: %d",(int) function));
 
@@ -200,7 +201,22 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
       bmove((uchar*) info->lastkey,
 	    (uchar*) info->lastkey+share->base.max_key_length*2,
 	    info->save_lastkey_length);
-      info->update=	info->save_update | HA_STATE_WRITTEN;
+      /*
+        Preserve current HA_STATE_RNEXT_SAME state: a wrapped ha_update_row may
+        have reused lastkey2 and cleared the bit. Restoring the saved value would
+        resurrect it, so mi_rnext_same would compare against a stale reference key
+        and end the scan early, leading to Halloween-like skip. Only for
+        RESTORE_POS: NO_KEYREAD ends a key-read scan and must restore save_update
+        as is, otherwise the temporary scan's bit/reference would leak in.
+
+        See also: hp_update.c HA_STATE_NEXT_FOUND, ma_extra.c (MDEV-41050).
+      */
+      if (function == HA_EXTRA_RESTORE_POS)
+        save_update= (info->save_update & ~HA_STATE_RNEXT_SAME) |
+                     (info->update & HA_STATE_RNEXT_SAME);
+      else
+        save_update= info->save_update;
+      info->update=	save_update | HA_STATE_WRITTEN;
       info->lastinx=	info->save_lastinx;
       info->lastpos=	info->save_lastpos;
       info->lastkey_length=info->save_lastkey_length;
