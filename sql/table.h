@@ -2194,6 +2194,22 @@ public:
 
 } FOREIGN_KEY_INFO;
 
+/**
+  Database and table name of a table participating in a foreign key,
+  in table name (not filename) encoding.
+
+  A lightweight alternative to FOREIGN_KEY_INFO for callers that need
+  only the names of tables related by foreign keys, for example to
+  acquire metadata locks on them. Engines can produce it without
+  loading the related tables or blocking concurrent access to their
+  metadata caches.
+*/
+struct FK_TABLE_NAME
+{
+  LEX_CSTRING db;
+  LEX_CSTRING table;
+};
+
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 static inline bool fk_modifies_child(enum_fk_option opt)
 {
