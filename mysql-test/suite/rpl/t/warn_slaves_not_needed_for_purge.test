@@ -1,0 +1,52 @@
+# MDEV-38849: Test the warning that the _default_ for
+# `@@slave_connections_needed_for_purge` does not match the replication setup.
+# (Do _not_ warn if `@@slave_connections_needed_for_purge` is manually set.)
+
+--source include/have_binlog_format_mixed.inc # no actual binlog content
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+
+--let SEARCH_FILE= `SELECT @@log_error`
+--let SEARCH_PATTERN= slave_connections_needed_for_purge
+# Not connected: should not warn
+--source include/search_pattern_in_file.inc
+
+
+--connection slave
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+# Connected when left as default: should warn
+--source include/search_pattern_in_file.inc
+
+
+--source include/stop_slave_io.inc
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+# Reconnected: should not warn a second time
+
+--source include/stop_slave_io.inc
+  --let $rpl_server_parameters= --slave-connections-needed-for-purge 0
+  --let $rpl_server_number= 1
+  --source include/rpl_restart_server.inc
+  --connection slave
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+# Explicitly set to 0 in server options: should not warn
+
+--source include/stop_slave_io.inc
+  --let $rpl_server_parameters=
+  --source include/rpl_restart_server.inc
+  --connection master
+    SET @@GLOBAL.slave_connections_needed_for_purge= DEFAULT;
+  --connection slave
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+# Explicitly set to DEFAULT in system variables: should _not_ warn
+
+--connection master
+--source include/search_pattern_in_file.inc
+
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
