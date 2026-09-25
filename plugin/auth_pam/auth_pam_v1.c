@@ -25,7 +25,7 @@ struct param {
 static int roundtrip(struct param *param, const unsigned char *buf,
                      int buf_len, unsigned char **pkt)
 {
-  if (param->cached && *param->cached && (buf[0] >> 1) == 2)
+  if (param->cached && param->cached_len > 0 && *param->cached && (buf[0] >> 1) == 2)
   {
     *pkt= param->cached;
     param->cached= NULL;
