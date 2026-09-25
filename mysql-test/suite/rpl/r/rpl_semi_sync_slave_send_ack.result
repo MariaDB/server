@@ -1,0 +1,46 @@
+connect  master, 127.0.0.1, root, , , $SERVER_MYPORT_1;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+RESET MASTER;
+connect  master_other, 127.0.0.1, root, , , $SERVER_MYPORT_2;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+RESET MASTER;
+connect  slave, 127.0.0.1, root, , , $SERVER_MYPORT_3;
+SET @@GLOBAL.gtid_slave_pos= '';
+CHANGE MASTER TO
+master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root';
+SET @@SESSION.default_master_connection= 'other';
+CHANGE MASTER TO
+master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+SET @@SESSION.default_master_connection= '';
+START SLAVE '';
+connection master;
+# Wait for the slave's '' connection to register as a semi-sync client
+CREATE TABLE t (a INT);
+DROP TABLE t;
+connection slave;
+SET @@SESSION.default_master_connection= '';
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+# Start the I/O thread of the 'other' connection while the '' connection
+# is active. This must NOT reset the counter accumulated by ''.
+SET @@SESSION.default_master_connection= 'other';
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	2
+include/stop_slave_io.inc
+RESET SLAVE ALL;
+SET @@SESSION.default_master_connection= '';
+include/stop_slave.inc
+RESET SLAVE ALL;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+disconnect slave;
+connection master;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+disconnect master;
+connection master_other;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+disconnect master_other;
