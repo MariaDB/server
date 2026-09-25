@@ -1,0 +1,60 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t_blob (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col_int INT,
+  col_text TEXT,
+  col_blob BLOB,
+  col_longtext LONGTEXT,
+  INDEX idx_int (col_int)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+# Insert data with large BLOBs that will be stored externally
+INSERT INTO t_blob (col_int, col_text, col_blob, col_longtext)
+SELECT 
+  CASE WHEN seq <= 5000 THEN ((seq-1) % 500) + 1 ELSE NULL END,
+  REPEAT('A', 1000),
+  REPEAT('B', 5000),
+  REPEAT('C', 50000)
+FROM seq_1_to_10000;
+
+ANALYZE TABLE t_blob;
+
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       cardinality
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_blob'
+  AND index_name = 'idx_int';
+
+DROP TABLE t_blob;
+
+# Test with compressed table (different blob_part_size calculation)
+CREATE TABLE t_blob_compressed (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col_int INT,
+  col_longblob LONGBLOB,
+  INDEX idx_int (col_int)
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+# Insert large BLOBs
+INSERT INTO t_blob_compressed (col_int, col_longblob)
+SELECT 
+  CASE WHEN seq <= 5000 THEN ((seq-1) % 500) + 1 ELSE NULL END,
+  REPEAT('X', 100000)
+FROM seq_1_to_10000;
+
+ANALYZE TABLE t_blob_compressed;
+
+
+SELECT @@global.innodb_stats_method AS stats_method,
+       index_name,
+       cardinality
+FROM information_schema.STATISTICS
+WHERE table_schema = 'test'
+  AND table_name = 't_blob_compressed'
+  AND index_name = 'idx_int';
+
+DROP TABLE t_blob_compressed;
