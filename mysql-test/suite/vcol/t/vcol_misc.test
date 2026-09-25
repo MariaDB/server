@@ -576,4 +576,24 @@ SELECT (SELECT 1 FROM foo) FROM t1;
 INSERT INTO t1 (d1) VALUES ('2009-07-02');
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-28610 Assertion `marked_for_read()' failed upon range select with virtual column in index
+--echo #
+
+CREATE TABLE t (
+  a INT UNSIGNED NOT NULL DEFAULT 0,
+  b INT AS (a) VIRTUAL,
+  c TIME,
+  d INT,
+  e DATE,
+  f VARCHAR(1024),
+  PRIMARY KEY(c),
+  KEY(c,b,d,f(64))
+);
+INSERT INTO t (c) VALUES ('00:00:00'),('00:00:04');
+SELECT c FROM t WHERE c BETWEEN '00:00:00' AND '00:00:00' ORDER BY d;
+
+# Cleanup
+DROP TABLE t;
+
 --echo # End of 10.11 tests
