@@ -585,6 +585,7 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		m_ignore_read_only && srv_read_only_mode);
 
 	if (err != DB_SUCCESS) {
+		it->close();
 		return(err);
 	}
 
