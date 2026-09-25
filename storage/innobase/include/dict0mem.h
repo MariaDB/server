@@ -1927,8 +1927,9 @@ zero-initialized in dict_table_t::create(). */
 struct dict_table_t {
 
 	/** Get reference count.
-	@return current value of n_ref_count */
-	inline uint32_t get_ref_count() const { return n_ref_count; }
+	@return current value of the reference count part of n_ref_count */
+	inline uint32_t get_ref_count() const
+	{ return n_ref_count.load(std::memory_order_relaxed) & ~LOADING_MASK; }
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -2259,6 +2260,78 @@ public:
 	or ONLINE_INDEX_ABORTED_DROPPED. */
 	unsigned				drop_aborted:1;
 
+	/** columns/indexes are being loaded by dict_load_table_one();
+	only the loading thread may access the object, which holds
+	lock_latch in exclusive mode */
+	static constexpr uint32_t LOADING_DEF= 1U << 30;
+	/** the definition is complete; only the FOREIGN KEY related
+	tables are still being loaded by dict_sys_t::load_table().
+	find_table_fk() exposes the table so constraints can be linked
+	into it under the exclusive dict_sys.latch */
+	static constexpr uint32_t LOADING_FK= 2U << 30;
+	/** the load failed; the stub is unlinked once every reference
+	taken before the failure (see try_pin_for_wait()) is released */
+	static constexpr uint32_t LOAD_FAILED= 3U << 30;
+	/** mask of LOADING_DEF|LOADING_FK|LOAD_FAILED within n_ref_count */
+	static constexpr uint32_t LOADING_MASK= 3U << 30;
+
+	/** @return the progress of loading the table definition, 0 if
+	fully loaded */
+	uint32_t loading() const noexcept
+	{ return n_ref_count.load(std::memory_order_relaxed) & LOADING_MASK; }
+
+#ifdef UNIV_DEBUG
+	/** The thread that set the loading flag */
+	pthread_t				load_thread;
+
+	/** @return whether the current thread is loading this table */
+	bool is_loader() const
+	{ return loading() && pthread_equal(pthread_self(), load_thread); }
+#endif
+
+	/** Try to pin the table only to wait on lock_latch for a
+	concurrent load to finish; refuses once LOAD_FAILED, so that a
+	late pin cannot defeat the loader's drain to zero references.
+	@return whether a reference was acquired */
+	bool try_pin_for_wait() noexcept
+	{
+	  uint32_t n= n_ref_count.load(std::memory_order_relaxed);
+	  while (!((n & LOADING_MASK) == LOAD_FAILED))
+	    if (n_ref_count.compare_exchange_weak(n, n + 1,
+						  std::memory_order_relaxed,
+						  std::memory_order_relaxed))
+	      return true;
+	  return false;
+	}
+
+	/** Mark a freshly created, not yet published table as loading. */
+	void start_loading() noexcept
+	{
+	  ut_ad(!n_ref_count.load(std::memory_order_relaxed));
+	  n_ref_count.store(LOADING_DEF, std::memory_order_relaxed);
+	}
+
+	/** Advance loading() from LOADING_DEF to LOADING_FK. */
+	void advance_to_loading_fk() noexcept
+	{
+	  ut_d(const auto old=)
+	    n_ref_count.fetch_add(LOADING_FK - LOADING_DEF,
+				  std::memory_order_relaxed);
+	  ut_ad((old & LOADING_MASK) == LOADING_DEF);
+	}
+
+	/** Clear loading(); caller must release lock_latch next. */
+	void finish_loading() noexcept
+	{
+	  ut_d(const auto old=)
+	    n_ref_count.fetch_sub(LOADING_FK, std::memory_order_relaxed);
+	  ut_ad((old & LOADING_MASK) == LOADING_FK);
+	}
+
+	/** Mark a failed load; caller must release lock_latch next. */
+	void mark_load_failed() noexcept
+	{ n_ref_count.fetch_or(LOAD_FAILED, std::memory_order_relaxed); }
+
 	/** Array of column descriptions. */
 	dict_col_t*				cols;
 
@@ -2409,9 +2482,13 @@ private:
 #else
   typedef srw_spin_lock_low lock_latch_type;
 #endif
-  /** RW-lock protecting locks and statistics on this table */
+  /** RW-lock protecting locks and statistics on this table.
+  Also held in exclusive mode by dict_load_table_one() while loading()
+  is set, so that dict_sys_t::load_table() can wait for a concurrent
+  load of this table by acquiring it in shared mode. */
   lock_latch_type lock_latch;
 public:
+
   /** The next DB_ROW_ID value */
   Atomic_counter<uint64_t> row_id{0};
   /** Autoinc counter value to give to the next inserted row. */
@@ -2454,10 +2531,13 @@ public:
   @see trx_lock_t::trx_locks */
   Atomic_counter<uint32_t> n_rec_locks;
 private:
-  /** Count of how many handles are opened to this table. Dropping of the
-  table is NOT allowed until this count gets to zero. MySQL does NOT
-  itself check the number of open handles at DROP. */
-  Atomic_counter<uint32_t> n_ref_count;
+  /** Count of how many handles are opened to this table, in the low
+  30 bits; the top 2 bits hold loading() (see above). Dropping of the
+  table is NOT allowed until the reference count reaches zero. MySQL
+  does NOT itself check the number of open handles at DROP.
+  The two live in one atomic so that acquire()/release() are
+  unconditional and never touch the top bits. */
+  std::atomic<uint32_t> n_ref_count;
 public:
   /** List of locks on the table. Protected by lock_sys.assert_locked(lock). */
   table_lock_list_t locks;
