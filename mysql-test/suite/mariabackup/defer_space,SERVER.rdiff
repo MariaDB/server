@@ -1,0 +1,10 @@
+--- defer_space.result
++++ defer_space,SERVER.result
+@@ -21,7 +21,5 @@
+ CREATE TABLE t1(c INT) ENGINE=INNODB;
+ # Corrupt the table
+ # restart
+-# xtrabackup backup
+-FOUND 10 /Header page consists of zero bytes*/ in backup.log
+ UNLOCK TABLES;
+ DROP TABLE t1;

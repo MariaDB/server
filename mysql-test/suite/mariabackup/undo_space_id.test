@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_mariabackup_combination.inc
 
 --echo # Create 2 UNDO TABLESPACE(UNDO001(space_id =3), UNDO002(space_id =4))
 
@@ -24,6 +25,8 @@ list_files $basedir undo*;
 DROP TABLE t1;
 rmdir $basedir;
 
+if (!$MTR_COMBINATION_SERVER)
+{
 --echo #
 --echo #  MDEV-33980  mariadb-backup --backup is missing
 --echo #       retry logic for undo tablespaces
@@ -42,3 +45,4 @@ list_files $basedir undo*;
 --source include/search_pattern_in_file.inc
 rmdir $basedir;
 remove_file $backuplog;
+}
