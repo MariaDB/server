@@ -53,6 +53,10 @@ size_t Item_sum::ram_limitation(THD *thd)
   This is needed because BIT fields store parts of their data in table's
   null bits, and we don't have methods to compare two table records with
   bit fields.
+
+  A BIT column reaching GROUP_CONCAT through a view or a nested derived
+  table arrives as an Item_ref rather than an Item_field, so the BIT
+  field is found behind real_item().
 */
 
 static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
@@ -61,8 +65,9 @@ static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
   Item *item;
   while ((item= li++))
   {
-    if (item->type() == Item::FIELD_ITEM &&
-        ((Item_field*) item)->field->type() == FIELD_TYPE_BIT)
+    Item *real= item->real_item();
+    if (real->type() == Item::FIELD_ITEM &&
+        ((Item_field*) real)->field->type() == FIELD_TYPE_BIT)
       item->marker= MARKER_NULL_KEY;
   }
 }
@@ -3820,57 +3825,203 @@ void Item_func_group_concat::cut_max_length(String *result,
 }
 
 
+String *Item_func_group_concat::get_str_from_field(Item *i, Field *f,
+                                                   String *tmp,
+                                                   const uchar *key,
+                                                   size_t offset)
+{
+  /*
+    Whenever the argument is BIT, emit the packed bytes of its bit value,
+    matching what Field_bit::val_str() returns.
+
+    store_bit_fields_as_bigint_in_tempory_table() converts direct BIT
+    Item_field arguments to LONG or LONGLONG in that temp table so the
+    records can be compared by memcmp; reading the value back via
+    val_str() on the converted field would emit a decimal string instead
+    of the packed bytes.
+  */
+  if (i->field_type() == MYSQL_TYPE_BIT)
+  {
+    // Pack the bits into the buffer, byte by byte.
+    ulonglong bits= f->val_int(key + offset);
+    char buff[sizeof(ulonglong)];
+    for (int b= sizeof(buff) - 1; b >= 0; b--)
+    {
+      buff[b]= static_cast<char>(bits & 0xff);
+      bits>>= 8;
+    }
+
+    // Copy the buffer into the output String tmp.
+    uint length= MY_MIN((uint) ((i->max_length + 7) / 8),
+                        (uint) sizeof(longlong));
+    DBUG_ASSERT(length <= table->s->reclength);
+    memcpy(const_cast<char*>(tmp->ptr()),
+           buff + (sizeof(longlong) - length),
+           length);
+
+    /*
+      The length was zeroed-out by the caller, so update it to reflect
+      the data stored into tmp.
+    */
+    tmp->length(length);
+    tmp->set_charset(&my_charset_bin);
+
+    return tmp;
+  }
+
+  return f->val_str(tmp, key + offset);
+}
+
+
 /**
-  Append data from current leaf to item->result.
+  Append the current leaf's row to the GROUP_CONCAT output buffer.
+
+  Called once per row that the aggregator wants to emit, in three contexts.
+  In all of them the leaf is one row's worth of bytes from the GROUP_CONCAT
+  internal temp table, laid out the way create_tmp_table() arranged the
+  temp record.  This will be called primarily during the join machinery
+  execution which starts from do_select but for GROUP BY will include calls
+  to the end_send_group function (these are places to debug from).
+
+    1. ORDER BY present (with or without DISTINCT):
+         val_str() drives tree_walk(tree, &dump_leaf_key, this, left_root_right)
+         to visit the sort tree's leaves in order.
+    2. DISTINCT only, no ORDER BY:
+         val_str() drives unique_filter->walk(table, &dump_leaf_key, this).
+    3. Plain GROUP_CONCAT (no DISTINCT, no ORDER BY):
+         add() calls dump_leaf_key(get_record_pointer(), 1, this) inline as
+         each source row arrives, so we never buffer.  The tree walk paths
+         instead defer all dumping to val_str() time.
+
+  Parameters:
+
+    key_arg   Pointer to the leaf's payload bytes (one temp table record's
+              worth, minus the null byte prefix when skip_nulls() is true,
+              see get_record_pointer() and get_null_bytes()).  A field's bytes
+              live at
+                key + (field->offset(record[0]) - null_bytes) + get_null_bytes()
+              which simplifies to
+                key + field->offset()
+              when nulls are skipped.
+
+    count     Tree walk callback API hands us how many duplicates the leaf
+              represents.  We ignore it because each tree leaf in this
+              aggregator is one logical row.
+
+    item_arg  The owning Item_func_group_concat (passed back to us by
+              tree_walk / unique_filter->walk as their opaque arg).
+
+  Return value:
+    0  keep walking
+    1  stop the walk (LIMIT count exhausted or group_concat_max_len reached)
+
+  Side effects:
+    - Appends bytes to item->result (the SQL-visible GROUP_CONCAT output).
+    - Maintains item->row_count and the LIMIT counters, per group.
+    - On overflow, trims the item->result to a well formed prefix and raises
+      ER_CUT_VALUE_GROUP_CONCAT.
 */
 
 extern "C"
 int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
                   void* item_arg)
 {
-  Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
-  TABLE *table= item->table;
-  uint max_length= table->in_use->gconcat_max_len();
-  String tmp((char *)table->record[1], table->s->reclength,
-             default_charset_info);
-  String tmp2;
-  uchar *key= (uchar *) key_arg;
-  String *result= &item->result;
-  Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
-  uint old_length= result->length();
+  Item_func_group_concat *item= static_cast<Item_func_group_concat *>(item_arg);
+  /*
+    Support for LIMIT.  GROUP_CONCAT accepts a LIMIT clause of the form:
 
-  ulonglong *offset_limit= &item->copy_offset_limit;
+       GROUP_CONCAT([DISTINCT] expr [, ...] [ORDER BY ...] [SEPARATOR s]
+                    [LIMIT [offset,] count])
+
+    item->limit_clause is true if the parser saw that clause.  When set,
+    item->row_limit and item->offset_limit refer to the LIMIT and [offset,]
+    as noted above.  copy_row_limit and copy_offset_limit are proxies for
+    these limits, and clear() initializes them at the start of each group.
+
+    Because clear() runs once per group, LIMIT applies once per group
+    rather than once across the whole query.  Once one group is
+    emitted as constrained by LIMIT, then the item's row_limit will be
+    reset for the next group.
+
+    When the LIMIT count is exhausted, stop the walk.
+  */
   ulonglong *row_limit = &item->copy_row_limit;
-  if (item->limit_clause && !(*row_limit))
+  if (item->limit_clause && *row_limit == 0)
   {
     item->result_finalized= true;
     return 1;
   }
 
-  tmp.length(0);
-
-  if (item->limit_clause && (*offset_limit))
+  /*
+    While still inside the OFFSET window, count this row toward the offset
+    and skip it.  We need to skip OFFSET number of rows before we can emit
+    entries for the group.
+  */
+  ulonglong *offset_limit= &item->copy_offset_limit;
+  if (item->limit_clause && *offset_limit > 0)
   {
     item->row_count++;
     (*offset_limit)--;
     return 0;
   }
 
+  /*
+    Separator handling.  result_finalized doubles as "have we already
+    written at least one row to result?" (the first leaf flips it to true
+    with no separator emitted; every subsequent leaf prepends one).  The
+    same flag is also used by the path above that handles the exhausted
+    LIMIT, and by val_str() to skip walking the tree again, and the
+    meaning depends on the caller's state.
+  */
+  String *result= &item->result;
+  const uint starting_len= result->length();
   if (!item->result_finalized)
     item->result_finalized= true;
   else
     result->append(*item->separator);
 
-  for (; arg < arg_end; arg++)
+  /*
+    tmp is scratch space that get_str_from_field() or
+    get_str_from_item() write each individual field's string
+    representation into before we append it to result.  We borrow
+    table->record[1] as a fixed byte buffer of size reclength.
+    Borrowing it is safe because the GROUP_CONCAT internal temp table
+    never has any handler updates in flight (we don't write rows into
+    it via the storage engine, see HA_EXTRA_NO_ROWS and
+    table->no_rows=1 set during setup()), so record[1], which the
+    engine layer would normally use as the "old row" copy for updates
+    in place, is unused here and large enough for any single field's
+    string form (since reclength is the sum of every field's pack_length
+    plus null bytes).
+
+    The String(char*, uint32, CHARSET_INFO*) constructor adopts the buffer
+    as already containing reclength valid bytes; tmp.length(0) then
+    truncates the logical length to zero while keeping the full reclength
+    of capacity.
+  */
+  TABLE *table= item->table;
+  String tmp((char *)table->record[1], table->s->reclength,
+             default_charset_info);
+  tmp.length(0);
+
+  /*
+    Walk the selected items list only, args from indices
+    [0, ..., arg_count_field) which is a subset of the total
+    fields available.
+  */
+  Item** arg_end= item->args + item->arg_count_field;
+  for (Item** arg= item->args; arg < arg_end; arg++)
   {
     String *res;
+
     /*
       We have to use get_tmp_table_field() instead of
       real_item()->get_tmp_table_field() because we want the field in
-      the temporary table, not the original field
+      the temporary table, not the original field.
+
       We also can't use table->field array to access the fields
-      because it contains both order and arg list fields.
-     */
+      because it contains both ORDER and arg list fields.
+    */
     if ((*arg)->const_item())
       res= item->get_str_from_item(*arg, &tmp);
     else
@@ -3878,9 +4029,17 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       Field *field= (*arg)->get_tmp_table_field();
       if (field)
       {
+        /*
+          Translate the temp table field offset into a leaf payload
+          offset.  Subtract null_bytes because the leaf is stored without
+          the null prefix when skip_nulls() is true.  Add get_null_bytes()
+          back for the JSON_ARRAYAGG case where nulls are preserved and
+          the leaf does carry a null prefix.
+        */
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
+        uchar *key= static_cast<uchar *>(key_arg);
         res= item->get_str_from_field(*arg, field, &tmp, key,
                                       offset + item->get_null_bytes());
       }
@@ -3892,25 +4051,73 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       result->append(*res);
   }
 
+  /*
+    Bookkeeping for LIMIT, per group.  We only reach this point after the
+    row has been successfully appended to result, so consume one row of
+    the remaining row_limit budget.  The next call sees one fewer rows,
+    and the short circuit at the top of the function will provoke an
+    early return when the budget is gone.
+
+    row_count is the running ordinal of processed rows for this group,
+    not just emitted ones, and the OFFSET branch above also bumps it.
+    Its only consumer is report_cut_value_error() below, which uses it as
+    "row N" in the ER_CUT_VALUE_GROUP_CONCAT warning text, so callers can
+    pinpoint which input row caused truncation.  Bumping it here (after
+    emission) and in the OFFSET branch (instead of emission) keeps the
+    ordinal aligned with the input rows even when LIMIT or OFFSET drops some.
+  */
   if (item->limit_clause)
     (*row_limit)--;
   item->row_count++;
 
-  /* stop if length of result more than max_length */
+  /*
+    Enforce the group_concat_max_len cap, per thread.
+
+    We let the row's bytes land in result first, then trim back if
+    the total has exceeded it.  Trimming, not refusing the row, matches
+    the documented MySQL and MariaDB behavior, where the result is truncated
+    to a well-formed prefix and a single ER_CUT_VALUE_GROUP_CONCAT warning
+    is raised per group.
+  */
+  const uint max_length= table->in_use->gconcat_max_len();
   if (result->length() > max_length)
   {
     THD *thd= current_thd;
-    item->cut_max_length(result, old_length, max_length);
+
+    /*
+      Walks Well_formed_prefix() over [starting_len, ..., max_length) so
+      the cut lands on a character boundary.   starting_len was
+      captured before this row's separator+args were appended, so
+      the trim is guaranteed to land inside this row's contribution.
+     */
+    item->cut_max_length(result, starting_len, max_length);
+
+    /*
+      Emit the warning once for this group, tagged with the row ordinal.
+      warning_for_row tells val_str() not to emit it a second time.
+    */
     item->warning_for_row= TRUE;
     report_cut_value_error(thd, item->row_count, item->func_name());
 
-    /**
-       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    /*
+      Only relevant when DISTINCT or ORDER BY is in play and there are
+      BLOB args, which is when setup() attaches a Blob_mem_storage to
+      the temp table.  That storage tracks its own truncation flag for
+      oversized blobs; val_str()  checks it after the walk completes
+      and emits its own ER_CUT_VALUE_GROUP_CONCAT.  We just emitted
+      that warning ourselves, so clear the blob storage flag to keep
+      val_str() from raising a duplicate for the same group.
     */
     if (table && table->blob_storage)
       table->blob_storage->set_truncated_value(false);
+
+    /*
+      Returning 1 stops the tree_walk or unique_filter walk because there's
+      no point producing more bytes that we'd then have to trim away.
+    */
     return 1;
   }
+
   return 0;
 }
 
