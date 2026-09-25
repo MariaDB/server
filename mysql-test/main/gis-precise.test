@@ -540,3 +540,236 @@ SELECT ST_Crosses(ST_GeomFromText('LINESTRING(0 0, 2 2)'),
 set @geom=ST_BUFFER(ST_BUFFER(ST_POLYGONFROMTEXT('POLYGON((0 0, 5 5, 6 6, 0 0))'),1),2);
 select round(area(@geom), 5);
 
+
+--echo #
+--echo # MDEV-15066 ST_INTERSECTS over a multipolygon with scattered parts
+--echo #
+--echo # A multipolygon meets another geometry when one of its polygons does.
+--echo # Polygons whose bounding box misses the other operand are left out of
+--echo # the scan.  The cases below cover a probe that reaches one polygon, a
+--echo # probe that falls in a gap between polygons while staying inside the
+--echo # bounding box of the whole shape, and a probe that reaches a polygon's
+--echo # bounding box without reaching the polygon itself.
+
+SET @mp= ST_GeomFromText('MULTIPOLYGON(((0 0,2 0,2 2,0 2,0 0)),
+                                       ((10 10,12 10,12 12,10 12,10 10)),
+                                       ((20 20,22 20,22 22,20 22,20 20)),
+                                       ((30 30,34 30,30 34,30 30)))');
+
+--echo # probe inside the second polygon -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((10.5 10.5,11 10.5,11 11,10.5 11,10.5 10.5))'), @mp) a;
+--echo # probe inside the last polygon -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((20.5 20.5,21 20.5,21 21,20.5 21,20.5 20.5))'), @mp) a;
+--echo # probe in a gap, inside the bounding box of the whole shape -> 0
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((5 5,6 5,6 6,5 6,5 5))'), @mp) a;
+--echo # probe outside the bounding box of the whole shape -> 0
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((100 100,101 100,101 101,100 101,100 100))'), @mp) a;
+--echo # probe inside the triangle's bounding box, outside the triangle -> 0
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((33 33,33.5 33,33.5 33.5,33 33.5,33 33))'), @mp) a;
+--echo # probe spanning two polygons, reaching one of them -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((1 1,11 1,11 11,1 11,1 1))'), @mp) a;
+
+--echo # the multipolygon as the first operand gives the same answers
+SELECT ST_Intersects(@mp, ST_GeomFromText('POLYGON((10.5 10.5,11 10.5,11 11,10.5 11,10.5 10.5))')) a;
+SELECT ST_Intersects(@mp, ST_GeomFromText('POLYGON((5 5,6 5,6 6,5 6,5 5))')) a;
+SELECT ST_Intersects(@mp, ST_GeomFromText('POLYGON((33 33,33.5 33,33.5 33.5,33 33.5,33 33))')) a;
+
+--echo # both operands multipolygons, one pair of polygons meeting -> 1
+SELECT ST_Intersects(@mp, ST_GeomFromText('MULTIPOLYGON(((5 5,6 5,6 6,5 6,5 5)),
+                                                        ((11 11,13 11,13 13,11 13,11 11)))')) a;
+--echo # both operands multipolygons, no pair meeting -> 0
+SELECT ST_Intersects(@mp, ST_GeomFromText('MULTIPOLYGON(((5 5,6 5,6 6,5 6,5 5)),
+                                                        ((40 40,41 40,41 41,40 41,40 40)))')) a;
+
+--echo # polygons meeting along an edge and at a single corner -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((12 10,14 10,14 12,12 12,12 10))'), @mp) a;
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((12 12,14 12,14 14,12 14,12 12))'), @mp) a;
+
+--echo # ST_Disjoint is the complement and keeps the unfiltered path
+SELECT ST_Disjoint(ST_GeomFromText('POLYGON((5 5,6 5,6 6,5 6,5 5))'), @mp) a;
+SELECT ST_Disjoint(ST_GeomFromText('POLYGON((10.5 10.5,11 10.5,11 11,10.5 11,10.5 10.5))'), @mp) a;
+
+SET @mp= NULL;
+
+--echo #
+--echo # MDEV-15066 ST_DISJOINT and geometry collections take the same filter
+--echo #
+--echo # ST_Disjoint asks the same question as ST_Intersects and reads the
+--echo # answer the other way round, so it drops the same parts.  A collection
+--echo # keeps a child when the child's bounding box reaches the other operand
+--echo # and the child still holds a shape once its own parts are filtered.
+
+SET @mp= ST_GeomFromText('MULTIPOLYGON(((0 0,2 0,2 2,0 2,0 0)),
+                                       ((10 10,12 10,12 12,10 12,10 10)),
+                                       ((20 20,22 20,22 22,20 22,20 20)),
+                                       ((30 30,34 30,30 34,30 30)))');
+SET @gc= ST_GeomFromText('GEOMETRYCOLLECTION(
+                            POLYGON((0 0,2 0,2 2,0 2,0 0)),
+                            MULTIPOLYGON(((10 10,12 10,12 12,10 12,10 10)),
+                                         ((20 20,22 20,22 22,20 22,20 20))),
+                            POINT(40 40),
+                            LINESTRING(50 50,52 52))');
+SET @gap= ST_GeomFromText('POLYGON((5 5,6 5,6 6,5 6,5 5))');
+SET @hit= ST_GeomFromText('POLYGON((10.5 10.5,11 10.5,11 11,10.5 11,10.5 10.5))');
+SET @far= ST_GeomFromText('POLYGON((100 100,101 100,101 101,100 101,100 100))');
+
+--echo # ST_Disjoint over a multipolygon
+--echo # probe in a gap between parts -> 1
+SELECT ST_Disjoint(@gap, @mp) a;
+--echo # probe inside a part -> 0
+SELECT ST_Disjoint(@hit, @mp) a;
+--echo # probe outside the bounding box of the whole shape -> 1
+SELECT ST_Disjoint(@far, @mp) a;
+--echo # probe inside the triangle's bounding box, outside the triangle -> 1
+SELECT ST_Disjoint(ST_GeomFromText('POLYGON((33 33,33.5 33,33.5 33.5,33 33.5,33 33))'), @mp) a;
+--echo # reversed operand order
+SELECT ST_Disjoint(@mp, @gap) a;
+SELECT ST_Disjoint(@mp, @hit) a;
+--echo # parts sharing an edge are not disjoint -> 0
+SELECT ST_Disjoint(ST_GeomFromText('POLYGON((12 10,14 10,14 12,12 12,12 10))'), @mp) a;
+--echo # two multipolygons with no pair meeting -> 1
+SELECT ST_Disjoint(@mp, ST_GeomFromText('MULTIPOLYGON(((5 5,6 5,6 6,5 6,5 5)),
+                                                      ((40 40,41 40,41 41,40 41,40 40)))')) a;
+--echo # a hole is not part of the shape, a probe inside it is disjoint -> 1
+SELECT ST_Disjoint(ST_GeomFromText('POLYGON((4 4,5 4,5 5,4 5,4 4))'),
+                   ST_GeomFromText('MULTIPOLYGON(((0 0,10 0,10 10,0 10,0 0),(3 3,7 3,7 7,3 7,3 3)))')) a;
+
+--echo # collections, reaching a child of each kind
+--echo # probe in a gap between children -> 0
+SELECT ST_Intersects(@gap, @gc) a;
+--echo # probe inside a polygon held by the multipolygon child -> 1
+SELECT ST_Intersects(@hit, @gc) a;
+--echo # probe outside the bounding box of the whole collection -> 0
+SELECT ST_Intersects(@far, @gc) a;
+--echo # probe reaching the point child -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((39 39,41 39,41 41,39 41,39 39))'), @gc) a;
+--echo # probe reaching the linestring child -> 1
+SELECT ST_Intersects(ST_GeomFromText('POLYGON((50 50,51 50,51 51,50 51,50 50))'), @gc) a;
+--echo # reversed operand order
+SELECT ST_Intersects(@gc, @hit) a;
+--echo # the same collection under ST_Disjoint
+SELECT ST_Disjoint(@gap, @gc) a;
+SELECT ST_Disjoint(@hit, @gc) a;
+--echo # every child filtered out -> 0
+SELECT ST_Intersects(@gap, ST_GeomFromText('GEOMETRYCOLLECTION(
+                                              POLYGON((0 0,2 0,2 2,0 2,0 0)),
+                                              POLYGON((10 10,12 10,12 12,10 12,10 10)))')) a;
+--echo # a multipolygon child whose parts all miss the probe -> 0
+SELECT ST_Intersects(@gap, ST_GeomFromText('GEOMETRYCOLLECTION(
+                                              MULTIPOLYGON(((0 0,2 0,2 2,0 2,0 0)),
+                                                           ((10 10,12 10,12 12,10 12,10 10))))')) a;
+
+SET @mp= NULL;
+SET @gc= NULL;
+SET @gap= NULL;
+SET @hit= NULL;
+SET @far= NULL;
+
+
+--echo #
+--echo # MDEV-15066 the same filter over multipoint and multilinestring
+--echo #
+--echo # A multipoint meets another geometry when one of its points does, and
+--echo # a multilinestring when one of its linestrings does.  Parts whose
+--echo # bounding box misses the other operand are left out of the scan.  A
+--echo # point is its own bounding box, so a point survives the filter only
+--echo # where it falls inside the box of the other operand.
+
+SET @sq= ST_GeomFromText('POLYGON((45 45,55 45,55 55,45 55,45 45))');
+SET @tri= ST_GeomFromText('POLYGON((0 0,100 0,0 100,0 0))');
+SET @two= ST_GeomFromText('MULTIPOLYGON(((0 0,2 0,2 2,0 2,0 0)),
+                                        ((10 10,12 10,12 12,10 12,10 10)))');
+
+--echo # multipoint, one point inside the square -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,50 50,100 100)'), @sq) a;
+--echo # points on either side of the square, none inside -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,100 100)'), @sq) a;
+--echo # a point on the square's corner -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(45 45)'), @sq) a;
+--echo # a point on the square's edge -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(45 50)'), @sq) a;
+--echo # a point inside the triangle's bounding box, outside the triangle -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(99 99,200 200)'), @tri) a;
+--echo # the same shape with a second point that does reach the triangle -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,99 99)'), @tri) a;
+--echo # points in the gap between the parts of a multipolygon -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(5 5,500 500)'), @two) a;
+--echo # one point in each part -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,11 11)'), @two) a;
+--echo # reversed operand order
+SELECT ST_Intersects(@sq, ST_GeomFromText('MULTIPOINT(1 1,50 50,100 100)')) a;
+--echo # multipoint against multipoint
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,50 50)'),
+                     ST_GeomFromText('MULTIPOINT(50 50,200 200)')) a;
+SELECT ST_Intersects(ST_GeomFromText('MULTIPOINT(1 1,50 50)'),
+                     ST_GeomFromText('MULTIPOINT(60 60,200 200)')) a;
+
+--echo # multilinestring, one part crossing the square -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 0,10 0),(40 40,60 60),
+                                                      (200 200,210 210))'),
+                     @sq) a;
+--echo # the same shape without the crossing part -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 0,10 0),
+                                                      (200 200,210 210))'),
+                     @sq) a;
+--echo # a part running along the square's edge -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((45 40,45 60))'), @sq) a;
+--echo # a part ending on the square's corner -> 1
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 45,45 45))'), @sq) a;
+--echo # a part inside the triangle's bounding box, outside the triangle -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((90 90,99 99),
+                                                      (300 300,310 310))'),
+                     @tri) a;
+--echo # a part in the gap between the parts of a multipolygon -> 0
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((5 5,6 6),
+                                                      (500 500,501 501))'),
+                     @two) a;
+--echo # multilinestring against multilinestring
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 0,10 10),
+                                                      (50 0,50 100))'),
+                     ST_GeomFromText('MULTILINESTRING((0 50,100 50),
+                                                      (500 500,510 510))')) a;
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 0,10 10))'),
+                     ST_GeomFromText('MULTILINESTRING((0 50,100 50),
+                                                      (500 500,510 510))')) a;
+--echo # multilinestring against multipoint
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 50,100 50))'),
+                     ST_GeomFromText('MULTIPOINT(50 50,300 300)')) a;
+SELECT ST_Intersects(ST_GeomFromText('MULTILINESTRING((0 50,100 50))'),
+                     ST_GeomFromText('MULTIPOINT(50 51,300 300)')) a;
+
+--echo # ST_Disjoint takes the same filter
+SELECT ST_Disjoint(ST_GeomFromText('MULTIPOINT(1 1,50 50,100 100)'), @sq) a;
+SELECT ST_Disjoint(ST_GeomFromText('MULTIPOINT(1 1,100 100)'), @sq) a;
+SELECT ST_Disjoint(ST_GeomFromText('MULTIPOINT(99 99,200 200)'), @tri) a;
+SELECT ST_Disjoint(ST_GeomFromText('MULTILINESTRING((0 0,10 0),(40 40,60 60),
+                                                    (200 200,210 210))'),
+                   @sq) a;
+SELECT ST_Disjoint(ST_GeomFromText('MULTILINESTRING((90 90,99 99),
+                                                    (300 300,310 310))'),
+                   @tri) a;
+SELECT ST_Disjoint(@sq, ST_GeomFromText('MULTIPOINT(1 1,50 50,100 100)')) a;
+
+--echo # collections reaching a multipoint or multilinestring child
+--echo # the multipoint child holds a point inside the square -> 1
+SELECT ST_Intersects(ST_GeomFromText('GEOMETRYCOLLECTION(
+                                        MULTIPOINT(1 1,50 50),
+                                        MULTILINESTRING((900 900,901 901)))'),
+                     @sq) a;
+--echo # no child reaches the square -> 0
+SELECT ST_Intersects(ST_GeomFromText('GEOMETRYCOLLECTION(
+                                        MULTIPOINT(1 1,2 2),
+                                        MULTILINESTRING((900 900,901 901)))'),
+                     @sq) a;
+--echo # the multilinestring child holds a part crossing the square -> 1
+SELECT ST_Intersects(ST_GeomFromText('GEOMETRYCOLLECTION(
+                                        MULTILINESTRING((40 40,60 60),
+                                                        (900 900,901 901)))'),
+                     @sq) a;
+--echo # a multipoint child whose points all fall in a gap -> 0
+SELECT ST_Intersects(ST_GeomFromText('GEOMETRYCOLLECTION(
+                                        MULTIPOINT(5 5,6 6))'), @two) a;
+
+SET @sq= NULL;
+SET @tri= NULL;
+SET @two= NULL;
