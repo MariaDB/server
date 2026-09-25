@@ -66,6 +66,13 @@ void rdb_get_global_perf_counters(Rdb_perf_counters *counters)
 
 void rdb_queue_save_stats_request();
 
+/** BACKUP SERVER: RocksDB checkpoint helpers, shared between the
+ROCKSDB_CREATE_CHECKPOINT and ROCKSDB_REMOVE_MARIABACKUP_CHECKPOINT
+system variables and the handlerton backup hooks. */
+int rdb_create_checkpoint(const char *checkpoint_dir);
+void rdb_remove_checkpoint(const char *checkpoint_dir);
+extern char *rocksdb_datadir;
+
 /*
   Access to singleton objects.
 */

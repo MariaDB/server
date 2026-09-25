@@ -21,6 +21,13 @@ sub skip_combinations {
   my %skip;
   $skip{'backup_stream.test'} = 'needs cat,tar,mariadb-backup-cat'
       unless $have_cat && $have_tar && $have_mbc;
+  # backup_rocksdb.test only appends my.cnf with cat, and not on Windows,
+  # where it uses perl instead. The streamed variant also needs cat inside
+  # mariadb-backup-cat, and tar to extract the archives.
+  $skip{'backup_rocksdb.test'} = 'needs cat'
+      unless IS_WINDOWS || $have_cat;
+  $skip{'backup_rocksdb_stream.test'} = 'needs cat,tar,mariadb-backup-cat'
+      unless $have_cat && $have_tar && $have_mbc;
   %skip;
 }
 
