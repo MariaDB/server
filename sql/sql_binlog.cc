@@ -244,6 +244,16 @@ void mysql_client_binlog_statement(THD* thd)
                             thd->lex->comment.length : 2048),
                      thd->lex->comment.str));
 
+  /*
+    None of the decoded events are safe to apply from a trigger,
+    stored function or stored procedure (see MDEV-39074).
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "BINLOG event");
+    DBUG_VOID_RETURN;
+  }
+
   if (check_global_access(thd, PRIV_STMT_BINLOG))
     DBUG_VOID_RETURN;
 
