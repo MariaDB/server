@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_sequence.inc
+--source include/big_test.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-33966 Scan resistance of buf_pool.LRU with innodb_old_blocks_time
+--echo #
+--echo # A page in buf_pool.LRU_old is promoted only if it is accessed
+--echo # again at least innodb_old_blocks_time after its first access.
+--echo # Pages that a table scan accesses in one burst must not be promoted,
+--echo # even if an LRU sweep reaches them only after that time; this also
+--echo # holds for pages that are in the "new" sublist only because the
+--echo # buffer pool was not yet full when they were read.
+--echo #
+
+CREATE TABLE t0(a INT PRIMARY KEY, c CHAR(200) NOT NULL)
+ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t1 LIKE t0;
+CREATE TABLE t2 LIKE t0;
+CREATE TABLE t3 LIKE t0;
+INSERT INTO t0 SELECT seq, 'x' FROM seq_1_to_300000;
+INSERT INTO t1 SELECT seq, 'x' FROM seq_1_to_10000;
+INSERT INTO t2 SELECT seq, 'x' FROM seq_1_to_300000;
+INSERT INTO t3 SELECT seq, 'x' FROM seq_1_to_2000;
+
+let $made_young= SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG';
+let $pages= SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME=;
+
+--echo # Warm-up: scan tables that are larger than the buffer pool,
+--echo # starting from an empty buffer pool.
+--source include/restart_mysqld.inc
+--disable_result_log
+eval SET @y0=($made_young);
+SELECT SUM(LENGTH(c)) FROM t0;
+SELECT SUM(LENGTH(c)) FROM t2;
+--enable_result_log
+--echo # Pages that t0 accessed during the warm-up must not be promoted
+--echo # later (without this protection, about 1000 pages would be).
+eval SELECT ($made_young) - @y0 < 200 AS few_made_young;
+
+--echo # The buffer pool is full. t1 is accessed in one burst; t3 is
+--echo # accessed, and accessed again after innodb_old_blocks_time.
+--disable_result_log
+SELECT SUM(LENGTH(c)) FROM t1;
+SELECT SUM(LENGTH(c)) FROM t3;
+--sleep 3
+SELECT SUM(LENGTH(c)) FROM t3;
+eval SET @t1_pages=($pages '`test`.`t1`'), @t3_pages=($pages '`test`.`t3`');
+SELECT SUM(LENGTH(c)) FROM t0;
+--enable_result_log
+--echo # t1 was loaded, and the scan of t0 evicted all of it;
+--echo # t3 was promoted, and it remains in the buffer pool.
+eval SELECT @t1_pages > 0 AS t1_loaded,
+  ($pages '`test`.`t1`') AS t1_pages,
+  ($pages '`test`.`t3`') = @t3_pages AS t3_resident;
+
+DROP TABLE t0, t1, t2, t3;

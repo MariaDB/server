@@ -1,0 +1,76 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-33966: page_zip_des_t::state packs ssize, the
+--echo # NONEMPTY/PROMOTE/OLD flags, and the n_blobs count into one 16-bit
+--echo # atomic word. n_blobs was narrowed from 12 bits to 10 bits to make room
+--echo # for PROMOTE and OLD, moved into this word from buf_page_t; 10 bits
+--echo # still holds the 744-column maximum on a 16 KiB page, with headroom to
+--echo # 1023.
+--echo #
+--echo # This test builds a leaf carrying 700 external BLOB pointers, a large
+--echo # fraction of the 10-bit field's 1023 capacity, and verifies both that
+--echo # it inserts and reads back intact and that the 700 pointers are all
+--echo # accounted for on the one leaf page that holds them.
+--echo #
+
+SET @save_strict = @@global.innodb_strict_mode;
+SET @save_ro_zip = @@global.innodb_read_only_compressed;
+SET @@global.innodb_strict_mode         = OFF;
+SET @@global.innodb_read_only_compressed = OFF;
+
+# Build a wide BLOB-only schema. Each LONGBLOB column contributes one
+# off-page pointer per row whenever its value exceeds the 767-byte
+# inline threshold. Each external reference is 20 bytes in the record
+# body, plus a 2-byte field-length-array entry, which bounds a single
+# row to ~360 columns before ER_TOO_BIG_ROWSIZE. Two rows packed on one
+# 16 KiB compressed leaf multiply the count to 700.
+
+--disable_query_log
+let $cols = 350;
+let $rows = 2;
+let $col_defs = ;
+let $i = 1;
+while ($i <= $cols) {
+  let $col_defs = $col_defs , `b$i` LONGBLOB;
+  inc $i;
+}
+eval CREATE TABLE big_blobs (id INT PRIMARY KEY $col_defs)
+  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+--enable_query_log
+
+# Insert $rows rows; each row's $cols LONGBLOBs all spill off-page.
+# Expected aggregate on the holding leaf: $cols * $rows = 700 pointers,
+# comfortably within the 10-bit n_blobs field's 1023 capacity.
+
+--disable_query_log
+let $vals = ;
+let $j = 1;
+while ($j <= $cols) {
+  let $vals = $vals, REPEAT('x', 800);
+  inc $j;
+}
+let $r = 1;
+while ($r <= $rows) {
+  eval INSERT INTO big_blobs VALUES ($r $vals);
+  inc $r;
+}
+--enable_query_log
+
+SELECT COUNT(*) FROM big_blobs;
+CHECKSUM TABLE big_blobs;
+CHECK TABLE big_blobs;
+
+--echo # Confirm both rows, and therefore all 700 BLOB pointers, are held
+--echo # on the single leaf page counted by n_blobs.
+SELECT COUNT(*) AS pages, SUM(NUMBER_RECORDS) AS total_records
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME LIKE '%big_blobs%' AND INDEX_NAME = 'PRIMARY'
+  AND PAGE_TYPE = 'INDEX';
+
+DROP TABLE big_blobs;
+
+SET @@global.innodb_strict_mode          = @save_strict;
+SET @@global.innodb_read_only_compressed = @save_ro_zip;

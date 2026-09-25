@@ -17744,6 +17744,19 @@ innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	innobase_old_blocks_pct = ratio;
 }
 
+/****************************************************************//**
+Update the system variable innodb_old_blocks_time using the "saved"
+value. This function is registered as a callback with MySQL. */
+static
+void
+innodb_old_blocks_time_update(THD*, st_mysql_sys_var*, void*,
+			      const void* save)
+{
+	mysql_mutex_unlock(&LOCK_global_system_variables);
+	buf_pool.set_old_threshold_ms(*static_cast<const uint*>(save), true);
+	mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 #ifdef UNIV_DEBUG
 static uint srv_fil_make_page_dirty_debug = 0;
 static uint srv_saved_page_number_debug;
@@ -19622,12 +19635,12 @@ static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   "Percentage of the buffer pool to reserve for 'old' blocks",
   NULL, innodb_old_blocks_pct_update, 100 * 3 / 8, 5, 95, 0);
 
-static MYSQL_SYSVAR_UINT(old_blocks_time, buf_LRU_old_threshold_ms,
+static MYSQL_SYSVAR_UINT(old_blocks_time, buf_pool.LRU_old_time_threshold,
   PLUGIN_VAR_RQCMDARG,
   "Move blocks to the 'new' end of the buffer pool if the first access"
   " was at least this many milliseconds ago."
   " The timeout is disabled if 0",
-  NULL, NULL, 1000, 0, UINT_MAX32, 0);
+  NULL, innodb_old_blocks_time_update, 1000, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_ULONG(open_files, innobase_open_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

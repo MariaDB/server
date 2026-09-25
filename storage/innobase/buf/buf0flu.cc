@@ -1318,6 +1318,17 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   {
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     buf_pool.lru_hp.set(prev);
+
+    if (bpage->make_young_if_needed<true>())
+    {
+      if (UNIV_UNLIKELY(scanned && !(scanned & 511)))
+      {
+        mysql_mutex_unlock(&buf_pool.mutex);
+        mysql_mutex_lock(&buf_pool.mutex);
+      }
+      continue;
+    }
+
     auto state= bpage->state();
     ut_ad(state >= buf_page_t::FREED);
     ut_ad(bpage->in_LRU_list);
@@ -1499,6 +1510,8 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
     if (oldest_modification >= lsn)
       break;
     ut_ad(bpage->in_file());
+
+    bpage->make_young_if_needed();
 
     {
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
@@ -2627,6 +2640,7 @@ static void buf_flush_page_cleaner() noexcept
 
       if (!buf_pool.need_LRU_eviction())
         continue;
+      set_timespec(abstime, 1);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       oldest_lsn= buf_pool.get_oldest_modification(0);
     }

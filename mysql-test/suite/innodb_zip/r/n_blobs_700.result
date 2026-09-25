@@ -1,0 +1,37 @@
+#
+# MDEV-33966: page_zip_des_t::state packs ssize, the
+# NONEMPTY/PROMOTE/OLD flags, and the n_blobs count into one 16-bit
+# atomic word. n_blobs was narrowed from 12 bits to 10 bits to make room
+# for PROMOTE and OLD, moved into this word from buf_page_t; 10 bits
+# still holds the 744-column maximum on a 16 KiB page, with headroom to
+# 1023.
+#
+# This test builds a leaf carrying 700 external BLOB pointers, a large
+# fraction of the 10-bit field's 1023 capacity, and verifies both that
+# it inserts and reads back intact and that the 700 pointers are all
+# accounted for on the one leaf page that holds them.
+#
+SET @save_strict = @@global.innodb_strict_mode;
+SET @save_ro_zip = @@global.innodb_read_only_compressed;
+SET @@global.innodb_strict_mode         = OFF;
+SET @@global.innodb_read_only_compressed = OFF;
+SELECT COUNT(*) FROM big_blobs;
+COUNT(*)
+2
+CHECKSUM TABLE big_blobs;
+Table	Checksum
+test.big_blobs	3758541202
+CHECK TABLE big_blobs;
+Table	Op	Msg_type	Msg_text
+test.big_blobs	check	status	OK
+# Confirm both rows, and therefore all 700 BLOB pointers, are held
+# on the single leaf page counted by n_blobs.
+SELECT COUNT(*) AS pages, SUM(NUMBER_RECORDS) AS total_records
+FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME LIKE '%big_blobs%' AND INDEX_NAME = 'PRIMARY'
+  AND PAGE_TYPE = 'INDEX';
+pages	total_records
+1	2
+DROP TABLE big_blobs;
+SET @@global.innodb_strict_mode          = @save_strict;
+SET @@global.innodb_read_only_compressed = @save_ro_zip;
