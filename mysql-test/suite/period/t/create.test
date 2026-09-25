@@ -99,3 +99,28 @@ create table t2 (s date, e date, period for
                  `abcd123456789012345678901234567890123456789012345678901234567890`
                  (s,e)); 
 drop table t2;
+
+--echo # MDEV-41186: 64-character multi-byte period name overflows the buffer
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo # No name collision: the implicit constraint keeps the full name
+CREATE TABLE t2 (s DATE NOT NULL, e DATE NOT NULL,
+                 PERIOD FOR 好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好(s, e));
+SELECT CONSTRAINT_NAME, CHAR_LENGTH(CONSTRAINT_NAME), LENGTH(CONSTRAINT_NAME)
+  FROM information_schema.CHECK_CONSTRAINTS
+  WHERE TABLE_NAME='t2' ORDER BY CONSTRAINT_NAME;
+DROP TABLE t2;
+
+--echo # Name collision: the implicit constraint gets a well-formed suffixed name
+CREATE TABLE t2 (s DATE NOT NULL, e DATE NOT NULL,
+                 PERIOD FOR 好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好(s, e),
+                 CONSTRAINT 好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好好 CHECK (s < e));
+SELECT CONSTRAINT_NAME, CHAR_LENGTH(CONSTRAINT_NAME), LENGTH(CONSTRAINT_NAME)
+  FROM information_schema.CHECK_CONSTRAINTS
+  WHERE TABLE_NAME='t2' ORDER BY CONSTRAINT_NAME;
+DROP TABLE t2;
+SET NAMES default;
+
+--echo # End of 10.11 tests

@@ -5457,7 +5457,18 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     bool conflict= false;
     char *real_end= end;
     if (round == 1 && own_name_base)
-        *end++= '_';
+    {
+      /*
+        A '_' plus a numeric suffix is appended from here on, so truncate
+        on a character boundary to make room, but only now that a suffix
+        is actually needed.
+      */
+      size_t avail= sizeof(buff) - (1 + MY_INT32_NUM_DECIMAL_DIGITS + 1);
+      end= buff + Well_formed_prefix(system_charset_info, buff,
+                                     MY_MIN(size_t(end - buff), avail))
+                   .length();
+      *end++= '_';
+    }
     // if own_base_name provided, try it first
     if (round != 0 || !own_name_base)
       real_end= int10_to_str((*nr)++, end, 10);
