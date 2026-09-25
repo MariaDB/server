@@ -31,6 +31,35 @@ CREATE TABLE IF NOT EXISTS t_exists LIKE t_exists_template;
 
 --source include/print_ddl_log.inc
 
+# Truncate the ddl log so the next print_ddl_log.inc only shows entries
+# from the test below, not the whole history above.
+connection con1;
+BACKUP STAGE END;
+BACKUP STAGE START;
+connection default;
+
+--echo #
+--echo # MDEV-41175 ASAN stack-buffer-overflow in add_str_to_buffer/add_name_to_buffer
+--echo #
+# A 16-character escaped identifier keeps every individual file path well
+# under Windows' MAX_PATH; using one on each of the 4 name fields
+# (database and table, on both sides of the rename) still overflows the
+# old undersized buffer, whose budget was shared across all 4 fields.
+CREATE DATABASE `!!!!!!!!!!!!!!!!`;
+CREATE TABLE `!!!!!!!!!!!!!!!!`.`@@@@@@@@@@@@@@@@` (id INT) ENGINE=MyISAM;
+RENAME TABLE `!!!!!!!!!!!!!!!!`.`@@@@@@@@@@@@@@@@` TO `!!!!!!!!!!!!!!!!`.`%%%%%%%%%%%%%%%%`;
+DROP TABLE `!!!!!!!!!!!!!!!!`.`%%%%%%%%%%%%%%%%`;
+DROP DATABASE `!!!!!!!!!!!!!!!!`;
+
+--source include/print_ddl_log.inc
+
+# Truncate the ddl log again so it doesn't carry unrelated entries into
+# whatever test is appended after this one.
+connection con1;
+BACKUP STAGE END;
+BACKUP STAGE START;
+connection default;
+
 --echo #
 --echo # Cleanup
 --echo #
