@@ -1219,3 +1219,71 @@ drop table t1;
 --echo #
 --echo # End of 11.0 tests
 --echo #
+
+--echo #
+--echo # MDEV-39969: JSON_TABLE conversion of numeric values to BIT
+--echo #
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[0,1]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$')) AS jt ORDER BY ord;
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[0,2,255,256,0.4,0.5,1.5,1e1,1e-1]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(9) PATH '$')) AS jt ORDER BY ord;
+SELECT ord, b+0 AS bit_value, b+0 = u AS matches_unsigned
+FROM JSON_TABLE('[9223372036854775808,18446744073709551615]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(64) PATH '$',
+           u BIGINT UNSIGNED PATH '$')) AS jt ORDER BY ord;
+SELECT ord, b+0 AS bit_value, i, s
+FROM JSON_TABLE('[false,true]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$',
+           i INT PATH '$', s VARCHAR(5) PATH '$')) AS jt ORDER BY ord;
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('["0","1",null]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(8) PATH '$')) AS jt ORDER BY ord;
+SELECT i, d, f = 1e100 AS real_value_matches, s, dt
+FROM JSON_TABLE('[{"n":1e2,"f":1e100,"d":20260924}]', '$[*]'
+  COLUMNS (i INT PATH '$.n', d DECIMAL(6,2) PATH '$.n',
+           f DOUBLE PATH '$.f', s VARCHAR(10) PATH '$.n',
+           dt DATE PATH '$.d')) AS jt;
+SELECT ord, b+0 AS bit_value, s
+FROM JSON_TABLE(CONVERT('[false,true,0,1]' USING utf8mb4), '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$',
+           s VARCHAR(5) PATH '$')) AS jt ORDER BY ord;
+
+# Type conversion warnings must not invoke ON ERROR.
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]' COLUMNS (b BIT(1) PATH '$')) AS jt;
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' NULL ON ERROR)) AS jt;
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[256]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$' DEFAULT 'A' ON ERROR)) AS jt;
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[-1,18446744073709551616,1e1000]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(64) PATH '$')) AS jt ORDER BY ord;
+SET @save_sql_mode_mdev39969= @@sql_mode;
+SET sql_mode= 'STRICT_TRANS_TABLES';
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[2]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+SET sql_mode= @save_sql_mode_mdev39969;
+
+# JSON structure errors still use the configured ON ERROR response.
+SELECT ord, b+0 AS bit_value
+FROM JSON_TABLE('[{},[]]', '$[*]'
+  COLUMNS (ord FOR ORDINALITY, b BIT(1) PATH '$' NULL ON ERROR)) AS jt
+ORDER BY ord;
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$' DEFAULT 'A' ON ERROR)) AS jt;
+--error ER_JSON_TABLE_SCALAR_EXPECTED
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(1) PATH '$' ERROR ON ERROR)) AS jt;
+SELECT b+0 AS bit_value
+FROM JSON_TABLE('[{}]', '$[*]'
+  COLUMNS (b BIT(8) PATH '$.missing' DEFAULT 'A' ON EMPTY)) AS jt;
