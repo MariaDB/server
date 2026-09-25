@@ -1,0 +1,178 @@
+#
+# MDEV-37990 - redundant Table map events in binlog
+#
+# Background:
+#   On an InnoDB foreign-key cascade, the master performs the cascade
+#   entirely inside the storage engine and does not take SQL-layer
+#   MYSQL_LOCKs on the child tables. The Galera writeset still carries
+#   row events for both the parent and every cascaded child table.
+#
+#   On the secondary node, the applier replays the writeset event-by-
+#   event. THD::binlog_write_table_maps() is invoked per replayed row
+#   event, and the per-statement THD::binlog_table_maps flag does not
+#   span multiple row events within a single Galera transaction.
+#   Consequently, the applier could emit the same Table_map_log_event
+#   for the same table_map_id more than once into its own binary log,
+#   even though one Table_map per table per transaction is sufficient
+#   for downstream consumers.
+#
+# Scenario:
+#   1. Parent table `master` and two child tables, one with
+#      ON DELETE CASCADE and one with ON DELETE + ON UPDATE CASCADE.
+#   2. Populate the tables, then run a statement that exercises the
+#      cascade path on the parent. Each statement is committed in its
+#      own Galera transaction.
+#
+# Assertion:
+#   After the workload, both nodes' binary logs are dumped with
+#   mysqlbinlog and parsed in an embedded --perl block. For every
+#   (transaction, table) pair the number of Table_map events is
+#   counted. The test passes when, on the slave (node_2), no pair
+#   has a count greater than 1. A regression prints the offending
+#   transaction and table name and fails the recorded .result.
+#
+# Notes:
+#   - autocommit is disabled and explicit COMMITs delimit
+#     transactions, so each cascading statement becomes a single
+#     Galera writeset - the shape that triggers the original bug.
+#   - FLUSH BINARY LOGS is issued before dumping to make sure the
+#     active binlog file is closed and fully visible to mysqlbinlog.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+# set database
+USE test;
+
+# disable auto commit
+SET SESSION autocommit=0;
+
+SHOW VARIABLES LIKE 'binlog_format';
+
+# Create master table
+CREATE TABLE master (
+    id INT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    description VARCHAR(100)
+) ENGINE=InnoDB;
+
+# Create dependent table WITHOUT ON DELETE CASCADE
+CREATE TABLE dependent_no_cascade (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    master_id INT NOT NULL,
+    data VARCHAR(50),
+    FOREIGN KEY (master_id) REFERENCES master(id)
+) ENGINE=InnoDB;
+
+# Create dependent table WITH ON DELETE CASCADE
+CREATE TABLE dependent_with_cascade (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    master_id INT NOT NULL,
+    data VARCHAR(50),
+    FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+# Insert 5 records into master table
+INSERT INTO master (id, name, description) VALUES 
+(1, 'Master 1', 'First master record'),
+(2, 'Master 2', 'Second master record'),
+(3, 'Master 3', 'Third master record'),
+(4, 'Master 4', 'Fourth master record'),
+(5, 'Master 5', 'Fifth master record');
+COMMIT;
+
+#SELECT * FROM master;
+
+# Insert 5 records into dependent_no_cascade table
+INSERT INTO dependent_no_cascade (master_id, data) VALUES 
+(1, 'Dependent no cascade 1'),
+(2, 'Dependent no cascade 2'),
+(3, 'Dependent no cascade 3'),
+(4, 'Dependent no cascade 4'),
+(5, 'Dependent no cascade 5');
+COMMIT;
+
+# Insert 5 records into dependent_with_cascade table
+INSERT INTO dependent_with_cascade (master_id, data) VALUES 
+(1, 'Dependent with cascade 1'),
+(2, 'Dependent with cascade 2'),
+(3, 'Dependent with cascade 3'),
+(4, 'Dependent with cascade 4'),
+(5, 'Dependent with cascade 5');
+COMMIT;
+
+# Perform INSERT operation on master table
+INSERT INTO master (id, name, description) VALUES (6, 'Master 6', 'Sixth master record - newly inserted');
+COMMIT;
+
+ALTER TABLE dependent_with_cascade
+	DROP FOREIGN KEY dependent_with_cascade_ibfk_1,
+	ADD FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+UPDATE master SET name = 'Master 6 UPDATE 1' WHERE id = 6;
+COMMIT;
+
+# Check that binlog on the slave contains one Table_map event per
+# table for each Galera transaction
+
+--echo # Capture master's binlog
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--let $master_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $master_path= $MYSQLTEST_VARDIR/tmp/master_binlog.txt
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$master_binlog > $master_path
+
+--echo # Capture slave's binlog
+--connection node_2
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+--let $slave_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $slave_path= $MYSQLTEST_VARDIR/tmp/slave_binlog.txt
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$slave_binlog > $slave_path
+
+--echo # Compare per-(transaction, table) Table_map counts
+--perl
+  use strict;
+  sub summarize {
+    my ($file) = @_;
+    open(my $fh, '<', $file) or die "open $file: $!";
+    my (%per_txn, $xid, %out);
+    $xid = 0;
+    while (my $line = <$fh>) {
+      $xid++ if $line =~ /^(?:COMMIT|Xid =)/;
+      next unless $line =~ /Table_map:\s*`[^`]+`\.`([^`]+)`/;
+      $per_txn{$xid}{$1}++;
+    }
+    for my $t (sort { $a <=> $b } keys %per_txn) {
+      for my $tab (sort keys %{$per_txn{$t}}) {
+	$out{"$t/$tab"} = $per_txn{$t}{$tab};
+      }
+    }
+    return \%out;
+  }
+  my $m = summarize("$ENV{MYSQLTEST_VARDIR}/tmp/master_binlog.txt");
+  my $s = summarize("$ENV{MYSQLTEST_VARDIR}/tmp/slave_binlog.txt");
+  my $dups = 0;
+  for my $k (sort keys %$s) {
+    if (($s->{$k} // 0) > 1) {
+      print "SLAVE DUPLICATE: $k = $s->{$k}\n";
+      $dups++;
+    }
+  }
+  if (!$dups) { print "no duplicate Table_map events on slave\n"; }
+  # Optional: also assert master == slave shape
+  for my $k (sort keys %$m) {
+    if (($m->{$k} // 0) != ($s->{$k} // 0)) {
+      print "MISMATCH $k: master=$m->{$k} slave=" . ($s->{$k}//"0") . "\n";
+    }
+  }
+EOF
+
+# Cleanup
+--connection node_1
+DROP TABLE dependent_with_cascade;
+DROP TABLE dependent_no_cascade;
+DROP TABLE master;
+
+--source include/galera_end.inc
+--echo # End of test
