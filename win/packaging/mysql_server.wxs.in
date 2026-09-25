@@ -16,6 +16,7 @@
        Languages='1033'
        Compressed='yes'
        SummaryCodepage='1252'
+       InstallScope='perMachine'
        Platform='@Platform@'/>
     
     <MediaTemplate EmbedCab="yes" MaximumUncompressedMediaSize="2" CompressionLevel="high"/>
