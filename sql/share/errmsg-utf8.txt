@@ -10758,3 +10758,6 @@ ER_CM_OPTION_MISSING_REQUIREMENT
         eng "CHANGE MASTER TO option '%s=%s' is missing requirement %s"
 ER_SLAVE_STATEMENT_TIMEOUT 70100
         eng "Slave log event execution was interrupted (slave_max_statement_time exceeded)"
+# TODO Merge: uncomment in 13.0 (new warning cannot be added in a stable release):
+# WARN_VERS_TRT_DEFINITION
+#         eng "mysql.transaction_registry has unexpected index definitions; using slow scan."
