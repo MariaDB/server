@@ -2383,9 +2383,21 @@ retry_share:
         DBUG_RETURN(TRUE);
       }
 
+      if (table_list->table_options & TL_OPTION_GTID_TABLE_SLAVE)
+      {
+	/*
+          This is a request of a committing phase of slave transaction
+          though done on behalf on implicnt gtid table insert statement.
+          It must be able to bypass any waiting lock by backup process
+          even without yet knowking whether the transaction is going to
+          slave group commit leader. When it turns out not the case
+          the strong MDL_STATEMENT requested lock would've been already
+          relinquished.
+        */
+	mdl_type= MDL_BACKUP_COMMIT_RPL;
+      }
       MDL_REQUEST_INIT(&protection_request, MDL_key::BACKUP, "", "", mdl_type,
                        MDL_STATEMENT);
-
       /*
         Install error handler which if possible will convert deadlock error
         into request to back-off and restart process of opening tables.

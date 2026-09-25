@@ -8213,7 +8213,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   group_commit_entry *entry, *orig_queue, *last;
   wait_for_commit *cur;
   wait_for_commit *wfc;
-  bool backup_lock_released= 0;
   int result= 0;
   THD *thd= orig_entry->thd;
   DBUG_ENTER("MYSQL_BIN_LOG::queue_for_group_commit");
@@ -8248,22 +8247,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
         !loc_waitee->commit_started)
     {
       PSI_stage_info old_stage;
-
-        /*
-          Release MDL_BACKUP_COMMIT LOCK while waiting for other threads to
-          commit.
-          This is needed to avoid deadlock between the other threads (which not
-          yet have the MDL_BACKUP_COMMIT_LOCK) and any threads using
-          BACKUP LOCK BLOCK_COMMIT.
-        */
-      if (thd->backup_commit_lock && thd->backup_commit_lock->ticket &&
-          !backup_lock_released)
-      {
-        backup_lock_released= 1;
-        thd->mdl_context.release_lock(thd->backup_commit_lock->ticket);
-        thd->backup_commit_lock->ticket= 0;
-      }
-
       /*
         By setting wfc->opaque_pointer to our own entry, we mark that we are
         ready to commit, but waiting for another transaction to commit before
@@ -8524,9 +8507,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
                       (orig_queue == NULL) ? "leader" : "participant"));
 
 end:
-  if (backup_lock_released)
-    thd->mdl_context.acquire_lock(thd->backup_commit_lock,
-                                  thd->variables.lock_wait_timeout);
   DBUG_RETURN(result);
 }
 
