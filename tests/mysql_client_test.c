@@ -23082,6 +23082,111 @@ static void test_mdev_34958()
   myquery(rc);
 }
 
+/*
+  Bulk INSERT/UPDATE/DELETE calling a stored function which runs an INSERT:
+  the function's INSERT must not consume the parameter sets of the bulk
+  statement.
+*/
+static void run_bulk_stmt_calling_function(const char *query)
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int vals_array_len= 3;
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  if (!opt_silent)
+    fprintf(stdout, "\n %s: affected rows: %llu", query,
+            mysql_stmt_affected_rows(stmt));
+  mysql_stmt_close(stmt);
+}
+
+static void check_bulk_stmt_calling_function(int t1_count, int t1_sum)
+{
+  int rc;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+
+  /*
+    Every parameter value must have been used by the bulk statement and
+    seen by the function
+  */
+  rc= mysql_query(mysql, "SELECT (SELECT COUNT(*) FROM t1), "
+                  "(SELECT IFNULL(SUM(a), 0) FROM t1), "
+                  "(SELECT COUNT(DISTINCT a) FROM t2), "
+                  "(SELECT SUM(DISTINCT a) FROM t2)");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row);
+  DIE_UNLESS(atoi(row[0]) == t1_count);
+  DIE_UNLESS(atoi(row[1]) == t1_sum);
+  DIE_UNLESS(atoi(row[2]) == 3);
+  DIE_UNLESS(atoi(row[3]) == 6);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DELETE FROM t2");
+  myquery(rc);
+}
+
+static void test_bulk_stored_function_insert()
+{
+  int rc;
+
+  myheader("test_bulk_stored_function_insert");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE FUNCTION f1(x INT) RETURNS INT "
+                  "DETERMINISTIC MODIFIES SQL DATA "
+                  "BEGIN "
+                  "  INSERT INTO t2 VALUES (x), (x); "
+                  "  RETURN x; "
+                  "END");
+  myquery(rc);
+
+  run_bulk_stmt_calling_function("INSERT INTO t1 VALUES (f1(?))");
+  check_bulk_stmt_calling_function(3, 6);
+
+  run_bulk_stmt_calling_function("UPDATE t1 SET a= a + 10 WHERE a = f1(?)");
+  check_bulk_stmt_calling_function(3, 36);
+
+  run_bulk_stmt_calling_function("DELETE FROM t1 WHERE a = f1(?) + 10");
+  check_bulk_stmt_calling_function(0, 0);
+
+  rc= mysql_query(mysql, "DROP FUNCTION f1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
 /* Server crash when inserting from derived table containing insert target table */
 static void test_mdev_32086()
 {
@@ -24006,6 +24111,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_bd", test_mdev_34718_bd },
   { "test_mdev_34718_ad", test_mdev_34718_ad },
   { "test_mdev_34958", test_mdev_34958 },
+  { "test_bulk_stored_function_insert", test_bulk_stored_function_insert },
   { "test_mdev_32086", test_mdev_32086 },
   { "test_mdev_36678", test_mdev_36678 },
 #endif
