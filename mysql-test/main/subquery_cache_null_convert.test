@@ -1,0 +1,111 @@
+--echo #
+--echo # A subquery cache whose parameter is NULL for many rows fills its
+--echo # in-memory table with rows that all have a NULL key.  A HEAP unique
+--echo # index does not treat two NULLs as equal, so those rows are legal
+--echo # there.  When the table outgrows the memory limit and is converted to
+--echo # the on-disk temporary engine, the copy of the already stored rows
+--echo # must not start rejecting them as duplicates.  The on-disk table can
+--echo # take either shape - a real key, or a unique constraint over a row
+--echo # hash when the key is too wide for the engine - and both have to keep
+--echo # the NULL semantics the in-memory table was using.
+--echo #
+--echo # Neither cached query aborts on error, so a regression in either
+--echo # shape is reported rather than hidden behind the other one.
+--echo #
+
+SET @save_max_heap_table_size = @@max_heap_table_size;
+SET @save_optimizer_switch = @@optimizer_switch;
+
+--echo #
+--echo # A key narrow enough to stay a key on disk
+--echo #
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=Aria;
+
+# 512 rows carrying the same value, so that the cache accumulates enough
+# hits to still be considered worth keeping when it overflows, followed by
+# 200 rows with a NULL parameter.  Every NULL is a cache miss - a lookup on
+# a null-rejecting ref never matches - so each of them adds another
+# NULL-keyed row, and the table overflows on those.
+INSERT INTO t1 VALUES ('aaa');
+--disable_query_log
+--let $i = 0
+while ($i < 9)
+{
+  --inc $i
+  INSERT INTO t1 SELECT a FROM t1;
+}
+--enable_query_log
+INSERT INTO t1 SELECT NULL FROM t1 LIMIT 200;
+SELECT COUNT(*), COUNT(a) FROM t1;
+
+SET max_heap_table_size = 16*1024;
+
+--echo # The expected answer, established without the cache
+SET optimizer_switch = 'subquery_cache=off';
+SELECT COUNT(*) FROM t1 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+SET optimizer_switch = @save_optimizer_switch;
+
+--echo # The same query with the cache on, which is what overflows and converts
+FLUSH STATUS;
+--disable_abort_on_error
+SELECT COUNT(*) FROM t1 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+--let $err = $mysql_errno
+--enable_abort_on_error
+--echo # errno=$err
+# Whether the conversion happened at all is what matters here; the count
+# itself is not stable, since --ps-protocol executes the statement twice and
+# so converts twice.
+--let $disk_tables = query_get_value(SHOW STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $converted = 0
+if ($disk_tables)
+{
+  --let $converted = 1
+}
+--echo # converted to disk: $converted
+
+DROP TABLE t1;
+
+--echo #
+--echo # A key too wide for the on-disk engine, which turns it into a unique
+--echo # constraint over a row hash instead
+--echo #
+CREATE TABLE t2 (a VARCHAR(700) CHARACTER SET utf8mb4) ENGINE=Aria;
+
+INSERT INTO t2 VALUES ('aaa');
+--disable_query_log
+--let $i = 0
+while ($i < 9)
+{
+  --inc $i
+  INSERT INTO t2 SELECT a FROM t2;
+}
+--enable_query_log
+INSERT INTO t2 SELECT NULL FROM t2 LIMIT 200;
+SELECT COUNT(*), COUNT(a) FROM t2;
+
+--echo # The expected answer, established without the cache
+SET optimizer_switch = 'subquery_cache=off';
+SELECT COUNT(*) FROM t2 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+SET optimizer_switch = @save_optimizer_switch;
+
+--echo # The same query with the cache on
+FLUSH STATUS;
+--disable_abort_on_error
+SELECT COUNT(*) FROM t2 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+--let $err = $mysql_errno
+--enable_abort_on_error
+--echo # errno=$err
+# Whether the conversion happened at all is what matters here; the count
+# itself is not stable, since --ps-protocol executes the statement twice and
+# so converts twice.
+--let $disk_tables = query_get_value(SHOW STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $converted = 0
+if ($disk_tables)
+{
+  --let $converted = 1
+}
+--echo # converted to disk: $converted
+
+DROP TABLE t2;
+
+SET max_heap_table_size = @save_max_heap_table_size;
