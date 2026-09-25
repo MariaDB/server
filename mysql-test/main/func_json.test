@@ -1908,6 +1908,11 @@ SELECT JSON_OVERLAPS(@json2, @json1);
 SELECT JSON_OVERLAPS(@json1, @json2);
 
 --echo #
+--echo # MDEV-41067: Empty and nonempty nested JSON arrays
+--echo #
+SELECT JSON_OVERLAPS('[[1]]','[[]]') AS r;
+
+--echo #
 --echo # MDEV-30304: Json Range only affects first row of the result set
 --echo #
 
