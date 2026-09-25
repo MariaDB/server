@@ -4368,7 +4368,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, bool fix_table_name_case,
     break;
   }
 
-  if (lower_case_table_names == 1 && !rc)
+  if (lower_case_table_names && !rc)
   {
     /* 
       We can safely do in-place upgrades here since all of the above cases
@@ -4461,6 +4461,31 @@ static int make_db_list(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
       if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
       return 0;
+    }
+    if (lower_case_table_names == 2)
+    {
+      /*
+        The lookup value is lowercased, but on disk the database name
+        has its original letter case. Find it, so that I_S shows the
+        true name.
+      */
+      char path[FN_REFLEN + 1], fname[SAFE_NAME_LEN + 1],
+           name_buff[SAFE_NAME_LEN + 1];
+      size_t len= build_table_filename(path, sizeof(path) - 1,
+                                       lookup_field_vals->db_value.str,
+                                       "", "", 0);
+      path[len - 1]= 0;                         // remove ending '\'
+      if (my_canonical_case_name(path, fname, sizeof(fname)))
+      {
+        LEX_CSTRING *name;
+        uint name_len= filename_to_tablename(fname, name_buff,
+                                             sizeof(name_buff));
+        if (!(name= thd->make_clex_string(name_buff, name_len)) ||
+            files->append(name))
+          return 1;
+        return 0;
+      }
+      /* No such db: fall through, to preserve the error behavior */
     }
     if (files->append_val(&lookup_field_vals->db_value))
       return 1;
@@ -4610,12 +4635,39 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
             table_names->append(name))
           return 1;
       }
+      return 0;
     }
-    else
+    if (lower_case_table_names == 2)
     {
-      if (table_names->append_val(&lookup_field_vals->table_value))
-        return 1;
+      /*
+        The lookup value is lowercased, but on disk the table name has
+        its original letter case. Find it, so that I_S shows the true
+        name.
+      */
+      char tbl_path[FN_REFLEN + 1], fname[SAFE_NAME_LEN + 1],
+           name_buff[SAFE_NAME_LEN + 1];
+      size_t len;
+      build_table_filename(tbl_path, sizeof(tbl_path) - 1, db_name->str,
+                           lookup_field_vals->table_value.str, reg_ext, 0);
+      if ((len= my_canonical_case_name(tbl_path, fname, sizeof(fname))) >
+          reg_ext_length)
+      {
+        LEX_CSTRING *name;
+        uint name_len;
+        fname[len - reg_ext_length]= 0;         // remove ".frm"
+        name_len= filename_to_tablename(fname, name_buff, sizeof(name_buff));
+        if (!(name= thd->make_clex_string(name_buff, name_len)) ||
+            table_names->append(name))
+          return 1;
+        return 0;
+      }
+      /*
+        No .frm file: nonexistent table, or a table discoverable only
+        via its engine. Fall through and use the lookup value.
+      */
     }
+    if (table_names->append_val(&lookup_field_vals->table_value))
+      return 1;
     return 0;
   }
 
@@ -6873,6 +6925,9 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     // There can be no matching records for the condition
     DBUG_RETURN(0);
   }
+
+  /* db names are stored in lower case in mysql.proc, if lower_case_table_names */
+  DBUG_ASSERT(ok_for_lower_case_names(lookup.db_value.str));
 
   start_new_trans new_trans(thd);
 
