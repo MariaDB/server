@@ -8721,7 +8721,7 @@ void THD::stop_collecting_unit_results()
 */
 bool THD::collect_unit_results(ulonglong id, ulonglong affected_rows)
 {
-  if (unit_results)
+  if (unit_results && !in_sub_stmt)
   {
     unit_results_desc el;
     el.generated_id= id;
