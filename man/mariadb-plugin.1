@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-PLUGIN\fR" "1" "5 March 2025" "MariaDB 11.8" "MariaDB Database System"
+.TH "\fBMARIADB-PLUGIN\fR" "1" "18 September 2026" "MariaDB 13.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -22,38 +22,177 @@
 .\" -----------------------------------------------------------------
 .\" mariadb-plugin
 .SH "NAME"
-mariadb-plugin \- configure MariaDB server plugins (mariadb-plugin is now a symlink to mariadb-plugin)
+mariadb-plugin \- search for, install and uninstall MariaDB server plugins
 .SH "SYNOPSIS"
-.HP \w'\fBmariadb-plugin\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIplugin\fR\fR\fB\ {ENABLE|DISABLE}\fR\ 'u
-\fBmariadb-plugin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIplugin\fR\fR\fB {ENABLE|DISABLE}\fR
+.HP \w'\fBmariadb-plugin\ [\fR\fB\fIoptions\fR\fR\fB]\ search\ [\fR\fB\fIplugin\fR\fR\fB]\fR\ 'u
+\fBmariadb-plugin [\fR\fB\fIoptions\fR\fR\fB] search [\fR\fB\fIplugin\fR\fR\fB]\fR
+.HP \w'\fBmariadb-plugin\ [\fR\fB\fIoptions\fR\fR\fB]\ install\ \fR\fB\fIplugin\fR\fR\ 'u
+\fBmariadb-plugin [\fR\fB\fIoptions\fR\fR\fB] install \fR\fB\fIplugin\fR\fR
+.HP \w'\fBmariadb-plugin\ [\fR\fB\fIoptions\fR\fR\fB]\ uninstall\ \fR\fB\fIplugin\fR\fR\ 'u
+\fBmariadb-plugin [\fR\fB\fIoptions\fR\fR\fB] uninstall \fR\fB\fIplugin\fR\fR
 .SH "DESCRIPTION"
 .PP
 The
 \fBmariadb-plugin\fR
-utility enables MariaDB administrators to manage which plugins a MariaDB server loads\&. It provides an alternative to manually specifying the
-\fB\-\-plugin\-load\fR
-option at server startup or using the
-INSTALL PLUGIN
-and
-UNINSTALL PLUGIN
-statements at runtime\&.
+utility installs, uninstalls and searches for MariaDB server plugins\&.
 .PP
-Depending on whether
-\fBmariadb-plugin\fR
-is invoked to enable or disable plugins, it inserts or deletes rows in the
-mysql\&.plugin
-table that serves as a plugin registry\&. (To perform this operation,
-\fBmariadb-plugin\fR
-invokes the MariaDB server in bootstrap mode\&. This means that the server must not already be running\&.) For normal server startups, the server loads and enables plugins listed in
-mysql\&.plugin
-automatically\&. For additional control over plugin activation, use
-\fB\-\-\fR\fB\fIplugin_name\fR\fR
-options named for specific plugins\&.
+Plugins are named the same way on every platform,
+\fIplugin\fR
+being the plugin name without any prefix, for instance
+rocksdb
+or
+provider\-lz4\&. The tool builds the package name from it, so that
+rocksdb
+becomes
+mariadb\-plugin\-rocksdb\&.
 .PP
-Each invocation of
+The build layout selects how
 \fBmariadb-plugin\fR
-reads a configuration file to determine how to configure the plugins contained in a single plugin library object file\&. To invoke
-\fBmariadb-plugin\fR, use this syntax:
+installs a plugin. At runtime it validates that its own executable belongs to
+the matching installation. On RPM or DEB installations the work is left to
+the system package manager, so that the plugin
+files stay owned by it and dependency resolution, signature checks and
+upgrades keep working\&.
+\fBapt\-get\fR
+is used on DEB installations, and
+\fBdnf\fR
+or
+\fBzypper\fR
+on RPM ones, whichever is present\&. The package manager talks to the user
+directly, asks for confirmation itself, and its exit status is passed
+through unchanged\&. Installing and uninstalling this way requires root\&.
+.PP
+On RPM installations the packages carry their own names, such as
+MariaDB\-rocksdb\-engine, and answer to the uniform name through
+Provides\&. Uninstall resolves the real package name before removing it\&.
+.PP
+On binary tarball installations, install reads a local archive specified by
+\fB\-\-file\fR, or downloads one from the plugin repository\&. Downloads
+require a matching SHA\-256 checksum from the repository index\&. The tool
+validates the archive, refuses to overwrite files, records installed paths
+under \fI<basedir>/.mariadb\-plugin/\fR, and prints instructions for enabling
+the plugin\&. It does not edit server configuration\&. Uninstall uses the
+recorded paths and does not need network access\&. Before removing files,
+uninstall validates the manifest's plugin name and paths. An invalid,
+unreadable or non-regular manifest causes no deletion. If a file cannot be
+removed, the manifest is kept so uninstall can be retried\&.
+.PP
+The deprecated
+ENABLE/DISABLE
+syntax requires the legacy plugin configuration file and an already-installed
+plugin library. It does not extract an archive. Use the activation instructions
+printed after a tarball installation, or the server's
+INSTALL SONAME
+statement or
+\fB\-\-plugin\-load\-add\fR
+option\&.
+.PP
+An error is given if
+\fBmariadb-plugin\fR
+does not run from the installation it belongs to, for example when it is
+started from a build directory, as it would otherwise act on an unrelated
+installation\&.
+.PP
+To install a plugin:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-plugin install rocksdb\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+To see which plugins are available and which are already installed, with an
+optional word to search for:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmariadb-plugin search\fR
+shell> \fBmariadb-plugin search provider\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Each plugin is listed with its name, whether it is installed or only
+available, and its description\&. Searching needs no root, and ends with a
+non\-zero status when nothing matches\&.
+.PP
+On tarball installations, search reads the same repository index as install,
+lists compatible builds, and filters by a substring of the plugin name\&.
+It downloads only metadata and does not change installation files\&.
+The installed status means that this tool has a readable manifest with a
+matching plugin name and valid path records\&. It does not verify file health
+or whether the server has loaded the plugin; an interrupted installation can
+also leave a manifest\&. Invalid or unreadable manifests cause an error\&.
+Bundled libraries without a manifest are shown as available when listed in
+the repository\&. Plugins absent from the index are omitted from search but
+can still be uninstalled using their local manifests\&.
+.PP
+Windows uses WinHTTP for repository access\&. ZIP packages are not implemented
+yet; this phase still accepts \fB.tar.gz\fR archives\&.
+.SH "TARBALL REPOSITORIES"
+.PP
+\fB\-\-base\-url\fR specifies an HTTP or HTTPS directory containing
+\fBplugins.index\fR and the plugin archives\&. No default repository is
+configured yet, so tarball search and downloading require this option\&. HTTPS is
+recommended; certificate verification is enabled\&. An HTTPS download
+cannot redirect to HTTP\&.
+.PP
+The index uses a restricted YAML subset: one \fBpackage:\fR mapping per
+document, with documents separated by \fB\-\-\-\fR on its own line\&.
+Fields use consistent space indentation and single-line scalar values\&.
+Blank lines and comments are allowed; blank lines do not separate records\&.
+Each physical line may contain at most 1023 bytes before its newline\&.
+For example:
+.sp
+.nf
+package:
+  name: example
+  version: "1.0"
+  server: "13.1.0"
+  platform: linux\-x86_64
+  file: mariadb\-plugin\-example\-1.0.tar.gz
+  sha256: "<64 hexadecimal characters>"
+.fi
+.PP
+All six fields are required\&. Server versions must be numeric
+major.minor or major.minor.patch; only the major/minor series is matched\&.
+The combined platform identifier must match CMake's
+\fBSYSTEM_NAME_AND_PROCESSOR\fR value for the build, ignoring letter case\&.
+The tool refuses an index
+with multiple matching records rather than guessing which version to use\&.
+The optional author, description and license fields are accepted\&. Search
+prints the description, or leaves that column empty when it is missing\&.
+Duplicate occurrences of these fields are rejected, as are duplicate required
+fields\&. Unknown fields and unsupported YAML structures are rejected\&.
+Values may be plain, single-quoted (double an embedded apostrophe), or
+double-quoted (only escaped quotes and backslashes are supported)\&.
+Quote versions, checksums, and text containing a colon followed by a space
+or a space followed by a hash sign\&. Lists, aliases, tags, multiline values,
+directives and explicit document-end markers are not supported\&.
+Plain null and boolean values are rejected; use quoted strings instead\&.
+Index text must be UTF-8; Unicode line-break characters are rejected by this
+single-line subset\&.
+.PP
+Per-package metadata inside an archive describes the package\&. The repository
+adds \fBfile\fR and \fBsha256\fR after creating the archive and combines
+the documents into \fBplugins.index\fR\&. Local uninstall manifests retain
+their existing format\&.
+.PP
+Archive filenames must end in \fB.tar.gz\fR and contain only letters,
+digits, dots, underscores and hyphens, without consecutive dots\&.
+They cannot contain directory paths or URLs\&. Keep the original CPack
+filename so the installer can recognize the archive's wrapper directory\&.
+The repository index is limited to 8 MiB and each downloaded archive to 1 GiB\&.
+.SH "DEPRECATED SYNTAX"
+.PP
+The former syntax
 .sp
 .if n \{\
 .RS 4
@@ -65,95 +204,34 @@ mariadb-plugin [\fIoptions\fR] \fIplugin\fR {ENABLE|DISABLE}
 .RE
 .\}
 .PP
-\fIplugin\fR
-is the name of the plugin to configure\&.
-ENABLE
-or
-DISABLE
-(not case sensitive) specify whether to enable or disable components of the plugin library named in the configuration file\&. The order of the
-\fIplugin\fR
-and
-ENABLE
-or
-DISABLE
-arguments does not matter\&.
-.PP
-For example, to configure components of a plugin library file named
-myplugins\&.so
-on Linux or
-myplugins\&.dll
-on Windows, specify a
-\fIplugin\fR
-value of
-myplugins\&. Suppose that this plugin library contains three plugins,
-plugin1,
-plugin2, and
-plugin3, all of which should be configured under
-\fBmariadb-plugin\fR
-control\&. By convention, configuration files have a suffix of
-\&.ini
-and the same basename as the plugin library, so the default configuration file name for this plugin library is
-myplugins\&.ini\&. The configuration file contents look like this:
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-myplugins
-plugin1
-plugin2
-plugin3
-.fi
-.if n \{\
-.RE
-.\}
-.PP
-The first line in the
+is deprecated and kept only for backward compatibility\&. It does not
+install or remove any files: it enables or disables plugins in the
+mysql\&.plugin
+table by starting the server in bootstrap mode, which means the server must
+not already be running\&. The plugins to configure are read from a
+configuration file named after the plugin library, for instance
 myplugins\&.ini
-file is the name of the library object file, without any extension such as
-\&.so
-or
-\&.dll\&. The remaining lines are the names of the components to be enabled or disabled\&. Each value in the file should be on a separate line\&. Lines on which the first character is
-\*(Aq#\*(Aq
-are taken as comments and ignored\&.
+for
+myplugins\&.so, listing the library name on the first line and the
+components to enable on the following ones\&.
 .PP
-To enable the plugins listed in the configuration file, invoke
-\fBmariadb-plugin\fR
-this way:
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-shell> \fBmariadb-plugin myplugins ENABLE\fR
-.fi
-.if n \{\
-.RE
-.\}
-.PP
-To disable the plugins, use
-DISABLE
-rather than
-ENABLE\&.
-.PP
-An error occurs if
-\fBmariadb-plugin\fR
-cannot find the configuration file or plugin library file, or if
-\fBmariadb-plugin\fR
-cannot start the MariaDB server\&.
-.PP
-\fBmariadb-plugin\fR
-supports the following options, which can be specified on the command line or in the
-[mariadbd]
-group of any option file\&. For options specified in a
-[mariadbd]
-group,
-\fBmariadb-plugin\fR
-recognizes the
+The
 \fB\-\-basedir\fR,
-\fB\-\-datadir\fR, and
-\fB\-\-plugin\-dir\fR
-options and ignores others\&.
+\fB\-\-datadir\fR,
+\fB\-\-plugin\-dir\fR,
+\fB\-\-plugin\-ini\fR,
+\fB\-\-mysqld\fR,
+\fB\-\-my\-print\-defaults\fR
+and
+\fB\-\-lc\-messages\-dir\fR
+options apply to this syntax only\&.
+.PP
+For new setups, use
+INSTALL SONAME
+or the
+\fB\-\-plugin\-load\-add\fR
+server option instead\&.
+.SH "OPTIONS"
 .PP
 mariadb-plugin Options
 .sp
@@ -172,6 +250,98 @@ mariadb-plugin Options
 .sp
 Display a help message and exit\&.
 .RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: dry-run option
+.\" dry-run option: mariadb-plugin
+\fB\-\-dry\-run\fR
+.sp
+Print the commands that
+install
+and
+uninstall
+would run, without running them\&. The package name is resolved as usual, so
+the command shown is the one that would be executed\&. Needs no root\&.
+For tarball downloads, fetch the index and show the chosen URL and checksum,
+without downloading the archive or changing the installation\&. For a local
+archive, validate it and print the planned extraction\&.
+This option is rejected with the deprecated ENABLE/DISABLE syntax\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: verbose option
+.\" verbose option: mariadb-plugin
+\fB\-\-verbose\fR,
+\fB\-v\fR
+.sp
+Verbose mode\&. Print more information about what the program does\&. This
+option can be used multiple times to increase the amount of information\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: version option
+.\" version option: mariadb-plugin
+\fB\-\-version\fR,
+\fB\-V\fR
+.sp
+Display version information and exit\&.
+.RE
+.SS "Tarball Options"
+.TP
+\fB\-\-base\-url=\fIURL\fR
+Override the plugin repository directory\&. Applies to tarball search and install;
+cannot be combined with \fB\-\-file\fR\&.
+.TP
+\fB\-\-file=\fIpath\fR
+Install from a local regular archive file without using the repository\&.
+The archive is copied to private temporary storage before verification and
+extraction, so replacing the source path cannot change the installed bytes\&.
+.TP
+\fB\-\-sha256=\fIhex\fR
+Expected checksum of a local archive\&. Requires \fB\-\-file\fR\&.
+Without this option, local installation warns that the archive is unverified\&.
+Downloaded archives always require the checksum supplied in the index\&.
+Search rejects \fB\-\-file\fR and \fB\-\-sha256\fR\&.
+RPM and DEB installations also reject \fB\-\-base\-url\fR for search;
+they use native package repositories\&. They reject all three options for
+install\&.
+.PP
+The following options apply to the deprecated
+ENABLE
+and
+DISABLE
+syntax only\&. They can be specified on the command line or in the
+[mariadbd]
+group of any option file, where
+\fBmariadb-plugin\fR
+recognizes
+\fB\-\-basedir\fR,
+\fB\-\-datadir\fR,
+\fB\-\-plugin\-dir\fR
+and
+\fB\-\-lc\-messages\-dir\fR
+and ignores other options from that group\&.
 .sp
 .RS 4
 .ie n \{\
@@ -213,62 +383,6 @@ The server data directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mariadb-plugin: my-print-defaults option
-.\" my-print-defaults option: mariadb-plugin
-\fB\-\-my\-print\-defaults=\fR\fB\fIpath\fR\fR,
-\fB\-b \fR\fB\fIpath\fR\fR
-.sp
-The path to the
-\fBmy_print_defaults\fR
-program\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mariadb-plugin: mariadbd option
-.\" mariadbd option: mariadb-plugin
-\fB\-\-mariadbd=\fR\fB\fIpath\fR\fR,
-\fB\-b \fR\fB\fIpath\fR\fR
-.sp
-The path to the
-\fBmariadbd\fR
-server\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mariadb-plugin: no-defaults option
-.\" no-defaults option: mariadb-plugin
-\fB\-\-no\-defaults\fR,
-\fB\-p\fR
-.sp
-Do not read values from the configuration file\&. This option enables an administrator to skip reading defaults from the configuration file\&.
-.sp
-With
-\fBmariadb-plugin\fR, this option need not be given first on the command line, unlike most other MariaDB programs that support
-\fB\-\-no\-defaults\fR\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mariadb-plugin: plugin-dir option
 .\" plugin-dir option: mariadb-plugin
 \fB\-\-plugin\-dir=\fR\fB\fIpath\fR\fR,
@@ -292,13 +406,88 @@ The server plugin directory\&.
 .sp
 The
 \fBmariadb-plugin\fR
-configuration file\&. Relative path names are interpreted relative to the current directory\&. If this option is not given, the default is
+configuration file\&. Relative path names are interpreted relative to the
+current directory\&. If this option is not given, the default is
 \fIplugin\fR\&.ini
 in the plugin directory, where
 \fIplugin\fR
 is the
 \fIplugin\fR
 argument on the command line\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: mysqld option
+.\" mysqld option: mariadb-plugin
+\fB\-\-mysqld=\fR\fB\fIpath\fR\fR,
+\fB\-m \fR\fB\fIpath\fR\fR
+.sp
+The path to the
+\fBmariadbd\fR
+server\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: my-print-defaults option
+.\" my-print-defaults option: mariadb-plugin
+\fB\-\-my\-print\-defaults=\fR\fB\fIpath\fR\fR,
+\fB\-f \fR\fB\fIpath\fR\fR
+.sp
+The path to the
+\fBmy_print_defaults\fR
+program\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: lc-messages-dir option
+.\" lc-messages-dir option: mariadb-plugin
+\fB\-\-lc\-messages\-dir=\fR\fB\fIpath\fR\fR,
+\fB\-l \fR\fB\fIpath\fR\fR
+.sp
+The directory with the server error messages\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: no-defaults option
+.\" no-defaults option: mariadb-plugin
+\fB\-\-no\-defaults\fR,
+\fB\-n\fR
+.sp
+Do not read values from the configuration file\&. This option enables an
+administrator to skip reading defaults from the configuration file\&.
+.sp
+With
+\fBmariadb-plugin\fR, this option need not be given first on the command line,
+unlike most other MariaDB programs that support
+\fB\-\-no\-defaults\fR\&.
 .RE
 .sp
 .RS 4
@@ -320,48 +509,18 @@ to print the defaults for
 \fB\-\-basedir\fR,
 \fB\-\-datadir\fR, and
 \fB\-\-plugin\-dir\fR
-if they are found in the configuration file\&. If no value for a variable is found, nothing is shown\&.
+if they are found in the configuration file\&. If no value for a variable is
+found, nothing is shown\&.
 .sp
 With
-\fBmariadb-plugin\fR, this option need not be given first on the command line, unlike most other MariaDB programs that support
+\fBmariadb-plugin\fR, this option need not be given first on the command line,
+unlike most other MariaDB programs that support
 \fB\-\-print\-defaults\fR\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mariadb-plugin: verbose option
-.\" verbose option: mariadb-plugin
-\fB\-\-verbose\fR,
-\fB\-v\fR
-.sp
-Verbose mode\&. Print more information about what the program does\&. This option can be used multiple times to increase the amount of information\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mariadb-plugin: version option
-.\" version option: mariadb-plugin
-\fB\-\-version\fR,
-\fB\-V\fR
-.sp
-Display version information and exit\&.
 .RE
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 1997, 2013, Oracle and/or its affiliates. All rights reserved., 2013-2025 MariaDB Foundation
+Copyright \(co 1997, 2013, Oracle and/or its affiliates. All rights reserved., 2013-2026 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

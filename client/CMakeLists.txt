@@ -75,7 +75,31 @@ MYSQL_ADD_EXECUTABLE(mariadb-show mysqlshow.c)
 TARGET_LINK_LIBRARIES(mariadb-show ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-plugin mysql_plugin.c)
-TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mariadb-plugin ${CLIENT_LIB} mysys_ssl)
+# The tool needs to know how MariaDB was installed to pick the way plugins
+# are installed. The install layout is only known when building, so it is
+# passed to the tool, together with the directories it has to verify.
+SET_TARGET_PROPERTIES(mariadb-plugin PROPERTIES COMPILE_DEFINITIONS
+ "INSTALL_LAYOUT_${INSTALL_LAYOUT};INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_BINDIRABS=${INSTALL_BINDIRABS}")
+# A caller can supply CPACK_PACKAGE_FILE_NAME, skipping platform discovery
+# in mysql_version.cmake. Use the same naming rules as package generation.
+FUNCTION(MARIADB_PLUGIN_PACKAGE_PLATFORM)
+  IF(NOT SYSTEM_NAME_AND_PROCESSOR)
+    GET_PACKAGE_FILE_NAME(_plugin_package_name)
+  ENDIF()
+  TARGET_COMPILE_DEFINITIONS(mariadb-plugin PRIVATE
+    PLUGIN_PACKAGE_PLATFORM="${SYSTEM_NAME_AND_PROCESSOR}")
+ENDFUNCTION()
+MARIADB_PLUGIN_PACKAGE_PLATFORM()
+# Archive installations fetch repository metadata and plugin archives.
+IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$")
+  IF(WIN32)
+    TARGET_LINK_LIBRARIES(mariadb-plugin winhttp shlwapi)
+  ELSE()
+    FIND_PACKAGE(CURL REQUIRED)
+    TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
+  ENDIF()
+ENDIF()
 
 MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)
 TARGET_LINK_LIBRARIES(mariadb-binlog ${CLIENT_LIB} mysys_ssl)
