@@ -134,7 +134,8 @@ Bundled libraries without a manifest are shown as available when listed in
 the repository\&. Plugins absent from the index are omitted from search but
 can still be uninstalled using their local manifests\&.
 .PP
-Windows ZIP packages are not implemented yet\&.
+Windows uses WinHTTP for repository access\&. ZIP packages are not implemented
+yet; this phase still accepts \fB.tar.gz\fR archives\&.
 .SH "TARBALL REPOSITORIES"
 .PP
 \fB\-\-base\-url\fR specifies an HTTP or HTTPS directory containing

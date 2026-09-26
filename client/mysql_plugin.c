@@ -54,11 +54,11 @@
 
 #ifndef PKG_DELEGATION
 #include <zlib.h>
-/*
-  Repository access needs libcurl. Builds without it, such as Windows, keep
-  the archive handling but refuse the operations that would use the network.
-*/
-#ifdef HAVE_LIBCURL
+#ifdef _WIN32
+#include <stdlib.h>
+#include <winhttp.h>
+#include <shlwapi.h>
+#else
 #include <curl/curl.h>
 #endif
 #include <mysql/service_sha2.h>
@@ -2408,7 +2408,7 @@ static int read_manifest_line(FILE *file, const char *source, char *line)
 }
 
 
-#ifdef HAVE_LIBCURL
+#ifndef _WIN32
 struct download_target
 {
   FILE *file;
@@ -2492,7 +2492,7 @@ static FILE *copy_local_archive(const char *name)
 
 
 /* Keep downloads open and anonymous, including between verification passes. */
-#ifdef HAVE_LIBCURL
+#ifndef _WIN32
 static FILE *download_file(const char *url, size_t limit)
 {
   char detail[CURL_ERROR_SIZE]= "";
@@ -2566,18 +2566,375 @@ end:
   return target.file;
 }
 #else
-/*
-  Windows builds are not linked with libcurl, so they have no downloader. The
-  commands that would use it are refused first; this stub keeps the tarball
-  code compilable and cannot proceed silently.
-*/
+
+#define WINHTTP_URL_CHARS (KV_LINE_SIZE * 8)
+#ifndef WINHTTP_DOWNLOAD_MS
+#define WINHTTP_DOWNLOAD_MS 300000
+#endif
+
+struct winhttp_completion
+{
+  HANDLE done;
+  volatile DWORD expected;
+  DWORD error, bytes;
+  my_bool callback_set;
+  LONG detached;
+  uchar buffer[8192];
+};
+
+
+static void CALLBACK winhttp_callback(HINTERNET handle, DWORD_PTR context,
+                                       DWORD status, void *info, DWORD length)
+{
+  struct winhttp_completion *state= (struct winhttp_completion *) context;
+  (void) handle;
+  if (!state)
+    return;
+  if (status == WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING)
+  {
+    /* WinHTTP promises this is the final callback for the request. */
+    if (InterlockedCompareExchange(&state->detached, 0, 0))
+    {
+      CloseHandle(state->done);
+      free(state);
+    }
+  }
+  else if (status == WINHTTP_CALLBACK_STATUS_REQUEST_ERROR)
+  {
+    state->error= ((WINHTTP_ASYNC_RESULT *) info)->dwError;
+    SetEvent(state->done);
+  }
+  else if (status == state->expected)
+  {
+    state->bytes= length;
+    SetEvent(state->done);
+  }
+}
+
+
+/* Closing an async request can return before its final callback arrives. */
+static void winhttp_close_request(HINTERNET *request,
+                                  struct winhttp_completion **state)
+{
+  my_bool callback_set= *state && (*state)->callback_set;
+  if (callback_set)
+    InterlockedExchange(&(*state)->detached, 1);
+  if (*request)
+  {
+    WinHttpCloseHandle(*request);
+    *request= NULL;
+  }
+  if (*state && !callback_set)
+  {
+    if ((*state)->done)
+      CloseHandle((*state)->done);
+    free(*state);
+  }
+  *state= NULL;
+}
+
+
+/* Each wait uses one deadline, even when a server keeps sending small chunks. */
+static int winhttp_wait(struct winhttp_completion *state, ULONGLONG started)
+{
+  ULONGLONG elapsed= GetTickCount64() - started;
+  DWORD result;
+  if (elapsed >= WINHTTP_DOWNLOAD_MS)
+  {
+    SetLastError(ERROR_TIMEOUT);
+    return 1;
+  }
+  result= WaitForSingleObject(state->done, (DWORD) (WINHTTP_DOWNLOAD_MS - elapsed));
+  if (result == WAIT_OBJECT_0)
+  {
+    if (!state->error)
+      return 0;
+    SetLastError(state->error);
+    return 1;
+  }
+  if (result == WAIT_TIMEOUT)
+    SetLastError(ERROR_TIMEOUT);
+  return 1;
+}
+
+
+/* Phase limits also provide meaningful network errors before the deadline. */
+static int winhttp_set_deadline(HINTERNET request, ULONGLONG started)
+{
+  ULONGLONG elapsed= GetTickCount64() - started;
+  int remaining, connect, transfer;
+
+  if (elapsed >= WINHTTP_DOWNLOAD_MS)
+  {
+    SetLastError(ERROR_TIMEOUT);
+    return 1;
+  }
+  remaining= (int) (WINHTTP_DOWNLOAD_MS - elapsed);
+  connect= MY_MIN(remaining, 10000);
+  transfer= MY_MIN(remaining, 30000);
+  return !WinHttpSetTimeouts(request, connect, connect, transfer, transfer);
+}
+
+
+static void winhttp_start_wait(struct winhttp_completion *state, DWORD expected)
+{
+  state->expected= expected;
+  state->error= 0;
+  state->bytes= 0;
+  ResetEvent(state->done);
+}
+
+
+/* Fetch into the same private, held stream used by the tarball verifier. */
 static FILE *download_file(const char *url, size_t limit)
 {
-  (void) url;
-  (void) limit;
-  fprintf(stderr, "ERROR: Remote plugin download is not supported on "
-          "Windows yet.\n");
-  return NULL;
+  WCHAR current[WINHTTP_URL_CHARS], next[WINHTTP_URL_CHARS];
+  WCHAR host[WINHTTP_URL_CHARS], object[WINHTTP_URL_CHARS];
+  WCHAR location[WINHTTP_URL_CHARS], length_text[40];
+  URL_COMPONENTS parts;
+  HINTERNET session= NULL, connection= NULL, request= NULL;
+  struct winhttp_completion *completion= NULL;
+  FILE *output= NULL;
+  ULONGLONG started= GetTickCount64();
+  DWORD status, bytes, policy, redirects= 0, length_size;
+  DWORD_PTR context;
+  size_t received= 0, advertised= 0;
+  my_bool have_length= FALSE, secure, previous_secure= FALSE;
+  const WCHAR *p;
+  DWORD error= 0;
+
+  if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, url, -1,
+                           current, (int) array_elements(current)))
+  {
+    fprintf(stderr, "ERROR: invalid or oversized download URL '%s'.\n", url);
+    return NULL;
+  }
+  session= WinHttpOpen(L"mariadb-plugin/1.0",
+                       WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
+                       WINHTTP_FLAG_ASYNC);
+  if (!session)
+    goto failed;
+  if (!(output= plugin_tmpfile()))
+    goto failed_file;
+
+  for (;;)
+  {
+    DWORD host_length, object_length;
+
+    if (GetTickCount64() - started >= WINHTTP_DOWNLOAD_MS)
+    {
+      SetLastError(ERROR_TIMEOUT);
+      goto failed;
+    }
+    for (p= current; *p; p++)
+      if (*p <= 0x20 || *p == 0x7f || *p == L'\\' ||
+          *p == L'#' || *p == L'@')
+        goto invalid_url;
+    memset(&parts, 0, sizeof(parts));
+    parts.dwStructSize= sizeof(parts);
+    parts.dwHostNameLength= (DWORD) -1;
+    parts.dwUserNameLength= (DWORD) -1;
+    parts.dwPasswordLength= (DWORD) -1;
+    parts.dwUrlPathLength= (DWORD) -1;
+    parts.dwExtraInfoLength= (DWORD) -1;
+    if (!WinHttpCrackUrl(current, 0, 0, &parts))
+      goto invalid_url;
+    secure= parts.nScheme == INTERNET_SCHEME_HTTPS;
+    if ((!secure && parts.nScheme != INTERNET_SCHEME_HTTP) ||
+        (previous_secure && !secure) || !parts.dwHostNameLength ||
+        parts.dwUserNameLength || parts.dwPasswordLength)
+      goto invalid_url;
+    previous_secure= secure;
+    host_length= parts.dwHostNameLength;
+    object_length= (parts.dwUrlPathLength ? parts.dwUrlPathLength : 1) +
+                   parts.dwExtraInfoLength;
+    if (host_length >= array_elements(host) ||
+        object_length >= array_elements(object))
+      goto invalid_url;
+    memcpy(host, parts.lpszHostName, host_length * sizeof(WCHAR));
+    host[host_length]= 0;
+    if (parts.dwUrlPathLength)
+      memcpy(object, parts.lpszUrlPath,
+             parts.dwUrlPathLength * sizeof(WCHAR));
+    else
+      object[0]= L'/';
+    if (parts.dwExtraInfoLength)
+      memcpy(object + (parts.dwUrlPathLength ? parts.dwUrlPathLength : 1),
+             parts.lpszExtraInfo,
+             parts.dwExtraInfoLength * sizeof(WCHAR));
+    object[object_length]= 0;
+
+    connection= WinHttpConnect(session, host, parts.nPort, 0);
+    if (!connection)
+      goto failed;
+    request= WinHttpOpenRequest(connection, L"GET",
+             object, NULL, WINHTTP_NO_REFERER,
+             WINHTTP_DEFAULT_ACCEPT_TYPES, secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!request)
+      goto failed;
+    completion= (struct winhttp_completion *) calloc(1, sizeof(*completion));
+    if (!completion)
+      goto failed_file;
+    completion->done= CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!completion->done)
+      goto failed;
+    policy= WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY,
+                          &policy, sizeof(policy)))
+      goto failed;
+    policy= WINHTTP_DISABLE_AUTHENTICATION | WINHTTP_DISABLE_COOKIES;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_DISABLE_FEATURE,
+                          &policy, sizeof(policy)))
+      goto failed;
+    policy= WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_AUTOLOGON_POLICY,
+                          &policy, sizeof(policy)))
+      goto failed;
+    context= (DWORD_PTR) completion;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_CONTEXT_VALUE,
+                          &context, sizeof(context)) ||
+        WinHttpSetStatusCallback(request, winhttp_callback,
+          WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS | WINHTTP_CALLBACK_FLAG_HANDLES,
+          0) == WINHTTP_INVALID_STATUS_CALLBACK)
+      goto failed;
+    completion->callback_set= TRUE;
+
+    winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE);
+    if (winhttp_set_deadline(request, started))
+      goto failed;
+    if (!WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                            WINHTTP_NO_REQUEST_DATA, 0, 0, context) &&
+        GetLastError() != ERROR_IO_PENDING)
+      goto failed;
+    if (winhttp_wait(completion, started))
+      goto failed;
+
+    winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE);
+    if (winhttp_set_deadline(request, started))
+      goto failed;
+    if (!WinHttpReceiveResponse(request, NULL) &&
+        GetLastError() != ERROR_IO_PENDING)
+      goto failed;
+    if (winhttp_wait(completion, started))
+      goto failed;
+    bytes= sizeof(status);
+    if (!WinHttpQueryHeaders(request,
+                             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &status, &bytes,
+                             WINHTTP_NO_HEADER_INDEX))
+      goto failed;
+    if (status == 301 || status == 302 || status == 303 ||
+        status == 307 || status == 308)
+    {
+      DWORD capacity= (DWORD) array_elements(next);
+      if (redirects == 5)
+      {
+        fprintf(stderr, "ERROR: download of '%s' has too many redirects.\n",
+                url);
+        goto discard;
+      }
+      bytes= sizeof(location);
+      if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_LOCATION,
+                               WINHTTP_HEADER_NAME_BY_INDEX, location, &bytes,
+                               WINHTTP_NO_HEADER_INDEX))
+        goto failed;
+      if (FAILED(UrlCombineW(current, location, next, &capacity, 0)))
+        goto invalid_url;
+      redirects++;
+      memcpy(current, next, (wcslen(next) + 1) * sizeof(WCHAR));
+      winhttp_close_request(&request, &completion);
+      WinHttpCloseHandle(connection);
+      connection= NULL;
+      continue;
+    }
+    if (status != 200)
+    {
+      fprintf(stderr, "ERROR: download of '%s' failed (HTTP %lu).\n",
+              url, (ulong) status);
+      goto discard;
+    }
+    length_size= sizeof(length_text);
+    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CONTENT_LENGTH,
+                            WINHTTP_HEADER_NAME_BY_INDEX, length_text,
+                            &length_size, WINHTTP_NO_HEADER_INDEX))
+    {
+      have_length= TRUE;
+      for (p= length_text; *p; p++)
+      {
+        if (*p < L'0' || *p > L'9' ||
+            (size_t) (*p - L'0') > limit ||
+            advertised > (limit - (size_t) (*p - L'0')) / 10)
+        {
+          fprintf(stderr, "ERROR: download of '%s' exceeds size limit.\n",
+                  url);
+          goto discard;
+        }
+        advertised= advertised * 10 + (size_t) (*p - L'0');
+      }
+    }
+    else if (GetLastError() != ERROR_WINHTTP_HEADER_NOT_FOUND)
+      goto failed;
+
+    for (;;)
+    {
+      winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_READ_COMPLETE);
+      if (winhttp_set_deadline(request, started))
+        goto failed;
+      if (!WinHttpReadData(request, completion->buffer,
+                           sizeof(completion->buffer), NULL) &&
+          GetLastError() != ERROR_IO_PENDING)
+        goto failed;
+      if (winhttp_wait(completion, started))
+        goto failed;
+      if (!completion->bytes)
+        break;
+      if (completion->bytes > limit - received)
+      {
+        fprintf(stderr, "ERROR: download of '%s' exceeds size limit.\n",
+                url);
+        goto discard;
+      }
+      if (fwrite(completion->buffer, 1, completion->bytes, output) !=
+          completion->bytes)
+        goto failed_file;
+      received+= completion->bytes;
+    }
+    if (GetTickCount64() - started >= WINHTTP_DOWNLOAD_MS ||
+        (have_length && received != advertised) || fflush(output) ||
+        fseek(output, 0, SEEK_SET))
+    {
+      fprintf(stderr, "ERROR: download of '%s' is incomplete.\n", url);
+      goto discard;
+    }
+    break;
+  }
+  goto end;
+
+invalid_url:
+  fprintf(stderr, "ERROR: invalid download or redirect URL '%s'.\n", url);
+  goto discard;
+failed:
+  error= GetLastError();
+  fprintf(stderr, "ERROR: cannot download '%s': WinHTTP error %lu.\n",
+          url, (ulong) error);
+  goto discard;
+failed_file:
+  fprintf(stderr, "ERROR: cannot write download of '%s': %s.\n",
+          url, strerror(errno));
+discard:
+  if (output)
+  {
+    my_fclose(output, MYF(0));
+    output= NULL;
+  }
+end:
+  winhttp_close_request(&request, &completion);
+  if (connection)
+    WinHttpCloseHandle(connection);
+  if (session)
+    WinHttpCloseHandle(session);
+  return output;
 }
 #endif
 
@@ -4344,26 +4701,6 @@ static int run_new_command(int argc, char **argv)
   {
     fprintf(stderr, "ERROR: --base-url is only for tarball installations; "
             "search uses the native package repositories on this system.\n");
-    return 1;
-  }
-#endif
-
-#if !defined(HAVE_LIBCURL) && !defined(PKG_DELEGATION)
-  /*
-    Tarball builds without libcurl are the Windows builds: they have no
-    downloader, so the repository operations are refused before any path is
-    resolved or any file is touched. A local archive (--file) stays usable.
-  */
-  if (is_search)
-  {
-    fprintf(stderr, "ERROR: Remote plugin search is not supported on "
-            "Windows yet.\n");
-    return 1;
-  }
-  if (!opt_file && strcmp(verb, "install") == 0)
-  {
-    fprintf(stderr, "ERROR: Remote plugin installation is not supported on "
-            "Windows yet.\n");
     return 1;
   }
 #endif
