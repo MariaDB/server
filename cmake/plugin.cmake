@@ -307,7 +307,9 @@ MACRO(MARIADB_ADD_PLUGIN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
-    ADD_DEPENDENCIES(${target} ${ARG_DEPENDS})
+    IF (ARG_DEPENDS)
+      ADD_DEPENDENCIES(${target} ${ARG_DEPENDS})
+    ENDIF()
 
     SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
@@ -360,9 +362,8 @@ MACRO(MARIADB_ADD_PLUGIN)
     ENDIF()
   ENDIF()
 
-  GET_FILENAME_COMPONENT(subpath ${CMAKE_CURRENT_SOURCE_DIR} NAME)
   IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
-    INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${subpath}")
+    INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${target}")
   ENDIF()
 
   IF(TARGET ${target})
