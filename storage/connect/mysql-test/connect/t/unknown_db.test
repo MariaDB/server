@@ -1,0 +1,37 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-39050 ConnectSE: improve table discovery error message when local database doesn't exist
+--echo #
+
+# Ensure the test database does not exist
+DROP DATABASE IF EXISTS unknown_connect_db;
+
+# Create a source table to proxy
+CREATE TABLE t1 (id INT NOT NULL, name VARCHAR(32));
+INSERT INTO t1 VALUES (1, 'foo'), (2, 'bar');
+
+--echo #
+--echo # TABLE_TYPE=PROXY with DBNAME pointing to a non-existent database
+--echo # should produce "Unknown database" instead of a generic discovery error
+--echo #
+
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='unknown_connect_db';
+
+--echo #
+--echo # Once the database and source table exist, discovery should succeed
+--echo #
+
+CREATE DATABASE unknown_connect_db;
+CREATE TABLE unknown_connect_db.t1 (id INT NOT NULL, name VARCHAR(32));
+INSERT INTO unknown_connect_db.t1 VALUES (3, 'baz');
+
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='unknown_connect_db';
+SELECT * FROM t2 ORDER BY id;
+
+# Cleanup
+DROP TABLE t2;
+DROP TABLE t1;
+DROP TABLE unknown_connect_db.t1;
+DROP DATABASE unknown_connect_db;
