@@ -1822,3 +1822,41 @@ HAVING (NOT a) AND TRUE;
 DROP TABLE t1;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-32412 Pushdown from HAVING: Item_func is immutable while arguments are not
+--echo #
+CREATE TABLE t1 (a int) ;
+INSERT INTO t1 values (1),(2),(3);
+
+SELECT a FROM ( SELECT a, 1 AS b FROM t1 ) AS dt
+GROUP BY a, b
+HAVING a = b + 1;
+
+--echo # Item_param as an immutable argument of the pushed equality
+
+PREPARE stmt FROM
+"SELECT a FROM ( SELECT a, 1 AS b FROM t1 ) AS dt
+ GROUP BY a, b
+ HAVING a = b + ?";
+SET @p= 1;
+EXECUTE stmt USING @p;
+SET @p= 2;
+EXECUTE stmt USING @p;
+DEALLOCATE PREPARE stmt;
+
+--echo # Item_param as the basic constant behind the view reference
+
+PREPARE stmt FROM
+"SELECT a FROM ( SELECT a, ? AS b FROM t1 ) AS dt
+ GROUP BY a, b
+ HAVING a = b + 1";
+SET @p= 1;
+EXECUTE stmt USING @p;
+SET @p= 2;
+EXECUTE stmt USING @p;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
