@@ -1,25 +1,23 @@
 #
-# MDEV-40786: Windows builds are not linked with libcurl, so the operations
-# that reach a remote repository must fail with a clear message and a
-# non-zero exit status, before any path is resolved or any file is touched.
-# Installations from a local archive are still possible.
+# MDEV-40786: CLI validation on Windows. Network behavior is exercised by
+# the disposable WinHTTP helper, not by this offline MTR test.
 #
 --source include/windows.inc
 
 --echo #
---echo # Remote installation is refused, with or without --dry-run/--base-url
+--echo # Missing operands are rejected before installation detection
 --echo #
 --error 1
---exec $MYSQL_PLUGIN install provider_example 2>&1 > /dev/null
+--exec $MYSQL_PLUGIN install 2>&1 > /dev/null
 --error 1
---exec $MYSQL_PLUGIN install provider_example --dry-run 2>&1 > /dev/null
+--exec $MYSQL_PLUGIN uninstall 2>&1 > /dev/null
 --error 1
---exec $MYSQL_PLUGIN install provider_example --base-url=https://example.invalid/plugins/ 2>&1 > /dev/null
+--exec $MYSQL_PLUGIN search one two 2>&1 > /dev/null
 
 --echo #
---echo # Remote search is refused
+--echo # Invalid options are rejected before network or file access
 --echo #
 --error 1
---exec $MYSQL_PLUGIN search 2>&1 > /dev/null
+--exec $MYSQL_PLUGIN search --file=missing.tar.gz 2>&1 > /dev/null
 --error 1
---exec $MYSQL_PLUGIN search provider 2>&1 > /dev/null
+--exec $MYSQL_PLUGIN uninstall provider --base-url=https://example.invalid/ 2>&1 > /dev/null
