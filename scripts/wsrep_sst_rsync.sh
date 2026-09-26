@@ -32,6 +32,7 @@ MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
 
 RSYNC_PID="$DATA/$MODULE.pid"
 RSYNC_CONF="$DATA/$MODULE.conf"
+RSYNC_SECRETS="$DATA/$MODULE.secret"
 
 STUNNEL_CONF="$DATA/stunnel.conf"
 STUNNEL_PID="$DATA/stunnel.pid"
@@ -76,6 +77,7 @@ cleanup_joiner()
         if cleanup_pid $RSYNC_REAL_PID "$RSYNC_PID" "$RSYNC_CONF"; then
             [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE" || :
             [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE" || :
+            [ -f "$RSYNC_SECRETS" ] && rm -f "$RSYNC_SECRETS" || :
         else
             wsrep_log_warning "rsync cleanup failed."
         fi
@@ -186,6 +188,11 @@ ib_home_dir="$DATA_DIR"
 ib_undo_dir="$DATA_DIR"
 
 encgroups='--mysqld|sst'
+
+# Escape hatch for interoperating with a donor running an older, unpatched
+# script (see the joiner section below): must be removed once every
+# cluster member is upgraded.
+ALLOW_UNAUTH_DONOR=$(parse_cnf "$encgroups" 'sst-rsync-allow-unauthenticated-donor')
 
 check_server_ssl_config
 
@@ -334,6 +341,28 @@ RC=0
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     create_dirs
+
+    # The joiner's rsync daemon requires the per-connection secret it
+    # advertised as the module's rsync password (see below, joiner side).
+    RSYNC_AUTH_USER=""
+    # An unset (as opposed to empty) RSYNC_PASSWORD makes rsync prompt on
+    # /dev/tty instead of failing outright when the joiner demands auth we
+    # have no credential for, so always export it explicitly: this is what
+    # happens whenever an unpatched donor (which never sets it either) meets
+    # a joiner that now requires auth, so this is not just for the MTR hook
+    # below.
+    RSYNC_PASSWORD=""
+    export RSYNC_PASSWORD
+    # MTR test hook: simulate an older, unpatched donor, which never
+    # presents this credential. A cnf option rather than an env var like
+    # MTR_SST_SIMULATE_NO_STUNNEL above, since it needs to survive this
+    # donor's ordinary (non-crashing) restarts across a whole test.
+    SIMULATE_OLD_DONOR=$(parse_cnf "$encgroups" 'mtr-sst-simulate-old-donor')
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" -a \
+         \( -z "$SIMULATE_OLD_DONOR" -o "$SIMULATE_OLD_DONOR" = '0' \) ]; then
+        RSYNC_AUTH_USER="$MODULE@"
+        RSYNC_PASSWORD="$WSREP_SST_OPT_REMOTE_PSWD"
+    fi
 
     if [ -n "$STUNNEL" ]; then
         cat << EOF > "$STUNNEL_CONF"
@@ -510,7 +539,7 @@ FILTER="-f '- /lost+found'
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT $FILTER "'$DATA/'" \
-              "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
+              "'rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync returned code $RC:"
@@ -539,7 +568,7 @@ FILTER="-f '- /lost+found'
                   --ignore-times --inplace --dirs --delete --quiet \
                   $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
                   -f '- **' "$ib_home_dir/" \
-                  "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
+                  "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
 
             if [ $RC -ne 0 ]; then
                 wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
@@ -558,7 +587,7 @@ FILTER="-f '- /lost+found'
                   --ignore-times --inplace --dirs --delete --quiet \
                   $WHOLE_FILE_OPT -f '+ /ib_logfile0' \
                   -f '- **' "$ib_log_dir/" \
-                  "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
+                  "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
             if [ $RC -ne 0 ]; then
                 wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
@@ -577,7 +606,7 @@ FILTER="-f '- /lost+found'
                   --ignore-times --inplace --dirs --delete --quiet \
                   $WHOLE_FILE_OPT -f '+ /undo*' \
                   -f '- **' "$ib_undo_dir/" \
-                  "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+                  "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
 
             if [ $RC -ne 0 ]; then
                 wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
@@ -596,7 +625,7 @@ FILTER="-f '- /lost+found'
                   --ignore-times --inplace --dirs --delete --quiet \
                   $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
                   -f '- **' "$ar_log_dir/" \
-                  "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
+                  "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
 
             if [ $RC -ne 0 ]; then
                 wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
@@ -634,7 +663,7 @@ FILTER="-f '- /lost+found'
              -f '- $ar_log_dir/aria_log_control' \
              -f '- $ar_log_dir/aria_log.*' \
              "$DATA/{}/" \
-             "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
+             "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
 
@@ -674,7 +703,7 @@ FILTER="-f '- /lost+found'
 
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
           --archive --quiet --checksum "$MAGIC_FILE" \
-          "rsync://$WSREP_SST_OPT_ADDR" >&2 || RC=$?
+          "rsync://$RSYNC_AUTH_USER$WSREP_SST_OPT_ADDR" >&2 || RC=$?
 
     rm "$MAGIC_FILE"
 
@@ -711,11 +740,47 @@ else # joiner
         SILENT=""
     fi
 
+    # The rsync daemon below is reachable to any host that can reach
+    # $RSYNC_PORT, so gate every module behind a per-connection secret
+    # rather than only checking it after the transfer completes (below).
+    #
+    # Unlike before this fix, this now applies in every ssl-mode, not just
+    # VERIFY_CA/VERIFY_IDENTITY: this is deliberate and backward-incompatible
+    # with a donor running an older, unpatched script, in the same way
+    # ssl-mode VERIFY* already was. A donor that old never presents the
+    # module user/password this daemon now requires, so its SST fails
+    # outright.
+    # Prefer upgrading every node's package (which replaces this script on
+    # disk) before restarting any mariadbd, so a not-yet-restarted donor
+    # still runs the patched script. sst-rsync-allow-unauthenticated-donor below
+    # only exists for the one case that doesn't cover: no upgraded node
+    # exists yet to donate to the very first one.
+    MY_SECRET="$(wsrep_gen_secret)"
+    rm -f "$RSYNC_SECRETS"
+
+    AUTH_CONF=""
+    if [ -n "$ALLOW_UNAUTH_DONOR" -a "$ALLOW_UNAUTH_DONOR" != '0' ]; then
+        wsrep_log_warning \
+            "sst-rsync-allow-unauthenticated-donor is set:" \
+            "this node's rsync SST daemon accepts an unauthenticated write" \
+            "from any host that can reach it, exactly as with an older," \
+            "unpatched script." \
+            "Remove this option once every cluster member is upgraded."
+    else
+        # umask alone does not reset the mode of a file left behind by an
+        # abnormally terminated (e.g. SIGKILLed) prior SST, hence the rm -f
+        # above: recreate it so its permissions cannot be stale.
+        ( umask 077; printf '%s:%s\n' "$MODULE" "$MY_SECRET" > "$RSYNC_SECRETS" )
+        AUTH_CONF="auth users = $MODULE
+secrets file = $RSYNC_SECRETS"
+    fi
+
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
 read only = no
 timeout = 300
+$AUTH_CONF
 $SILENT
 [$MODULE]
     path = $DATA
@@ -797,18 +862,12 @@ EOF
         TRANSFER_PID="$STUNNEL_PID"
     fi
 
-    if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
-        # backward-incompatible behavior:
-        CN=""
-        if [ -n "$SSTCERT" ]; then
-            CN=$(openssl_getCN "$SSTCERT")
-        fi
-        MY_SECRET="$(wsrep_gen_secret)"
-        # Add authentication data to address
-        ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
-    else
-        MY_SECRET="" # for check down in recv_joiner()
+    CN=""
+    if [ "${SSLMODE#VERIFY}" != "$SSLMODE" -a -n "$SSTCERT" ]; then
+        CN=$(openssl_getCN "$SSTCERT")
     fi
+    # Add authentication data to address
+    ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
 
     until check_pid_and_port "$TRANSFER_PID" $TRANSFER_REAL_PID \
           "$RSYNC_ADDR_UNESCAPED" "$RSYNC_PORT"

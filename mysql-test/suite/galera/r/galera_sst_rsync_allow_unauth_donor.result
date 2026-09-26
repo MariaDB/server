@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: .*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP_SST: .*rsync returned code");
+call mtr.add_suppression("WSREP_SST: .*Cleanup after exit with status:");
+call mtr.add_suppression("WSREP: Failed to read from: wsrep_sst_rsync --role .donor.");
+call mtr.add_suppression("WSREP: Process completed with error: wsrep_sst_rsync --role .donor.");
+call mtr.add_suppression("WSREP: Command did not run: wsrep_sst_rsync --role .donor.");
+connection node_2;
+FOUND 1 /rsync returned code/ in mysqld.1.err
+connection node_2;
+call mtr.add_suppression("WSREP_SST:");
+call mtr.add_suppression("WSREP: Process completed with error:");
+call mtr.add_suppression("WSREP: Failed to read .ready <addr>.");
+call mtr.add_suppression("WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script.");
+call mtr.add_suppression("WSREP: Failed to read state from: .*");
+call mtr.add_suppression("WSREP: Failed to prepare for .*");
+call mtr.add_suppression("WSREP: SST failed:.*");
+call mtr.add_suppression("WSREP: SST request callback failed. This is unrecoverable, restart required.");
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: .*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP: Requesting state transfer failed:.*");
+connection node_1;

@@ -1,0 +1,10 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) SELECT REPEAT('a', 200) FROM seq_1_to_20000;
+connection node_2;
+SELECT COUNT(*) AS cnt FROM t1;
+cnt
+20000
+connection node_1;
+DROP TABLE t1;
