@@ -142,3 +142,16 @@
 --replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
 --error 1
 --exec $MYSQL_PLUGIN --no-defaults --dry-run foo DISABLE 2>&1 > /dev/null
+
+--echo #
+--echo # Legacy syntax rejects archive options rather than ignoring them
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --file=missing.tar.gz foo ENABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --sha256=invalid foo DISABLE 2>&1 > /dev/null
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --base-url=http://127.0.0.1:1/ foo ENABLE 2>&1 > /dev/null

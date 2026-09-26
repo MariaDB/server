@@ -91,14 +91,19 @@ FUNCTION(MARIADB_PLUGIN_PACKAGE_PLATFORM)
     PLUGIN_PACKAGE_PLATFORM="${SYSTEM_NAME_AND_PROCESSOR}")
 ENDFUNCTION()
 MARIADB_PLUGIN_PACKAGE_PLATFORM()
-# Tarball installations download plugin archives over HTTP, so those builds
-# link libcurl and define HAVE_LIBCURL for the repository code. RPM and DEB
-# installations delegate to the package manager, and Windows builds have no
-# downloader: mysql_plugin.c refuses the repository operations instead.
-IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$" AND NOT WIN32)
-  FIND_PACKAGE(CURL REQUIRED)
-  TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
-  TARGET_COMPILE_DEFINITIONS(mariadb-plugin PRIVATE HAVE_LIBCURL=1)
+# Archive installations fetch repository metadata and plugin archives.
+IF(NOT INSTALL_LAYOUT MATCHES "^(RPM|DEB)$")
+  IF(WIN32)
+    TARGET_SOURCES(mariadb-plugin PRIVATE
+      ${CMAKE_SOURCE_DIR}/storage/connect/unzip.c
+      ${CMAKE_SOURCE_DIR}/storage/connect/ioapi.c)
+    TARGET_INCLUDE_DIRECTORIES(mariadb-plugin PRIVATE
+      ${CMAKE_SOURCE_DIR}/storage/connect)
+    TARGET_LINK_LIBRARIES(mariadb-plugin winhttp shlwapi)
+  ELSE()
+    FIND_PACKAGE(CURL REQUIRED)
+    TARGET_LINK_LIBRARIES(mariadb-plugin CURL::libcurl)
+  ENDIF()
 ENDIF()
 
 MYSQL_ADD_EXECUTABLE(mariadb-binlog mysqlbinlog.cc mysqlbinlog-engine.cc)

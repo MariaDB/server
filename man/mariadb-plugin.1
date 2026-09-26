@@ -74,7 +74,10 @@ under \fI<basedir>/.mariadb\-plugin/\fR, and prints instructions for enabling
 the plugin\&. It does not edit server configuration\&. Uninstall uses the
 recorded paths and does not need network access\&. Before removing files,
 uninstall validates the manifest's plugin name and paths. An invalid,
-unreadable or non-regular manifest causes no deletion. If a file cannot be
+unreadable, incomplete or non-regular manifest causes no deletion. Manifest
+records must end with a newline. During a failed install, rollback uses
+the paths recorded in memory, so a partial manifest write is never used
+as a deletion path. If a file cannot be
 removed, the manifest is kept so uninstall can be retried\&.
 .PP
 The deprecated
@@ -86,6 +89,10 @@ INSTALL SONAME
 statement or
 \fB\-\-plugin\-load\-add\fR
 option\&.
+For library filenames that cannot be represented safely in these commands,
+\fBmariadb-plugin\fR prints a warning and leaves activation to the user\&.
+The \fB\-\-file\fR, \fB\-\-sha256\fR and \fB\-\-base\-url\fR
+options are rejected with the deprecated syntax\&.
 .PP
 An error is given if
 \fBmariadb-plugin\fR
@@ -134,7 +141,10 @@ Bundled libraries without a manifest are shown as available when listed in
 the repository\&. Plugins absent from the index are omitted from search but
 can still be uninstalled using their local manifests\&.
 .PP
-Windows ZIP packages are not implemented yet\&.
+Windows uses WinHTTP for repository access and accepts \fB.zip\fR packages\&.
+It also accepts \fB.tar.gz\fR archives for compatibility\&. ZIP entries are
+limited to regular files and directories with simple ASCII paths; encrypted
+entries, links and unsupported compression methods are rejected\&.
 .SH "TARBALL REPOSITORIES"
 .PP
 \fB\-\-base\-url\fR specifies an HTTP or HTTPS directory containing
@@ -184,11 +194,14 @@ adds \fBfile\fR and \fBsha256\fR after creating the archive and combines
 the documents into \fBplugins.index\fR\&. Local uninstall manifests retain
 their existing format\&.
 .PP
-Archive filenames must end in \fB.tar.gz\fR and contain only letters,
+Archive filenames must end in \fB.tar.gz\fR (or \fB.zip\fR on Windows)
+and contain only letters,
 digits, dots, underscores and hyphens, without consecutive dots\&.
 They cannot contain directory paths or URLs\&. Keep the original CPack
 filename so the installer can recognize the archive's wrapper directory\&.
 The repository index is limited to 8 MiB and each downloaded archive to 1 GiB\&.
+ZIP extraction also limits the entry count to 4096 and the total expanded
+contents to 1 GiB\&.
 .SH "DEPRECATED SYNTAX"
 .PP
 The former syntax

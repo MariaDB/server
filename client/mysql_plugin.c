@@ -54,11 +54,14 @@
 
 #ifndef PKG_DELEGATION
 #include <zlib.h>
-/*
-  Repository access needs libcurl. Builds without it, such as Windows, keep
-  the archive handling but refuse the operations that would use the network.
-*/
-#ifdef HAVE_LIBCURL
+#ifdef _WIN32
+#include <stdlib.h>
+#include <stdint.h>
+#include <limits.h>
+#include <winhttp.h>
+#include <shlwapi.h>
+#include "unzip.h"
+#else
 #include <curl/curl.h>
 #endif
 #include <mysql/service_sha2.h>
@@ -107,13 +110,13 @@ static struct my_option my_long_options[] =
   {"dry-run", 0, "Print the commands that install and uninstall would run, "
    "without running them.",
     &opt_dry_run, &opt_dry_run, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"file", 0, "Install the plugin from this local tarball instead of "
+  {"file", 0, "Install the plugin from this local archive instead of "
    "downloading it.",
     &opt_file, &opt_file, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"base-url", 0, "Plugin repository URL. Overrides the default download "
    "location for tarball installations.",
     &opt_base_url, &opt_base_url, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"sha256", 0, "Expected SHA-256 checksum of the tarball, as published "
+  {"sha256", 0, "Expected SHA-256 checksum of the archive, as published "
    "beside it. Refuse to install if it does not match.",
     &opt_sha256, &opt_sha256, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Do not read values from configuration file.",
@@ -182,6 +185,14 @@ int main(int argc,char *argv[])
     error= run_new_command(argc, argv);
     my_end(my_end_arg);
     exit(error);
+  }
+
+  if (opt_file || opt_sha256 || opt_base_url)
+  {
+    fprintf(stderr, "ERROR: --file, --sha256 and --base-url are not "
+            "supported with ENABLE/DISABLE.\n");
+    my_end(my_end_arg);
+    return 1;
   }
 
   if (opt_dry_run)
@@ -2358,6 +2369,114 @@ static int valid_relative_path(const char *path)
 }
 
 
+static int archive_is_zip(const char *name)
+{
+  size_t len= strlen(name);
+  return len >= 4 && !strncasecmp(name + len - 4, ".zip", 4);
+}
+
+
+static int reserved_manifest_path(const char *path)
+{
+#ifdef _WIN32
+  const char *end;
+  size_t len;
+#endif
+  /* Dot and empty components do not change the first directory on disk. */
+  while (*path == '/')
+    path++;
+  while (path[0] == '.' && (path[1] == '/' || path[1] == '\0'))
+  {
+    path+= path[1] ? 2 : 1;
+    while (*path == '/')
+      path++;
+  }
+#ifdef _WIN32
+  end= strchr(path, '/');
+  len= end ? (size_t) (end - path) : strlen(path);
+  while (len && (path[len - 1] == '.' || path[len - 1] == ' '))
+    len--;
+  return len == sizeof(MANIFEST_SUBDIR) - 1 &&
+         !strncasecmp(path, MANIFEST_SUBDIR, len);
+#else
+  return !strncmp(path, MANIFEST_SUBDIR,
+                  sizeof(MANIFEST_SUBDIR) - 1) &&
+         (path[sizeof(MANIFEST_SUBDIR) - 1] == '/' ||
+          path[sizeof(MANIFEST_SUBDIR) - 1] == '\0');
+#endif
+}
+
+
+#ifdef _WIN32
+/* An 8.3 name or a trailing dot/space can name the manifest directory too. */
+static int archive_targets_manifest(const char *basedir, const char *rel,
+                                    my_bool missing_ok)
+{
+  char manifest[FN_REFLEN], first[FN_REFLEN];
+  const char *component= rel;
+  char *slash;
+  HANDLE owned= INVALID_HANDLE_VALUE, candidate= INVALID_HANDLE_VALUE;
+  BY_HANDLE_FILE_INFORMATION a, b;
+  int result= 1;
+
+  while (*component == '/')
+    component++;
+  while (component[0] == '.' &&
+         (component[1] == '/' || component[1] == '\0'))
+  {
+    component+= component[1] ? 2 : 1;
+    while (*component == '/')
+      component++;
+  }
+  if (build_full_path(manifest, sizeof(manifest), basedir, MANIFEST_SUBDIR) ||
+      build_full_path(first, sizeof(first), basedir, component))
+    return 1;
+  slash= strchr(first + strlen(basedir) + 1, '/');
+  if (slash)
+    *slash= '\0';
+
+  owned= CreateFile(manifest, FILE_READ_ATTRIBUTES,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    NULL, OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                    NULL);
+  if (owned == INVALID_HANDLE_VALUE)
+  {
+    DWORD error= GetLastError();
+    if (missing_ok &&
+        (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND))
+      result= 0;
+    goto end;
+  }
+  if (!GetFileInformationByHandle(owned, &a))
+    goto end;
+  candidate= CreateFile(first, FILE_READ_ATTRIBUTES,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                        NULL, OPEN_EXISTING,
+                        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                        NULL);
+  if (candidate == INVALID_HANDLE_VALUE)
+  {
+    DWORD error= GetLastError();
+    result= error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND;
+    goto end;
+  }
+  if (!GetFileInformationByHandle(candidate, &b))
+    goto end;
+  result= a.dwVolumeSerialNumber == b.dwVolumeSerialNumber &&
+          a.nFileIndexHigh == b.nFileIndexHigh &&
+          a.nFileIndexLow == b.nFileIndexLow;
+
+end:
+  if (candidate != INVALID_HANDLE_VALUE)
+    CloseHandle(candidate);
+  if (owned != INVALID_HANDLE_VALUE)
+    CloseHandle(owned);
+  return result;
+}
+#endif
+
+
 /* 1 = line, 0 = EOF, -1 = error; always drain the complete physical line. */
 static int read_metadata_line(FILE *file, const char *source, char *line,
                               my_bool *oversized)
@@ -2397,6 +2516,13 @@ static int read_manifest_line(FILE *file, const char *source, char *line)
 {
   my_bool oversized;
   int rc= read_metadata_line(file, source, line, &oversized);
+  /* A short write must never turn a prefix into a deletion target. */
+  if (rc > 0 && feof(file))
+  {
+    fprintf(stderr, "ERROR: '%s' contains an incomplete manifest record.\n",
+            source);
+    return -1;
+  }
   if (rc > 0 && oversized &&
       (!strncmp(line, "dir: ", 5) || !strncmp(line, "file: ", 6)))
   {
@@ -2408,7 +2534,7 @@ static int read_manifest_line(FILE *file, const char *source, char *line)
 }
 
 
-#ifdef HAVE_LIBCURL
+#ifndef _WIN32
 struct download_target
 {
   FILE *file;
@@ -2492,7 +2618,7 @@ static FILE *copy_local_archive(const char *name)
 
 
 /* Keep downloads open and anonymous, including between verification passes. */
-#ifdef HAVE_LIBCURL
+#ifndef _WIN32
 static FILE *download_file(const char *url, size_t limit)
 {
   char detail[CURL_ERROR_SIZE]= "";
@@ -2566,18 +2692,375 @@ end:
   return target.file;
 }
 #else
-/*
-  Windows builds are not linked with libcurl, so they have no downloader. The
-  commands that would use it are refused first; this stub keeps the tarball
-  code compilable and cannot proceed silently.
-*/
+
+#define WINHTTP_URL_CHARS (KV_LINE_SIZE * 8)
+#ifndef WINHTTP_DOWNLOAD_MS
+#define WINHTTP_DOWNLOAD_MS 300000
+#endif
+
+struct winhttp_completion
+{
+  HANDLE done;
+  volatile DWORD expected;
+  DWORD error, bytes;
+  my_bool callback_set;
+  LONG detached;
+  uchar buffer[8192];
+};
+
+
+static void CALLBACK winhttp_callback(HINTERNET handle, DWORD_PTR context,
+                                       DWORD status, void *info, DWORD length)
+{
+  struct winhttp_completion *state= (struct winhttp_completion *) context;
+  (void) handle;
+  if (!state)
+    return;
+  if (status == WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING)
+  {
+    /* WinHTTP promises this is the final callback for the request. */
+    if (InterlockedCompareExchange(&state->detached, 0, 0))
+    {
+      CloseHandle(state->done);
+      free(state);
+    }
+  }
+  else if (status == WINHTTP_CALLBACK_STATUS_REQUEST_ERROR)
+  {
+    state->error= ((WINHTTP_ASYNC_RESULT *) info)->dwError;
+    SetEvent(state->done);
+  }
+  else if (status == state->expected)
+  {
+    state->bytes= length;
+    SetEvent(state->done);
+  }
+}
+
+
+/* Closing an async request can return before its final callback arrives. */
+static void winhttp_close_request(HINTERNET *request,
+                                  struct winhttp_completion **state)
+{
+  my_bool callback_set= *state && (*state)->callback_set;
+  if (callback_set)
+    InterlockedExchange(&(*state)->detached, 1);
+  if (*request)
+  {
+    WinHttpCloseHandle(*request);
+    *request= NULL;
+  }
+  if (*state && !callback_set)
+  {
+    if ((*state)->done)
+      CloseHandle((*state)->done);
+    free(*state);
+  }
+  *state= NULL;
+}
+
+
+/* Each wait uses one deadline, even when a server keeps sending small chunks. */
+static int winhttp_wait(struct winhttp_completion *state, ULONGLONG started)
+{
+  ULONGLONG elapsed= GetTickCount64() - started;
+  DWORD result;
+  if (elapsed >= WINHTTP_DOWNLOAD_MS)
+  {
+    SetLastError(ERROR_TIMEOUT);
+    return 1;
+  }
+  result= WaitForSingleObject(state->done, (DWORD) (WINHTTP_DOWNLOAD_MS - elapsed));
+  if (result == WAIT_OBJECT_0)
+  {
+    if (!state->error)
+      return 0;
+    SetLastError(state->error);
+    return 1;
+  }
+  if (result == WAIT_TIMEOUT)
+    SetLastError(ERROR_TIMEOUT);
+  return 1;
+}
+
+
+/* Phase limits also provide meaningful network errors before the deadline. */
+static int winhttp_set_deadline(HINTERNET request, ULONGLONG started)
+{
+  ULONGLONG elapsed= GetTickCount64() - started;
+  int remaining, connect, transfer;
+
+  if (elapsed >= WINHTTP_DOWNLOAD_MS)
+  {
+    SetLastError(ERROR_TIMEOUT);
+    return 1;
+  }
+  remaining= (int) (WINHTTP_DOWNLOAD_MS - elapsed);
+  connect= MY_MIN(remaining, 10000);
+  transfer= MY_MIN(remaining, 30000);
+  return !WinHttpSetTimeouts(request, connect, connect, transfer, transfer);
+}
+
+
+static void winhttp_start_wait(struct winhttp_completion *state, DWORD expected)
+{
+  state->expected= expected;
+  state->error= 0;
+  state->bytes= 0;
+  ResetEvent(state->done);
+}
+
+
+/* Fetch into the same private, held stream used by the tarball verifier. */
 static FILE *download_file(const char *url, size_t limit)
 {
-  (void) url;
-  (void) limit;
-  fprintf(stderr, "ERROR: Remote plugin download is not supported on "
-          "Windows yet.\n");
-  return NULL;
+  WCHAR current[WINHTTP_URL_CHARS], next[WINHTTP_URL_CHARS];
+  WCHAR host[WINHTTP_URL_CHARS], object[WINHTTP_URL_CHARS];
+  WCHAR location[WINHTTP_URL_CHARS], length_text[40];
+  URL_COMPONENTS parts;
+  HINTERNET session= NULL, connection= NULL, request= NULL;
+  struct winhttp_completion *completion= NULL;
+  FILE *output= NULL;
+  ULONGLONG started= GetTickCount64();
+  DWORD status, bytes, policy, redirects= 0, length_size;
+  DWORD_PTR context;
+  size_t received= 0, advertised= 0;
+  my_bool have_length= FALSE, secure, previous_secure= FALSE;
+  const WCHAR *p;
+  DWORD error= 0;
+
+  if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, url, -1,
+                           current, (int) array_elements(current)))
+  {
+    fprintf(stderr, "ERROR: invalid or oversized download URL '%s'.\n", url);
+    return NULL;
+  }
+  session= WinHttpOpen(L"mariadb-plugin/1.0",
+                       WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
+                       WINHTTP_FLAG_ASYNC);
+  if (!session)
+    goto failed;
+  if (!(output= plugin_tmpfile()))
+    goto failed_file;
+
+  for (;;)
+  {
+    DWORD host_length, object_length;
+
+    if (GetTickCount64() - started >= WINHTTP_DOWNLOAD_MS)
+    {
+      SetLastError(ERROR_TIMEOUT);
+      goto failed;
+    }
+    for (p= current; *p; p++)
+      if (*p <= 0x20 || *p == 0x7f || *p == L'\\' ||
+          *p == L'#' || *p == L'@')
+        goto invalid_url;
+    memset(&parts, 0, sizeof(parts));
+    parts.dwStructSize= sizeof(parts);
+    parts.dwHostNameLength= (DWORD) -1;
+    parts.dwUserNameLength= (DWORD) -1;
+    parts.dwPasswordLength= (DWORD) -1;
+    parts.dwUrlPathLength= (DWORD) -1;
+    parts.dwExtraInfoLength= (DWORD) -1;
+    if (!WinHttpCrackUrl(current, 0, 0, &parts))
+      goto invalid_url;
+    secure= parts.nScheme == INTERNET_SCHEME_HTTPS;
+    if ((!secure && parts.nScheme != INTERNET_SCHEME_HTTP) ||
+        (previous_secure && !secure) || !parts.dwHostNameLength ||
+        parts.dwUserNameLength || parts.dwPasswordLength)
+      goto invalid_url;
+    previous_secure= secure;
+    host_length= parts.dwHostNameLength;
+    object_length= (parts.dwUrlPathLength ? parts.dwUrlPathLength : 1) +
+                   parts.dwExtraInfoLength;
+    if (host_length >= array_elements(host) ||
+        object_length >= array_elements(object))
+      goto invalid_url;
+    memcpy(host, parts.lpszHostName, host_length * sizeof(WCHAR));
+    host[host_length]= 0;
+    if (parts.dwUrlPathLength)
+      memcpy(object, parts.lpszUrlPath,
+             parts.dwUrlPathLength * sizeof(WCHAR));
+    else
+      object[0]= L'/';
+    if (parts.dwExtraInfoLength)
+      memcpy(object + (parts.dwUrlPathLength ? parts.dwUrlPathLength : 1),
+             parts.lpszExtraInfo,
+             parts.dwExtraInfoLength * sizeof(WCHAR));
+    object[object_length]= 0;
+
+    connection= WinHttpConnect(session, host, parts.nPort, 0);
+    if (!connection)
+      goto failed;
+    request= WinHttpOpenRequest(connection, L"GET",
+             object, NULL, WINHTTP_NO_REFERER,
+             WINHTTP_DEFAULT_ACCEPT_TYPES, secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!request)
+      goto failed;
+    completion= (struct winhttp_completion *) calloc(1, sizeof(*completion));
+    if (!completion)
+      goto failed_file;
+    completion->done= CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!completion->done)
+      goto failed;
+    policy= WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY,
+                          &policy, sizeof(policy)))
+      goto failed;
+    policy= WINHTTP_DISABLE_AUTHENTICATION | WINHTTP_DISABLE_COOKIES;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_DISABLE_FEATURE,
+                          &policy, sizeof(policy)))
+      goto failed;
+    policy= WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_AUTOLOGON_POLICY,
+                          &policy, sizeof(policy)))
+      goto failed;
+    context= (DWORD_PTR) completion;
+    if (!WinHttpSetOption(request, WINHTTP_OPTION_CONTEXT_VALUE,
+                          &context, sizeof(context)) ||
+        WinHttpSetStatusCallback(request, winhttp_callback,
+          WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS | WINHTTP_CALLBACK_FLAG_HANDLES,
+          0) == WINHTTP_INVALID_STATUS_CALLBACK)
+      goto failed;
+    completion->callback_set= TRUE;
+
+    winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE);
+    if (winhttp_set_deadline(request, started))
+      goto failed;
+    if (!WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                            WINHTTP_NO_REQUEST_DATA, 0, 0, context) &&
+        GetLastError() != ERROR_IO_PENDING)
+      goto failed;
+    if (winhttp_wait(completion, started))
+      goto failed;
+
+    winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE);
+    if (winhttp_set_deadline(request, started))
+      goto failed;
+    if (!WinHttpReceiveResponse(request, NULL) &&
+        GetLastError() != ERROR_IO_PENDING)
+      goto failed;
+    if (winhttp_wait(completion, started))
+      goto failed;
+    bytes= sizeof(status);
+    if (!WinHttpQueryHeaders(request,
+                             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &status, &bytes,
+                             WINHTTP_NO_HEADER_INDEX))
+      goto failed;
+    if (status == 301 || status == 302 || status == 303 ||
+        status == 307 || status == 308)
+    {
+      DWORD capacity= (DWORD) array_elements(next);
+      if (redirects == 5)
+      {
+        fprintf(stderr, "ERROR: download of '%s' has too many redirects.\n",
+                url);
+        goto discard;
+      }
+      bytes= sizeof(location);
+      if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_LOCATION,
+                               WINHTTP_HEADER_NAME_BY_INDEX, location, &bytes,
+                               WINHTTP_NO_HEADER_INDEX))
+        goto failed;
+      if (FAILED(UrlCombineW(current, location, next, &capacity, 0)))
+        goto invalid_url;
+      redirects++;
+      memcpy(current, next, (wcslen(next) + 1) * sizeof(WCHAR));
+      winhttp_close_request(&request, &completion);
+      WinHttpCloseHandle(connection);
+      connection= NULL;
+      continue;
+    }
+    if (status != 200)
+    {
+      fprintf(stderr, "ERROR: download of '%s' failed (HTTP %lu).\n",
+              url, (ulong) status);
+      goto discard;
+    }
+    length_size= sizeof(length_text);
+    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CONTENT_LENGTH,
+                            WINHTTP_HEADER_NAME_BY_INDEX, length_text,
+                            &length_size, WINHTTP_NO_HEADER_INDEX))
+    {
+      have_length= TRUE;
+      for (p= length_text; *p; p++)
+      {
+        if (*p < L'0' || *p > L'9' ||
+            (size_t) (*p - L'0') > limit ||
+            advertised > (limit - (size_t) (*p - L'0')) / 10)
+        {
+          fprintf(stderr, "ERROR: download of '%s' exceeds size limit.\n",
+                  url);
+          goto discard;
+        }
+        advertised= advertised * 10 + (size_t) (*p - L'0');
+      }
+    }
+    else if (GetLastError() != ERROR_WINHTTP_HEADER_NOT_FOUND)
+      goto failed;
+
+    for (;;)
+    {
+      winhttp_start_wait(completion, WINHTTP_CALLBACK_STATUS_READ_COMPLETE);
+      if (winhttp_set_deadline(request, started))
+        goto failed;
+      if (!WinHttpReadData(request, completion->buffer,
+                           sizeof(completion->buffer), NULL) &&
+          GetLastError() != ERROR_IO_PENDING)
+        goto failed;
+      if (winhttp_wait(completion, started))
+        goto failed;
+      if (!completion->bytes)
+        break;
+      if (completion->bytes > limit - received)
+      {
+        fprintf(stderr, "ERROR: download of '%s' exceeds size limit.\n",
+                url);
+        goto discard;
+      }
+      if (fwrite(completion->buffer, 1, completion->bytes, output) !=
+          completion->bytes)
+        goto failed_file;
+      received+= completion->bytes;
+    }
+    if (GetTickCount64() - started >= WINHTTP_DOWNLOAD_MS ||
+        (have_length && received != advertised) || fflush(output) ||
+        fseek(output, 0, SEEK_SET))
+    {
+      fprintf(stderr, "ERROR: download of '%s' is incomplete.\n", url);
+      goto discard;
+    }
+    break;
+  }
+  goto end;
+
+invalid_url:
+  fprintf(stderr, "ERROR: invalid download or redirect URL '%s'.\n", url);
+  goto discard;
+failed:
+  error= GetLastError();
+  fprintf(stderr, "ERROR: cannot download '%s': WinHTTP error %lu.\n",
+          url, (ulong) error);
+  goto discard;
+failed_file:
+  fprintf(stderr, "ERROR: cannot write download of '%s': %s.\n",
+          url, strerror(errno));
+discard:
+  if (output)
+  {
+    my_fclose(output, MYF(0));
+    output= NULL;
+  }
+end:
+  winhttp_close_request(&request, &completion);
+  if (connection)
+    WinHttpCloseHandle(connection);
+  if (session)
+    WinHttpCloseHandle(session);
+  return output;
 }
 #endif
 
@@ -2874,8 +3357,11 @@ static int read_index_entry(struct index_reader *reader, struct index_entry *e)
       index_server_series(e->server, &major, &minor))
     goto invalid;
   len= strlen(e->file);
-  if (len < 7 || strcmp(e->file + len - 7, ".tar.gz") ||
-      !valid_relative_path(e->file))
+  /* The index combines platforms, so recognize both archive types here. */
+  if (!archive_is_zip(e->file) &&
+      (len < 7 || strcmp(e->file + len - 7, ".tar.gz")))
+    goto invalid;
+  if (!valid_relative_path(e->file))
     goto invalid;
   for (i= 0; i < len; i++)
     if (!isalnum((uchar) e->file[i]) && e->file[i] != '.' &&
@@ -2898,6 +3384,10 @@ invalid:
 static int index_entry_compatible(const struct index_entry *e)
 {
   uint major, minor;
+#ifndef _WIN32
+  if (archive_is_zip(e->file))
+    return 0;
+#endif
   return !index_server_series(e->server, &major, &minor) &&
          major == MYSQL_VERSION_ID / 10000 &&
          minor == MYSQL_VERSION_ID / 100 % 100 &&
@@ -2940,9 +3430,7 @@ static int read_index(FILE *file, const char *source, const char *name,
   Read and validate all manifest entries before any deletion.
 
   @param[in]   manifest  Path of the manifest file.
-  @param[in]   name      Plugin the manifest must belong to, or NULL to skip
-                         the ownership check (rollback of a manifest the tool
-                         has just written itself).
+  @param[in]   name      Plugin the manifest must belong to.
   @param[out]  entries   Initialized array, filled with manifest_entry.
 
   @retval int error = 1, success = 0
@@ -2988,7 +3476,7 @@ static int read_manifest(const char *basedir, const char *manifest,
     if (!strncmp(line, "name: ", 6))
     {
       /* uninstall may only remove what a manifest of this plugin owns */
-      if (name && strcmp(line + 6, name))
+      if (strcmp(line + 6, name))
       {
         fprintf(stderr, "ERROR: manifest '%s' belongs to plugin '%s', not "
                 "'%s'; nothing was removed.\n", manifest, line + 6, name);
@@ -3023,7 +3511,7 @@ static int read_manifest(const char *basedir, const char *manifest,
     error= insert_dynamic(entries, &e);
   }
   my_fclose(file, MYF(0));
-  if (!error && name && !have_name)
+  if (!error && !have_name)
   {
     fprintf(stderr, "ERROR: invalid plugin manifest '%s'.\n", manifest);
     error= 1;
@@ -3161,8 +3649,7 @@ end:
 
   @param[in]  basedir   The base directory.
   @param[in]  manifest  Path of the manifest file.
-  @param[in]  name      Plugin the manifest must belong to, or NULL when
-                        rolling back a manifest the tool just wrote.
+  @param[in]  name      Plugin the manifest must belong to.
 
   @retval int error = 1, success = 0
 */
@@ -3273,6 +3760,7 @@ struct tar_entry
   ulonglong size;
   uint mode;
   my_bool is_dir;
+  my_bool created;             /* ownership for rollback, independent of disk */
 };
 
 
@@ -3768,7 +4256,7 @@ static int manifest_append(FILE *m, const char *key, const char *value)
 
 static int tar_extract_file(struct tar_reader *r, struct tar_entry *e,
                             const char *basedir, const char *full, FILE *m,
-                            const char *relpath)
+                            const char *relpath, my_bool *created)
 {
   char buf[8192];
   ulonglong left= e->size;
@@ -3783,11 +4271,11 @@ static int tar_extract_file(struct tar_reader *r, struct tar_entry *e,
             strerror(my_errno));
     return 1;
   }
+  *created= TRUE;
   /* Record ownership before writing contents so a failed write is tracked. */
   if (manifest_append(m, "file", relpath))
   {
     my_close(fd, MYF(0));
-    plugin_file_op(basedir, relpath, PLUGIN_DELETE, 0);
     return 1;
   }
   while (left && !error)
@@ -3871,12 +4359,13 @@ static int tar_extract(const char *file, FILE *contents, const char *basedir,
                 strerror(my_errno));
         goto err;
       }
+      ok->created= TRUE;
       if (manifest_append(m, "dir", ok->path))
         goto err;
     }
     else
     {
-      if (tar_extract_file(&r, &e, basedir, full, m, ok->path))
+      if (tar_extract_file(&r, &e, basedir, full, m, ok->path, &ok->created))
         goto err;
     }
   }
@@ -3886,6 +4375,471 @@ static int tar_extract(const char *file, FILE *contents, const char *basedir,
 err:
   tar_close(&r);
   return 1;
+}
+
+
+#ifdef _WIN32
+#define ZIP_MAX_ENTRIES 4096
+#define ZIP_MAX_EXPANDED (1024ULL * 1024 * 1024)
+
+struct zip_reader
+{
+  FILE *contents;                 /* owned by do_install, not by MiniZip */
+  unzFile zip;
+  uint64_t size;
+  int failed;
+};
+
+
+static voidpf ZCALLBACK zip_stream_open(voidpf opaque, const void *name,
+                                         int mode)
+{
+  struct zip_reader *r= (struct zip_reader *) opaque;
+  (void) name;
+  if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER) != ZLIB_FILEFUNC_MODE_READ)
+    return NULL;
+  clearerr(r->contents);
+  return r;
+}
+
+
+static uLong ZCALLBACK zip_stream_read(voidpf opaque, voidpf stream,
+                                      void *buf, uLong size)
+{
+  struct zip_reader *r= (struct zip_reader *) stream;
+  size_t n;
+  (void) opaque;
+  n= fread(buf, 1, size, r->contents);
+  if (ferror(r->contents))
+    r->failed= 1;
+  return (uLong) n;
+}
+
+
+static uLong ZCALLBACK zip_stream_write(voidpf opaque, voidpf stream,
+                                       const void *buf, uLong size)
+{
+  (void) opaque;
+  (void) buf;
+  (void) size;
+  ((struct zip_reader *) stream)->failed= 1;
+  return 0;
+}
+
+
+static ZPOS64_T ZCALLBACK zip_stream_tell(voidpf opaque, voidpf stream)
+{
+  __int64 pos= _ftelli64(((struct zip_reader *) stream)->contents);
+  (void) opaque;
+  return pos < 0 ? (ZPOS64_T) -1 : (ZPOS64_T) pos;
+}
+
+
+static long ZCALLBACK zip_stream_seek(voidpf opaque, voidpf stream,
+                                     ZPOS64_T offset, int origin)
+{
+  struct zip_reader *r= (struct zip_reader *) stream;
+  uint64_t base= 0;
+  __int64 pos;
+  (void) opaque;
+  if (origin == ZLIB_FILEFUNC_SEEK_CUR)
+  {
+    pos= _ftelli64(r->contents);
+    if (pos < 0)
+      return -1;
+    base= (uint64_t) pos;
+  }
+  else if (origin == ZLIB_FILEFUNC_SEEK_END)
+    base= r->size;
+  else if (origin != ZLIB_FILEFUNC_SEEK_SET)
+    return -1;
+  if (base > r->size || offset > r->size - base ||
+      base + offset > INT64_MAX)
+    return -1;
+  return _fseeki64(r->contents, (__int64) (base + offset), SEEK_SET);
+}
+
+
+static int ZCALLBACK zip_stream_close(voidpf opaque, voidpf stream)
+{
+  (void) opaque;
+  (void) stream;
+  return 0;                     /* do_install closes the private snapshot */
+}
+
+
+static int ZCALLBACK zip_stream_error(voidpf opaque, voidpf stream)
+{
+  (void) opaque;
+  return ((struct zip_reader *) stream)->failed;
+}
+
+
+static int zip_open(struct zip_reader *r, const char *file, FILE *contents)
+{
+  zlib_filefunc64_def io;
+  __int64 size;
+  memset(r, 0, sizeof(*r));
+  r->contents= contents;
+  if (_fseeki64(contents, 0, SEEK_END) ||
+      (size= _ftelli64(contents)) < 0 || _fseeki64(contents, 0, SEEK_SET))
+    goto error;
+  r->size= (uint64_t) size;
+  memset(&io, 0, sizeof(io));
+  io.opaque= r;
+  io.zopen64_file= zip_stream_open;
+  io.zread_file= zip_stream_read;
+  io.zwrite_file= zip_stream_write;
+  io.ztell64_file= zip_stream_tell;
+  io.zseek64_file= zip_stream_seek;
+  io.zclose_file= zip_stream_close;
+  io.zerror_file= zip_stream_error;
+  r->zip= unzOpen2_64(file, &io);
+  if (r->zip)
+    return 0;
+error:
+  fprintf(stderr, "ERROR: cannot read ZIP archive '%s'.\n", file);
+  return 1;
+}
+
+
+static int zip_device_name(const char *part, size_t len)
+{
+  size_t stem= 0;
+  while (stem < len && part[stem] != '.')
+    stem++;
+  if ((stem == 3 && (!strncasecmp(part, "con", 3) ||
+                     !strncasecmp(part, "prn", 3) ||
+                     !strncasecmp(part, "aux", 3) ||
+                     !strncasecmp(part, "nul", 3))) ||
+      (stem == 4 && (part[3] >= '1' && part[3] <= '9') &&
+       (!strncasecmp(part, "com", 3) || !strncasecmp(part, "lpt", 3))))
+    return 1;
+  return 0;
+}
+
+
+/* Accept the simple ASCII names emitted by the Windows plugin package. */
+static int zip_safe_path(const char *path)
+{
+  const char *part= path, *p;
+  if (!valid_relative_path(path))
+    return 0;
+  for (p= path; ; p++)
+  {
+    char c= *p;
+    if (c == '/' || c == '\0')
+    {
+      size_t len= (size_t) (p - part);
+      if (!len || (len == 1 && part[0] == '.') ||
+          part[len - 1] == '.' || zip_device_name(part, len))
+        return 0;
+      if (!c)
+        return 1;
+      part= p + 1;
+    }
+    else if (!((c >= 'a' && c <= 'z') ||
+               (c >= 'A' && c <= 'Z') ||
+               (c >= '0' && c <= '9') ||
+               c == '_' || c == '-' || c == '.'))
+      return 0;
+  }
+}
+
+
+static uint zip_u16(const uchar *p)
+{
+  return (uint) p[0] | ((uint) p[1] << 8);
+}
+
+
+static uint32_t zip_u32(const uchar *p)
+{
+  return (uint32_t) zip_u16(p) | ((uint32_t) zip_u16(p + 2) << 16);
+}
+
+
+/* MiniZip checks the local method and sizes, but not the local filename. */
+static int zip_local_name_matches(struct zip_reader *r, const char *name,
+                                  const unz_file_info64 *info)
+{
+  uchar central[46], local[30];
+  char local_name[FN_REFLEN];
+  uint32_t offset;
+  ZPOS64_T central_offset= unzGetOffset64(r->zip);
+  if (central_offset > r->size || r->size - central_offset < sizeof(central) ||
+      _fseeki64(r->contents, (__int64) central_offset, SEEK_SET) ||
+      fread(central, 1, sizeof(central), r->contents) != sizeof(central) ||
+      zip_u32(central) != 0x02014b50 ||
+      zip_u16(central + 28) != info->size_filename)
+    return 0;
+  offset= zip_u32(central + 42);
+  if (offset == UINT32_MAX || offset > r->size ||
+      r->size - offset < sizeof(local) + info->size_filename ||
+      _fseeki64(r->contents, (__int64) offset, SEEK_SET) ||
+      fread(local, 1, sizeof(local), r->contents) != sizeof(local) ||
+      zip_u32(local) != 0x04034b50 ||
+      zip_u16(local + 6) != info->flag ||
+      zip_u16(local + 8) != info->compression_method ||
+      zip_u16(local + 26) != info->size_filename ||
+      fread(local_name, 1, info->size_filename, r->contents) !=
+        info->size_filename ||
+      memcmp(local_name, name, info->size_filename))
+    return 0;
+  return 1;
+}
+
+
+static int zip_current_entry(struct zip_reader *r, struct tar_entry *e)
+{
+  unz_file_info64 info;
+  size_t len;
+  uint type;
+  if (unzGetCurrentFileInfo64(r->zip, &info, NULL, 0, NULL, 0, NULL, 0) != UNZ_OK ||
+      !info.size_filename || info.size_filename >= sizeof(e->path) ||
+      info.uncompressed_size > ZIP_MAX_EXPANDED ||
+      (info.compression_method != 0 && info.compression_method != 8) ||
+      (info.flag & ~(8UL | 0x800UL |
+                     (info.compression_method == 8 ? 0x6UL : 0))) ||
+      unzGetCurrentFileInfo64(r->zip, &info, e->path, sizeof(e->path),
+                              NULL, 0, NULL, 0) != UNZ_OK ||
+      strlen(e->path) != info.size_filename ||
+      !zip_local_name_matches(r, e->path, &info))
+    return 1;
+  len= strlen(e->path);
+  e->is_dir= e->path[len - 1] == '/';
+  if (e->is_dir)
+    e->path[--len]= '\0';
+  type= (info.external_fa >> 16) & 0170000;
+  if ((type && type != (e->is_dir ? 0040000 : 0100000)) ||
+      (e->is_dir && info.uncompressed_size) || !zip_safe_path(e->path))
+    return 1;
+  e->size= info.uncompressed_size;
+  e->mode= 0;
+  return 0;
+}
+
+
+static int zip_scan(const char *file, FILE *contents, DYNAMIC_ARRAY *entries,
+                    char *topdir)
+{
+  struct zip_reader r;
+  unz_global_info64 global;
+  struct tar_entry e, *p;
+  const char *base= file + dirname_length(file);
+  size_t len, i;
+  ulonglong expanded= 0;
+  int rc, error= 1;
+  my_bool have_topdir= TRUE;
+  if (zip_open(&r, file, contents))
+    return 1;
+  topdir[0]= '\0';
+  if (unzGetGlobalInfo64(r.zip, &global) != UNZ_OK ||
+      !global.number_entry || global.number_entry > ZIP_MAX_ENTRIES ||
+      unzGoToFirstFile(r.zip) != UNZ_OK)
+    goto end;
+  for (i= 0; i < (size_t) global.number_entry; i++)
+  {
+    const char *slash;
+    if (zip_current_entry(&r, &e) ||
+        e.size > ZIP_MAX_EXPANDED - expanded)
+      goto end;
+    expanded+= e.size;
+    slash= strchr(e.path, '/');
+    len= slash ? (size_t) (slash - e.path) : strlen(e.path);
+    if (!slash && !e.is_dir)
+      have_topdir= FALSE;
+    if (!topdir[0])
+      safe_strcpy_truncated(topdir, MY_MIN(FN_REFLEN, len + 1), e.path);
+    else if (strlen(topdir) != len || strncmp(topdir, e.path, len))
+      have_topdir= FALSE;
+    if (insert_dynamic(entries, &e))
+      goto end;
+    rc= unzGoToNextFile(r.zip);
+    if (i + 1 < (size_t) global.number_entry && rc != UNZ_OK)
+      goto end;
+    if (i + 1 == (size_t) global.number_entry &&
+        rc != UNZ_END_OF_LIST_OF_FILE)
+      goto end;
+  }
+  len= strlen(topdir);
+  if (!have_topdir || strlen(base) != len + 4 ||
+      strncmp(base, topdir, len) || !archive_is_zip(base))
+    topdir[0]= '\0';
+  else
+  {
+    for (i= 0; i < entries->elements; )
+    {
+      p= dynamic_element(entries, i, struct tar_entry *);
+      if (strlen(p->path) == len)
+        delete_dynamic_element(entries, i);
+      else
+      {
+        memmove(p->path, p->path + len + 1, strlen(p->path) - len);
+        i++;
+      }
+    }
+  }
+  if (!entries->elements)
+    goto end;
+  for (i= 0; i < entries->elements; i++)
+  {
+    size_t j;
+    p= dynamic_element(entries, i, struct tar_entry *);
+    if (!zip_safe_path(p->path))
+      goto end;
+    for (j= 0; j < i; j++)
+    {
+      struct tar_entry *prior= dynamic_element(entries, j, struct tar_entry *);
+      if (!strncasecmp(prior->path, p->path, FN_REFLEN))
+        goto end;
+    }
+  }
+  error= r.failed;
+end:
+  if (unzClose(r.zip) != UNZ_OK)
+    error= 1;
+  if (error)
+    fprintf(stderr, "ERROR: '%s' is not a supported or safe ZIP archive.\n",
+            file);
+  return error;
+}
+
+
+static int zip_extract(const char *file, FILE *contents, const char *basedir,
+                       const char *topdir, DYNAMIC_ARRAY *entries, FILE *m)
+{
+  struct zip_reader r;
+  unz_global_info64 global;
+  size_t i, accepted= 0, skip= topdir[0] ? strlen(topdir) + 1 : 0;
+  char full[FN_REFLEN], buf[8192];
+  int error= 1;
+  if (zip_open(&r, file, contents))
+    return 1;
+  if (unzGetGlobalInfo64(r.zip, &global) != UNZ_OK ||
+      unzGoToFirstFile(r.zip) != UNZ_OK)
+    goto end;
+  for (i= 0; i < (size_t) global.number_entry; i++)
+  {
+    struct tar_entry e, *ok;
+    int rc;
+    if (zip_current_entry(&r, &e))
+      goto end;
+    if (topdir[0] && !strcmp(e.path, topdir))
+      goto next;
+    if (accepted == entries->elements ||
+        strlen(e.path) < skip ||
+        strcmp(e.path + skip,
+               (ok= dynamic_element(entries, accepted, struct tar_entry *))->path) ||
+        e.is_dir != ok->is_dir || e.size != ok->size ||
+        build_full_path(full, sizeof(full), basedir, ok->path))
+      goto end;
+    accepted++;
+    if (e.is_dir)
+    {
+      if (file_exists(full))
+      {
+        if (plugin_file_op(basedir, ok->path, PLUGIN_CHECK_DIR, 0))
+          goto end;
+      }
+      else
+      {
+        if (plugin_file_op(basedir, ok->path, PLUGIN_MKDIR, 0))
+          goto end;
+        ok->created= TRUE;
+        if (manifest_append(m, "dir", ok->path))
+          goto end;
+      }
+    }
+    else
+    {
+      File fd= plugin_file_op(basedir, ok->path, PLUGIN_OPEN,
+                              O_WRONLY | O_CREAT | O_EXCL | O_BINARY);
+      ulonglong left= e.size;
+      int read_rc= 0, close_rc;
+      if (fd < 0)
+        goto end;
+      ok->created= TRUE;
+      if (manifest_append(m, "file", ok->path))
+      {
+        my_close(fd, MYF(0));
+        goto end;
+      }
+      if (unzOpenCurrentFile(r.zip) != UNZ_OK)
+      {
+        my_close(fd, MYF(0));
+        goto end;
+      }
+      while (left && (read_rc= unzReadCurrentFile(r.zip, buf,
+                                     (unsigned) MY_MIN(left, sizeof(buf)))) > 0)
+      {
+        if (my_write(fd, (uchar *) buf, (size_t) read_rc,
+                     MYF(MY_WME | MY_NABP)))
+          break;
+        left-= (unsigned) read_rc;
+      }
+      close_rc= unzCloseCurrentFile(r.zip);
+      if (my_close(fd, MYF(MY_WME)) || left || read_rc < 0 ||
+          close_rc != UNZ_OK || r.failed)
+        goto end;
+    }
+next:
+    rc= unzGoToNextFile(r.zip);
+    if (i + 1 < (size_t) global.number_entry && rc != UNZ_OK)
+      goto end;
+    if (i + 1 == (size_t) global.number_entry &&
+        rc != UNZ_END_OF_LIST_OF_FILE)
+      goto end;
+  }
+  if (accepted == entries->elements && !r.failed)
+    error= 0;
+end:
+  if (unzClose(r.zip) != UNZ_OK)
+    error= 1;
+  if (error)
+    fprintf(stderr, "ERROR: extraction of ZIP archive '%s' failed.\n", file);
+  return error;
+}
+#endif /* _WIN32 */
+
+
+/* Never reread a journal that may have ended in a partial write. */
+static void rollback_install(const char *basedir, const char *manifest,
+                              DYNAMIC_ARRAY *entries)
+{
+  size_t i;
+  int failed= 0;
+  /* Parents are created before children, so remove in reverse order. */
+  for (i= entries->elements; i-- > 0; )
+  {
+    struct tar_entry *e= dynamic_element(entries, i, struct tar_entry *);
+    if (!e->created)
+      continue;
+    if (plugin_file_op(basedir, e->path,
+                        e->is_dir ? PLUGIN_RMDIR : PLUGIN_DELETE, 0) &&
+        my_errno != ENOENT)
+    {
+      fprintf(stderr, "ERROR: rollback could not remove '%s/%s': %s.\n",
+              basedir, e->path, strerror(my_errno));
+      failed= 1;
+    }
+    else
+      e->created= FALSE;
+  }
+  if (failed)
+  {
+    fprintf(stderr, "ERROR: rollback is incomplete; retained '%s', which "
+            "may need repair before uninstall can be retried.\n", manifest);
+    return;
+  }
+  if (plugin_file_op(basedir, manifest + strlen(basedir) + 1,
+                      PLUGIN_DELETE, 0))
+  {
+    fprintf(stderr, "ERROR: cannot remove failed-install manifest '%s': %s.\n",
+            manifest, strerror(my_errno));
+    return;
+  }
+  plugin_file_op(basedir, MANIFEST_SUBDIR, PLUGIN_RMDIR, 0);
 }
 
 
@@ -3899,7 +4853,7 @@ static void print_enable_instructions(const char *basedir,
                                       DYNAMIC_ARRAY *entries)
 {
   size_t i, prefix= sizeof(STR(INSTALL_PLUGINDIR)) - 1;
-  int pass, shown= 0;
+  int pass, shown= 0, unsafe= 0;
 
   /* two passes: the INSTALL SONAME lines, then the plugin-load-add lines */
   for (pass= 0; pass < 2; pass++)
@@ -3907,17 +4861,35 @@ static void print_enable_instructions(const char *basedir,
     for (i= 0; i < entries->elements; i++)
     {
       struct tar_entry *e= dynamic_element(entries, i, struct tar_entry *);
-      const char *name= e->path + prefix + 1, *ext;
+      const char *name, *p;
+      size_t name_len, ext_len= sizeof(SO_EXT) - 1;
       if (e->is_dir ||
           strncmp(e->path, STR(INSTALL_PLUGINDIR), prefix) != 0 ||
-          e->path[prefix] != '/' || strchr(name, '/') ||
-          !(ext= strstr(name, SO_EXT)))
+          e->path[prefix] != '/')
         continue;
+      name= e->path + prefix + 1;
+      if (strchr(name, '/'))
+        continue;
+      name_len= strlen(name);
+      if (name_len <= ext_len || strcmp(name + name_len - ext_len, SO_EXT))
+        continue;
+      for (p= name; p < name + name_len - ext_len; p++)
+        if (!(*p >= 'a' && *p <= 'z') &&
+            !(*p >= 'A' && *p <= 'Z') &&
+            !(*p >= '0' && *p <= '9') && *p != '_' && *p != '-')
+          break;
+      if (p != name + name_len - ext_len)
+      {
+        if (pass == 0)
+          unsafe++;
+        continue;
+      }
       if (pass == 0)
       {
         if (!shown++)
           printf("To enable it, either run in the server:\n");
-        printf("  INSTALL SONAME '%.*s';\n", (int) (ext - name), name);
+        printf("  INSTALL SONAME '%.*s';\n",
+               (int) (name_len - ext_len), name);
       }
       else
         printf("  plugin-load-add=%s\n", name);
@@ -3926,7 +4898,10 @@ static void print_enable_instructions(const char *basedir,
       printf("or add to your server configuration and restart:\n"
              "  [mariadb]\n");
   }
-  if (!shown)
+  if (unsafe)
+    printf("Some plugin library names need manual activation; no command "
+           "was printed for them.\n");
+  if (!shown && !unsafe)
     printf("No plugin library was found under %s/%s; nothing to enable.\n",
            basedir, STR(INSTALL_PLUGINDIR));
 }
@@ -3984,6 +4959,9 @@ static int do_install(const char *name, const char *basedir)
   const char *archive= opt_file, *source= opt_file, *expected= opt_sha256;
   size_t i;
   int error= 1;
+#ifdef _WIN32
+  my_bool zip_archive;
+#endif
 
   if ((opt_sha256 && !opt_file) || (opt_base_url && opt_file))
   {
@@ -4026,6 +5004,9 @@ static int do_install(const char *name, const char *basedir)
   }
   if (!contents && !(contents= copy_local_archive(archive)))
     return 1;
+#ifdef _WIN32
+  zip_archive= archive_is_zip(archive);
+#endif
   if (expected)
   {
     if (verify_sha256(archive, contents, expected, sha256))
@@ -4040,8 +5021,18 @@ static int do_install(const char *name, const char *basedir)
   if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &entries,
                             sizeof(struct tar_entry), 64, 64, MYF(MY_WME)))
     goto close_archive;
-  if (tar_scan(archive, contents, &entries, topdir))
+  if (
+#ifdef _WIN32
+      (zip_archive ? zip_scan(archive, contents, &entries, topdir) :
+                     tar_scan(archive, contents, &entries, topdir))
+#else
+      tar_scan(archive, contents, &entries, topdir)
+#endif
+      )
     goto end;
+
+  for (i= 0; i < entries.elements; i++)
+    dynamic_element(&entries, i, struct tar_entry *)->created= FALSE;
 
   /*
     Everything is judged before anything is written: a file that already
@@ -4050,14 +5041,21 @@ static int do_install(const char *name, const char *basedir)
   for (i= 0; i < entries.elements; i++)
   {
     e= dynamic_element(&entries, i, struct tar_entry *);
-    if (!strncmp(e->path, MANIFEST_SUBDIR, sizeof(MANIFEST_SUBDIR) - 1) &&
-        (e->path[sizeof(MANIFEST_SUBDIR) - 1] == '/' ||
-         e->path[sizeof(MANIFEST_SUBDIR) - 1] == '\0'))
+    if (reserved_manifest_path(e->path))
     {
       fprintf(stderr, "ERROR: archive entry '%s' uses the reserved manifest "
               "directory.\n", e->path);
       goto end;
     }
+#ifdef _WIN32
+    /* Preview must reject aliases of an already existing manifest directory. */
+    if (archive_targets_manifest(basedir, e->path, TRUE))
+    {
+      fprintf(stderr, "ERROR: archive entry '%s' may target the reserved "
+              "manifest directory.\n", e->path);
+      goto end;
+    }
+#endif
     if (build_full_path(full, sizeof(full), basedir, e->path))
       goto end;
     if (!e->is_dir && file_exists(full))
@@ -4085,8 +5083,9 @@ static int do_install(const char *name, const char *basedir)
   }
 
   /*
-    Write ownership records during extraction so ordinary failures can use
-    the same removal logic as uninstall. This is not a crash-atomic journal.
+    Persist ownership for uninstall. Rollback uses the created flags in
+    memory because a write failure can leave a partial manifest record.
+    This is not a crash-atomic journal.
   */
   if (build_full_path(full, sizeof(full), basedir, MANIFEST_SUBDIR))
     goto end;
@@ -4126,9 +5125,34 @@ static int do_install(const char *name, const char *basedir)
         (topdir[0] && manifest_append(m, "topdir", topdir)))
       goto rollback;
   }
-  if (tar_extract(archive, contents, basedir, topdir, &entries, m))
+#ifdef _WIN32
+  for (i= 0; i < entries.elements; i++)
+  {
+    e= dynamic_element(&entries, i, struct tar_entry *);
+    if (archive_targets_manifest(basedir, e->path, FALSE))
+    {
+      fprintf(stderr, "ERROR: archive entry '%s' may target the reserved "
+              "manifest directory.\n", e->path);
+      goto rollback;
+    }
+  }
+#endif
+  if (
+#ifdef _WIN32
+      (zip_archive ? zip_extract(archive, contents, basedir, topdir,
+                                 &entries, m) :
+                     tar_extract(archive, contents, basedir, topdir,
+                                 &entries, m))
+#else
+      tar_extract(archive, contents, basedir, topdir, &entries, m)
+#endif
+      )
     goto rollback;
-  my_fclose(m, MYF(0));
+  if (my_fclose(m, MYF(MY_WME)))
+  {
+    m= 0;
+    goto rollback;
+  }
   m= 0;
 
   printf("Plugin '%s' installed into %s.\n", name, basedir);
@@ -4141,8 +5165,7 @@ rollback:
     my_fclose(m, MYF(0));
   fprintf(stderr, "ERROR: installation of '%s' failed, removing what was "
           "written.\n", name);
-  /* the manifest was just written by this tool and may be incomplete */
-  manifest_remove(basedir, manifest, 0);
+  rollback_install(basedir, manifest, &entries);
 end:
   delete_dynamic(&entries);
 close_archive:
@@ -4344,26 +5367,6 @@ static int run_new_command(int argc, char **argv)
   {
     fprintf(stderr, "ERROR: --base-url is only for tarball installations; "
             "search uses the native package repositories on this system.\n");
-    return 1;
-  }
-#endif
-
-#if !defined(HAVE_LIBCURL) && !defined(PKG_DELEGATION)
-  /*
-    Tarball builds without libcurl are the Windows builds: they have no
-    downloader, so the repository operations are refused before any path is
-    resolved or any file is touched. A local archive (--file) stays usable.
-  */
-  if (is_search)
-  {
-    fprintf(stderr, "ERROR: Remote plugin search is not supported on "
-            "Windows yet.\n");
-    return 1;
-  }
-  if (!opt_file && strcmp(verb, "install") == 0)
-  {
-    fprintf(stderr, "ERROR: Remote plugin installation is not supported on "
-            "Windows yet.\n");
     return 1;
   }
 #endif
