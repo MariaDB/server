@@ -1,21 +1,14 @@
 #!/bin/sh -eu
 
-# This is a simple example of wsrep notification script (wsrep_notify_cmd).
-# It will create 'wsrep' schema and two tables in it: 'membeship' and 'status'
-# and fill them on every membership or node status change.
-#
-# Edit parameters below to specify the address and login to server:
+# Copy of support-files/wsrep_notify.sh for the galera_wsrep_notify_pwd_injection
+# test. PSWD contains an apostrophe and a space (MDEV-41230 PoC value) and
+# CLIENT is a fake argv-recording client instead of a real mysql client.
 #
 USER='root'
-PSWD='rootpass'
-#
-# If these parameters are not set, then the values
-# passed by the server are taken:
+PSWD="x' y='z"
 #
 HOST="127.0.0.1"
 PORT=3306
-#
-# Edit parameters below to specify SSL parameters:
 #
 ssl_cert=""
 ssl_key=""
@@ -26,11 +19,7 @@ ssl_crl=""
 ssl_crlpath=""
 ssl_verify_server_cert=0
 #
-# Client executable path:
-#
-CLIENT="mysql"
-#
-# Name of schema and tables:
+CLIENT="$MYSQL_TEST_DIR/std_data/wsrep_notify_argv_recorder.sh"
 #
 SCHEMA="wsrep"
 MEMB_TABLE="$SCHEMA.membership"
@@ -65,7 +54,6 @@ configuration_change()
     for NODE in $(echo "$MEMBERS" | sed s/,/\ /g)
     do
         echo "INSERT INTO $MEMB_TABLE VALUES ( $idx, "
-        # Don't forget to properly quote string values
         echo "'$NODE'" | sed  s/\\//\',\'/g
         echo ");"
         idx=$(( $idx+1 ))
