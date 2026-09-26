@@ -1,0 +1,21 @@
+call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
+#
+# MDEV-39792 InnoDB: ALTER TABLE FORCE triggers assertion "s"
+# in buf_page_get_gen() when converting an externally stored
+# CHAR column to ROW_FORMAT=REDUNDANT
+#
+SET @row_format = @@GLOBAL.innodb_default_row_format;
+SET GLOBAL innodb_default_row_format=DYNAMIC;
+CREATE TABLE t1 (c1 CHAR(255) CHARACTER SET utf8, b1 LONGTEXT, b2 LONGTEXT,
+b3 LONGTEXT, b4 LONGTEXT, b5 LONGTEXT, b6 LONGTEXT,
+b7 LONGTEXT, b8 LONGTEXT, b9 LONGTEXT, b10 LONGTEXT,
+KEY(c1)) ENGINE=InnoDB;
+SET @b= REPEAT('a',740);
+INSERT INTO t1 (c1,b1,b2,b3,b4,b5,b6,b7,b8,b9,b10)
+VALUES (REPEAT(UNHEX('E0B881'),250),@b,@b,@b,@b,@b,@b,@b,@b,@b,@b);
+SET GLOBAL innodb_default_row_format=REDUNDANT;
+ALTER TABLE t1 FORCE;
+ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+DROP TABLE t1;
+SET GLOBAL innodb_default_row_format = @row_format;
+# End of 11.4 tests

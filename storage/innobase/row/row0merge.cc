@@ -610,6 +610,7 @@ error:
 		ulint			len;
 		ulint			fixed_len;
 		const dfield_t*		row_field;
+		bool			converted_from_ext = false;
 		const dict_col_t* const col = ifield->col;
 		const dict_v_col_t* const v_col = col->is_virtual()
 			? reinterpret_cast<const dict_v_col_t*>(col)
@@ -765,6 +766,12 @@ error:
 						row_field, field, col->len,
 						old_table->space->zip_size(),
 						conv_heap);
+					/* The field was already fetched in
+					full and converted to a fixed-width
+					ROW_FORMAT=REDUNDANT value above; it
+					is no longer externally stored, and
+					must not be re-flagged as such below. */
+					converted_from_ext = row_field->ext;
 				}
 			}
 		}
@@ -774,6 +781,7 @@ error:
 		if (dfield_is_null(field)) {
 			ut_ad(!(col->prtype & DATA_NOT_NULL));
 			continue;
+		} else if (converted_from_ext) {
 		} else if (!ext) {
 		} else if (dict_index_is_clust(index)) {
 			/* Flag externally stored fields. */
