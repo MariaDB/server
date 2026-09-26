@@ -12025,10 +12025,16 @@ void Item_direct_ref_to_item::change_item(THD *thd, Item *i)
 
 bool Item::cleanup_excluding_immutables_processor (void *arg)
 {
-  if (!(get_extraction_flag() == MARKER_IMMUTABLE))
-    return cleanup_processor(arg);
-  else
+  /*
+    basic_const_item() is also true for an Item_ref wrapping a constant,
+    e.g. a reference to a constant select list item of a merged derived
+    table. Such a ref is never marked with MARKER_IMMUTABLE, but the
+    function enclosing it is, so it is not cleaned up here, and
+    fix_fields() does not descend into items that are already fixed.
+  */
+  if (basic_const_item() || get_extraction_flag() == MARKER_IMMUTABLE)
     return false;
+  return cleanup_processor(arg);
 }
 
 
