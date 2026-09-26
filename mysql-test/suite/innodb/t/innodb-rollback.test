@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 #
 # MDEV-18632: wsrep_is_wsrep_xid: Conditional jump or move depends on uninitialised value
@@ -12,6 +14,29 @@ SELECT f() FROM t1;
 
 # Cleanup
 --disconnect con2
---disconnect con1
 --connection default
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41207 Acquire metadata locks for recovered transaction
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 INT NOT NULL)STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+BEGIN;
+UPDATE t1 SET f1=3;
+
+connection con1;
+CREATE TABLE t2(f1 INT NOT NULL)ENGINE=InnoDB;
+connection default;
+--let $shutdown_timeout=0
+--let $restart_parameters=--debug_dbug=d,rollback_wait
+--source include/restart_mysqld.inc
+SET DEBUG_SYNC='now WAIT_FOR rollback_parked';
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+SET DEBUG_SYNC='now SIGNAL rollback_resume';
+DROP TABLE t2, t1;
+SET DEBUG_SYNC='RESET';
+disconnect con1;

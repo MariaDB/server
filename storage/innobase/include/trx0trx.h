@@ -43,6 +43,15 @@ Created 3/26/1996 Heikki Tuuri
 // Forward declaration
 struct mtr_t;
 struct rw_trx_hash_element_t;
+/** Background connection that owns the metadata locks which
+trx_resurrect_table_locks() acquires for recovered transactions. It is
+created by trx_lists_init_at_db_start() and destroyed by
+trx_recovery_thd_destroy(). */
+extern THD *trx_recovery_thd;
+
+/** Destroy trx_recovery_thd.
+Does nothing if the connection was already destroyed. */
+void trx_recovery_thd_destroy() noexcept;
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
