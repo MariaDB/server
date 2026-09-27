@@ -48,11 +48,15 @@ FROM t_group GROUP BY g ORDER BY g;
 SELECT test_plugin_count(DISTINCT 1);
 SELECT test_plugin_count(DISTINCT 1.5);
 SELECT test_plugin_count(DISTINCT 1.5e0);
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT 2.5);
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT 2.5e0);
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE v IS NULL;
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE FALSE;
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE FALSE;
 
 CREATE TABLE t_distinct (v INT);
@@ -75,7 +79,20 @@ INSERT INTO t_blob VALUES
   (REPEAT('a', 10000)), (REPEAT('a', 10000)),
   (REPEAT('b', 10000)), (NULL);
 SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+--error ER_NOT_SUPPORTED_YET
 SELECT LENGTH(test_plugin_first(DISTINCT value)) FROM t_blob;
+
+CREATE TABLE t_distinct_order (i INT, vc VARCHAR(16), tx TEXT);
+INSERT INTO t_distinct_order VALUES
+  (9,'zzz','zzz'), (5,'mmm','mmm'), (9,'zzz','zzz'),
+  (1,'aaa','aaa'), (5,'mmm','mmm');
+--error ER_NOT_SUPPORTED_YET
+SELECT test_plugin_first(DISTINCT i) FROM t_distinct_order;
+--error ER_NOT_SUPPORTED_YET
+SELECT test_plugin_first(DISTINCT vc) FROM t_distinct_order;
+--error ER_NOT_SUPPORTED_YET
+SELECT test_plugin_first(DISTINCT tx) FROM t_distinct_order;
+DROP TABLE t_distinct_order;
 
 SET @save_tmp_table_size= @@tmp_table_size;
 SET @save_max_heap_table_size= @@max_heap_table_size;

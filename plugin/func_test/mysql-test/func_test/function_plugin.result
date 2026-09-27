@@ -126,14 +126,11 @@ SELECT test_plugin_first(DISTINCT value) FROM
 (SELECT value FROM t_uuid WHERE id = 2
 UNION ALL
 SELECT value FROM t_uuid WHERE id = 2) AS dt;
-test_plugin_first(DISTINCT value)
-00000000-0000-0000-0000-000000000001
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_first(DISTINCT value) =
 (SELECT value FROM t_uuid WHERE id = 2)
 FROM t_uuid WHERE grp = 1;
-test_plugin_first(DISTINCT value) =
-(SELECT value FROM t_uuid WHERE id = 2)
-1
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_first(value) IS NULL FROM t_uuid WHERE FALSE;
 test_plugin_first(value) IS NULL
 1
@@ -182,7 +179,6 @@ SELECT test_plugin_count(DISTINCT value) FROM t_blob;
 test_plugin_count(DISTINCT value)
 2
 SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
-test_plugin_first(DISTINCT value) IS NOT NULL
-1
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
 DROP TABLE t1;
