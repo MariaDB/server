@@ -1,0 +1,11 @@
+SET GLOBAL mroonga_database_path_prefix =
+"MYSQL_TMP_DIR/mroonga.data/sub/";
+CREATE DATABASE clean_test;
+USE clean_test;
+CREATE TABLE counts (
+id INT PRIMARY KEY AUTO_INCREMENT
+);
+DROP TABLE counts;
+DROP DATABASE clean_test;
+SET GLOBAL mroonga_database_path_prefix = NULL;
+USE test;
