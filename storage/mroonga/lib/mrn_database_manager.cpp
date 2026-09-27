@@ -40,6 +40,9 @@
 #  define MRN_MKDIR(pathname, mode) mkdir((pathname), (mode))
 #endif
 
+#include <cstring>
+#include <string>
+
 extern "C" {
   grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(init, normalizers_mysql)(grn_ctx *ctx);
   grn_rc GRN_PLUGIN_IMPL_NAME_TAGGED(register, normalizers_mysql)(grn_ctx *ctx);
@@ -274,27 +277,30 @@ namespace mrn {
     MRN_DBUG_ENTER_METHOD();
 
     int i = 0;
-    char sub_directory[MRN_MAX_PATH_SIZE];
-    sub_directory[0] = '\0';
+    std::string sub_directory;
     while (true) {
       if (mrn_is_directory_separator(directory[i]) ||
           directory[i] == '\0') {
-        sub_directory[i] = '\0';
         struct stat directory_status;
-        if (stat(sub_directory, &directory_status) != 0) {
-          DBUG_PRINT("info", ("mroonga: creating directory: <%s>", sub_directory));
-          GRN_LOG(ctx_, GRN_LOG_INFO, "creating directory: <%s>", sub_directory);
-          if (MRN_MKDIR(sub_directory, S_IRWXU) == 0) {
+        if (stat(sub_directory.c_str(), &directory_status) != 0) {
+          DBUG_PRINT("info",
+                     ("mroonga: creating directory: <%s>",
+                      sub_directory.c_str()));
+          GRN_LOG(ctx_, GRN_LOG_INFO,
+                  "creating directory: <%s>", sub_directory.c_str());
+          if (MRN_MKDIR(sub_directory.c_str(), S_IRWXU) == 0) {
             DBUG_PRINT("info",
-                       ("mroonga: created directory: <%s>", sub_directory));
-            GRN_LOG(ctx_, GRN_LOG_INFO, "created directory: <%s>", sub_directory);
+                       ("mroonga: created directory: <%s>",
+                        sub_directory.c_str()));
+            GRN_LOG(ctx_, GRN_LOG_INFO,
+                    "created directory: <%s>", sub_directory.c_str());
           } else {
             DBUG_PRINT("error",
                        ("mroonga: failed to create directory: <%s>: <%s>",
-                        sub_directory, strerror(errno)));
+                        sub_directory.c_str(), strerror(errno)));
             GRN_LOG(ctx_, GRN_LOG_ERROR,
                     "failed to create directory: <%s>: <%s>",
-                    sub_directory, strerror(errno));
+                    sub_directory.c_str(), strerror(errno));
             DBUG_VOID_RETURN;
           }
         }
@@ -304,7 +310,7 @@ namespace mrn {
         break;
       }
 
-      sub_directory[i] = directory[i];
+      sub_directory += directory[i];
       ++i;
     }
 
@@ -329,11 +335,9 @@ namespace mrn {
     if (path_prefix == last_path_separator)
       DBUG_VOID_RETURN;
 
-    char database_directory[MRN_MAX_PATH_SIZE];
-    size_t database_directory_length = last_path_separator - path_prefix;
-    strncpy(database_directory, path_prefix, database_directory_length);
-    database_directory[database_directory_length] = '\0';
-    mkdir_p(database_directory);
+    std::string database_directory(path_prefix,
+                                   last_path_separator - path_prefix);
+    mkdir_p(database_directory.c_str());
 
     DBUG_VOID_RETURN;
   }
