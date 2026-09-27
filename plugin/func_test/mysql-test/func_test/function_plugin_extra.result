@@ -68,6 +68,21 @@ g	test_plugin_count(DISTINCT v)
 1	0
 2	1
 3	2
+SELECT test_plugin_count(DISTINCT 1);
+test_plugin_count(DISTINCT 1)
+1
+SELECT test_plugin_count(DISTINCT 1.5);
+test_plugin_count(DISTINCT 1.5)
+1
+SELECT test_plugin_count(DISTINCT 1.5e0);
+test_plugin_count(DISTINCT 1.5e0)
+1
+SELECT test_plugin_first(DISTINCT 2.5);
+test_plugin_first(DISTINCT 2.5)
+2.5
+SELECT test_plugin_first(DISTINCT 2.5e0);
+test_plugin_first(DISTINCT 2.5e0)
+2.5
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
 test_plugin_count(DISTINCT v)
 0
