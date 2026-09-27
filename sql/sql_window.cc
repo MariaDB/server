@@ -514,13 +514,13 @@ static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
   {
     int cmp;
     // remove all constants as we don't need them for comparision
-    while (elem1 && ((*elem1->item)->real_item())->const_item())
+    while(elem1 && ((*elem1->item)->real_item())->const_item())
     {
       elem1= elem1->next;
       continue;
     }
 
-    while (elem2 && ((*elem2->item)->real_item())->const_item())
+    while(elem2 && ((*elem2->item)->real_item())->const_item())
     {
       elem2= elem2->next;
       continue;
@@ -529,8 +529,8 @@ static int compare_order_lists(ORDER *list1, int spec_number1, ORDER *list2,
     if (!elem1 || !elem2)
       break;
 
-    if ((cmp=
-             compare_order_elements(elem1, spec_number1, elem2, spec_number2)))
+    if ((cmp= compare_order_elements(elem1, spec_number1,
+                                     elem2, spec_number2)))
       return cmp;
   }
   if (elem1)

@@ -3365,7 +3365,14 @@ int JOIN::optimize_stage2()
 
   if (!need_tmp && simple_order && streamable_window_funcs &&
       streaming_wf_order_is_longer)
-    order= win_func_longest_order;
+  {
+    /*
+      Replace the original ORDER BY with the longest window function order.
+      It's safe: the main ORDER BY is a prefix of win_func_longest_order,
+      so the wider sort still satisfies the query's ORDER BY
+    */
+    this->order= win_func_longest_order;
+  }
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -26155,10 +26162,12 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
-  // If a window streaming step exists, then this was applied earlier already
-  // in end_compute_win_func()
   if (!(join_tab && (join_tab - 1)->window_funcs_streaming_step != NULL))
   {
+    /*
+      If a window streaming step exists, then this was already applied
+      earlier in end_compute_win_func()
+    */
     if (join->table_count && join->join_tab->is_using_loose_index_scan())
     {
       /* Copy non-aggregated fields when loose index scan is used. */
