@@ -273,12 +273,15 @@ namespace mrn {
   void DatabaseManager::mkdir_p(const char *directory) {
     MRN_DBUG_ENTER_METHOD();
 
-    int i = 0;
+    size_t i = 0;
     char sub_directory[MRN_MAX_PATH_SIZE];
     sub_directory[0] = '\0';
     while (true) {
-      if (mrn_is_directory_separator(directory[i]) ||
-          directory[i] == '\0') {
+      // i == 0 for the leading separator of an
+      // absolute path such as "/var/lib/mysql/".
+      if (i &&
+          (mrn_is_directory_separator(directory[i]) ||
+           directory[i] == '\0')) {
         sub_directory[i] = '\0';
         struct stat directory_status;
         if (stat(sub_directory, &directory_status) != 0) {
@@ -288,6 +291,13 @@ namespace mrn {
             DBUG_PRINT("info",
                        ("mroonga: created directory: <%s>", sub_directory));
             GRN_LOG(ctx_, GRN_LOG_INFO, "created directory: <%s>", sub_directory);
+          } else if (errno == EEXIST) {
+            // Another process may create the directory after our stat().
+            DBUG_PRINT("info",
+                       ("mroonga: directory already exists: <%s>",
+                        sub_directory));
+            GRN_LOG(ctx_, GRN_LOG_INFO,
+                    "directory already exists: <%s>", sub_directory);
           } else {
             DBUG_PRINT("error",
                        ("mroonga: failed to create directory: <%s>: <%s>",
