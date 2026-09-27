@@ -522,6 +522,19 @@ bool Item_sum_plugin::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
 
+  if (has_with_distinct() && !supports_distinct())
+  {
+    const LEX_CSTRING name= func_name_cstring();
+    const size_t name_length= name.length && name.str[name.length - 1] == '(' ?
+                              name.length - 1 : name.length;
+    char feature[NAME_LEN + 64];
+    my_snprintf(feature, sizeof(feature),
+                "DISTINCT for plugin aggregate %.*s()",
+                (int) name_length, name.str);
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), feature);
+    return true;
+  }
+
   if (init_sum_func_check(thd))
     return true;
 

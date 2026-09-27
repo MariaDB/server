@@ -78,23 +78,19 @@ SELECT test_plugin_count(DISTINCT 1.5e0);
 test_plugin_count(DISTINCT 1.5e0)
 1
 SELECT test_plugin_first(DISTINCT 2.5);
-test_plugin_first(DISTINCT 2.5)
-2.5
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_first(DISTINCT 2.5e0);
-test_plugin_first(DISTINCT 2.5e0)
-2.5
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
 test_plugin_count(DISTINCT v)
 0
 SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE v IS NULL;
-test_plugin_first(DISTINCT v) IS NULL
-1
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE FALSE;
 test_plugin_count(DISTINCT v)
 0
 SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE FALSE;
-test_plugin_first(DISTINCT v) IS NULL
-1
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 CREATE TABLE t_distinct (v INT);
 INSERT INTO t_distinct VALUES (1),(1),(2),(2),(2),(3),(3),(NULL),(4);
 SELECT COUNT(DISTINCT v), test_plugin_count(DISTINCT v) FROM t_distinct;
@@ -128,8 +124,18 @@ SELECT test_plugin_count(DISTINCT value) FROM t_blob;
 test_plugin_count(DISTINCT value)
 2
 SELECT LENGTH(test_plugin_first(DISTINCT value)) FROM t_blob;
-LENGTH(test_plugin_first(DISTINCT value))
-10000
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
+CREATE TABLE t_distinct_order (i INT, vc VARCHAR(16), tx TEXT);
+INSERT INTO t_distinct_order VALUES
+(9,'zzz','zzz'), (5,'mmm','mmm'), (9,'zzz','zzz'),
+(1,'aaa','aaa'), (5,'mmm','mmm');
+SELECT test_plugin_first(DISTINCT i) FROM t_distinct_order;
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
+SELECT test_plugin_first(DISTINCT vc) FROM t_distinct_order;
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
+SELECT test_plugin_first(DISTINCT tx) FROM t_distinct_order;
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
+DROP TABLE t_distinct_order;
 SET @save_tmp_table_size= @@tmp_table_size;
 SET @save_max_heap_table_size= @@max_heap_table_size;
 SET tmp_table_size= 16384;
@@ -282,7 +288,7 @@ window_uuid_result	CREATE TABLE `window_uuid_result` (
   `value` uuid DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT test_plugin_first(DISTINCT u) OVER () FROM t_window;
-ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with DISTINCT as window function'
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 PREPARE reprepare_stmt FROM
 'SELECT test_plugin_count(v) FROM t_group';
 EXECUTE reprepare_stmt;

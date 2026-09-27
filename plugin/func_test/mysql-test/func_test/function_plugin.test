@@ -82,10 +82,12 @@ SELECT id, grp, test_plugin_first(value) OVER (
          ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS value
 FROM t_uuid ORDER BY id;
 SELECT test_plugin_count(DISTINCT value) FROM t_uuid;
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT value) FROM
   (SELECT value FROM t_uuid WHERE id = 2
    UNION ALL
    SELECT value FROM t_uuid WHERE id = 2) AS dt;
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT value) =
        (SELECT value FROM t_uuid WHERE id = 2)
 FROM t_uuid WHERE grp = 1;
@@ -118,6 +120,7 @@ FROM t_uuid_result;
 CREATE TABLE t_blob (value TEXT);
 INSERT INTO t_blob VALUES ('a'), ('a'), ('b'), (NULL);
 SELECT test_plugin_count(DISTINCT value) FROM t_blob;
+--error ER_NOT_SUPPORTED_YET
 SELECT test_plugin_first(DISTINCT value) IS NOT NULL FROM t_blob;
 
 DROP TABLE t_blob, t_uuid_result, t_uuid_aggregate, t_uuid, t_window;
