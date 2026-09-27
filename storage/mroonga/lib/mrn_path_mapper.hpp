@@ -24,6 +24,8 @@
 
 #include <mrn_constants.hpp>
 
+#include <string>
+
 namespace mrn {
   class PathMapper {
   public:
@@ -44,7 +46,7 @@ namespace mrn {
     const char *original_mysql_path_;
     const char *path_prefix_;
     const char *mysql_data_home_path_;
-    char db_path_[MRN_MAX_PATH_SIZE];
+    std::string db_path_;
     char db_name_[MRN_MAX_PATH_SIZE];
     char table_name_[MRN_MAX_PATH_SIZE];
     char mysql_table_name_[MRN_MAX_PATH_SIZE];
