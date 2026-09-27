@@ -39,7 +39,7 @@ ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with 
 SELECT test_plugin_first(DISTINCT u) OVER (
 PARTITION BY g ORDER BY id)
 FROM t1;
-ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with DISTINCT as window function'
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate test_plugin_first()'
 SELECT test_plugin_count(v) OVER (ORDER BY id) FROM t1;
 test_plugin_count(v) OVER (ORDER BY id)
 1
