@@ -11510,7 +11510,7 @@ function_call_generic:
               sum_item->set_distinct(true);
             }
 
-            if (item && attach_func_filter(item, $7))
+            if (item && attach_func_filter(item, $8))
               MYSQL_YYABORT;
 
             if ($7.str && !allow_field_accessor)

@@ -45,6 +45,11 @@ SET optimizer_switch= @save_optimizer_switch;
 
 SELECT g, test_plugin_count(DISTINCT v)
 FROM t_group GROUP BY g ORDER BY g;
+SELECT test_plugin_count(DISTINCT 1);
+SELECT test_plugin_count(DISTINCT 1.5);
+SELECT test_plugin_count(DISTINCT 1.5e0);
+SELECT test_plugin_first(DISTINCT 2.5);
+SELECT test_plugin_first(DISTINCT 2.5e0);
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE v IS NULL;
 SELECT test_plugin_first(DISTINCT v) IS NULL FROM t_group WHERE v IS NULL;
 SELECT test_plugin_count(DISTINCT v) FROM t_group WHERE FALSE;

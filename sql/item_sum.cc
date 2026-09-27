@@ -899,11 +899,18 @@ bool Aggregator_distinct::setup(THD *thd)
     {
       if (!(distinct_args= thd->alloc<Item *>(item_sum->get_arg_count())))
         return TRUE;
+      Field **field= table->field;
       for (uint i= 0; i < item_sum->get_arg_count(); i++)
       {
-        if (!(distinct_args[i]= new (thd->mem_root)
-                                Item_field(thd, table->field[i])))
-          return TRUE;
+        Item *arg= item_sum->get_arg(i);
+        if (arg->const_item())
+          distinct_args[i]= arg;
+        else
+        {
+          if (!*field || !(distinct_args[i]= new (thd->mem_root)
+                                              Item_field(thd, *field++)))
+            return TRUE;
+        }
       }
     }
 
@@ -1213,7 +1220,8 @@ void Aggregator_distinct::endup()
      Note that value of field is changed as we walk the tree, in
      Aggregator_distinct::unique_walk_function, but it's always not NULL.
    */
-   table->field[0]->set_notnull();
+    if (table->field[0])
+      table->field[0]->set_notnull();
     /* go over the tree of distinct keys and calculate the aggregate value */
     use_distinct_values= TRUE;
     tree_walk_action func;
@@ -1953,7 +1961,8 @@ void Item_sum_sum::remove()
   
 bool Aggregator_distinct::unique_walk_function(void *element)
 {
-  memcpy(table->field[0]->ptr, element, tree_key_length);
+  if (tree_key_length)
+    memcpy(table->field[0]->ptr, element, tree_key_length);
   item_sum->add();
   return 0;
 }
@@ -2033,15 +2042,19 @@ bool Aggregator_simple::arg_is_null(bool use_null_value)
 
 my_decimal *Aggregator_distinct::arg_val_decimal(my_decimal * value)
 {
-  return use_distinct_values ? table->field[0]->val_decimal(value) :
-    item_sum->args[0]->val_decimal(value);
+  if (!use_distinct_values)
+    return item_sum->args[0]->val_decimal(value);
+  return item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC ?
+    distinct_args[0]->val_decimal(value) : table->field[0]->val_decimal(value);
 }
 
 
 double Aggregator_distinct::arg_val_real()
 {
-  return use_distinct_values ? table->field[0]->val_real() :
-    item_sum->args[0]->val_real();
+  if (!use_distinct_values)
+    return item_sum->args[0]->val_real();
+  return item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC ?
+    distinct_args[0]->val_real() : table->field[0]->val_real();
 }
 
 
@@ -2049,7 +2062,8 @@ bool Aggregator_distinct::arg_is_null(bool use_null_value)
 {
   if (use_distinct_values)
   {
-    const bool rc= table->field[0]->is_null();
+    const bool rc= item_sum->sum_func() == Item_sum::PLUGIN_SUM_FUNC ?
+                   distinct_args[0]->is_null() : table->field[0]->is_null();
     DBUG_ASSERT(!rc); // NULLs are never stored in 'tree'
     return rc;
   }
