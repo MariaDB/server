@@ -1,0 +1,12 @@
+CREATE TABLE diaries (
+id INT PRIMARY KEY,
+body TEXT,
+FULLTEXT INDEX (body)
+) DEFAULT CHARSET=utf8mb4;
+INSERT INTO diaries VALUES (1, 'Hello Mroonga world');
+SET GLOBAL mroonga_database_path_prefix = REPEAT('A', 4096);
+CHECK TABLE diaries;
+Table	Op	Msg_type	Msg_text
+test.diaries	check	status	OK
+SET GLOBAL mroonga_database_path_prefix = NULL;
+DROP TABLE diaries;
