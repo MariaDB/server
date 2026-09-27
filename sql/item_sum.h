@@ -656,7 +656,9 @@ public:
   Derived classes implement clear(), add(), result accessors and copy methods.
   aggregation_arg() must be used instead of args[] while consuming rows, so
   DISTINCT replay can substitute values from its internal temporary storage.
-  Implement supports_removal() and remove() when the state is invertible.
+  DISTINCT replay order is unspecified; order-sensitive implementations must
+  override supports_distinct(). Implement supports_removal() and remove() when
+  the state is invertible.
 */
 class Item_sum_plugin : public Item_sum
 {
@@ -670,6 +672,7 @@ public:
   { return create_table_field_from_handler(root, table); }
   bool fix_fields(THD *thd, Item **ref) override;
   Item *aggregation_arg(uint i) { return aggr->arg_item(i); }
+  virtual bool supports_distinct() const { return true; }
   void reset_field() override { DBUG_ASSERT(0); }
   void update_field() override { DBUG_ASSERT(0); }
 };

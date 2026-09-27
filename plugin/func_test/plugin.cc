@@ -329,6 +329,7 @@ public:
     null_value= value->null_value;
     return false;
   }
+  bool supports_distinct() const override { return false; }
   double val_real() override
   {
     endup();
