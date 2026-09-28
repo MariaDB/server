@@ -8996,6 +8996,18 @@ void TABLE_LIST::reinit_before_use(THD *thd)
     were closed in the end of previous prepare or execute call.
   */
   table= 0;
+  /*
+    An internal-table (sequence) prelocking entry's linked_table points at
+    the owning table's internal_tables node from whichever execution last
+    relinked it (see relink_internal_tables() in sql_base.cc). If that
+    owner's own open is skipped this round, nothing will refresh
+    linked_table, and it would otherwise still point at a node the owning
+    TABLE may have since freed. Clear it here so open_table()'s backlink
+    write only happens once relink_internal_tables() has confirmed it's
+    safe to.
+  */
+  if (linked_table_owner)
+    linked_table= NULL;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
 
