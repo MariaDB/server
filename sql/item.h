@@ -2600,6 +2600,7 @@ public:
   { return this; }
   virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
+  Item *tmp_group_having_transformer(THD *thd, uchar *arg);
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg);
   virtual Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg)
   { return this; }
