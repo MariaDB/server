@@ -13,19 +13,13 @@ create table t1(a int, b varchar(1024)) engine=innodb;
 insert into t1 select seq, repeat("a", 500) from seq_1_to_100;
 create table t2(a int, b varchar(1024)) engine=myisam;
 insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
-show status like "%tmp_space%";
-Variable_name	Value
-Max_tmp_space_used	102054
-Tmp_space_used	102054
+# tmp_space_used and max_tmp_space_used are within max_tmp_session_space_usage
 change_user foo,,;
 use test;
 select count(*) from t1;
 count(*)
 100
-show status like "%tmp_space%";
-Variable_name	Value
-Max_tmp_space_used	102054
-Tmp_space_used	0
+# max_tmp_space_used is within max_tmp_session_space_usage and tmp_space_used reset to 0 after change_user
 drop table t1,t2;
 change_user root,,;
 drop user foo;
