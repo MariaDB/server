@@ -3873,3 +3873,16 @@ DROP TABLE lineitem;
 #
 # End of 11.0 tests
 #
+# MDEV-38834 Incorrect result with IS FALSE and IS NOT NULL
+#
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (1),(NULL);
+SET STATEMENT optimizer_switch='not_null_range_scan=on' FOR
+SELECT a FROM t1 WHERE (a IS FALSE) IS NOT NULL;
+a
+1
+NULL
+DROP TABLE t1;
+#
+# End of 11.4 tests
+#
