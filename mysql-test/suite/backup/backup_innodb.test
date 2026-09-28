@@ -68,6 +68,7 @@ SET DEBUG_SYNC='now WAIT_FOR start';
 }
 --connect rename,localhost,root
 RENAME TABLE rt TO rtt;
+CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE dt;
 --disconnect rename
 --connection default
@@ -80,19 +81,13 @@ SET DEBUG_SYNC='now SIGNAL resume';
 --disconnect backup
 --connection default
 ROLLBACK;
+SELECT * FROM rt;
 SELECT * FROM rtt;
 SELECT * FROM t;
 DELETE FROM t;
 --error ER_NO_SUCH_TABLE
 SELECT * FROM dt;
 DROP TABLE at0, at1;
-
-if (!$have_debug) {
-# Without involving DEBUG_SYNC, the RENAME TABLE could have been
-# executed before InnoDB_backup::init() collected the file names.
---replace_result rtt.ibd rt.ibd
-}
---list_files $target_directory/test rt*.ibd
 
 if ($MARIADB_UPGRADE_EXE) {
 let target_directory=$target_directory;
@@ -109,8 +104,9 @@ if (!$MARIADB_UPGRADE_EXE) {
 }
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
 --source include/restart_mysqld.inc
---list_files $target_directory/test ?t*.ibd
+--list_files $target_directory/test dt*.ibd
 
+SELECT * FROM rt;
 SELECT * FROM rtt;
 --error ER_NO_SUCH_TABLE
 SELECT * FROM dt;
@@ -132,6 +128,8 @@ SELECT * FROM at1;
 --source include/restart_mysqld.inc
 SELECT * FROM t;
 DROP TABLE t;
+SELECT * FROM rt;
+DROP TABLE rt;
 SELECT * FROM rtt;
 DROP TABLE rtt;
 
