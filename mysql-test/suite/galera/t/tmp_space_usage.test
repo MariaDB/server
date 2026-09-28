@@ -11,6 +11,7 @@
 --connection node_1
 
 set @@max_tmp_session_space_usage=1024*1024*1024;
+let $tmp_space_limit=`select @@max_tmp_session_space_usage`;
 
 create user foo;
 grant all privileges on *.* to foo;
@@ -21,12 +22,40 @@ insert into t1 select seq, repeat("a", 500) from seq_1_to_100;
 create table t2(a int, b varchar(1024)) engine=myisam;
 insert into t2 select seq, repeat("a", 500) from seq_1_to_100;
 
-show status like "%tmp_space%";
+# Check that the temporary space used stays within the configured
+# limit. The byte counts are binlog cache sizes that vary by platform,
+# so the test does not compare or print exact numbers.
+let $max_tmp_space_used=`select variable_value from information_schema.session_status where variable_name='max_tmp_space_used'`;
+let $tmp_space_used=`select variable_value from information_schema.session_status where variable_name='tmp_space_used'`;
+--disable_query_log
+if ($max_tmp_space_used > $tmp_space_limit)
+{
+  --die max_tmp_space_used exceeds max_tmp_session_space_usage
+}
+if ($tmp_space_used > $tmp_space_limit)
+{
+  --die tmp_space_used exceeds max_tmp_session_space_usage
+}
+--echo # tmp_space_used and max_tmp_space_used are within max_tmp_session_space_usage
+--enable_query_log
 
 change_user foo;
 use test;
 select count(*) from t1;
-show status like "%tmp_space%";
+
+let $max_tmp_space_used=`select variable_value from information_schema.session_status where variable_name='max_tmp_space_used'`;
+let $tmp_space_used=`select variable_value from information_schema.session_status where variable_name='tmp_space_used'`;
+--disable_query_log
+if ($max_tmp_space_used > $tmp_space_limit)
+{
+  --die max_tmp_space_used exceeds max_tmp_session_space_usage after change_user
+}
+if ($tmp_space_used)
+{
+  --die tmp_space_used did not reset to 0 after change_user
+}
+--echo # max_tmp_space_used is within max_tmp_session_space_usage and tmp_space_used reset to 0 after change_user
+--enable_query_log
 
 drop table t1,t2;
 change_user root;
