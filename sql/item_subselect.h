@@ -485,6 +485,7 @@ TABLE_LIST * const NO_JOIN_NEST=(TABLE_LIST*)0x1;
 
 class Item_in_subselect :public Item_exists_subselect
 {
+  friend class select_exists_subselect;
 protected:
   /*
     Cache of the left operand of the subquery predicate. Allocated in the
@@ -646,6 +647,8 @@ public:
   bool select_transformer(JOIN *join) override;
   bool create_in_to_exists_cond(JOIN *join_arg);
   bool inject_in_to_exists_cond(JOIN *join_arg);
+  bool has_except();
+  bool needs_except_result_null_check();
 
   bool exec() override;
   longlong val_int() override;

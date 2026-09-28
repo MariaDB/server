@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 #
 # NOTE. Please do not switch connection inside this test.
 #       subselect.test is included from several other test cases which set
@@ -6499,3 +6500,110 @@ DROP VIEW v1;
 DROP TABLE t1, t2, t3;
 
 --echo # End of 10.10 tests
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+--echo # MDEV-40748 x NOT IN (<set-operation subquery>) drops rows
+--echo #
+SET @save_optimizer_switch=@@optimizer_switch;
+SET @save_sql_mode=@@sql_mode;
+SET @save_default_storage_engine=@@default_storage_engine;
+SET @save_character_set_client=@@character_set_client;
+SET @save_character_set_results=@@character_set_results;
+SET @save_character_set_connection=@@character_set_connection;
+SET @save_collation_connection=@@collation_connection;
+CREATE DATABASE bug_40748 CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE bug_40748;
+SET sql_mode=DEFAULT;
+SET optimizer_switch=DEFAULT;
+SET default_storage_engine=InnoDB;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE b (id BIGINT);
+INSERT INTO b VALUES (NULL),(1);
+--sorted_result
+SELECT id FROM b WHERE id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6));
+PREPARE regression_stmt FROM 'SELECT id FROM b WHERE id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6));';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+--sorted_result
+SELECT id FROM b;
+--sorted_result
+SELECT id FROM b WHERE NOT (NOT (id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6))));
+--sorted_result
+SELECT d.id FROM (SELECT id, id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6)) AS keep_row FROM b) AS d WHERE d.keep_row;
+--sorted_result
+SELECT id FROM b WHERE id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6)) AND id = 1 UNION ALL SELECT id FROM b WHERE id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6)) AND NOT (id = 1) UNION ALL SELECT id FROM b WHERE id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6)) AND (id = 1) IS NULL;
+--sorted_result
+SELECT id FROM b WHERE id NOT IN (SELECT t5.id FROM b AS t5 WHERE 1 = 0);
+--sorted_result
+SELECT d.id FROM (SELECT b.id, b.id NOT IN ((SELECT t5.id FROM b AS t5) EXCEPT (SELECT t6.id FROM b AS t6)) AS keep_row FROM b) AS d WHERE d.keep_row;
+USE test;
+DROP DATABASE bug_40748;
+CREATE DATABASE bug_40748 CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE bug_40748;
+SET sql_mode=DEFAULT;
+SET optimizer_switch=DEFAULT;
+SET default_storage_engine=InnoDB;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE a (x INT);
+CREATE TABLE b (x INT);
+CREATE TABLE o (id INT PRIMARY KEY,x INT);
+INSERT INTO a VALUES (1),(1),(2),(NULL),(NULL);
+INSERT INTO b VALUES (NULL),(2);
+INSERT INTO o VALUES (1,1),(2,2),(3,3),(4,NULL);
+SET optimizer_switch='materialization=off,in_to_exists=on';
+--sorted_result
+SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM b) AS absent FROM o ORDER BY id;
+PREPARE regression_stmt FROM 'SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM b) AS absent FROM o ORDER BY id;';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+--sorted_result
+SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM b WHERE x=2) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM b WHERE x=2) AS absent FROM o ORDER BY id;
+PREPARE regression_stmt FROM 'SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM b WHERE x=2) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM b WHERE x=2) AS absent FROM o ORDER BY id;';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+--sorted_result
+SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM a) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM a) AS absent FROM o ORDER BY id;
+PREPARE regression_stmt FROM 'SELECT id,x IN (SELECT x FROM a EXCEPT SELECT x FROM a) AS present,x NOT IN (SELECT x FROM a EXCEPT SELECT x FROM a) AS absent FROM o ORDER BY id;';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+--sorted_result
+SELECT id,x IN (SELECT x FROM a EXCEPT ALL SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a EXCEPT ALL SELECT x FROM b) AS absent FROM o ORDER BY id;
+PREPARE regression_stmt FROM 'SELECT id,x IN (SELECT x FROM a EXCEPT ALL SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a EXCEPT ALL SELECT x FROM b) AS absent FROM o ORDER BY id;';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+--sorted_result
+SELECT id,x IN (SELECT x FROM a UNION SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a UNION SELECT x FROM b) AS absent FROM o ORDER BY id;
+PREPARE regression_stmt FROM 'SELECT id,x IN (SELECT x FROM a UNION SELECT x FROM b) AS present,x NOT IN (SELECT x FROM a UNION SELECT x FROM b) AS absent FROM o ORDER BY id;';
+--sorted_result
+EXECUTE regression_stmt;
+--sorted_result
+EXECUTE regression_stmt;
+DEALLOCATE PREPARE regression_stmt;
+USE test;
+DROP DATABASE bug_40748;
+SET optimizer_switch=@save_optimizer_switch;
+SET sql_mode=@save_sql_mode;
+SET default_storage_engine=@save_default_storage_engine;
+SET character_set_client=@save_character_set_client;
+SET character_set_results=@save_character_set_results;
+SET character_set_connection=@save_character_set_connection;
+SET collation_connection=@save_collation_connection;
+--echo #
+--echo # End of 11.4 tests
