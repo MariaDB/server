@@ -7930,7 +7930,7 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
   Common routine to handle index_prev with unordered scan
 
   SYNOPSIS
-    handle_unordered_next()
+    handle_unordered_prev()
     out:buf                       Read row in MySQL Row Format
 
   RETURN VALUE
@@ -7967,7 +7967,8 @@ int ha_partition::handle_unordered_prev(uchar *buf)
   if (likely(!(error= file->ha_index_prev(buf))))
   {
     if (m_unordered_prefix_len &&
-        key_cmp_if_same(table, m_start_key.key, active_index, m_unordered_prefix_len))
+        key_cmp_if_same(table, m_start_key.key, active_index,
+                        m_unordered_prefix_len))
       error = HA_ERR_END_OF_FILE;
     else
     {

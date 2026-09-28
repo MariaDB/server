@@ -1,3 +1,5 @@
+--- partition_index_scan.result
++++ partition_index_scan,desc.reject
 @@ -1,7 +1,7 @@
  # Index scans with PARTITION BY RANGE
  CREATE TABLE t1 (
@@ -477,3 +479,27 @@
  Handler_read_prev	0
  Handler_read_retry	0
  Handler_read_rnd	0
+@@ -1202,18 +1202,18 @@
+ #
+ # MDEV-40479: Reverse prefix scan across partitions
+ #
+-CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a, c), KEY (b, c ))
++CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a, c), KEY (b, c desc))
+ PARTITION BY RANGE (c)
+ (PARTITION p1 VALUES LESS THAN (10),
+ PARTITION p2 VALUES LESS THAN (20));
+ INSERT INTO t1 VALUES (1, 1, 15), (2, 1, 11), (3, 1, 6);
+ explain
+-SELECT c FROM t1 WHERE b = 1 ORDER BY c desc;
++SELECT c FROM t1 WHERE b = 1 ORDER BY c ;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t1	ref	b	b	5	const	3	Using where; Using index
+-SELECT c FROM t1 WHERE b = 1 ORDER BY c desc;
++SELECT c FROM t1 WHERE b = 1 ORDER BY c ;
+ c
+-15
+-11
+ 6
++11
++15
+ DROP TABLE t1;
