@@ -557,6 +557,8 @@ typedef struct st_join_table {
 
   /** HAVING condition for checking prior saving a record into tmp table*/
   Item *having;
+  /** HAVING reads the preceding grouped table and is checked by the writer. */
+  bool having_on_input_tmp_group;
 
   /** TRUE <=> remove duplicates on this table. */
   bool distinct;

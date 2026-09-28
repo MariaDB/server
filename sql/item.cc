@@ -29,6 +29,7 @@
 #include "sql_trigger.h"
 #include "sql_parse.h"
 #include "sql_select.h"
+#include "item_sum.h"
 #include "sql_show.h"                           // append_identifier
 #include "sql_view.h"                           // VIEW_ANY_SQL
 #include "sql_time.h"                  // str_to_datetime_with_warn,
@@ -615,6 +616,20 @@ Item* Item::transform(THD *thd, Item_transformer transformer, uchar *arg)
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   return (this->*transformer)(thd, arg);
+}
+
+
+Item *Item::tmp_group_having_transformer(THD *thd, uchar *)
+{
+  Field *tmp_field= get_tmp_table_field();
+  if (!tmp_field)
+    return this;
+
+  if (type() == SUM_FUNC_ITEM)
+    return static_cast<Item_sum*>(this)->result_item(thd, tmp_field);
+  if (type() == FIELD_ITEM)
+    return get_tmp_table_item(thd);
+  return this;
 }
 
 
