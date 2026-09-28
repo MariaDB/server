@@ -448,11 +448,11 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
       {
-        UT_LIST_GET_FIRST(space.chain)->set_backup_name();
         if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
             !space.is_being_imported() && !space.is_stopping() &&
             space.create_lsn <= start) try
         {
+          UT_LIST_GET_FIRST(space.chain)->set_backup_name();
           /* FIXME: how to initialize create_lsn for old files, to
           have efficient incremental backup?
           fil_node_t::read_page0() cannot assign it from
@@ -766,95 +766,101 @@ private:
     int res= -1;
     uint32_t start{0};
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
+    if (UNIV_LIKELY(name != nullptr))
+    {
 #ifdef _WIN32
-    if (sink.stream == sink.NO_STREAM)
-    {
-      for (;;)
+      if (sink.stream == sink.NO_STREAM)
       {
-        if ((res= backup(target.path, node, name, start, limit)))
-          break;
-        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-        if (!next)
-          break;
-        const uint32_t size{node->size};
-        start+= size;
-        if (limit >= size)
-          limit-= size;
-        else
-          limit= 0;
-        node= next;
+        for (;;)
+        {
+          if ((res= backup(target.path, node, name, start, limit)))
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+        }
       }
-    }
-    else
-    {
-      for (;;)
-      {
-        if ((res= stream(sink.stream, node, name, start, limit)))
-          break;
-        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-        if (!next)
-          break;
-        const uint32_t size{node->size};
-        start+= size;
-        if (limit >= size)
-          limit-= size;
-        else
-          limit= 0;
-        node= next;
-      }
-    }
-#else
-    int fd;
-    int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
-    if (sink.stream == sink.NO_STREAM)
-    {
-      fd= target.fd;
-      method= backup;
-    }
-    else
-    {
-      fd= sink.stream;
-      method= stream;
-    }
-    for (;;)
-    {
-# ifdef HAVE_POSIX_FALLOCATE
-      if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
-      {
-        const uint32_t page_size{space.physical_size()};
-        if ((limit * page_size) & 4095)
-          /*
-            os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
-            multiples of 4096 bytes. There may be up to 3 pages
-            (of 1024 bytes) that have not been written out yet.
-            We must cap the limit to the actual file size.
-          */
-          limit=
-            std::min(limit,
-                     uint32_t(os_file_get_size(node->handle) / page_size));
-      }
-# endif
-      res= (*method)(fd, node, name, start, limit);
-#ifdef POSIX_FADV_DONTNEED
-      std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
-#endif
-      if (res)
-        break;
-      fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-      if (!next)
-        break;
-      const uint32_t size{node->size};
-      start+= size;
-      if (limit >= size)
-        limit-= size;
       else
-        limit= 0;
-      node= next;
-    }
+      {
+        for (;;)
+        {
+          if ((res= stream(sink.stream, node, name, start, limit)))
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+        }
+      }
+#else
+      int fd;
+      int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
+      if (sink.stream == sink.NO_STREAM)
+      {
+        fd= target.fd;
+        method= backup;
+      }
+      else
+      {
+        fd= sink.stream;
+        method= stream;
+      }
+      for (;;)
+      {
+# ifdef HAVE_POSIX_FALLOCATE
+        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+        {
+          const uint32_t page_size{space.physical_size()};
+          if ((limit * page_size) & 4095)
+            /*
+              os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+              multiples of 4096 bytes. There may be up to 3 pages
+              (of 1024 bytes) that have not been written out yet.
+              We must cap the limit to the actual file size.
+            */
+            limit=
+              std::min(limit,
+                       uint32_t(os_file_get_size(node->handle) / page_size));
+        }
+# endif
+        res= (*method)(fd, node, name, start, limit);
+#ifdef POSIX_FADV_DONTNEED
+        std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
 #endif
-    mysql_mutex_lock(&fil_system.mutex);
-    node->clear_backup_name();
-    mysql_mutex_unlock(&fil_system.mutex);
+        if (res)
+          break;
+        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+        if (!next)
+          break;
+        const uint32_t size{node->size};
+        start+= size;
+        if (limit >= size)
+          limit-= size;
+        else
+          limit= 0;
+        node= next;
+      }
+#endif
+      mysql_mutex_lock(&fil_system.mutex);
+      node->clear_backup_name();
+      mysql_mutex_unlock(&fil_system.mutex);
+    }
+    else
+      /* This should be ALTER TABLE ... IMPORT TABLESPACE */
+      ut_ad(space.create_lsn >= ctx.checkpoint);
     space.release();
     ut_ad(res <= 0);
     return res;

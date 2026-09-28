@@ -5055,6 +5055,9 @@ import_error:
 	}
 
 	ib::info() << "Phase IV - Flush complete";
+	log_sys.latch.wr_lock();
+	table->space->create_lsn = log_sys.get_lsn();
+	log_sys.latch.wr_unlock();
 	table->space->set_imported();
 
 	err = lock_sys_tables(trx);
