@@ -10,8 +10,9 @@
 CREATE TABLE t1 (
   id INT AUTO_INCREMENT,
   pk2 INT NOT NULL,
-  a INT UNIQUE,
-  PRIMARY KEY (id, pk2)
+  a INT,
+  PRIMARY KEY (id, pk2),
+  UNIQUE KEY (a, pk2)
 ) ENGINE=InnoDB PARTITION BY HASH(pk2) PARTITIONS 2;
 
 INSERT INTO t1 (pk2, a) VALUES (1, 10), (1, 100), (1, 110);
@@ -20,12 +21,12 @@ INSERT INTO t1 (pk2, a) VALUES (1, 10), (1, 100), (1, 110);
 --connect (con2,localhost,root,,)
 
 --connection con1
-SET DEBUG_SYNC = 'ha_partition_get_auto_increment_after_reservation SIGNAL start_t2 WAIT_FOR t2_done';
---send INSERT INTO t1 (pk2, a) SELECT pk2, a+10 FROM t1 ORDER BY a;
+SET DEBUG_SYNC = 'ha_partition_get_auto_increment_after_reservation SIGNAL start_t2 WAIT_FOR t2_done EXECUTE 1';
+--send INSERT INTO t1 (pk2, a) SELECT pk2, a+10 FROM t1 WHERE pk2=1 ORDER BY a;
 
 --connection con2
 SET DEBUG_SYNC = 'now WAIT_FOR start_t2';
-INSERT INTO t1 (pk2, a) VALUES (1, 200);
+INSERT INTO t1 (pk2, a) VALUES (2, 200);
 SET DEBUG_SYNC = 'now SIGNAL t2_done';
 
 --connection con1
@@ -33,8 +34,8 @@ SET DEBUG_SYNC = 'now SIGNAL t2_done';
 --reap
 
 --connection default
-INSERT INTO t1 (pk2, a) VALUES (1, 300);
-INSERT INTO t1 (pk2, a) VALUES (1, 400);
+INSERT INTO t1 (pk2, a) VALUES (2, 300);
+INSERT INTO t1 (pk2, a) VALUES (2, 400);
 
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
