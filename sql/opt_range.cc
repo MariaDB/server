@@ -9424,6 +9424,11 @@ SEL_ARG *Field_str::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
       DBUG_RETURN(new (prm->mem_root) SEL_ARG_IMPOSSIBLE(this));
     DBUG_RETURN(NULL); /*  Cannot infer anything */
   }
+  /* A successful store can still truncate a string under relaxed copying.
+     An upper key below the original value could miss matching index rows. */
+  if ((op == SCALAR_CMP_LE || op == SCALAR_CMP_LT) &&
+      stored_field_cmp_to_item(prm->thd, this, value) < 0)
+    DBUG_RETURN(NULL);
   DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
 }
 
