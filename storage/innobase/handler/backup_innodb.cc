@@ -1333,7 +1333,11 @@ private:
         goto fail;
     }
 
-    if (limit == buf_dblwr.begin() && n_chunk == 3)
+    if (err)
+    fail:
+      my_error(ER_IO_WRITE_ERROR, MYF(0), errno, strerror(errno),
+               "BACKUP SERVER");
+    else if (limit == buf_dblwr.begin() && n_chunk == 3)
     {
       /* Copy the rest after the doublewrite buffer. */
       ut_ad(start == page);
@@ -1342,10 +1346,6 @@ private:
       goto loop;
     }
 
-    if (err)
-    fail:
-      my_error(ER_IO_WRITE_ERROR, MYF(0), errno, strerror(errno),
-               "BACKUP SERVER");
     return err;
   }
 
