@@ -56,7 +56,12 @@ static DYNAMIC_STRING conn_args;
 static DYNAMIC_STRING ds_plugin_data_types;
 
 static char *opt_password= 0;
+static char *lock_password= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char *current_host= 0;
+static char *opt_mysql_unix_port= 0;
+static uint opt_mysql_port= 0;
+static uint opt_protocol= 0;
 
 static char *cnf_file_path= 0, defaults_file[FN_REFLEN + 32];
 
@@ -75,6 +80,8 @@ static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 char upgrade_from_version[1024];
 
 static my_bool opt_write_binlog;
+
+static MYSQL mysql_connection, *lock_mysql= 0;
 
 static void print_conn_args(const char *tool_name);
 
@@ -189,6 +196,16 @@ static const char *load_default_groups[]=
   0
 };
 
+static void release_upgrade_lock(void)
+{
+  if (lock_mysql)
+  {
+    mysql_query(lock_mysql, "SELECT RELEASE_LOCK('mariadb_upgrade')");
+    mysql_close(lock_mysql);
+    lock_mysql= 0;
+  }
+}
+
 static void free_used_memory(void)
 {
   /* Free memory allocated by 'load_defaults' */
@@ -206,6 +223,12 @@ static void free_used_memory(void)
     my_close(info_file, MYF(MY_WME));
     info_file= -1;
   }
+  if (lock_password)
+  {
+    my_free(lock_password);
+    lock_password= 0;
+  }
+  release_upgrade_lock();
 }
 
 
@@ -332,6 +355,9 @@ get_one_option(const struct my_option *opt, const char *argument,
       char *start= (char*) argument;
       /* Add password to ds_args before overwriting the arg with x's */
       add_one_option_cnf_file(&ds_args, opt->name, argument);
+      if (lock_password)
+        my_free(lock_password);
+      lock_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_WME));
       while (*argument)
         *(char*)argument++= 'x';                /* Destroy argument */
       if (*start)
@@ -385,10 +411,29 @@ get_one_option(const struct my_option *opt, const char *argument,
     break;
 
   case 'h': /* --host */
+    current_host= (char*) argument;
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
+    break;
   case 'W': /* --pipe */
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
+    break;
   case 'P': /* --port */
+    opt_mysql_port= (uint) strtoul(argument, (char**) 0, 10);
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
+    break;
   case 'S': /* --socket */
+    opt_mysql_unix_port= (char*) argument;
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
+    break;
   case OPT_MYSQL_PROTOCOL: /* --protocol */
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                            opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1;
+      exit(1);
+    }
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
+    break;
   case OPT_PLUGIN_DIR:                          /* --plugin-dir */
   case OPT_DEFAULT_AUTH:                        /* --default-auth */
     add_one_option_cmd_line(&conn_args, opt->name, argument);
@@ -815,34 +860,38 @@ static int upgrade_already_done(int silent)
 {
   const char *version = MYSQL_SERVER_VERSION;
   const char *s;
-  char *pos;
-  my_off_t length;
-
-  if (info_file < 0)
-  {
-    DBUG_ASSERT(opt_force > 1);
-    return 1;                                   /* No info file and --force */
-  }
+  MYSQL_RES *res;
+  MYSQL_ROW row;
 
   bzero(upgrade_from_version, sizeof(upgrade_from_version));
 
-  (void) my_seek(info_file, 0, SEEK_SET, MYF(0));
-  /* We have -3 here to make calc_server_version() safe */
-  length= my_read(info_file, (uchar*) upgrade_from_version,
-                  sizeof(upgrade_from_version)-3,
-                  MYF(MY_WME));
-
-  if (!length)
+  if (mysql_query(lock_mysql, "SELECT version FROM mysql.mariadb_upgrade_info"))
   {
     if (opt_verbose)
-      verbose("Empty or non existent %s. Assuming mysql_upgrade has to be run!",
-              upgrade_info_file);
+      verbose("Could not read mysql.mariadb_upgrade_info (%s). "
+              "Assuming mysql_upgrade has to be run!",
+              mysql_error(lock_mysql));
     return 1;
   }
 
-  /* Remove possible \ŋ that may end in output */
-  if ((pos= strchr(upgrade_from_version, '\n')))
-    *pos= 0;
+  res= mysql_store_result(lock_mysql);
+  row= res ? mysql_fetch_row(res) : NULL;
+
+  if (!row || !row[0])
+  {
+    if (res)
+      mysql_free_result(res);
+    if (opt_verbose)
+      verbose("Empty or non existent mysql.mariadb_upgrade_info. "
+              "Assuming mysql_upgrade has to be run!");
+    return 1;
+  }
+
+  /* We use -3 here to make calc_server_version() safe, same as the old file read did */
+  strmake(upgrade_from_version, row[0], sizeof(upgrade_from_version) - 3);
+  mysql_free_result(res);
+
+  /* --- everything below is UNCHANGED from the current function --- */
 
   if (faulty_server_versions(upgrade_from_version))
   {
@@ -881,6 +930,20 @@ static int upgrade_already_done(int silent)
       verbose("You can use --force if you still want to run mysql_upgrade");
   }
   return 0;
+}
+
+static void write_upgrade_info_table(void)
+{
+  char query[256];
+
+  my_snprintf(query, sizeof(query),
+              "INSERT INTO mysql.mariadb_upgrade_info (version) VALUES ('%s') "
+              "ON DUPLICATE KEY UPDATE version='%s'",
+              MYSQL_SERVER_VERSION, MYSQL_SERVER_VERSION);
+
+  if (mysql_query(lock_mysql, query))
+    die("Could not write to mysql.mariadb_upgrade_info: %s",
+        mysql_error(lock_mysql));
 }
 
 static void finish_mysql_upgrade_info_file(void)
@@ -1443,6 +1506,69 @@ static int check_version_match(void)
   return 0;
 }
 
+static my_bool acquire_upgrade_lock(void)
+{
+  MYSQL_RES *res= 0;
+  MYSQL_ROW row;
+  my_bool got_lock;
+
+  if (mysql_query(lock_mysql, "SELECT GET_LOCK('mariadb_upgrade', 3600)"))
+    die("Could not request upgrade lock: %s", mysql_error(lock_mysql));
+
+  res= mysql_store_result(lock_mysql);
+  row= res ? mysql_fetch_row(res) : NULL;
+  got_lock= row && row[0] && strcmp(row[0], "1") == 0;
+  if (res)
+    mysql_free_result(res);
+  return got_lock;
+}
+
+static int connect_for_lock(void)
+{
+  mysql_init(&mysql_connection);
+
+  if (opt_use_ssl)
+  {
+    mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
+                  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
+  }
+  mysql_options(&mysql_connection, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                (char*) &opt_ssl_verify_server_cert);
+
+  if (opt_protocol)
+    mysql_options(&mysql_connection, MYSQL_OPT_PROTOCOL, (char*) &opt_protocol);
+  if (opt_plugin_dir && *opt_plugin_dir)
+    mysql_options(&mysql_connection, MYSQL_PLUGIN_DIR, opt_plugin_dir);
+  if (opt_default_auth && *opt_default_auth)
+    mysql_options(&mysql_connection, MYSQL_DEFAULT_AUTH, opt_default_auth);
+
+  lock_mysql= &mysql_connection;
+  if (!mysql_real_connect(&mysql_connection, current_host, opt_user,
+                          lock_password ? lock_password : opt_password,
+                          NULL, opt_mysql_port, opt_mysql_unix_port, 0))
+  {
+    fprintf(stderr, "FATAL ERROR: Could not open connection for locking: %s\n",
+            mysql_error(&mysql_connection));
+    lock_mysql= 0;
+    return 1;
+  }
+#ifdef WITH_WSREP
+  if (mysql_query(lock_mysql, "SET SQL_LOG_BIN=0, WSREP_ON=OFF"))
+#else
+  if (mysql_query(lock_mysql, "SET SQL_LOG_BIN=0"))
+#endif
+  {
+    fprintf(stderr, "FATAL ERROR: Could not disable binary logging for "
+            "locking connection: %s\n", mysql_error(lock_mysql));
+    mysql_close(lock_mysql);
+    lock_mysql= 0;
+    return 1;
+  }
+  return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -1498,6 +1624,11 @@ int main(int argc, char **argv)
 
   open_mysql_upgrade_file();
 
+  if (connect_for_lock())
+  { free_used_memory(); exit(1); }
+  if (!acquire_upgrade_lock())
+    die("Another mariadb-upgrade appears to be running against this server");
+
   if (opt_check_upgrade)
   {
     int upgrade_needed = upgrade_already_done(0);
@@ -1513,7 +1644,7 @@ int main(int argc, char **argv)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
 
   /*
-    Read the mysql_upgrade_info file to check if mysql_upgrade
+    Read the mysql_upgrade_info table to check if mysql_upgrade
     already has been run for this installation of MariaDB
   */
   if (!opt_force && !upgrade_already_done(0))
@@ -1538,10 +1669,10 @@ int main(int argc, char **argv)
       uninstall_plugins() ||
       flush_privileges())
     die("Upgrade failed" );
-  verbose("OK");
 
-  /* Finish writing indicating upgrade has been performed */
+  write_upgrade_info_table();
   finish_mysql_upgrade_info_file();
+  verbose("OK");
 
   DBUG_ASSERT(phase == phases_total);
 

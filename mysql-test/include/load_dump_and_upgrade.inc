@@ -34,7 +34,7 @@
 --exec $MYSQL mysql < $MYSQLTEST_VARDIR/std_data/mysql_database_$old_version.dump
 
 --echo # Running mysql_upgrade
---exec $MYSQL_UPGRADE --verbose > $MYSQL_TMP_DIR/upgrade.log
+--exec $MYSQL_UPGRADE --force --verbose > $MYSQL_TMP_DIR/upgrade.log
 
 --echo # Checking that mysql.user is accessible and returns some data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
