@@ -113,6 +113,9 @@ void Expression_cache_tmptable::init()
   items.push_front(val);
 
   cache_table_param.init();
+  /* Cache parameters can be aggregates of an executing outer query. Keep
+     their result fields bound to that query's grouping table. */
+  cache_table_param.materialized_subquery= true;
   /* dependent items and result */
   cache_table_param.field_count= cache_table_param.func_count= items.elements;
   /* postpone table creation to index description */

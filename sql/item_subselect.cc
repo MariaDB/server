@@ -3290,6 +3290,13 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         }
       }
       outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
+      /*
+        The reference wrapper may have been created on the execution arena
+        while the subquery was fixed.  The IN subquery and the semijoin built
+        from it are stored on the statement arena, so store the underlying
+        item instead of a wrapper that will be freed after this execution.
+      */
+      outer_exp= outer_exp->real_item();
       outer_exp->update_used_tables();
       outer.push_back(outer_exp, thd->mem_root);
     }

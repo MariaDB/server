@@ -1815,3 +1815,94 @@ enable_view_protocol;
 disable_metadata;
 
 --echo # End of 10.11 tests
+--echo # MDEV-40779 Evaluate HAVING using completed groups
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0);
+SELECT DISTINCT a,CAST(AVG(a) AS SIGNED) FROM t1 GROUP BY a,c HAVING AVG(b)<=a;
+DROP TABLE t1;
+--echo # MDEV-40779 Preserve completed aggregates across temporary tables
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+SELECT DISTINCT a,CAST(AVG(a) AS SIGNED) AS ca,AVG(b)
+FROM t1 GROUP BY a,c;
+SELECT DISTINCT a,CAST(AVG(a) AS SIGNED) AS ca,AVG(b*1e0),
+       VAR_POP(b),VAR_SAMP(b),STDDEV_POP(b),STDDEV_SAMP(b)
+FROM t1 GROUP BY a,c;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,c INT);
+INSERT INTO t1 VALUES (1,1),(1,2);
+CREATE TABLE t2 (x INT);
+INSERT INTO t2 VALUES (1),(2);
+SELECT x,(SELECT DISTINCT MAX(a)+0 FROM t1 GROUP BY c
+          HAVING MAX(a)<=x) AS sq
+FROM t2 GROUP BY x;
+DROP TABLE t1,t2;
+--echo # MDEV-40779 HAVING must use the materialized SELECT value
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+SELECT a,ROUND(d,6) AS d FROM
+(SELECT DISTINCT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5) dt;
+SELECT COUNT(*),SUM(d>=0.5) FROM
+(SELECT DISTINCT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5) dt;
+DROP TABLE t1;
+--echo # MDEV-40779 HAVING without DISTINCT uses the returned value
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+SELECT COUNT(*),SUM(d>=0.5) FROM
+(SELECT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5) dt;
+DROP TABLE t1;
+--echo # MDEV-40779 repeat execution of a nested subquery in HAVING
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+CREATE TABLE ranges(lo DOUBLE,hi DOUBLE,marker INT);
+INSERT INTO ranges VALUES (0,0.5,1),(0.5,4,2),(4,1000,3);
+CREATE TABLE group_lookup(k INT,minval INT);
+INSERT INTO group_lookup VALUES (2,0),(7,0),(42,0);
+PREPARE stmt FROM 'SELECT DISTINCT a,a-a+3 AS d,(SELECT AVG(b))+0 AS m
+                   FROM t1 GROUP BY a,c HAVING d=3 AND m IS NOT NULL AND
+                   (SELECT COUNT(*) FROM ranges r WHERE r.lo<=d AND d<r.hi
+                    AND EXISTS(SELECT 1 FROM group_lookup g WHERE g.k=t1.a))>0';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1,ranges,group_lookup;
+--echo # MDEV-40779 SQL_BIG_RESULT with a cached aggregate subquery
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=on';
+SELECT DISTINCT SQL_BIG_RESULT a,(SELECT AVG(b)+3)-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<4;
+SET optimizer_switch=@save_optimizer_switch;
+DROP TABLE t1;
+--echo # MDEV-40779 ordered grouping evaluates HAVING and output once
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0),(7,5,1),(7,9,1);
+SELECT DISTINCT SQL_BIG_RESULT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5;
+SELECT SQL_BIG_RESULT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5;
+SELECT DISTINCT SQL_BIG_RESULT a,AVG(b)+RAND(1)-AVG(b) AS d
+FROM t1 GROUP BY a,c HAVING d<0.5;
+SELECT COUNT(*),SUM(d>=0.5) FROM
+(SELECT DISTINCT SQL_BIG_RESULT a,SUM(b)+RAND(1)-SUM(b) AS d
+ FROM t1 GROUP BY a,c HAVING d<0.5) dt;
+SELECT COUNT(*),SUM(d>=0.5) FROM
+(SELECT DISTINCT SQL_BIG_RESULT a,VAR_POP(b)+RAND(1)-VAR_POP(b) AS d
+ FROM t1 GROUP BY a,c HAVING d<0.5) dt;
+PREPARE stmt FROM 'SELECT DISTINCT SQL_BIG_RESULT a,(SELECT AVG(b)+RAND(1))-AVG(b) AS d
+                   FROM t1 GROUP BY a,c HAVING d<0.5';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SELECT AVG(b)+3 AS d FROM t1 GROUP BY a HAVING d>0 PROCEDURE ANALYSE();
+CREATE TABLE t2 (x INT);
+INSERT INTO t2 VALUES (100),(101);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT SQL_BIG_RESULT a,AVG(b)+(SELECT x FROM t2 WHERE x>=t1.a) AS d
+FROM t1 GROUP BY a,c HAVING d>0;
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1,t2;

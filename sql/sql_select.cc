@@ -311,11 +311,13 @@ static bool make_group_fields(JOIN *main_join, JOIN *curr_join);
 static bool alloc_group_fields(JOIN *join, ORDER *group);
 static bool alloc_order_fields(JOIN *join, ORDER *group,
                                uint max_number_of_elements);
+static bool copy_group_funcs(TMP_TABLE_PARAM *param, const THD *thd);
 // Create list for using with tempory table
 static bool change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 				     List<Item> &new_list1,
 				     List<Item> &new_list2,
-				     uint elements, List<Item> &items);
+				     uint elements, List<Item> &items,
+                                     TABLE *materialized_table= nullptr);
 // Create list for using with tempory table
 static bool change_refs_to_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 				      List<Item> &new_list1,
@@ -3946,12 +3948,34 @@ bool JOIN::make_aggr_tables_info()
     keep_row_order= thd->lex->with_rownum && (group_list || order);
     bool save_sum_fields= (group_list && simple_group) ||
                            implicit_grouping_with_window_funcs;
+    /*
+      HAVING and output must use the same value of an aggregate expression.
+      Materialize these expressions in the grouping table, or in the output
+      table of ordered grouping, and evaluate them after the group completes.
+    */
+    bool materialize_having_expr= false;
+    if (having && (!select_distinct ||
+                   (save_sum_fields && (simple_group || sort_and_group))))
+    {
+      List_iterator_fast<Item> it(all_fields);
+      Item *item;
+      while ((item= it++))
+        if (item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM &&
+            !item->with_window_func())
+        {
+          materialize_having_expr= true;
+          break;
+        }
+    }
     if (create_postjoin_aggr_table(curr_tab,
                                    &all_fields, tmp_group,
                                    save_sum_fields,
-                                   distinct, keep_row_order))
+                                   distinct, keep_row_order,
+                                   materialize_having_expr))
       DBUG_RETURN(true);
     exec_tmp_table= curr_tab->table;
+    if (materialize_having_expr)
+      curr_tab->having_on_tmp_table= true;
 
     if (exec_tmp_table->distinct)
       optimize_distinct();
@@ -3964,7 +3988,9 @@ bool JOIN::make_aggr_tables_info()
     {
       if (change_to_use_tmp_fields(thd, items1,
                                    tmp_fields_list1, tmp_all_fields1,
-                                   fields_list.elements, all_fields))
+                                   fields_list.elements, all_fields,
+                                   materialize_having_expr ?
+                                     exec_tmp_table : nullptr))
         DBUG_RETURN(true);
     }
     else
@@ -4079,9 +4105,25 @@ bool JOIN::make_aggr_tables_info()
         curr_all_fields->elements - curr_fields_list->elements;
       ORDER *dummy= NULL; //TODO can use table->group here also
 
+      bool materialize_group_expr= false;
+      if (group_list && having)
+      {
+        List_iterator_fast<Item> it(*curr_all_fields);
+        Item *item;
+        while ((item= it++))
+          if (item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM &&
+              !item->with_window_func())
+          {
+            materialize_group_expr= true;
+            break;
+          }
+      }
       if (create_postjoin_aggr_table(curr_tab, curr_all_fields, dummy, true,
-                                     distinct, keep_row_order))
+                                     distinct, keep_row_order,
+                                     materialize_group_expr))
 	DBUG_RETURN(true);
+      if (materialize_group_expr)
+        curr_tab->having_on_tmp_table= true;
 
       if (group_list)
       {
@@ -4114,7 +4156,9 @@ bool JOIN::make_aggr_tables_info()
       items2= ref_ptr_array_slice(3);
       if (change_to_use_tmp_fields(thd, items2,
                                    tmp_fields_list2, tmp_all_fields2, 
-                                   fields_list.elements, tmp_all_fields1))
+                                   fields_list.elements, tmp_all_fields1,
+                                   materialize_group_expr ?
+                                     curr_tab->table : nullptr))
         DBUG_RETURN(true);
 
       curr_fields_list= &tmp_fields_list2;
@@ -4135,6 +4179,11 @@ bool JOIN::make_aggr_tables_info()
     {
       if (having)
       {
+        if (exec_tmp_table->group && curr_tab->table != exec_tmp_table)
+        {
+          /* Evaluate HAVING on the materialized values before DISTINCT. */
+          curr_tab->having_on_tmp_table= true;
+        }
         curr_tab->having= having;
         having->update_used_tables();
       }
@@ -4194,9 +4243,11 @@ bool JOIN::make_aggr_tables_info()
     if (items0.is_null())
       init_items_ref_array();
     items3= ref_ptr_array_slice(4);
-    setup_copy_fields(thd, &tmp_table_param,
+    if (setup_copy_fields(thd, &tmp_table_param,
                       items3, tmp_fields_list3, tmp_all_fields3,
-                      curr_fields_list->elements, *curr_all_fields);
+                      curr_fields_list->elements, *curr_all_fields,
+                      having != NULL))
+      DBUG_RETURN(true);
 
     curr_fields_list= &tmp_fields_list3;
     curr_all_fields= &tmp_all_fields3;
@@ -4224,6 +4275,7 @@ bool JOIN::make_aggr_tables_info()
     THD_STAGE_INFO(thd, stage_sorting_result);
     /* If we have already done the group, add HAVING to sorted table */
     if (tmp_having && !is_having_added_as_table_cond &&
+        !curr_tab->having_on_tmp_table &&
         !group_list && !sort_and_group)
     {
       if (add_having_as_table_cond(curr_tab))
@@ -4359,7 +4411,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
                                  ORDER *table_group,
                                  bool save_sum_fields,
                                  bool distinct,
-                                 bool keep_row_order)
+                                 bool keep_row_order,
+                                 bool materialize_group_expr)
 {
   DBUG_ENTER("JOIN::create_postjoin_aggr_table");
   THD_STAGE_INFO(thd, stage_creating_tmp_table);
@@ -4386,6 +4439,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   if (tmp_table_keep_current_rowid)
     add_fields_for_current_rowid(tab, table_fields);
   tab->tmp_table_param->skip_create_table= true;
+  tab->tmp_table_param->materialize_group_expr= materialize_group_expr;
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
                                  save_sum_fields, select_options,
@@ -22295,7 +22349,9 @@ bool Create_tmp_table::add_fields(THD *thd,
       item= ((Item_copy *)item)->get_item();
       type= item->type();
     }
-    if (not_all_columns)
+    if (not_all_columns &&
+        !(param->materialize_group_expr && item->with_sum_func() &&
+          type != Item::SUM_FUNC_ITEM))
     {
       if (item->with_sum_func() && type != Item::SUM_FUNC_ITEM)
       {
@@ -25879,6 +25935,22 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     /* Copy non-aggregated fields when loose index scan is used. */
     copy_fields(&join->tmp_table_param);
   }
+  JOIN_TAB *aggr_tab= join_tab ? join_tab - 1 : 0;
+  if (join->having && aggr_tab && aggr_tab->having_on_tmp_table &&
+      aggr_tab->tmp_table_param)
+  {
+    /*
+      Refresh the materialized select expressions from the completed group
+      values.  HAVING and the returned row then read the same value instead
+      of evaluating the expression at different times.
+    */
+    for (Item **item= aggr_tab->tmp_table_param->items_to_copy;
+         item && *item; item++)
+      if ((*item)->with_sum_func() && (*item)->type() != Item::SUM_FUNC_ITEM)
+        (*item)->save_in_result_field(1);
+    if (unlikely(join->thd->is_error()))
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+  }
   if (join->having && join->having->val_bool() == 0)
   {
     /*
@@ -26047,6 +26119,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	int error=0;
 	if (join->procedure)
 	{
+	  if (copy_group_funcs(&join->tmp_table_param, join->thd))
+	    DBUG_RETURN(NESTED_LOOP_ERROR);
 	  if (join->having && !join->having->val_bool())
 	    error= -1;				// Didn't satisfy having
 	  else
@@ -26073,6 +26147,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
             while ((item= it++))
               item->no_rows_in_result();
 	  }
+          if (copy_group_funcs(&join->tmp_table_param, join->thd))
+            DBUG_RETURN(NESTED_LOOP_ERROR);
 	  if (join->having && join->having->val_bool() == 0)// TODO: tests
 	    error= -1;				// Didn't satisfy having
 	  else
@@ -26183,7 +26259,24 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
       DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
-    if (likely(!join_tab->having || join_tab->having->val_bool()))
+    bool having_passed= true;
+    if (join_tab->having)
+    {
+      /*
+        The input references are needed while copying completed groups.
+        HAVING must then read the values just saved in this table, including
+        non-deterministic SELECT expressions, rather than evaluate them again.
+        Restore the input references before processing the next group.
+      */
+      Ref_ptr_array saved_ref_ptrs= join->current_ref_ptrs;
+      if (join_tab->having_on_tmp_table)
+        join->set_items_ref_array(*join_tab->ref_array);
+      having_passed= join_tab->having->val_bool();
+      if (join_tab->having_on_tmp_table)
+        join->set_items_ref_array(saved_ref_ptrs);
+    }
+
+    if (likely(having_passed))
     {
       int error;
       join->found_records++;
@@ -26433,7 +26526,25 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         }
         copy_sum_funcs(join->sum_funcs,
                        join->sum_funcs_end[send_group_parts]);
-	if (!join_tab->having || join_tab->having->val_bool())
+        bool having_passed= true;
+        Ref_ptr_array saved_ref_ptrs= join->current_ref_ptrs;
+        if (join_tab->having_on_tmp_table)
+        {
+          /* Evaluate aggregate expressions only after completing the group. */
+          join->set_items_ref_array(*join_tab->ref_array);
+          for (Item **item= join_tab->tmp_table_param->items_to_copy;
+               item && *item; item++)
+            if ((*item)->with_sum_func() &&
+                (*item)->type() != Item::SUM_FUNC_ITEM)
+              (*item)->save_in_result_field(1);
+        }
+        if (join_tab->having)
+          having_passed= join_tab->having->val_bool();
+        if (join_tab->having_on_tmp_table)
+          join->set_items_ref_array(saved_ref_ptrs);
+        if (unlikely(join->thd->is_error()))
+          DBUG_RETURN(NESTED_LOOP_ERROR);
+	if (having_passed)
 	{
           int error= table->file->ha_write_tmp_row(table->record[0]);
           if (unlikely(error) &&
@@ -26469,7 +26580,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     {
       copy_fields(join_tab->tmp_table_param);
       if (unlikely(copy_funcs(join_tab->tmp_table_param->items_to_copy,
-                              join->thd)))
+                              join->thd, join_tab->having_on_tmp_table)))
 	DBUG_RETURN(NESTED_LOOP_ERROR);
       if (unlikely(init_sum_functions(join->sum_funcs,
                                       join->sum_funcs_end[idx+1])))
@@ -28267,6 +28378,7 @@ JOIN_TAB::remove_duplicates()
   List<Item> *fields= (this-1)->fields;
   Item *item;
   THD *thd= join->thd;
+  Item *scan_having= having_on_tmp_table ? NULL : having;
   SORT_FIELD *sortorder, *sorder;
   DBUG_ENTER("remove_duplicates");
 
@@ -28308,7 +28420,7 @@ JOIN_TAB::remove_duplicates()
   }
   sorder->item= 0;                                 // End marker
 
-  if ((field_count + item_count == 0) && ! having &&
+  if ((field_count + item_count == 0) && !scan_having &&
       !(join->select_options & OPTION_FOUND_ROWS))
   {
     // only const items with no OPTION_FOUND_ROWS
@@ -28347,10 +28459,11 @@ JOIN_TAB::remove_duplicates()
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
                                       first_field, sortorder,
-                                      keylength + sort_field_keylength, having);
+                                      keylength + sort_field_keylength,
+                                      scan_having);
   else
     error=remove_dup_with_compare(join->thd, table, first_field, sortorder,
-                                  sort_field_keylength, having);
+                                  sort_field_keylength, scan_having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
     thd->lex->set_limit_rows_examined();
@@ -29604,7 +29717,8 @@ bool
 setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 		  Ref_ptr_array ref_pointer_array,
 		  List<Item> &res_selected_fields, List<Item> &res_all_fields,
-		  uint elements, List<Item> &all_fields)
+		  uint elements, List<Item> &all_fields,
+                  bool copy_group_expr)
 {
   Item *pos;
   List_iterator_fast<Item> li(all_fields);
@@ -29614,6 +29728,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
   res_all_fields.empty();
   List_iterator_fast<Item> itr(res_all_fields);
   List<Item> extra_funcs;
+  List<Item> extra_group_funcs;
   uint i, border= all_fields.elements - elements;
   DBUG_ENTER("setup_copy_fields");
 
@@ -29622,6 +29737,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
     goto err2;
 
   param->copy_funcs.empty();
+  param->copy_group_funcs.empty();
   copy_start= copy;
   for (i= 0; (pos= li++); i++)
   {
@@ -29692,6 +29808,21 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
         }
       }
     }
+    else if (copy_group_expr && real_pos->with_sum_func() &&
+             real_pos->type() != Item::SUM_FUNC_ITEM &&
+             !real_pos->with_window_func())
+    {
+      /* Aggregate expressions cannot be copied at the start of a group. */
+      if (!(pos= real_pos->type_handler()->create_item_copy(thd, real_pos)))
+        goto err;
+      if (i < border)
+      {
+        if (extra_group_funcs.push_back(pos, thd->mem_root))
+          goto err;
+      }
+      else if (param->copy_group_funcs.push_back(pos, thd->mem_root))
+        goto err;
+    }
     else if ((real_pos->type() == Item::FUNC_ITEM ||
 	      real_pos->real_type() == Item::SUBSELECT_ITEM ||
 	      real_pos->type() == Item::CACHE_ITEM ||
@@ -29731,6 +29862,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
     reference used in these will resolve to a item that is already calculated
   */
   param->copy_funcs.append(&extra_funcs);
+  param->copy_group_funcs.append(&extra_group_funcs);
 
   DBUG_RETURN(0);
 
@@ -29740,6 +29872,21 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
   param->copy_field= 0;
 err2:
   DBUG_RETURN(TRUE);
+}
+
+
+/** Copy aggregate expressions after completing a group, in reference order. */
+static bool copy_group_funcs(TMP_TABLE_PARAM *param, const THD *thd)
+{
+  List_iterator_fast<Item> it(param->copy_group_funcs);
+  Item_copy *item;
+  while ((item= (Item_copy *) it++))
+  {
+    item->copy();
+    if (unlikely(thd->is_error()))
+      return true;
+  }
+  return false;
 }
 
 
@@ -29888,7 +30035,8 @@ static bool
 change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 			 List<Item> &res_selected_fields,
 			 List<Item> &res_all_fields,
-			 uint elements, List<Item> &all_fields)
+			 uint elements, List<Item> &all_fields,
+                         TABLE *materialized_table)
 {
   List_iterator_fast<Item> it(all_fields);
   Item *item_field,*item;
@@ -29913,8 +30061,15 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       temporary table.
     */
     enum Item::Type item_type= item->type();
-    if ((item->with_sum_func() && item_type != Item::SUM_FUNC_ITEM) ||
-       item->with_window_func())
+    bool keep_expression= item->with_sum_func() &&
+                          item_type != Item::SUM_FUNC_ITEM;
+    if (keep_expression && materialized_table)
+    {
+      Field *tmp_field= item->get_tmp_table_field();
+      if (tmp_field && tmp_field->table == materialized_table)
+        keep_expression= false;
+    }
+    if (keep_expression || item->with_window_func())
       item_field= item;
     else if (item_type == Item::FIELD_ITEM ||
              item_type == Item::DEFAULT_VALUE_ITEM)
@@ -30252,11 +30407,14 @@ update_sum_func(Item_sum **func_ptr)
 */
 
 bool
-copy_funcs(Item **func_ptr, const THD *thd)
+copy_funcs(Item **func_ptr, const THD *thd, bool skip_group_expr)
 {
   Item *func;
   for (; (func = *func_ptr) ; func_ptr++)
   {
+    if (skip_group_expr && func->with_sum_func() &&
+        func->type() != Item::SUM_FUNC_ITEM)
+      continue;
     if (func->type() == Item::FUNC_ITEM &&
         ((Item_func *) func)->with_window_func())
       continue;
@@ -30744,6 +30902,8 @@ int JOIN::rollup_send_data(uint idx)
     int res= 0;
     /* Get reference pointers to sum functions in place */
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
+    if (copy_group_funcs(&tmp_table_param, thd))
+      return 1;
     if ((!having || having->val_bool()))
     {
       if (send_records < unit->lim.get_select_limit() && do_send_rows &&
