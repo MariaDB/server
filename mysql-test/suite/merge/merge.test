@@ -2945,7 +2945,38 @@ SET SQL_SAFE_UPDATES=1;
 UPDATE t1 STRAIGHT_JOIN t2 SET a = 89 WHERE 9 IN (SELECT c FROM t3 WHERE c IN (SELECT MAX(d) FROM t4));
 
 DROP TABLE t1, t2, t3, t4;
+SET SQL_SAFE_UPDATES=DEFAULT;
 
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+--echo #
+--echo # MDEV-31180: MyISAMMRG Crash on UPDATE of an updateable VIEW
+--echo #
+# Simple UPDATE through a VIEW with the MERGE engine.
+CREATE TABLE t (f INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1),(2);
+CREATE TABLE tm (f INT) ENGINE=MERGE UNION (t) INSERT_METHOD=FIRST;
+CREATE VIEW v AS SELECT f FROM tm;
+UPDATE v SET f = 3;  # crashed here
+SELECT * FROM v;
+SELECT * FROM tm;
+DROP VIEW v;
+DROP TABLE tm, t;
+
+# Prepared statement UPDATE through a VIEW with the MERGE engine, multiple
+# executions.
+CREATE TABLE t (f INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1),(2);
+CREATE TABLE tm (f INT) ENGINE=MERGE UNION (t) INSERT_METHOD=FIRST;
+CREATE VIEW v AS SELECT f FROM tm;
+PREPARE s FROM 'UPDATE v SET f = 3';
+EXECUTE s;    # no problem
+EXECUTE s;    # Asserted on pos_in_table_list->next_global == children_l, ha_myisammrg.cc:864
+SELECT * FROM v;
+SELECT * FROM tm;
+DROP VIEW v;
+DROP TABLE tm, t;
+
+--echo # End of 11.4 tests
