@@ -1293,17 +1293,19 @@ private:
       }
       if (end)
       {
-        if (page == 0 &&
-            (err= backup_stream_start(stream, name, 0644,
-                                      physical_size, chunk, n_chunk)))
-          break;
-        /* TODO: avoid copying freed page ranges, or pages that were
-        allocated after the backup started */
-        uint32_t last{std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE)};
-        err= backup::append(node->handle, stream,
-                            uint64_t{page} * page_size,
-                            uint64_t{last} * page_size);
-        page= last;
+        if (page ||
+            !(err= backup_stream_start(stream, name, 0644,
+                                       physical_size, chunk, n_chunk)))
+        {
+          /* TODO: avoid copying freed page ranges, or pages that were
+          allocated after the backup started */
+          uint32_t last=
+            std::min(limit, page + fil_space_t::BACKUP_BATCH_SIZE);
+          err= backup::append(node->handle, stream,
+                              uint64_t{page} * page_size,
+                              uint64_t{last} * page_size);
+          page= last;
+        }
       }
       else
       {
