@@ -9032,6 +9032,28 @@ void TABLE_LIST::reinit_before_use(THD *thd)
     were closed in the end of previous prepare or execute call.
   */
   table= 0;
+  /*
+    linked_table points into the owner's internal_tables list, built the
+    last time the owner was opened.
+
+    That list lives on the owner's TABLE object. Once the owner is
+    closed, that TABLE object is freed, and so is the list. linked_table
+    then points to freed memory.
+
+    relink_internal_tables() (sql_base.cc) fixes linked_table up again,
+    but only while processing the owner itself, earlier in this same
+    execution. If the owner's open is skipped this round, it never runs,
+    and linked_table stays stale.
+
+    open_table() writes through linked_table whenever it is not NULL.
+    A stale linked_table there is a write to freed memory.
+
+    So: clear it here, before the owner is processed again. Either
+    relink_internal_tables() sets it to the new list this round, or it
+    stays NULL and open_table() skips the write.
+  */
+  if (linked_table_owner)
+    linked_table= nullptr;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
 
