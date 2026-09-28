@@ -192,7 +192,7 @@ resolve_dir()
 sync_filesystems()
 {
     local NL=$'\n'
-    local data_fs candidates synced dir path
+    local data_fs candidates synced dir path target isl
 
     # 'sync -f' (syncfs) is a GNU coreutils extension. The Darwin and
     # FreeBSD 'sync' ignores its operands, flushes everything and still
@@ -223,10 +223,23 @@ sync_filesystems()
     candidates="$ib_home_dir$NL$ib_log_dir$NL$ib_undo_dir$NL$ar_log_dir"
     candidates="$candidates$NL$binlog_dir$NL"
 
-    # Database directories may be symlinks to other filesystems.
-    # The transfer follows them, so flush them as well.
-    candidates="$candidates$(find "$data_fs" -maxdepth 1 -mindepth 1 \
-                                  -type l 2>/dev/null || :)"
+    # Database directories may be symlinks to other filesystems, and so
+    # may an individual table file placed one level deeper by a
+    # per-table DATA DIRECTORY or INDEX DIRECTORY (MyISAM, Aria). The
+    # transfer follows both, so flush them as well.
+    candidates="$candidates$(find "$data_fs" -mindepth 1 -maxdepth 2 \
+                                  -type l 2>/dev/null || :)$NL"
+
+    # InnoDB's per-table DATA DIRECTORY does not create an OS symlink:
+    # it leaves a small '.isl' file next to the tablespace, holding the
+    # real file's path as plain text. Flush the filesystem it names too.
+    while IFS= read -r isl; do
+        [ -n "$isl" ] || continue
+        target=$(sed -e '1q' -e 's/[[:space:]]*$//' "$isl" 2>/dev/null) || continue
+        [ -n "$target" ] || continue
+        candidates="$candidates$(dirname "$target")$NL"
+    done <<< "$(find "$data_fs" -mindepth 2 -maxdepth 2 -type f \
+                     -name '*.isl' 2>/dev/null || :)"
 
     # Paths already flushed, newline delimited on both sides so that a
     # membership test cannot match a partial path component.
@@ -234,16 +247,33 @@ sync_filesystems()
 
     while IFS= read -r dir; do
         [ -n "$dir" ] || continue
-        # resolve_dir() prints nothing unless the path is a reachable
-        # directory, so it doubles as the existence check. Testing $dir
-        # directly would resolve a relative path against the current
-        # directory rather than against the data directory.
-        path=$(resolve_dir "$dir")
+        if [ -L "$dir" ]; then
+            # readlink -f gives the physical path whether the link
+            # points to a directory (a symlinked database directory)
+            # or to a file (a symlinked per-table data/index file);
+            # 'cd -P', which resolve_dir() relies on, only works for
+            # the former.
+            target=$(readlink -f "$dir" 2>/dev/null) || continue
+            [ -e "$target" ] || continue
+            if [ -d "$target" ]; then
+                path=$target
+            else
+                path=$(dirname "$target")
+            fi
+        else
+            # resolve_dir() prints nothing unless the path is a
+            # reachable directory, so it doubles as the existence
+            # check. Testing $dir directly would resolve a relative
+            # path against the current directory rather than against
+            # the data directory.
+            path=$(resolve_dir "$dir")
+        fi
         [ -n "$path" ] || continue
         case "$synced" in
         *"$NL$path$NL"*) continue ;;
         esac
         sync -f "$path" || :
+        wsrep_log_info "Synced filesystem: $path"
         synced="$synced$path$NL"
     done <<< "$candidates"
 }
@@ -701,11 +731,19 @@ FILTER="-f '- /lost+found'
         findopt='-L'
         [ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
 
+        # --copy-links, not --links: a per-table DATA DIRECTORY or INDEX
+        # DIRECTORY (MyISAM, Aria) places a real OS symlink here, and
+        # the rsync daemon on the joiner cannot recreate an absolute
+        # symlink target as-is (with 'use chroot = no', it either
+        # rewrites the target into a dangling '/rsyncd-munged/...'
+        # path, or, with symlink munging turned off, still drops the
+        # target's leading '/'). Dereferencing the symlink and copying
+        # the file it points to avoids depending on either behavior.
         find $findopt . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
              -not -name '.zfs' -not -name .snapshot -print0 \
              | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-             --owner --group --perms --links --specials --ignore-times \
+             --owner --group --perms --copy-links --specials --ignore-times \
              --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
              -f '- $ib_home_dir/ib_lru_dump' \
              -f '- $ib_home_dir/ibdata*' \
