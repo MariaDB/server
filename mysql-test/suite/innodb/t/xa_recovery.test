@@ -42,7 +42,7 @@ let $wait_condition=
         info LIKE 'SET STATEMENT innodb_lock_wait_timeout%';
 --source include/wait_condition.inc
 
-SET innodb_lock_wait_timeout=1;
+SET lock_wait_timeout=1;
 --error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE t2;
 

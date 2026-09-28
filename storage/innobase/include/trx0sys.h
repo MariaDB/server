@@ -830,6 +830,10 @@ private:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;
 };
 
+/** Metadata locks that were acquired for recovered transactions.
+@see trx_sys_t::recovery */
+class recovery_mdl;
+
 /** The transaction system central memory data structure. */
 class trx_sys_t
 {
@@ -873,6 +877,18 @@ public:
 
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
+  /**
+    Metadata locks that trx_resurrect_table_locks() acquired for
+    recovered transactions, or nullptr if no recovered transaction
+    holds any.
+
+    trx_t::free() reads this for every transaction,
+    so that the locks will only be looked up while some
+    recovered transaction still holds them.
+    The object is deleted as soon as the last recovered
+    transaction has been freed.
+  */
+  std::atomic<recovery_mdl*> recovery{nullptr};
 
 #ifdef WITH_WSREP
   /** Latest recovered XID during startup */
