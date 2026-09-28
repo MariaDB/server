@@ -4640,6 +4640,7 @@ void TMP_TABLE_PARAM::init()
   table_charset= 0;
   precomputed_group_by= 0;
   bit_fields_as_long= 0;
+  materialize_group_expr= false;
   force_not_null_cols= 0;
   skip_create_table= 0;
   tmp_name= "temptable";                        // Name of temp table on disk

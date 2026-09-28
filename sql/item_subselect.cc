@@ -3290,6 +3290,20 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         }
       }
       outer_exp->fix_after_pullout(unit->outer_select(), &outer_exp, FALSE);
+      /*
+        A reference to an outer grouped value may have been created on the
+        execution arena while fixing the subquery. The IN predicate persists
+        across executions, so copy the reference onto the statement arena.
+        Keep its indirection: unwrapping it can bypass charset conversions,
+        view conditions, or the materialized value of a completed group.
+      */
+      if (outer_exp->type() == Item::REF_ITEM &&
+          static_cast<Item_ref*>(outer_exp)->ref_type() == Item_ref::REF &&
+          !(outer_exp= outer_exp->shallow_copy_with_checks(thd)))
+      {
+        res= TRUE;
+        goto out;
+      }
       outer_exp->update_used_tables();
       outer.push_back(outer_exp, thd->mem_root);
     }
