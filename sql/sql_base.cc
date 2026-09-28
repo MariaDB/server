@@ -4897,10 +4897,10 @@ restart:
   }
 
   /*
-    After successful open of all tables, including MERGE parents and
-    children, attach the children to their parents. At end of statement,
-    the children are detached. Attaching and detaching are always done,
-    even under LOCK TABLES.
+    After successfully opening the tables, including MERGE parents and
+    children, attach the children to their parents (unless they are already
+    attached).  At the end of statement, the children are detached.  Attaching
+    and detaching are always attempted, even under LOCK TABLES.
 
     We also convert all TL_WRITE_DEFAULT and TL_READ_DEFAULT locks to
     appropriate "real" lock types to be used for locking and to be passed
@@ -4916,7 +4916,8 @@ restart:
     if (!tbl)
       continue;
 
-    if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
+    if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE &&
+        !tbl->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN))
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
@@ -8545,10 +8546,24 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else
       {
-        table_list->table->tablenr= table_list->tablenr_exec;
-        table_list->table->map= table_list->map_exec;
-        table_list->table->maybe_null= table_list->maybe_null_exec;
-        table_list->table->pos_in_table_list= table_list;
+        TABLE *tbl= table_list->table;
+        tbl->tablenr= table_list->tablenr_exec;
+        tbl->map= table_list->map_exec;
+        tbl->maybe_null= table_list->maybe_null_exec;
+        /*
+          If this is a MyISAM MERGE table then don't overwrite
+          pos_in_table_list on subsequent execution of a prepared statement
+          where that statement references a MyISAM MERGE table.  On the first
+          execution, the pos_in_table_list is set to a value from 'leaves'.
+          But on subsequent executions, that value was blindly overwritten from
+          'leaf_tables_exec'.  Most of the time that's safe, but not for the
+          MyISAM MERGE.  The MyISAM MERGE engine relies on this value being
+          stable between executions so that it can find the children spliced in
+          behind the parent (the merged children).
+        */
+        if (!(tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE) ||
+            !tbl->pos_in_table_list)
+          tbl->pos_in_table_list= table_list;
         if (table_list->process_index_hints(table_list->table))
           DBUG_RETURN(1);
       }
