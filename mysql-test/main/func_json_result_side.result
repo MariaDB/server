@@ -1,0 +1,171 @@
+#
+# What a reference passes when a document is asked of it.
+#
+# A name written in HAVING or in ORDER BY that repeats a select
+# list entry does not hold a value of its own.  It is a reference,
+# and it reads the entry's RESULT side - which, once a temporary
+# table has been built for the grouping or the sorting, is a
+# column of that table rather than the thing that made the value.
+#
+# The two sides can disagree, which is the whole reason they are
+# asked separately: a store into the column can shorten a value or
+# write it in another character set, so what the column holds may
+# be a document where the producer's answer was about something
+# else, or may be nothing of the sort where the producer's was.
+# Every question a JSON function asks of an argument - is it a
+# document, is it written the loose way, how deep does it go - is
+# therefore put to the same side the value itself came from.
+#
+# A user variable assigned in the select list is the case where
+# the answer must be no.  Reading it back performs the assignment,
+# so the value cannot be asked about without being made again, and
+# nothing keeps marks for a user variable in any event.
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1,"b":[1,2]}'), (2, '{"a":2,"b":[3,4]}');
+CREATE VIEW v1 AS SELECT id AS vid, j AS vj FROM t1;
+#
+# 1. A column read through a reference
+#
+#    One argument is passed as a view of what is already
+#    there and several are each given a copy, so both formats
+#    of the read are put through a reference here.
+#
+SELECT j AS a FROM t1 ORDER BY JSON_COMPACT(a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 ORDER BY JSON_LOOSE(a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a ORDER BY JSON_EXTRACT(a, '$.a');
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_EXTRACT(a, '$.a') > 1;
+a
+{"a":2,"b":[3,4]}
+#
+# 2. The same value put inside another document
+#
+#    Splicing asks how the value is formatted as well as whether it
+#    is a document, and it is the reference that is asked.
+#
+SELECT j AS a FROM t1 ORDER BY JSON_INSERT('{}', '$.x', a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_INSERT('{}','$.x',a));
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a
+ORDER BY JSON_ARRAY_APPEND('{"c":[1]}', '$.c', a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+#
+# 3. A view's column read through a reference
+#
+#    A view column is itself a reference, and it hands the
+#    question on rather than answering it.
+#
+SELECT vj AS a FROM v1 ORDER BY JSON_COMPACT(a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT vj AS a FROM v1 ORDER BY JSON_INSERT('{}', '$.x', a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT vj AS a FROM v1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT JSON_TYPE(vj) AS ty FROM v1 GROUP BY vj;
+ty
+OBJECT
+OBJECT
+#
+# 4. A user variable read through a reference
+#
+SELECT @v := j AS a FROM t1 ORDER BY JSON_COMPACT(a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT @w := j AS a FROM t1 ORDER BY JSON_INSERT('{}', '$.x', a);
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT @u := j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+#
+# 5. Which of them is attested, shown by the answer itself
+#
+#    A value attested is put inside the array it is joining;
+#    one that is not is written out as a string and quoted.  No
+#    query shape prints what a reference passed, so the two
+#    outcomes are told apart by whether the row is there.
+#
+#    The column is attested, so its rows come back under
+#    OBJECT and none comes back under STRING.
+#
+SELECT j AS a FROM t1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT j AS a FROM t1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+a
+#    The user variable is not, so the rows change sides.
+SELECT @u := j AS a FROM t1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+a
+SELECT @u := j AS a FROM t1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+#    A view column is attested, the view passing the question
+#    on to the column underneath it.
+SELECT vj AS a FROM v1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+a
+{"a":1,"b":[1,2]}
+{"a":2,"b":[3,4]}
+SELECT vj AS a FROM v1 GROUP BY a
+HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+a
+#
+# 6. The reading that is not done
+#
+#    Json_scans is the only place the saved reading shows.  The
+#    query below reads a document back out of a temporary table
+#    and puts it inside a new one; with the column's answer taken
+#    away the same query reads that document again.
+#
+SET optimizer_switch='derived_merge=off';
+FLUSH STATUS;
+SELECT JSON_ARRAY(a) FROM (SELECT JSON_SET(j,'$.c',id) AS a FROM t1) d GROUP BY a;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	4
+SET SESSION debug_dbug = '+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+SELECT JSON_ARRAY(a) FROM (SELECT JSON_SET(j,'$.c',id) AS a FROM t1) d GROUP BY a;
+SHOW STATUS LIKE 'Json_scans';
+Variable_name	Value
+Json_scans	6
+SET SESSION debug_dbug = DEFAULT;
+SET optimizer_switch=DEFAULT;
+DROP VIEW v1;
+DROP TABLE t1;

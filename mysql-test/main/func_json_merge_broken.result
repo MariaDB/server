@@ -1,0 +1,286 @@
+# ---------------------------------------------------------------
+# what every other JSON function says about these documents
+# ---------------------------------------------------------------
+SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS no_comma;
+no_comma
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 8
+SELECT JSON_EXTRACT('{"a":1,', '$') AS stops_after_comma;
+stops_after_comma
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+SELECT JSON_EXTRACT('{', '$') AS stops_at_once;
+stops_at_once
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+SELECT JSON_EXTRACT('{"a":{"x":1 "y":2}}', '$') AS no_comma_nested;
+no_comma_nested
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 13
+# ---------------------------------------------------------------
+# JSON_MERGE - an argument that never completes a value
+# ---------------------------------------------------------------
+# argument 2 breaks, argument 1 being an empty object.  Its keys
+# are what is walked first, and an empty object has none, so the
+# walk that meets the breakage is the one that was reached second
+SELECT JSON_MERGE('{}', '{"a":1 "b":2}') AS empty_lhs;
+empty_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_MERGE('{}', '{"a":1,') AS empty_lhs_stops;
+empty_lhs_stops
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+SELECT JSON_MERGE('{}', '{') AS empty_lhs_at_once;
+empty_lhs_at_once
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+SELECT JSON_MERGE('{}', '{"a":{"x":1 "y":2}}') AS empty_lhs_nested;
+empty_lhs_nested
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 13
+# argument 1 breaks, argument 2 being an empty object
+SELECT JSON_MERGE('{"a":1 "b":2}', '{}') AS empty_rhs;
+empty_rhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 8
+SELECT JSON_MERGE('{"a":1,', '{}') AS empty_rhs_stops;
+empty_rhs_stops
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
+# the same breakage where the other argument has keys of its own,
+# which is the case that has always been refused
+SELECT JSON_MERGE('{"z":0}', '{"a":1 "b":2}') AS keyed_lhs;
+keyed_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_MERGE('{"a":1 "b":2}', '{"z":0}') AS keyed_rhs;
+keyed_rhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 8
+# three arguments, so a composed document is on the left by the
+# time the broken one is reached
+SELECT JSON_MERGE('{}', '{"a":1 "b":2}', '{"c":3}') AS three_args;
+three_args
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_MERGE('{}', '{"c":3}', '{"a":1 "b":2}') AS three_args_last;
+three_args_last
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 3 to function 'json_merge_preserve' at position 8
+# ---------------------------------------------------------------
+# JSON_MERGE_PATCH, which walks the same two loops
+# ---------------------------------------------------------------
+SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}') AS patch_empty_lhs;
+patch_empty_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+SELECT JSON_MERGE_PATCH('{}', '{"a":1,') AS patch_empty_lhs_stops;
+patch_empty_lhs_stops
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+SELECT JSON_MERGE_PATCH('{"a":1 "b":2}', '{}') AS patch_empty_rhs;
+patch_empty_rhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_patch' at position 8
+SELECT JSON_MERGE_PATCH('{"z":0}', '{"a":1 "b":2}') AS patch_keyed_lhs;
+patch_keyed_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}', '{"c":3}') AS patch_three;
+patch_three
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+# merging onto SQL NULL, where the argument is taken over whole
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1 "b":2}', '[3,4]') AS patch_null_obj;
+patch_null_obj
+[3, 4]
+SELECT JSON_MERGE_PATCH(NULL, '[1,2 3]', '[3,4]') AS patch_null_arr;
+patch_null_arr
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_patch' at position 6
+# ---------------------------------------------------------------
+# arrays and scalars, which have always refused this
+# ---------------------------------------------------------------
+SELECT JSON_MERGE('[]', '[1,2') AS arr_empty_lhs;
+arr_empty_lhs
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+SELECT JSON_MERGE('[1]', '[2,3') AS arr_keyed_lhs;
+arr_keyed_lhs
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+SELECT JSON_MERGE('[]', '[1,2 3]') AS arr_no_comma;
+arr_no_comma
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 6
+SELECT JSON_MERGE_PATCH('[]', '[1,2') AS patch_arr;
+patch_arr
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+# ---------------------------------------------------------------
+# controls - a complete value with text after it is not this, and
+# must keep the answer it has always had
+# ---------------------------------------------------------------
+SELECT JSON_MERGE('{}', '{"a":1} rubbish') AS trailing_rhs;
+trailing_rhs
+{"a": 1}
+Warnings:
+Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 9
+SELECT JSON_MERGE('{"a":1} rubbish', '{"b":2}') AS trailing_lhs;
+trailing_lhs
+{"a": 1, "b": 2}
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 9
+SELECT JSON_MERGE_PATCH('{}', '{"a":1} rubbish') AS patch_trailing;
+patch_trailing
+{"a": 1}
+Warnings:
+Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 9
+SELECT JSON_MERGE('{}', '{"a":1} {"zzz":9}') AS trailing_whole_doc;
+trailing_whole_doc
+{"a": 1}
+Warnings:
+Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 9
+# and documents that are simply documents
+SELECT JSON_MERGE('{}', '{"a":1, "b":2}') AS whole;
+whole
+{"a": 1, "b": 2}
+SELECT JSON_MERGE('{"z":0}', '{"a":1, "b":2}') AS whole_keyed;
+whole_keyed
+{"z": 0, "a": 1, "b": 2}
+SELECT JSON_MERGE_PATCH('{}', '{"a":1, "b":2}') AS patch_whole;
+patch_whole
+{"a": 1, "b": 2}
+# ---------------------------------------------------------------
+# out of a table, so one row does not settle what another says
+# ---------------------------------------------------------------
+CREATE TABLE t (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t VALUES
+(1, '{}',        '{"a":1 "b":2}'),
+(2, '{"z":0}',   '{"a":1 "b":2}'),
+(3, '{}',        '{"a":1, "b":2}'),
+(4, '{}',        '{"a":1} rubbish');
+SELECT id, JSON_MERGE(a, b) AS v FROM t ORDER BY id;
+id	v
+1	NULL
+2	NULL
+3	{"a": 1, "b": 2}
+4	{"a": 1}
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 9
+SELECT id, JSON_MERGE_PATCH(a, b) AS v FROM t ORDER BY id;
+id	v
+1	NULL
+2	NULL
+3	{"a": 1, "b": 2}
+4	{"a": 1}
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+Note	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 9
+DROP TABLE t;
+# ---------------------------------------------------------------
+# nothing downstream is handed a value the merging could not read
+# ---------------------------------------------------------------
+SELECT JSON_VALID(JSON_MERGE('{}', '{"a":1 "b":2}')) AS valid_broken;
+valid_broken
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_TYPE(JSON_MERGE('{}', '{"a":1 "b":2}')) AS type_broken;
+type_broken
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_LENGTH(JSON_MERGE('{}', '{"a":1 "b":2}')) AS length_broken;
+length_broken
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_preserve' at position 8
+SELECT JSON_VALID(JSON_MERGE('{}', '{"a":1, "b":2}')) AS valid_whole;
+valid_whole
+1
+SELECT JSON_LENGTH(JSON_MERGE('{}', '{"a":1, "b":2}')) AS length_whole;
+length_whole
+2
+# ---------------------------------------------------------------
+# JSON_MERGE_PATCH where argument 1 is not an object
+# ---------------------------------------------------------------
+# Merging onto something that is not an object does not walk the
+# two objects together; it takes argument 2 whole.  That is a
+# different walk over the same shape, and the argument has to be
+# a document there too.
+SELECT JSON_MERGE_PATCH('[]', '{"a":1 "b":2}') AS array_lhs;
+array_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+SELECT JSON_MERGE_PATCH('1', '{"a":1 "b":2}') AS scalar_lhs;
+scalar_lhs
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+SELECT JSON_MERGE_PATCH('"s"', '{"a":1,') AS string_lhs;
+string_lhs
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+SELECT JSON_MERGE_PATCH('true', '{') AS opening_brace_only;
+opening_brace_only
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_patch'
+# the break is inside a member value rather than at the top
+SELECT JSON_MERGE_PATCH('[]', '{"a":{"p":1 "q":2}}') AS nested_break;
+nested_break
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 13
+# and out of a table, so one row does not settle another
+CREATE TABLE tm (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO tm VALUES (1, '[]', '{"a":1 "b":2}'),
+(2, '[]', '{"a":1, "b":2}'),
+(3, '{}', '{"a":1 "b":2}');
+SELECT id, JSON_MERGE_PATCH(a, b) AS v FROM tm ORDER BY id;
+id	v
+1	NULL
+2	{"a": 1, "b": 2}
+3	NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 8
+DROP TABLE tm;
+# a whole document down that same walk keeps everything it had
+SELECT JSON_MERGE_PATCH('[]', '{"a":1, "b":2}') AS array_lhs_whole;
+array_lhs_whole
+{"a": 1, "b": 2}
+SELECT JSON_MERGE_PATCH('1', '{"a":{"p":1, "q":2}}') AS scalar_lhs_whole;
+scalar_lhs_whole
+{"a": {"p": 1, "q": 2}}

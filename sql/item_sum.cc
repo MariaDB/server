@@ -3786,7 +3786,7 @@ int group_concat_key_cmp_with_order_with_nulls(void *arg,
 }
 
 
-static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
+void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 {
   size_t fn_len= strlen(fname);
   char *fname_upper= (char *) my_alloca(fn_len + 1);
@@ -3830,7 +3830,20 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
-  uint max_length= table->in_use->gconcat_max_len();
+  /*
+    Room is kept back for whatever the caller still has to write round
+    this, so that the limit is reached where the answer reaches it
+    rather than two bytes further on.  GROUP_CONCAT keeps back nothing
+    and is not moved by any of this.
+
+    A limit too small to hold what the caller writes leaves nothing for
+    the rows, and the answer is then that wrapper by itself - as short
+    as the function goes, and still over the limit.  Nothing can be done
+    about that here; the width the item declares carries room for it.
+  */
+  uint reserved= item->reserved_result_length();
+  uint gconcat_max_len= table->in_use->gconcat_max_len();
+  uint max_length= gconcat_max_len > reserved ? gconcat_max_len - reserved : 0;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
@@ -4498,6 +4511,16 @@ String* Item_func_group_concat::val_str(String* str)
       return &result;
     else
       DBUG_ASSERT(false); // Can't happen
+
+    /*
+      The walk is what produces the result, and it has now happened.
+      dump_leaf_key() raises this itself for the first row it writes,
+      but a walk in which every row fell inside OFFSET writes none and
+      raises nothing, so the next caller would walk again - with the
+      offset already spent, and the rows it skipped the first time
+      appended to a result that has already been handed out once.
+    */
+    result_finalized= true;
   }
 
   if (table && table->blob_storage && 

@@ -46,6 +46,15 @@ int Pushdown_query::execute(JOIN *join)
   TABLE *table= handler->table;
   DBUG_ENTER("Pushdown_query::execute");
 
+  /*
+    Nothing attests to what an engine puts in a table it fills, so the
+    bitmaps are dropped where the table is given to the engine - see
+    TABLE::set_filled_by_engine().  Asserted here rather than there
+    because what has to hold is that EVERY way in has dropped them, and
+    the ways in all come through here.
+  */
+  DBUG_ASSERT(!table->is_valid_json_static_set);
+
   if ((err= handler->init_scan()))
     goto error;
 

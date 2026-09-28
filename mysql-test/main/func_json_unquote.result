@@ -1,0 +1,159 @@
+#
+# What JSON_UNQUOTE reports its result to be, against what it
+# actually returns.
+#
+# The function settles on utf8mb4_bin when the statement is prepared,
+# before any argument has been read, so that is what every consumer
+# downstream of it is told the bytes are.  The bytes therefore have to
+# arrive in that character set no matter what the argument was
+# written in.  Only one of the ways out of the function converts them.
+#
+SET NAMES utf8mb4;
+#
+# 1. What the function says about itself.
+#
+SELECT CHARSET(JSON_UNQUOTE(CONVERT('["a"]' USING latin1))) AS declared_cs,
+COLLATION(JSON_UNQUOTE('["a"]')) AS declared_coll;
+declared_cs	declared_coll
+utf8mb4	utf8mb4_bin
+#
+# 2. A string value.  This is the path that unescapes, and it
+#    converts on the way out.
+#
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'22E922' USING latin1))) AS str_value;
+str_value
+C3A9
+SELECT CHAR_LENGTH(JSON_UNQUOTE(CONVERT(X'22E922' USING latin1))) AS chars;
+chars
+1
+#
+# 3. A value that is not a string.  There is nothing to unquote, so
+#    the argument is returned unchanged.
+#
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS array_value;
+array_value
+5B22C3A9225D
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'7B2261223A22E9227D' USING latin1))) AS object_value;
+object_value
+7B2261223A22C3A9227D
+SELECT HEX(JSON_UNQUOTE(CONVERT('123' USING latin1))) AS number_value;
+number_value
+313233
+SELECT HEX(JSON_UNQUOTE(CONVERT('true' USING latin1))) AS bool_value;
+bool_value
+74727565
+#
+# 4. A document that does not parse.  Also returned unchanged.
+#
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'5B22E922' USING latin1))) AS broken_value;
+broken_value
+5B22C3A922
+#
+# 5. The result used where its declared character set is taken at
+#    its word.
+#
+SELECT HEX(CONCAT(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1)), 'z')) AS concatenated;
+concatenated
+5B22C3A9225D7A
+SELECT CHAR_LENGTH(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS chars;
+chars
+5
+SELECT JSON_VALID(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS still_json;
+still_json
+1
+SELECT HEX(UPPER(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1)))) AS uppercased;
+uppercased
+5B22C389225D
+#
+# 6. A document held as bytes, which has no character set to
+#    convert from.
+#
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B22FF225D' AS BINARY))) AS from_binary;
+from_binary
+5B22C3BF225D
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B226122' AS BINARY))) AS from_binary_broken;
+from_binary_broken
+5B226122
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B22615D' AS BINARY))) AS from_binary_ascii;
+from_binary_ascii
+5B22615D
+# the two ways out of the function have to say the same thing about
+# the same byte.  A value that IS a string is unescaped, reading each
+# byte as the character of the same number; anything else is handed
+# back converted, and it has to be read the same way.  0x80 and 0x9F
+# are two of the 27 positions in 0x80-0x9F where latin1 would not:
+# MariaDB's latin1 is cp1252 and makes 0x80 the euro sign.
+SELECT HEX(JSON_UNQUOTE(CAST(X'228022' AS BINARY))) AS str_80;
+str_80
+C280
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B2280225D' AS BINARY))) AS doc_80;
+doc_80
+5B22C280225D
+SELECT HEX(JSON_UNQUOTE(CAST(X'229F22' AS BINARY))) AS str_9f;
+str_9f
+C29F
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B229F225D' AS BINARY))) AS doc_9f;
+doc_9f
+5B22C29F225D
+# and one of the five where it would agree, for contrast
+SELECT HEX(JSON_UNQUOTE(CAST(X'228122' AS BINARY))) AS str_81;
+str_81
+C281
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B2281225D' AS BINARY))) AS doc_81;
+doc_81
+5B22C281225D
+#
+# 7. An argument already in the declared character set, which is
+#    the common case and must not move.
+#
+SELECT HEX(JSON_UNQUOTE(_utf8mb4'["a"]')) AS same_cs;
+same_cs
+5B2261225D
+SELECT HEX(JSON_UNQUOTE(_utf8mb4'"a"')) AS same_cs_str;
+same_cs_str
+61
+# a document holding U+00E9, written here as its utf8mb4 bytes C3 A9
+SELECT HEX(JSON_UNQUOTE(_utf8mb4 0x5B22C3A9225D)) AS same_cs_wide;
+same_cs_wide
+5B22C3A9225D
+#
+# 8. An argument in a character set that admits every byte but has
+#    no character at some of them.
+#
+# The conversion has nowhere to put such a byte.  What it does put
+# there instead is not the value it was given, so the argument is
+# returned as it arrived, which is the answer this call has
+# always given, and the difference is said in a note.  A note and
+# not a warning: a warning becomes an error inside a statement
+# running under strict mode, and a statement that used to finish
+# would then stop finishing.
+#
+# cp1250 has no character at 0x81.
+#
+CREATE TABLE t1 (id INT, c TEXT CHARACTER SET cp1250);
+INSERT INTO t1 VALUES (1, X'5B3181'), (2, X'5B2261225D'), (3, X'2281');
+SELECT id, HEX(c) AS stored, HEX(JSON_UNQUOTE(c)) AS unquoted
+FROM t1 ORDER BY id;
+id	stored	unquoted
+1	5B3181	5B3181
+2	5B2261225D	5B2261225D
+3	2281	2281
+Warnings:
+Note	4035	Broken JSON string in argument 0 to function 'unquote' at position 0
+Warning	4035	Broken JSON string in argument 1 to function 'json_unquote' at position 1
+Note	4035	Broken JSON string in argument 0 to function 'unquote' at position 0
+# the same values inside a statement that stops on a warning.  Row 3
+# is left out of it: reading a STRING that will not scan has always
+# raised a warning of its own, from before any of this, and strict
+# mode has always stopped on that one.
+CREATE TABLE t2 (b BLOB);
+SET SESSION sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t2 SELECT JSON_UNQUOTE(c) FROM t1 WHERE id < 3;
+Warnings:
+Note	4035	Broken JSON string in argument 0 to function 'unquote' at position 0
+SELECT HEX(b) AS stored FROM t2 ORDER BY b;
+stored
+5B2261225D
+5B3181
+SET SESSION sql_mode=DEFAULT;
+DROP TABLE t1, t2;

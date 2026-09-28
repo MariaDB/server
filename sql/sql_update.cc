@@ -3015,6 +3015,15 @@ int multi_update::do_updates()
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
 
+      /*
+        A new row image begins here.  Nothing on this pass goes through
+        fill_record() - the columns arrive by Copy_field, below - so this is
+        where the marks of the row before have to go; a trigger on this
+        table can set them, and a row that turns out to need no update
+        never reaches the reading that would clear them.
+      */
+      table->clear_is_valid_json_marks();
+
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;
 	   copy_field_ptr != copy_field_end;

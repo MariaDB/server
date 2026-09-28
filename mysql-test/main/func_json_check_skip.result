@@ -1,0 +1,339 @@
+#
+# What a JSON column's check constraint keeps out.
+#
+# A column declared JSON carries a check constraint that reads every
+# value stored into it and refuses the ones that are not documents.
+# Where the value came from something that has already attested
+# it, that reading finds out nothing that was not already known, and
+# can be left undone.
+#
+# Everything below is a case where it CANNOT be left undone, and the
+# answers here are what the column does about each of them.  Nothing
+# in this file is supposed to change: it says what is refused, and a
+# value that stops being refused is a value that got in.
+#
+SET NAMES utf8mb4;
+#
+# 1. A document that came from a JSON function goes in and stays put.
+#
+CREATE TABLE t1 (id INT, j JSON);
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1, 'b', 2)),
+(2, JSON_ARRAY(1, 2, 3));
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1, "b": 2}
+2	[1, 2, 3]
+SELECT id, JSON_VALID(j) AS still_a_document FROM t1 ORDER BY id;
+id	still_a_document
+1	1
+2	1
+# the same through every other way a row is written
+INSERT INTO t1 SELECT id + 10, JSON_INSERT(j, '$.c', 3) FROM t1 ORDER BY id;
+UPDATE t1 SET j = JSON_SET(j, '$.d', 4) WHERE id = 1;
+REPLACE INTO t1 VALUES (2, JSON_ARRAY(9, 8));
+SELECT id, JSON_VALID(j) AS still_a_document FROM t1 ORDER BY id;
+id	still_a_document
+1	1
+2	1
+2	1
+11	1
+12	1
+DROP TABLE t1;
+#
+# 2. Text that is not a document is refused, whoever wrote it.
+#
+CREATE TABLE t1 (id INT, j JSON);
+INSERT INTO t1 VALUES (1, 'not a document');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+INSERT INTO t1 VALUES (1, '{"a":1');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+INSERT INTO t1 VALUES (1, CONCAT('{"a":', '1'));
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+UPDATE t1 SET j = 'not a document';
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1}
+DROP TABLE t1;
+#
+# 3. A document that does not fit is cut, and what is left of it is
+# read like anything else.  The value that arrives came from a JSON
+# function and was a document when it set out; what the column holds
+# is not, and that is what the check has to see.
+#
+SET @sql_mode_saved = @@sql_mode;
+SET @@sql_mode = '';
+CREATE TABLE t1 (v VARCHAR(10) CHECK (JSON_VALID(v)));
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2, 3, 4567));
+ERROR 23000: CONSTRAINT `t1.v` failed for `test`.`t1`
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+rows_that_got_in
+0
+# short enough to arrive whole
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2));
+SELECT v FROM t1;
+v
+[1, 2]
+DROP TABLE t1;
+# a cut that happens to leave a document behind is accepted, as it
+# always has been - the text after it is what went missing
+CREATE TABLE t1 (v VARCHAR(10) CHECK (JSON_VALID(v)));
+INSERT INTO t1 VALUES ('[1,2,3,45],6789');
+Warnings:
+Warning	1265	Data truncated for column 'v' at row 1
+SELECT v FROM t1;
+v
+[1,2,3,45]
+DROP TABLE t1;
+SET @@sql_mode = @sql_mode_saved;
+#
+# 4. A character set that cannot encode a document does not get one.
+# The brackets are not in swe7 at all, so they arrive as question
+# marks and what is stored is not a document.
+#
+SET @@sql_mode = '';
+CREATE TABLE t1 (v VARCHAR(64) CHARACTER SET swe7 CHECK (JSON_VALID(v)));
+INSERT INTO t1 VALUES (JSON_ARRAY(1, 2));
+ERROR 23000: CONSTRAINT `t1.v` failed for `test`.`t1`
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+rows_that_got_in
+0
+DROP TABLE t1;
+SET @@sql_mode = @sql_mode_saved;
+#
+# 5. A row that is written twice is read twice.
+#
+# ON DUPLICATE KEY UPDATE writes the new row, reads it, then puts
+# the old row's columns back and writes the update over the top.
+# What the first writing attested is gone by then, and the
+# second writing has to attest to itself.
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('b', 2))
+ON DUPLICATE KEY UPDATE j = 'not a document';
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1}
+# and the update that IS a document goes through
+INSERT INTO t1 VALUES (1, JSON_OBJECT('b', 2))
+ON DUPLICATE KEY UPDATE j = JSON_OBJECT('c', 3);
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"c": 3}
+# the insert half refused, with a second row present to prove the
+# statement reached it
+INSERT INTO t1 VALUES (1, JSON_OBJECT('d', 4)), (2, 'not a document')
+ON DUPLICATE KEY UPDATE j = JSON_OBJECT('e', 5);
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"e": 5}
+DROP TABLE t1;
+#
+# 6. A check that reads a DIFFERENT column is not this column's
+# check, however much it looks like one.
+#
+CREATE TABLE t1 (a VARCHAR(64) CHECK (JSON_VALID(b)), b VARCHAR(64));
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+# a is given a document, b is not; the check reads b and refuses
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1), 'not a document');
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+rows_that_got_in
+0
+# b a document, a not - accepted, the check having nothing to say
+# about a
+INSERT INTO t1 VALUES ('not a document', JSON_OBJECT('b', 2));
+SELECT a, b FROM t1;
+a	b
+not a document	{"b": 2}
+DROP TABLE t1;
+#
+# 7. A check that asks anything besides whether the value is a
+# document keeps asking it.
+#
+CREATE TABLE t1 (j VARCHAR(64) CHECK (JSON_VALID(j) AND LENGTH(j) < 12));
+Warnings:
+Warning	4271	CHECK constraint of column 'j' asks more than JSON_VALID() of it; the column is not a JSON column
+INSERT INTO t1 VALUES (JSON_OBJECT('a', 1));
+INSERT INTO t1 VALUES (JSON_OBJECT('aaaaaaaaaa', 1));
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT j FROM t1;
+j
+{"a": 1}
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, j VARCHAR(64),
+CONSTRAINT ck CHECK (id > 0 AND JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+INSERT INTO t1 VALUES (0, JSON_OBJECT('a', 1));
+ERROR 23000: CONSTRAINT `ck` failed for `test`.`t1`
+INSERT INTO t1 VALUES (1, 'not a document');
+ERROR 23000: CONSTRAINT `ck` failed for `test`.`t1`
+SELECT id, j FROM t1;
+id	j
+1	{"a": 1}
+DROP TABLE t1;
+# a table-level check that asks only about the document is still a
+# table-level check
+CREATE TABLE t1 (id INT, j VARCHAR(64), CONSTRAINT ck CHECK (JSON_VALID(j)));
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+INSERT INTO t1 VALUES (2, 'not a document');
+ERROR 23000: CONSTRAINT `ck` failed for `test`.`t1`
+SELECT id, j FROM t1;
+id	j
+1	{"a": 1}
+DROP TABLE t1;
+#
+# 8. A trigger writing the column is a writer like any other.
+#
+CREATE TABLE t1 (id INT, j JSON);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+SET NEW.j = JSON_INSERT(NEW.j, '$.seen', 1);
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1, "seen": 1}
+DROP TRIGGER tr1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+SET NEW.j = 'not a document';
+INSERT INTO t1 VALUES (2, JSON_OBJECT('a', 1));
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1, "seen": 1}
+DROP TRIGGER tr1;
+# written twice in one trigger, the last writing being the one that
+# counts
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+SET NEW.j = JSON_OBJECT('first', 1);
+SET NEW.j = 'not a document';
+END|
+INSERT INTO t1 VALUES (3, JSON_OBJECT('a', 1));
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1, "seen": 1}
+DROP TRIGGER tr1;
+DROP TABLE t1;
+#
+# 9. Switching the checks off leaves bytes behind that the column
+# would not have taken, and switching them back on does not go
+# looking for them.  What it does do is refuse the next bad value.
+#
+CREATE TABLE t1 (id INT, j JSON);
+SET @@check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (1, 'not a document');
+SET @@check_constraint_checks = ON;
+SELECT id, j, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+id	j	reads_as_a_document
+1	not a document	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+INSERT INTO t1 VALUES (2, JSON_OBJECT('a', 1));
+INSERT INTO t1 VALUES (3, 'also not a document');
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+id	reads_as_a_document
+1	0
+2	1
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+# a copying ALTER reads every row again and finds the one that was
+# let through
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+# and ignoring drops it rather than keeping it
+ALTER IGNORE TABLE t1 FORCE, ALGORITHM=COPY;
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+Warning	4025	CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, JSON_VALID(j) AS reads_as_a_document FROM t1 ORDER BY id;
+id	reads_as_a_document
+2	1
+DROP TABLE t1;
+#
+# 10. A versioned table writes a history row that is not read, and a
+# current row that is.
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)))
+WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1, JSON_OBJECT('a', 1));
+UPDATE t1 SET j = JSON_OBJECT('b', 2) WHERE id = 1;
+UPDATE t1 SET j = 'not a document' WHERE id = 1;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"b": 2}
+SELECT j, JSON_VALID(j) AS reads_as_a_document
+FROM t1 FOR SYSTEM_TIME ALL ORDER BY j;
+j	reads_as_a_document
+{"a": 1}	1
+{"b": 2}	1
+DROP TABLE t1;
+#
+# 11. Every other way of writing rows.
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (id INT PRIMARY KEY, txt VARCHAR(64));
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, 'not a document');
+# INSERT ... SELECT stops at the row that is not a document, the
+# rows before it having already been written
+INSERT INTO t1 SELECT id, txt FROM t2 ORDER BY id;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1}
+DELETE FROM t1;
+INSERT INTO t1 SELECT id, JSON_COMPACT(txt) FROM t2 WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1}
+# a plain UPDATE
+UPDATE t1 SET j = 'not a document' WHERE id = 1;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+UPDATE t1 SET j = JSON_SET(j, '$.b', 2) WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a": 1, "b": 2}
+# an update across two tables, both of them present in t1 this time
+INSERT INTO t1 VALUES (2, JSON_OBJECT('x', 9));
+UPDATE t1, t2 SET t1.j = t2.txt WHERE t1.id = t2.id AND t2.id = 2;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+UPDATE t1, t2 SET t1.j = 'not a document' WHERE t1.id = t2.id;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+UPDATE t1, t2 SET t1.j = JSON_COMPACT(t2.txt) WHERE t1.id = t2.id AND t2.id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1}
+2	{"x": 9}
+DROP TABLE t1, t2;
+#
+# 12. Rows read out of a file are text and are read like text.
+#
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j)));
+CREATE TABLE t2 (id INT, txt VARCHAR(64));
+INSERT INTO t2 VALUES (1, '{"a":1}'), (2, 'not a document');
+SELECT id, txt FROM t2 ORDER BY id INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/func_json_check_skip.txt';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/func_json_check_skip.txt' INTO TABLE t1;
+ERROR 23000: CONSTRAINT `t1.j` failed for `test`.`t1`
+SELECT COUNT(*) AS rows_that_got_in FROM t1;
+rows_that_got_in
+1
+# the same file with only the document in it
+DELETE FROM t2 WHERE id = 2;
+SELECT id, txt FROM t2 ORDER BY id INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/func_json_check_skip.txt';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/func_json_check_skip.txt' INTO TABLE t1;
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{"a":1}
+1	{"a":1}
+DROP TABLE t1, t2;

@@ -1,0 +1,152 @@
+#
+# Composing a document in a character set that writes a letter, and a
+# space, in more than one byte.
+#
+# A set that cannot encode a document at all is refused elsewhere; these
+# are the sets that CAN, and so are the ones where composing has to
+# count characters rather than bytes.  A space in ucs2 is two bytes, in
+# utf32 four, and the first of those bytes is a zero - so anything that
+# looks at one byte to decide whether it is standing on a space decides
+# wrongly, and quietly, in exactly these sets.
+#
+# Every case is written as a comparison against the same composition in
+# utf8, which is the answer these have to agree with.  Recording this
+# file cannot therefore write a defect down as expected: a doubled or
+# missing space makes the two sides differ whatever is recorded.
+#
+
+--enable_warnings
+
+--echo #
+--echo # 1. Merging, which writes its own punctuation between a key and
+--echo #    the value copied in after it
+--echo #
+SELECT CONVERT(JSON_MERGE_PATCH(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('{"c":3}' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PATCH(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                          JSON_EXTRACT('{"c":3}', '$'))
+       AS ucs2_patch_agrees;
+
+SELECT CONVERT(JSON_MERGE_PATCH(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING utf16), '$'),
+                 JSON_EXTRACT(CONVERT('{"c":3}' USING utf16), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PATCH(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                          JSON_EXTRACT('{"c":3}', '$'))
+       AS utf16_patch_agrees;
+
+SELECT CONVERT(JSON_MERGE_PATCH(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING utf32), '$'),
+                 JSON_EXTRACT(CONVERT('{"c":3}' USING utf32), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PATCH(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                          JSON_EXTRACT('{"c":3}', '$'))
+       AS utf32_patch_agrees;
+
+--echo #
+--echo #    A key both documents hold, where the value is written out
+--echo #    rather than copied and there is no space to inherit.
+--echo #
+SELECT CONVERT(JSON_MERGE_PATCH(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('{"a":9}' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PATCH(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                          JSON_EXTRACT('{"a":9}', '$'))
+       AS ucs2_shared_key_agrees;
+
+SELECT CONVERT(JSON_MERGE_PRESERVE(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('{"a":9}' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PRESERVE(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                             JSON_EXTRACT('{"a":9}', '$'))
+       AS ucs2_preserve_agrees;
+
+--echo #
+--echo #    Two arrays, and an array with something that is not one.
+--echo #    These take the arm of the merging that copies whole spans of
+--echo #    both documents rather than walking their keys, so they are
+--echo #    where a copy put through a converting append shows up.
+--echo #
+SELECT CONVERT(JSON_MERGE_PRESERVE(
+                 JSON_EXTRACT(CONVERT('[1, 2]' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('[3, 4]' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PRESERVE(JSON_EXTRACT('[1, 2]', '$'),
+                             JSON_EXTRACT('[3, 4]', '$'))
+       AS ucs2_arrays_agree;
+
+SELECT CONVERT(JSON_MERGE_PRESERVE(
+                 JSON_EXTRACT(CONVERT('[1, 2]' USING utf32), '$'),
+                 JSON_EXTRACT(CONVERT('[3, 4]' USING utf32), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PRESERVE(JSON_EXTRACT('[1, 2]', '$'),
+                             JSON_EXTRACT('[3, 4]', '$'))
+       AS utf32_arrays_agree;
+
+SELECT CONVERT(JSON_MERGE_PRESERVE(
+                 JSON_EXTRACT(CONVERT('{"a": 1}' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('2' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PRESERVE(JSON_EXTRACT('{"a": 1}', '$'),
+                             JSON_EXTRACT('2', '$'))
+       AS ucs2_wrap_agrees;
+
+SELECT CONVERT(JSON_MERGE_PRESERVE(
+                 JSON_EXTRACT(CONVERT('[1, 2]' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('{"a": 3}' USING ucs2), '$'))
+               USING utf8mb4)
+       = JSON_MERGE_PRESERVE(JSON_EXTRACT('[1, 2]', '$'),
+                             JSON_EXTRACT('{"a": 3}', '$'))
+       AS ucs2_array_object_agree;
+
+--echo #
+--echo # 2. The other six, each composing the same document a different
+--echo #    way, so that a one-byte assumption anywhere shows here
+--echo #
+SELECT CONVERT(JSON_INSERT(JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2),
+                                        '$'), '$.c', 3) USING utf8mb4)
+       = JSON_INSERT(JSON_EXTRACT('{"a":1,"b":2}', '$'), '$.c', 3)
+       AS ucs2_insert_agrees;
+
+SELECT CONVERT(JSON_SET(JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2),
+                                     '$'), '$.a', 9) USING utf8mb4)
+       = JSON_SET(JSON_EXTRACT('{"a":1,"b":2}', '$'), '$.a', 9)
+       AS ucs2_set_agrees;
+
+SELECT CONVERT(JSON_REPLACE(JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2),
+                                         '$'), '$.a', 9) USING utf8mb4)
+       = JSON_REPLACE(JSON_EXTRACT('{"a":1,"b":2}', '$'), '$.a', 9)
+       AS ucs2_replace_agrees;
+
+SELECT CONVERT(JSON_REMOVE(JSON_EXTRACT(CONVERT('[1, 2, 3]' USING ucs2),
+                                        '$'), '$[0]') USING utf8mb4)
+       = JSON_REMOVE(JSON_EXTRACT('[1, 2, 3]', '$'), '$[0]')
+       AS ucs2_remove_agrees;
+
+SELECT CONVERT(JSON_ARRAY_APPEND(JSON_EXTRACT(CONVERT('[1, 2]' USING ucs2),
+                                              '$'), '$', 3) USING utf8mb4)
+       = JSON_ARRAY_APPEND(JSON_EXTRACT('[1, 2]', '$'), '$', 3)
+       AS ucs2_append_agrees;
+
+SELECT CONVERT(JSON_ARRAY_INSERT(JSON_EXTRACT(CONVERT('[1, 2]' USING ucs2),
+                                              '$'), '$[0]', 9) USING utf8mb4)
+       = JSON_ARRAY_INSERT(JSON_EXTRACT('[1, 2]', '$'), '$[0]', 9)
+       AS ucs2_array_insert_agrees;
+
+--echo #
+--echo # 3. What the wide answers actually say, written out, so that a
+--echo #    change to BOTH sides at once cannot pass unseen
+--echo #
+SELECT CONVERT(JSON_MERGE_PATCH(
+                 JSON_EXTRACT(CONVERT('{"a":1,"b":2}' USING ucs2), '$'),
+                 JSON_EXTRACT(CONVERT('{"c":3}' USING ucs2), '$'))
+               USING utf8mb4) AS ucs2_patch_written;
+SELECT CONVERT(JSON_REMOVE(JSON_EXTRACT(CONVERT('[1, 2, 3]' USING ucs2),
+                                        '$'), '$[0]') USING utf8mb4)
+       AS ucs2_remove_written;
+SELECT JSON_MERGE_PATCH(JSON_EXTRACT('{"a":1,"b":2}', '$'),
+                        JSON_EXTRACT('{"c":3}', '$')) AS utf8_patch_written;

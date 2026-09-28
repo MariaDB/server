@@ -1,0 +1,98 @@
+# A scalar converts into swe7 and a container does not.
+SELECT JSON_VALID(CONVERT('1' USING swe7)) AS scalar_reads;
+scalar_reads
+1
+SELECT HEX(CONVERT('[1,2]' USING swe7)) AS container_bytes;
+container_bytes
+3F312C323F
+Warnings:
+Warning	1977	Cannot convert 'latin1' character 0x5B to 'swe7'
+#
+# 1. Picking values out, which writes brackets when several of
+#    them can match and nothing at all when only one can
+#
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$', '$')) AS two_paths;
+two_paths
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$[*]')) AS wildcard;
+wildcard
+NULL
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$')) AS one_path;
+one_path
+31
+#
+# 2. A document in that set attested is_valid, so the
+#    functions below are asked their question with it and answer
+#    yes to every part of it but the formatting
+#
+SELECT HEX(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2)) AS is_valid;
+is_valid
+31
+SELECT JSON_VALID(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2)) AS still_doc;
+still_doc
+1
+#
+# 3. The six that edit a document, each given that is_valid
+#    one.  The two that have to write a container to answer
+#    return NULL; the other four return a scalar - the one they
+#    were given, except JSON_MERGE_PATCH, which returns the patch.
+#
+SELECT HEX(JSON_INSERT(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+'$.b', 3)) AS ins;
+ins
+31
+SELECT HEX(JSON_REMOVE(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+'$.b')) AS rem;
+rem
+31
+SELECT HEX(JSON_ARRAY_APPEND(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+'$', 3)) AS app;
+app
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_append' at position 1
+SELECT HEX(JSON_ARRAY_INSERT(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+'$[0]', 3)) AS ari;
+ari
+31
+SELECT HEX(JSON_MERGE(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+JSON_INSERT(CONVERT('2' USING swe7), '$.a', 2))) AS mrg;
+mrg
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge_preserve' at position 1
+SELECT HEX(JSON_MERGE_PATCH(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+JSON_INSERT(CONVERT('2' USING swe7), '$.a', 2)))
+AS mpt;
+mpt
+32
+#
+# 4. The ones that have always asked before writing punctuation,
+#    the ones that write none, and the two that write their answer
+#    in utf8mb4 whatever they were given
+#
+SELECT HEX(JSON_SEARCH(CONVERT('1' USING swe7), 'all', CONVERT('1' USING swe7)))
+AS srch;
+srch
+222422
+SELECT HEX(JSON_ARRAY(CONVERT('1' USING swe7), CONVERT('2' USING swe7))) AS arr;
+arr
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array' at position 1
+SELECT HEX(JSON_OBJECT(CONVERT('a' USING swe7), CONVERT('1' USING swe7))) AS obj;
+obj
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_object' at position 1
+SELECT HEX(JSON_QUERY(CONVERT('1' USING swe7), '$')) AS qry;
+qry
+NULL
+SELECT HEX(JSON_NORMALIZE(CONVERT('1' USING swe7))) AS nrm;
+nrm
+312E304530
+SELECT HEX(JSON_COMPACT(CONVERT('1' USING swe7))) AS cmp;
+cmp
+31

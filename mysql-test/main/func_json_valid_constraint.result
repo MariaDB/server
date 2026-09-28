@@ -1,0 +1,271 @@
+#
+# Which column a JSON_VALID check constraint makes a JSON column
+#
+# A string column is a JSON column when it carries a check constraint
+# that says that column holds a document.  A constraint that reads
+# another column, or no column at all, says nothing about this one.
+#
+SET NAMES utf8mb4;
+#
+# A constraint reading another column
+#
+# d is the ordinary usage and e an ordinary JSON column, both controls.
+CREATE TABLE t1 (
+a VARCHAR(100) CHECK (JSON_VALID(b)),
+b VARCHAR(100),
+d VARCHAR(100) CHECK (JSON_VALID(d)),
+e JSON
+);
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(100) DEFAULT NULL CHECK (json_valid(`b`)),
+  `b` varchar(100) DEFAULT NULL,
+  `d` varchar(100) DEFAULT NULL CHECK (json_valid(`d`)),
+  `e` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`e`))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# what the server tells a client the columns are
+SELECT a, b, d, e FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	253	400	0	Y	0	0	45
+def	test	t1	t1	b	b	253	400	0	Y	0	0	45
+def	test	t1	t1	d	d	253 (format=json)	400	0	Y	0	0	45
+def	test	t1	t1	e	e	252 (format=json)	4294967295	0	Y	144	0	45
+a	b	d	e
+SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' ORDER BY COLUMN_NAME;
+COLUMN_NAME	DATA_TYPE
+a	varchar
+b	varchar
+d	varchar
+e	longtext
+#
+# a is unconstrained, so it can hold text that is not a document
+#
+INSERT INTO t1 VALUES ('not json at all', '{"x":1}', '{"y":2}', '{"z":3}');
+SELECT a, JSON_VALID(a) AS a_is_a_document FROM t1;
+a	a_is_a_document
+not json at all	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
+# a is quoted like the ordinary column it is, not spliced
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t1;
+from_a
+{"k": "not json at all"}
+SELECT JSON_SET('{}', '$.k', b) AS from_b FROM t1;
+from_b
+{"k": "{\"x\":1}"}
+# the controls are spliced
+SELECT JSON_SET('{}', '$.k', d) AS from_d FROM t1;
+from_d
+{"k": {"y": 2}}
+SELECT JSON_SET('{}', '$.k', e) AS from_e FROM t1;
+from_e
+{"k": {"z": 3}}
+DROP TABLE t1;
+#
+# The same column holding a document that IS well formed
+#
+# Whether a is spliced or quoted decides whether the document nests
+# or arrives as a string, and it must not depend on b's constraint.
+#
+CREATE TABLE t2 (
+a VARCHAR(100) CHECK (JSON_VALID(b)),
+b VARCHAR(100),
+d VARCHAR(100) CHECK (JSON_VALID(d))
+);
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+INSERT INTO t2 VALUES ('{"p":1}', '{"x":1}', '{"p":1}');
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t2;
+from_a
+{"k": "{\"p\":1}"}
+SELECT JSON_SET('{}', '$.k', b) AS from_b FROM t2;
+from_b
+{"k": "{\"x\":1}"}
+SELECT JSON_SET('{}', '$.k', d) AS from_d FROM t2;
+from_d
+{"k": {"p": 1}}
+DROP TABLE t2;
+#
+# A constraint that constrains nothing
+#
+# JSON_VALID('{}') is a constant true, so the column keeps no
+# promise about its contents whatsoever.
+#
+CREATE TABLE t3 (a VARCHAR(100) CHECK (JSON_VALID('{}')));
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+SELECT a FROM t3;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t3	t3	a	a	253	400	0	Y	0	0	45
+a
+INSERT INTO t3 VALUES ('not json at all');
+SELECT JSON_SET('{}', '$.k', a) AS from_a FROM t3;
+from_a
+{"k": "not json at all"}
+DROP TABLE t3;
+#
+# The constraint is still enforced, on the column it names
+#
+CREATE TABLE t4 (a VARCHAR(100) CHECK (JSON_VALID(b)), b VARCHAR(100));
+Warnings:
+Warning	4269	CHECK constraint of column 'a' calls JSON_VALID() on something other than 'a'; the column is not a JSON column
+INSERT INTO t4 VALUES ('anything', 'not json');
+ERROR 23000: CONSTRAINT `t4.a` failed for `test`.`t4`
+INSERT INTO t4 VALUES ('anything', '{"x":1}');
+SELECT a, b FROM t4;
+a	b
+anything	{"x":1}
+DROP TABLE t4;
+#
+# A table level constraint types neither column, as before
+#
+CREATE TABLE t5 (
+a VARCHAR(100),
+b VARCHAR(100),
+CONSTRAINT c CHECK (JSON_VALID(b))
+);
+SELECT a, b FROM t5;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t5	t5	a	a	253	400	0	Y	0	0	45
+def	test	t5	t5	b	b	253	400	0	Y	0	0	45
+a	b
+DROP TABLE t5;
+#
+# A check that asks more than whether the column holds a document
+#
+# What types a column is JSON_VALID() of it and nothing else.  An
+# AND keeps the promise and an OR does not, but a promise kept is
+# not a column typed, and neither shape is typed.  Each is told so,
+# in the words that fit it.
+#
+CREATE TABLE t7 (
+a TEXT CHECK (LENGTH(a) > 0 AND JSON_VALID(a)),
+b TEXT CHECK (LENGTH(b) > 0 OR JSON_VALID(b)),
+c TEXT CHECK (LENGTH(d) > 0 AND JSON_VALID(d)),
+d TEXT
+);
+Warnings:
+Warning	4271	CHECK constraint of column 'a' asks more than JSON_VALID() of it; the column is not a JSON column
+Warning	4270	CHECK constraint of column 'b' can pass without JSON_VALID() holding; the column is not a JSON column
+Warning	4269	CHECK constraint of column 'c' calls JSON_VALID() on something other than 'c'; the column is not a JSON column
+CREATE TABLE t8 (d TEXT CHECK (JSON_VALID(d)));
+# the protocol tells the client what the warnings told the writer:
+# none of the three is a JSON column, and a column whose check is
+# the call alone still is
+SELECT a, b, c, d FROM t7;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t7	t7	a	a	252	262140	0	Y	16	0	45
+def	test	t7	t7	b	b	252	262140	0	Y	16	0	45
+def	test	t7	t7	c	c	252	262140	0	Y	16	0	45
+def	test	t7	t7	d	d	252	262140	0	Y	16	0	45
+a	b	c	d
+SELECT d FROM t8;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t8	t8	d	d	252 (format=json)	262140	0	Y	16	0	45
+d
+# and what each does with a document says the same: quoted, where a
+# column whose check is the call alone is spliced
+INSERT INTO t7 VALUES ('{"p":1}', '{"p":1}', '{"p":1}', '{"p":1}'),
+('[1,2]', '[1,2]', '[1,2]', '[1,2]');
+INSERT INTO t8 VALUES ('{"p":1}'), ('[1,2]');
+SELECT JSON_SET('{}', '$.k', a) AS from_and_shape FROM t7;
+from_and_shape
+{"k": "{\"p\":1}"}
+{"k": "[1,2]"}
+SELECT JSON_SET('{}', '$.k', d) AS from_call_alone FROM t8;
+from_call_alone
+{"k": {"p": 1}}
+{"k": [1, 2]}
+DROP TABLE t7, t8;
+#
+# A column the server itself wrote the constraint for stays JSON
+#
+# Both a declared JSON column and the columns of a temporary table
+# built for grouping carry a constraint over themselves.
+#
+CREATE TABLE t6 (j JSON, s VARCHAR(100) CHECK (JSON_VALID(s)));
+INSERT INTO t6 VALUES ('{"x":1}', '{"y":2}'), ('{"x":3}', '{"y":4}');
+SELECT j, s FROM t6 GROUP BY j, s;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t6	t6	j	j	252 (format=json)	4294967295	7	Y	32912	0	45
+def	test	t6	t6	s	s	253 (format=json)	400	7	Y	32768	0	45
+j	s
+{"x":1}	{"y":2}
+{"x":3}	{"y":4}
+SELECT JSON_SET('{}', '$.k', j) AS from_j,
+JSON_SET('{}', '$.k', s) AS from_s
+FROM (SELECT j, s FROM t6 GROUP BY j, s) AS grouped;
+from_j	from_s
+{"k": {"x": 1}}	{"k": {"y": 2}}
+{"k": {"x": 3}}	{"k": {"y": 4}}
+SELECT JSON_ARRAYAGG(j) AS agg_j, JSON_ARRAYAGG(s) AS agg_s FROM t6;
+agg_j	agg_s
+[{"x":1},{"x":3}]	[{"y":2},{"y":4}]
+DROP TABLE t6;
+#
+# A row image a trigger reads through OLD. or NEW. is reached
+# through a SECOND set of field objects, copied from the table's
+# own so that they can point at the other record buffer.  A copy is
+# the same column of the same table and carries the same check, so
+# it is the same JSON column, and what it holds goes into a
+# document as a document.
+#
+# Which columns get copied is not the same on the two sides.  The
+# OLD. buffer is built whenever there is an update or delete
+# trigger and copies every column; the NEW. buffer is built only
+# where some column of the table cannot be null, and copies only
+# the columns that cannot be.  So the five cases below that read a
+# copy are not the five a reader would guess, and the two that
+# read the table's own fields are here to say which is which.
+#
+# Every answer below is what a released server gives.
+#
+CREATE TABLE lg (tag VARCHAR(24), v TEXT);
+CREATE TABLE t7 (id INT, j JSON);
+CREATE TABLE t8 (id INT, j JSON NOT NULL);
+INSERT INTO t7 VALUES (1, '{"a":1}');
+INSERT INTO t8 VALUES (1, '{"a":1}');
+CREATE TRIGGER tr1 BEFORE UPDATE ON t7 FOR EACH ROW
+INSERT INTO lg VALUES ('nullable OLD upd', JSON_SET('{}','$.k',OLD.j)),
+('nullable NEW upd', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr2 BEFORE UPDATE ON t8 FOR EACH ROW
+INSERT INTO lg VALUES ('notnull OLD upd', JSON_SET('{}','$.k',OLD.j)),
+('notnull NEW upd', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr3 BEFORE INSERT ON t7 FOR EACH ROW
+INSERT INTO lg VALUES ('nullable NEW ins', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr4 BEFORE INSERT ON t8 FOR EACH ROW
+INSERT INTO lg VALUES ('notnull NEW ins', JSON_SET('{}','$.k',NEW.j));
+CREATE TRIGGER tr5 BEFORE DELETE ON t7 FOR EACH ROW
+INSERT INTO lg VALUES ('nullable OLD del', JSON_SET('{}','$.k',OLD.j));
+UPDATE t7 SET id = 2;
+UPDATE t8 SET id = 2;
+INSERT INTO t7 VALUES (3, '{"b":2}');
+INSERT INTO t8 VALUES (3, '{"b":2}');
+DELETE FROM t7 WHERE id = 3;
+SELECT tag, v FROM lg ORDER BY tag, v;
+tag	v
+notnull NEW ins	{"k": {"b": 2}}
+notnull NEW upd	{"k": {"a": 1}}
+notnull OLD upd	{"k": {"a": 1}}
+nullable NEW ins	{"k": {"b": 2}}
+nullable NEW upd	{"k": {"a": 1}}
+nullable OLD del	{"k": {"b": 2}}
+nullable OLD upd	{"k": {"a": 1}}
+#
+# THE CONTROLS: the same two columns read through the table's own
+# fields, where there is no copy in the way.  These were never in
+# question, and they say that the answers above are about the
+# copying and not about the columns.
+#
+SELECT JSON_SET('{}','$.k',j) AS direct_nullable FROM t7 ORDER BY 1;
+direct_nullable
+{"k": {"a": 1}}
+SELECT JSON_SET('{}','$.k',j) AS direct_notnull FROM t8 ORDER BY 1;
+direct_notnull
+{"k": {"a": 1}}
+{"k": {"b": 2}}
+DROP TABLE lg, t7, t8;

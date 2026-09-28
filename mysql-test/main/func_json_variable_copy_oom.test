@@ -1,0 +1,39 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # No room for the copy made of a variable's value.
+--echo #
+--echo # What a function is given is a copy and not a view, so that the
+--echo # bytes it works on cannot be written over while it is working on
+--echo # them.  Making that copy is a write, and a write can run short of
+--echo # room.  There is no ordinary question that reaches the arm which
+--echo # copes with that, so it is reached here, and what it must do is
+--echo # refuse rather than return the view it was avoiding.
+--echo #
+--echo # The calls the copy is made for, and everything else about
+--echo # reading a document from a variable while the variable is being
+--echo # written, are in func_json_aliasing.
+--echo #
+
+--delimiter $$
+CREATE PROCEDURE p_variable_copy()
+BEGIN
+  DECLARE v LONGTEXT DEFAULT NULL;
+  SET v = JSON_OBJECT('a', 1, 'b', 2);
+  SELECT JSON_INSERT(v, '$.c', 3) AS added,
+         JSON_REMOVE(v, '$.b') AS removed,
+         JSON_ARRAY_APPEND(v, '$', 9) AS appended;
+END $$
+--delimiter ;
+
+CALL p_variable_copy();
+
+SET SESSION debug_dbug = '+d,json_variable_copy_out_of_memory';
+CALL p_variable_copy();
+SET SESSION debug_dbug = DEFAULT;
+
+--echo # and again with the room there, which is what says the refusals
+--echo # are about the copy rather than about the calls
+CALL p_variable_copy();
+
+DROP PROCEDURE p_variable_copy;

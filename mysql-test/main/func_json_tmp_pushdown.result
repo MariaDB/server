@@ -1,0 +1,50 @@
+#
+# A temporary table an engine fills carries no attestations about
+# its values.
+#
+# A query pushed down whole borrows the server's own temporary table
+# for its columns and then has the engine write the rows into it, so
+# nothing a column was made from ever sees what arrives in it.  The
+# table drops its attestations where it is filled, and a debug
+# build asserts at the other end - where the engine's rows are read
+# - that something on the way in did drop them.
+#
+# Nothing here is a document.  The engine below gathers a sum, and a
+# sum is not one; what is reached is that dropping itself, which is
+# what is being asked about.  The results are ordinary results and
+# are here to stay ordinary.
+#
+# Each case is explained before it is run.  An engine that stopped
+# taking one of these queries would leave the case running down the
+# ordinary path and passing without going near what it is here for,
+# and the EXPLAIN is what says it did not.
+#
+#
+# 1. A group gathered by the engine and sent straight out.
+#
+EXPLAIN SELECT SUM(seq) FROM seq_1_to_10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+SELECT SUM(seq) FROM seq_1_to_10;
+SUM(seq)
+55
+#
+# 2. The same held in a temporary table on the way, which is the
+#    other half of that execution and the half that writes rows.
+#
+EXPLAIN SELECT DISTINCT SUM(seq), COUNT(*) FROM seq_1_to_100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+SELECT DISTINCT SUM(seq), COUNT(*) FROM seq_1_to_100;
+SUM(seq)	COUNT(*)
+5050	100
+#
+# 3. Two gatherings ordered, so the rows are held and then read
+#    back out of the table they were held in.
+#
+EXPLAIN SELECT SUM(seq), COUNT(seq) FROM seq_1_to_5 ORDER BY 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Storage engine handles GROUP BY
+SELECT SUM(seq), COUNT(seq) FROM seq_1_to_5 ORDER BY 1;
+SUM(seq)	COUNT(seq)
+15	5

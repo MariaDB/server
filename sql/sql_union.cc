@@ -1287,13 +1287,22 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
     */
     bool pos_maybe_null= is_recursive ? true : holders[pos].get_maybe_null();
 
+    /*
+      Only the non-recursive parts were joined above, so for a recursive
+      CTE the producers of the recursive parts were never asked, and the
+      ones that were must not answer in their place.
+    */
+    bool pos_is_valid_json_static= is_recursive ? false :
+                                   holders[pos].get_is_valid_json_static();
+
     /* Error's in 'new' will be detected after loop */
     types.push_back(new (thd_arg->mem_root)
                     Item_type_holder(thd_arg,
                                      item_tmp,
                                      holders[pos].type_handler(),
                                      &holders[pos]/*Type_all_attributes*/,
-                                     pos_maybe_null));
+                                     pos_maybe_null,
+                                     pos_is_valid_json_static));
   }
   if (unlikely(thd_arg->is_fatal_error))
     DBUG_RETURN(true); // out of memory

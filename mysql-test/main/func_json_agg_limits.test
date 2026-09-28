@@ -1,0 +1,199 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: the JSON aggregate functions.
+--echo #
+--echo # Both aggregates are held to group_concat_max_len, and a group too
+--echo # long for it is cut back to the last whole element or pair, so what
+--echo # comes back is still a document wherever the cap falls.  This test
+--echo # walks the cap across every interesting byte offset and records the
+--echo # exact result each time.
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20));
+INSERT INTO t1 VALUES
+  (1, 'aaaaaaaaaa'), (1, 'bbbbbbbbbb'), (1, 'cccccccccc'),
+  (2, 'dd'), (2, 'ee');
+
+--echo #
+--echo # 1. Uncut results.
+--echo #
+
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1;
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t1;
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g ORDER BY g;
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1;
+SELECT HEX(JSON_OBJECTAGG(a, a)) AS h FROM t1;
+SELECT JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1;
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g ORDER BY g;
+--echo # the aggregates over an empty input
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 99;
+--echo # a single row
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'dd';
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE a = 'dd';
+--echo # NULL and non-string members
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT NULL) d;
+SELECT JSON_ARRAYAGG(x) AS v FROM (SELECT 1 AS x UNION ALL SELECT 2) d;
+SELECT JSON_OBJECTAGG(k, x) AS v
+  FROM (SELECT 'a' AS k, 1 AS x UNION ALL SELECT 'b', NULL) d;
+--echo # DISTINCT and ORDER BY inside the aggregate
+SELECT JSON_ARRAYAGG(DISTINCT a) AS v FROM t1 WHERE g = 1;
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1 WHERE g = 1;
+--echo # an aggregate over documents rather than strings
+SELECT JSON_ARRAYAGG(JSON_OBJECT('k', a)) AS v FROM t1 WHERE g = 2;
+SELECT JSON_ARRAYAGG(JSON_COMPACT(CONCAT('{"k":"', a, '"}'))) AS v
+  FROM t1 WHERE g = 2;
+
+--echo #
+--echo # 2. The cap, walked byte by byte.  The uncut result for group 1 is
+--echo #    ["aaaaaaaaaa","bbbbbbbbbb","cccccccccc"], 40 bytes.
+--echo #
+
+SET SESSION group_concat_max_len = 40;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = 39;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = 30;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = 20;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+--echo # the cap falls just after the separator
+SET SESSION group_concat_max_len = 15;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+--echo # the cap falls on the opening quote of the next member
+SET SESSION group_concat_max_len = 14;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+--echo # the cap falls on the separator itself
+SET SESSION group_concat_max_len = 13;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+--echo # the cap falls inside the first member
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = 4;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 WHERE g = 1;
+--echo # the smallest the cap can be
+SET SESSION group_concat_max_len = 4;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h FROM t1 WHERE a = 'dd';
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 3. A cap that falls inside an escape sequence, where the bytes
+--echo #    after it would not be a complete character.
+--echo #
+
+CREATE TABLE t2 (a VARCHAR(20));
+INSERT INTO t2 VALUES ('xx"yy'), ('zzzz');
+SET SESSION group_concat_max_len = 10;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 9;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 7;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+SET SESSION group_concat_max_len = 6;
+SELECT HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok FROM t2;
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t2;
+
+--echo #
+--echo # 3a. A cap over members that are not quoted strings, where there is
+--echo #     no quote for a cut to land after and nothing to re-close.
+--echo #
+
+CREATE TABLE t3 (n INT, j JSON);
+INSERT INTO t3 VALUES (111, '{"k":1}'), (222, '{"k":2}'), (333, '{"k":3}');
+--echo # numeric members
+SET SESSION group_concat_max_len = 9;
+SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_ARRAYAGG(n ORDER BY n)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t3;
+--echo # document members, where the cap falls inside an object
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(j ORDER BY n)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(j ORDER BY n)) AS ok FROM t3;
+SET SESSION group_concat_max_len = 17;
+SELECT HEX(JSON_ARRAYAGG(j ORDER BY n)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(j ORDER BY n)) AS ok FROM t3;
+--echo # members built by a constructor rather than read from a column
+SET SESSION group_concat_max_len = 12;
+SELECT HEX(JSON_ARRAYAGG(JSON_OBJECT('k', n) ORDER BY n)) AS h,
+       JSON_VALID(JSON_ARRAYAGG(JSON_OBJECT('k', n) ORDER BY n)) AS ok FROM t3;
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t3;
+
+--echo #
+--echo # 4. A cut result consumed by another JSON function.  The cut value
+--echo #    is passed on as a document argument like any other.
+--echo #
+
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_SET(JSON_ARRAYAGG(a), '$[0]', 1) AS v FROM t1 WHERE g = 1;
+SELECT JSON_EXTRACT(JSON_ARRAYAGG(a), '$[0]') AS v FROM t1 WHERE g = 1;
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_DEPTH(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_LENGTH(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+SELECT JSON_COMPACT(JSON_ARRAYAGG(a)) AS v FROM t1 WHERE g = 1;
+--echo # an uncut group and a cut group in the same statement
+SET SESSION group_concat_max_len = 14;
+SELECT g, HEX(JSON_ARRAYAGG(a)) AS h, JSON_VALID(JSON_ARRAYAGG(a)) AS ok
+  FROM t1 GROUP BY g ORDER BY g;
+SET SESSION group_concat_max_len = DEFAULT;
+
+--echo #
+--echo # 5. JSON_OBJECTAGG under the same cap.
+--echo #
+
+SET SESSION group_concat_max_len = 5;
+SELECT HEX(JSON_OBJECTAGG(a, a)) AS h, JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok
+  FROM t1 WHERE g = 1;
+SET SESSION group_concat_max_len = DEFAULT;
+--echo # duplicate keys are kept, not merged
+SELECT JSON_OBJECTAGG(g, a) AS v FROM t1 WHERE g = 1;
+SELECT JSON_VALID(JSON_OBJECTAGG(g, a)) AS ok FROM t1 WHERE g = 1;
+--echo # a key that needs escaping
+SELECT JSON_OBJECTAGG(k, 1) AS v
+  FROM (SELECT 'a"b' AS k UNION ALL SELECT 'c\\d') d;
+SELECT JSON_VALID(JSON_OBJECTAGG(k, 1)) AS ok
+  FROM (SELECT 'a"b' AS k UNION ALL SELECT 'c\\d') d;
+--echo # a NULL key
+SELECT JSON_OBJECTAGG(k, 1) AS v
+  FROM (SELECT NULL AS k UNION ALL SELECT 'b') d;
+
+--echo #
+--echo # 6. The result metadata the aggregates report, which decides how the
+--echo #    bytes are converted on their way to the client.
+--echo #
+
+# What is read here is what the expression itself declares.  A cursor
+# reports the temporary table it materialised the answer into and a view
+# reports its own columns, so neither would be answering the question.
+--disable_cursor_protocol
+--disable_view_protocol
+--enable_metadata
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 2;
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 2;
+SELECT JSON_ARRAY(1) AS v;
+SELECT JSON_SET('{}', '$.a', 1) AS v;
+--disable_metadata
+--enable_view_protocol
+--enable_cursor_protocol
+
+DROP TABLE t1;

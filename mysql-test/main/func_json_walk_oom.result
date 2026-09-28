@@ -1,0 +1,75 @@
+#
+# The room running out at every point of writing a value out.
+#
+# A value that is a document but is not written the loose way is
+# written out again as it joins a document that is, and that
+# writing puts down five kinds of thing: the bracket the value
+# opens with, a comma before an element, a key with its colon,
+# the bracket a value inside it opens with, and the bracket each
+# of them closes with.  Every one of them can be the append that
+# finds no room, and each has its own way of giving up.
+#
+# Reaching them needs the room to run out at a chosen place, and
+# the place is not something a single statement can aim at: what
+# is left for the value is what the document did not spend, and
+# where inside the value that runs out depends on how much
+# punctuation stands before the point of interest.  So the value
+# is swept past the point instead.  Each element of the run
+# before the tail spends a fixed number of characters more in the
+# loose form, and the key in front of the run spends one per
+# letter, so the two together move the stopping point one
+# character at a time across a tail that carries all of them.
+#
+# A function that edits a document takes room for its answer up
+# front and one that reads a document does not, so the two are
+# swept apart: the first runs out of room a fixed distance into
+# the value, the second wherever the buffer last happened to
+# grow to.
+#
+# What is pinned is not which statement fails - that is a fact
+# about allocation sizes and is allowed to move.  It is that
+# every answer that does come back parses, and that some of them
+# were refused, so the sweep is known to have reached the
+# failures at all.  A document with a piece missing out of the
+# middle is not an answer, and no caller checks for one.
+#
+SET NAMES utf8mb4;
+#
+# Nothing came back half written, and the sweep did reach the
+# failures.
+#
+SELECT @bad AS answers_that_do_not_parse, @refused > 0 AS some_were_refused;
+answers_that_do_not_parse	some_were_refused
+0	1
+#
+# The same values with the room there, so what the sweeps above
+# compare against is an answer that arrives.
+#
+SET @a = CONCAT('{"a":1,', REPEAT('"p":1,', 110),
+'"kkkk":{"b":[]},"z":[[]],"y":2}');
+SET @d = CONCAT('{"a":[', REPEAT('1,', 40),
+'{"k":[2,3]},[],{},[[4]],5],"b":{"c":[6,[7]]}}');
+SELECT JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('z',1), '$.d',
+JSON_QUERY(@a,'$')), '')) AS parses;
+parses
+1
+SELECT JSON_VALID(CONCAT(JSON_EXTRACT(@d, '$**.k'), '')) AS parses;
+parses
+1
+SELECT JSON_EXTRACT(@d, '$.b') AS answer;
+answer
+{"c": [6, [7]]}
+#
+# A value that stops in the middle of a key, which is the one way
+# the walk gives up that is not about room.
+#
+SELECT JSON_EXTRACT('{"a":{"bb', '$.a') AS unfinished_key;
+unfinished_key
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+SELECT JSON_EXTRACT('{"a":[1,{"c', '$.a') AS unfinished_key;
+unfinished_key
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'

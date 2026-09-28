@@ -1,0 +1,67 @@
+#
+# Reading and editing a document written in a character set whose
+# characters are more than one byte wide.
+#
+# A value taken out of the document is already in the character set the
+# result is being built in, so it has to be copied rather than written.
+# Writing it converts it a second time, which used to turn the value
+# into something that could not be read back - and, because it was read
+# back, into NULL and a complaint about a character the caller never
+# sent.
+#
+--disable_service_connection
+
+SET @save_collation_connection= @@collation_connection;
+
+--echo #
+--echo # Reading a value out. The result holds the value itself, in the
+--echo # width the character set gives it.
+--echo #
+SET collation_connection='utf16_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+       HEX(JSON_EXTRACT('{"a":1,"b":2}','$.a')) AS scalar_bytes;
+SELECT JSON_EXTRACT('{"a":{"x":1},"b":2}','$.a') AS object_value,
+       HEX(JSON_EXTRACT('{"a":{"x":1},"b":2}','$.a')) AS object_bytes;
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a','$.b') AS several_paths,
+       HEX(JSON_EXTRACT('{"a":1,"b":2}','$.a','$.b')) AS several_bytes;
+SELECT JSON_VALID(JSON_EXTRACT('{"a":{"x":1}}','$.a')) AS result_is_a_document;
+
+--echo #
+--echo # Appending to an array, and to something that is not one and has
+--echo # to be wrapped in one first. Both arms copy the document.
+--echo #
+SELECT JSON_ARRAY_APPEND('{"a":[1,2]}','$.a',3) AS target_is_array;
+SELECT JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS target_is_scalar;
+SELECT JSON_ARRAY_APPEND('{"a":{"x":1}}','$.a',3) AS target_is_object;
+SELECT JSON_VALID(JSON_ARRAY_APPEND('{"a":1}','$.a',3)) AS result_is_a_document;
+
+--echo #
+--echo # The same at two bytes to the character, and at four.
+--echo #
+SET collation_connection='ucs2_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+       JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+
+SET collation_connection='utf32_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+       JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+
+--echo #
+--echo # A character set of one byte answers as it always did.
+--echo #
+SET collation_connection='utf8mb4_general_ci';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+       JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+
+SET collation_connection='latin1_swedish_ci';
+SELECT JSON_EXTRACT('{"a":1,"b":2}','$.a') AS scalar_value,
+       JSON_ARRAY_APPEND('{"a":1}','$.a',3) AS wrapped;
+
+--echo #
+--echo # A document that is genuinely malformed is still refused, and the
+--echo # position named is a position in what the caller sent.
+--echo #
+SET collation_connection='utf16_bin';
+SELECT JSON_EXTRACT('{"a":1,"b":oops}','$.a') AS malformed;
+
+SET @@collation_connection= @save_collation_connection;

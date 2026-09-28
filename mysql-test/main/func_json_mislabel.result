@@ -1,0 +1,86 @@
+#
+# Behavioral baseline: the same stored bytes read under a different
+# character set label.
+#
+# Going through a binary column and back out again relabels a column
+# without touching its contents, so the identical bytes are handed to
+# the JSON parser as a different character set.  This is the only way
+# to put a document in front of the parser that is not valid in the
+# character set it is claimed to be in - converting it would repair or
+# reject it first.  What each label makes of the same bytes is
+# recorded here.
+#
+SET NAMES utf8mb4;
+#
+# 1. A gbk character whose second byte is the one JSON uses to escape.
+#    Read as gbk it is one letter inside a string; read as anything
+#    that treats bytes singly it starts an escape sequence and runs
+#    off the end of the document.
+#
+CREATE TABLE t1 (j VARCHAR(60) CHARACTER SET gbk);
+INSERT INTO t1 VALUES (X'7B2261223A22815C227D');
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_gbk FROM t1;
+stored	v_gbk
+7B2261223A22815C227D	1
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext, CHARSET(JSON_EXTRACT(j, '$.a')) AS cs
+FROM t1;
+ext	cs
+22815C22	gbk
+ALTER TABLE t1 MODIFY j VARBINARY(60);
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_binary FROM t1;
+stored	v_binary
+7B2261223A22815C227D	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+ALTER TABLE t1 MODIFY j VARCHAR(60) CHARACTER SET latin1;
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_latin1 FROM t1;
+stored	v_latin1
+7B2261223A22815C227D	0
+Warnings:
+Note	4037	Unexpected end of JSON text in argument 1 to function 'json_valid'
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext FROM t1;
+ext
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+#
+# 2. Bytes that are one character in utf8mb4 and two in latin1.  The
+#    document stays parseable either way, but the value it yields is
+#    not the same.
+#
+CREATE TABLE t2 (j VARCHAR(60) CHARACTER SET utf8mb4);
+INSERT INTO t2 VALUES (X'7B2261223A22C3A9227D');
+SELECT HEX(j) AS stored, HEX(JSON_EXTRACT(j, '$.a')) AS ext_utf8mb4,
+CHAR_LENGTH(JSON_VALUE(j, '$.a')) AS chars_utf8mb4 FROM t2;
+stored	ext_utf8mb4	chars_utf8mb4
+7B2261223A22C3A9227D	22C3A922	1
+ALTER TABLE t2 MODIFY j VARBINARY(60);
+ALTER TABLE t2 MODIFY j VARCHAR(60) CHARACTER SET latin1;
+SELECT HEX(j) AS stored_unchanged, JSON_VALID(j) AS v FROM t2;
+stored_unchanged	v
+7B2261223A22C3A9227D	1
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext, CHARSET(JSON_EXTRACT(j, '$.a')) AS cs,
+CHAR_LENGTH(JSON_VALUE(j, '$.a')) AS chars_latin1 FROM t2;
+ext	cs	chars_latin1
+22C3A922	latin1	2
+#
+# 3. Relabelling in the other direction, to a character set that
+#    cannot hold the bytes.  This one does not go through quietly.
+#
+CREATE TABLE t3 (j VARBINARY(60));
+INSERT INTO t3 VALUES (X'7B2261223A22FF227D');
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v_binary FROM t3;
+stored	v_binary
+7B2261223A22FF227D	1
+ALTER TABLE t3 MODIFY j VARCHAR(60) CHARACTER SET utf8mb4;
+ERROR 22007: Incorrect string value: '\xFF"}' for column `test`.`t3`.`j` at row 1
+ALTER IGNORE TABLE t3 MODIFY j VARCHAR(60) CHARACTER SET utf8mb4;
+Warnings:
+Warning	1366	Incorrect string value: '\xFF"}' for column `test`.`t3`.`j` at row 1
+SELECT HEX(j) AS repaired, JSON_VALID(j) AS v FROM t3;
+repaired	v
+7B2261223A223F227D	1
+SELECT HEX(JSON_EXTRACT(j, '$.a')) AS ext FROM t3;
+ext
+223F22
+DROP TABLE t1, t2, t3;

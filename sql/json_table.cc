@@ -347,7 +347,15 @@ int ha_json_table::rnd_init(bool scan)
   Json_table_nested_path &p= m_jt->m_nested_path;
   DBUG_ENTER("ha_json_table::rnd_init");
 
-  if ((m_js= m_jt->m_json->val_str(&m_tmps)))
+  /*
+    The scan is told where the document stands and reads from there
+    until it runs out of rows, so the bytes it is given have to outlive
+    everything the query does between one row and the next.  Working
+    out a row can write to whatever the document was read from - a
+    package body's variable is the plain case - so the document is
+    asked for the way that returns bytes of the reader's own.
+  */
+  if ((m_js= m_jt->m_json->val_json(&m_tmps)))
   {
     p.scan_start(m_js->charset(),
                  (const uchar *) m_js->ptr(), (const uchar *) m_js->end());

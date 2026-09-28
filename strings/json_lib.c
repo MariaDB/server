@@ -40,6 +40,7 @@ void json_string_set_cs(json_string_t *s, CHARSET_INFO *i_cs)
 {
   s->cs= i_cs;
   s->error= 0;
+  s->error_pos= NULL;
   s->wc= i_cs->cset->mb_wc;
 }
 
@@ -123,7 +124,7 @@ typedef int (*json_state_handler)(json_engine_t *);
 /* The string is broken. */
 static int unexpected_eos(json_engine_t *j)
 {
-  j->s.error= JE_EOS;
+  json_error(&j->s, JE_EOS);
   return 1;
 }
 
@@ -131,21 +132,37 @@ static int unexpected_eos(json_engine_t *j)
 /* This symbol here breaks the JSON syntax. */
 static int syntax_error(json_engine_t *j)
 {
-  j->s.error= JE_SYN;
+  json_error(&j->s, JE_SYN);
   return 1;
 }
 
+
+/*
+  The four functions below open a nested structure, and each refuses to
+  open one deeper than the scanner can keep track of.
+
+  A refusal must leave the nesting counter where it was.  It indexes
+  'stack', it is declared immediately after 'stack', and 'stack' is
+  exactly JSON_DEPTH_LIMIT long, so a counter moved past the end of the
+  stack addresses the counter itself: a caller that reads
+  j->stack[j->stack_p] then gets JSON_DEPTH_LIMIT back as though it were
+  a state, and acts on it.  Callers are not all obliged to stop the
+  moment they are told the document is too deep, so this cannot be left
+  for them to get right - which is also why json_error() keeps the first
+  refusal and the reading taken at it, rather than the scanner being
+  stopped where it failed.
+*/
 
 /* Value of object. */
 static int mark_object(json_engine_t *j)
 {
   j->state= JST_OBJ_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_OBJ_CONT;
+    j->stack[++j->stack_p]= JST_OBJ_CONT;
     return 0;
   }
-  j->s.error= JE_DEPTH;
+  json_error(&j->s, JE_DEPTH);
   return 1;
 }
 
@@ -156,12 +173,12 @@ static int read_obj(json_engine_t *j)
   j->state= JST_OBJ_START;
   j->value_type= JSON_VALUE_OBJECT;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_OBJ_CONT;
+    j->stack[++j->stack_p]= JST_OBJ_CONT;
     return 0;
   }
-  j->s.error= JE_DEPTH;
+  json_error(&j->s, JE_DEPTH);
   return 1;
 }
 
@@ -170,13 +187,13 @@ static int read_obj(json_engine_t *j)
 static int mark_array(json_engine_t *j)
 {
   j->state= JST_ARRAY_START;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_ARRAY_CONT;
+    j->stack[++j->stack_p]= JST_ARRAY_CONT;
     j->value= j->value_begin;
     return 0;
   }
-  j->s.error= JE_DEPTH;
+  json_error(&j->s, JE_DEPTH);
   return 1;
 }
 
@@ -186,12 +203,12 @@ static int read_array(json_engine_t *j)
   j->state= JST_ARRAY_START;
   j->value_type= JSON_VALUE_ARRAY;
   j->value= j->value_begin;
-  if (++j->stack_p < JSON_DEPTH_LIMIT)
+  if (j->stack_p + 1 < JSON_DEPTH_LIMIT)
   {
-    j->stack[j->stack_p]= JST_ARRAY_CONT;
+    j->stack[++j->stack_p]= JST_ARRAY_CONT;
     return 0;
   }
-  j->s.error= JE_DEPTH;
+  json_error(&j->s, JE_DEPTH);
   return 1;
 }
 
@@ -264,10 +281,10 @@ static int read_4_hexdigits(json_string_t *s, uchar *dest)
   for (i=0; i<4; i++)
   {
     if ((c_len= json_next_char(s)) <= 0)
-      return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
+      return json_error(s, json_eos(s) ? JE_EOS : JE_BAD_CHR);
 
     if (s->c_next >= 128 || (t= json_instr_chr_map[s->c_next]) > S_F)
-      return s->error= JE_SYN;
+      return json_error(s, JE_SYN);
 
     s->c_str+= c_len;
     dest[i/2]+= (i % 2) ? t : t*16;
@@ -281,7 +298,7 @@ static int json_handle_esc(json_string_t *s)
   int t, c_len;
   
   if ((c_len= json_next_char(s)) <= 0)
-    return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
+    return json_error(s, json_eos(s) ? JE_EOS : JE_BAD_CHR);
 
   s->c_str+= c_len;
   switch (s->c_next)
@@ -306,7 +323,7 @@ static int json_handle_esc(json_string_t *s)
   if (s->c_next < 128 && (t= json_instr_chr_map[s->c_next]) == S_ERR)
   {
     s->c_str-= c_len;
-    return s->error= JE_ESCAPING;
+    return json_error(s, JE_ESCAPING);
   }
 
 
@@ -328,18 +345,18 @@ static int json_handle_esc(json_string_t *s)
       return 0;
 
     if (c_len != MY_CS_TOOSMALL4)
-      return s->error= JE_BAD_CHR;
+      return json_error(s, JE_BAD_CHR);
 
     if ((c_len= json_next_char(s)) <= 0)
-      return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
+      return json_error(s, json_eos(s) ? JE_EOS : JE_BAD_CHR);
     if (s->c_next != '\\')
-      return s->error= JE_SYN;
+      return json_error(s, JE_SYN);
 
     s->c_str+= c_len;
     if ((c_len= json_next_char(s)) <= 0)
-      return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
+      return json_error(s, json_eos(s) ? JE_EOS : JE_BAD_CHR);
     if (s->c_next != 'u')
-      return s->error= JE_SYN;
+      return json_error(s, JE_SYN);
     s->c_str+= c_len;
 
     if (read_4_hexdigits(s, code+2))
@@ -348,7 +365,7 @@ static int json_handle_esc(json_string_t *s)
     if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 4)
       return 0;
   }
-  return s->error= JE_BAD_CHR;
+  return json_error(s, JE_BAD_CHR);
 }
 
 
@@ -361,7 +378,7 @@ int json_read_string_const_chr(json_string_t *js)
     js->c_str+= c_len;
     return (js->c_next == '\\') ? json_handle_esc(js) : 0;
   }
-  js->error= json_eos(js) ? JE_EOS : JE_BAD_CHR; 
+  json_error(js, json_eos(js) ? JE_EOS : JE_BAD_CHR); 
   return 1;
 }
 
@@ -387,10 +404,10 @@ static int skip_str_constant(json_engine_t *j)
         continue;
       }
       /* Symbol not allowed in JSON. */
-      return j->s.error= JE_NOT_JSON_CHR;
+      return json_error(&j->s, JE_NOT_JSON_CHR);
     }
     else
-      return j->s.error= json_eos(&j->s) ? JE_EOS : JE_BAD_CHR; 
+      return json_error(&j->s, json_eos(&j->s) ? JE_EOS : JE_BAD_CHR); 
   }
 
   j->state= j->stack[j->stack_p];
@@ -528,7 +545,7 @@ static int skip_num_constant(json_engine_t *j)
       break;
     }
 
-    if ((j->s.error=
+    if (json_error(&j->s,
           json_eos(&j->s) ? json_num_states[state][N_END] : JE_BAD_CHR) < 0)
       return 1;
     else
@@ -574,9 +591,9 @@ static int skip_string_verbatim(json_string_t *s, const char *str)
         s->c_str+= c_len;
         continue;
       }
-      return s->error= JE_SYN;
+      return json_error(s, JE_SYN);
     }
-    return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR; 
+    return json_error(s, json_eos(s) ? JE_EOS : JE_BAD_CHR); 
   }
 
   return 0;
@@ -649,7 +666,7 @@ static int read_true(json_engine_t *j)
 /* Disallowed character. */
 static int not_json_chr(json_engine_t *j)
 {
-  j->s.error= JE_NOT_JSON_CHR;
+  json_error(&j->s, JE_NOT_JSON_CHR);
   return 1;
 }
 
@@ -657,7 +674,7 @@ static int not_json_chr(json_engine_t *j)
 /* Bad character. */
 static int bad_chr(json_engine_t *j)
 {
-  j->s.error= JE_BAD_CHR;
+  json_error(&j->s, JE_BAD_CHR);
   return 1;
 }
 
@@ -722,9 +739,9 @@ static int next_key(json_engine_t *j)
     return 0;
   }
 
-  j->s.error= (t_next == C_EOS)  ? JE_EOS :
-              ((t_next == C_BAD) ? JE_BAD_CHR :
-                                   JE_SYN);
+  json_error(&j->s, (t_next == C_EOS)  ? JE_EOS :
+                    ((t_next == C_BAD) ? JE_BAD_CHR :
+                                         JE_SYN));
   return 1;
 }
 
@@ -804,10 +821,37 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
 
 
 
+#ifndef DBUG_OFF
+/*
+  Called whenever a value is about to be read, if anybody has asked to
+  be told.
+
+  Every reading of a JSON value begins here - the calls that look like
+  they start one of their own (json_valid(), json_valid_engine(),
+  json_get_path_start(), and the normalizing build) all come through
+  this function - so this is the one place where a count of readings is
+  a count of readings rather than a list of the ways of asking for one.
+  Counting anywhere else means keeping such a list, and a list of that
+  kind is wrong the day something is added to it.
+
+  Nobody is told unless somebody asks: the server sets this and nothing
+  else does, so the tools and the tests that link this code in are
+  unaffected.  Debug builds only, and there is nothing here for a
+  released server to do.
+*/
+void (*json_scan_start_hook)(void)= NULL;
+#endif
+
+
 int json_scan_start(json_engine_t *je,
                     CHARSET_INFO *i_cs, const uchar *str, const uchar *end)
 {
   static const uint32_t no_time_to_die= 0;
+
+#ifndef DBUG_OFF
+  if (json_scan_start_hook)
+    json_scan_start_hook();
+#endif
 
   json_string_setup(&je->s, i_cs, str, end);
   je->stack[0]= JST_DONE;
@@ -831,9 +875,9 @@ static int skip_colon(json_engine_t *j)
     return json_actions[JST_VALUE][t_next](j);
  }
 
-  j->s.error= (t_next == C_EOS)  ? JE_EOS :
-              ((t_next == C_BAD) ? JE_BAD_CHR:
-                                   JE_SYN);
+  json_error(&j->s, (t_next == C_EOS)  ? JE_EOS :
+                    ((t_next == C_BAD) ? JE_BAD_CHR:
+                                         JE_SYN));
 
   return 1;
 }
@@ -850,7 +894,7 @@ static int skip_key(json_engine_t *j)
 
   while (json_read_keyname_chr(j) == 0) {}
 
-  if (j->s.error)
+  if (unlikely(j->s.error))
     return 1;
 
   get_first_nonspace(&j->s, &t_next, &c_len);
@@ -927,10 +971,10 @@ int json_read_keyname_chr(json_engine_t *j)
             j->s.c_str+= c_len;
             continue;
           }
-          j->s.error= JE_SYN;
+          json_error(&j->s, JE_SYN);
           break;
         }
-        j->s.error= json_eos(&j->s) ? JE_EOS : JE_BAD_CHR;
+        json_error(&j->s, json_eos(&j->s) ? JE_EOS : JE_BAD_CHR);
         break;
       }
       return 1;
@@ -938,11 +982,11 @@ int json_read_keyname_chr(json_engine_t *j)
       return json_handle_esc(&j->s);
     case S_ERR:
       j->s.c_str-= c_len;
-      j->s.error= JE_STRING_CONST;
+      json_error(&j->s, JE_STRING_CONST);
       return 1;
     }
   }
-  j->s.error= json_eos(&j->s) ? JE_EOS : JE_BAD_CHR; 
+  json_error(&j->s, json_eos(&j->s) ? JE_EOS : JE_BAD_CHR); 
   return 1;
 }
 
@@ -956,7 +1000,7 @@ int json_read_value(json_engine_t *j)
   {
     while (json_read_keyname_chr(j) == 0) {}
 
-    if (j->s.error)
+    if (unlikely(j->s.error))
       return 1;
   }
 
@@ -976,7 +1020,7 @@ int json_scan_next(json_engine_t *j)
   get_first_nonspace(&j->s, &t_next, &j->sav_c_len);
   if (j->killed_ptr && *j->killed_ptr)
   {
-    j->s.error= JE_KILLED;
+    json_error(&j->s, JE_KILLED);
     return 1;
   }
   return json_actions[j->state][t_next](j);
@@ -1149,19 +1193,19 @@ int json_path_setup(json_path_t *p,
       t_next= (p->s.c_next >= 128) ? P_ETC : json_path_chr_map[p->s.c_next];
 
     if ((state= json_path_transitions[state][t_next]) < 0)
-      return p->s.error= state;
+      return json_error(&p->s, state);
 
     p->s.c_str+= c_len;
 
     switch (state)
     {
     case PS_LAX:
-      if ((p->s.error= skip_string_verbatim(&p->s, "ax")))
+      if (json_error(&p->s, skip_string_verbatim(&p->s, "ax")))
         return 1;
       p->mode_strict= FALSE;
       continue;
     case PS_SCT:
-      if ((p->s.error= skip_string_verbatim(&p->s, "rict")))
+      if (json_error(&p->s, skip_string_verbatim(&p->s, "rict")))
         return 1;
       p->mode_strict= TRUE;
       state= PS_LAX;
@@ -1204,7 +1248,7 @@ int json_path_setup(json_path_t *p,
       is_negative_index= 0;
       is_last= 0;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
-        return p->s.error= JE_DEPTH;
+        return json_error(&p->s, JE_DEPTH);
       p->types_used|= p->last_step->type= JSON_PATH_KEY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       /* fall through */
@@ -1222,7 +1266,7 @@ int json_path_setup(json_path_t *p,
       prev_value= 0;
       is_negative_index= 0;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
-        return p->s.error= JE_DEPTH;
+        return json_error(&p->s, JE_DEPTH);
       p->types_used|= p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       p->last_step->n_item= 0;
@@ -1249,7 +1293,7 @@ int json_path_setup(json_path_t *p,
        is_negative_index= 1;
        continue;
     case PS_LAST:
-      if ((p->s.error= skip_string_verbatim(&p->s, "ast")))
+      if (json_error(&p->s, skip_string_verbatim(&p->s, "ast")))
        return 1;
       p->types_used|= JSON_PATH_NEGATIVE_INDEX;
       is_last= 1;
@@ -1259,7 +1303,7 @@ int json_path_setup(json_path_t *p,
         p->last_step->n_item= -1;
       continue;
     case PS_T:
-      if ((p->s.error= skip_string_verbatim(&p->s, "o")))
+      if (json_error(&p->s, skip_string_verbatim(&p->s, "o")))
         return 1;
       is_to= 1;
       is_negative_index= 0;
@@ -1272,7 +1316,7 @@ int json_path_setup(json_path_t *p,
     };
   } while (state != PS_OK);
 
-  return double_wildcard ? (p->s.error= JE_SYN) : 0;
+  return double_wildcard ? json_error(&p->s, JE_SYN) : 0;
 }
 
 
@@ -1316,7 +1360,15 @@ int json_skip_array_and_count(json_engine_t *je, int *n_items)
 
   res= json_skip_level_and_count(&j, n_items);
   if (res)
+  {
+    /*
+      The copy scanned the same string, so where it stopped is a
+      position in the caller's string too, and it has to come back with
+      the code: what reports the refusal reads the two together.
+    */
     je->s.error= j.s.error;
+    je->s.error_pos= j.s.error_pos;
+  }
   return res;
 }
 
@@ -1769,7 +1821,7 @@ int json_escape(CHARSET_INFO *str_cs,
       {
         /* We have to use /uXXXX escaping. */
         uchar utf16buf[4];
-        uchar code_str[8];
+        uchar code_str[4];
         int u_len= my_uni_utf16(0, c_chr, utf16buf, utf16buf + 4);
 
         code_str[0]= hexconv[utf16buf[0] >> 4];
@@ -1777,22 +1829,48 @@ int json_escape(CHARSET_INFO *str_cs,
         code_str[2]= hexconv[utf16buf[1] >> 4];
         code_str[3]= hexconv[utf16buf[1] & 15];
 
+        if ((c_len= json_append_ascii(json_cs, json, json_end,
+                                      code_str, code_str + 4)) <= 0)
+        {
+          /* JSON buffer is depleted. */
+          return JSON_ERROR_OUT_OF_SPACE;
+        }
+        json+= c_len;
+
         if (u_len > 2)
         {
-          code_str[4]= hexconv[utf16buf[2] >> 4];
-          code_str[5]= hexconv[utf16buf[2] & 15];
-          code_str[6]= hexconv[utf16buf[3] >> 4];
-          code_str[7]= hexconv[utf16buf[3] & 15];
-        }
-        
-        if ((c_len= json_append_ascii(json_cs, json, json_end,
-                                      code_str, code_str+u_len*2)) > 0)
-        {
+          /*
+            A character outside the first plane is two UTF-16 units, and
+            each unit is written as an escape of its own: a reader takes
+            \uXXXX one at a time and puts the pair back together itself.
+            The second unit's figures after the first escape and nothing
+            to introduce them is not a second escape - it is four more
+            characters of the string, and the reader stops at the one
+            escape with half a character in hand.
+          */
+          code_str[0]= hexconv[utf16buf[2] >> 4];
+          code_str[1]= hexconv[utf16buf[2] & 15];
+          code_str[2]= hexconv[utf16buf[3] >> 4];
+          code_str[3]= hexconv[utf16buf[3] & 15];
+
+          if ((c_len= my_ci_wc_mb(json_cs, '\\', json, json_end)) <= 0 ||
+              (c_len= my_ci_wc_mb(json_cs, 'u', json+= c_len,
+                                  json_end)) <= 0)
+          {
+            /* JSON buffer is depleted. */
+            return JSON_ERROR_OUT_OF_SPACE;
+          }
           json+= c_len;
-          continue;
+
+          if ((c_len= json_append_ascii(json_cs, json, json_end,
+                                        code_str, code_str + 4)) <= 0)
+          {
+            /* JSON buffer is depleted. */
+            return JSON_ERROR_OUT_OF_SPACE;
+          }
+          json+= c_len;
         }
-        /* JSON buffer is depleted. */
-        return JSON_ERROR_OUT_OF_SPACE;
+        continue;
       }
     }
     else /* c_len == 0, an illegal symbol. */

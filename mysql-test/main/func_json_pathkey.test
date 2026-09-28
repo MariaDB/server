@@ -1,0 +1,153 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # The last step of a path, when the path and the document are written
+--echo # in different character sets.
+--echo #
+--echo # A path is parsed in its own character set.  Every step of it is
+--echo # therefore a sequence of characters, and comparing a step against a
+--echo # key of the document is a comparison of characters, not of bytes.
+--echo # These tests cover the last step of the path, which is the one the
+--echo # mutating functions handle themselves instead of leaving it to the
+--echo # path walker.  The interior steps are covered alongside as the
+--echo # contrast case.
+--echo #
+--echo # The keys below are non ASCII characters, written as the bytes that
+--echo # write them so that this file needs no character set of its own:
+--echo #   C3 A9       is U+00E9, one byte in latin1 (E9)
+--echo #   E2 82 AC    is U+20AC, one byte in this server's latin1 (80)
+--echo #   E6 BC A2    is U+6F22, which latin1 has no room for
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. Replacing a key that is already in the document.  The key is the
+--echo #    same character on both sides, encoded in two bytes in the path
+--echo #    and with one in the document.
+--echo #
+
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4'{"e":1}' USING latin1),
+                        _utf8mb4'$."e"', 2)) AS ascii_key;
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+                        _utf8mb4 0x242E22C3A922, 2)) AS wide_key;
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+                    _utf8mb4 0x242E22C3A922, 2)) AS set_existing;
+SELECT JSON_VALID(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A317D USING latin1),
+                           _utf8mb4 0x242E22C3A922, 2)) AS still_valid;
+
+--echo #
+--echo # 2. The same document and path in one character set, as the control.
+--echo #
+
+SELECT HEX(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+                        _utf8mb4 0x242E22C3A922, 2)) AS same_cs;
+SELECT CHARSET(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+                            _utf8mb4 0x242E22C3A922, 2)) AS same_cs_charset;
+
+--echo #
+--echo # 3. An interior step, which the path walker handles.  This one has
+--echo #    always compared characters.
+--echo #
+
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4 0x7B22C3A9223A7B2262223A317D7D USING latin1),
+                    _utf8mb4 0x242E22C3A9222E62, 2)) AS interior_step;
+
+--echo #
+--echo # 4. Adding a key that is not in the document.  The bytes of the key
+--echo #    have to arrive in the document's character set.
+--echo #
+
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                       _utf8mb4 0x242E22C3A922, 2)) AS insert_wide_key;
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                    _utf8mb4 0x242E22C3A922, 2)) AS set_new_key;
+--echo # read the key back with a path in the document's own character set
+SELECT JSON_EXTRACT(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                                _utf8mb4 0x242E22C3A922, 2),
+                    CONVERT(_utf8mb4 0x242E22C3A922 USING latin1)) AS read_back;
+
+--echo #
+--echo # 5. The other direction: a document in the wider character set and a
+--echo #    path in the narrower one.
+--echo #
+
+SELECT HEX(JSON_REPLACE(_utf8mb4 0x7B22C3A9223A317D,
+                        CONVERT(_utf8mb4 0x242E22C3A922 USING latin1), 2))
+  AS narrow_path;
+SELECT HEX(JSON_INSERT(_utf8mb4'{"a":1}',
+                       CONVERT(_utf8mb4 0x242E22C3A922 USING latin1), 2))
+  AS narrow_insert;
+
+--echo #
+--echo # 6. Removing a key.  JSON_REMOVE only has to match, never to write.
+--echo #
+
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4 0x7B22C3A9223A312C2261223A327D USING latin1),
+                       _utf8mb4 0x242E22C3A922)) AS remove_wide;
+SELECT HEX(JSON_REMOVE(_utf8mb4 0x7B22C3A9223A312C2261223A327D,
+                       _utf8mb4 0x242E22C3A922)) AS remove_same_cs;
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4 0x7B2261223A7B22C3A9223A317D2C2262223A327D USING latin1),
+                       _utf8mb4 0x242E612E22C3A922)) AS remove_interior;
+
+--echo #
+--echo # 7. A key the document's character set has no room for.  U+20AC is
+--echo #    in this server's latin1, U+6F22 is not.
+--echo #
+--echo # A key that will not convert is spliced in as it arrived, which is
+--echo # what was done with every key before any of them was converted, and
+--echo # a note says so.  Whether the document that results can be read
+--echo # back is then decided by the document's character set, on the same
+--echo # terms as before.  latin1 has a character at every byte, so the
+--echo # document always comes back.  ucs2 reads its bytes two at a time,
+--echo # so what comes back depends on how many there are: an even number
+--echo # reads as characters and the document is kept, an odd one leaves a
+--echo # byte over and the document is refused, which is where a key that
+--echo # would not convert was refused before.
+--echo #
+--echo # U+6F22 is in ucs2 and so is converted like any other key.
+--echo # U+1F600 is not in ucs2, and takes four bytes; 'a' before it makes
+--echo # five.
+--echo #
+
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                       _utf8mb4 0x242E22E282AC22, 2)) AS euro_into_latin1;
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                       _utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable;
+SELECT HEX(JSON_SET(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                    _utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable_set;
+--echo # a ucs2 document, which has room for this key and so takes it
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+                       _utf8mb4 0x242E22E6BCA222, 2)) AS representable_ucs2;
+--echo # a key ucs2 has no room for, whose bytes go in as they are.  Four
+--echo # of them read back as two characters, so the document is kept
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+                       _utf8mb4 0x242E22F09F988022, 2)) AS unrepresentable_ucs2;
+--echo # and five of them do not, so it is refused on the way back out
+SELECT HEX(JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING ucs2),
+                       _utf8mb4 0x242E2261F09F988022, 2)) AS odd_length_ucs2;
+--echo # and inside a statement that stops on a warning
+CREATE TABLE t1 (id INT, doc LONGTEXT CHARACTER SET latin1);
+SET SESSION sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t1 VALUES
+  (1, JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                  _utf8mb4 0x242E22E6BCA222, 2)),
+  (2, JSON_INSERT(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                  _utf8mb4'$.b', 2));
+SELECT id, HEX(doc) AS stored FROM t1 ORDER BY id;
+SET SESSION sql_mode=DEFAULT;
+DROP TABLE t1;
+--echo # matching an absent key needs no conversion, so it still just misses
+SELECT HEX(JSON_REPLACE(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                        _utf8mb4 0x242E22E6BCA222, 2)) AS unrepresentable_replace;
+SELECT HEX(JSON_REMOVE(CONVERT(_utf8mb4'{"a":1}' USING latin1),
+                       _utf8mb4 0x242E22E6BCA222)) AS unrepresentable_remove;
+
+--echo #
+--echo # 8. A key holding the character that ends a key in the document.
+--echo #    This is not valid to splice, and stays a failure.
+--echo #
+
+SELECT JSON_INSERT('{}', '$.a"b', 1) AS quote_in_key;
+SELECT JSON_INSERT(CONVERT(_utf8mb4'{}' USING latin1),
+                   _utf8mb4'$.a"b', 1) AS quote_in_key_cross_cs;

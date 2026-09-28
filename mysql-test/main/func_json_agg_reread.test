@@ -1,0 +1,84 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Asking for the result of a JSON aggregate more than once.
+--echo #
+--echo # A group is built up across three calls: clear() at its start, add()
+--echo # once per row, and val_str() when the result is wanted.  The text
+--echo # accumulates in a buffer belonging to the item, there being nowhere
+--echo # else to keep it between rows, so anything val_str() writes into that
+--echo # buffer stays written.
+--echo #
+--echo # Nothing says the result is wanted only once.  HAVING on the alias is
+--echo # the shortest statement that wants it twice; the number of times
+--echo # follows the number of conditions.
+--echo #
+
+CREATE TABLE t1 (g INT, a VARCHAR(10));
+INSERT INTO t1 VALUES (1, 'x'), (1, 'y'), (2, 'z'), (2, 'w');
+
+--echo #
+--echo # 1. Asked once.
+--echo #
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1;
+SELECT JSON_ARRAYAGG(a) AS v FROM t1;
+
+--echo #
+--echo # 2. Asked twice.
+--echo #
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 HAVING v LIKE '%';
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 HAVING v LIKE '%';
+SELECT JSON_VALID(JSON_OBJECTAGG(a, a)) AS valid FROM t1 HAVING valid IS NOT NULL;
+
+--echo #
+--echo # 3. Asked three times.
+--echo #
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 HAVING v LIKE '%' AND v LIKE '{%';
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 HAVING v LIKE '%' AND v LIKE '[%';
+
+--echo #
+--echo # 4. Every group, not only the first.
+--echo #
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g HAVING v LIKE '%'
+  ORDER BY g;
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g HAVING v LIKE '%'
+  ORDER BY g;
+
+--echo #
+--echo # 5. A group of one row, where no separator is ever written.
+--echo #
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE a = 'x' HAVING v LIKE '%';
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE a = 'x' HAVING v LIKE '%';
+
+--echo #
+--echo # 6. A copy of the aggregate, which WITH ROLLUP makes without fixing
+--echo #    the item again.
+--echo #
+--echo # The condition is what makes this section a test of anything: a
+--echo # rollup level asked for once is closed once whether the flag is
+--echo # kept or not, and every other section here reaches the second
+--echo # asking through HAVING.  The extra level is produced by a copy of
+--echo # the item, so it is that copy's own flag being reset per group
+--echo # that has to hold.
+--echo #
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g WITH ROLLUP
+  HAVING v LIKE '%';
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g WITH ROLLUP
+  HAVING v LIKE '%';
+--echo # two conditions, so each level is asked for a third time
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g WITH ROLLUP
+  HAVING v LIKE '%' AND v LIKE '{%';
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g WITH ROLLUP
+  HAVING v LIKE '%' AND v LIKE '[%';
+--echo # and the levels without a condition, which must not move either
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g WITH ROLLUP;
+SELECT g, JSON_ARRAYAGG(a) AS v FROM t1 GROUP BY g WITH ROLLUP;
+
+--echo #
+--echo # 7. No rows, which is a NULL and stays one however often it is asked
+--echo #    for.
+--echo #
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 99 HAVING v LIKE '%';
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99 HAVING v LIKE '%';
+
+DROP TABLE t1;

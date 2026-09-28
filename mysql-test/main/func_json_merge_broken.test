@@ -1,0 +1,133 @@
+#
+# JSON_MERGE and JSON_MERGE_PATCH are documented to merge JSON documents,
+# and to raise an error when an argument is not one.  An argument that
+# breaks before its first value is complete is not one.
+#
+# That is a different thing from text standing after a value that IS
+# complete, which func_json_merge_trailing covers: there the value the
+# merging works from is whole, and what stands after it has never reached
+# the answer.  Here there is no whole value to work from, and what the
+# merging composes is part of an object nobody wrote.
+#
+# The refusal is not new either.  It is what these functions already do
+# for the same breakage met one loop further in, and what every other
+# JSON function does for the same characters.  What was escaping it was
+# every loop that walks an object's keys and asks only whether the
+# scanner moved - one per argument in each function, and one more where
+# an argument is copied whole instead of merged with anything.
+#
+
+--echo # ---------------------------------------------------------------
+--echo # what every other JSON function says about these documents
+--echo # ---------------------------------------------------------------
+SELECT JSON_EXTRACT('{"a":1 "b":2}', '$') AS no_comma;
+SELECT JSON_EXTRACT('{"a":1,', '$') AS stops_after_comma;
+SELECT JSON_EXTRACT('{', '$') AS stops_at_once;
+SELECT JSON_EXTRACT('{"a":{"x":1 "y":2}}', '$') AS no_comma_nested;
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE - an argument that never completes a value
+--echo # ---------------------------------------------------------------
+
+--echo # argument 2 breaks, argument 1 being an empty object.  Its keys
+--echo # are what is walked first, and an empty object has none, so the
+--echo # walk that meets the breakage is the one that was reached second
+SELECT JSON_MERGE('{}', '{"a":1 "b":2}') AS empty_lhs;
+SELECT JSON_MERGE('{}', '{"a":1,') AS empty_lhs_stops;
+SELECT JSON_MERGE('{}', '{') AS empty_lhs_at_once;
+SELECT JSON_MERGE('{}', '{"a":{"x":1 "y":2}}') AS empty_lhs_nested;
+
+--echo # argument 1 breaks, argument 2 being an empty object
+SELECT JSON_MERGE('{"a":1 "b":2}', '{}') AS empty_rhs;
+SELECT JSON_MERGE('{"a":1,', '{}') AS empty_rhs_stops;
+
+--echo # the same breakage where the other argument has keys of its own,
+--echo # which is the case that has always been refused
+SELECT JSON_MERGE('{"z":0}', '{"a":1 "b":2}') AS keyed_lhs;
+SELECT JSON_MERGE('{"a":1 "b":2}', '{"z":0}') AS keyed_rhs;
+
+--echo # three arguments, so a composed document is on the left by the
+--echo # time the broken one is reached
+SELECT JSON_MERGE('{}', '{"a":1 "b":2}', '{"c":3}') AS three_args;
+SELECT JSON_MERGE('{}', '{"c":3}', '{"a":1 "b":2}') AS three_args_last;
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE_PATCH, which walks the same two loops
+--echo # ---------------------------------------------------------------
+SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}') AS patch_empty_lhs;
+SELECT JSON_MERGE_PATCH('{}', '{"a":1,') AS patch_empty_lhs_stops;
+SELECT JSON_MERGE_PATCH('{"a":1 "b":2}', '{}') AS patch_empty_rhs;
+SELECT JSON_MERGE_PATCH('{"z":0}', '{"a":1 "b":2}') AS patch_keyed_lhs;
+SELECT JSON_MERGE_PATCH('{}', '{"a":1 "b":2}', '{"c":3}') AS patch_three;
+
+--echo # merging onto SQL NULL, where the argument is taken over whole
+SELECT JSON_MERGE_PATCH(NULL, '{"a":1 "b":2}', '[3,4]') AS patch_null_obj;
+SELECT JSON_MERGE_PATCH(NULL, '[1,2 3]', '[3,4]') AS patch_null_arr;
+
+--echo # ---------------------------------------------------------------
+--echo # arrays and scalars, which have always refused this
+--echo # ---------------------------------------------------------------
+SELECT JSON_MERGE('[]', '[1,2') AS arr_empty_lhs;
+SELECT JSON_MERGE('[1]', '[2,3') AS arr_keyed_lhs;
+SELECT JSON_MERGE('[]', '[1,2 3]') AS arr_no_comma;
+SELECT JSON_MERGE_PATCH('[]', '[1,2') AS patch_arr;
+
+--echo # ---------------------------------------------------------------
+--echo # controls - a complete value with text after it is not this, and
+--echo # must keep the answer it has always had
+--echo # ---------------------------------------------------------------
+SELECT JSON_MERGE('{}', '{"a":1} rubbish') AS trailing_rhs;
+SELECT JSON_MERGE('{"a":1} rubbish', '{"b":2}') AS trailing_lhs;
+SELECT JSON_MERGE_PATCH('{}', '{"a":1} rubbish') AS patch_trailing;
+SELECT JSON_MERGE('{}', '{"a":1} {"zzz":9}') AS trailing_whole_doc;
+
+--echo # and documents that are simply documents
+SELECT JSON_MERGE('{}', '{"a":1, "b":2}') AS whole;
+SELECT JSON_MERGE('{"z":0}', '{"a":1, "b":2}') AS whole_keyed;
+SELECT JSON_MERGE_PATCH('{}', '{"a":1, "b":2}') AS patch_whole;
+
+--echo # ---------------------------------------------------------------
+--echo # out of a table, so one row does not settle what another says
+--echo # ---------------------------------------------------------------
+CREATE TABLE t (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t VALUES
+ (1, '{}',        '{"a":1 "b":2}'),
+ (2, '{"z":0}',   '{"a":1 "b":2}'),
+ (3, '{}',        '{"a":1, "b":2}'),
+ (4, '{}',        '{"a":1} rubbish');
+SELECT id, JSON_MERGE(a, b) AS v FROM t ORDER BY id;
+SELECT id, JSON_MERGE_PATCH(a, b) AS v FROM t ORDER BY id;
+DROP TABLE t;
+
+--echo # ---------------------------------------------------------------
+--echo # nothing downstream is handed a value the merging could not read
+--echo # ---------------------------------------------------------------
+SELECT JSON_VALID(JSON_MERGE('{}', '{"a":1 "b":2}')) AS valid_broken;
+SELECT JSON_TYPE(JSON_MERGE('{}', '{"a":1 "b":2}')) AS type_broken;
+SELECT JSON_LENGTH(JSON_MERGE('{}', '{"a":1 "b":2}')) AS length_broken;
+SELECT JSON_VALID(JSON_MERGE('{}', '{"a":1, "b":2}')) AS valid_whole;
+SELECT JSON_LENGTH(JSON_MERGE('{}', '{"a":1, "b":2}')) AS length_whole;
+
+--echo # ---------------------------------------------------------------
+--echo # JSON_MERGE_PATCH where argument 1 is not an object
+--echo # ---------------------------------------------------------------
+--echo # Merging onto something that is not an object does not walk the
+--echo # two objects together; it takes argument 2 whole.  That is a
+--echo # different walk over the same shape, and the argument has to be
+--echo # a document there too.
+SELECT JSON_MERGE_PATCH('[]', '{"a":1 "b":2}') AS array_lhs;
+SELECT JSON_MERGE_PATCH('1', '{"a":1 "b":2}') AS scalar_lhs;
+SELECT JSON_MERGE_PATCH('"s"', '{"a":1,') AS string_lhs;
+SELECT JSON_MERGE_PATCH('true', '{') AS opening_brace_only;
+--echo # the break is inside a member value rather than at the top
+SELECT JSON_MERGE_PATCH('[]', '{"a":{"p":1 "q":2}}') AS nested_break;
+--echo # and out of a table, so one row does not settle another
+CREATE TABLE tm (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO tm VALUES (1, '[]', '{"a":1 "b":2}'),
+                      (2, '[]', '{"a":1, "b":2}'),
+                      (3, '{}', '{"a":1 "b":2}');
+SELECT id, JSON_MERGE_PATCH(a, b) AS v FROM tm ORDER BY id;
+DROP TABLE tm;
+--echo # a whole document down that same walk keeps everything it had
+SELECT JSON_MERGE_PATCH('[]', '{"a":1, "b":2}') AS array_lhs_whole;
+SELECT JSON_MERGE_PATCH('1', '{"a":{"p":1, "q":2}}') AS scalar_lhs_whole;

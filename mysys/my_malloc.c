@@ -152,7 +152,26 @@ void *my_realloc(PSI_memory_key key, void *old_point, size_t size, myf my_flags)
   DBUG_ASSERT((old_flags & 1) == MY_TEST(my_flags & MY_THREAD_SPECIFIC));
 
   size= ALIGN_SIZE(size);
-  mh= sf_realloc(old_mh, size + HEADER_SIZE, my_flags);
+
+  /*
+    Growing an allocation can fail where the first one succeeded, and a
+    buffer that is already held is where most of the unchecked writes in
+    the server are: the code that asked for the memory is long gone, and
+    what is left is an append that assumes it will fit.  my_malloc()
+    above can be made to fail for a test; without the same here, none of
+    those paths can be reached at all.
+
+    Kept apart from "simulate_out_of_memory" rather than folded into it,
+    so that a test can fail the growing of a buffer without also failing
+    every first allocation that happens to fall in the same window -
+    which is usually the whole point, the two failing in different
+    places for different reasons.  A request that shrinks is left alone,
+    keeping the guarantee below that a smaller size never fails.
+  */
+  if (size > old_size && DBUG_IF("simulate_realloc_out_of_memory"))
+    mh= NULL;
+  else
+    mh= sf_realloc(old_mh, size + HEADER_SIZE, my_flags);
 
   if (mh == NULL)
   {

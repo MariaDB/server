@@ -997,6 +997,22 @@ typedef struct system_status_var
   ulong filesort_scan_count_;
   ulong filesort_pq_sorts_;
   ulong optimizer_join_prefixes_check_calls;
+#ifndef DBUG_OFF
+  /*
+    How many times the JSON functions have started the parser, over whole
+    documents and over single spliced values alike.
+
+    It counts work rather than results, and that is the point of it: the
+    JSON functions are meant to give the same answers however many times
+    they read a value, so the number of readings is the one thing a test
+    can watch that is allowed to change.  Nothing else would show a
+    reading that stopped happening.
+
+    Debug builds only.  There is nothing here for a released server to
+    offer anybody.
+  */
+  ulong json_scans;
+#endif
 
   /* Features used */
   ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
@@ -8232,15 +8248,25 @@ class Type_holder: public Sql_alloc,
 {
   const TYPELIB *m_typelib;
   bool m_maybe_null;
+  bool m_is_valid_json_static;
 public:
   Type_holder()
    :m_typelib(NULL),
-    m_maybe_null(false)
+    m_maybe_null(false),
+    m_is_valid_json_static(false)
   { }
 
   void set_type_maybe_null(bool maybe_null_arg) override
   { m_maybe_null= maybe_null_arg; }
   bool get_maybe_null() const { return m_maybe_null; }
+  /*
+    Whether every producer gathered here returns a document each time
+    it is evaluated.  One column is written by all of them and read as
+    one, so what can be said about it is what they all say - and an
+    answer about no producers at all is about nothing, which is why
+    having gathered none is a no rather than a yes about an empty set.
+  */
+  bool get_is_valid_json_static() const { return m_is_valid_json_static; }
 
   decimal_digits_t decimal_precision() const override
   {
@@ -8266,8 +8292,28 @@ public:
   bool aggregate_attributes(THD *thd)
   {
     static LEX_CSTRING union_name= { STRING_WITH_LEN("UNION") };
+    m_is_valid_json_static= arg_count > 0;
     for (uint i= 0; i < arg_count; i++)
+    {
       m_maybe_null|= args[i]->maybe_null();
+      /*
+        What this producer always answers, and not what the column's
+        store will keep of it.  Only the first of those can be asked
+        here: the set the column will be in is settled by the call
+        below, so there is nothing yet to hold a branch's own set up
+        against - and a branch made to move into a set that keeps its
+        bytes without keeping its characters passes a document that
+        nothing reads as one, however faithfully it attests to what it
+        wrote.
+
+        Asked at the store instead, where both sets are in hand - see
+        Field::confirm_is_valid_json_static().  Asked in both places it
+        would be one rule written twice, and this is the copy that could
+        be wrong: the field is made by create_tmp_field(), which is free
+        to land somewhere other than the set agreed on here.
+      */
+      m_is_valid_json_static&= args[i]->is_valid_json_static();
+    }
     return
        type_handler()->Item_hybrid_func_fix_attributes(thd,
                                                        union_name, this, this,

@@ -1,0 +1,65 @@
+#
+# JSON_MERGE_PATCH taking a whole document over when everything before it
+# was NULL.
+#
+# The document is taken over from the buffer the argument was read into,
+# and the argument after it is read into that same buffer.  An argument
+# that needs more room than the one before leaves that buffer somewhere
+# else, so a document taken over by being pointed at is gone by the time
+# it comes to be read.
+#
+# Whether an argument is read into the caller's buffer at all depends on
+# the function that produced it - one that returns a piece of its own
+# argument does not, one that builds its answer does.  So the cases below
+# come in pairs which differ only in how the same value is produced, and
+# both have to give the same answer.
+#
+
+--echo # the answer must not depend on how the arguments are produced
+SELECT JSON_MERGE_PATCH(NULL, '[1]', '{"aaaaaaaaaaaaaaaa":1}') AS literal;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS built;
+SELECT JSON_MERGE_PATCH(NULL, CONCAT('[', '1]'),
+                        CONCAT('{"aaaaaaaaaaaaaaaa"', ':1}')) AS concatenated;
+SELECT JSON_MERGE_PATCH(NULL, REVERSE(']1['),
+                        REVERSE('}1:"aaaaaaaaaaaaaaaa"{')) AS reversed;
+
+--echo # a taken-over document of every kind that is not an object, since
+--echo # an object is merged rather than taken over
+SELECT JSON_MERGE_PATCH(NULL, LOWER('1'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_number;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('"S"'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_string;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('TRUE'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_true;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1,2]'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS was_array;
+
+--echo # room that has to be found rather than grown into
+SELECT JSON_MERGE_PATCH(NULL, LOWER('1'),
+                        LOWER(CONCAT('{"k":"', REPEAT('x', 500), '"}')))
+       IS NULL AS big_jump_null;
+SELECT JSON_LENGTH(JSON_MERGE_PATCH(NULL, LOWER('1'),
+                   LOWER(CONCAT('{"k":"', REPEAT('x', 500), '"}')))) AS big_len;
+
+--echo # more arguments after the one that was taken over
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'), LOWER('{"AAAAAAAAAAAAAAAA":1}'),
+                        LOWER('{"BBBBBBBBBBBBBBBB":2}')) AS three;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1]'), LOWER('{"AAAAAAAAAAAAAAAA":1}'),
+                        LOWER('{"AAAAAAAAAAAAAAAA":9}')) AS three_same_key;
+
+--echo # out of a table, so the arguments change from row to row
+CREATE TABLE t (id INT, a VARCHAR(64), b VARCHAR(64));
+INSERT INTO t VALUES
+ (1, '[1]', '{"aaaaaaaaaaaaaaaa":1}'),
+ (2, '[2]', '{"bbbbbbbbbbbbbbbb":2}');
+SELECT id, JSON_MERGE_PATCH(NULL, a, b) AS plain FROM t ORDER BY id;
+SELECT id, JSON_MERGE_PATCH(NULL, LOWER(a), LOWER(b)) AS built FROM t
+       ORDER BY id;
+DROP TABLE t;
+
+--echo # controls: the same second argument reached without a taken-over
+--echo # first one, and a second argument no longer than the first
+SELECT JSON_MERGE_PATCH('{}', LOWER('{"AAAAAAAAAAAAAAAA":1}')) AS no_adoption;
+SELECT JSON_MERGE_PATCH(NULL, LOWER('[1,2,3,4,5,6,7,8,9]'),
+                        LOWER('{"A":1}')) AS shorter_after;

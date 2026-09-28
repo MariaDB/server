@@ -1,0 +1,240 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: exact output formatting of the JSON functions.
+--echo #
+--echo # Every JSON producer is exercised with input in several formattings
+--echo # (compact, already-spaced, whitespace-heavy) so that the exact bytes
+--echo # each function emits are recorded.  HEX() is used next to the plain
+--echo # output wherever whitespace decides the answer, because leading and
+--echo # trailing space is easy to lose in a result file.
+--echo #
+
+--echo #
+--echo # 1. Mutating functions.  These reformat their document argument.
+--echo #
+
+--echo # --- JSON_SET ---
+SELECT JSON_SET('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.a', 2) AS v;
+SELECT HEX(JSON_SET('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.a', 2)) AS h;
+SELECT JSON_SET('{"a": 1, "b": [1, 2], "c": {"d": "x"}}', '$.a', 2) AS v;
+SELECT HEX(JSON_SET('{"a": 1, "b": [1, 2], "c": {"d": "x"}}', '$.a', 2)) AS h;
+SELECT JSON_SET('{"a"  :  1 ,\n\t"b" : [ 1 , 2 ] }', '$.a', 2) AS v;
+SELECT HEX(JSON_SET('{"a"  :  1 ,\n\t"b" : [ 1 , 2 ] }', '$.a', 2)) AS h;
+--echo # a path that matches nothing still reformats the document
+SELECT JSON_SET('{"a":1,"b":[1,2]}', '$.zzz.deeper', 2) AS v;
+--echo # scalar document
+SELECT JSON_SET('1', '$', 2) AS v;
+SELECT JSON_SET('"str"', '$.a', 2) AS v;
+
+--echo # --- JSON_INSERT ---
+SELECT JSON_INSERT('{"a":1,"b":[1,2]}', '$.new', 2) AS v;
+SELECT HEX(JSON_INSERT('{"a":1,"b":[1,2]}', '$.new', 2)) AS h;
+SELECT JSON_INSERT('{"a": 1, "b": [1, 2]}', '$.new', 2) AS v;
+SELECT JSON_INSERT('{"a"  :  1 ,\n\t"b" : [ 1 , 2 ] }', '$.new', 2) AS v;
+--echo # existing key is not replaced, document is still reformatted
+SELECT JSON_INSERT('{"a":1,"b":[1,2]}', '$.a', 9) AS v;
+
+--echo # --- JSON_REPLACE ---
+SELECT JSON_REPLACE('{"a":1,"b":[1,2]}', '$.a', 2) AS v;
+SELECT HEX(JSON_REPLACE('{"a":1,"b":[1,2]}', '$.a', 2)) AS h;
+SELECT JSON_REPLACE('{"a": 1, "b": [1, 2]}', '$.a', 2) AS v;
+SELECT JSON_REPLACE('{"a"  :  1 ,\n\t"b" : [ 1 , 2 ] }', '$.a', 2) AS v;
+--echo # missing key is not inserted, document is still reformatted
+SELECT JSON_REPLACE('{"a":1,"b":[1,2]}', '$.new', 2) AS v;
+
+--echo # --- JSON_REMOVE ---
+SELECT JSON_REMOVE('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.a') AS v;
+SELECT HEX(JSON_REMOVE('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.a')) AS h;
+SELECT JSON_REMOVE('{"a": 1, "b": [1, 2], "c": {"d": "x"}}', '$.a') AS v;
+SELECT JSON_REMOVE('{"a"  :  1 ,\n\t"b" : [ 1 , 2 ] }', '$.a') AS v;
+--echo # removal at the cut boundaries: first, middle and last member
+SELECT JSON_REMOVE('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.b') AS v;
+SELECT JSON_REMOVE('{"a":1,"b":[1,2],"c":{"d":"x"}}', '$.c') AS v;
+SELECT JSON_REMOVE('[1,2,3]', '$[0]') AS v;
+SELECT JSON_REMOVE('[1,2,3]', '$[1]') AS v;
+SELECT JSON_REMOVE('[1,2,3]', '$[2]') AS v;
+--echo # removing the only member
+SELECT JSON_REMOVE('{"a":1}', '$.a') AS v, HEX(JSON_REMOVE('{"a":1}', '$.a')) AS h;
+SELECT JSON_REMOVE('[1]', '$[0]') AS v, HEX(JSON_REMOVE('[1]', '$[0]')) AS h;
+
+--echo # --- JSON_ARRAY_APPEND ---
+SELECT JSON_ARRAY_APPEND('[1,2]', '$', 3) AS v;
+SELECT HEX(JSON_ARRAY_APPEND('[1,2]', '$', 3)) AS h;
+SELECT JSON_ARRAY_APPEND('[1, 2]', '$', 3) AS v;
+SELECT JSON_ARRAY_APPEND('{"a":1,"b":[1,2]}', '$.b', 3) AS v;
+--echo # appending to a scalar wraps it into an array
+SELECT JSON_ARRAY_APPEND('{"a":1}', '$.a', 2) AS v;
+
+--echo # --- JSON_ARRAY_INSERT ---
+SELECT JSON_ARRAY_INSERT('[1,2]', '$[0]', 0) AS v;
+SELECT HEX(JSON_ARRAY_INSERT('[1,2]', '$[0]', 0)) AS h;
+SELECT JSON_ARRAY_INSERT('[1, 2]', '$[1]', 0) AS v;
+SELECT JSON_ARRAY_INSERT('[1,2]', '$[9]', 0) AS v;
+SELECT JSON_ARRAY_INSERT('{"a":1,"b":[1,2]}', '$.b[0]', 0) AS v;
+
+--echo # --- JSON_MERGE / JSON_MERGE_PRESERVE ---
+SELECT JSON_MERGE('[1,2]', '[3,4]') AS v, HEX(JSON_MERGE('[1,2]', '[3,4]')) AS h;
+SELECT JSON_MERGE('{"a":1}', '{"b":2}') AS v;
+SELECT JSON_MERGE('{"a":1}', '{"a":2}') AS v;
+SELECT JSON_MERGE_PRESERVE('{"a":1}', '{"a":2}') AS v;
+SELECT JSON_MERGE('1', '2') AS v;
+--echo # three-way merge
+SELECT JSON_MERGE('[1]', '[2]', '[3]') AS v;
+
+--echo # --- JSON_MERGE_PATCH ---
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2}') AS v;
+SELECT HEX(JSON_MERGE_PATCH('{"a":1}', '{"b":2}')) AS h;
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"a":null}') AS v;
+SELECT JSON_MERGE_PATCH('{"a":{"b":1,"c":2}}', '{"a":{"b":9}}') AS v;
+--echo # a non-object patch is adopted wholesale
+SELECT JSON_MERGE_PATCH('{"a":1}', '[1,   2]') AS v;
+SELECT HEX(JSON_MERGE_PATCH('{"a":1}', '[1,   2]')) AS h;
+SELECT JSON_MERGE_PATCH('{"a":1}', '"str"') AS v;
+--echo # the last argument decides when it is not an object
+SELECT JSON_MERGE_PATCH('{"a":1}', '{"b":2}', '[9]') AS v;
+
+--echo #
+--echo # 2. Constructors.  These copy their arguments and do NOT reformat.
+--echo #
+
+--echo # plain strings are quoted, JSON-typed arguments are embedded raw
+# A view keeps its body as printed text, and a boolean literal prints as the
+# number it equals, so read through one this array would hold a 1 rather
+# than a true.
+--disable_view_protocol
+SELECT JSON_ARRAY(1, 'str', NULL, TRUE) AS v;
+--enable_view_protocol
+SELECT JSON_ARRAY() AS v, HEX(JSON_ARRAY()) AS h;
+SELECT JSON_OBJECT() AS v, HEX(JSON_OBJECT()) AS h;
+SELECT JSON_OBJECT('a', 1, 'b', 'str') AS v;
+SELECT HEX(JSON_OBJECT('a', 1, 'b', 'str')) AS h;
+--echo # embedded document arguments keep their own formatting
+SELECT JSON_ARRAY(JSON_COMPACT('{"a": 1,"b": 2}')) AS v;
+SELECT JSON_ARRAY(JSON_DETAILED('{"a":1}')) AS v;
+SELECT JSON_ARRAY(JSON_QUERY('{"x":{"a":1,"b":  2}}', '$.x')) AS v;
+SELECT JSON_OBJECT('k', JSON_QUERY('{"x":{"a":1,"b":  2}}', '$.x')) AS v;
+--echo # a nested constructor call
+SELECT JSON_ARRAY(JSON_ARRAY(1,2), JSON_OBJECT('a',1)) AS v;
+SELECT JSON_OBJECT('a', JSON_ARRAY(1,2)) AS v;
+--echo # a mutator result embedded in a constructor
+SELECT JSON_ARRAY(JSON_SET('{"a":1,"b":2}', '$.a', 9)) AS v;
+
+--echo #
+--echo # 3. JSON_EXTRACT: formatting and validation depend on the evaluation
+--echo #    context.  In string context the document is scanned to the end and
+--echo #    the result is reformatted; in numeric context the scan stops at the
+--echo #    first match and nothing is reformatted.
+--echo #
+
+SELECT JSON_EXTRACT('{"a":{"b":1,"c":2}}', '$.a') AS v;
+SELECT HEX(JSON_EXTRACT('{"a":{"b":1,"c":2}}', '$.a')) AS h;
+SELECT JSON_EXTRACT('{"a": {"b": 1,   "c": 2}}', '$.a') AS v;
+--echo # several paths produce an array wrapper
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS v;
+SELECT HEX(JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b')) AS h;
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.*') AS v;
+--echo # string context rejects trailing garbage after the document
+SELECT JSON_EXTRACT('{"a":1} trailing', '$.a') AS v;
+--echo # numeric context does not reach the trailing garbage
+SELECT JSON_EXTRACT('{"a":1} trailing', '$.a') + 0 AS v;
+SELECT JSON_EXTRACT('{"a":1} trailing', '$.a') * 1.0 AS v;
+SELECT CAST(JSON_EXTRACT('{"a":1} trailing', '$.a') AS SIGNED) AS v;
+--echo # the same asymmetry with a structurally broken tail
+SELECT JSON_EXTRACT('{"a":1,"b":[}', '$.a') AS v;
+SELECT JSON_EXTRACT('{"a":1,"b":[}', '$.a') + 0 AS v;
+--echo # numeric context on a non-scalar match
+SELECT JSON_EXTRACT('{"a":[1,2]}', '$.a') + 0 AS v;
+
+--echo #
+--echo # 4. JSON_QUERY and JSON_VALUE return a slice of the input and keep the
+--echo #    input formatting.
+--echo #
+
+SELECT JSON_QUERY('{"a":{"b":1,   "c":2}}', '$.a') AS v;
+SELECT HEX(JSON_QUERY('{"a":{"b":1,   "c":2}}', '$.a')) AS h;
+SELECT JSON_QUERY('{"a":[1,   2]}', '$.a') AS v;
+--echo # JSON_QUERY only returns objects and arrays
+SELECT JSON_QUERY('{"a":1}', '$.a') AS v;
+SELECT JSON_VALUE('{"a":1}', '$.a') AS v;
+SELECT JSON_VALUE('{"a":"s  t"}', '$.a') AS v, HEX(JSON_VALUE('{"a":"s  t"}', '$.a')) AS h;
+--echo # JSON_VALUE unquotes, so escapes are resolved
+SELECT JSON_VALUE('{"a":"q\\"q"}', '$.a') AS v;
+SELECT JSON_VALUE('{"a":[1,2]}', '$.a') AS v;
+--echo # a slice taken past trailing garbage
+SELECT JSON_QUERY('{"a":{"b":1}} trailing', '$.a') AS v;
+SELECT JSON_VALUE('{"a":1} trailing', '$.a') AS v;
+
+--echo #
+--echo # 5. The explicit formatters.  These stay after the mutator epilogues
+--echo #    are gone, so their exact bytes matter.
+--echo #
+
+SELECT JSON_COMPACT('{"a": 1, "b": [1, 2]}') AS v;
+SELECT HEX(JSON_COMPACT('{"a": 1, "b": [1, 2]}')) AS h;
+SELECT JSON_LOOSE('{"a":1,"b":[1,2]}') AS v;
+SELECT HEX(JSON_LOOSE('{"a":1,"b":[1,2]}')) AS h;
+SELECT JSON_DETAILED('{"a":1,"b":[1,2]}') AS v;
+SELECT HEX(JSON_DETAILED('{"a":1,"b":[1,2]}')) AS h;
+SELECT JSON_PRETTY('{"a":1,"b":[1,2]}') AS v;
+SELECT HEX(JSON_PRETTY('{"a":1,"b":[1,2]}')) AS h;
+--echo # JSON_DETAILED with an explicit tab size
+SELECT HEX(JSON_DETAILED('{"a":1}', 2)) AS h;
+SELECT HEX(JSON_DETAILED('{"a":1}', 0)) AS h;
+--echo # empty containers
+SELECT HEX(JSON_LOOSE('{}')) AS h, HEX(JSON_LOOSE('[]')) AS h2;
+SELECT HEX(JSON_DETAILED('{}')) AS h, HEX(JSON_DETAILED('[]')) AS h2;
+--echo # the formatters are a pass-through in JSON context
+SELECT JSON_ARRAY(JSON_LOOSE('{"a":1}')) AS v;
+SELECT JSON_ARRAY(JSON_COMPACT('{"a": 1}')) AS v;
+
+--echo #
+--echo # 6. The remaining functions, for completeness of the surface.
+--echo #
+
+SELECT JSON_KEYS('{"a":1,"b":2}') AS v, HEX(JSON_KEYS('{"a":1,"b":2}')) AS h;
+SELECT JSON_KEYS('{"a":{"b":1}}', '$.a') AS v;
+SELECT JSON_KEYS('{}') AS v;
+SELECT JSON_QUOTE('a"b') AS v, HEX(JSON_QUOTE('a"b')) AS h;
+SELECT JSON_UNQUOTE('"a\\"b"') AS v;
+SELECT JSON_UNQUOTE('not quoted') AS v;
+SELECT JSON_NORMALIZE('{"b":1,"a":2}') AS v;
+SELECT HEX(JSON_NORMALIZE('{"b":1,"a":2}')) AS h;
+SELECT JSON_TYPE('{}') AS o, JSON_TYPE('[]') AS a, JSON_TYPE('1') AS i,
+       JSON_TYPE('1.5') AS d, JSON_TYPE('"s"') AS s, JSON_TYPE('true') AS b,
+       JSON_TYPE('null') AS n;
+SELECT JSON_LENGTH('{"a":1,"b":2}') AS v, JSON_LENGTH('[1,2,3]') AS a;
+SELECT JSON_DEPTH('1') AS s, JSON_DEPTH('[]') AS e, JSON_DEPTH('[[1]]') AS n;
+SELECT JSON_VALID('{"a":1}') AS ok, JSON_VALID('{') AS bad, JSON_VALID(NULL) AS n;
+SELECT JSON_EXISTS('{"a":1}', '$.a') AS y, JSON_EXISTS('{"a":1}', '$.b') AS n;
+SELECT JSON_CONTAINS('{"a":1,"b":2}', '1', '$.a') AS y;
+SELECT JSON_CONTAINS_PATH('{"a":1,"b":2}', 'one', '$.a', '$.z') AS y;
+SELECT JSON_OVERLAPS('[1,2]', '[2,3]') AS y;
+SELECT JSON_EQUALS('{"a":1,"b":2}', '{"b":2,"a":1}') AS y;
+SELECT JSON_SEARCH('{"a":"x","b":"y"}', 'one', 'x') AS v;
+SELECT JSON_SEARCH('["x","x"]', 'all', 'x') AS v;
+SELECT HEX(JSON_SEARCH('["x","x"]', 'all', 'x')) AS h;
+
+--echo #
+--echo # 7. Chained calls.  A JSON function feeding another JSON function is
+--echo #    the shape the reparse work targets, so the current bytes of every
+--echo #    combination are recorded here.
+--echo #
+
+SELECT JSON_SET(JSON_SET('{"a":1,"b":2}', '$.a', 9), '$.b', 8) AS v;
+SELECT JSON_INSERT(JSON_REMOVE('{"a":1,"b":2}', '$.a'), '$.c', 3) AS v;
+SELECT JSON_MERGE(JSON_ARRAY(1,2), JSON_ARRAY(3)) AS v;
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a',1), JSON_OBJECT('b',2)) AS v;
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(1), '$', 2) AS v;
+SELECT JSON_EXTRACT(JSON_SET('{"a":1}', '$.b', 2), '$') AS v;
+SELECT JSON_QUERY(JSON_SET('{"a":{"b":1}}', '$.a.c', 2), '$.a') AS v;
+SELECT JSON_COMPACT(JSON_SET('{"a":1}', '$.b', 2)) AS v;
+SELECT JSON_LOOSE(JSON_COMPACT('{"a": 1}')) AS v;
+SELECT JSON_VALID(JSON_SET('{"a":1}', '$.b', 2)) AS v;
+SELECT JSON_DEPTH(JSON_SET('{"a":1}', '$.b', JSON_ARRAY(1))) AS v;
+--echo # a mutator over an extracted fragment
+SELECT JSON_SET(JSON_EXTRACT('{"a":{"b":1}}', '$.a'), '$.c', 2) AS v;
+--echo # a mutator over a query slice that kept odd input spacing
+SELECT JSON_SET(JSON_QUERY('{"a":{"b":1,   "c":2}}', '$.a'), '$.d', 3) AS v;
+--echo # a constructor fed by a mutator fed by a constructor
+SELECT JSON_OBJECT('k', JSON_SET(JSON_OBJECT('a', 1), '$.b', 2)) AS v;

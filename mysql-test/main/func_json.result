@@ -280,7 +280,7 @@ create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f` varchar(46) DEFAULT NULL
+  `f` varchar(52) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t1;
 f
@@ -305,7 +305,7 @@ json_quote('foo')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `json_quote('foo')` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+  `json_quote('foo')` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select json_merge('string');
@@ -770,8 +770,8 @@ JSON_QUOTE(_utf8'foo') AS c2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-  `c2` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+  `c1` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `c2` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
@@ -780,6 +780,8 @@ DROP TABLE t1;
 select json_array(1,user(),compress(5.140264e+307));
 json_array(1,user(),compress(5.140264e+307))
 NULL
+Warnings:
+Note	4035	Broken JSON string in argument 3 to function 'json_array' at position 0
 #
 # MDEV-16869 String functions don't respect character set of JSON_VALUE.
 #
@@ -834,7 +836,7 @@ CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(21) DEFAULT NULL
+  `JSON_ARRAY_INSERT(fld, '$.[0]', '0')` varchar(40) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 SET sql_mode=default;
@@ -1615,7 +1617,7 @@ insert into t1 values (concat('x64-', repeat('b', 60)));
 insert into t1 values (concat('x64-', repeat('c', 60)));
 select json_arrayagg(a) from t1;
 json_arrayagg(a)
-["x64-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+[]
 Warnings:
 Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
 drop table t1;
@@ -1741,9 +1743,7 @@ SET @save_collation_connection= @@collation_connection;
 SET collation_connection='utf16_bin';
 SELECT JSON_EXTRACT('{"a": 1,"b": 2}','$.a');
 JSON_EXTRACT('{"a": 1,"b": 2}','$.a')
-NULL
-Warnings:
-Warning	4036	Character disallowed in JSON in argument 1 to function 'json_extract' at position 2
+1
 SET @@collation_connection= @save_collation_connection;
 # End of 10.5 tests
 #
@@ -1832,9 +1832,9 @@ create temporary table t (c varchar(20) character set latin1);
 insert into t values ('ab'), ('cd'), ('ef');
 select json_arrayagg(c order by c) from t;
 json_arrayagg(c order by c)
-["ab","cd"]
+["ab"]
 Warnings:
-Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
 drop temporary table t;
 # End of 10.6 tests
 SELECT json_extract(t.j, '$')

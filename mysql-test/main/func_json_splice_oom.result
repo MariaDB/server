@@ -1,0 +1,240 @@
+#
+# No room to grow the buffer while a value is being written out
+# into the document it is joining.
+#
+# A value that is a document but is not written the loose way is
+# written out again as it is spliced, whenever the document it
+# joins is loose and would stop being so otherwise.  That writing
+# grows the buffer the same way every other writing here does,
+# and can fail the same way.
+#
+# The failure has to be reachable from this writing and not only
+# from the older ones.  A writing that no injection can fail is a
+# writing whose handling of failure nobody has ever run, and this
+# file is what keeps that from happening quietly.
+#
+SET NAMES utf8mb4;
+#
+# 1. A value that is a document, and is not loose
+#
+#    Read out of a document written the compact way, so it is
+#    formatted that way itself and has to be written out again when
+#    it joins one that is loose.
+#
+SET @compact = CONCAT('[', REPEAT('1,', 999), '1]');
+SET @small = '[1,2]';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@small, '$'))
+AS spliced;
+spliced
+{"a": 1, "d": [1, 2]}
+SELECT LENGTH(@compact) AS compact_len,
+LENGTH(JSON_LOOSE(@compact)) - LENGTH(@compact) AS grew_by;
+compact_len	grew_by
+2001	999
+#
+# 2. The same splice with no room to grow
+#
+#    This must not answer.  If it does, the injection is not
+#    reaching the writing above and this file is testing nothing.
+#
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@compact, '$'))
+AS spliced;
+ERROR HY000: Out of memory (Needed 1288 bytes)
+SET SESSION debug_dbug = DEFAULT;
+#
+# 3. The same statement once the room is there again
+#
+SELECT JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+JSON_QUERY(@compact, '$')), ''))
+AS parses;
+parses
+1
+#
+# 4. The other functions that splice a value the same way
+#
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.a', JSON_QUERY(@compact, '$'))
+AS st;
+SELECT JSON_REPLACE(JSON_OBJECT('a', 1), '$.a', JSON_QUERY(@compact, '$'))
+AS rep;
+SELECT JSON_ARRAY_APPEND(JSON_ARRAY(1), '$', JSON_QUERY(@compact, '$'))
+AS app;
+SELECT JSON_ARRAY_INSERT(JSON_ARRAY(1), '$[0]', JSON_QUERY(@compact, '$'))
+AS ari;
+SET SESSION debug_dbug = DEFAULT;
+# and once the room is there again
+SELECT JSON_VALID(CONCAT(JSON_SET(JSON_OBJECT('a', 1), '$.a',
+JSON_QUERY(@compact, '$')), '')) AS parses;
+parses
+1
+SELECT JSON_VALID(CONCAT(JSON_ARRAY_APPEND(JSON_ARRAY(1), '$',
+JSON_QUERY(@compact, '$')), '')) AS parses;
+parses
+1
+#
+# 5. A value short enough that the room asked for is enough,
+#    which must be unaffected
+#
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.d', JSON_QUERY(@small, '$'))
+AS spliced;
+spliced
+{"a": 1, "d": [1, 2]}
+SET SESSION debug_dbug = DEFAULT;
+#
+# 6. Several rows, so the failure is met more than once
+#
+CREATE TABLE t1 (id INT, j LONGTEXT);
+INSERT INTO t1 VALUES (1, '[1,2]');
+INSERT INTO t1 VALUES (2, CONCAT('[', REPEAT('1,', 49), '1]'));
+INSERT INTO t1 VALUES (3, CONCAT('[', REPEAT('2,', 49), '2]'));
+SET SESSION debug_dbug = '+d,json_nice_append_out_of_memory';
+SELECT id, JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+JSON_QUERY(j, '$')), '')) AS parses
+FROM t1 ORDER BY id;
+SET SESSION debug_dbug = DEFAULT;
+SELECT id, JSON_VALID(CONCAT(JSON_INSERT(JSON_OBJECT('a', 1), '$.d',
+JSON_QUERY(j, '$')), '')) AS parses
+FROM t1 ORDER BY id;
+id	parses
+1	1
+2	1
+3	1
+DROP TABLE t1;
+#
+# 7. No room to pass a document that was composed in place
+#
+#    Where the item behind every document a function was given attests
+#    is_valid and is_nice, what it composed is the answer and is
+#    returned rather than read back.  Returning it is a copy, and
+#    a copy is a write that can run short of room like any other.
+#
+#    Every argument is built by a producer that attests to what
+#    it passes.  A string literal attests is_valid false for
+#    its document, so a statement built out of literals
+#    never composes an answer at all and would say nothing here.
+#
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2) AS whole;
+whole
+{"a": [1, 2]}
+SET SESSION debug_dbug = '+d,json_return_out_of_memory';
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2)
+AS appended;
+appended
+NULL
+SELECT JSON_ARRAY_INSERT(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a[0]', 2)
+AS inserted;
+inserted
+NULL
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS added;
+added
+NULL
+SELECT JSON_REMOVE(JSON_OBJECT('a', 1, 'b', 2), '$.b') AS removed;
+removed
+NULL
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+AS merged;
+merged
+NULL
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+AS patched;
+patched
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#    and the same six once the room is there again, which is what
+#    says the refusals above are about the copy and not about the
+#    statements
+SELECT JSON_ARRAY_APPEND(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a', 2)
+AS appended;
+appended
+{"a": [1, 2]}
+SELECT JSON_ARRAY_INSERT(JSON_OBJECT('a', JSON_ARRAY(1)), '$.a[0]', 2)
+AS inserted;
+inserted
+{"a": [2, 1]}
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS added;
+added
+{"a": 1, "b": 2}
+SELECT JSON_REMOVE(JSON_OBJECT('a', 1, 'b', 2), '$.b') AS removed;
+removed
+{"a": 1}
+SELECT JSON_MERGE_PRESERVE(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+AS merged;
+merged
+{"a": 1, "b": 2}
+SELECT JSON_MERGE_PATCH(JSON_OBJECT('a', 1), JSON_OBJECT('b', 2))
+AS patched;
+patched
+{"a": 1, "b": 2}
+#
+# 8. No room while the values a path asked for are written out
+#
+#    A reading function writes the values it found into the answer
+#    itself, with a comma between them where more than one was
+#    asked for, rather than composing a document and reading it
+#    back.  Both writes are its own and both can run short.
+#
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS whole,
+JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS whole_one;
+whole	whole_one
+[1, 2]	1
+SET SESSION debug_dbug = '+d,json_extract_comma_out_of_memory';
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS no_comma;
+no_comma
+NULL
+#    one value alone needs no comma, so this one is untouched
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS one_value;
+one_value
+1
+SET SESSION debug_dbug = DEFAULT;
+SET SESSION debug_dbug = '+d,json_extract_scalar_out_of_memory';
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a') AS no_value;
+no_value
+NULL
+SELECT JSON_EXTRACT('{"a":1,"b":2}', '$.a', '$.b') AS no_value_of_several;
+no_value_of_several
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#
+# 9. No room for a key the document did not have
+#
+#    A path naming a key that is not there has the key written
+#    into the document, which is a write the composing does
+#    rather than one a reading back would have done.
+#
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS whole;
+whole
+{"a": 1, "b": 2}
+SET SESSION debug_dbug = '+d,json_insert_key_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS no_key;
+no_key
+NULL
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.c', 3) AS no_key_set;
+no_key_set
+NULL
+SET SESSION debug_dbug = DEFAULT;
+#
+# 10. The colon that joins a key to its value, and the key a path
+#     names that the document did not have
+#
+#     Both are written in the formatting this commit settled, so
+#     both are failed here rather than where the key itself is.
+#
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS whole,
+JSON_INSERT(JSON_OBJECT('a', 1), _latin1'$.b', 2) AS whole_added;
+whole	whole_added
+{"k": 1, "l": 2}	{"a": 1, "b": 2}
+SET SESSION debug_dbug = '+d,json_keyname_colon_out_of_memory';
+SELECT JSON_OBJECT('k', 1, 'l', 2) AS no_colon;
+no_colon
+NULL
+SET SESSION debug_dbug = DEFAULT;
+SET SESSION debug_dbug = '+d,json_insert_path_key_out_of_memory';
+SELECT JSON_INSERT(JSON_OBJECT('a', 1), '$.b', 2) AS no_room_added_key;
+no_room_added_key
+NULL
+SELECT JSON_SET(JSON_OBJECT('a', 1), '$.c', 3) AS no_room_added_key_set;
+no_room_added_key_set
+NULL
+SET SESSION debug_dbug = DEFAULT;

@@ -1,0 +1,120 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # What JSON_UNQUOTE reports its result to be, against what it
+--echo # actually returns.
+--echo #
+--echo # The function settles on utf8mb4_bin when the statement is prepared,
+--echo # before any argument has been read, so that is what every consumer
+--echo # downstream of it is told the bytes are.  The bytes therefore have to
+--echo # arrive in that character set no matter what the argument was
+--echo # written in.  Only one of the ways out of the function converts them.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. What the function says about itself.
+--echo #
+
+SELECT CHARSET(JSON_UNQUOTE(CONVERT('["a"]' USING latin1))) AS declared_cs,
+       COLLATION(JSON_UNQUOTE('["a"]')) AS declared_coll;
+
+--echo #
+--echo # 2. A string value.  This is the path that unescapes, and it
+--echo #    converts on the way out.
+--echo #
+
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'22E922' USING latin1))) AS str_value;
+SELECT CHAR_LENGTH(JSON_UNQUOTE(CONVERT(X'22E922' USING latin1))) AS chars;
+
+--echo #
+--echo # 3. A value that is not a string.  There is nothing to unquote, so
+--echo #    the argument is returned unchanged.
+--echo #
+
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS array_value;
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'7B2261223A22E9227D' USING latin1))) AS object_value;
+SELECT HEX(JSON_UNQUOTE(CONVERT('123' USING latin1))) AS number_value;
+SELECT HEX(JSON_UNQUOTE(CONVERT('true' USING latin1))) AS bool_value;
+
+--echo #
+--echo # 4. A document that does not parse.  Also returned unchanged.
+--echo #
+
+SELECT HEX(JSON_UNQUOTE(CONVERT(X'5B22E922' USING latin1))) AS broken_value;
+
+--echo #
+--echo # 5. The result used where its declared character set is taken at
+--echo #    its word.
+--echo #
+
+SELECT HEX(CONCAT(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1)), 'z')) AS concatenated;
+SELECT CHAR_LENGTH(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS chars;
+SELECT JSON_VALID(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1))) AS still_json;
+SELECT HEX(UPPER(JSON_UNQUOTE(CONVERT(X'5B22E9225D' USING latin1)))) AS uppercased;
+
+--echo #
+--echo # 6. A document held as bytes, which has no character set to
+--echo #    convert from.
+--echo #
+
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B22FF225D' AS BINARY))) AS from_binary;
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B226122' AS BINARY))) AS from_binary_broken;
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B22615D' AS BINARY))) AS from_binary_ascii;
+
+--echo # the two ways out of the function have to say the same thing about
+--echo # the same byte.  A value that IS a string is unescaped, reading each
+--echo # byte as the character of the same number; anything else is handed
+--echo # back converted, and it has to be read the same way.  0x80 and 0x9F
+--echo # are two of the 27 positions in 0x80-0x9F where latin1 would not:
+--echo # MariaDB's latin1 is cp1252 and makes 0x80 the euro sign.
+SELECT HEX(JSON_UNQUOTE(CAST(X'228022' AS BINARY))) AS str_80;
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B2280225D' AS BINARY))) AS doc_80;
+SELECT HEX(JSON_UNQUOTE(CAST(X'229F22' AS BINARY))) AS str_9f;
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B229F225D' AS BINARY))) AS doc_9f;
+--echo # and one of the five where it would agree, for contrast
+SELECT HEX(JSON_UNQUOTE(CAST(X'228122' AS BINARY))) AS str_81;
+SELECT HEX(JSON_UNQUOTE(CAST(X'5B2281225D' AS BINARY))) AS doc_81;
+
+--echo #
+--echo # 7. An argument already in the declared character set, which is
+--echo #    the common case and must not move.
+--echo #
+
+SELECT HEX(JSON_UNQUOTE(_utf8mb4'["a"]')) AS same_cs;
+SELECT HEX(JSON_UNQUOTE(_utf8mb4'"a"')) AS same_cs_str;
+--echo # a document holding U+00E9, written here as its utf8mb4 bytes C3 A9
+SELECT HEX(JSON_UNQUOTE(_utf8mb4 0x5B22C3A9225D)) AS same_cs_wide;
+
+--echo #
+--echo # 8. An argument in a character set that admits every byte but has
+--echo #    no character at some of them.
+--echo #
+--echo # The conversion has nowhere to put such a byte.  What it does put
+--echo # there instead is not the value it was given, so the argument is
+--echo # returned as it arrived, which is the answer this call has
+--echo # always given, and the difference is said in a note.  A note and
+--echo # not a warning: a warning becomes an error inside a statement
+--echo # running under strict mode, and a statement that used to finish
+--echo # would then stop finishing.
+--echo #
+--echo # cp1250 has no character at 0x81.
+--echo #
+
+CREATE TABLE t1 (id INT, c TEXT CHARACTER SET cp1250);
+INSERT INTO t1 VALUES (1, X'5B3181'), (2, X'5B2261225D'), (3, X'2281');
+SELECT id, HEX(c) AS stored, HEX(JSON_UNQUOTE(c)) AS unquoted
+  FROM t1 ORDER BY id;
+
+--echo # the same values inside a statement that stops on a warning.  Row 3
+--echo # is left out of it: reading a STRING that will not scan has always
+--echo # raised a warning of its own, from before any of this, and strict
+--echo # mode has always stopped on that one.
+CREATE TABLE t2 (b BLOB);
+SET SESSION sql_mode='STRICT_ALL_TABLES';
+INSERT INTO t2 SELECT JSON_UNQUOTE(c) FROM t1 WHERE id < 3;
+SELECT HEX(b) AS stored FROM t2 ORDER BY b;
+SET SESSION sql_mode=DEFAULT;
+
+DROP TABLE t1, t2;
