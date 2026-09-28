@@ -8498,7 +8498,7 @@ bool TABLE::alloc_keys(uint key_count)
   {
     memmove(new_key_info, s->key_info, sizeof(*key_info) * s->keys);
     memmove(new_const_key_parts, const_key_parts,
-            s->keys * sizeof(const_key_parts));
+            s->keys * sizeof(*const_key_parts));
   }
   s->key_info= key_info= new_key_info;
   const_key_parts= new_const_key_parts;

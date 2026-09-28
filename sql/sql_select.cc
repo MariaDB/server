@@ -7213,7 +7213,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         MDEV-24931: For materialized derived tables, don't add hash-join
         KEYUSE entries beyond max_key_parts(). Excess entries would cause
         generate_derived_keys_for_table() to build a key with more parts
-        than key_part_map (64 bits) or Bitmap<64> can represent.
+        than key_part_map can represent.
       */
       if (form->pos_in_table_list &&
           form->pos_in_table_list->is_materialized_derived())
@@ -9017,9 +9017,11 @@ best_access_path(JOIN      *join,
                   all_parts_used= table->opt_range[key].key_parts <= max_const_parts;
                 }
                 else
-                  all_parts_used= (bool) (const_part &
-                                          ((key_part_map)1
-                                           << table->opt_range[key].key_parts));
+                  all_parts_used= (table->opt_range[key].key_parts <
+                                   sizeof(key_part_map) * 8) &&
+                                  (const_part &
+                                   ((key_part_map)1
+                                    << table->opt_range[key].key_parts));
                 if (all_parts_used)
                 {
                   trace_access_idx.add("used_range_estimates", true);
@@ -10689,8 +10691,8 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     */
     if (!is_hash_join_key_no(key) && table->opt_range_keys.is_set(key))
     {
-      key_part_map quick_key_map= (key_part_map(1) <<
-                                   table->opt_range[key].key_parts) - 1;
+      key_part_map quick_key_map=
+                       make_prev_keypart_map(table->opt_range[key].key_parts);
       if (table->opt_range[key].rows &&
           !(quick_key_map & ~table->const_key_parts[key]))
       {
@@ -12729,8 +12731,9 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
-        if (curr == keyuse)
-           key_parts++;
+        if (curr == keyuse &&
+            ++key_parts >= MAX_REF_PARTS)
+          break;
       }
     }
     first_keyuse= FALSE;
@@ -12781,6 +12784,13 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
             break;
           }
         }
+      }
+      if (add_key_part &&
+          (uint) (key_part_info - keyinfo->key_part) >= key_parts)
+      {
+        /* Key is full (capped at MAX_REF_PARTS above); not used by ref */
+        keyuse->keypart= NO_KEYPART;
+        add_key_part= FALSE;
       }
       if (add_key_part)
       {
@@ -12893,6 +12903,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       }
       keyuse++;
     } while (keyuse->table == table && keyuse->key == key);
+    DBUG_ASSERT(keyparts <= MAX_REF_PARTS);
 
     if (!keyparts && allow_full_scan)
     {
@@ -12971,7 +12982,10 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       Item *real= (keyuse->val)->real_item();
       if (keyuse->null_rejecting && (real->type() == Item::FIELD_ITEM) &&
           ((Item_field*)real)->field->maybe_null())
+      {
+        DBUG_ASSERT(i < sizeof(key_part_map)*8);
         j->ref.null_rejecting|= (key_part_map)1 << i;
+      }
 
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
       j->ref.uses_splitting |= (keyuse->validity_ref != NULL);
@@ -13188,6 +13202,7 @@ static void add_not_null_conds(JOIN *join)
     {
       for (uint keypart= 0; keypart < tab->ref.key_parts; keypart++)
       {
+        DBUG_ASSERT(keypart < sizeof(key_part_map)*8);
         if (tab->ref.null_rejecting & ((key_part_map)1 << keypart))
         {
           Item *item= tab->ref.items[keypart];
@@ -29837,6 +29852,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       store_key **key_ref= ref.key_copy;
       for (uint kp= 0; kp < ref.key_parts; kp++)
       {
+        DBUG_ASSERT(kp < sizeof(key_part_map)*8);
         if ((key_part_map(1) << kp) & ref.const_ref_part_map)
         {
           if (!(eta->ref_list.append_str(thd->mem_root, "const")))
