@@ -6474,7 +6474,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     DBUG_PRINT("info",("partition range->range_flag: %u", range->range_flag));
     DBUG_PRINT("info",("partition start_key->key: %p", start_key->key));
     DBUG_PRINT("info",("partition start_key->length: %u", start_key->length));
-    DBUG_PRINT("info",("partition start_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition start_key->keypart_map: %u",
                        start_key->keypart_map));
     DBUG_PRINT("info",("partition start_key->flag: %u", start_key->flag));
 
@@ -6499,7 +6499,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     end_key= &range->end_key;
     DBUG_PRINT("info",("partition end_key->key: %p", end_key->key));
     DBUG_PRINT("info",("partition end_key->length: %u", end_key->length));
-    DBUG_PRINT("info",("partition end_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition end_key->keypart_map: %u",
                        end_key->keypart_map));
     DBUG_PRINT("info",("partition end_key->flag: %u", end_key->flag));
     if (end_key->key)
