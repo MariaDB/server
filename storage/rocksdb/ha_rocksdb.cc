@@ -8376,8 +8376,7 @@ bool ha_rocksdb::is_using_full_key(key_part_map keypart_map,
                                    uint actual_key_parts)
 {
   return (keypart_map == HA_WHOLE_KEY) ||
-         (keypart_map == ((key_part_map(1) << actual_key_parts)
-                        - 1));
+         (keypart_map == make_prev_keypart_map(actual_key_parts));
 }
 
 /*
@@ -8552,9 +8551,8 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
   if (active_index != table->s->primary_key &&
       table->key_info[active_index].flags & HA_NOSAME &&
       find_flag == HA_READ_KEY_EXACT && using_full_key) {
-    key_part_map tmp_map = (key_part_map(1) << table->key_info[active_index]
-                                                   .user_defined_key_parts) -
-                           1;
+    key_part_map tmp_map = make_prev_keypart_map(table->key_info[active_index]
+                                                 .user_defined_key_parts);
     packed_size = kd.pack_index_tuple(table, m_pack_buffer, m_sk_packed_tuple,
                                       m_record_buffer, key, tmp_map);
     if (table->key_info[active_index].user_defined_key_parts !=
