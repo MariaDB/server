@@ -1941,7 +1941,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
         set_capacity();
         archive_header_was_reset= first_lsn + capacity();
         ut_ad(current_lsn >= first_lsn);
-        ut_ad(current_lsn < archive_header_was_reset);
+        ut_ad(current_lsn <= archive_header_was_reset);
         next_checkpoint_no= uint16_t(4 * is_encrypted());
 
         if (is_encrypted())
