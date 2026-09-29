@@ -3606,7 +3606,8 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
         return 1;
       }
 
-      while (!should_stop(info, true) && !reader->data_available())
+      bool stop;
+      while (!(stop= should_stop(info, true)) && !reader->data_available())
       {
         struct timespec ts;
         struct timespec *ts_ptr= nullptr;
@@ -3627,6 +3628,14 @@ static int send_engine_events(binlog_send_info *info, LOG_INFO* linfo)
           info->heartbeat_period= get_heartbeat_period(info->thd);
         }
       }
+      /*
+        Stop the dump thread during SHUTDOWN WAIT FOR ALL SLAVES (as indicated
+        by stop= should_stop(info, true)) only when we're at EOF and have no
+        more data available in the binlog.
+      */
+      if (unlikely(stop) && !reader->data_available())
+        return 1;
+
       continue;
     }
 
