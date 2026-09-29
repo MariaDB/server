@@ -1,0 +1,4 @@
+#
+# MDEV-40545: --force-read must not loop on a truncated event header
+#
+ERROR: Could not read entry at offset 4: Error in log format or read error.

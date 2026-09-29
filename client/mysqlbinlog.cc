@@ -3513,6 +3513,13 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     Log_event* ev = Log_event::read_log_event(file, &read_error,
                                               glob_description_event,
                                               opt_verify_binlog_checksum);
+    /* A forced read of a truncated event can return without consuming input. */
+    if (ev && my_b_tell(file) == old_off)
+    {
+      delete ev;
+      ev= nullptr;
+      read_error= 1;
+    }
     if (!ev)
     {
       /*

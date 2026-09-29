@@ -1,0 +1,21 @@
+--echo #
+--echo # MDEV-40545: --force-read must not loop on a truncated event header
+--echo #
+
+--let BINLOG_FILE= $MYSQLTEST_VARDIR/tmp/mdev-40545-binlog.001
+--perl
+use strict;
+use warnings;
+
+open(my $file, '>:raw', $ENV{BINLOG_FILE})
+  or die "Cannot open $ENV{BINLOG_FILE}: $!\n";
+print $file pack('C*',
+                 0xfe, 0x62, 0x69, 0x6e,
+                 0x01, 0x02, 0x03, 0x04, 0x03, 0x01, 0x00, 0x00, 0x00,
+                 0x00, 0x0d, 0x00, 0x00);
+close($file) or die "Cannot close $ENV{BINLOG_FILE}: $!\n";
+EOF
+
+--error 1
+--exec $MYSQL_BINLOG --short-form --force-read $BINLOG_FILE 2>&1 > /dev/null
+--remove_file $BINLOG_FILE
