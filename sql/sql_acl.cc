@@ -4838,6 +4838,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   int error = -1;
   uint nauth= 0;
   bool old_row_exists=0;
+  bool old_is_role= false;
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
@@ -4901,6 +4902,23 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
+    old_is_role= user_table.get_is_role();
+    if (or_replace)
+    {
+      /*
+        CREATE OR REPLACE is DROP IF EXISTS + CREATE, so the account must end
+        up exactly like a newly created one. Start from the default row (as
+        for a new account) rather than from the existing one, otherwise
+        everything the statement doesn't mention (password, resource limits,
+        SSL options, lock status, ...) would silently survive. record[1]
+        keeps the old row for the update.
+      */
+      restore_record(table, s->default_values);
+      user_table.set_host(combo->host.str, combo->host.length);
+      user_table.set_user(combo->user.str, combo->user.length);
+      if (!combo->auth)
+        combo->auth= &auth_no_password;
+    }
   }
 
   for (USER_AUTH *auth= combo->auth; auth; auth= auth->next)
@@ -4924,7 +4942,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   if (handle_as_role)
   {
-    if (old_row_exists && !user_table.get_is_role())
+    if (old_row_exists && !old_is_role)
     {
       goto end;
     }
@@ -4945,8 +4963,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
-    new_acl_user= old_row_exists ? *old_acl_user :
+    new_acl_user= (old_row_exists && !or_replace) ? *old_acl_user :
                   ACL_USER(thd, *combo, lex->account_options, rights);
+    if (old_acl_user && or_replace)
+    {
+      /*
+        The fresh ACL_USER replaces *old_acl_user in place, so it must keep
+        the old role_grants array (rebuilt by rebuild_role_grants() later)
+        instead of leaking it.
+      */
+      delete_dynamic(&new_acl_user.role_grants);
+      new_acl_user.role_grants= old_acl_user->role_grants;
+    }
     if (acl_user_update(thd, &new_acl_user, nauth,
                         *combo, lex->account_options, rights))
       goto end;
@@ -5025,7 +5053,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
   }
 
-  if (or_replace && old_row_exists && grant_tables)
+  if (or_replace && grant_tables)
   {
     if (handle_grant_data(thd, *grant_tables, true, combo, NULL, true) < 0)
     {
@@ -11202,6 +11230,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
   bool some_users_dropped= false;
+  uint first_errno= 0;
+  char first_errmsg[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -11221,6 +11251,20 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((user_name= user_list++))
   {
+    /*
+      An error from a previous account must not make the following accounts fail.
+      Remember the first one, so that it is still what the client sees at the end.
+    */
+    if (thd->is_error())
+    {
+      if (!first_errno)
+      {
+        first_errno= thd->get_stmt_da()->sql_errno();
+        strmake_buf(first_errmsg, thd->get_stmt_da()->message());
+      }
+      thd->clear_error();
+    }
+
     if (user_name->user.str == current_user.str)
     {
       append_str(&wrong_users, STRING_WITH_LEN("CURRENT_USER"));
@@ -11324,26 +11368,27 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
-  if (handle_as_role && some_users_dropped)
+  if (some_users_dropped)
   {
     /*
-      CREATE OR REPLACE ROLE re-adds a creator-admin role mapping onto a role
-      whose old mapping entries were only removed from roles_mappings_hash
-      (see the delayed drop in replace_user_table()), not from the
-      ACL_ROLE/ACL_USER_BASE cross-reference arrays. Rebuild those arrays now
-      so no stale/duplicate entries survive to crash a later DROP ROLE.
+      The delayed drop in replace_user_table() only removes the old mapping
+      entries from roles_mappings_hash, not from the ACL_ROLE/ACL_USER_BASE
+      cross-reference arrays. Rebuild those arrays so no stale/duplicate
+      entries survive to crash a later DROP ROLE / DROP USER.
     */
-    rebuild_role_grants();
-  }
-
-  if (result && some_users_dropped && !handle_as_role)
-  {
-    /* Rebuild in-memory structs, since 'acl_users' has been modified */
-    rebuild_check_host();
+    if (!handle_as_role)
+      rebuild_check_host();   // 'acl_users' has been modified
     rebuild_role_grants();
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
+
+  if (first_errno)
+  {
+    // the first error wins, as for a statement that never cleared it
+    thd->clear_error();
+    my_printf_error(first_errno, "%s", MYF(0), first_errmsg);
+  }
 
   if (result)
   {

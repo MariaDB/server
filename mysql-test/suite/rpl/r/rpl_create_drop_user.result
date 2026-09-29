@@ -74,8 +74,21 @@ u4
 connection master;
 CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
 ERROR HY000: Plugin 'no_such_plugin' is not loaded
-CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin, u4@localhost IDENTIFIED BY 'newpw12345678';
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin, u4@localhost IDENTIFIED BY 'firstpw12345678';
 ERROR HY000: Plugin 'no_such_plugin' is not loaded
+connect  check_u4_first, localhost, u4, firstpw12345678,;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_first;
+connection master;
+connection slave;
+connect  check_u4_first_slave, localhost, u4, firstpw12345678,, $SLAVE_MYPORT;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_first_slave;
+connection master;
 CREATE OR REPLACE USER u4@localhost IDENTIFIED BY 'newpw12345678', u3@localhost IDENTIFIED VIA no_such_plugin;
 ERROR HY000: Plugin 'no_such_plugin' is not loaded
 connection slave;
@@ -85,11 +98,31 @@ SELECT user FROM mysql.user WHERE user IN ('u3','u4');
 User
 u3
 u4
+connect  check_u3_master, localhost, u3, abcdefghijk,;
+SELECT CURRENT_USER;
+CURRENT_USER
+u3@localhost
+disconnect check_u3_master;
+connect  check_u4_master, localhost, u4, newpw12345678,;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_master;
 connection slave;
 SELECT user FROM mysql.user WHERE user IN ('u3','u4');
 User
 u3
 u4
+connect  check_u3_slave, localhost, u3, abcdefghijk,, $SLAVE_MYPORT;
+SELECT CURRENT_USER;
+CURRENT_USER
+u3@localhost
+disconnect check_u3_slave;
+connect  check_u4_slave, localhost, u4, newpw12345678,, $SLAVE_MYPORT;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_slave;
 connection master;
 DROP USER u3@localhost;
 DROP USER u4@localhost;
