@@ -298,6 +298,22 @@ public:
 
   bool without_ranges() { return keys_map.is_clear_all(); }
   bool without_imerges() { return merges.is_empty(); }
+#ifndef DBUG_OFF
+  key_map get_keys_map()
+  {
+    return keys_map;
+  }
+
+  SEL_ARG *get_key(uint keyno)
+  {
+    return keys[keyno];
+  }
+
+  uint get_type()
+  {
+    return (uint)type;
+  }
+#endif
 };
 
 
@@ -17007,3 +17023,70 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
   }
   out->append(STRING_WITH_LEN(")"));
 }
+
+#ifndef DBUG_OFF
+#include "dbp.h"
+
+// "1 <= a < 'x'": a range as a string, values quoted SQL style
+void dbug_add_print_sel_arg(SEL_ARG *arg, KEY_PART *part)
+{
+  DBUG_CAT("\"");
+  if (!(arg->min_flag & NO_MIN_RANGE))
+  {
+    store_key_image_to_rec(part->field, arg->min_value, part->length);
+    dbug_add_print_field_value(part->field);
+    if (arg->min_flag & NEAR_MIN)
+      DBUG_CAT(" < ");
+    else
+      DBUG_CAT(" <= ");
+  }
+
+  DBUG_SPRINTF_CAT("%s", part->field->field_name.str);
+
+  if (!(arg->max_flag & NO_MAX_RANGE))
+  {
+    if (arg->max_flag & NEAR_MAX)
+      DBUG_CAT(" < ");
+    else
+      DBUG_CAT(" <= ");
+    store_key_image_to_rec(part->field, arg->max_value, part->length);
+    dbug_add_print_field_value(part->field);
+  }
+  DBUG_CAT("\"");
+}
+
+
+const char *DBUG_PRINT_FUNCTION(SEL_ARG *arg, KEY_PART *part)
+{
+  *dbug_big_buffer= (char)0;
+  DBUG_SPRINTF_CAT("(SEL_ARG*)%p", arg);
+  dbug_add_print_sel_arg(arg, part);
+  return dbug_big_buffer;
+}
+
+
+const char *DBUG_PRINT_FUNCTION(SEL_TREE *arg, KEY_PART *parts)
+{
+  static const char *type_names[]=
+    {"IMPOSSIBLE", "ALWAYS", "MAYBE", "KEY", "KEY_SMALLER"};
+  *dbug_big_buffer= (char)0;
+  DBUG_SPRINTF_CAT("(SEL_TREE*)%p{type:%s, keys:[", arg,
+                   arg->type < array_elements(type_names) ?
+                     type_names[arg->type] : "UNKNOWN");
+  key_map::Iterator it(arg->keys_map);
+  int key_no;
+  bool first= true;
+  while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+  {
+    SEL_ARG *key1= arg->get_key(key_no);
+    if (!first)
+      DBUG_CAT(", ");
+    first= false;
+    dbug_add_print_sel_arg( key1, parts+key1->part );
+  }
+  DBUG_CAT("]}");
+
+  return dbug_big_buffer;
+}
+
+#endif
