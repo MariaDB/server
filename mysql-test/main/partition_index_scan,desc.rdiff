@@ -479,7 +479,7 @@
  Handler_read_prev	0
  Handler_read_retry	0
  Handler_read_rnd	0
-@@ -1202,18 +1202,18 @@
+@@ -1202,26 +1202,26 @@
  #
  # MDEV-40479: Reverse prefix scan across partitions
  #
@@ -503,3 +503,31 @@
 +11
 +15
  DROP TABLE t1;
+ #
+ # MDEV-41322 Regression: descending primary-key range scan on a partitioned InnoDB table fails with ERROR 1032
+ #
+ CREATE TABLE t1 (
+-id INT NOT NULL, PRIMARY KEY (id )
++id INT NOT NULL, PRIMARY KEY (id desc)
+ ) ENGINE=InnoDB
+ PARTITION BY RANGE(id) (
+ PARTITION p0 VALUES LESS THAN (100),
+@@ -1230,14 +1230,14 @@
+ );
+ INSERT INTO t1 VALUES (101), (102), (103);
+ explain
+-SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id desc LIMIT 512;
++SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id  LIMIT 512;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+ 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where
+-SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id desc LIMIT 512;
++SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id  LIMIT 512;
+ id
+-103
+-102
+ 101
++102
++103
+ DROP TABLE t1;
+ # New assertions coverage
+ CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB

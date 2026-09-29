@@ -6189,6 +6189,7 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
 
 int ha_partition::index_next(uchar * buf)
 {
+  int error;
   DBUG_ENTER("ha_partition::index_next");
   decrement_statistics(&SSV::ha_read_next_count);
 
@@ -6202,10 +6203,11 @@ int ha_partition::index_next(uchar * buf)
   if (m_index_scan_type == partition_index_last)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   if (!m_ordered_scan_ongoing)
-  {
-    DBUG_RETURN(handle_unordered_next(buf, FALSE));
-  }
-  DBUG_RETURN(handle_ordered_next(buf, FALSE));
+    error= handle_unordered_next(buf, FALSE);
+  else
+    error= handle_ordered_next(buf, FALSE);
+  DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
+  DBUG_RETURN(error);
 }
 
 
@@ -6229,6 +6231,7 @@ int ha_partition::index_next(uchar * buf)
 
 int ha_partition::index_next_same(uchar *buf, const uchar *key, uint keylen)
 {
+  int error;
   DBUG_ENTER("ha_partition::index_next_same");
   decrement_statistics(&SSV::ha_read_next_count);
 
@@ -6236,8 +6239,11 @@ int ha_partition::index_next_same(uchar *buf, const uchar *key, uint keylen)
   if (m_index_scan_type == partition_index_last)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   if (!m_ordered_scan_ongoing)
-    DBUG_RETURN(handle_unordered_next(buf, TRUE));
-  DBUG_RETURN(handle_ordered_next(buf, TRUE));
+    error= handle_unordered_next(buf, TRUE);
+  else
+    error= handle_ordered_next(buf, TRUE);
+  DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
+  DBUG_RETURN(error);
 }
 
 
@@ -6274,15 +6280,18 @@ int ha_partition::index_read_last_map(uchar *buf,
 
 int ha_partition::index_prev(uchar * buf)
 {
+  int error;
   DBUG_ENTER("ha_partition::index_prev");
   decrement_statistics(&SSV::ha_read_prev_count);
 
-  /* TODO: read comment in index_next */
   if (m_index_scan_type == partition_index_first)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-  if (m_ordered_scan_ongoing)
-    DBUG_RETURN(handle_ordered_prev(buf));
-  DBUG_RETURN(handle_unordered_prev(buf));
+  if (!m_ordered_scan_ongoing)
+    error= handle_unordered_prev(buf);
+  else
+    error= handle_ordered_prev(buf);
+  DBUG_ASSERT(error != HA_ERR_KEY_NOT_FOUND);
+  DBUG_RETURN(error);
 }
 
 
@@ -7834,6 +7843,37 @@ int ha_partition::handle_pre_scan(bool reverse_order, bool use_parallel)
 /****************************************************************************
   Unordered Index Scan Routines
 ****************************************************************************/
+
+/* Handle HA_ERR_END_OF_FILE in an unordered next or prev scan */
+int ha_partition::handle_unordered_next_prev_eof(uchar *buf, bool is_prev)
+{
+  uint error= HA_ERR_END_OF_FILE;
+  // Start using next part
+  if (is_prev == m_unordered_reverse_scan)
+    m_part_spec.start_part++;
+  else
+    m_part_spec.end_part--;
+  if (m_part_spec.start_part <= m_part_spec.end_part &&
+      m_part_spec.end_part < m_tot_parts)
+  {
+    error= handle_unordered_scan_next_partition(buf, is_prev);
+    /*
+      KEY_NOT_FOUND means the requested key is not found. This does
+      not apply to an index_next / index_prev call, so the error
+      should be converted to EOF to mean the scan is finished with no
+      more rows found.
+      */
+    if (error == HA_ERR_KEY_NOT_FOUND)
+    {
+      error= HA_ERR_END_OF_FILE;
+      m_part_spec.start_part= NO_CURRENT_PART_ID;
+    }
+  }
+  else
+    m_part_spec.start_part= NO_CURRENT_PART_ID;
+  return error;
+}
+
 /*
   Common routine to handle index_next with unordered results
 
@@ -7918,19 +7958,8 @@ int ha_partition::handle_unordered_next(uchar *buf, bool is_next_same)
     }
   }
 
-    if (unlikely(error == HA_ERR_END_OF_FILE))
-  {
-    // Start using next part
-    if (m_unordered_reverse_scan)
-      m_part_spec.end_part--;
-    else
-      m_part_spec.start_part++;
-    if (m_part_spec.start_part <= m_part_spec.end_part &&
-        m_part_spec.end_part < m_tot_parts)
-      error= handle_unordered_scan_next_partition(buf, FALSE);
-    else
-      m_part_spec.start_part= NO_CURRENT_PART_ID;
-  }
+  if (error == HA_ERR_END_OF_FILE)
+    error= handle_unordered_next_prev_eof(buf, false);
   DBUG_RETURN(error);
 }
 
@@ -7985,17 +8014,7 @@ int ha_partition::handle_unordered_prev(uchar *buf)
     }
   }
   if (error == HA_ERR_END_OF_FILE)
-  {
-    if (m_unordered_reverse_scan)
-      m_part_spec.start_part++;
-    else
-      m_part_spec.end_part--;
-    if (m_part_spec.start_part <= m_part_spec.end_part &&
-        m_part_spec.end_part < m_tot_parts)
-      error= handle_unordered_scan_next_partition(buf, TRUE);
-    else
-      m_part_spec.start_part= NO_CURRENT_PART_ID;
-  }
+    error= handle_unordered_next_prev_eof(buf, true);
   DBUG_RETURN(error);
 }
 
@@ -8010,12 +8029,23 @@ int ha_partition::handle_unordered_prev(uchar *buf)
 
   RETURN VALUE
     HA_ERR_END_OF_FILE            End of scan
+    HA_ERR_KEY_NOT_FOUND          Key not found
     0                             Success
     other                         Error code
 
   DESCRIPTION
     This routine is used to start the index scan on the next partition.
     Both initial start and after completing scan on one partition.
+
+    It iterates through partitions between start_part and end_part in
+    the appropriate direction until a record is found. If no record is
+    found, there are three cases of error reporting:
+
+    1. If a partition reports an error other than EOF or
+       KEY_NOT_FOUND, that error is returned
+    2. Otherwise, if at least one partition reports KEY_NOT_FOUND,
+       then KEY_NOT_FOUND is returned
+    3. Otherwise, EOF is returned
 */
 
 int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
@@ -8097,7 +8127,19 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
 
     /*
       If HA_ERR_KEY_NOT_FOUND, we must return that error instead of
-      HA_ERR_END_OF_FILE, to be able to continue search.
+      HA_ERR_END_OF_FILE, to be able to continue search. For example,
+      if the current call is
+
+        HANDLER t1 READ a = (7);
+
+      Only partitions with ranges containing 7 would be tried. If we
+      signal EOF by setting and returning HA_ERR_END_OF_FILE, as well
+      as assigning NO_CURRENT_PART_ID to start_part, and the next
+      statement is
+
+        HANDLER t1 READ a NEXT;
+
+      handle_unordered_next would give up immediately
     */
     if (saved_error != HA_ERR_KEY_NOT_FOUND)
       saved_error= error;
@@ -8120,7 +8162,7 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
 
   @return Operation status
     @retval HA_ERR_END_OF_FILE  End of scan
-    @retval HA_ERR_KEY_NOT_FOUNE  End of scan
+    @retval HA_ERR_KEY_NOT_FOUND  End of scan
     @retval 0                   Success
     @retval other               Error code
 

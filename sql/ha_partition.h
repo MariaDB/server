@@ -981,6 +981,7 @@ private:
   int handle_unordered_next(uchar * buf, bool next_same);
   int handle_unordered_prev(uchar * buf);
   int handle_unordered_scan_next_partition(uchar * buf, bool reverse_order);
+  int handle_unordered_next_prev_eof(uchar *buf, bool is_prev);
   int handle_ordered_index_scan(uchar * buf, bool reverse_order);
   int handle_ordered_index_scan_key_not_found();
   int handle_ordered_next(uchar * buf, bool next_same);
