@@ -1814,7 +1814,10 @@ bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
 
 uint Item_func_date_format::format_length(const String *format)
 {
-  uint size=0;
+  /* A negative TIME value adds a leading minus sign. */
+  uint size= (is_time_format ||
+              args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_TIME) ? 1 : 0;
   const char *ptr=format->ptr();
   const char *end=ptr+format->length();
 
