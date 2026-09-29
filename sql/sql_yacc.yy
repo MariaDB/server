@@ -11589,12 +11589,14 @@ sum_expr:
             $$= new (thd->mem_root) Item_sum_any_value(thd, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
           }
         | ANY_VALUE_SYM '(' DISTINCT in_sum_expr ')'
           {
             $$= new (thd->mem_root) Item_sum_any_value(thd, $4);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
           }
         | AVG_SYM '(' in_sum_expr ')'
           {
