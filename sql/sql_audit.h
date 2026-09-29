@@ -183,9 +183,8 @@ void mysql_audit_general(THD *thd, uint event_subtype,
         Use the wall-clock timestamp the server already maintains for the
         current command (set once per query in dispatch_command), so that
         all audit events of the same query carry the same time and no extra
-        clock call is made per event. start_utime cannot be used here: it is
-        a monotonic interval timer, not a wall-clock timestamp. Fall back to
-        the current wall-clock time if the timestamp is not set.
+        clock call is made per event.
+        Fall back to the current wall-clock time if the timestamp is not set.
       */
       unsigned long long general_time_us;
       if (thd && thd->start_time)
