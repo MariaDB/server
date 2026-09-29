@@ -369,3 +369,29 @@ SELECT * FROM t1 WHERE f1 >= 1900 or f2 in (2,4) LIMIT 1;
 f1	f2	f3
 2	2	NULL
 DROP TABLE t1;
+#
+# MDEV-39923 HANDLER read crashes restore_position() for
+# InnoDB partitioned table
+#
+SET sql_mode='';
+CREATE TABLE t1 (c1 BIT KEY,c2 INT) ENGINE=InnoDB
+PARTITION BY LINEAR HASH(c1) PARTITIONS 822;
+ALTER TABLE t1 ADD INDEX idx1(c2);
+INSERT INTO t1 PARTITION (p1) VALUES (1,1);
+UPDATE t1 SET c1=(TIME_FORMAT(1,1)MOD 1) DIV (18 ^ SECOND(1));
+WITH cte AS(SELECT 1 FROM t1) SELECT 1 FROM cte;
+1
+1
+HANDLER t1 OPEN;
+HANDLER t1 READ `PRIMARY`=(1);
+c1	c2
+SET @save_innodb_buffer_pool_size= @@global.innodb_buffer_pool_size;
+SET GLOBAL innodb_buffer_pool_size=@save_innodb_buffer_pool_size+1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '8388609'
+HANDLER t1 READ `PRIMARY` PREV;
+c1	c2
+HANDLER t1 CLOSE;
+SET GLOBAL innodb_buffer_pool_size= @save_innodb_buffer_pool_size;
+SET sql_mode= default;
+DROP TABLE t1;

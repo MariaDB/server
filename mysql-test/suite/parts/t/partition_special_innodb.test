@@ -245,3 +245,26 @@ INSERT INTO t1(f1, f2) SELECT seq, seq%10 FROM seq_1_to_20;
 EXPLAIN SELECT * FROM t1 WHERE f1 >= 1900 or f2 in (2,4) LIMIT 1;
 SELECT * FROM t1 WHERE f1 >= 1900 or f2 in (2,4) LIMIT 1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-39923 HANDLER read crashes restore_position() for
+--echo # InnoDB partitioned table
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (c1 BIT KEY,c2 INT) ENGINE=InnoDB
+    PARTITION BY LINEAR HASH(c1) PARTITIONS 822;
+ALTER TABLE t1 ADD INDEX idx1(c2);
+INSERT INTO t1 PARTITION (p1) VALUES (1,1);
+UPDATE t1 SET c1=(TIME_FORMAT(1,1)MOD 1) DIV (18 ^ SECOND(1));
+WITH cte AS(SELECT 1 FROM t1) SELECT 1 FROM cte;
+
+HANDLER t1 OPEN;
+HANDLER t1 READ `PRIMARY`=(1);
+SET @save_innodb_buffer_pool_size= @@global.innodb_buffer_pool_size;
+SET GLOBAL innodb_buffer_pool_size=@save_innodb_buffer_pool_size+1;
+HANDLER t1 READ `PRIMARY` PREV;
+HANDLER t1 CLOSE;
+
+SET GLOBAL innodb_buffer_pool_size= @save_innodb_buffer_pool_size;
+SET sql_mode= default;
+DROP TABLE t1;

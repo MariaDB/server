@@ -5757,6 +5757,7 @@ int ha_partition::index_init(uint inx, bool sorted)
   m_start_key.length= 0;
   m_ordered= sorted;
   m_ordered_scan_ongoing= FALSE;
+  m_top_entry= NO_CURRENT_PART_ID;
   m_curr_key_info[0]= table->key_info+inx;
   if (pk_is_clustering_key(table->s->primary_key))
   {
