@@ -14392,14 +14392,16 @@ wsrep_error_label:
 
 /**
   Allow REVOKE DENY ... FROM PUBLIC to bypass the privilege check when the
-  revoker holds UPDATE on mysql.global_priv (where DENYs are stored).
+  revoker holds table-level UPDATE on mysql.global_priv (where DENYs are
+  stored), with no column-level DENY.
 
   DENY ... TO PUBLIC locks out everyone including root. But the revoker who
   can modify the underlying table via UPDATE has sufficient power to undo it
   directly, so the denied privilege itself is not required.
 
   @retval true   revoker runs in REVOKE DENY FROM PUBLIC,
-                 can UPDATE mysql.global_priv and shall skip other checks
+                 has table-level UPDATE on mysql.global_priv and shall skip
+                 other checks
   @retval false  normal check applies
 */
 
@@ -14425,7 +14427,8 @@ bool Sql_cmd_grant::should_bypass_revoke_deny(THD *thd)
                     NULL, TL_WRITE);
   return !check_access(thd, UPDATE_ACL, tl.db.str, &tl.grant.privilege,
                        &tl.grant.m_internal, 0, 1) &&
-         !check_grant(thd, UPDATE_ACL, &tl, FALSE, 1, TRUE);
+         !check_grant(thd, UPDATE_ACL, &tl, FALSE, 1, TRUE) &&
+         tl.grant.want_privilege == NO_ACL;
 }
 
 
