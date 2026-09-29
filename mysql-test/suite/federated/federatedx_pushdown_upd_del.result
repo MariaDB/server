@@ -857,6 +857,450 @@ a	b
 1	one
 3	three
 4	four
+#
+# MDEV-41243, MDEV-41273: Assertion during execution of update and
+# delete prepared statements with federatedx_pushdown
+#
+connection master;
+CALL fill_tables();
+set global federated_pushdown=1;
+PREPARE pstmt FROM "UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1";
+affected rows: 0
+info: Statement prepared
+# This statement text is eligible for pushdown (PUSHED UPDATE)
+EXPLAIN UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED UPDATE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt itself sends it to the remote server as one statement
+EXECUTE pstmt;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+update (`federated`.`t1` `x` join `federated`.`t2` `y` on(`federated`.`x`.`a` = `federated`.`y`.`a`)) set `federated`.`x`.`b` = `federated`.`y`.`c` where `federated`.`y`.`a` = 1
+connection master;
+set global federated_pushdown=0;
+# Reset the data so the second, non-pushed-down EXECUTE actually
+# changes a row instead of silently matching but not changing one
+CALL fill_tables();
+# This statement text is no longer eligible for pushdown
+EXPLAIN UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	x	ALL	NULL	NULL	NULL	NULL	4	Using where
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt now runs it row by row against the remote server
+EXECUTE pstmt;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+UPDATE `t1` SET `b` = 'I' WHERE `a` = 1 AND `b` = 'one' LIMIT 1
+connection master;
+DEALLOCATE PREPARE pstmt;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	I
+2	two
+3	three
+4	four
+set global federated_pushdown=1;
+PREPARE pstmt FROM "DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2";
+affected rows: 0
+info: Statement prepared
+# This statement text is eligible for pushdown (PUSHED DELETE)
+EXPLAIN DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED DELETE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt itself sends it to the remote server as one statement
+EXECUTE pstmt;
+affected rows: 1
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete %';
+argument
+delete  from `x` using (`federated`.`t1` `x` join `federated`.`t2` `y` on(`federated`.`x`.`a` = `federated`.`y`.`a`)) where `federated`.`y`.`a` = 2
+connection master;
+set global federated_pushdown=0;
+# Reset the data so the second, non-pushed-down EXECUTE actually
+# deletes a row instead of silently matching none
+CALL fill_tables();
+# This statement text is no longer eligible for pushdown
+EXPLAIN DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	x	ALL	NULL	NULL	NULL	NULL	4	Using where
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt now runs it row by row against the remote server
+EXECUTE pstmt;
+affected rows: 1
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete %';
+argument
+DELETE FROM `t1` WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+connection master;
+DEALLOCATE PREPARE pstmt;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+3	three
+4	four
+#
+# The once-per-statement optimization guarded by
+# first_cond_optimization is skipped by the same JOIN::optimize()
+# branch for a pushed down plain SELECT, not only UPDATE/DELETE, so a
+# prepared SELECT toggling pushdown needs the same protection
+#
+CALL fill_tables();
+set global federated_pushdown=1;
+PREPARE pstmt FROM "SELECT * FROM t1 WHERE a < 3";
+affected rows: 0
+info: Statement prepared
+# This statement text is eligible for pushdown (PUSHED SELECT)
+EXPLAIN SELECT * FROM t1 WHERE a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt itself sends it to the remote server as one statement
+EXECUTE pstmt;
+a	b
+1	one
+2	two
+affected rows: 2
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+argument
+select `federated`.`t1`.`a` AS `a`,`federated`.`t1`.`b` AS `b` from `federated`.`t1` where `federated`.`t1`.`a` < 3
+connection master;
+set global federated_pushdown=0;
+# This statement text is no longer eligible for pushdown
+EXPLAIN SELECT * FROM t1 WHERE a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt now scans the remote table locally instead
+EXECUTE pstmt;
+a	b
+1	one
+2	two
+affected rows: 2
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+argument
+SELECT `a`, `b` FROM `t1`
+connection master;
+DEALLOCATE PREPARE pstmt;
+#
+# Whole-unit pushdown (a UNION pushed down as a single statement) takes
+# a completely different code path from single-SELECT/UPDATE/DELETE
+# pushdown: st_select_lex_unit::exec() returns pushdown_unit->execute()
+# directly, without ever calling optimize()/exec_inner(), so
+# JOIN::optimize() -- the only other place that sets this flag -- never
+# runs for any member SELECT either. st_select_lex_unit::exec() must
+# set the flag itself when pushing down the whole unit
+#
+CALL fill_tables();
+set global federated_pushdown=1;
+PREPARE pstmt FROM "SELECT a, b FROM t1 UNION SELECT a, c FROM t2";
+affected rows: 0
+info: Statement prepared
+# This statement text is eligible for pushdown (PUSHED UNION)
+EXPLAIN SELECT a, b FROM t1 UNION SELECT a, c FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt itself sends it to the remote server as one statement
+EXECUTE pstmt;
+a	b
+1	one
+2	two
+3	three
+4	four
+1	I
+2	II
+3	III
+affected rows: 7
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+argument
+select `federated`.`t1`.`a` AS `a`,`federated`.`t1`.`b` AS `b` from `federated`.`t1` union select `federated`.`t2`.`a` AS `a`,`federated`.`t2`.`c` AS `c` from `federated`.`t2`
+connection master;
+set global federated_pushdown=0;
+# This statement text is no longer eligible for pushdown
+EXPLAIN SELECT a, b FROM t1 UNION SELECT a, c FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+2	UNION	t2	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+# ... and EXECUTE pstmt now runs it locally instead
+EXECUTE pstmt;
+a	b
+1	one
+2	two
+3	three
+4	four
+1	I
+2	II
+3	III
+affected rows: 7
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+argument
+SELECT `a`, `b` FROM `t1`
+SELECT `a`, `c` FROM `t2`
+connection master;
+DEALLOCATE PREPARE pstmt;
+#
+# A prepared EXPLAIN of a pushed-down UNION skips
+# st_select_lex_unit::exec() the same way EXECUTE-ing the real
+# statement does -- mysql_explain_union() has its own is_pushed_union
+# check that bypasses exec() directly -- so it needs the same
+# pending-optimization check
+#
+CALL fill_tables();
+set global federated_pushdown=1;
+PREPARE pstmt FROM "EXPLAIN SELECT a, b FROM t1 UNION SELECT a, c FROM t2";
+affected rows: 0
+info: Statement prepared
+EXECUTE pstmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+NULL	PUSHED UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+set global federated_pushdown=0;
+# Reset the data (not required for this EXPLAIN's own correctness,
+# just kept consistent with the rest of this file)
+CALL fill_tables();
+EXECUTE pstmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+2	UNION	t2	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+DEALLOCATE PREPARE pstmt;
+#
+# A UNION used as a derived table is optimized differently from a
+# top-level pushed unit: mysql_derived_optimize() optimizes its
+# member SELECTs directly, but mysql_derived_fill()'s
+# pushdown_derived branch still skips exec_inner() -- the only place
+# that would otherwise optimize its own fake_select_lex (its
+# DISTINCT/ORDER BY/LIMIT wrapper)
+#
+CALL fill_tables();
+CREATE TABLE tl (a int) ENGINE=MyISAM;
+INSERT INTO tl VALUES (1),(2),(3),(4);
+set global federated_pushdown=1;
+PREPARE pstmt FROM "SELECT dt.a FROM (SELECT a FROM t1 UNION SELECT a FROM t2) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a";
+affected rows: 0
+info: Statement prepared
+EXECUTE pstmt;
+a
+1
+2
+3
+4
+set global federated_pushdown=0;
+CALL fill_tables();
+EXECUTE pstmt;
+a
+1
+2
+3
+4
+DEALLOCATE PREPARE pstmt;
+#
+# A UNION nested inside a subquery inside a pushed derived table: the
+# derived table dt is itself a single (non-union) SELECT, so
+# has_pending_first_execution_optimization() must recurse into the
+# IN-subquery's own unit to find the pending state on ITS
+# fake_select_lex -- a flat, members-and-fake_select_lex-only check
+# would miss it
+#
+CALL fill_tables();
+set global federated_pushdown=1;
+PREPARE pstmt FROM "SELECT dt.a FROM (SELECT DISTINCT a FROM t1 WHERE a IN (SELECT a FROM t2 UNION SELECT a FROM t2)) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a";
+affected rows: 0
+info: Statement prepared
+EXECUTE pstmt;
+a
+1
+2
+3
+set global federated_pushdown=0;
+CALL fill_tables();
+EXECUTE pstmt;
+a
+1
+2
+3
+DEALLOCATE PREPARE pstmt;
+DROP TABLE tl;
+#
+# MDEV-41243, MDEV-41273: same assertion, but for a stored routine's own
+# pushed down UPDATE/DELETE, and for one it runs via dynamic SQL
+#
+# A pushed down UPDATE/DELETE that is one of a routine's own
+# instructions, CALLed with pushdown on and then off
+CALL fill_tables();
+CREATE PROCEDURE p_upd_del()
+BEGIN
+UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+END|
+set global federated_pushdown=1;
+CALL p_upd_del();
+set global federated_pushdown=0;
+# Reset the data so this second, non-pushed-down CALL actually
+# changes/deletes a row instead of silently matching none
+CALL fill_tables();
+CALL p_upd_del();
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	I
+3	three
+4	four
+#
+# Exercises the per-instruction, per-LEX tracking of
+# pushdown_skipped_first_execution_optimization across a nested CALL
+# boundary
+#
+CALL fill_tables();
+CREATE PROCEDURE p_outer()
+BEGIN
+CALL p_upd_del();
+END|
+set global federated_pushdown=1;
+CALL p_outer();
+set global federated_pushdown=0;
+CALL fill_tables();
+CALL p_outer();
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	I
+3	three
+4	four
+#
+# EXECUTE of a prepared statement inside a routine exercises the
+# interaction between sp_head::execute()'s per-instruction handling
+# and Prepared_statement::execute_loop()'s own LEX. The PREPARE stays
+# outside the routine so the SAME prepared statement, not a fresh one,
+# is EXECUTEd by both CALLs below
+#
+CALL fill_tables();
+PREPARE stmt FROM "UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1";
+CREATE PROCEDURE p_execute()
+BEGIN
+EXECUTE stmt;
+END|
+set global federated_pushdown=1;
+CALL p_execute();
+set global federated_pushdown=0;
+CALL fill_tables();
+CALL p_execute();
+DEALLOCATE PREPARE stmt;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	I
+2	two
+3	three
+4	four
+#
+# A static cursor's OPEN has no LEX of its own: it runs the cursor's
+# SELECT using the corresponding DECLARE (cpush) instruction's LEX
+# instead (see sp_instr_copen::execute()). sp_instr_copen must defer
+# freezing main_mem_root using THAT LEX, not answer "nothing pending"
+# from its own default
+#
+CALL fill_tables();
+CREATE PROCEDURE p_cursor()
+BEGIN
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(16);
+DECLARE cur CURSOR FOR SELECT a, b FROM t1 WHERE a < 3;
+OPEN cur;
+FETCH cur INTO v_a, v_b;
+CLOSE cur;
+END|
+set global federated_pushdown=1;
+CALL p_cursor();
+set global federated_pushdown=0;
+CALL fill_tables();
+CALL p_cursor();
+DROP PROCEDURE p_cursor;
+#
+# The mem_root freeze deferral in
+# sp_lex_keeper::validate_lex_and_exec_core() (m_mem_root_freeze_pending)
+# must survive a metadata-invalidation reparse of the routine's own
+# instruction, when the first post-reparse execution of that
+# instruction happens to be pushed down
+#
+CALL fill_tables();
+CREATE PROCEDURE p_reparse()
+BEGIN
+UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+END|
+set global federated_pushdown=1;
+CALL p_reparse();
+# Force a metadata-invalidation reparse of p_reparse()'s instruction
+# on its next CALL. FederatedX doesn't support ALTER TABLE, so drop
+# and recreate t2 identically -- that still bumps its table version.
+DROP TABLE t2;
+CREATE TABLE t2 (a int, c varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+CALL fill_tables();
+# The first post-reparse execution is pushed down: the freeze must
+# be deferred, not lost for the rest of this instruction's lifetime
+CALL p_reparse();
+set global federated_pushdown=0;
+# Reset the data so this non-pushed-down CALL actually changes a row
+CALL fill_tables();
+# A later, non-pushed-down execution must still apply the deferred
+# freeze
+CALL p_reparse();
+SELECT a, b FROM t1 ORDER BY a;
+a	b
+1	I
+2	two
+3	three
+4	four
+DROP PROCEDURE p_reparse;
+DROP PROCEDURE p_upd_del;
+DROP PROCEDURE p_outer;
+DROP PROCEDURE p_execute;
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;

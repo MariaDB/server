@@ -187,10 +187,12 @@ public:
 #ifdef PROTECT_STATEMENT_MEMROOT
   /*
     The following data member is wholly for debugging purpose.
-    It can be used for possible crash analysis to determine how many times
-    the stored routine was executed before the mem_root marked ROOT_FLAG_READ_ONLY
-    was requested for a memory chunk. Additionally, a value of this data
-    member is output to the log with DBUG_PRINT.
+    It counts every successful execute_loop() call, including a pushed-down
+    one that leaves the mem_root writable, so a nonzero value does not by
+    itself mean ROOT_FLAG_READ_ONLY has been requested. It can still be used
+    for possible crash analysis to determine how many times the statement
+    was executed. Additionally, a value of this data member is output to
+    the log with DBUG_PRINT.
   */
   ulong executed_counter;
 #endif
@@ -4860,6 +4862,9 @@ reexecute:
     thd->m_reprepare_observer= &reprepare_observer;
   }
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+  lex->pushdown_skipped_first_execution_optimization= false;
+#endif
   error= execute(expanded_query, open_cursor, result_arg, cursor_arg) ||
          thd->is_error();
 
@@ -4889,9 +4894,29 @@ start_with_reprepare:
   }
   reset_stmt_params(this);
 #ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    By the time a statement finishes executing, pushdown_select has already
+    been deleted and reset to NULL (see st_select_lex::cleanup()), so it
+    can't be used here to detect that pushdown happened. first_cond_optimization
+    can't be used either: it stays set forever for any statement whose
+    SELECT_LEX never reaches JOIN::optimize() at all (e.g. INSERT ... VALUES,
+    SET, DO, CALL), which has nothing to do with pushdown.
+    Whatever ran (or was skipped in favor of pushdown) instead records the
+    fact we need directly in lex->pushdown_skipped_first_execution_optimization
+    -- see that field's own comment in sql_lex.h for the full list of
+    writers.
+  */
+  const bool pending_pushdown=
+    lex->pushdown_skipped_first_execution_optimization;
   if (!error)
   {
-    mem_root->flags |= ROOT_FLAG_READ_ONLY;
+    /*
+      Freezing is conditional on the once-per-statement optimization having
+      actually run (see the comment above pending_pushdown), but the debug
+      execution counter below just counts successful runs regardless.
+    */
+    if (!pending_pushdown)
+      mem_root->flags |= ROOT_FLAG_READ_ONLY;
     ++executed_counter;
 
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));

@@ -1034,6 +1034,25 @@ public:
   void optimize_bag_operation(bool is_outer_distinct);
   bool exec();
   bool exec_recursive();
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    Whether this unit still has a once-per-statement permanent-arena
+    optimization pending (see LEX::pushdown_skipped_first_execution_optimization
+    for what that means and why it matters), on any of its member SELECTs,
+    on its own fake_select_lex (the synthetic SELECT_LEX representing
+    ORDER BY/LIMIT/DISTINCT applied to the whole union), or on any unit
+    nested inside either one (a subquery, a derived table, ...) at any
+    depth -- recurses via SELECT_LEX::first_inner_unit()/next_unit(), since
+    handing this unit's execution to a select_handler/derived_handler gives
+    away everything reachable from it, not just its own direct members.
+    Every place that does such a hand-off without going through
+    JOIN::optimize() itself (directly or via exec_inner()) must check this
+    and set that flag if true, the same way JOIN::optimize() does for a
+    single pushed-down SELECT/UPDATE/DELETE. Not const: SELECT_LEX::
+    next_select() has no const overload.
+  */
+  bool has_pending_first_execution_optimization();
+#endif
   bool cleanup();
   inline void unclean() { cleaned= 0; }
   void reinit_exec_mechanism();
@@ -3548,6 +3567,90 @@ public:
   */
   bool autocommit;          // Often used, better as bool
   bool sp_lex_in_use;       // Keep track on lex usage in SPs for error handling
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    Set whenever a SELECT_LEX (or a whole SELECT_LEX_UNIT) owned by this LEX
+    had its execution pushed down into a storage engine while its
+    once-per-statement permanent-arena optimization (guarded by
+    SELECT_LEX::first_cond_optimization, including on a unit's own
+    fake_select_lex) was still pending, because that optimization is
+    normally performed as part of the very query optimization the pushdown
+    bypasses. An arena backing such an optimization must not be frozen
+    PROTECT_STATEMENT_MEMROOT-read-only: a later re-execution of this same
+    LEX that is not pushed down still needs to run that once-per-statement
+    optimization for the first time, and by then the mem_root would
+    otherwise already be read-only.
+
+    Written by:
+      - JOIN::optimize() (sql_select.cc), for a single pushed-down
+        SELECT/UPDATE/DELETE;
+      - st_select_lex_unit::exec(), mysql_explain_union() (sql_select.cc),
+        and mysql_derived_fill()'s pushdown_derived branch (sql_derived.cc),
+        for a UNION pushed down as a whole unit, an EXPLAIN of one, and one
+        used as a derived table, respectively -- each of these three checks
+        via st_select_lex_unit::has_pending_first_execution_optimization(),
+        which recurses into every unit nested anywhere inside this one (a
+        subquery, a derived table, at any depth), since a pushdown hand-off
+        gives away that whole subtree, not just this unit's own direct
+        members. It is the one place that knows how to enumerate a unit's
+        pending state; update it, not each call site, if a new kind of
+        pending state is ever added, and keep this writer list current here
+        rather than re-deriving it at each call site's own comment.
+
+    Living on the LEX rather than on THD means each PREPAREd statement and
+    each stored-routine instruction (each of which owns its own persistent
+    LEX, reused across its own repeated executions until it is reparsed)
+    tracks this independently, with no risk of one leaking into another's
+    check -- unlike a thread-global flag, nothing needs to save and restore
+    it around a nested CALL, EXECUTE, or EXECUTE IMMEDIATE.
+
+    Reset to false, then read back, immediately around each individual
+    execution of this LEX this flag could apply to:
+      - Prepared_statement::execute_loop(), around its own execute() call;
+      - each stored-routine instruction's own i->execute() in
+        sp_head::execute(), which marks that one instruction NON_RUN rather
+        than RUN when the flag comes back set, so
+        sp_head::has_all_instrs_executed() keeps waiting for a future,
+        non-pushed-down execution of it before freezing the routine's
+        main_mem_root -- reaching the same NON_RUN end state a query-cache
+        hit reaches via mark_as_qc_used(), though by a different mechanism
+        (that one records the state on the instruction itself; this one is
+        decided by the caller from outside).
+    Also read (with no reset of its own, since it runs strictly inside one
+    of the two reset-then-check windows above) by
+    sp_lex_keeper::validate_lex_and_exec_core() (sp_instr.cc), which defers
+    freezing a THIRD kind of arena: a stored-routine instruction's own
+    dedicated reparse mem_root (set up the first time that instruction is
+    invalidated by a metadata change), separate from both the routine's
+    main_mem_root and any PS's own mem_root. A cursor OPEN is the one case
+    where the reset-then-check window and the LEX being read/reset don't
+    belong to the same instruction: OPEN has no LEX of its own and runs the
+    cursor's SELECT using the corresponding sp_instr_cpush's LEX, so
+    sp_instr_copen overrides sp_instr::pushdown_skipped_first_execution_optimization()/
+    reset_pushdown_skipped_first_execution_optimization() (sp_instr.h) to
+    reach into that LEX instead of its own (see the comment there).
+
+    If a statement is pushed down on every single execution, the ONE
+    specific permanent-arena write this flag was introduced to guard --
+    inside JOIN::optimize_inner(), the "if (sel->first_cond_optimization)"
+    block that begins by clearing that same flag -- never runs for it, since
+    JOIN::optimize() never calls optimize_inner() at all for a pushed-down
+    execution (the two are mutually exclusive branches there). That write
+    specifically is provably safe to leave deferred forever. This does NOT
+    mean no other code writes to the statement's permanent arena while
+    pushed down: other blocks gated by the same first_cond_optimization
+    flag exist earlier, in JOIN::prepare() and elsewhere (e.g.
+    remove_redundant_subquery_clauses()), and run regardless of the later
+    pushdown decision. Auditing every such consumer to prove none of them
+    could ever be endangered by an arena that stays unfrozen indefinitely is
+    an open question, not something this flag answers; freezing eagerly and
+    having the optimize_inner() block instead locally lift
+    ROOT_FLAG_READ_ONLY for its own duration would close it, at the cost of
+    modifying one of the most delicate parts of the optimizer.
+  */
+  bool pushdown_skipped_first_execution_optimization;
+#endif
 
   /* Bit fields, reset for every query */
   bool is_shutdown_wait_for_slaves:1;

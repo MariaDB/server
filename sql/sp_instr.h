@@ -283,6 +283,30 @@ public:
     m_has_been_run= NON_RUN;
   }
 
+  /*
+    Whether this instruction's own LEX (see LEX::
+    pushdown_skipped_first_execution_optimization) had its
+    once-per-statement permanent-arena optimization skipped because this
+    instruction's last execution was pushed down. Most instructions either
+    have no LEX at all (sp_instr) or execute directly on their own LEX
+    (sp_lex_instr), and trivially have nothing pending or answer from their
+    own LEX respectively. sp_instr_copen is the odd one out: OPEN runs the
+    cursor's SELECT using the corresponding sp_instr_cpush's LEX, not its
+    own, so it overrides this pair to look there instead -- hence the THD
+    argument, needed to find that cpush instruction via thd->spcont.
+  */
+  virtual bool pushdown_skipped_first_execution_optimization(THD *) const
+  {
+    return false;
+  }
+
+  /*
+    Reset the answer to pushdown_skipped_first_execution_optimization()
+    above, right before this instruction's own execute() call.
+  */
+  virtual void reset_pushdown_skipped_first_execution_optimization(THD *)
+  {}
+
 private:
   enum {NON_RUN, QC, RUN} m_has_been_run;
 #endif
@@ -318,6 +342,9 @@ public:
       prelocking_tables(nullptr),
       lex_query_tables_own_last(nullptr),
       m_first_execution(true)
+#ifdef PROTECT_STATEMENT_MEMROOT
+      , m_mem_root_freeze_pending(false)
+#endif
   {
     lex->sp_lex_in_use= true;
   }
@@ -439,6 +466,20 @@ private:
   TABLE_LIST **lex_query_tables_own_last;
 
   bool m_first_execution;
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /**
+    True once a metadata-invalidation reparse (see
+    sp_lex_keeper::validate_lex_and_exec_core()) has pointed the owning
+    instruction's mem_root at its own dedicated reparse mem_root (as opposed
+    to the routine's shared main_mem_root) and that mem_root is still
+    waiting for a non-pushed-down execution to freeze it read-only. Checked
+    on every subsequent execution of this instruction, not only the one
+    right after the reparse, so the freeze isn't lost for good if that first
+    post-reparse run happens to be pushed down.
+  */
+  bool m_mem_root_freeze_pending;
+#endif
 };
 
 
@@ -512,6 +553,30 @@ public:
   {
     return &m_cur_trigger_stmt_items;
   }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    m_lex_keeper.lex() can be nullptr here: if a previous CALL's reparse
+    attempt (see validate_lex_and_exec_core() in sp_instr.cc) failed to
+    parse the new statement text, free_lex() clears m_lex and this
+    instruction is left that way -- instr->is_invalid() stays true, so
+    validate_lex_and_exec_core()'s own m_lex->needs_reprepare check never
+    runs while m_lex is null, but these two methods have no such guard of
+    their own and are called unconditionally from sp_head::execute(), so
+    they need to tolerate it themselves.
+  */
+  bool pushdown_skipped_first_execution_optimization(THD *) const override
+  {
+    LEX *lex= m_lex_keeper.lex();
+    return lex && lex->pushdown_skipped_first_execution_optimization;
+  }
+
+  void reset_pushdown_skipped_first_execution_optimization(THD *) override
+  {
+    if (LEX *lex= m_lex_keeper.lex())
+      lex->pushdown_skipped_first_execution_optimization= false;
+  }
+#endif
 
 protected:
   /**
@@ -1710,6 +1775,21 @@ public:
   int execute(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    OPEN has no LEX of its own: it runs the cursor's SELECT using the
+    corresponding sp_instr_cpush's LEX (see execute(), which reaches it via
+    thd->spcont->get_cursor(m_cursor)->get_push_instr()). So this instruction
+    must answer from THAT LEX, not its own (sp_instr's default "nothing
+    pending" would be wrong here and would let the routine's main_mem_root
+    freeze while the cursor's own once-per-statement optimization is still
+    pending). Defined in sp_instr.cc: needs sp_rcontext's full definition
+    for thd->spcont->get_cursor(), which this header only forward-declares.
+  */
+  bool pushdown_skipped_first_execution_optimization(THD *thd) const override;
+  void reset_pushdown_skipped_first_execution_optimization(THD *thd) override;
+#endif
 
 private:
   uint m_cursor;		///< Stack index

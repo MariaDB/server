@@ -4236,6 +4236,9 @@ LEX::LEX()
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
     limit_rows_examined_cnt(ULONGLONG_MAX)
 {
+#ifdef PROTECT_STATEMENT_MEMROOT
+  pushdown_skipped_first_execution_optimization= false;
+#endif
 
   init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
                       plugins_static_buffer, INITIAL_LEX_PLUGIN_LIST_SIZE,

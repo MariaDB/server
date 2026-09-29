@@ -605,15 +605,30 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
 
     if (!rc)
     {
-      /*
-       sp_lex_instr is re-parsed after the metadata change, which sets up a new
-       mem_root for reparsing. Once the sp_lex_instr is reparsed and re-executed
-       (via reset_lex_and_exec_core) it should be marked as read-only to enforce
-       sp memory root protection.
-       */
 #ifdef PROTECT_STATEMENT_MEMROOT
-      if (rerun_the_same_instr && instr->mem_root)
+      /*
+       sp_lex_instr is re-parsed after the metadata change, which sets up a
+       new mem_root for reparsing (see the reparse mem-root setup helper
+       that parse_expr() calls, sp_lex_instr::setup_memroot_for_reparsing()):
+       from that point on instr->mem_root points at this instruction's own
+       dedicated reparse mem_root, not at the routine's shared
+       main_mem_root, so it needs its own freeze to enforce sp memory root
+       protection. If the first post-reparse execution is pushed down,
+       don't freeze yet, but remember the freeze is still owed and apply it
+       on whichever later successful execution of this same instruction
+       finally isn't pushed down -- mirroring how
+       Prepared_statement::execute_loop() re-checks its own mem_root on
+       every execution rather than only the one right after a reprepare.
+       */
+      if (rerun_the_same_instr)
+        m_mem_root_freeze_pending= true;
+
+      if (m_mem_root_freeze_pending && instr->mem_root &&
+          !m_lex->pushdown_skipped_first_execution_optimization)
+      {
         instr->mem_root->flags |= ROOT_FLAG_READ_ONLY;
+        m_mem_root_freeze_pending= false;
+      }
 #endif
       break;
     }
@@ -2381,6 +2396,40 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
   }
   DBUG_RETURN(res);
 }
+
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+/*
+  The LEX that OPEN for cursor slot m_cursor actually runs its SELECT on
+  (see sp_instr_copen::execute()): the corresponding DECLARE (sp_instr_cpush)
+  instruction's own LEX, not this instruction's (it has none). Null if the
+  cursor slot is empty or -- which should never happen, since DECLARE always
+  runs before OPEN and only ever pushes an sp_instr_cpush -- if the pushed
+  cursor object isn't one.
+*/
+static LEX *copen_cursor_lex(THD *thd, uint cursor_idx)
+{
+  sp_cursor *c= thd->spcont->get_cursor(cursor_idx);
+  sp_lex_keeper *lex_keeper= c ? c->get_lex_keeper() : nullptr;
+  return lex_keeper ? lex_keeper->lex() : nullptr;
+}
+
+
+bool
+sp_instr_copen::pushdown_skipped_first_execution_optimization(THD *thd) const
+{
+  LEX *lex= copen_cursor_lex(thd, m_cursor);
+  return lex && lex->pushdown_skipped_first_execution_optimization;
+}
+
+
+void
+sp_instr_copen::reset_pushdown_skipped_first_execution_optimization(THD *thd)
+{
+  if (LEX *lex= copen_cursor_lex(thd, m_cursor))
+    lex->pushdown_skipped_first_execution_optimization= false;
+}
+#endif
 
 
 void

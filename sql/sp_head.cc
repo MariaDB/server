@@ -1330,11 +1330,26 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       thd->db.str, thd->db.length, thd->charset(), m_sp_share);
 #endif
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+    i->reset_pushdown_skipped_first_execution_optimization(thd);
+#endif
     err_status= i->execute(thd, &ip);
 
 #ifdef PROTECT_STATEMENT_MEMROOT
     if (!err_status)
-      i->mark_as_run();
+    {
+      /*
+        See LEX::pushdown_skipped_first_execution_optimization for what this
+        answers and why. i->reset_...() was just called above and can only
+        have been set by this instruction's own execution, so it precisely
+        tells us whether *this* instruction's own permanent-arena
+        optimization is still pending.
+      */
+      if (i->pushdown_skipped_first_execution_optimization(thd))
+        i->mark_as_not_run();
+      else
+        i->mark_as_run();
+    }
 #endif
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
