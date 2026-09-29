@@ -1307,6 +1307,21 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     int res;
     if (unit->executed)
       DBUG_RETURN(FALSE);
+#ifdef PROTECT_STATEMENT_MEMROOT
+    /*
+      mysql_derived_optimize() normally optimizes this unit's own member
+      SELECTs already (it calls unit->optimize() directly), but never
+      touches fake_select_lex (the synthetic SELECT_LEX for ORDER BY/LIMIT/
+      DISTINCT applied to the whole union) or anything nested inside either
+      one -- those are normally optimized inside exec_inner(), the very
+      thing pushing this derived table down skips. See
+      st_select_lex_unit::has_pending_first_execution_optimization(), which
+      checks all of it regardless of what mysql_derived_optimize() did or
+      didn't already clear.
+    */
+    if (unit->has_pending_first_execution_optimization())
+      thd->lex->pushdown_skipped_first_execution_optimization= true;
+#endif
     /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;

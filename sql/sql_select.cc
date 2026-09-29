@@ -1995,6 +1995,20 @@ int JOIN::optimize()
       return 0;
     DBUG_ASSERT(optimization_state == JOIN::NOT_OPTIMIZED);
 
+    /*
+      first_cond_optimization still set means the once-per-statement
+      permanent-arena optimization normally done in optimize_inner() (see
+      the block guarded by "if (sel->first_cond_optimization)" there) has
+      not run for this SELECT_LEX, and won't run now that its execution is
+      pushed down. It still has to run on some future execution that isn't
+      pushed down, so the statement/routine's arena must not be frozen by
+      PROTECT_STATEMENT_MEMROOT for this execution.
+    */
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (select_lex->first_cond_optimization)
+      thd->lex->pushdown_skipped_first_execution_optimization= true;
+#endif
+
     // Do same as JOIN::optimize_inner does:
     fields= &select_lex->item_list;
 
@@ -31857,6 +31871,16 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
       bool is_pushed_union=
           (unit->derived && unit->derived->pushdown_derived) ||
           unit->pushdown_unit;
+#ifdef PROTECT_STATEMENT_MEMROOT
+      /*
+        A pushed-down EXPLAIN of this unit skips unit->exec() below, so it
+        can leave the same pending state behind that exec() would otherwise
+        catch (see LEX::pushdown_skipped_first_execution_optimization and
+        st_select_lex_unit::has_pending_first_execution_optimization()).
+      */
+      if (is_pushed_union && unit->has_pending_first_execution_optimization())
+        thd->lex->pushdown_skipped_first_execution_optimization= true;
+#endif
       if (unit->pushdown_unit)
       {
         create_explain_query_if_not_exists(thd->lex, thd->mem_root);

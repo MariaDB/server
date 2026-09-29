@@ -2331,6 +2331,44 @@ bool st_select_lex_unit::optimize()
 }
 
 
+#ifdef PROTECT_STATEMENT_MEMROOT
+/*
+  Whether pending_check() finds anything pending in sl itself or in any
+  unit nested inside it (a subquery, a derived table, ...), at any depth.
+  A pushdown hand-off gives away everything reachable from here, not just
+  sl's own first_cond_optimization, so this has to walk the whole subtree:
+  first_inner_unit()/next_unit() enumerate the units nested directly inside
+  a SELECT_LEX, and each of THOSE units' own
+  has_pending_first_execution_optimization() call recurses further.
+*/
+static bool pending_check(SELECT_LEX *sl)
+{
+  if (!sl)
+    return false;
+  if (sl->first_cond_optimization)
+    return true;
+  for (SELECT_LEX_UNIT *inner= sl->first_inner_unit(); inner;
+       inner= inner->next_unit())
+  {
+    if (inner->has_pending_first_execution_optimization())
+      return true;
+  }
+  return false;
+}
+
+
+bool st_select_lex_unit::has_pending_first_execution_optimization()
+{
+  for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
+  {
+    if (pending_check(sl))
+      return true;
+  }
+  return pending_check(fake_select_lex);
+}
+#endif
+
+
 bool st_select_lex_unit::exec()
 {
   DBUG_ENTER("st_select_lex_unit::exec");
@@ -2339,6 +2377,17 @@ bool st_select_lex_unit::exec()
 
   if (pushdown_unit)
   {
+#ifdef PROTECT_STATEMENT_MEMROOT
+    /*
+      Pushing down the whole unit means optimize()/exec_inner() below never
+      run, so this hands away the pending state
+      has_pending_first_execution_optimization() checks for, along with
+      execution itself. See LEX::pushdown_skipped_first_execution_optimization
+      for what setting it accomplishes and who else sets/reads it.
+    */
+    if (has_pending_first_execution_optimization())
+      thd->lex->pushdown_skipped_first_execution_optimization= true;
+#endif
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     if (!executed)
       save_union_explain(thd->lex->explain);

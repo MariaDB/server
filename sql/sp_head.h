@@ -141,10 +141,12 @@ protected:
 #ifdef PROTECT_STATEMENT_MEMROOT
   /*
     The following data member is wholly for debugging purpose.
-    It can be used for possible crash analysis to determine how many times
-    the stored routine was executed before the mem_root marked read_only
-    was requested for a memory chunk. Additionally, a value of this data
-    member is output to the log with DBUG_PRINT.
+    It counts every successful CALL, including one where some instruction's
+    pushdown-deferred optimization keeps main_mem_root writable, so a
+    nonzero value does not by itself mean ROOT_FLAG_READ_ONLY has been
+    requested. It can still be used for possible crash analysis to
+    determine how many times the stored routine was executed. Additionally,
+    a value of this data member is output to the log with DBUG_PRINT.
   */
   ulong executed_counter;
 #endif
