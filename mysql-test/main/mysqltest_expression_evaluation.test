@@ -112,9 +112,23 @@ let $multi_var = $($var_a * $var_b / $var_a);
 --echo # Overflow edge cases
 --echo # ----------------------------------------------------------------------------
 
+--echo -9223372036854775808 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-9223372036854775808 / -1);" | $MYSQL_TEST 2>&1
 --echo -9223372036854775808 % -1 -> $(-9223372036854775808 % -1)
+--echo -(-9223372036854775808) -> error
+--error 1
+--exec echo "let \$a = \$(-(-9223372036854775808));" | $MYSQL_TEST 2>&1
 --echo -4611686018427387904 * 2 -> $(-4611686018427387904 * 2)
-# The invalid edge cases from this section are exercised with --error below.
+--echo -4611686018427387904 * 2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-4611686018427387904 * 2 / -1);" | $MYSQL_TEST 2>&1
+--echo -4611686018427387904 * -2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-4611686018427387904 * -2 / -1);" | $MYSQL_TEST 2>&1
+--echo 18446744073709551615 / 2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(18446744073709551615 / 2 / -1);" | $MYSQL_TEST 2>&1
 
 --echo # ----------------------------------------------------------------------------
 --echo # Comparison operators
@@ -892,25 +906,10 @@ let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
 
 --echo # Signed arithmetic overflow
 --error 1
---exec echo "let \$a = \$(-(-9223372036854775808));" | $MYSQL_TEST 2>&1
-
---error 1
---exec echo "let \$a = \$(-4611686018427387904 * 2 / -1);" | $MYSQL_TEST 2>&1
-
---error 1
---exec echo "let \$a = \$(-4611686018427387904 * -2 / -1);" | $MYSQL_TEST 2>&1
-
---error 1
---exec echo "let \$a = \$(-9223372036854775808 / -1);" | $MYSQL_TEST 2>&1
-
---error 1
 --exec echo "let \$a = \$(9223372036854775807 + 1);" | $MYSQL_TEST 2>&1
 
 --error 1
 --exec echo "let \$a = \$(-9223372036854775807 - 2);" | $MYSQL_TEST 2>&1
-
---error 1
---exec echo "let \$a = \$(18446744073709551615 / 2 / -1);" | $MYSQL_TEST 2>&1
 
 --error 1
 --exec echo "let \$a = \$(abs(-9223372036854775808));" | $MYSQL_TEST 2>&1
