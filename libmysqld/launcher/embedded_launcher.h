@@ -56,6 +56,10 @@ const char *mariadb_embedded_socket(void);
 /* Last error message */
 const char *mariadb_embedded_error(void);
 
+/* Register the launcher with libmariadb (embedded_glue.c), so that
+   mysql_server_init()/mysql_server_end() start and stop the server */
+void mariadb_embedded_register(void);
+
 #ifdef __cplusplus
 }
 #endif

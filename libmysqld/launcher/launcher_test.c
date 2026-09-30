@@ -1,20 +1,20 @@
 /*
-  MDEV-11111: smoke test for the embedded launcher.
+  MDEV-11111: smoke test for the embedded server.
   Usage: launcher_test [server options...]
-  Starts the server, runs a query through the normal client library over the
-  private socket, stops the server.
+  Uses only the ordinary client API: mysql_server_init() starts the server,
+  a connection to "localhost" reaches it, mysql_server_end() stops it.
 */
 #include <stdio.h>
 #include <stdlib.h>
-#include <mysql.h>
-#include "embedded_launcher.h"
 #ifdef _WIN32
 #include <windows.h>
-#define Sleep_or_pause() Sleep(1000)
+#define pause_1s() Sleep(1000)
 #else
 #include <unistd.h>
-#define Sleep_or_pause() sleep(1)
+#define pause_1s() sleep(1)
 #endif
+#include <mysql.h>
+#include "embedded_launcher.h"
 
 int main(int argc, char **argv)
 {
@@ -23,23 +23,12 @@ int main(int argc, char **argv)
   MYSQL_ROW row;
   int rc= 1;
 
-  if (mariadb_embedded_start(argc, argv, NULL))
-  {
-    fprintf(stderr, "start failed: %s\n", mariadb_embedded_error());
+  mariadb_embedded_register(); /* not needed with a shared libmariadbd */
+  if (mysql_server_init(argc, argv, NULL))
     return 1;
-  }
-  printf("socket: %s\n", mariadb_embedded_socket());
 
-  mysql_library_init(0, NULL, NULL); /* reads MARIADB_UNIX_PORT */
   m= mysql_init(NULL);
-#ifdef _WIN32
-  /* libmariadb ignores MARIADB_UNIX_PORT for named pipes, pass it explicitly */
-  const char *host= ".";
-#else
-  const char *host= "localhost"; /* default socket: $MARIADB_UNIX_PORT */
-#endif
-  if (!mysql_real_connect(m, host, "root", NULL, NULL, 0,
-                          mariadb_embedded_socket(), 0))
+  if (!mysql_real_connect(m, "localhost", "root", NULL, NULL, 0, NULL, 0))
     fprintf(stderr, "connect failed: %s\n", mysql_error(m));
   else if (mysql_query(m, "SELECT @@version, 1+1") ||
            !(res= mysql_store_result(m)))
@@ -53,10 +42,9 @@ int main(int argc, char **argv)
   }
   if (getenv("LAUNCHER_TEST_HANG")) /* to kill us and watch the server */
     for (;;)
-      Sleep_or_pause();
+      pause_1s();
   mysql_close(m);
-  mysql_library_end();
-  mariadb_embedded_stop();
+  mysql_server_end();
   puts(rc ? "FAIL" : "OK");
   return rc;
 }
