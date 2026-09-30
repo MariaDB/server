@@ -9026,7 +9026,7 @@ err:
         mysql_mutex_unlock(&LOCK_commit_ordered);
         cache_mngr->last_commit_pos_file.engine_file_no=
           engine_context->out_file_no;
-        cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+        cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
                      (file, engine_context, commit_gtid)))
@@ -10637,7 +10637,7 @@ MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct() later. */
           cache_mngr->need_write_direct= TRUE;
@@ -11144,7 +11144,7 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct later. */
           cache_mngr->need_write_direct= TRUE;
