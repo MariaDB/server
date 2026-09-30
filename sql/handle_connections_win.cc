@@ -323,6 +323,7 @@ retry :
 static void init_pipe_security_descriptor()
 {
 #define SDDL_FMT "S:(ML;; NW;;; LW) D:(A;; 0x%08x;;; WD)(A;; FRFW;;; %s)"
+#define SDDL_FMT_EMBEDDED "S:(ML;; NW;;; LW) D:(A;; FRFW;;; %s)"
 #define EVERYONE_PIPE_ACCESS_MASK                                             \
   (FILE_READ_DATA | FILE_READ_EA | FILE_READ_ATTRIBUTES | READ_CONTROL |      \
    SYNCHRONIZE | FILE_WRITE_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES)
@@ -359,9 +360,16 @@ static void init_pipe_security_descriptor()
                              &current_user_string_sid))
     goto fail;
 
-  snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
-          (unsigned int)EVERYONE_PIPE_ACCESS_MASK,
-           current_user_string_sid);
+  if (opt_embedded_lifeline)
+  {
+    /* Embedded server (MDEV-11111): only the user who started it */
+    snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT_EMBEDDED,
+             current_user_string_sid);
+  }
+  else
+    snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
+             (unsigned int)EVERYONE_PIPE_ACCESS_MASK,
+             current_user_string_sid);
   LocalFree(current_user_string_sid);
 
   if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl_string,

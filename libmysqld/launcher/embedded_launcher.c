@@ -176,12 +176,13 @@ static char **build_args(int argc, char **argv, const char *lifeline,
   a[n++]= strdup("--skip-networking");
 #ifdef _WIN32
   a[n++]= strdup("--enable-named-pipe");
-#else
-  /* Trust = whoever can reach the socket, which is only the current user.
+#endif
+  /* Trust = whoever can reach the socket, which is only the current user:
+     the Unix socket lives in a 0700 directory, and the server restricts the
+     named pipe to its own user when started with --embedded-lifeline.
      $MARIADB_EMBEDDED_GRANTS=1 turns real authentication back on. */
   if (!getenv("MARIADB_EMBEDDED_GRANTS"))
     a[n++]= strdup("--skip-grant-tables");
-#endif
   snprintf(buf, sizeof(buf), "--embedded-lifeline=%s", lifeline);
   a[n++]= strdup(buf);
   a[n]= NULL;

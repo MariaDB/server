@@ -6073,7 +6073,7 @@ static void test_lc_time_sz()
   client closes it, or dies, the read fails with EOF and we shut down
   gracefully, the same way as on SHUTDOWN.
 */
-static const char *opt_embedded_lifeline;
+const char *opt_embedded_lifeline;
 
 static void *embedded_lifeline_thread(void *)
 {
