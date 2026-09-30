@@ -1065,8 +1065,12 @@ inline void buf_pool_t::garbage_collect() noexcept
 
   do
   {
-    if (shrink(size))
-    {
+    switch (shrink(size)) {
+    case SHRINK_IN_PROGRESS:
+      continue;
+    case SHRINK_ABORT:
+      goto aborted;
+    case SHRINK_DONE:
       const size_t old_blocks{n_blocks};
       n_blocks= n_blocks_new;
 
@@ -1094,6 +1098,7 @@ inline void buf_pool_t::garbage_collect() noexcept
   }
   while (time(nullptr) - start < 15);
 
+ aborted:
   ut_ad(size_in_bytes > size_in_bytes_requested);
   n_blocks_to_withdraw= 0;
   first_to_withdraw= nullptr;
@@ -1110,7 +1115,7 @@ inline void buf_pool_t::garbage_collect() noexcept
 
   mysql_mutex_unlock(&mutex);
   sql_print_information("InnoDB: Memory pressure event failed to shrink"
-                        " innodb_buffer_pool_size=%zum", old_size);
+                        " innodb_buffer_pool_size=%zum", old_size >> 20);
   ut_d(validate());
 }
 #endif

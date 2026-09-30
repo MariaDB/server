@@ -1,1 +1,1 @@
---innodb-buffer-pool-size-max=16m
+--innodb-buffer-pool-size-max=24m
