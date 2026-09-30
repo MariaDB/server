@@ -3157,3 +3157,22 @@ we	BPYFY	BPYFY
 we	c	c
 DROP TABLE t1, t2;
 # End of 11.8 tests
+#
+# MDEV-41202 ONLY_FULL_GROUP_BY silently bypassed for outer-correlated fields inside aggregate
+#
+SET sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t0 (a INT, b INT, c INT);
+CREATE TABLE t1 (b INT);
+INSERT INTO t0 VALUES (1,10,100),(1,20,200),(2,30,300);
+INSERT INTO t1 VALUES (1000);
+# here error as expected:
+SELECT (SELECT sum(t0.b + t1.b) FROM t1) AS s, t0.c FROM t0 GROUP BY t0.a;
+ERROR 42000: 'test.t0.b' isn't in GROUP BY
+# here error is also expected:
+SELECT t0.a, (SELECT sum(t0.b + t1.b) FROM t1) AS s FROM t0 GROUP BY t0.a;
+ERROR 42000: 'test.t0.b' isn't in GROUP BY
+SELECT t0.a, (SELECT any_value(t0.b + t1.b) FROM t1) AS s FROM t0 GROUP BY t0.a;
+ERROR 42000: 'test.t0.b' isn't in GROUP BY
+DROP TABLE t0, t1;
+SET sql_mode=DEFAULT;
+# End of 13.2 tests
