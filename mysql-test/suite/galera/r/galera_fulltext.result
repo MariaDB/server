@@ -1,5 +1,10 @@
 connection node_2;
 connection node_1;
+connection node_1;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_2;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_1;
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 connection node_1;
@@ -42,6 +47,7 @@ CREATE TABLE t (a VARCHAR(5000),FULLTEXT (a)) engine=innodb;
 INSERT IGNORE INTO t VALUES(@value);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
+Warning	1071	WSREP: Write set key for table 'test.t' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
 SELECT COUNT(*) FROM t;
 COUNT(*)
 1
@@ -70,6 +76,7 @@ CREATE TABLE t (a VARCHAR(5000),FULLTEXT (a)) engine=innodb DEFAULT CHARSET=utf8
 INSERT IGNORE INTO t VALUES(@value);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
+Warning	1071	WSREP: Write set key for table 'test.t' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
 SELECT COUNT(*) FROM t;
 COUNT(*)
 1

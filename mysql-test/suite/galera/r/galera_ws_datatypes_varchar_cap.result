@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE p (a VARCHAR(550) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE ch (id INT AUTO_INCREMENT PRIMARY KEY,
+a VARCHAR(550) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+KEY k (a),
+FOREIGN KEY (a) REFERENCES p (a)) ENGINE=InnoDB;
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 550) COLLATE utf8mb4_unicode_ci;
+INSERT INTO p (a) VALUES (@v);
+INSERT INTO ch (a) VALUES (@v);
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+UPDATE p SET a = a WHERE a = @v;
+connection node_1;
+DROP TABLE ch, p;
