@@ -26,6 +26,7 @@
   application calls mysql_server_init() from a short-lived thread.
 */
 
+#define _GNU_SOURCE /* dladdr */
 #include "embedded_launcher.h"
 
 #include <stdarg.h>
@@ -36,6 +37,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -93,10 +95,66 @@ static int timeout_sec(const char *env, int def)
   return v > 0 ? v : def;
 }
 
+/*
+  Where is the server: $MARIADB_EMBEDDED_SERVER, else next to this library
+  (or executable, if linked statically), else "mariadbd" from PATH.
+*/
+#ifndef _WIN32
+/* Server output goes to a file in the private directory, not to the
+   application's stderr. On startup failure, show the end of it. */
+static char log_path[260];
+
+static void add_log_tail(void)
+{
+  char tail[400];
+  size_t n, len= strlen(error_buf);
+  FILE *f= log_path[0] ? fopen(log_path, "r") : NULL;
+  if (!f)
+    return;
+  if (fseek(f, -(long) (sizeof(tail) - 1), SEEK_END))
+    rewind(f);
+  n= fread(tail, 1, sizeof(tail) - 1, f);
+  fclose(f);
+  tail[n]= 0;
+  snprintf(error_buf + len, sizeof(error_buf) - len, "; server log: %s", tail);
+}
+#endif
+
 static const char *server_binary(void)
 {
+  static char path[1024];
   const char *s= getenv("MARIADB_EMBEDDED_SERVER");
-  return s && *s ? s : "mariadbd";
+  char *slash;
+  if (s && *s)
+    return s;
+#ifdef _WIN32
+  {
+    HMODULE h;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCSTR) &server_binary, &h) &&
+        GetModuleFileNameA(h, path, sizeof(path) - 16) &&
+        (slash= strrchr(path, '\\')))
+    {
+      strcpy(slash + 1, "mariadbd.exe");
+      if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES)
+        return path;
+    }
+  }
+#else
+  {
+    Dl_info info;
+    if (dladdr((void *) &server_binary, &info) && info.dli_fname &&
+        strlen(info.dli_fname) < sizeof(path) - 16 &&
+        (strcpy(path, info.dli_fname), (slash= strrchr(path, '/'))))
+    {
+      strcpy(slash + 1, "mariadbd");
+      if (access(path, X_OK) == 0)
+        return path;
+    }
+  }
+#endif
+  return "mariadbd";
 }
 
 /* Server arguments: fixed embedded ones + whatever the application passed */
@@ -118,6 +176,11 @@ static char **build_args(int argc, char **argv, const char *lifeline,
   a[n++]= strdup("--skip-networking");
 #ifdef _WIN32
   a[n++]= strdup("--enable-named-pipe");
+#else
+  /* Trust = whoever can reach the socket, which is only the current user.
+     $MARIADB_EMBEDDED_GRANTS=1 turns real authentication back on. */
+  if (!getenv("MARIADB_EMBEDDED_GRANTS"))
+    a[n++]= strdup("--skip-grant-tables");
 #endif
   snprintf(buf, sizeof(buf), "--embedded-lifeline=%s", lifeline);
   a[n++]= strdup(buf);
@@ -371,7 +434,19 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   /* posix_spawn, not fork+exec: safe to call from a multithreaded host */
   {
     pid_t pid;
-    int sp= posix_spawnp(&pid, args[0], NULL, NULL, args, environ);
+    posix_spawn_file_actions_t fa;
+    const char *log= getenv("MARIADB_EMBEDDED_LOG");
+    int sp;
+    posix_spawn_file_actions_init(&fa);
+    if (!log || strcmp(log, "stderr"))
+    {
+      snprintf(log_path, sizeof(log_path), "%s/mysqld.log", socket_dir);
+      posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+      posix_spawn_file_actions_addopen(&fa, 2, log_path,
+                                       O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    }
+    sp= posix_spawnp(&pid, args[0], &fa, NULL, args, environ);
+    posix_spawn_file_actions_destroy(&fa);
     free_args(args, nargs);
     if (sp)
     {
@@ -395,6 +470,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
       fail("embedded server exited during startup, status %ld",
              (long) (WIFEXITED(status) ? WEXITSTATUS(status)
                                         : 128 + WTERMSIG(status)));
+      add_log_tail();
       break;
     }
     if (socket_ready())
@@ -407,6 +483,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
     if (waited_ms >= timeout * 1000)
     {
       fail("embedded server did not start within %d seconds", timeout);
+      add_log_tail();
       break;
     }
     sleep_ms(POLL_MS);
@@ -419,7 +496,11 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
 err:
   close(fds[0]);
   close(fds[1]);
+  if (log_path[0])
+    unlink(log_path);
+  log_path[0]= 0;
   rmdir(socket_dir);
+  socket_dir[0]= 0;
   return 1;
 }
 
@@ -449,6 +530,9 @@ void mariadb_embedded_stop(void)
   if (socket_dir[0])
   {
     unlink(socket_name); /* normally removed by the server already */
+    if (log_path[0])
+      unlink(log_path);
+    log_path[0]= 0;
     rmdir(socket_dir);
     socket_dir[0]= 0;
   }
