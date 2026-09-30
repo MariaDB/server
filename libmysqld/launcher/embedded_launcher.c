@@ -95,14 +95,9 @@ static int timeout_sec(const char *env, int def)
   return v > 0 ? v : def;
 }
 
-/*
-  Where is the server: $MARIADB_EMBEDDED_SERVER, else next to this library
-  (or executable, if linked statically), else "mariadbd" from PATH.
-*/
-#ifndef _WIN32
 /* Server output goes to a file in the private directory, not to the
    application's stderr. On startup failure, show the end of it. */
-static char log_path[260];
+static char log_path[600];
 
 static void add_log_tail(void)
 {
@@ -118,7 +113,11 @@ static void add_log_tail(void)
   tail[n]= 0;
   snprintf(error_buf + len, sizeof(error_buf) - len, "; server log: %s", tail);
 }
-#endif
+
+/*
+  Where is the server: $MARIADB_EMBEDDED_SERVER, else next to this library
+  (or executable, if linked statically), else "mariadbd" from PATH.
+*/
 
 static const char *server_binary(void)
 {
@@ -230,7 +229,10 @@ static void append_quoted(char *dst, size_t size, const char *s)
 
 int mariadb_embedded_start(int argc, char **argv, char **groups)
 {
-  HANDLE rd= NULL, wr= NULL, handles[1];
+  HANDLE rd= NULL, wr= NULL, logh= INVALID_HANDLE_VALUE;
+  HANDLE nulh= INVALID_HANDLE_VALUE, handles[3];
+  DWORD nhandles= 1;
+  const char *logenv;
   SECURITY_ATTRIBUTES sa= {sizeof(sa), NULL, TRUE};
   STARTUPINFOEXA si;
   PROCESS_INFORMATION pi;
@@ -274,16 +276,38 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
 
   /* Inherit only the lifeline, not every inheritable handle of the app */
   handles[0]= rd;
-  InitializeProcThreadAttributeList(NULL, 1, 0, &attr_size);
   memset(&si, 0, sizeof(si));
   si.StartupInfo.cb= sizeof(si);
+  logenv= getenv("MARIADB_EMBEDDED_LOG");
+  if (!logenv || strcmp(logenv, "stderr"))
+  {
+    char tmp[MAX_PATH];
+    /* stdin from NUL, stdout and stderr to a log file, so that startup
+       errors are not lost; the log tail is added to the error message */
+    if (GetTempPathA(sizeof(tmp), tmp))
+      snprintf(log_path, sizeof(log_path), "%s%s.log", tmp, socket_name);
+    logh= CreateFileA(log_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                      &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    nulh= CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                      &sa, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (logh != INVALID_HANDLE_VALUE && nulh != INVALID_HANDLE_VALUE)
+    {
+      handles[nhandles++]= logh;
+      handles[nhandles++]= nulh;
+      si.StartupInfo.dwFlags= STARTF_USESTDHANDLES;
+      si.StartupInfo.hStdInput= nulh;
+      si.StartupInfo.hStdOutput= logh;
+      si.StartupInfo.hStdError= logh;
+    }
+  }
+  InitializeProcThreadAttributeList(NULL, 1, 0, &attr_size);
   si.lpAttributeList= (LPPROC_THREAD_ATTRIBUTE_LIST) malloc(attr_size);
   if (!si.lpAttributeList ||
       !InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0,
                                          &attr_size) ||
       !UpdateProcThreadAttribute(si.lpAttributeList, 0,
                                  PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles,
-                                 sizeof(handles), NULL, NULL))
+                                 nhandles * sizeof(HANDLE), NULL, NULL))
   {
     fail("cannot set up handle inheritance, error %ld",
          (long) GetLastError());
@@ -298,6 +322,11 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
     goto end_cmd;
   }
   server_process= pi.hProcess;
+  if (logh != INVALID_HANDLE_VALUE)
+    CloseHandle(logh);
+  if (nulh != INVALID_HANDLE_VALUE)
+    CloseHandle(nulh);
+  logh= nulh= INVALID_HANDLE_VALUE;
 
   /*
     No KILL_ON_JOB_CLOSE job object: it would hard-kill the server the moment
@@ -321,6 +350,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
       GetExitCodeProcess(server_process, &code);
       fail("embedded server exited during startup, status %ld",
            (long) code);
+      add_log_tail();
       break;
     }
     if (WaitNamedPipeA(pipe_path, POLL_MS))
@@ -333,6 +363,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
     if (GetTickCount64() > deadline)
     {
       fail("embedded server did not start within %d seconds", timeout);
+      add_log_tail();
       break;
     }
     Sleep(POLL_MS);
@@ -352,6 +383,10 @@ end_args:
 end:
   if (rd)
     CloseHandle(rd);
+  if (logh != INVALID_HANDLE_VALUE)
+    CloseHandle(logh);
+  if (nulh != INVALID_HANDLE_VALUE)
+    CloseHandle(nulh);
   if (wr)
     CloseHandle(wr);
   return rc;
@@ -371,6 +406,11 @@ void mariadb_embedded_stop(void)
       TerminateProcess(server_process, 1);
     CloseHandle(server_process);
     server_process= NULL;
+  }
+  if (log_path[0])
+  {
+    DeleteFileA(log_path);
+    log_path[0]= 0;
   }
   running= 0;
 }

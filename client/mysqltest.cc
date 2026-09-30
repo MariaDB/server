@@ -13253,6 +13253,22 @@ int main(int argc, char **argv)
 			(char**) embedded_server_groups))
     die("Can't initialize MariaDB server");
   server_initialized= 1;
+#ifdef MARIADB_EMBEDDED_LAUNCHER
+  if (mariadb_embedded_socket())
+  {
+    /* Default connections go to the server we have just started, whatever
+       socket and port the option files say (the old embedded server ignored
+       them as well) */
+    unix_sock= mariadb_embedded_socket();
+    opt_port= 0;
+    opt_protocol= 0;
+#ifdef _WIN32
+    opt_host= ".";
+#else
+    opt_host= 0;
+#endif
+  }
+#endif
   if (cur_file == file_stack && cur_file->file == 0)
   {
     cur_file->file= stdin;

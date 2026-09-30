@@ -2059,7 +2059,7 @@ sub mysqldump_arguments ($) {
 sub mysql_client_test_arguments(){
   my $exe;
   # mysql_client_test executable may _not_ exist
-  if ( $opt_embedded_server ) {
+  if ( $opt_embedded_server && !$opt_embedded_launcher ) {
     $exe= mtr_exe_maybe_exists(
             "$bindir/libmysqld/examples$multiconfig/mariadb-client-test-embedded",
             "$bindir/bin/mariadb-client-test-embedded",
@@ -2573,7 +2573,7 @@ sub setup_vardir() {
       if (IS_WINDOWS)
       {
         $ENV{PATH} .= ";".$plugindir; # to load vcpkg dependencies (libcurl.dll etc)
-        if (!$opt_embedded_server)
+        if (!$opt_embedded_server || $opt_embedded_launcher)
         {
           for (<$bindir/storage/*$multiconfig/*.dll>,
                <$bindir/plugin/*$multiconfig/*.dll>,
@@ -4685,13 +4685,20 @@ sub start_check_warnings ($$) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    my $mysqld=  $config->group('embedded')
-      or mtr_error("Could not get [embedded] section");
+    # With --embedded-launcher the server is a normal mariadbd, which does
+    # not read the [embedded] group: use [mysqld.1] like a regular test server.
+    my $mysqld=  $config->group($opt_embedded_launcher ? 'mysqld.1' : 'embedded')
+      or mtr_error("Could not get [%s] section",
+                   $opt_embedded_launcher ? 'mysqld.1' : 'embedded');
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
+    # --defaults-group-suffix must follow --defaults-file directly
+    splice(@$mysqld_args, 1, 0,
+           "--defaults-group-suffix=" . $mysqld->after('mysqld'))
+      if $opt_embedded_launcher;
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
   }
 
@@ -5789,13 +5796,20 @@ sub start_mysqltest ($) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    my $mysqld=  $config->group('embedded')
-      or mtr_error("Could not get [embedded] section");
+    # With --embedded-launcher the server is a normal mariadbd, which does
+    # not read the [embedded] group: use [mysqld.1] like a regular test server.
+    my $mysqld=  $config->group($opt_embedded_launcher ? 'mysqld.1' : 'embedded')
+      or mtr_error("Could not get [%s] section",
+                   $opt_embedded_launcher ? 'mysqld.1' : 'embedded');
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
+    # --defaults-group-suffix must follow --defaults-file directly
+    splice(@$mysqld_args, 1, 0,
+           "--defaults-group-suffix=" . $mysqld->after('mysqld'))
+      if $opt_embedded_launcher;
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
   }
 
