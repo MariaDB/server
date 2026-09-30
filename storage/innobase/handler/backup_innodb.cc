@@ -1219,7 +1219,7 @@ private:
                    uint32_t limit) noexcept
   {
     ut_ad(ctx.state == PROCESSING);
-    int res= -1;
+    int res;
     uint32_t start{0};
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
     if (UNIV_LIKELY(name != nullptr))
@@ -1315,8 +1315,11 @@ private:
       mysql_mutex_unlock(&fil_system.mutex);
     }
     else
+    {
       /* This should be ALTER TABLE ... IMPORT TABLESPACE */
       ut_ad(space.create_lsn >= ctx.checkpoint);
+      res= 0;
+    }
     space.release();
     ut_ad(res <= 0);
     return res;
