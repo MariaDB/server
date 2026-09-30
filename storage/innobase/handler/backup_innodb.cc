@@ -1123,7 +1123,6 @@ public:
     if (ctx.state == PROCESSING)
     {
       mutex.wr_lock();
-      ut_ad((ctx.last_track_lsn < LSN_MAX) == ctx.is_log_tracking());
       if (ctx.state != PROCESSING);
       else if (lsn > ctx.last_lsn)
         /*
@@ -1139,6 +1138,7 @@ public:
       }
       else
       {
+        ut_ad(ctx.last_track_lsn < LSN_MAX);
         delete_file= ctx.old_size;
 #ifdef HAVE_PMEM
         if (!log_sys.is_mmap())
