@@ -1,0 +1,76 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# MDEV-41073 follow-up: a write set key that cuts a fixed-length column.
+#
+# wsrep_rec_get_foreign_key() cuts a column that does not fully fit the
+# write set key buffer, the same way the row key builder cuts a string.
+# A whole number, a float or a double is read out of the record and
+# copied as one unit, so cutting it does not produce a shorter version
+# of the value, it produces a different one, or, for a float or double,
+# not even a valid one: mach_float_read()/mach_double_read() read a
+# fixed 4 or 8 bytes regardless of how much of that was actually meant
+# to be copied.
+#
+# Column a below normalizes to exactly 3492 of the 3500 byte buffer
+# (582 copies of a ligature character that each normalize to 6 collation
+# weight bytes under utf8mb4_unicode_ci), column m takes another 5, which
+# leaves exactly 3 bytes for column c, a 4 byte FLOAT: not enough to hold
+# it, but enough that the old code cut it to 3 bytes anyway.
+#
+
+--connection node_1
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+--connection node_2
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+
+--connection node_1
+CREATE TABLE p (a VARCHAR(760) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+                m VARBINARY(8) NOT NULL,
+                c FLOAT NOT NULL,
+                PRIMARY KEY (a,m,c)) ENGINE=InnoDB;
+
+CREATE TABLE ch (id INT AUTO_INCREMENT PRIMARY KEY,
+                 a VARCHAR(760) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+                 m VARBINARY(8) NOT NULL,
+                 c FLOAT NOT NULL,
+                 KEY k (a,m,c),
+                 FOREIGN KEY (a,m,c) REFERENCES p (a,m,c)) ENGINE=InnoDB;
+
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 582) COLLATE utf8mb4_unicode_ci;
+
+--echo #
+--echo # Under strict mode a cut key fails the statement
+--echo #
+--error ER_TOO_LONG_KEY
+INSERT INTO p (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+
+--echo #
+--echo # INSERT IGNORE turns the error back into a warning and the row goes in
+--echo #
+INSERT IGNORE INTO p (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+SHOW WARNINGS;
+
+--echo #
+--echo # The child row goes down the foreign key path and behaves the same.
+--echo # Before the fix this statement took the server down with
+--echo # "Assertion `len == sizeof(float)' failed."
+--echo #
+--error ER_TOO_LONG_KEY
+INSERT INTO ch (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+
+INSERT IGNORE INTO ch (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+SHOW WARNINGS;
+
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM ch;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+
+--connection node_1
+DROP TABLE ch, p;

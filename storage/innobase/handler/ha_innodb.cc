@@ -6251,7 +6251,9 @@ wsrep_normalize_string(
 	unsigned char*  out_str,        /* out: normalized string */
 	size_t		str_length,	/* in: data field length,
 					not UNIV_SQL_NULL */
-	size_t		buf_length)	/* in: total str buffer length */
+	size_t		buf_length,	/* in: total str buffer length,
+					out_str holds one byte more */
+	bool*		truncated)	/* out: weights did not fit */
 
 {
 	size_t ret_length= str_length;
@@ -6280,10 +6282,23 @@ wsrep_normalize_string(
 			/* strnxfrm will expand the destination string,
 			   protocols < 3 truncated the normalized string
 			   protocols >= 3 gets full normalized string
+
+			   One byte over the limit is asked for, so that a
+			   value whose weights do not fit can be told apart
+			   from one that fills the room exactly. The key
+			   keeps the first buf_length bytes either way.
 			*/
 			ret_length = charset->strnxfrm(
-				out_str, buf_length,
+				out_str, buf_length + 1,
 				uint(str_length), str, str_length, 0);
+
+			if (ret_length > buf_length) {
+				ret_length = buf_length;
+
+				if (truncated) {
+					*truncated = true;
+				}
+			}
 		}
 
 		break;
@@ -6363,9 +6378,10 @@ wsrep_store_string_key_val(
 	size_t			str_length,
 	unsigned char*		out_str,
 	ulint			out_length,
-	bool			mysql_format)
+	bool			mysql_format,
+	bool*			truncated)
 {
-	unsigned char	normalized[WSREP_MAX_SUPPORTED_KEY_LENGTH + 1];
+	unsigned char	normalized[WSREP_MAX_SUPPORTED_KEY_LENGTH + 2];
 	size_t		len;
 
 	if (wsrep_protocol_version < 5) {
@@ -6382,7 +6398,8 @@ wsrep_store_string_key_val(
 
 		len = wsrep_normalize_string(mysql_type, charset_number, str,
 					     normalized, str_length,
-					     WSREP_MAX_SUPPORTED_KEY_LENGTH);
+					     WSREP_MAX_SUPPORTED_KEY_LENGTH,
+					     truncated);
 	} else {
 		unsigned char padded[REC_VERSION_56_MAX_INDEX_COL_LEN + 1];
 
@@ -6419,16 +6436,58 @@ wsrep_store_string_key_val(
 
 		len = wsrep_normalize_string(mysql_type, charset_number, str,
 					     normalized, str_length,
-					     WSREP_MAX_SUPPORTED_KEY_LENGTH);
+					     WSREP_MAX_SUPPORTED_KEY_LENGTH,
+					     truncated);
 	}
 
 	if (len > out_length) {
 		len = out_length;
+
+		if (truncated) {
+			*truncated = true;
+		}
 	}
 
 	memcpy(out_str, normalized, len);
 
 	return len;
+}
+
+/** Tell the client that a write set key was cut to the key buffer size.
+@param thd         session the key belongs to
+@param table_name  table the key was built for, either db.table or the
+                   InnoDB internal db/table */
+void
+wsrep_warn_key_truncated(THD* thd, const char* table_name)
+{
+	char	name[NAME_LEN * 2 + 2];
+	size_t	len= strlen(table_name);
+
+	if (len >= sizeof name) {
+		len= sizeof name - 1;
+	}
+
+	memcpy(name, table_name, len);
+	name[len]= '\0';
+
+	/* The InnoDB internal name is db/table, the server says db.table. */
+	if (char* slash= strchr(name, '/')) {
+		*slash= '.';
+	}
+
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    ER_TOO_LONG_KEY,
+			    "WSREP: Write set key for table '%s' was cut to "
+			    "%d bytes. Rows whose key values are equal up to "
+			    "that length produce the same key and conflict in "
+			    "certification.",
+			    name, WSREP_MAX_SUPPORTED_KEY_LENGTH);
+
+	if (global_system_variables.log_warnings > 1) {
+		WSREP_WARN("Write set key for table '%s' was cut to %d bytes: %s",
+			   name, WSREP_MAX_SUPPORTED_KEY_LENGTH,
+			   wsrep_thd_query(thd));
+	}
 }
 #endif /* WITH_WSREP */
 
@@ -6763,7 +6822,8 @@ wsrep_store_key_val_for_row(
 				format) */
 	uint		buff_len,/*!< in: buffer length */
 	const uchar*	record,
-	bool*		key_is_null)/*!< out: full key was null */
+	bool*		key_is_null,/*!< out: full key was null */
+	bool*		truncated)  /*!< out: key did not fit buff */
 {
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
@@ -6777,24 +6837,36 @@ wsrep_store_key_val_for_row(
 	*key_is_null = true;
 
 	for (; key_part != end; key_part++) {
-		uchar normalized[REC_VERSION_56_MAX_INDEX_COL_LEN+1];
+		/* One byte over the limit passed to
+		wsrep_normalize_string(), which asks strnxfrm() for it to
+		tell a value that was cut from one that fits exactly. Sized
+		for the VARCHAR branch below, which normalizes up to
+		WSREP_MAX_SUPPORTED_KEY_LENGTH bytes to agree with
+		wsrep_rec_get_foreign_key()'s wsrep_store_string_key_val();
+		the BLOB branch asks for less. */
+		uchar normalized[WSREP_MAX_SUPPORTED_KEY_LENGTH+2];
 		bool part_is_null= false;
 
 		if (key_part->null_bit) {
-			if (buff_space > 0) {
-				if (record[key_part->null_offset]
-				    & key_part->null_bit) {
-					*buff = 1;
-					part_is_null = true;
-				} else {
-					*buff = 0;
-				}
-				buff++;
-				buff_space--;
-			} else {
-				fprintf (stderr, "WSREP: key truncated: %s\n",
-					 wsrep_thd_query(thd));
+			if (buff_space == 0) {
+				/* Not even the null flag byte fits. A column
+				after this one must not be stored either, the
+				same way wsrep_rec_get_foreign_key() stops at
+				the first column that does not fit at all. */
+				WSREP_DEBUG("key truncated: %s",
+					    wsrep_thd_query(thd));
+				*truncated = true;
+				break;
 			}
+			if (record[key_part->null_offset]
+			    & key_part->null_bit) {
+				*buff = 1;
+				part_is_null = true;
+			} else {
+				*buff = 0;
+			}
+			buff++;
+			buff_space--;
 		}
 		if (!part_is_null)  *key_is_null = false;
 
@@ -6807,14 +6879,18 @@ wsrep_store_key_val_for_row(
 
 			if (part_is_null) {
 				size_t true_len= key_len + 2;
-				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
-						 wsrep_thd_query(thd));
+				bool cut = true_len > buff_space;
+				if (cut) {
+					WSREP_DEBUG("key truncated: %s",
+						    wsrep_thd_query(thd));
 					true_len = buff_space;
+					*truncated = true;
 				}
 				buff       += true_len;
 				buff_space -= true_len;
+				if (cut) {
+					break;
+				}
 				continue;
 			}
 			const CHARSET_INFO* cs = field->charset();
@@ -6853,13 +6929,18 @@ wsrep_store_key_val_for_row(
 				true_len = sizeof(normalized) - 1;
 			}
 
-			/* Normalize string if is not empty string */
+			/* Normalize string if is not empty string. The limit
+			matches wsrep_store_string_key_val(), which
+			wsrep_rec_get_foreign_key() uses for this same MySQL
+			type, so the two keys agree past REC_VERSION_56_MAX_
+			INDEX_COL_LEN and up to WSREP_MAX_SUPPORTED_KEY_LENGTH. */
 			if (true_len) {
 				ut_ad(data);
 				true_len= wsrep_normalize_string(
 					mysql_type, cs->number, data,
 					normalized, true_len,
-					REC_VERSION_56_MAX_INDEX_COL_LEN);
+					WSREP_MAX_SUPPORTED_KEY_LENGTH,
+					truncated);
 			}
 
 			if (wsrep_protocol_version > 1) {
@@ -6868,15 +6949,20 @@ wsrep_store_key_val_for_row(
 				only len first bytes after the 2 length bytes contain
 				actual data. The rest of the space was reset to zero
 				in the bzero() call above. */
-				if (true_len > buff_space) {
-					WSREP_DEBUG (
-						 "write set key truncated for: %s\n",
-						 wsrep_thd_query(thd));
+				bool cut = true_len > buff_space;
+				if (cut) {
+					WSREP_DEBUG("write set key truncated "
+						    "for: %s",
+						    wsrep_thd_query(thd));
 					true_len = buff_space;
+					*truncated = true;
 				}
 				memcpy(buff, normalized, true_len);
 				buff += true_len;
 				buff_space -= true_len;
+				if (cut) {
+					break;
+				}
 			} else {
 				buff += key_len;
 			}
@@ -6893,15 +6979,19 @@ wsrep_store_key_val_for_row(
 
 			if (part_is_null) {
 				size_t true_len= key_len + 2;
-				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
-						 wsrep_thd_query(thd));
+				bool cut = true_len > buff_space;
+				if (cut) {
+					WSREP_DEBUG("key truncated: %s",
+						    wsrep_thd_query(thd));
 					true_len = buff_space;
+					*truncated = true;
 				}
 				buff       += true_len;
 				buff_space -= true_len;
 
+				if (cut) {
+					break;
+				}
 				continue;
 			}
 
@@ -6948,21 +7038,26 @@ wsrep_store_key_val_for_row(
 				true_len= wsrep_normalize_string(
 					mysql_type, cs->number, blob_data,
 					normalized, true_len,
-					REC_VERSION_56_MAX_INDEX_COL_LEN);
+					REC_VERSION_56_MAX_INDEX_COL_LEN,
+					truncated);
 			}
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
 			if (wsrep_protocol_version > 1) {
-				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
-						 wsrep_thd_query(thd));
+				bool cut = true_len > buff_space;
+				if (cut) {
+					WSREP_DEBUG("key truncated: %s",
+						    wsrep_thd_query(thd));
 					true_len = buff_space;
+					*truncated = true;
 				}
 				memcpy(buff, normalized, true_len);
 				buff       += true_len;
 				buff_space -= true_len;
+				if (cut) {
+					break;
+				}
 			} else {
 				buff += key_len;
 			}
@@ -6974,15 +7069,19 @@ wsrep_store_key_val_for_row(
 
 			if (part_is_null) {
 				size_t true_len= key_part->length;
-				if (true_len > buff_space) {
-					fprintf (stderr,
-						 "WSREP: key truncated: %s\n",
-						 wsrep_thd_query(thd));
+				bool cut = true_len > buff_space;
+				if (cut) {
+					WSREP_DEBUG("key truncated: %s",
+						    wsrep_thd_query(thd));
 					true_len = buff_space;
+					*truncated = true;
 				}
 				buff       += true_len;
 				buff_space -= true_len;
 
+				if (cut) {
+					break;
+				}
 				continue;
 			}
 
@@ -7010,8 +7109,9 @@ wsrep_store_key_val_for_row(
 			that version the value is still collated, and
 			wsrep_rec_get_foreign_key() collates the matching
 			reference key the same way, so the two agree in a
-			cluster that has not fully upgraded yet.
-			See MDEV-41012. */
+			cluster that has not fully upgraded yet. */
+			bool cut = false;
+
 			if (real_type != MYSQL_TYPE_ENUM
 				&& real_type != MYSQL_TYPE_SET
 				&& (wsrep_protocol_version < 5
@@ -7036,24 +7136,63 @@ wsrep_store_key_val_for_row(
 				/* Normalize string if it is not empty string */
 				if (true_len) {
 					ut_ad(src_start);
+					const bool was_truncated= *truncated;
 					true_len= wsrep_store_string_key_val(
 						mysql_type, cs->number, n_chars,
 						src_start, true_len,
-						(uchar*) buff, buff_space, true);
+						(uchar*) buff, buff_space, true,
+						truncated);
+					cut = !was_truncated && *truncated;
 				} else {
 					ut_ad(src_start == nullptr);
 				}
 			} else {
-				/* Copy only if there is data */
-				if (true_len) {
-					ut_ad(src_start);
-					memcpy(buff, src_start, true_len);
+				unsigned unsigned_flag;
+				const uint8_t mtype
+					= get_innobase_type_from_mysql_type(
+						&unsigned_flag, field);
+				/* A whole number, float or double is read out
+				of the record as one unit elsewhere
+				(wsrep_rec_get_foreign_key()), so a cut
+				version of it is not a shorter version of the
+				same value, it is a different one. Leave it
+				out of the key entirely instead, the same way
+				that function does, rather than let the two
+				keys disagree past this point. */
+				if ((mtype == DATA_INT
+				     || mtype == DATA_FLOAT
+				     || mtype == DATA_DOUBLE)
+				    && true_len > buff_space) {
+					WSREP_DEBUG("key truncated: %s",
+						    wsrep_thd_query(thd));
+					*truncated = true;
+					true_len = 0;
+					cut = true;
 				} else {
-					ut_ad(src_start == nullptr);
+					if (true_len > buff_space) {
+						WSREP_DEBUG(
+							"key truncated: %s",
+							wsrep_thd_query(thd));
+						true_len = buff_space;
+						*truncated = true;
+						cut = true;
+					}
+
+					/* Copy only if there is data */
+					if (true_len) {
+						ut_ad(src_start);
+						memcpy(buff, src_start,
+						       true_len);
+					} else {
+						ut_ad(src_start == nullptr);
+					}
 				}
 			}
 			buff       += true_len;
 			buff_space -= true_len;
+			if (cut) {
+				break;
+			}
 		}
 	}
 
@@ -10101,7 +10240,11 @@ wsrep_append_foreign_key(
 		return DB_ERROR;
 	}
 
-	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+	/* One byte for the index ordinal at key[0], the key itself, and one
+	spare byte: wsrep_rec_get_foreign_key() may normalize a column
+	straight into this buffer, and wsrep_normalize_string() asks
+	strnxfrm() for one byte over the limit to detect a cut value. */
+	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+2] = {'\0'};
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ?
@@ -10121,9 +10264,31 @@ wsrep_append_foreign_key(
 	ut_a(idx);
 	key[0] = byte(i);
 
+	bool key_truncated = false;
+
 	rcode = wsrep_rec_get_foreign_key(
 		&key[1], &len, rec, index, idx,
-		wsrep_protocol_version > 1);
+		wsrep_protocol_version > 1, &key_truncated);
+
+	if (key_truncated) {
+		wsrep_warn_key_truncated(
+			thd,
+			(referenced
+			 ? foreign->referenced_table->name.m_name
+			 : foreign->foreign_table->name.m_name));
+
+		/* Under strict mode THD::raise_condition() turned the
+		warning into an error. Fail the row so that the error
+		reaches the client, the same way the row key path does.
+
+		DB_ERROR is not an option here: row_mysql_handle_errors()
+		does not know it and ends in ib::fatal(). The error the
+		client sees is the one already in the diagnostics area,
+		the code below only rolls the statement back. */
+		if (thd->is_error()) {
+			return DB_TOO_BIG_RECORD;
+		}
+	}
 
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
@@ -10327,6 +10492,8 @@ ha_innobase::wsrep_append_keys(
 		DBUG_RETURN(0);
 	}
 
+	bool key_truncated = false;
+
 	if (wsrep_protocol_version == 0) {
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
@@ -10334,7 +10501,7 @@ ha_innobase::wsrep_append_keys(
 
 		auto len = wsrep_store_key_val_for_row(
 			thd, table, 0, key, WSREP_MAX_SUPPORTED_KEY_LENGTH,
-			record0, &is_null);
+			record0, &is_null, &key_truncated);
 
 		if (!is_null) {
 			rcode = wsrep_append_key(
@@ -10393,14 +10560,15 @@ ha_innobase::wsrep_append_keys(
 				auto len0 = wsrep_store_key_val_for_row(
 					thd, table, i, key0,
 					WSREP_MAX_SUPPORTED_KEY_LENGTH,
-					record0, &is_null0);
+					record0, &is_null0, &key_truncated);
 
 				if (record1) {
 					bool is_null1;
 					auto len1= wsrep_store_key_val_for_row(
 						thd, table, i, key1,
 						WSREP_MAX_SUPPORTED_KEY_LENGTH,
-						record1, &is_null1);
+						record1, &is_null1,
+						&key_truncated);
 
 					if (is_null0 != is_null1 ||
 					    len0 != len1 ||
@@ -10445,6 +10613,21 @@ ha_innobase::wsrep_append_keys(
 						    wsrep_thd_query(thd));
 				}
 			}
+		}
+	}
+
+	if (key_truncated) {
+		char qualified[NAME_LEN * 2 + 2];
+		snprintf(qualified, sizeof qualified, "%s.%s",
+			 table_share->db.str, table_share->table_name.str);
+		wsrep_warn_key_truncated(thd, qualified);
+
+		/* Under strict mode THD::raise_condition() turned the
+		warning into an error. An INSERT clears the diagnostics area
+		again once the row is written, so tell the caller that the
+		row failed and let the error stand. */
+		if (thd->is_error()) {
+			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
 

@@ -1,0 +1,53 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE gp_pk (uu UUID, i6 INET6, f INT,
+PRIMARY KEY (uu,i6)) ENGINE=InnoDB;
+CREATE TABLE gp_pk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+uu UUID, i6 INET6,
+KEY k (uu,i6),
+FOREIGN KEY (uu,i6) REFERENCES gp_pk (uu,i6))
+ENGINE=InnoDB;
+CREATE TABLE gp_uk (id INT AUTO_INCREMENT PRIMARY KEY,
+uu UUID, i6 INET6,
+UNIQUE KEY u (uu,i6)) ENGINE=InnoDB;
+CREATE TABLE gp_uk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+uu UUID, i6 INET6,
+KEY k (uu,i6),
+FOREIGN KEY (uu,i6) REFERENCES gp_uk (uu,i6))
+ENGINE=InnoDB;
+CREATE TABLE gp_key (uu UUID, i6 INET6,
+KEY k (uu,i6)) ENGINE=InnoDB;
+SET @uu = '11111111-1111-1111-1111-111111111111';
+SET @i6 = '2001:db8::1';
+# UUID and INET6 together, in a primary key and a foreign key that
+# references it
+INSERT INTO gp_pk (uu,i6,f) VALUES (@uu,@i6,1);
+INSERT INTO gp_pk_child (uu,i6) VALUES (@uu,@i6);
+# The same types in a unique key and a foreign key that references it
+INSERT INTO gp_uk (uu,i6) VALUES (@uu,@i6);
+INSERT INTO gp_uk_child (uu,i6) VALUES (@uu,@i6);
+# The same types in a plain, non-unique key on a table with no
+# primary key
+INSERT INTO gp_key (uu,i6) VALUES (@uu,@i6);
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM gp_pk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM gp_pk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM gp_uk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM gp_uk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM gp_key;
+EXPECT_1
+1
+connection node_1;
+DROP TABLE gp_pk_child, gp_pk, gp_uk_child, gp_uk, gp_key;
+disconnect node_2;
+disconnect node_1;
+# End of test
