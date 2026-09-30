@@ -1611,6 +1611,15 @@ sub command_line_setup {
   # Embedded server flag
   # --------------------------------------------------------------------------
   $opt_embedded_server= 1 if $opt_embedded_launcher;
+  if ($opt_embedded_launcher)
+  {
+    # The server lives only as long as one mysqltest, so the per-test check
+    # of the error log (which applies suppressions added by the tests with
+    # mtr.add_suppression) never runs, and the final scan would flag
+    # warnings that tests provoke on purpose.
+    # ToDo: run include/check-warnings.inc from mysqltest before it exits.
+    $opt_warnings= 0;
+  }
   if ( $opt_embedded_server )
   {
     $opt_skip_ssl= 1;              # Turn off use of SSL
