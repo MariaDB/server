@@ -56,3 +56,17 @@ __attribute__((constructor)) static void autoregister(void)
   mariadb_embedded_register();
 }
 #endif
+
+#if defined(MARIADB_EMBEDDED_AUTOREGISTER) && defined(_WIN32)
+#include <windows.h>
+/* Loading libmariadbd.dll is enough; it only stores pointers, which is fine
+   under the loader lock */
+BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)
+{
+  (void) h;
+  (void) reserved;
+  if (reason == DLL_PROCESS_ATTACH)
+    mariadb_embedded_register();
+  return TRUE;
+}
+#endif

@@ -20,3 +20,31 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/libmariadb/include
 ADD_LIBRARY(mariadb_embedded_launcher STATIC
             embedded_launcher.c embedded_glue.c)
 TARGET_LINK_LIBRARIES(mariadb_embedded_launcher ${CMAKE_DL_LIBS})
+
+# libmariadbd: the client library (same objects as libmariadb, same exports)
+# plus the launcher, registered when the library is loaded. An application
+# links it instead of libmariadb and gets an embedded server from the usual
+# mysql_server_init() / mysql_real_connect() / mysql_server_end().
+IF(TARGET mariadb_obj AND TARGET mariadbclient)
+  SET(MARIADB_CLIENT_EXPORTS
+      ${CMAKE_BINARY_DIR}/libmariadb/libmariadb/mariadbclient.def)
+  IF(WIN32)
+    ADD_LIBRARY(libmariadbd SHARED $<TARGET_OBJECTS:mariadb_obj>
+                embedded_launcher.c embedded_glue.c ${MARIADB_CLIENT_EXPORTS})
+    SET_TARGET_PROPERTIES(libmariadbd PROPERTIES LINKER_LANGUAGE C)
+  ELSE()
+    ADD_LIBRARY(libmariadbd SHARED $<TARGET_OBJECTS:mariadb_obj>
+                embedded_launcher.c embedded_glue.c)
+    SET_TARGET_PROPERTIES(libmariadbd PROPERTIES
+      LINK_FLAGS "${MARIADB_CLIENT_EXPORTS}"
+      COMPILE_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+  ENDIF()
+  SET_TARGET_PROPERTIES(libmariadbd PROPERTIES PREFIX ""
+    COMPILE_DEFINITIONS MARIADB_EMBEDDED_AUTOREGISTER)
+  TARGET_LINK_LIBRARIES(libmariadbd LINK_PRIVATE
+    $<TARGET_PROPERTY:mariadbclient,LINK_LIBRARIES> ${CMAKE_DL_LIBS})
+
+  # An unmodified client program: only the client API, linked with libmariadbd
+  ADD_EXECUTABLE(embedded_app_test EXCLUDE_FROM_ALL embedded_app_test.c)
+  TARGET_LINK_LIBRARIES(embedded_app_test libmariadbd)
+ENDIF()
