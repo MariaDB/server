@@ -1985,7 +1985,7 @@ sub executable_setup () {
   if ($opt_embedded_launcher)
   {
     $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir);
-    # Tests expect to be root@localhost, as with a real server
+    # Tests use GRANT, CREATE USER etc, which --skip-grant-tables refuses
     $ENV{MARIADB_EMBEDDED_GRANTS}= 1;
   }
 

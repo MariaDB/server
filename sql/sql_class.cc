@@ -5037,6 +5037,17 @@ void Security_context::skip_grants()
   host_or_ip= (char *)"";
   master_access= access_t(ALL_KNOWN_ACL);
   *priv_user= *priv_host= '\0';
+  if (opt_embedded_lifeline)
+  {
+    /*
+      Embedded server (MDEV-11111): the only client is the process that
+      started us. It behaves as root@localhost, so that CURRENT_USER() and
+      DEFINER of views, routines etc are what they would be on a normal server.
+    */
+    host_or_ip= (char *)"localhost";
+    strmov(priv_user, "root");
+    strmov(priv_host, "localhost");
+  }
   password_expired= false;
 }
 

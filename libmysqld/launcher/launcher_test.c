@@ -30,13 +30,13 @@ int main(int argc, char **argv)
   m= mysql_init(NULL);
   if (!mysql_real_connect(m, "localhost", "root", NULL, NULL, 0, NULL, 0))
     fprintf(stderr, "connect failed: %s\n", mysql_error(m));
-  else if (mysql_query(m, "SELECT @@version, 1+1") ||
+  else if (mysql_query(m, "SELECT @@version, CURRENT_USER()") ||
            !(res= mysql_store_result(m)))
     fprintf(stderr, "query failed: %s\n", mysql_error(m));
   else
   {
     row= mysql_fetch_row(res);
-    printf("version %s, 1+1=%s\n", row[0], row[1]);
+    printf("version %s, current_user %s\n", row[0], row[1]);
     mysql_free_result(res);
     rc= 0;
   }
