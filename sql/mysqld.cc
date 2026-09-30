@@ -1281,7 +1281,7 @@ PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
-PSI_thread_key key_thread_ack_receiver;
+PSI_thread_key key_thread_ack_receiver, key_thread_embedded_lifeline;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1292,6 +1292,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_deadlock_handler, "slave_deadlock_handler", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
+  { &key_thread_embedded_lifeline, "embedded_lifeline", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel", 0}
 };
 
@@ -6065,8 +6066,58 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
+/*
+  Embedded mode (MDEV-11111): the server is spawned by a client library.
+  The client keeps the write end of a pipe open and passes the read end via
+  --embedded-lifeline (fd number, or a HANDLE value on Windows). When the
+  client closes it, or dies, the read fails with EOF and we shut down
+  gracefully, the same way as on SHUTDOWN.
+*/
+static const char *opt_embedded_lifeline;
+
+static void *embedded_lifeline_thread(void *)
+{
+  my_thread_init();
+  char c;
+#ifdef _WIN32
+  HANDLE h= (HANDLE) (uintptr_t) strtoull(opt_embedded_lifeline, NULL, 10);
+  DWORD n;
+  while (ReadFile(h, &c, 1, &n, NULL) && n)
+  {
+  }
+#else
+  int fd= atoi(opt_embedded_lifeline);
+  ssize_t n;
+  while ((n= read(fd, &c, 1)) > 0 || (n < 0 && errno == EINTR))
+  {
+  }
+#endif
+  if (!abort_loop)
+  {
+    sql_print_information("Embedding client has gone away, shutting down");
+    break_connect_loop();
+  }
+  my_thread_end();
+  return 0;
+}
+
+static void start_embedded_lifeline()
+{
+  pthread_t thd;
+  if (!opt_embedded_lifeline)
+    return;
+  if (mysql_thread_create(key_thread_embedded_lifeline, &thd,
+                          &connection_attrib, embedded_lifeline_thread, 0))
+  {
+    sql_print_error("Can't create embedded lifeline thread");
+    unireg_abort(1);
+  }
+}
+
+
 static void run_main_loop()
 {
+  start_embedded_lifeline();
   mysql_mutex_lock(&LOCK_start_thread);
   select_thread_in_use=1;
   mysql_mutex_unlock(&LOCK_start_thread);
@@ -6960,6 +7011,11 @@ struct my_option my_long_options[]=
   {"bootstrap", OPT_BOOTSTRAP, "Used by MariaDB installation scripts", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
+  {"embedded-lifeline", OPT_EMBEDDED_LIFELINE,
+   "Used by the embedded server launcher. Inherited pipe fd (HANDLE on "
+   "Windows) that the server watches; on EOF the server shuts down",
+   &opt_embedded_lifeline, &opt_embedded_lifeline, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"character-set-client-handshake", 0,
    "Don't ignore client side character set value sent during handshake",
    &opt_character_set_client_handshake,
