@@ -229,5 +229,21 @@ SELECT COUNT(*) from t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-40573 Assertion `del_table == table_being_deleted' failed in
+--echo # multi_delete::send_data on DELETE w/ index hint + window function
+--echo #
+CREATE TABLE t1 (c INT PRIMARY KEY);
+INSERT INTO t1 (c) VALUES (1),(2),(3),(4);
+DELETE FROM t1 USE KEY() WHERE 0
+  ORDER BY PERCENTILE_CONT(COUNT(*)) WITHIN GROUP(ORDER BY c) OVER();
+SELECT * FROM t1;
+SELECT COUNT(*) FROM t1;
+DELETE t1 FROM t1, t1 AS t2 WHERE 0
+  ORDER BY PERCENTILE_CONT(COUNT(*)) WITHIN GROUP(ORDER BY t1.c) OVER();
+SELECT * FROM t1;
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End 11.8 tests
 --echo #
