@@ -5837,5 +5837,26 @@ SELECT CONV(-9223372036854775808, -10, -62);
 CONV(-9223372036854775808, -10, -62)
 -AzL8n0Y58m8
 #
+# MDEV-40184 Heap-use-after-free in stored procedure when LEFT(CONCAT(...)) result is reused by LOCATE()
+#
+CREATE TABLE t0 (i DOUBLE);
+INSERT INTO t0 VALUES (1);
+SELECT LOCATE(a, 'xx1-tes', a) AS c FROM (SELECT LEFT(CONCAT(CAST(i AS CHAR), '-test'), 5) AS a FROM t0) dt;
+c
+3
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1-tes'
+SELECT LEFT(a, a) AS c FROM (SELECT RIGHT(CONCAT('zz', CAST(i AS CHAR), '-test'), 6) AS a FROM t0) dt;
+c
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1-test'
+SELECT LEFT(a, a) AS c FROM (SELECT SUBSTR(CONCAT(CAST(i AS CHAR), '-test'), 1, 5) AS a FROM t0) dt;
+c
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1-tes'
+DROP TABLE t0;
+#
 # End of 11.4 tests
 #
