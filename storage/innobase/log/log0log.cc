@@ -2132,8 +2132,8 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
       }
       lsn-= max_age;
     }
-    else if (resize_log.is_opened())
-      lsn+= file_size;
+    else if (resize_log.is_opened() && resize_log.m_file != log.m_file)
+      lsn+= capacity();
     else
       goto done;
 
