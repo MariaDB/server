@@ -9037,7 +9037,12 @@ void do_connect(struct st_command *command)
       or an abstract socket indicator ('@'), then
       append tmpdir in front
     */
-    if (*ds_sock.str != FN_LIBCHAR && *ds_sock.str != '@')
+    if (*ds_sock.str != FN_LIBCHAR && *ds_sock.str != '@'
+#ifdef MARIADB_EMBEDDED_LAUNCHER
+        && !(mariadb_embedded_socket() &&
+             !strcmp(ds_sock.str, mariadb_embedded_socket()))
+#endif
+        )
     {
       char buff[FN_REFLEN];
       fn_format(buff, ds_sock.str, TMPDIR, "", 0);
@@ -13260,6 +13265,9 @@ int main(int argc, char **argv)
        socket and port the option files say (the old embedded server ignored
        them as well) */
     unix_sock= mariadb_embedded_socket();
+    /* Tests connect to the first server as $MASTER_MYSOCK */
+    setenv("MASTER_MYSOCK", unix_sock, 1);
+    var_set_string("MASTER_MYSOCK", unix_sock);
     opt_port= 0;
     opt_protocol= 0;
 #ifdef _WIN32

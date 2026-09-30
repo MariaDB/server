@@ -1973,7 +1973,12 @@ sub executable_setup () {
   }
 
   # mysqltest starts the server itself, given --server-arg
-  $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir) if $opt_embedded_launcher;
+  if ($opt_embedded_launcher)
+  {
+    $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir);
+    # Tests expect to be root@localhost, as with a real server
+    $ENV{MARIADB_EMBEDDED_GRANTS}= 1;
+  }
 
 }
 
