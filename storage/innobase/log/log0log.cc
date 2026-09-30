@@ -46,6 +46,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0sync.h"
 #include "log.h"
 #include "tpool.h"
+#include "backup_innodb.h"
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -618,8 +619,9 @@ void log_t::set_buffered(bool buffered) noexcept
       high_level_read_only)
     return;
   log_resize_acquire();
-  if (!resize_in_progress() && is_opened() && !resize_log.is_opened() &&
-      bool(log_buffered) != buffered)
+  if (bool(log_buffered) != buffered &&
+      !resize_in_progress() && is_opened() && !resize_log.is_opened() &&
+      !innodb_backup_log_tracking())
   {
     if (const dberr_t err= log.close())
       log_close_failed(err);
@@ -641,8 +643,9 @@ void log_t::set_write_through(bool write_through)
   if (is_mmap() || high_level_read_only || recv_sys.rpo)
     return;
   log_resize_acquire();
-  if (!resize_in_progress() && is_opened() && !resize_log.is_opened() &&
-      bool(log_write_through) != write_through)
+  if (bool(log_write_through) != write_through &&
+      !resize_in_progress() && is_opened() && !resize_log.is_opened() &&
+      !innodb_backup_log_tracking())
   {
     os_file_close_func(log.m_file);
     log= OS_FILE_CLOSED;
@@ -2134,6 +2137,7 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
     else
       goto done;
 
+    ut_ad(lsn <= get_lsn());
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     /* We must wait to prevent the tail of the log overwriting the head. */

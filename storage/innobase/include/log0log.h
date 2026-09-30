@@ -94,11 +94,13 @@ static constexpr uint32_t LOG_BINLOG_ID_0= SRV_SPACE_ID_UPPER_BOUND;
 static constexpr uint32_t LOG_BINLOG_ID_1= SRV_SPACE_ID_UPPER_BOUND + 1;
 
 struct log_t;
+namespace { class InnoDB_backup; }
 
 /** File abstraction */
 class log_file_t
 {
   friend log_t;
+  friend InnoDB_backup;
   os_file_t m_file{OS_FILE_CLOSED};
 public:
   log_file_t()= default;
@@ -124,6 +126,7 @@ struct recv_warp;
 struct log_t
 {
   friend recv_warp;
+  friend InnoDB_backup;
   /** The maximum buf_size */
   static constexpr unsigned buf_size_max= os_file_request_size_max;
 
@@ -242,6 +245,9 @@ public:
 # endif
   /** whether file system caching is enabled for the log */
   my_bool log_buffered;
+#else
+  /** whether file system caching is enabled for the log */
+  static constexpr bool log_buffered{true};
 #endif
   /** whether each write to ib_logfile0 is durable (O_DSYNC) */
   my_bool log_write_through;
