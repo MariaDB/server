@@ -263,6 +263,7 @@ my $opt_debug_common;
 our $opt_debug_server;
 our @opt_cases;                  # The test cases names in argv
 our $opt_embedded_server;
+our $opt_embedded_launcher;      # MDEV-11111: embedded = private mariadbd process
 
 # Options used when connecting to an already running server
 my %opts_extern;
@@ -1169,6 +1170,7 @@ sub command_line_setup {
   my %options=(
              # Control what engine/variation to run
              'embedded-server'          => \$opt_embedded_server,
+             'embedded-launcher'        => \$opt_embedded_launcher,
              'ps-protocol'              => \$opt_ps_protocol,
              'sp-protocol'              => \$opt_sp_protocol,
              'view-protocol'            => \$opt_view_protocol,
@@ -1608,6 +1610,7 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Embedded server flag
   # --------------------------------------------------------------------------
+  $opt_embedded_server= 1 if $opt_embedded_launcher;
   if ( $opt_embedded_server )
   {
     $opt_skip_ssl= 1;              # Turn off use of SSL
@@ -1948,7 +1951,7 @@ sub executable_setup () {
                                             "$bindir/libmysqld/examples/mysql_embedded");
 
   # Look for mysqltest executable
-  if ( $opt_embedded_server )
+  if ( $opt_embedded_server && !$opt_embedded_launcher )
   {
     $exe_mysqltest=
       mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mariadb-test-embedded",
@@ -1968,6 +1971,9 @@ sub executable_setup () {
       $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
     }
   }
+
+  # mysqltest starts the server itself, given --server-arg
+  $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir) if $opt_embedded_launcher;
 
 }
 
@@ -5952,6 +5958,8 @@ suite/rpl/t/rpl.rpl_invoked_features
 Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
+  embedded-launcher     Like embedded-server, but the server is a private
+                        mariadbd process started by mysqltest (MDEV-11111)
   ps-protocol           Use the binary protocol between client and server
   cursor-protocol       Use the cursor protocol between client and server
                         (implies --ps-protocol)

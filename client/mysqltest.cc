@@ -252,6 +252,10 @@ static const char *embedded_server_groups[]=
   NullS
 };
 
+#ifdef MARIADB_EMBEDDED_LAUNCHER
+#include "../libmysqld/launcher/embedded_launcher.h"
+#endif
+
 static int embedded_server_arg_count=0;
 static char *embedded_server_args[MAX_EMBEDDED_SERVER_ARGS];
 
@@ -13239,6 +13243,11 @@ int main(int argc, char **argv)
                      result_file_name ? result_file_name : ""));
   verbose_msg("Results saved in '%s'.", 
               result_file_name ? result_file_name : "");
+#ifdef MARIADB_EMBEDDED_LAUNCHER
+  /* MDEV-11111: --server-arg means "also run the server, privately" */
+  if (embedded_server_arg_count)
+    mariadb_embedded_register();
+#endif
   if (mysql_server_init(embedded_server_arg_count,
 			embedded_server_args,
 			(char**) embedded_server_groups))
