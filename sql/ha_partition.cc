@@ -405,6 +405,9 @@ void ha_partition::init_handler_variables()
   m_handler_status= handler_not_initialized;
   m_part_field_array= NULL;
   m_ordered_rec_buffer= NULL;
+  m_ordered_key_buffer= NULL;
+  m_handler_scan= false;
+  m_handler_reposition= false;
   m_top_entry= NO_CURRENT_PART_ID;
   m_rec_length= 0;
   m_last_part= 0;
@@ -5679,6 +5682,7 @@ bool ha_partition::init_record_priority_queue()
     ptr+= m_priority_queue_rec_len;
   }
   m_start_key.key= (const uchar*)ptr;
+  m_ordered_key_buffer= (uchar*) ptr;
 
   /* Initialize priority queue, initialized to reading forward. */
   int (*cmp_func)(void *, const void *, const void *);
@@ -5725,6 +5729,7 @@ void ha_partition::destroy_record_priority_queue()
     delete_queue(&m_queue);
     my_free(m_ordered_rec_buffer);
     m_ordered_rec_buffer= NULL;
+    m_ordered_key_buffer= NULL;
   }
   DBUG_VOID_RETURN;
 }
@@ -5759,6 +5764,7 @@ int ha_partition::index_init(uint inx, bool sorted)
   m_start_key.length= 0;
   m_ordered= sorted;
   m_ordered_scan_ongoing= FALSE;
+  m_handler_reposition= false;
   m_curr_key_info[0]= table->key_info+inx;
   if (pk_is_clustering_key(table->s->primary_key))
   {
@@ -6036,6 +6042,16 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
     DBUG_PRINT("info", ("have_start_key map %lu find_flag %u len %u",
                         m_start_key.keypart_map, m_start_key.flag, key_len));
     DBUG_ASSERT(key_len);
+    if (m_handler_scan && m_ordered_key_buffer)
+    {
+      /*
+        A HANDLER scan may continue in a later statement, when the key
+        buffer of the caller has been freed.
+      */
+      DBUG_ASSERT(key_len <= table_share->max_key_length);
+      memcpy(m_ordered_key_buffer, m_start_key.key, key_len);
+      m_start_key.key= m_ordered_key_buffer;
+    }
   }
   if (unlikely((error= partition_scan_set_up(buf, have_start_key))))
   {
@@ -6073,6 +6089,9 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
       the partition set created by the get_partition_set method.
     */
     error= handle_ordered_index_scan(buf, reverse_order);
+    m_handler_reposition= m_handler_scan &&
+      m_index_scan_type == partition_index_read &&
+      m_start_key.flag == HA_READ_KEY_EXACT;
   }
   DBUG_RETURN(error);
 }
@@ -6254,6 +6273,20 @@ int ha_partition::index_next(uchar * buf)
   */
   if (m_index_scan_type == partition_index_last)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  if (m_handler_reposition)
+  {
+    m_handler_reposition= false;
+    if (m_top_entry == NO_CURRENT_PART_ID)
+    {
+      /*
+        No partition has the key of the HANDLER read. Read the rows after
+        the key from all partitions.
+      */
+      m_start_key.flag= HA_READ_AFTER_KEY;
+      int error= handle_ordered_index_scan(buf, FALSE);
+      DBUG_RETURN(error == HA_ERR_KEY_NOT_FOUND ? HA_ERR_END_OF_FILE : error);
+    }
+  }
   if (!m_ordered_scan_ongoing)
   {
     DBUG_RETURN(handle_unordered_next(buf, FALSE));
@@ -6288,6 +6321,7 @@ int ha_partition::index_next_same(uchar *buf, const uchar *key, uint keylen)
   DBUG_ASSERT(keylen == m_start_key.length);
   if (m_index_scan_type == partition_index_last)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  m_handler_reposition= false;
   if (!m_ordered_scan_ongoing)
     DBUG_RETURN(handle_unordered_next(buf, TRUE));
   DBUG_RETURN(handle_ordered_next(buf, TRUE));
@@ -6333,6 +6367,17 @@ int ha_partition::index_prev(uchar * buf)
   /* TODO: read comment in index_next */
   if (m_index_scan_type == partition_index_first)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  if (m_handler_reposition)
+  {
+    /*
+      The queue was set up for reading forward from the key of the HANDLER
+      read. Read the rows before the key from all partitions instead.
+    */
+    m_handler_reposition= false;
+    m_start_key.flag= HA_READ_BEFORE_KEY;
+    int error= handle_ordered_index_scan(buf, TRUE);
+    DBUG_RETURN(error == HA_ERR_KEY_NOT_FOUND ? HA_ERR_END_OF_FILE : error);
+  }
   DBUG_RETURN(handle_ordered_prev(buf));
 }
 
@@ -7460,7 +7505,11 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
 {
   DBUG_ENTER("ha_partition::partition_scan_set_up");
 
-  if (idx_read_flag)
+  /*
+    A HANDLER scan may continue with index_next() or index_prev() through
+    the whole index, so do not limit it to the partitions of the key.
+  */
+  if (idx_read_flag && !m_handler_scan)
     get_partition_set(table, buf, active_index, &m_start_key, &m_part_spec);
   else
   {
@@ -7484,7 +7533,8 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     */
     DBUG_PRINT("info", ("index scan using the single partition %u",
 			(uint) m_part_spec.start_part));
-    m_ordered_scan_ongoing= FALSE;
+    /* HANDLER may continue with index_prev(), which needs an ordered scan */
+    m_ordered_scan_ongoing= m_handler_scan && m_ordered;
   }
   else
   {
@@ -9543,6 +9593,8 @@ int ha_partition::reset(void)
   }
   bitmap_clear_all(&m_partitions_to_reset);
   m_extra_prepare_for_update= FALSE;
+  /* Set again by init_table_handle_for_HANDLER() for every HANDLER READ */
+  m_handler_scan= false;
   DBUG_RETURN(result);
 }
 
@@ -11208,7 +11260,7 @@ void ha_partition::init_table_handle_for_HANDLER()
   {
     (*file)->init_table_handle_for_HANDLER();
   } while (*(++file));
-  return;
+  m_handler_scan= true;
 }
 
 

@@ -312,6 +312,8 @@ private:
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
+  /* Key buffer in m_ordered_rec_buffer, holding a copy of a HANDLER key */
+  uchar *m_ordered_key_buffer;
   st_partition_ft_info *ft_first;
   st_partition_ft_info *ft_current;
   /*
@@ -376,6 +378,13 @@ private:
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
+  /* Used by HANDLER, see init_table_handle_for_HANDLER() */
+  bool m_handler_scan;
+  /*
+    A HANDLER index read with HA_READ_KEY_EXACT was done, and the following
+    index_next() or index_prev() must position all partitions anew
+  */
+  bool m_handler_reposition;
   bool m_rnd_init_and_first;
   bool m_ft_init_and_first;
 
