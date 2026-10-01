@@ -10,8 +10,8 @@ let HS_SECRET=`select @@handlersocket_plain_secret`;
 let HS_PORT=`select @@handlersocket_port`;
 
 --query_vertical select plugin_name, plugin_version, plugin_status, plugin_type, plugin_library, plugin_library_version, plugin_author, plugin_description, plugin_license, plugin_maturity, plugin_auth_version from information_schema.plugins where plugin_name = 'handlersocket'
---replace_result $HS_SECRET HS_SECRET $HS_PORT HS_PORT
-select * from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
+--replace_result $HS_PORT HS_PORT
+select variable_name, if(variable_name like 'handlersocket_plain_secret%', 'HS_SECRET', variable_value) as variable_value from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
 select length(@@handlersocket_plain_secret), @@handlersocket_plain_secret = @@handlersocket_plain_secret_wr;
 
 create table t1 (id int primary key, name varchar(100)) engine=innodb;
