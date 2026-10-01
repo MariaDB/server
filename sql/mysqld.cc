@@ -6030,6 +6030,42 @@ const char *opt_embedded_lifeline;
 */
 ulong opt_embedded_client_pid;
 
+/*
+  The option groups that the embedded server reads, a list separated by
+  commas. Only to have the option known: it is used before the options are
+  parsed, see set_embedded_default_groups().
+*/
+static const char *opt_embedded_defaults_groups;
+
+/*
+  Embedded server (MDEV-11111): the application asks for the option groups
+  to read, mysql_server_init(argc, argv, groups), as it always could; by
+  default "server" and "embedded", and not those of a server. The groups
+  are in --embedded-defaults-groups=a,b,c, and must be set before the
+  defaults are loaded, also those that plugins load later.
+*/
+static void set_embedded_default_groups(int argc, char **argv)
+{
+  static const char prefix[]= "--embedded-defaults-groups=";
+  static char groups_buf[512];
+  for (int i= 1; i < argc; i++)
+  {
+    uint n= 0;
+    char *p;
+    if (strncmp(argv[i], prefix, sizeof(prefix) - 1))
+      continue;
+    /* static: it is used until the end, and is not a leak for the checks */
+    strmake(groups_buf, argv[i] + sizeof(prefix) - 1, sizeof(groups_buf) - 1);
+    for (p= strtok(groups_buf, ",");
+         p && n < array_elements(load_default_groups) - 1;
+         p= strtok(NULL, ","))
+      load_default_groups[n++]= p;
+    while (n < array_elements(load_default_groups))
+      load_default_groups[n++]= 0;
+    return;
+  }
+}
+
 #ifdef __linux__
 static bool embedded_peer_allowed(MYSQL_SOCKET s)
 {
@@ -6132,6 +6168,7 @@ int mysqld_main(int argc, char **argv)
   orig_argc= argc;
   orig_argv= argv;
   my_defaults_mark_files= TRUE;
+  set_embedded_default_groups(argc, argv);
   load_defaults_or_exit(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv);
   defaults_argv= argv;
   remaining_argc= argc;
@@ -6987,6 +7024,11 @@ struct my_option my_long_options[]=
   {"bootstrap", OPT_BOOTSTRAP, "Used by MariaDB installation scripts", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
+  {"embedded-defaults-groups", OPT_EMBEDDED_DEFAULTS_GROUPS,
+   "Used by the embedded server launcher. The option groups to read, instead "
+   "of those of a server, separated by commas",
+   &opt_embedded_defaults_groups, &opt_embedded_defaults_groups, 0, GET_STR,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"embedded-client-pid", OPT_EMBEDDED_CLIENT_PID,
    "Used by the embedded server launcher. The only process that may connect",
    &opt_embedded_client_pid, &opt_embedded_client_pid, 0, GET_ULONG,

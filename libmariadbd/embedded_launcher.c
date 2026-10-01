@@ -183,11 +183,12 @@ static const char *server_binary(void)
 }
 
 /* Server arguments: fixed embedded ones + whatever the application passed */
-static char **build_args(int argc, char **argv, const char *lifeline,
+static char **build_args(int argc, char **argv, char **groups,
+                         const char *lifeline,
                          int *count)
 {
   int i, n= 0;
-  char **a= calloc(argc + 9, sizeof(char *));
+  char **a= calloc(argc + 10, sizeof(char *));
   char buf[600];
   if (!a)
     return NULL;
@@ -204,6 +205,30 @@ static char **build_args(int argc, char **argv, const char *lifeline,
 #endif
   snprintf(buf, sizeof(buf), "--embedded-lifeline=%s", lifeline);
   a[n++]= strdup(buf);
+  /*
+    The option groups to read: the ones of the application, as it always
+    could give with mysql_server_init(), by default "server" and "embedded",
+    and not the ones of a server. An option of the application wins.
+  */
+  for (i= 1; i < argc; i++)
+    if (argv[i] && !strncmp(argv[i], "--embedded-defaults-groups=", 27))
+      break;
+  if (i >= argc)
+  {
+    char list[400]= "--embedded-defaults-groups=";
+    size_t len= strlen(list);
+    int g;
+    if (!groups || !groups[0])
+      snprintf(list + len, sizeof(list) - len, "server,embedded");
+    else
+      for (g= 0; groups[g]; g++)
+      {
+        len= strlen(list);
+        snprintf(list + len, sizeof(list) - len, "%s%s", g ? "," : "",
+                 groups[g]);
+      }
+    a[n++]= strdup(list);
+  }
   /* the server accepts connections from this process only */
 #ifdef _WIN32
   snprintf(buf, sizeof(buf), "--embedded-client-pid=%lu",
@@ -308,7 +333,6 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   int nargs, i, timeout, rc= 1;
   ULONGLONG deadline;
 
-  (void) groups;
   if (running)
     return fail("embedded server is already started");
 
@@ -325,7 +349,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
 
   snprintf(lifeline, sizeof(lifeline), "%llu",
            (unsigned long long) (ULONG_PTR) rd);
-  if (!(args= build_args(argc, argv, lifeline, &nargs)))
+  if (!(args= build_args(argc, argv, groups, lifeline, &nargs)))
     goto end;
 
   cmd_size= 1;
@@ -578,7 +602,6 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   struct sockaddr_un sa;
 #endif
 
-  (void) groups;
   if (running)
     return fail("embedded server is already started");
 
@@ -629,7 +652,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   fcntl(fds[1], F_SETFD, FD_CLOEXEC); /* write end stays with us */
 
   snprintf(lifeline, sizeof(lifeline), "%d", fds[0]);
-  if (!(args= build_args(argc, argv, lifeline, &nargs)))
+  if (!(args= build_args(argc, argv, groups, lifeline, &nargs)))
     goto err;
 
   /* posix_spawn, not fork+exec: safe to call from a multithreaded host */

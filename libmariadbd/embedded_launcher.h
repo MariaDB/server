@@ -35,7 +35,10 @@ extern "C" {
   Start the server and wait until it accepts connections.
 
   argv[0] is ignored (mysql_server_init convention), argv[1..argc-1] are
-  passed to the server as-is. groups is currently unused.
+  passed to the server as-is. groups is a NULL-terminated list of the option
+  groups that the server reads from option files, as for the embedded library
+  that this replaces; NULL means "server" and "embedded". The groups of a
+  server (such as [mysqld]) are not read, unless they are in the list.
 
   The server executable is taken from $MARIADB_EMBEDDED_SERVER, else
   "mariadbd" is looked up in PATH. $MARIADB_EMBEDDED_TIMEOUT (seconds,

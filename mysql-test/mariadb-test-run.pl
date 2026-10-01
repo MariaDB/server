@@ -4677,6 +4677,10 @@ sub start_check_warnings ($$) {
     splice(@$mysqld_args, 1, 0,
            "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
+    # the private server reads the groups of a server here, as the test
+    # configuration is written for one (the default is [server] and [embedded])
+    mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
+                "mysqld,server,mariadb,mariadbd,client-server");
   }
 
   my $errfile= "$opt_vardir/tmp/$name.err";
@@ -5791,6 +5795,10 @@ sub start_mysqltest ($) {
     splice(@$mysqld_args, 1, 0,
            "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
+    # the private server reads the groups of a server here, as the test
+    # configuration is written for one (the default is [server] and [embedded])
+    mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
+                "mysqld,server,mariadb,mariadbd,client-server");
   }
 
   # ----------------------------------------------------------------------
