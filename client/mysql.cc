@@ -57,6 +57,9 @@ static char *server_version= NULL;
 /* Array of options to pass to libemysqld */
 #define MAX_SERVER_ARGS               64
 
+/* --server-arg starts a private server (MDEV-11111) */
+#include "../libmariadbd/embedded_launcher.h"
+
 #include "sql_string.h"
 #include "client_metadata.h"
 
@@ -1382,6 +1385,8 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+  if (embedded_server_arg_count)
+    mariadb_embedded_register();
   if (mysql_server_init(embedded_server_arg_count, embedded_server_args, 
                         (char**) embedded_server_groups))
   {
@@ -1390,8 +1395,24 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+  if (mariadb_embedded_socket())
+  {
+    /* Whatever the option files say, connect to the server we have started */
+    my_free(opt_mysql_unix_port);
+    opt_mysql_unix_port= my_strdup(PSI_NOT_INSTRUMENTED,
+                                   mariadb_embedded_socket(), MYF(MY_WME));
+    opt_mysql_port= 0;
+    opt_protocol= 0;
+    my_free(current_host);
+#ifdef _WIN32
+    current_host= my_strdup(PSI_NOT_INSTRUMENTED, ".", MYF(MY_WME));
+#else
+    current_host= NULL;
+#endif
+  }
   sf_leaking_memory= 0;
   glob_buffer.realloc(512);
+
   completion_hash_init(&ht, 128);
   init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
 
@@ -1952,7 +1973,7 @@ static struct my_option my_long_options[] =
   {"select-limit", 0,
    "Automatic limit for SELECT when using --safe-updates.", &select_limit,
    &select_limit, 0, GET_ULONG, REQUIRED_ARG, 1000L, 1, ULONG_MAX, 0, 1, 0},
-  {"server-arg", OPT_SERVER_ARG, "Send embedded server this as a parameter.",
+  {"server-arg", OPT_SERVER_ARG, "Start a private server (mariadbd) with this as a parameter, and connect to it. Can be given many times.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"show-query-costs", 0, "Show query cost after every statement.",
     &show_query_cost, &show_query_cost, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -2089,7 +2110,22 @@ get_one_option(const struct my_option *opt, const char *argument,
       exit(1);
     break;
   case OPT_SERVER_ARG:
-    printf("WARNING: --server-arg option not supported in this configuration.\n");
+    /*
+      Start a private server (mariadbd) and connect to it. The arguments are
+      passed to the server, so it can find its data directory and so on.
+    */
+    if (!embedded_server_arg_count)
+    {
+      embedded_server_arg_count= 1;
+      embedded_server_args[0]= (char*) "";
+    }
+    if (embedded_server_arg_count == MAX_SERVER_ARGS-1 ||
+        !(embedded_server_args[embedded_server_arg_count++]=
+          my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE))))
+    {
+        put_info("Can't use server argument", INFO_ERROR);
+        return 0;
+    }
     break;
   case OPT_COMPATIBILTY_CLEARTEXT_PLUGIN:
     /*

@@ -38,7 +38,7 @@ SET(CLIENT_LIB mariadbclient mysys)
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb completion_hash.cc mysql.cc readline.cc
                            ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
-TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB})
+TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB} mariadb_embedded_launcher)
 IF(UNIX)
   TARGET_LINK_LIBRARIES(mariadb ${MY_READLINE_LIBRARY})
   SET_TARGET_PROPERTIES(mariadb PROPERTIES ENABLE_EXPORTS TRUE)
