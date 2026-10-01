@@ -8273,7 +8273,7 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
   {
     /* Update m_top_entry, which may have changed. */
     uchar *key_buffer= queue_top(&m_queue);
-    m_top_entry= uint2korr(key_buffer);
+    m_top_entry= uint2korr(key_buffer + ORDERED_PART_NUM_OFFSET);
   }
   DBUG_RETURN(0);
 }
