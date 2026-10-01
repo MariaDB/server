@@ -4242,6 +4242,37 @@ static bool is_simple_is_query(THD *thd)
     }
   }
   /*
+    ANALYZE SELECT also executes the query, then sends EXPLAIN via a
+    second result set. Streaming + my_eof() here races that.
+  */
+  if (thd->lex->analyze_stmt)
+  {
+    DBUG_PRINT("info", ("ANALYZE statement, using fallback path"));
+    return false;
+  }
+  /*
+    INTO OUTFILE / DUMPFILE / @var need the interceptor result sink,
+    not the client protocol.
+  */
+  if (thd->lex->exchange ||
+      (thd->lex->result && thd->lex->result->result_interceptor()))
+  {
+    DBUG_PRINT("info", ("result interceptor, using fallback path"));
+    return false;
+  }
+  /* PROCEDURE ANALYSE() rewrites the result set. */
+  if (thd->lex->proc_list.elements)
+  {
+    DBUG_PRINT("info", ("PROCEDURE ANALYSE, using fallback path"));
+    return false;
+  }
+  /* SQL_BUFFER_RESULT materializes into a tmp table first. */
+  if (sel->options & OPTION_BUFFER_RESULT)
+  {
+    DBUG_PRINT("info", ("SQL_BUFFER_RESULT, using fallback path"));
+    return false;
+  }
+  /*
     Only allow no LIMIT, or LIMIT 1 exactly. Any other explicit LIMIT n
     is rejected until a general LIMIT implementation is validated.
     Implicit @@sql_select_limit is applied later via plan->max_rows.
@@ -10234,8 +10265,15 @@ bool get_schema_tables_result(JOIN *join,
                            !thd->bootstrap && !thd->spcont &&
                            !is_show_command(thd) &&
                            join->result &&
+                           !join->result->result_interceptor() &&
+                           !thd->lex->analyze_stmt &&
+                           !thd->lex->exchange &&
+                           !thd->lex->proc_list.elements &&
+                           !thd->is_cursor_execution() &&
                            thd->lex->sql_command == SQLCOM_SELECT &&
-                           !(join->select_options & SELECT_DESCRIBE) &&
+                           !(join->select_options &
+                             (SELECT_DESCRIBE | OPTION_BUFFER_RESULT)) &&
+                           thd->protocol->type() != Protocol::PROTOCOL_DISCARD &&
                            join->table_count == 1 &&
                            thd->lex->query_tables == table_list &&
                            !table_list->next_global &&

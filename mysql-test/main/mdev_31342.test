@@ -303,6 +303,15 @@ EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
 
 --echo #
+--echo # MDEV-41164: SELECT INTO OUTFILE must use the fallback path
+--echo #
+--let $outfile= $MYSQLTEST_VARDIR/tmp/mdev_31342_outfile.txt
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval SELECT TABLE_NAME INTO OUTFILE '$outfile' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user'
+--cat_file $outfile
+--remove_file $outfile
+
+--echo #
 --echo # MDEV-41167: LIMIT 1 must stop after a matching row, not the first scan
 --echo #
 CREATE DATABASE mdev41167;
