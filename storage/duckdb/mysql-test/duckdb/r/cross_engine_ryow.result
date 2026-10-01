@@ -66,9 +66,54 @@ score
 ROLLBACK;
 DROP TABLE t_inno_big;
 
+# (5) RYOW falls back for implicit system-versioning columns
+
+CREATE TABLE t_versioned (id INT PRIMARY KEY, score INT)
+ENGINE=InnoDB WITH SYSTEM VERSIONING;
+INSERT INTO t_versioned VALUES (1, 10);
+SET SESSION duckdb_cross_engine_ryow=1;
+SELECT d.id, i.score FROM t_duck d JOIN t_versioned i ON d.id=i.id;
+ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+
+# (6) A trailing invisible column is supported only without RYOW
+
+CREATE TABLE t_trailing_invisible (
+id INT PRIMARY KEY,
+score INT,
+hidden INT INVISIBLE
+) ENGINE=InnoDB;
+INSERT INTO t_trailing_invisible (id, score, hidden) VALUES (1, 10, 100);
+SET SESSION duckdb_cross_engine_ryow=0;
+SELECT d.id, i.score
+FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+id	score
+1	10
+SET SESSION duckdb_cross_engine_ryow=1;
+SELECT d.id, i.score
+FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+SELECT d.id, i.hidden
+FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+
+# (7) A non-trailing invisible column always uses handler fallback
+
+CREATE TABLE t_nontrailing_invisible (
+id INT PRIMARY KEY,
+hidden INT INVISIBLE,
+score INT
+) ENGINE=InnoDB;
+INSERT INTO t_nontrailing_invisible (id, hidden, score) VALUES (1, 100, 10);
+SELECT d.id, i.score
+FROM t_duck d JOIN t_nontrailing_invisible i ON d.id=i.id;
+ERROR HY000: Storage engine DUCKDB of the table `cross_engine_ryow`.`t_duck` doesn't have this option
+
 # Cleanup
 
 SET SESSION duckdb_cross_engine_ryow=DEFAULT;
 DROP TABLE t_duck;
 DROP TABLE t_inno;
+DROP TABLE t_versioned;
+DROP TABLE t_trailing_invisible;
+DROP TABLE t_nontrailing_invisible;
 DROP DATABASE cross_engine_ryow;

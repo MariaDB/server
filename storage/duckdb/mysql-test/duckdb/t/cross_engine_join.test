@@ -121,6 +121,74 @@ SELECT d.id, d.val AS dval, i.val AS ival
   ORDER BY d.id;
 
 --echo
+--echo # (9) MDEV-40846: trailing system-versioning columns stay hidden
+--echo
+
+SET SESSION default_storage_engine=DuckDB;
+CREATE TABLE t_versioned (
+  c1 INT KEY,
+  c2 DEC(1,0) NOT NULL,
+  c3 SET('a','b','c','1'),
+  c4 INT(1) UNSIGNED NOT NULL,
+  KEY(c2)
+) ENGINE=MyISAM WITH SYSTEM VERSIONING;
+INSERT INTO t_versioned (c1, c2, c3, c4) VALUES (1, 0, 1, 0);
+CREATE TABLE t_default (c0 VARCHAR(1) BINARY, c1 FLOAT KEY, c2 FLOAT);
+
+WITH a AS (SELECT * FROM t_versioned),
+     b AS (SELECT * FROM t_versioned),
+     c AS (SELECT * FROM t_default)
+SELECT * FROM a JOIN b ON a.c2=b.c2 LEFT JOIN c ON b.c2=c.c2;
+SET SESSION default_storage_engine=DEFAULT;
+
+--echo
+--echo # (10) Explicit trailing invisible column uses MariaDB fallback
+--echo
+
+CREATE TABLE t_trailing_invisible (
+  id INT PRIMARY KEY,
+  hidden INT INVISIBLE
+) ENGINE=InnoDB;
+INSERT INTO t_trailing_invisible (id, hidden) VALUES (1, 10);
+--error ER_ILLEGAL_HA
+SELECT d.id, i.hidden
+  FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+
+--echo
+--echo # (11) Non-trailing invisible column uses MariaDB fallback
+--echo
+
+CREATE TABLE t_nontrailing_invisible (
+  id INT PRIMARY KEY,
+  hidden INT INVISIBLE,
+  val INT
+) ENGINE=InnoDB;
+INSERT INTO t_nontrailing_invisible (id, hidden, val) VALUES (1, 10, 100);
+--error ER_ILLEGAL_HA
+SELECT d.id, i.val
+  FROM t_duck d JOIN t_nontrailing_invisible i ON d.id=i.id;
+
+--echo
+--echo # (12) Explicit FOR SYSTEM_TIME uses MariaDB fallback
+--echo
+
+--error ER_ILLEGAL_HA
+SELECT d.id, i.c2
+  FROM t_duck d
+  JOIN t_versioned FOR SYSTEM_TIME ALL AS i ON d.id=i.c1;
+
+--echo
+--echo # (13) Invisible columns in window specifications use MariaDB fallback
+--echo
+
+--error ER_ILLEGAL_HA
+SELECT ROW_NUMBER() OVER (PARTITION BY i.hidden)
+  FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+--error ER_ILLEGAL_HA
+SELECT ROW_NUMBER() OVER (ORDER BY i.hidden)
+  FROM t_duck d JOIN t_trailing_invisible i ON d.id=i.id;
+
+--echo
 --echo # Cleanup
 --echo
 
@@ -130,4 +198,8 @@ DROP TABLE t_duck_types;
 DROP TABLE t_inno_types;
 DROP TABLE t_duck_null;
 DROP TABLE t_inno_null;
+DROP TABLE t_versioned;
+DROP TABLE t_default;
+DROP TABLE t_trailing_invisible;
+DROP TABLE t_nontrailing_invisible;
 DROP DATABASE cross_engine_join;

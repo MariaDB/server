@@ -57,8 +57,9 @@ Primary path for analytical queries. MariaDB hands the **entire SELECT** to Duck
 ```
 MariaDB parser
   → optimizer calls hton->create_select / hton->create_unit
-    → can_pushdown_to_duckdb(): at least one DuckDB table?
-      → creates ha_duckdb_select_handler
+    → factory eligibility checks in ha_duckdb_pushdown.cc
+      → requires at least one DuckDB table and supported query/table metadata
+        → creates ha_duckdb_select_handler
         → init_scan():
            1. Takes original SQL text from THD::query()
            2. Rewrites MariaDB-specific syntax for DuckDB:
@@ -74,11 +75,35 @@ MariaDB parser
         → end_scan(): releases result
 ```
 
-#### Single-SELECT pushdown eligibility
+#### Pushdown eligibility
 
-The single-SELECT handler declines pushdown when MariaDB marks the top-level
-`SELECT_LEX` with `UNCACHEABLE_SIDEEFFECT`. The regular handler path (`rnd_*`)
-is used instead. MariaDB sets this flag for:
+Both the single-SELECT and whole-unit factories in `ha_duckdb_pushdown.cc`
+decline pushdown for:
+
+- an explicit `FOR SYSTEM_TIME` clause, because DuckDB does not implement
+  MariaDB system-versioning syntax;
+- an explicit reference to an invisible column, including references in the
+  select list, `WHERE`, `HAVING`, `GROUP BY`, `ORDER BY`, join conditions, and
+  window `PARTITION BY` / `ORDER BY` specifications;
+- an external table where a visible column follows an invisible column, because
+  `_mdb_scan` can expose only a visible prefix while preserving MariaDB field
+  indexes;
+- any invisible column on an external table when
+  `duckdb_cross_engine_ryow=ON`; the direct handler scan bypasses the synthetic
+  MariaDB SELECT that handles hidden metadata and implicit conditions.
+
+With `duckdb_cross_engine_ryow=OFF`, trailing invisible columns are supported:
+`_mdb_scan` exposes only the visible prefix, while MariaDB applies implicit
+system-versioning conditions inside the synthetic external-table SELECT.
+Automatically generated system-versioning field references do not count as
+explicit references.
+
+Returning no select handler makes MariaDB use its regular execution path; that
+fallback can itself reject a mixed-engine plan if it requests an unsupported
+DuckDB handler operation.
+
+The single-SELECT factory additionally declines pushdown when MariaDB marks the
+top-level `SELECT_LEX` with `UNCACHEABLE_SIDEEFFECT`. MariaDB sets this flag for:
 
 - reads and assignments of user variables (`@var`, `@var := expr`);
 - reads of session or global system variables (`@@session.var`, `@@global.var`);
@@ -115,10 +140,14 @@ The fiber runs on the same OS thread as DuckDB. TLS (`current_thd`, `THR_KEY_mys
 
 #### Pushdown modes: `duckdb_cross_engine_ryow`
 
-The session variable `duckdb_cross_engine_ryow` (default `OFF`) selects, per
-query, how external (non-DuckDB) tables are read. The flag is captured once in
-`init_scan()` (`register_cross_engine_ryow()`), and the replacement scan then
-redirects to one of two table functions.
+For an eligible query, the session variable `duckdb_cross_engine_ryow`
+(default `OFF`) selects how external (non-DuckDB) tables are read. The flag is
+captured by `ha_duckdb_select_handler::init_scan()` in
+`ha_duckdb_pushdown.cc`, which calls `register_cross_engine_ryow()`; the
+replacement scan then redirects to one of two table functions. Eligibility is
+checked first: with RYOW enabled, an external table containing any invisible
+column makes the factory decline pushdown rather than select the direct table
+function.
 
 | Aspect | `duckdb_cross_engine_ryow = OFF` (default) | `duckdb_cross_engine_ryow = ON` |
 |---|---|---|

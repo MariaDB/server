@@ -21,6 +21,7 @@
 #include <my_global.h>
 #include "sql_class.h"
 #include "sql_select.h"
+#include "sql_window.h"
 #include "log.h"
 
 #undef UNKNOWN
@@ -35,6 +36,115 @@
 
 extern handlerton *duckdb_hton;
 
+class Invisible_field_enumerator : public Field_enumerator
+{
+public:
+  explicit Invisible_field_enumerator(THD *thd) : m_thd(thd) {}
+
+  void visit_field(Item_field *item) override
+  {
+    if (m_found || !item->field || item->field->invisible == VISIBLE ||
+        is_implicit_versioning_field(item))
+      return;
+    m_found= true;
+  }
+
+  bool found() const { return m_found; }
+
+private:
+  bool is_implicit_versioning_field(Item_field *item) const
+  {
+    for (TABLE_LIST *tbl= m_thd->lex->query_tables; tbl;
+         tbl= tbl->next_global)
+    {
+      if (item == tbl->vers_conditions.field_start ||
+          item == tbl->vers_conditions.field_end)
+        return true;
+    }
+    return false;
+  }
+
+  THD *m_thd;
+  bool m_found= false;
+};
+
+static void inspect_item_for_invisible_fields(
+    Item *item, Invisible_field_enumerator &enumerator)
+{
+  if (item && !enumerator.found())
+    item->walk(&Item::enumerate_field_refs_processor, false, &enumerator);
+}
+
+static bool query_references_invisible_fields(THD *thd)
+{
+  Invisible_field_enumerator enumerator(thd);
+
+  for (SELECT_LEX *sl= thd->lex->all_selects_list; sl && !enumerator.found();
+       sl= sl->next_select_in_list())
+  {
+    List_iterator_fast<Item> items(sl->item_list);
+    Item *item;
+    while ((item= items++))
+      inspect_item_for_invisible_fields(item, enumerator);
+
+    inspect_item_for_invisible_fields(sl->where, enumerator);
+    inspect_item_for_invisible_fields(sl->having, enumerator);
+
+    for (ORDER *order= sl->group_list.first; order; order= order->next)
+      inspect_item_for_invisible_fields(*order->item, enumerator);
+    for (ORDER *order= sl->order_list.first; order; order= order->next)
+      inspect_item_for_invisible_fields(*order->item, enumerator);
+
+    List_iterator_fast<Window_spec> windows(sl->window_specs);
+    Window_spec *window;
+    while ((window= windows++))
+    {
+      for (ORDER *order= window->partition_list->first; order;
+           order= order->next)
+        inspect_item_for_invisible_fields(*order->item, enumerator);
+      for (ORDER *order= window->order_list->first; order;
+           order= order->next)
+        inspect_item_for_invisible_fields(*order->item, enumerator);
+    }
+
+    for (TABLE_LIST *tbl= sl->get_table_list(); tbl; tbl= tbl->next_local)
+      inspect_item_for_invisible_fields(tbl->on_expr, enumerator);
+  }
+
+  return enumerator.found();
+}
+
+static bool query_has_explicit_system_time(THD *thd)
+{
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+    if (tbl->vers_conditions.was_set())
+      return true;
+  return false;
+}
+
+static bool has_supported_field_layout(TABLE *table,
+                                       bool allow_trailing_invisible)
+{
+  bool found_invisible= false;
+
+  for (Field **field= table->field; *field; field++)
+  {
+    if ((*field)->invisible == VISIBLE)
+    {
+      if (found_invisible)
+        return false;
+    }
+    else
+    {
+      if (!allow_trailing_invisible)
+        return false;
+      found_invisible= true;
+    }
+  }
+
+  return true;
+}
+
 /**
   Check whether a SELECT_LEX can be pushed down to DuckDB.
 
@@ -45,7 +155,8 @@ extern handlerton *duckdb_hton;
 
 static bool can_pushdown_to_duckdb(SELECT_LEX *sel_lex,
                                    std::vector<std::string> &external_tables,
-                                   bool &has_duckdb_table)
+                                   bool &has_duckdb_table,
+                                   bool allow_trailing_invisible)
 {
   for (TABLE_LIST *tbl= sel_lex->get_table_list(); tbl; tbl= tbl->next_global)
   {
@@ -55,7 +166,12 @@ static bool can_pushdown_to_duckdb(SELECT_LEX *sel_lex,
     if (tbl->table->file->ht == duckdb_hton)
       has_duckdb_table= true;
     else
+    {
+      if (!has_supported_field_layout(tbl->table,
+                                      allow_trailing_invisible))
+        return false;
       external_tables.emplace_back(tbl->table_name.str);
+    }
   }
 
   return has_duckdb_table;
@@ -69,7 +185,8 @@ static bool can_pushdown_to_duckdb(SELECT_LEX *sel_lex,
 static bool
 can_pushdown_unit_to_duckdb(SELECT_LEX_UNIT *unit,
                             std::vector<std::string> &external_tables,
-                            bool &has_duckdb_table)
+                            bool &has_duckdb_table,
+                            bool allow_trailing_invisible)
 {
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
@@ -81,7 +198,12 @@ can_pushdown_unit_to_duckdb(SELECT_LEX_UNIT *unit,
       if (tbl->table->file->ht == duckdb_hton)
         has_duckdb_table= true;
       else
+      {
+        if (!has_supported_field_layout(tbl->table,
+                                        allow_trailing_invisible))
+          return false;
         external_tables.emplace_back(tbl->table_name.str);
+      }
     }
   }
 
@@ -212,7 +334,9 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
     return nullptr;
 
   if (!sel_lex || has_duckdb_insert_target(thd) ||
-      has_unsupported_insert_select_clauses(thd))
+      has_unsupported_insert_select_clauses(thd) ||
+      query_has_explicit_system_time(thd) ||
+      query_references_invisible_fields(thd))
     return nullptr;
 
   std::string query;
@@ -222,7 +346,8 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
   std::vector<std::string> external_tables;
   bool has_duckdb_table= false;
 
-  if (!can_pushdown_to_duckdb(sel_lex, external_tables, has_duckdb_table))
+  if (!can_pushdown_to_duckdb(sel_lex, external_tables, has_duckdb_table,
+                              !myduck::get_thd_cross_engine_ryow(thd)))
     return nullptr;
 
   /* At least one DuckDB table must participate */
@@ -252,7 +377,9 @@ select_handler *create_duckdb_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit)
   if ((thd->lex->sql_command != SQLCOM_SELECT &&
        thd->lex->sql_command != SQLCOM_INSERT_SELECT) ||
       has_duckdb_insert_target(thd) ||
-      has_unsupported_insert_select_clauses(thd))
+      has_unsupported_insert_select_clauses(thd) ||
+      query_has_explicit_system_time(thd) ||
+      query_references_invisible_fields(thd))
     return nullptr;
 
   if (thd->stmt_arena && thd->stmt_arena->is_stmt_prepare())
@@ -268,8 +395,9 @@ select_handler *create_duckdb_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit)
   std::vector<std::string> external_tables;
   bool has_duckdb_table= false;
 
-  if (!can_pushdown_unit_to_duckdb(sel_unit, external_tables,
-                                   has_duckdb_table))
+  if (!can_pushdown_unit_to_duckdb(
+          sel_unit, external_tables, has_duckdb_table,
+          !myduck::get_thd_cross_engine_ryow(thd)))
     return nullptr;
 
   if (!has_duckdb_table)
@@ -888,9 +1016,15 @@ int ha_duckdb_select_handler::next_row()
   for (Field **f= table->field; *f; f++)
     field_count++;
 
-  size_t ncols= (col_count < field_count) ? col_count : field_count;
+  if (col_count != field_count)
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR,
+             "DuckDB result column count does not match MariaDB metadata",
+             "DuckDB");
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  }
 
-  for (size_t col_idx= 0; col_idx < ncols; col_idx++)
+  for (size_t col_idx= 0; col_idx < col_count; col_idx++)
   {
     duckdb::Value value= current_chunk->GetValue(col_idx, current_row_index);
     Field *field= table->field[col_idx];

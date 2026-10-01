@@ -1,0 +1,14 @@
+# MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
+create table t (a int, b date, c date, period for app(b,c),
+unique idx(a, app without overlaps));
+set names latin1 collate latin1_general_cs;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+set names latin1 collate latin1_general_ci;
+select table_name from information_schema.periods where table_schema = 'TEST';
+table_name
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+table_name
+drop table t;

@@ -1,0 +1,91 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (id int not null primary key,f1 CHAR(255)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1,'node1_committed_at_start');
+INSERT INTO t1 VALUES (2,'node1_committed_at_start');
+INSERT INTO t1 VALUES (3,'node1_committed_at_start');
+INSERT INTO t1 VALUES (4,'node1_committed_at_start');
+INSERT INTO t1 VALUES (5,'node1_committed_at_start');
+COMMIT;
+connection node_2;
+connection node_3;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (6,'node2_committed_when_node3_down');
+INSERT INTO t1 VALUES (7,'node2_committed_when_node3_down');
+INSERT INTO t1 VALUES (8,'node2_committed_when_node3_down');
+INSERT INTO t1 VALUES (9,'node2_committed_when_node3_down');
+INSERT INTO t1 VALUES (10,'node2_committed_when_node3_down');
+COMMIT;
+connection node_3;
+# restart: --wsrep_sst_donor=node2
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) AS EXPECT_10 FROM t1;
+EXPECT_10
+10
+SELECT * from t1;
+id	f1
+1	node1_committed_at_start
+2	node1_committed_at_start
+3	node1_committed_at_start
+4	node1_committed_at_start
+5	node1_committed_at_start
+6	node2_committed_when_node3_down
+7	node2_committed_when_node3_down
+8	node2_committed_when_node3_down
+9	node2_committed_when_node3_down
+10	node2_committed_when_node3_down
+SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
+COUNT(*) = 0
+1
+connection node_2;
+connection node_3;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (11,'node2_committed_when_node2_down');
+INSERT INTO t1 VALUES (12,'node2_committed_when_node2_down');
+INSERT INTO t1 VALUES (13,'node2_committed_when_node2_down');
+INSERT INTO t1 VALUES (14,'node2_committed_when_node2_down');
+INSERT INTO t1 VALUES (15,'node2_committed_when_node2_down');
+COMMIT;
+connection node_2;
+# restart: --wsrep_sst_donor=node3
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) AS EXPECT_15 FROM t1;
+EXPECT_15
+15
+SELECT * from t1;
+id	f1
+1	node1_committed_at_start
+2	node1_committed_at_start
+3	node1_committed_at_start
+4	node1_committed_at_start
+5	node1_committed_at_start
+6	node2_committed_when_node3_down
+7	node2_committed_when_node3_down
+8	node2_committed_when_node3_down
+9	node2_committed_when_node3_down
+10	node2_committed_when_node3_down
+11	node2_committed_when_node2_down
+12	node2_committed_when_node2_down
+13	node2_committed_when_node2_down
+14	node2_committed_when_node2_down
+15	node2_committed_when_node2_down
+SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (10, 15)) AS a1;
+COUNT(*) = 0
+0
+connection node_1;
+DROP TABLE t1;
+COMMIT;

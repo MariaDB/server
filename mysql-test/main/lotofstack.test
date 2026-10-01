@@ -5,11 +5,15 @@
 # making writing tests that depend on reaching
 # the depth hard.
 #
-source include/not_asan.inc;
 source include/not_embedded.inc;
-source include/not_ubsan.inc;
 # MSAN with debug exceeds the stack early.
 source include/not_msan_with_debug.inc;
+if (`select count(*) from information_schema.system_variables
+     where variable_name='have_sanitizer'
+     and global_value REGEXP '(A|UB)SAN'`)
+{
+--skip Can't be run in UBSAN/ASAN (stack size predictability)
+}
 
 #
 # Bug#10100 function (and stored procedure?) recursivity problem

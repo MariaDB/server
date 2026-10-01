@@ -1,0 +1,9 @@
+reset master;
+create table t1 (a int);
+create table t2 (a int);
+drop table t1, t2;
+flush binary logs;
+drop table if exists t1, t2;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+flush binary logs;

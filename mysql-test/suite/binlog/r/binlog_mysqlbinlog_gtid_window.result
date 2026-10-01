@@ -208,7 +208,7 @@ FOUND 1 /ERROR: Binary logs are missing data for domain 0/ in err.out
 #   Error Case 3:
 #   A GTID --start-position with any sequence numbers that are not
 # eventually processed results in error
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > tmp_out_ 2> err_out_
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > tmp_out_ 2> err_out_
 FOUND 2 /ERROR: Binary logs never reached expected GTID state/ in err.out
 ######################################
 #      Test Group 2
@@ -440,7 +440,7 @@ FOUND 1 /ERROR: Got error reading packet from server/ in err.out
 #   Error Case 3:
 #   A GTID --start-position with any sequence numbers that are not
 # eventually processed results in error
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > tmp_out_ 2> err_out_
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > tmp_out_ 2> err_out_
 FOUND 1 /ERROR: Got error reading packet from server/ in err.out
 #
 # Remote-only cleanup from error cases

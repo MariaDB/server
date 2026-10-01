@@ -7,7 +7,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo #
 CREATE TABLE t1
 ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
-HTTP='http://jsonplaceholder.typicode.com/users';
+HTTP='http://Jsonplaceholder.typicode.com/users';
 SELECT * FROM t1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/users.json
@@ -18,6 +18,6 @@ DROP TABLE t1;
 --error ER_UNKNOWN_ERROR,ER_GET_ERRNO
 CREATE TABLE t1
 ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
-HTTP='http://jsonplaceholder.typicode.com/users" "-Dhead.log';
+HTTP='http://jSonplaceholder.typicode.com/users" "-Dhead.log';
 
 --echo # End of 10.6 tests
