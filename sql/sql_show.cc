@@ -4272,6 +4272,17 @@ static bool is_simple_is_query(THD *thd)
     return false;
   }
   /*
+    A subquery in WHERE is evaluated from schema_table_store_record()
+    while get_all_tables() may be using a temporary MEM_ROOT. Freeing
+    that root leaves the subquery JOIN dangling (MDEV-41240).
+  */
+  if (sel->first_inner_unit() ||
+      (sel->where && sel->where->with_subquery()))
+  {
+    DBUG_PRINT("info", ("subquery in I_S query, using fallback path"));
+    return false;
+  }
+  /*
     Only allow no LIMIT, or LIMIT 1 exactly. Any other explicit LIMIT n
     is rejected until a general LIMIT implementation is validated.
     Implicit @@sql_select_limit is applied later via plan->max_rows.
