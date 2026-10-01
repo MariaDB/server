@@ -919,3 +919,67 @@ information_schema.TABLES.TABLE_NAME	user	user	4	4	0	0	4.0000	NULL	ENUM('user') 
 # MDEV-41204: client cursor protocol uses fallback
 # (also covered by running this test with --cursor-protocol)
 #
+#
+# MDEV-41240: exact TABLE_NAME lookup plus a materialised subquery
+#
+CREATE DATABASE mdev41240;
+CREATE TABLE mdev41240.t1(a INT);
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41240' AND TABLE_NAME='t1'
+  AND TABLE_NAME IN (SELECT 't1' UNION SELECT 'x');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mdev41240' and information_schema.`TABLES`.`TABLE_NAME` = 't1' and <in_optimizer>(information_schema.`TABLES`.`TABLE_NAME`,<exists>(subquery#2))",
+          "skip_open_table": true,
+          "scanned_databases": 0
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41240' AND TABLE_NAME='t1'
+  AND TABLE_NAME IN (SELECT 't1' UNION SELECT 'x');
+TABLE_NAME
+t1
+DROP DATABASE mdev41240;
