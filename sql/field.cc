@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9365,6 +9365,13 @@ void Field_blob::sql_type(String &res) const
 {
   const char *str;
   uint length;
+
+  if (Type_handler_json_common::is_literal_json_field(this))
+  {
+    res.set_ascii(STRING_WITH_LEN("json"));
+    return;
+  }
+
   switch (packlength) {
   default: str="tiny"; length=4; break;
   case 2:  str="";     length=0; break;

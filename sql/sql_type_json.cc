@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2019, 2021 MariaDB
+   Copyright (c) 2019, 2026 MariaDB plc.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -114,6 +114,22 @@ bool Type_handler_json_common::has_json_valid_constraint(const Field *field)
          field->check_constraint->expr->type() == Item::FUNC_ITEM &&
          static_cast<const Item_func *>(field->check_constraint->expr)->
            functype() == Item_func::JSON_VALID_FUNC;
+}
+
+
+/*
+  Is this field exactly what the bare JSON_SYM keyword creates (see its
+  field_type_string rule in sql_yacc.yy): a long blob in utf8mb4_bin?
+  That's the only shape re-parsing the literal word "json" can reproduce --
+  a tiny/medium/short blob, a CHAR/VARCHAR, or a different charset that
+  also happens to carry a json_valid() check (e.g. from CREATE TABLE ...
+  SELECT) must keep printing its real type, or it would silently change
+  size/charset on dump and reload.
+*/
+bool Type_handler_json_common::is_literal_json_field(const Field *field)
+{
+  return field->type_handler() == &type_handler_long_blob_json &&
+         field->charset() == &my_charset_utf8mb4_bin;
 }
 
 

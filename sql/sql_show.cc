@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@
 #include "sql_connect.h"
 #include "sql_servers.h"
 #include "sql_repl.h"                       // rpl_load_gtid_state
+#include "sql_type_json.h"                  // Type_handler_json_common
 #include "rpl_mi.h"                         // master_info_index
 #include "authors.h"
 #include "contributors.h"
@@ -2365,7 +2366,13 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
-    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
+    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
+        /*
+          The JSON column-type keyword (printed by Field_blob::sql_type()
+          for an is_literal_json_field(), see field.cc) doesn't accept a
+          CHARACTER SET/COLLATE suffix -- it's always utf8mb4_bin.
+        */
+        !Type_handler_json_common::is_literal_json_field(field))
     {
       if (field->charset() != share->table_charset)
       {
@@ -2451,7 +2458,17 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
 
-    if (field->check_constraint)
+    /*
+      A json_valid(...) check on a field printed as "json" is implied by
+      the type itself (see Field_blob::sql_type() above) -- it's not a
+      separate, independently-droppable constraint the user added, it's
+      just how a JSON column gets rebuilt whenever it doesn't already
+      have one (see make_json_valid_expr_if_needed()), so printing it
+      explicitly would be redundant and would wrongly suggest it's not
+      implied by the column's own type.
+    */
+    if (field->check_constraint &&
+        !Type_handler_json_common::is_literal_json_field(field))
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       field->check_constraint->print(&str);

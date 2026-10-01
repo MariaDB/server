@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2023, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12290,6 +12290,17 @@ cast_type:
           {
             if (Lex->set_cast_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
+          }
+        | JSON_SYM
+          {
+            /*
+              JSON is not (yet) a real data type (see MDEV-38740, in
+              review) -- until it lands, CAST(... AS JSON) is just a
+              placeholder, equivalent to CAST(... AS LONGTEXT), with no
+              validation of its own.
+            */
+            $$.set(&type_handler_long_blob, Lex_length_and_dec_st(),
+                   &my_charset_utf8mb4_bin);
           }
         ;
 

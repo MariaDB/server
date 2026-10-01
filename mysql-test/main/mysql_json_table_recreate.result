@@ -192,7 +192,7 @@ create table t1(j json);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `j` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`j`))
+  `j` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1(j mysql_json);
@@ -208,7 +208,7 @@ create table `testjson` (
 show create table testjson;
 Table	Create Table
 testjson	CREATE TABLE `testjson` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`t`))
+  `t` json NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table testjson;
 create table `testjson` (
