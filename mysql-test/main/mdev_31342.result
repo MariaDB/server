@@ -799,6 +799,14 @@ EXPLAIN
 SELECT TABLE_NAME INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/mdev_31342_outfile.txt' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
 user
 #
+# MDEV-41165: ANALYZE SELECT must not assert / double-EOF
+#
+ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+SELECT 'analyze_ok' AS mdev_41165;
+mdev_41165
+analyze_ok
+#
 # MDEV-41167: LIMIT 1 must stop after a matching row, not the first scan
 #
 CREATE DATABASE mdev41167;
