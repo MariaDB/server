@@ -25,6 +25,7 @@ libmariadb.so.3 libmariadb3 #MINVER#
  mariadb_rpl_init_ex@libmariadb_3 3.3.0
  mariadb_rpl_open@libmariadb_3 3.1.0
  mariadb_rpl_optionsv@libmariadb_3 3.1.0
+ mariadb_set_embedded_hooks@libmariadb_3 3.4.10
  mariadb_stmt_execute_direct@libmariadb_3 3.0.0
  mariadb_stmt_fetch_fields@libmariadb_3 3.1.0
  mysql_affected_rows@libmariadbclient_18 3.0.0

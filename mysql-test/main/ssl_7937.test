@@ -2,6 +2,7 @@
 # MDEV-7937: Enforce SSL when --ssl client option is used
 #
 
+source include/not_embedded.inc;
 source include/have_ssl_crypto_functs.inc;
 
 # create a procedure instead of SHOW STATUS LIKE 'ssl_cipher'

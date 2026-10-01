@@ -317,6 +317,17 @@ The following specify which files/extra groups are read (specified before remain
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --embedded-client-pid=# 
+ Used by the embedded server launcher. The only process
+ that may connect
+ --embedded-defaults-groups=name 
+ Used by the embedded server launcher. The option groups
+ to read, instead of those of a server, separated by
+ commas
+ --embedded-lifeline=name 
+ Used by the embedded server launcher. Inherited pipe fd
+ (HANDLE on Windows) that the server watches; on EOF the
+ server shuts down
  --encrypt-binlog    Encrypt binary logs (including relay logs)
  --encrypt-tmp-disk-tables 
  Encrypt temporary on-disk tables (created as part of
@@ -1808,6 +1819,9 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 disconnect-on-expired-password FALSE
 div-precision-increment 4
+embedded-client-pid 0
+embedded-defaults-groups (No default value)
+embedded-lifeline (No default value)
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE

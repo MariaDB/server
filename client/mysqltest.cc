@@ -73,7 +73,7 @@ static my_bool non_blocking_api_enabled= 0;
 
 #define MAX_VAR_NAME_LENGTH    256
 #define MAX_COLUMNS            256
-#define MAX_EMBEDDED_SERVER_ARGS 64
+#define MAX_EMBEDDED_SERVER_ARGS 256
 #define MAX_DELIMITER_LENGTH 16
 #define DEFAULT_MAX_CONN        64
 

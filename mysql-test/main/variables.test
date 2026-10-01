@@ -1089,9 +1089,12 @@ SET @@session.skip_external_locking= true;
 SET @@global.skip_external_locking= true;
 #
 --echo #
+# The private server of an embedded run has no network listener
+--replace_result ON OFF
 SHOW VARIABLES like 'skip_networking';
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.skip_networking;
+--replace_result 1 0
 SELECT @@global.skip_networking;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET @@session.skip_networking= true;

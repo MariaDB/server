@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --source include/not_aix.inc
 --require include/have_pool_of_threads.require
 disable_query_log;
