@@ -36,13 +36,20 @@ IF(TARGET mariadb_obj AND TARGET mariadbclient)
     ADD_LIBRARY(libmariadbd SHARED $<TARGET_OBJECTS:mariadb_obj>
                 embedded_launcher.c embedded_glue.c)
     SET_TARGET_PROPERTIES(libmariadbd PROPERTIES
-      LINK_FLAGS "${MARIADB_CLIENT_EXPORTS}"
       COMPILE_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+    # Same export list as libmariadb uses, where its linker takes one
+    IF(CMAKE_SYSTEM_NAME MATCHES "Linux" OR
+       CMAKE_SYSTEM_NAME MATCHES "kFreeBSD" OR
+       CMAKE_SYSTEM_NAME MATCHES "GNU")
+      SET_TARGET_PROPERTIES(libmariadbd PROPERTIES
+        LINK_FLAGS "${MARIADB_CLIENT_EXPORTS}")
+    ENDIF()
   ENDIF()
   SET_TARGET_PROPERTIES(libmariadbd PROPERTIES PREFIX ""
     COMPILE_DEFINITIONS MARIADB_EMBEDDED_AUTOREGISTER)
   TARGET_LINK_LIBRARIES(libmariadbd LINK_PRIVATE
-    $<TARGET_PROPERTY:mariadbclient,LINK_LIBRARIES> ${CMAKE_DL_LIBS})
+    $<TARGET_GENEX_EVAL:mariadbclient,$<TARGET_PROPERTY:mariadbclient,LINK_LIBRARIES>>
+    ${CMAKE_DL_LIBS})
 
   IF(UNIX)
     # Same API as the client library, hence the same version

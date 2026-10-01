@@ -4681,6 +4681,8 @@ sub start_check_warnings ($$) {
     # configuration is written for one (the default is [server] and [embedded])
     mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
                 "mysqld,server,mariadb,mariadbd,client-server");
+    # the old embedded server had no TLS; keep the SSL tests skipped
+    mtr_add_arg($args, "--server-arg=--skip-ssl");
   }
 
   my $errfile= "$opt_vardir/tmp/$name.err";
@@ -5799,6 +5801,8 @@ sub start_mysqltest ($) {
     # configuration is written for one (the default is [server] and [embedded])
     mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
                 "mysqld,server,mariadb,mariadbd,client-server");
+    # the old embedded server had no TLS; keep the SSL tests skipped
+    mtr_add_arg($args, "--server-arg=--skip-ssl");
   }
 
   # ----------------------------------------------------------------------

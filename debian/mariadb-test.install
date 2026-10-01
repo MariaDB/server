@@ -2,7 +2,6 @@ usr/bin/mariadb-client-test
 usr/bin/mariadb-test
 usr/bin/mysql_client_test
 usr/bin/mysqltest
-usr/bin/test-connect-t
 usr/lib/*/libmariadb3/plugin/auth_test_plugin.so
 usr/lib/*/libmariadb3/plugin/qa_auth_client.so
 usr/lib/*/libmariadb3/plugin/qa_auth_interface.so
