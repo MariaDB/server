@@ -4283,6 +4283,16 @@ static bool is_simple_is_query(THD *thd)
     return false;
   }
   /*
+    A stored function can create tables or otherwise change THD open
+    table state. get_all_tables() then fails
+    restore_backup_open_tables_state() (MDEV-41241).
+  */
+  if (thd->lex->uses_stored_routines())
+  {
+    DBUG_PRINT("info", ("stored routine, using fallback path"));
+    return false;
+  }
+  /*
     Only allow no LIMIT, or LIMIT 1 exactly. Any other explicit LIMIT n
     is rejected until a general LIMIT implementation is validated.
     Implicit @@sql_select_limit is applied later via plan->max_rows.
