@@ -794,6 +794,11 @@ EXPLAIN
   }
 }
 #
+# MDEV-41164: SELECT INTO OUTFILE must use the fallback path
+#
+SELECT TABLE_NAME INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/mdev_31342_outfile.txt' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+user
+#
 # MDEV-41167: LIMIT 1 must stop after a matching row, not the first scan
 #
 CREATE DATABASE mdev41167;
