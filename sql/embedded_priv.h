@@ -1,4 +1,5 @@
 /* Copyright (c) 2001, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,21 +14,20 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/* Prototypes for the embedded version of MySQL */
+/*
+  Result data of a connection that is served by the same process, as in
+  Protocol_local (sql_prepare.cc), which is behind the SQL service.
+
+  The name is historical: it came from the embedded server library
+  that does not exist any more (MDEV-11111), whose "embedded" connections
+  were of this kind.
+*/
 
 #include <sql_common.h>
 
 C_MODE_START
-void lib_connection_phase(NET *net, int phase);
-void init_embedded_mysql(MYSQL *mysql, ulong client_flag);
-void *create_embedded_thd(ulong client_flag);
-int check_embedded_connection(MYSQL *mysql, const char *db);
-void free_old_query(MYSQL *mysql);
-THD *embedded_get_current_thd();
-void embedded_set_current_thd(THD *thd);
-extern MYSQL_METHODS embedded_methods;
 
-/* This one is used by embedded library to gather returning data */
+/* Collects the data that the server returns to such a connection */
 typedef struct embedded_query_result
 {
   MYSQL_ROWS **prev_ptr;
@@ -45,6 +45,5 @@ typedef struct st_mariadb_field_extension
 {
   MARIADB_CONST_STRING metadata[MARIADB_FIELD_ATTR_LAST+1]; /* 10.5 */
 } MARIADB_FIELD_EXTENSION;
-
 
 C_MODE_END

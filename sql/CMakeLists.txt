@@ -15,7 +15,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 
-IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
+IF(WITH_WSREP)
   SET(WSREP_SOURCES
     wsrep_client_service.cc
     wsrep_high_priority_service.cc
@@ -39,8 +39,8 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
     )
-  MYSQL_ADD_PLUGIN(wsrep_provider ${WSREP_SOURCES} DEFAULT NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
-  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
+  MYSQL_ADD_PLUGIN(wsrep_provider ${WSREP_SOURCES} DEFAULT LINK_LIBRARIES wsrep-lib wsrep_api_v26)
+  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   IF(VISIBILITY_HIDDEN_FLAG AND TARGET wsrep)
     # wsrep_info plugin needs some wsrep symbols from inside mysqld
     # we have to remove -fvisibility=hidden from wsrep
@@ -236,7 +236,7 @@ IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_common.cc)
- MYSQL_ADD_PLUGIN(thread_pool_info thread_pool_info.cc DEFAULT STATIC_ONLY NOT_EMBEDDED)
+ MYSQL_ADD_PLUGIN(thread_pool_info thread_pool_info.cc DEFAULT STATIC_ONLY)
 ENDIF()
 
 IF(WIN32)
@@ -248,7 +248,7 @@ RECOMPILE_FOR_EMBEDDED)
 MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONLY
 RECOMPILE_FOR_EMBEDDED)
 MYSQL_ADD_PLUGIN(online_alter_log online_alter.cc STORAGE_ENGINE MANDATORY
-STATIC_ONLY NOT_EMBEDDED)
+STATIC_ONLY)
 
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})

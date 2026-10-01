@@ -420,7 +420,7 @@ cppcheck:
     # Use newline to escape colon in yaml
     - >
       cppcheck --template="{file}:{line}\n{code}\n{severity}: {message}" --force --check-level=exhaustive
-      client dbug extra include libmariadb libmysqld libservices mysql-test mysys mysys_ssl pcre plugin
+      client dbug extra include libmariadb libservices mysql-test mysys mysys_ssl pcre plugin
       strings tests unittest vio wsrep-lib sql sql-common storage
       -istorage/mroonga -istorage/tokudb -istorage/spider -istorage/rocksdb -iextra/ -ilibmariadb/ -istorage/columnstore -istorage/connect -istorage/myisam -istorage/perfschema
       -Iinclude -Istorage/innobase/include

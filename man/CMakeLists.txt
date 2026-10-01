@@ -32,12 +32,12 @@ INSTALL_MANPAGES(Client
   msql2mysql.1 mariadb.1 mariadb-find-rows.1 mariadb-waitpid.1
   mariadb-dumpslow.1 mariadb-access.1 mariadb-admin.1 mariadb-binlog.1
   mariadb-check.1 mariadb-dump.1 mariadb-import.1 mariadb-show.1
-  mariadb-slap.1 mytop.1 mariadb-plugin.1 mariadb-embedded.1
+  mariadb-slap.1 mytop.1 mariadb-plugin.1
   my_print_defaults.1 mariadb-hotcopy.1 mariadb-setpermission.1
   mariadb-tzinfo-to-sql.1 mariadb-convert-table-format.1 replace.1
   mariadb-secure-installation.1 perror.1 resolve_stack_dump.1)
 INSTALL_MANPAGES(Development mariadb_config.1)
 INSTALL_MANPAGES(Test
   mysql-stress-test.pl.1 mysql-test-run.pl.1 mariadb-client-test.1
-  mariadb-test.1 mariadb-test-embedded.1 mariadb-client-test-embedded.1
+  mariadb-test.1
   my_safe_process.1)

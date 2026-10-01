@@ -6,9 +6,7 @@ etc/mysql/mariadb.conf.d/mysql-clients.cnf # Debian packaging uses files from de
 etc/mysql/mariadb.conf.d/server.cnf # Debian packaging uses files from debian/additions/mariadb.cnf.d/
 usr/lib/systemd/system/mariadb-extra.socket # Installed by rules file
 usr/lib/systemd/system/mariadb.socket # Installed by rules file
-usr/bin/mariadb-embedded # Shipping the embedded server in distro packaging does not make sense
 usr/bin/mysql_config # Debian packaging has mysql_config as symlink to mariadb_config
-usr/bin/mysql_embedded # Symlink to mariadb-embedded which is intentionally not included
 usr/bin/sst_dump # Use the one from rocksdb-tools package
 usr/lib/*/libdbbc.a # ColumnStore static library
 usr/lib/*/libidbboot.a # ColumnStore static library
@@ -32,9 +30,7 @@ usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
 usr/share/groonga-normalizer-mysql/README.md
 usr/share/groonga/README.md
-usr/share/man/man1/mariadb-embedded.1 # Shipping the embedded server in distro packaging does not make sense
 usr/share/man/man1/my_safe_process.1
-usr/share/man/man1/mysql_embedded.1 # Symlink to mariadb-embedded.1 which is intentionally not included
 usr/share/man/man1/mysql.server.1
 usr/share/man/man1/mysql-stress-test.pl.1
 usr/share/mariadb/binary-configure

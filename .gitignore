@@ -91,9 +91,6 @@ libmysql*/libmysql*_exports_file.cc
 libmysql*/merge_archives_mysql*.cmake
 libmysql*/mysql*_depends.c
 libmysql/libmysql_versions.ld
-libmysqld/examples/mysql_client_test_embedded
-libmysqld/examples/mysql_embedded
-libmysqld/examples/mysqltest_embedded
 make_dist.cmake
 mariadb-*.*.*.tar.gz
 mariadb-*.*.*/
@@ -580,9 +577,6 @@ client/mariadb-upgrade
 extra/mariabackup/mariadb-backup
 extra/mariadbd-safe-helper
 extra/mariadb-waitpid
-libmysqld/examples/mariadb-client-test-embedded
-libmysqld/examples/mariadb-embedded
-libmysqld/examples/mariadb-test-embedded
 man/mariabackup.1
 man/mysql.1
 man/mysql_client_test.1

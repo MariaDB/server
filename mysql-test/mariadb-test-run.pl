@@ -230,7 +230,6 @@ our $exe_mysql_plugin;
 our $exe_mysqladmin;
 our $exe_mysqltest;
 our $exe_libtool;
-our $exe_mysql_embedded;
 our $exe_mariadb_conv;
 
 our $opt_big_test= 0;
@@ -263,7 +262,6 @@ my $opt_debug_common;
 our $opt_debug_server;
 our @opt_cases;                  # The test cases names in argv
 our $opt_embedded_server;
-our $opt_embedded_launcher;      # MDEV-11111: embedded = private mariadbd process
 
 # Options used when connecting to an already running server
 my %opts_extern;
@@ -1170,7 +1168,6 @@ sub command_line_setup {
   my %options=(
              # Control what engine/variation to run
              'embedded-server'          => \$opt_embedded_server,
-             'embedded-launcher'        => \$opt_embedded_launcher,
              'ps-protocol'              => \$opt_ps_protocol,
              'sp-protocol'              => \$opt_sp_protocol,
              'view-protocol'            => \$opt_view_protocol,
@@ -1610,7 +1607,6 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Embedded server flag
   # --------------------------------------------------------------------------
-  $opt_embedded_server= 1 if $opt_embedded_launcher;
   if ( $opt_embedded_server )
   {
     $opt_skip_ssl= 1;              # Turn off use of SSL
@@ -1947,33 +1943,22 @@ sub executable_setup () {
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
-  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mariadb-embedded",
-                                            "$bindir/libmysqld/examples/mysql_embedded");
-
   # Look for mysqltest executable
-  if ( $opt_embedded_server && !$opt_embedded_launcher )
+  if ( defined $ENV{'MYSQL_TEST'} )
   {
-    $exe_mysqltest=
-      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mariadb-test-embedded",
-                     "$path_client_bindir/mariadb-test-embedded");
+    $exe_mysqltest=$ENV{'MYSQL_TEST'};
+    print "===========================================================\n";
+    print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
+    print "===========================================================\n";
   }
   else
   {
-    if ( defined $ENV{'MYSQL_TEST'} )
-    {
-      $exe_mysqltest=$ENV{'MYSQL_TEST'};
-      print "===========================================================\n";
-      print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
-      print "===========================================================\n";
-    }
-    else
-    {
-      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
-    }
+    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
   }
 
-  # mysqltest starts the server itself, given --server-arg
-  if ($opt_embedded_launcher)
+  # With --embedded-server mysqltest starts the server itself, given
+  # --server-arg: a private mariadbd (MDEV-11111)
+  if ($opt_embedded_server)
   {
     $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir);
     $ENV{MTR_EMBEDDED_LAUNCHER}= 1;
@@ -2063,18 +2048,10 @@ sub mysqldump_arguments ($) {
 sub mysql_client_test_arguments(){
   my $exe;
   # mysql_client_test executable may _not_ exist
-  if ( $opt_embedded_server && !$opt_embedded_launcher ) {
-    $exe= mtr_exe_maybe_exists(
-            "$bindir/libmysqld/examples$multiconfig/mariadb-client-test-embedded",
-            "$bindir/bin/mariadb-client-test-embedded",
-            "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
-            "$bindir/bin/mysql_client_test_embedded");
-  } else {
-    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mariadb-client-test",
-                               "$bindir/bin/mariadb-client-test",
-                               "$bindir/tests$multiconfig/mysql_client_test",
-                               "$bindir/bin/mysql_client_test");
-  }
+  $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mariadb-client-test",
+                             "$bindir/bin/mariadb-client-test",
+                             "$bindir/tests$multiconfig/mysql_client_test",
+                             "$bindir/bin/mysql_client_test");
 
   my $args;
   mtr_init_args(\$args);
@@ -2243,7 +2220,6 @@ sub environment_setup {
   $ENV{'MYSQL_CLIENT_TEST'}=        mysql_client_test_arguments();
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
-  $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
   $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
   if(IS_WINDOWS)
   {
@@ -2577,7 +2553,6 @@ sub setup_vardir() {
       if (IS_WINDOWS)
       {
         $ENV{PATH} .= ";".$plugindir; # to load vcpkg dependencies (libcurl.dll etc)
-        if (!$opt_embedded_server || $opt_embedded_launcher)
         {
           for (<$bindir/storage/*$multiconfig/*.dll>,
                <$bindir/plugin/*$multiconfig/*.dll>,
@@ -4689,11 +4664,10 @@ sub start_check_warnings ($$) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    # With --embedded-launcher the server is a normal mariadbd, which does
-    # not read the [embedded] group: use [mysqld.1] like a regular test server.
-    my $mysqld=  $config->group($opt_embedded_launcher ? 'mysqld.1' : 'embedded')
-      or mtr_error("Could not get [%s] section",
-                   $opt_embedded_launcher ? 'mysqld.1' : 'embedded');
+    # The server is a normal mariadbd (a private one, started by mysqltest),
+    # which reads the groups of a regular test server: use [mysqld.1].
+    my $mysqld=  $config->group('mysqld.1')
+      or mtr_error("Could not get [mysqld.1] section");
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
@@ -4701,8 +4675,7 @@ sub start_check_warnings ($$) {
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
     # --defaults-group-suffix must follow --defaults-file directly
     splice(@$mysqld_args, 1, 0,
-           "--defaults-group-suffix=" . $mysqld->after('mysqld'))
-      if $opt_embedded_launcher;
+           "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
   }
 
@@ -4740,11 +4713,11 @@ sub check_warnings ($) {
   my %started;
   foreach my $mysqld ( mysqlds() )
   {
-    # With --embedded-launcher there is no running mysqld: the server of the
+    # With --embedded-server there is no running mysqld: the server of the
     # test has exited, and the check starts another private one on its
     # datadir (as mysqltest does for the test), to apply the suppressions
     # that the test has stored in it with mtr.add_suppression.
-    my $launcher_check= $opt_embedded_launcher && $mysqld->name() eq 'mysqld.1';
+    my $launcher_check= $opt_embedded_server && $mysqld->name() eq 'mysqld.1';
     if ( defined $mysqld->{'proc'} or $launcher_check )
     {
       my $proc= start_check_warnings($tinfo, $mysqld);
@@ -5805,11 +5778,10 @@ sub start_mysqltest ($) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    # With --embedded-launcher the server is a normal mariadbd, which does
-    # not read the [embedded] group: use [mysqld.1] like a regular test server.
-    my $mysqld=  $config->group($opt_embedded_launcher ? 'mysqld.1' : 'embedded')
-      or mtr_error("Could not get [%s] section",
-                   $opt_embedded_launcher ? 'mysqld.1' : 'embedded');
+    # The server is a normal mariadbd (a private one, started by mysqltest),
+    # which reads the groups of a regular test server: use [mysqld.1].
+    my $mysqld=  $config->group('mysqld.1')
+      or mtr_error("Could not get [mysqld.1] section");
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
@@ -5817,8 +5789,7 @@ sub start_mysqltest ($) {
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
     # --defaults-group-suffix must follow --defaults-file directly
     splice(@$mysqld_args, 1, 0,
-           "--defaults-group-suffix=" . $mysqld->after('mysqld'))
-      if $opt_embedded_launcher;
+           "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
   }
 
@@ -5980,9 +5951,9 @@ suite/rpl/t/rpl.rpl_invoked_features
 
 Options to control what engine/variation to run:
 
-  embedded-server       Use the embedded server, i.e. no mysqld daemons
-  embedded-launcher     Like embedded-server, but the server is a private
-                        mariadbd process started by mysqltest (MDEV-11111)
+  embedded-server       Use the embedded server, i.e. no mysqld daemons: the
+                        server is a private mariadbd process, started by
+                        mysqltest (see libmariadbd/)
   ps-protocol           Use the binary protocol between client and server
   cursor-protocol       Use the cursor protocol between client and server
                         (implies --ps-protocol)

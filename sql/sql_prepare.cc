@@ -84,7 +84,7 @@ When one supplies long data for a placeholder:
     at statement execute.
 */
 
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_class.h"                          // set_var.h: THD
@@ -113,14 +113,9 @@ When one supplies long data for a placeholder:
 #include "sql_handler.h"  // mysql_ha_rm_tables
 #include "probes_mysql.h"
 #include "opt_trace.h"
-#ifdef EMBEDDED_LIBRARY
-/* include MYSQL_BIND headers */
-#include <mysql.h>
-#else
 #include <mysql_com.h>
 /* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
 static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
-#endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
 #include "log_event.h"                          // class Log_event
 #include "sql_handler.h"
@@ -154,12 +149,6 @@ public:
   bool send_result_set_metadata(List<Item> &list, uint flags) override;
   int send_data(List<Item> &items) override;
   bool send_eof() override;
-#ifdef EMBEDDED_LIBRARY
-  void begin_dataset() override
-  {
-    protocol.begin_dataset();
-  }
-#endif
 };
 
 /****************************************************************************/
@@ -202,15 +191,10 @@ public:
   my_bool start_param;
   my_bool read_types;
 
-#ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
                      uchar *read_pos, String *expanded_query);
   bool (*set_bulk_params)(Prepared_statement *st,
                           uchar **read_pos, uchar *data_end, bool reset);
-#else
-  bool (*set_params_data)(Prepared_statement *st, String *expanded_query);
-  /*TODO: add bulk support for builtin server */
-#endif
   bool (*set_params_from_actual_params)(Prepared_statement *stmt,
                                         List<Item> &list,
                                         String *expanded_query);
@@ -433,7 +417,6 @@ find_prepared_statement(THD *thd, ulong id)
     0 in case of success, 1 otherwise
 */
 
-#ifndef EMBEDDED_LIBRARY
 static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
 {
   NET *net= &stmt->thd->net;
@@ -477,23 +460,8 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
 
   DBUG_RETURN(error);
 }
-#else
-static bool send_prep_stmt(Prepared_statement *stmt,
-                           uint columns __attribute__((unused)))
-{
-  THD *thd= stmt->thd;
-
-  thd->client_stmt_id= stmt->id;
-  thd->client_param_count= stmt->param_count;
-  thd->clear_error();
-  thd->get_stmt_da()->disable_status();
-
-  return 0;
-}
-#endif /*!EMBEDDED_LIBRARY*/
 
 
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Read the length of the parameter data and return it back to
@@ -553,9 +521,6 @@ static ulong get_param_length(uchar **packet, ulong len)
     return 0;
   return length;
 }
-#else
-#define get_param_length(packet, len) len
-#endif /*!EMBEDDED_LIBRARY*/
 
 /**
   Data conversion routines.
@@ -573,10 +538,8 @@ static ulong get_param_length(uchar **packet, ulong len)
 
 void Item_param::set_param_tiny(uchar **pos, ulong len)
 {
-#ifndef EMBEDDED_LIBRARY
   if (len < 1)
     return;
-#endif
   int8 value= (int8) **pos;
   set_int(unsigned_flag ? (longlong) ((uint8) value) :
                           (longlong) value, 4);
@@ -586,13 +549,9 @@ void Item_param::set_param_tiny(uchar **pos, ulong len)
 void Item_param::set_param_short(uchar **pos, ulong len)
 {
   int16 value;
-#ifndef EMBEDDED_LIBRARY
   if (len < 2)
     return;
   value= sint2korr(*pos);
-#else
-  shortget(value, *pos);
-#endif
   set_int(unsigned_flag ? (longlong) ((uint16) value) :
                           (longlong) value, 6);
   *pos+= 2;
@@ -601,13 +560,9 @@ void Item_param::set_param_short(uchar **pos, ulong len)
 void Item_param::set_param_int32(uchar **pos, ulong len)
 {
   int32 value;
-#ifndef EMBEDDED_LIBRARY
   if (len < 4)
     return;
   value= sint4korr(*pos);
-#else
-  longget(value, *pos);
-#endif
   set_int(unsigned_flag ? (longlong) ((uint32) value) :
                           (longlong) value, 11);
   *pos+= 4;
@@ -616,13 +571,9 @@ void Item_param::set_param_int32(uchar **pos, ulong len)
 void Item_param::set_param_int64(uchar **pos, ulong len)
 {
   longlong value;
-#ifndef EMBEDDED_LIBRARY
   if (len < 8)
     return;
   value= (longlong) sint8korr(*pos);
-#else
-  longlongget(value, *pos);
-#endif
   set_int(value, 21);
   *pos+= 8;
 }
@@ -630,13 +581,9 @@ void Item_param::set_param_int64(uchar **pos, ulong len)
 void Item_param::set_param_float(uchar **pos, ulong len)
 {
   float data;
-#ifndef EMBEDDED_LIBRARY
   if (len < 4)
     return;
   float4get(data,*pos);
-#else
-  floatget(data, *pos);
-#endif
   set_double((double) data);
   *pos+= 4;
 }
@@ -644,13 +591,9 @@ void Item_param::set_param_float(uchar **pos, ulong len)
 void Item_param::set_param_double(uchar **pos, ulong len)
 {
   double data;
-#ifndef EMBEDDED_LIBRARY
   if (len < 8)
     return;
   float8get(data,*pos);
-#else
-  doubleget(data, *pos);
-#endif
   set_double((double) data);
   *pos+= 8;
 }
@@ -662,7 +605,6 @@ void Item_param::set_param_decimal(uchar **pos, ulong len)
   *pos+= length;
 }
 
-#ifndef EMBEDDED_LIBRARY
 
 /*
   Read date/time/datetime parameter values from network (binary
@@ -759,52 +701,6 @@ void Item_param::set_param_date(uchar **pos, ulong len)
   *pos+= length;
 }
 
-#else/*!EMBEDDED_LIBRARY*/
-/**
-  @todo
-    Add warning 'Data truncated' here
-*/
-void Item_param::set_param_time(uchar **pos, ulong len)
-{
-  MYSQL_TIME tm;
-  if (len >= sizeof (MYSQL_TIME))
-    tm= *((MYSQL_TIME*)*pos);
-  else
-    set_zero_time(&tm, MYSQL_TIMESTAMP_TIME);
-
-  tm.hour+= tm.day * 24;
-  tm.day= tm.year= tm.month= 0;
-  if (tm.hour > 838)
-  {
-    /* TODO: add warning 'Data truncated' here */
-    tm.hour= 838;
-    tm.minute= 59;
-    tm.second= 59;
-  }
-  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_WIDTH);
-}
-
-void Item_param::set_param_datetime(uchar **pos, ulong len)
-{
-  MYSQL_TIME tm;
-  if (len >= sizeof (MYSQL_TIME))
-    tm= *((MYSQL_TIME*)*pos);
-  else
-    set_zero_time(&tm, MYSQL_TIMESTAMP_DATETIME);
-  tm.neg= 0;
-  set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
-}
-
-void Item_param::set_param_date(uchar **pos, ulong len)
-{
-  MYSQL_TIME tm;
-  if (len >= sizeof (MYSQL_TIME))
-    tm= *((MYSQL_TIME*)*pos);
-  else
-    set_zero_time(&tm, MYSQL_TIMESTAMP_DATE);
-  set_time(&tm, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
-}
-#endif /*!EMBEDDED_LIBRARY*/
 
 
 void Item_param::set_param_str(uchar **pos, ulong len)
@@ -866,7 +762,6 @@ void Item_param::setup_conversion_string(THD *thd, CHARSET_INFO *fromcs)
   */
 }
 
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Routines to assign parameters from data supplied by the client.
@@ -1174,101 +1069,6 @@ static bool setup_conversion_functions(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
-#else
-
-//TODO: support bulk parameters
-
-/**
-  Embedded counterparts of parameter assignment routines.
-
-    The main difference between the embedded library and the server is
-    that in embedded case we don't serialize/deserialize parameters data.
-
-    Additionally, for unknown reason, the client-side flag raised for
-    changed types of placeholders is ignored and we simply setup conversion
-    functions at each execute (TODO: fix).
-*/
-
-static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
-{
-  THD *thd= stmt->thd;
-  Item_param **it= stmt->param_array;
-  Item_param **end= it + stmt->param_count;
-  MYSQL_BIND *client_param= stmt->thd->client_params;
-
-  DBUG_ENTER("emb_insert_params");
-
-  for (; it < end; ++it, ++client_param)
-  {
-    Item_param *param= *it;
-    param->setup_conversion(thd, client_param->buffer_type);
-    if (!param->has_long_data_value())
-    {
-      if (*client_param->is_null)
-        param->set_null();
-      else
-      {
-        uchar *buff= (uchar*) client_param->buffer;
-        param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(&buff,
-                              client_param->length ?
-                              *client_param->length :
-                              client_param->buffer_length);
-        if (param->has_no_value())
-          DBUG_RETURN(1);
-      }
-      param->sync_clones();
-    }
-    if (param->convert_str_value(thd))
-      DBUG_RETURN(1);                           /* out of memory */
-  }
-  DBUG_RETURN(0);
-}
-
-
-static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
-{
-  THD *thd= stmt->thd;
-  Item_param **it= stmt->param_array;
-  Item_param **end= it + stmt->param_count;
-  MYSQL_BIND *client_param= thd->client_params;
-  Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
-  DBUG_ENTER("emb_insert_params_with_log");
-
-  for (; it < end; ++it, ++client_param)
-  {
-    Item_param *param= *it;
-    param->setup_conversion(thd, client_param->buffer_type);
-    if (!param->has_long_data_value())
-    {
-      if (*client_param->is_null)
-        param->set_null();
-      else
-      {
-        uchar *buff= (uchar*)client_param->buffer;
-        param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(&buff,
-                              client_param->length ?
-                              *client_param->length :
-                              client_param->buffer_length);
-        if (param->has_no_value())
-          DBUG_RETURN(1);
-      }
-    }
-    if (acc.append(param))
-      DBUG_RETURN(1);
-
-    if (param->convert_str_value(thd))
-      DBUG_RETURN(1);                           /* out of memory */
-    param->sync_clones();
-  }
-  if (acc.finalize())
-    DBUG_RETURN(1);
-
-  DBUG_RETURN(0);
-}
-
-#endif /*!EMBEDDED_LIBRARY*/
 
 /**
   Setup data conversion routines using an array of parameter
@@ -1949,7 +1749,6 @@ static int mysql_test_show_create_db(Prepared_statement *stmt)
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Validate and prepare for execution SHOW GRANTS statement.
 
@@ -1982,10 +1781,8 @@ static int mysql_test_show_grants(Prepared_statement *stmt)
   mysql_show_grants_get_fields(thd, &fields, buff, (uint)(end - buff));
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   Validate and prepare for execution SHOW BINLOG STATUS statement.
 
@@ -2031,7 +1828,6 @@ static int mysql_test_show_binlogs(Prepared_statement *stmt)
   DBUG_RETURN(send_stmt_metadata(thd, stmt, &fields));
 }
 
-#endif /* EMBEDDED_LIBRARY */
 
 
 /**
@@ -2437,7 +2233,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_GRANTS:
     if ((res= mysql_test_show_grants(stmt)) == 2)
     {
@@ -2445,8 +2240,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
-#ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_BINLOG_STAT:
     if ((res= mysql_test_show_binlog_status(stmt)) == 2)
     {
@@ -2471,7 +2264,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
         DBUG_RETURN(FALSE);
     }
   break;
-#endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)
     {
@@ -4037,19 +3829,15 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
   uint param_number;
   Prepared_statement *stmt;
   Item_param *param;
-#ifndef EMBEDDED_LIBRARY
   char *packet_end= packet + packet_length;
-#endif
   DBUG_ENTER("mysql_stmt_get_longdata");
 
   status_var_increment(thd->status_var.com_stmt_send_long_data);
 
   thd->get_stmt_da()->disable_status();
-#ifndef EMBEDDED_LIBRARY
   /* Minimal size of long data packet is 6 bytes */
   if (packet_length < MYSQL_LONG_DATA_HEADER)
     DBUG_VOID_RETURN;
-#endif
 
   stmt_id= uint4korr(packet);
   packet+= 4;
@@ -4059,7 +3847,6 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   param_number= uint2korr(packet);
   packet+= 2;
-#ifndef EMBEDDED_LIBRARY
   if (param_number >= stmt->param_count)
   {
     /* Error will be sent in execute call */
@@ -4070,7 +3857,6 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
              "mysqld_stmt_send_long_data");
     DBUG_VOID_RETURN;
   }
-#endif
 
   param= stmt->param_array[param_number];
 
@@ -4079,11 +3865,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   thd->set_stmt_da(&new_stmt_da);
 
-#ifndef EMBEDDED_LIBRARY
   param->set_longdata(packet, (ulong) (packet_end - packet));
-#else
-  param->set_longdata(thd->extra_data, thd->extra_length);
-#endif
   if (unlikely(thd->get_stmt_da()->is_error()))
   {
     stmt->state= Query_arena::STMT_ERROR;
@@ -4314,24 +4096,14 @@ void Prepared_statement::setup_set_params()
   if (replace_params_with_values)
   {
     set_params_from_actual_params= insert_params_from_actual_params_with_log;
-#ifndef EMBEDDED_LIBRARY
     set_params= insert_params_with_log;
     set_bulk_params= insert_bulk_params; // RBR is on for bulk operation
-#else
-    //TODO: add bulk support for bulk parameters
-    set_params_data= emb_insert_params_with_log;
-#endif
   }
   else
   {
     set_params_from_actual_params= insert_params_from_actual_params;
-#ifndef EMBEDDED_LIBRARY
     set_params= insert_params;
     set_bulk_params= insert_bulk_params;
-#else
-    //TODO: add bulk support for bulk parameters
-    set_params_data= emb_insert_params;
-#endif
   }
 }
 
@@ -4761,18 +4533,9 @@ Prepared_statement::set_parameters(String *expanded_query,
   }
   else if (param_count)
   {
-#ifndef EMBEDDED_LIBRARY
     uchar *null_array= packet;
     res= (setup_conversion_functions(this, &packet) ||
           set_params(this, null_array, packet, packet_end, expanded_query));
-#else
-    /*
-      In embedded library we re-install conversion routines each time
-      we set parameters, and also we don't need to parse packet.
-      So we do it in one function.
-    */
-    res= set_params_data(this, expanded_query);
-#endif
   }
   lex->default_used= thd->lex->default_used;
   thd->lex->default_used= false;
@@ -4962,11 +4725,7 @@ my_bool Prepared_statement::set_bulk_parameters(bool reset)
 
   if (iterations)
   {
-#ifndef EMBEDDED_LIBRARY
     if ((*set_bulk_params)(this, &packet, packet_end, reset))
-#else
-    // bulk parameters are not supported for embedded, so it will an error
-#endif
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0),
                "mysqld_stmt_bulk_execute");
@@ -5054,12 +4813,8 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     }
   }
 
-#ifndef EMBEDDED_LIBRARY
   if (read_types &&
       set_conversion_functions(this, &packet))
-#else
-  // bulk parameters are not supported for embedded, so it will an error
-#endif
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
             "mysqld_stmt_bulk_execute");
@@ -5980,7 +5735,7 @@ Ed_connection::store_result_set()
 
 
 #include <mysql.h>
-#include "../libmysqld/embedded_priv.h"
+#include "embedded_priv.h"
 
 class Protocol_local : public Protocol_text
 {
@@ -6035,11 +5790,7 @@ protected:
                             CHARSET_INFO *charset_for_protocol,
                             uint pos);
   bool send_result_set_metadata(List<Item> *list, uint flags) override;
-#ifdef EMBEDDED_LIBRARY
-  void remove_last_row() override;
-#else
   void remove_last_row();
-#endif
   bool store_null() override;
   void prepare_for_resend() override;
   bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
@@ -6745,16 +6496,6 @@ static MYSQL_METHODS local_methods=
   loc_flush_use_result,                        /* flush_use_result */
   NULL,                                        /* read_change_user_result */
   loc_on_close_free                            /* on_close_free */
-#ifdef EMBEDDED_LIBRARY
-  ,NULL,                                       /* list_fields */
-  NULL,                                        /* read_prepare_result */
-  NULL,                                        /* stmt_execute */
-  NULL,                                        /* read_binary_rows */
-  NULL,                                        /* unbuffered_fetch */
-  NULL,                                        /* read_statistics */
-  NULL,                                        /* next_result */
-  NULL                                         /* read_rows_from_cursor */
-#endif
 };
 
 

@@ -44,6 +44,22 @@ IF(TARGET mariadb_obj AND TARGET mariadbclient)
   TARGET_LINK_LIBRARIES(libmariadbd LINK_PRIVATE
     $<TARGET_PROPERTY:mariadbclient,LINK_LIBRARIES> ${CMAKE_DL_LIBS})
 
+  IF(UNIX)
+    # Same API as the client library, hence the same version
+    SET_TARGET_PROPERTIES(libmariadbd PROPERTIES
+      SOVERSION "${SHARED_LIB_MAJOR_VERSION}")
+    SET(COMPONENT_LIBMARIADBD "Server")
+    # What libmysqld used to be called
+    INSTALL_SYMLINK(libmysqld.so libmariadbd ${INSTALL_LIBDIR}
+                    ${COMPONENT_LIBMARIADBD})
+  ELSE()
+    SET(COMPONENT_LIBMARIADBD "Embedded")
+  ENDIF()
+  INSTALL(TARGETS libmariadbd
+    LIBRARY DESTINATION ${INSTALL_LIBDIR} COMPONENT ${COMPONENT_LIBMARIADBD}
+    ARCHIVE DESTINATION ${INSTALL_LIBDIR} COMPONENT Development
+    RUNTIME DESTINATION ${INSTALL_BINDIR} COMPONENT ${COMPONENT_LIBMARIADBD})
+
   # An unmodified client program: only the client API, linked with libmariadbd
   ADD_EXECUTABLE(embedded_app_test EXCLUDE_FROM_ALL embedded_app_test.c)
   TARGET_LINK_LIBRARIES(embedded_app_test libmariadbd)

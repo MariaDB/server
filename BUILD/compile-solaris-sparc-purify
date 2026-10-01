@@ -102,9 +102,7 @@ purifying_binaries ()
 purifying_binaries \
   sql                mysqld                     mysqld \
   client             mysqltest                  .libs/mysqltest \
-  tests              mysql_client_test          mysql_client_test \
-  libmysqld/examples mysqltest_embedded         mysqltest_embedded \
-  libmysqld/examples mysql_client_test_embedded mysql_client_test_embedded
+  tests              mysql_client_test          mysql_client_test
 
 # ----------------------------------------------------------------------
 

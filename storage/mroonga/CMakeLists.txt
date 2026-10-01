@@ -292,8 +292,7 @@ include_directories(
 
 if(WIN32)
   set(MYSQL_LIBRARY_DIRS
-    "${MYSQL_BUILD_DIR}/lib"
-    "${MYSQL_BUILD_DIR}/libmysqld")
+    "${MYSQL_BUILD_DIR}/lib")
 else()
   set(MYSQL_LIBRARY_DIRS
     "${MYSQL_SERVICES_LIB_DIR}")
@@ -378,14 +377,6 @@ else()
     OUTPUT_NAME "ha_mroonga")
 
   install(TARGETS mroonga DESTINATION "${MYSQL_PLUGIN_DIR}")
-endif()
-
-option(MRN_BUILD_FOR_EMBEDDED_SERVER
-  "Whether to build Mroonga for embedded server or not. You can't use Mroonga built for embedded server with non embedded server."
-  OFF)
-if(MRN_BUILD_FOR_EMBEDDED_SERVER)
-  set_property(TARGET mroonga APPEND PROPERTY
-    COMPILE_DEFINITIONS "EMBEDDED_LIBRARY")
 endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)

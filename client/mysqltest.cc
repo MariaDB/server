@@ -67,10 +67,8 @@
 #endif
 
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "../tests/nonblock-wrappers.h"
-#endif
 
 
 #define MAX_VAR_NAME_LENGTH    256
@@ -252,9 +250,7 @@ static const char *embedded_server_groups[]=
   NullS
 };
 
-#ifdef MARIADB_EMBEDDED_LAUNCHER
-#include "../libmysqld/launcher/embedded_launcher.h"
-#endif
+#include "../libmariadbd/embedded_launcher.h"
 
 static int embedded_server_arg_count=0;
 static char *embedded_server_args[MAX_EMBEDDED_SERVER_ARGS];
@@ -298,7 +294,7 @@ DYNAMIC_ARRAY q_lines;
 
 #include "sslopt-vars.h"
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
 static void set_ssl_opts(MYSQL *mysql, my_bool opt_use_ssl, char *opt_ssl_cipher)
 {
   SET_SSL_OPTS(mysql);
@@ -350,18 +346,6 @@ struct st_connection
   /* Set after send to disallow other queries before reap */
   my_bool pending;
 
-#ifdef EMBEDDED_LIBRARY
-  pthread_t tid;
-  const char *cur_query;
-  int cur_query_len;
-  int command, result;
-  pthread_mutex_t query_mutex;
-  pthread_cond_t query_cond;
-  pthread_mutex_t result_mutex;
-  pthread_cond_t result_cond;
-  int query_done;
-  my_bool has_thread;
-#endif /*EMBEDDED_LIBRARY*/
 };
 
 struct st_connection *connections= NULL;
@@ -1242,224 +1226,6 @@ static char *my_fgets(char * s, int n, FILE * stream, int *len)
   return buf;
 }
 
-#ifdef EMBEDDED_LIBRARY
-
-#define EMB_SEND_QUERY 1
-#define EMB_READ_QUERY_RESULT 2
-#define EMB_END_CONNECTION 3
-#define EMB_PREPARE_STMT 4
-#define EMB_EXECUTE_STMT 5
-#define EMB_CLOSE_STMT 6
-
-/* workaround for MySQL BUG#57491 */
-#undef MY_WME
-#define MY_WME 0
-
-/* attributes of the query thread */
-pthread_attr_t cn_thd_attrib;
-
-
-/*
-  This procedure represents the connection and actually
-  runs queries when in the EMBEDDED-SERVER mode.
-  The run_query_normal() just sends request for running
-  mysql_send_query and mysql_read_query_result() here.
-*/
-
-pthread_handler_t connection_thread(void *arg)
-{
-  struct st_connection *cn= (struct st_connection*)arg;
-  DBUG_ENTER("connection_thread");
-
-  mysql_thread_init();
-  while (cn->command != EMB_END_CONNECTION)
-  {
-    if (!cn->command)
-    {
-      pthread_mutex_lock(&cn->query_mutex);
-      while (!cn->command)
-        pthread_cond_wait(&cn->query_cond, &cn->query_mutex);
-      pthread_mutex_unlock(&cn->query_mutex);
-    }
-    DBUG_PRINT("info", ("executing command: %d", cn->command));
-    switch (cn->command)
-    {
-      case EMB_END_CONNECTION:
-        goto end_thread;
-      case EMB_SEND_QUERY:
-        cn->result= mysql_send_query(cn->mysql,
-                                     cn->cur_query, cn->cur_query_len);
-        break;
-      case EMB_READ_QUERY_RESULT:
-        cn->result= mysql_read_query_result(cn->mysql);
-        break;
-      case EMB_PREPARE_STMT:
-        cn->result= mysql_stmt_prepare(cn->stmt,
-                                       cn->cur_query, cn->cur_query_len);
-        break;
-      case EMB_EXECUTE_STMT:
-        cn->result= mysql_stmt_execute(cn->stmt);
-        break;
-      case EMB_CLOSE_STMT:
-        cn->result= mysql_stmt_close(cn->stmt);
-        cn->stmt= 0;
-        break;
-      default:
-        DBUG_ASSERT(0);
-    }
-    pthread_mutex_lock(&cn->result_mutex);
-    cn->query_done= 1;
-    cn->command= 0;
-    pthread_cond_signal(&cn->result_cond);
-    pthread_mutex_unlock(&cn->result_mutex);
-  }
-
-end_thread:
-  DBUG_ASSERT(cn->stmt == 0);
-  mysql_close(cn->mysql);
-  cn->mysql= 0;
-  cn->query_done= 1;
-  mysql_thread_end();
-  DBUG_RETURN(0);
-}
-
-static void wait_query_thread_done(struct st_connection *con)
-{
-  DBUG_ASSERT(con->has_thread);
-  if (!con->query_done)
-  {
-    pthread_mutex_lock(&con->result_mutex);
-    while (!con->query_done)
-      pthread_cond_wait(&con->result_cond, &con->result_mutex);
-    pthread_mutex_unlock(&con->result_mutex);
-  }
-}
-
-
-static void signal_connection_thd(struct st_connection *cn, int command)
-{
-  DBUG_ENTER("signal_connection_thd");
-  DBUG_PRINT("enter", ("command: %d", command));
-
-  DBUG_ASSERT(cn->has_thread);
-  cn->query_done= 0;
-  pthread_mutex_lock(&cn->query_mutex);
-  cn->command= command;
-  pthread_cond_signal(&cn->query_cond);
-  pthread_mutex_unlock(&cn->query_mutex);
-  DBUG_VOID_RETURN;
-}
-
-
-/*
-  Sometimes we try to execute queries when the connection is closed.
-  It's done to make sure it was closed completely.
-  So that if our connection is closed (cn->has_thread == 0), we just return
-  the mysql_send_query() result which is an error in this case.
-*/
-
-static int do_send_query(struct st_connection *cn, const char *q, int q_len)
-{
-  if (!cn->has_thread)
-    return mysql_send_query(cn->mysql, q, q_len);
-  cn->cur_query= q;
-  cn->cur_query_len= q_len;
-  signal_connection_thd(cn, EMB_SEND_QUERY);
-  return 0;
-}
-
-static int do_read_query_result(struct st_connection *cn)
-{
-  DBUG_ASSERT(cn->has_thread);
-  wait_query_thread_done(cn);
-  if (cn->result)
-    goto exit_func;
-
-  signal_connection_thd(cn, EMB_READ_QUERY_RESULT);
-  wait_query_thread_done(cn);
-
-exit_func:
-  return cn->result;
-}
-
-
-static int do_stmt_prepare(struct st_connection *cn, const char *q, int q_len)
-{
-  /* The cn->stmt is already set. */
-  DBUG_ENTER("do_stmt_prepare");
-  if (!cn->has_thread)
-    DBUG_RETURN(mysql_stmt_prepare(cn->stmt, q, q_len));
-  cn->cur_query= q;
-  cn->cur_query_len= q_len;
-  signal_connection_thd(cn, EMB_PREPARE_STMT);
-  wait_query_thread_done(cn);
-  DBUG_RETURN(cn->result);
-}
-
-
-static int do_stmt_execute(struct st_connection *cn)
-{
-  DBUG_ENTER("do_stmt_execute");
-  /* The cn->stmt is already set. */
-  if (!cn->has_thread)
-    DBUG_RETURN(mysql_stmt_execute(cn->stmt));
-  signal_connection_thd(cn, EMB_EXECUTE_STMT);
-  wait_query_thread_done(cn);
-  DBUG_RETURN(cn->result);
-}
-
-
-static int do_stmt_close(struct st_connection *cn)
-{
-  DBUG_ENTER("do_stmt_close");
-  if (!cn->has_thread)
-  {
-    /* The cn->stmt is already set. */
-    int res= mysql_stmt_close(cn->stmt);
-    cn->stmt= 0;
-    DBUG_RETURN(res);
-  }
-  wait_query_thread_done(cn);
-  signal_connection_thd(cn, EMB_CLOSE_STMT);
-  wait_query_thread_done(cn);
-  DBUG_ASSERT(cn->stmt == 0);
-  DBUG_RETURN(cn->result);
-}
-
-
-static void emb_close_connection(struct st_connection *cn)
-{
-  DBUG_ENTER("emb_close_connection");
-  if (!cn->has_thread)
-    DBUG_VOID_RETURN;
-  wait_query_thread_done(cn);
-  signal_connection_thd(cn, EMB_END_CONNECTION);
-  pthread_join(cn->tid, NULL);
-  cn->has_thread= FALSE;
-  DBUG_ASSERT(cn->mysql == 0);
-  DBUG_ASSERT(cn->stmt == 0);
-  pthread_mutex_destroy(&cn->query_mutex);
-  pthread_cond_destroy(&cn->query_cond);
-  pthread_mutex_destroy(&cn->result_mutex);
-  pthread_cond_destroy(&cn->result_cond);
-  DBUG_VOID_RETURN;
-}
-
-
-static void init_connection_thd(struct st_connection *cn)
-{
-  cn->query_done= 1;
-  cn->command= 0;
-  if (pthread_mutex_init(&cn->query_mutex, NULL) ||
-      pthread_cond_init(&cn->query_cond, NULL) ||
-      pthread_mutex_init(&cn->result_mutex, NULL) ||
-      pthread_cond_init(&cn->result_cond, NULL) ||
-      pthread_create(&cn->tid, &cn_thd_attrib, connection_thread, (void*)cn))
-    die("Error in the thread library");
-  cn->has_thread=TRUE;
-}
-
-#else /* ! EMBEDDED_LIBRARY*/
 
 #define init_connection_thd(X)    do { } while(0)
 #define do_send_query(cn,q,q_len) mysql_send_query(cn->mysql, q, (ulong)q_len)
@@ -1474,7 +1240,6 @@ static int do_stmt_close(struct st_connection *cn)
   return res;
 }
 
-#endif /*EMBEDDED_LIBRARY*/
 
 void do_eval(DYNAMIC_STRING *query_eval, const char *query,
              const char *query_end, my_bool pass_through_escape_chars)
@@ -1821,9 +1586,6 @@ void close_connections()
   {
     if (next_con->stmt)
       do_stmt_close(next_con);
-#ifdef EMBEDDED_LIBRARY
-    emb_close_connection(next_con);
-#endif
     next_con->stmt= 0;
     mysql_close(next_con->mysql);
     next_con->mysql= 0;
@@ -1923,17 +1685,10 @@ void free_used_memory()
 }
 
 
-#ifdef EMBEDDED_LIBRARY
-void ha_pre_shutdown();
-#endif
 
 ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code,
                                                 bool called_from_die)
 {
-#ifdef EMBEDDED_LIBRARY
-  if (server_initialized)
-    ha_pre_shutdown();
-#endif
 
   free_used_memory();
 
@@ -8672,7 +8427,6 @@ void do_close_connection(struct st_command *command)
     die("connection '%s' not found in connection pool", ds_connection.str);
 
   DBUG_PRINT("info", ("Closing connection %s", con->name));
-#ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
     mariadb_cancel(con->mysql);
   else
@@ -8681,17 +8435,8 @@ void do_close_connection(struct st_command *command)
     if (con->util_mysql)
       simple_command(con->util_mysql,COM_QUIT,0,0,0);
   }
-#endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
     do_stmt_close(con);
-#ifdef EMBEDDED_LIBRARY
-  /*
-    As query could be still executed in a separate thread
-    we need to check if the query's thread was finished and probably wait
-    (embedded-server specific)
-  */
-  emb_close_connection(con);
-#endif /*EMBEDDED_LIBRARY*/
 
   mysql_close(con->mysql);
   con->mysql= 0;
@@ -9038,10 +8783,8 @@ void do_connect(struct st_command *command)
       append tmpdir in front
     */
     if (*ds_sock.str != FN_LIBCHAR && *ds_sock.str != '@'
-#ifdef MARIADB_EMBEDDED_LAUNCHER
         && !(mariadb_embedded_socket() &&
              !strcmp(ds_sock.str, mariadb_embedded_socket()))
-#endif
         )
     {
       char buff[FN_REFLEN];
@@ -9162,14 +8905,12 @@ void do_connect(struct st_command *command)
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
-#ifndef EMBEDDED_LIBRARY
   if (rauth)
     mysql_options(con_slot->mysql, MARIADB_OPT_RESTRICTED_AUTH, rauth);
 
   set_ssl_opts(con_slot->mysql, con_ssl == USE_SSL_FORBIDDEN ? 0 :
                                 con_ssl == USE_SSL_REQUIRED ? 1 : opt_use_ssl,
                                 ssl_cipher ? ssl_cipher : opt_ssl_cipher);
-#endif
 
   if (protocol)
     mysql_options(con_slot->mysql, MYSQL_OPT_PROTOCOL, (char*) &protocol);
@@ -9677,7 +9418,6 @@ void do_delimiter(struct st_command* command)
 
 static void do_reset_connection()
 {
-#ifndef EMBEDDED_LIBRARY
   MYSQL *mysql = cur_con->mysql;
 
   DBUG_ENTER("do_reset_connection");
@@ -9689,10 +9429,6 @@ static void do_reset_connection()
     cur_con->stmt= NULL;
   }
   DBUG_VOID_RETURN;
-#else
- die("reset connection failed: unsupported by embedded server client library");
- return;
-#endif
 }
 
 
@@ -10522,11 +10258,9 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     print_version();
     cleanup_and_exit(0,0);
   case OPT_MYSQL_PROTOCOL:
-#ifndef EMBEDDED_LIBRARY
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
                                               opt->name)) <= 0)
       cleanup_and_exit(1,0);
-#endif
     break;
   case '?':
     usage();
@@ -11034,7 +10768,6 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 static const char *trking_info_desc[SESSION_TRACK_END + 1]=
 {
   "Tracker : SESSION_TRACK_SYSTEM_VARIABLES\n",
@@ -11054,7 +10787,6 @@ static const char *trking_info_desc[SESSION_TRACK_END + 1]=
   "Tracker : SESSION_TRACK_USER_VARIABLES\n"
 #endif // USER_VAR_TRACKING
 };
-#endif // EMBEDDED_LIBRARY
 
 /**
   @brief Append state change information (received through Ok packet) to the output.
@@ -11081,7 +10813,6 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
 {
   if (!(mysql->server_status & SERVER_SESSION_STATE_CHANGED))
     return;
-#ifndef EMBEDDED_LIBRARY
   DYNAMIC_STRING ds_sort, *ds_type= NULL;
   for (unsigned int type= SESSION_TRACK_BEGIN; type <= SESSION_TRACK_END; type++)
   {
@@ -11158,7 +10889,6 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
     else
       dynstr_append_mem(ds, STRING_WITH_LEN("\n\n"));
   }
-#endif /* EMBEDDED_LIBRARY */
 }
 
 
@@ -12028,13 +11758,9 @@ end:
 
   /* Close the statement if reconnect, need new prepare */
   {
-#ifndef EMBEDDED_LIBRARY
     my_bool reconnect;
     mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
     if (reconnect)
-#else
-    if (mysql->reconnect)
-#endif
     {
       mysql_stmt_close(stmt);
       cn->stmt= NULL;
@@ -12383,13 +12109,9 @@ end:
 
   /* Close the statement if reconnect, need new prepare */
   {
-#ifndef EMBEDDED_LIBRARY
     my_bool reconnect;
     mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
     if (reconnect)
-#else
-    if (mysql->reconnect)
-#endif
     {
       if (cn->ps_params)
       {
@@ -13044,11 +12766,6 @@ static void dump_backtrace(void)
     fprintf(stderr, "conn->name (%p): ", conn->name);
     my_safe_print_str(conn->name, conn->name_len);
     fputc('\n', stderr);
-#ifdef EMBEDDED_LIBRARY
-    fprintf(stderr, "conn->cur_query (%p): ", conn->cur_query);
-    my_safe_print_str(conn->cur_query, conn->cur_query_len);
-    fputc('\n', stderr);
-#endif
   }
   fputs("Attempting backtrace...\n", stderr);
   my_print_stacktrace(NULL, (ulong)my_thread_stack_size, 0);
@@ -13158,11 +12875,6 @@ int main(int argc, char **argv)
   /* Init expected errors */
   memset(&saved_expected_errors, 0, sizeof(saved_expected_errors));
 
-#ifdef EMBEDDED_LIBRARY
-  /* set appropriate stack for the 'query' threads */
-  (void) pthread_attr_init(&cn_thd_attrib);
-  pthread_attr_setstacksize(&cn_thd_attrib, DEFAULT_THREAD_STACK);
-#endif /*EMBEDDED_LIBRARY*/
 
   /* Init file stack */
   memset(file_stack, 0, sizeof(file_stack));
@@ -13248,17 +12960,14 @@ int main(int argc, char **argv)
                      result_file_name ? result_file_name : ""));
   verbose_msg("Results saved in '%s'.", 
               result_file_name ? result_file_name : "");
-#ifdef MARIADB_EMBEDDED_LAUNCHER
   /* MDEV-11111: --server-arg means "also run the server, privately" */
   if (embedded_server_arg_count)
     mariadb_embedded_register();
-#endif
   if (mysql_server_init(embedded_server_arg_count,
 			embedded_server_args,
 			(char**) embedded_server_groups))
     die("Can't initialize MariaDB server");
   server_initialized= 1;
-#ifdef MARIADB_EMBEDDED_LAUNCHER
   if (mariadb_embedded_socket())
   {
     /* Default connections go to the server we have just started, whatever
@@ -13276,7 +12985,6 @@ int main(int argc, char **argv)
     opt_host= 0;
 #endif
   }
-#endif
   if (cur_file == file_stack && cur_file->file == 0)
   {
     cur_file->file= stdin;

@@ -22,7 +22,12 @@ INCLUDE(CMakeParseArguments)
 # [STATIC_ONLY|MODULE_ONLY]
 # [MANDATORY|DEFAULT]
 # [DISABLED]
-# [NOT_EMBEDDED|RECOMPILE_FOR_EMBEDDED]
+# [RECOMPILE_FOR_EMBEDDED]
+#   The name is historical and no longer descriptive: the embedded server
+#   library that this once recompiled the plugin for does not exist any more.
+#   What the keyword still does is mark a plugin that uses symbols of the
+#   server, so that, as a module, it is linked with the server on platforms
+#   that need it (MSVC, AIX, non-Linux Unix).
 # [CLIENT]
 # [MODULE_OUTPUT_NAME module_name]
 # [STATIC_OUTPUT_NAME static_name]
@@ -34,7 +39,7 @@ INCLUDE(CMakeParseArguments)
 
 MACRO(MYSQL_ADD_PLUGIN)
   CMAKE_PARSE_ARGUMENTS(ARG
-    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;NOT_EMBEDDED;RECOMPILE_FOR_EMBEDDED;CLIENT"
+    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
     "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG;VERSION"
     "LINK_LIBRARIES;DEPENDS"
     ${ARGN}
@@ -159,25 +164,6 @@ MACRO(MYSQL_ADD_PLUGIN)
     DTRACE_INSTRUMENT(${target})
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDS})
     RESTRICT_SYMBOL_EXPORTS(${target})
-    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
-      # Embedded library should contain PIC code and be linkable
-      # to shared libraries (on systems that need PIC)
-      IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
-        # Recompile some plugins for embedded
-        ADD_CONVENIENCE_LIBRARY(${target}_embedded ${SOURCES})
-        RESTRICT_SYMBOL_EXPORTS(${target}_embedded)
-        DTRACE_INSTRUMENT(${target}_embedded)   
-        IF(ARG_RECOMPILE_FOR_EMBEDDED)
-          SET_TARGET_PROPERTIES(${target}_embedded 
-            PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
-        ENDIF()
-        ADD_DEPENDENCIES(${target}_embedded GenError ${ARG_DEPENDS})
-        IF(ARG_LINK_LIBRARIES)
-          TARGET_LINK_LIBRARIES (${target}_embedded ${ARG_LINK_LIBRARIES})
-        ENDIF()
-      ENDIF()
-    ENDIF()
-
     IF(ARG_STATIC_OUTPUT_NAME)
       SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME ${ARG_STATIC_OUTPUT_NAME})
@@ -193,16 +179,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET (MYSQLD_STATIC_PLUGIN_LIBS ${MYSQLD_STATIC_PLUGIN_LIBS} 
       ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
 
-    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
-      SET (EMBEDDED_PLUGIN_LIBS ${EMBEDDED_PLUGIN_LIBS}
-      ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
-    ENDIF()
 
-    IF(ARG_NOT_EMBEDDED)
-      SET(builtin_entry "#ifndef EMBEDDED_LIBRARY\n builtin_maria_${target}_plugin,\n#endif")
-    ELSE()
-      SET(builtin_entry " builtin_maria_${target}_plugin,")
-    ENDIF()
+    SET(builtin_entry " builtin_maria_${target}_plugin,")
 
     IF(ARG_MANDATORY)
       SET (mysql_mandatory_plugins  

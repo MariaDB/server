@@ -41,7 +41,6 @@ SET(HEADERS
   my_sys.h 
   my_cmp.h
   my_xml.h
-  mysql_embed.h
   my_decimal_limits.h
   my_pthread.h
   decimal.h

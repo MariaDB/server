@@ -73,10 +73,6 @@ ulong 		net_buffer_length=8192;
 ulong		max_allowed_packet= 1024L*1024L*1024L;
 
 
-#ifdef EMBEDDED_LIBRARY
-#undef net_flush
-my_bool	net_flush(NET *net);
-#endif
 
 #if defined(_WIN32)
 /* socket_errno is defined in my_global.h for all platforms */
@@ -179,10 +175,6 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
 #if defined(SIGPIPE) && !defined(_WIN32)
     (void) signal(SIGPIPE, SIG_IGN);
 #endif
-#ifdef EMBEDDED_LIBRARY
-    if (argc > -1)
-       result= init_embedded_server(argc, argv, groups);
-#endif
   }
   else
     result= (int)my_thread_init();         /* Init if new thread */
@@ -212,9 +204,6 @@ void STDCALL mysql_server_end()
   finish_client_errs();
   if (mariadb_deinitialize_ssl)
     vio_end();
-#ifdef EMBEDDED_LIBRARY
-  end_embedded_server();
-#endif
 
   /* If library called my_init(), free memory allocated by it */
   if (!org_my_init_done)
@@ -1136,11 +1125,7 @@ uint STDCALL mysql_thread_safe(void)
 
 my_bool STDCALL mysql_embedded(void)
 {
-#ifdef EMBEDDED_LIBRARY
-  return 1;
-#else
   return 0;
-#endif
 }
 
 /****************************************************************************
@@ -1519,10 +1504,6 @@ my_bool cli_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
     memory
 */
 
-#ifdef EMBEDDED_LIBRARY
-#undef MY_THREAD_SPECIFIC
-#define MY_THREAD_SPECIFIC 0
-#endif /*EMBEDDED_LIBRARY*/
 
 MYSQL_STMT * STDCALL
 mysql_stmt_init(MYSQL *mysql)
