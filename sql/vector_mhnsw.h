@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2024, MariaDB plc
+   Copyright (c) 2024, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,8 @@
 */
 const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length);
 int mhnsw_insert(TABLE *table, KEY *keyinfo);
-int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
+int mhnsw_read_first(TABLE *table, KEY *keyinfo, const uchar *value,
+                     size_t value_len, ulonglong limit);
 int mhnsw_read_next(TABLE *table);
 int mhnsw_read_end(TABLE *table);
 int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo);
