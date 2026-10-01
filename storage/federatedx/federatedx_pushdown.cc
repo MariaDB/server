@@ -295,6 +295,39 @@ create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
 
 
 /*
+  Whether the select, or any select nested in it, refers to a view.
+
+  A view, merged or materialized, exists only on the local server, and the
+  statement is printed with the view name in it, so the remote server would
+  fail to find it. The tables a merged view consists of are reported as
+  leaves of the join, but belong_to_view tells them apart.
+*/
+static bool uses_view(SELECT_LEX *sel_lex)
+{
+  for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (tbl->belong_to_view || tbl->is_view())
+      return true;
+  }
+  for (TABLE_LIST *tbl= sel_lex->get_table_list(); tbl; tbl= tbl->next_local)
+  {
+    if (tbl->is_view())
+      return true;
+  }
+  for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
+       un= un->next_unit())
+  {
+    for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+    {
+      if (sl->join && uses_view(sl))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/*
   Create FederatedX handler for processing a whole multi-table UPDATE/DELETE
 */
 static multi_upddel_handler *
@@ -326,6 +359,10 @@ create_federatedx_multi_upddel_handler(THD *thd, LEX *lex)
 
   auto tbl= get_fed_table_for_pushdown(sel_lex);
   if (!tbl)
+    return nullptr;
+
+  /* Views are unknown to the remote server */
+  if (uses_view(sel_lex))
     return nullptr;
 
   if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
