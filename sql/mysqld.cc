@@ -6492,6 +6492,15 @@ int mysqld_main(int argc, char **argv)
   copy_filter_setting(global_rpl_filter, get_or_create_rpl_filter("", 0));
 
   /*
+    Embedded server (MDEV-11111): the embedded library never started
+    replication, and the datadir of an application may well have been a
+    replica's. init_slave() still creates what the rest of the code needs,
+    but starts no slave threads.
+  */
+  if (opt_embedded_lifeline)
+    opt_skip_slave_start= 1;
+
+  /*
     init_slave() must be called after the thread keys are created.
     Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
     places) assume that active_mi != 0, so let's fail if it's 0 (out of
