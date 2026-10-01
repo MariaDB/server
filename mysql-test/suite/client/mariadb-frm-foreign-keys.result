@@ -1,0 +1,388 @@
+MariaDB frm parser test - Foreign Key Constraints
+Testing foreign key relationships and constraint metadata parsing
+CREATE TABLE t_parent_basic (
+id INT PRIMARY KEY,
+name VARCHAR(100) NOT NULL,
+category VARCHAR(50) DEFAULT 'general',
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE t_child_basic (
+id INT AUTO_INCREMENT PRIMARY KEY,
+parent_id INT NOT NULL,
+description TEXT,
+status ENUM('active', 'inactive', 'pending') DEFAULT 'pending',
+FOREIGN KEY fk_parent_basic (parent_id) REFERENCES t_parent_basic(id)
+) ENGINE=InnoDB;
+CREATE TABLE `t_child_basic` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `parent_id` int(11) NOT NULL,
+  `description` text DEFAULT NULL,
+  `status` enum('active','inactive','pending') DEFAULT 'pending',
+  PRIMARY KEY (`id`),
+  KEY `fk_parent_basic` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_child_basic;
+DROP TABLE t_parent_basic;
+CREATE TABLE t_users (
+user_id INT PRIMARY KEY,
+username VARCHAR(50) UNIQUE NOT NULL,
+email VARCHAR(255) UNIQUE,
+department_id INT,
+manager_id INT,
+created_date DATE DEFAULT CURRENT_DATE
+) ENGINE=InnoDB;
+CREATE TABLE t_posts (
+post_id INT AUTO_INCREMENT PRIMARY KEY,
+title VARCHAR(200) NOT NULL,
+content LONGTEXT,
+author_id INT NOT NULL,
+category_id INT,
+published_at DATETIME,
+# Different foreign key actions
+CONSTRAINT fk_posts_author 
+FOREIGN KEY (author_id) REFERENCES t_users(user_id) 
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE `t_posts` (
+  `post_id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) NOT NULL,
+  `content` longtext DEFAULT NULL,
+  `author_id` int(11) NOT NULL,
+  `category_id` int(11) DEFAULT NULL,
+  `published_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`post_id`),
+  KEY `fk_posts_author` (`author_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_posts;
+DROP TABLE t_users;
+CREATE TABLE t_companies (
+company_code VARCHAR(10),
+branch_code VARCHAR(5),
+company_name VARCHAR(100) NOT NULL,
+address TEXT,
+PRIMARY KEY (company_code, branch_code)
+) ENGINE=InnoDB;
+CREATE TABLE t_employees (
+emp_id INT AUTO_INCREMENT PRIMARY KEY,
+emp_number VARCHAR(20) UNIQUE,
+first_name VARCHAR(50) NOT NULL,
+last_name VARCHAR(50) NOT NULL,
+company_code VARCHAR(10),
+branch_code VARCHAR(5),
+department VARCHAR(50),
+salary DECIMAL(15,2) DEFAULT 0.00,
+hire_date DATE,
+# Multi-column foreign key
+CONSTRAINT fk_emp_company_branch 
+FOREIGN KEY (company_code, branch_code) 
+REFERENCES t_companies(company_code, branch_code)
+ON DELETE RESTRICT ON UPDATE CASCADE,
+INDEX idx_company_branch (company_code, branch_code),
+INDEX idx_emp_name (last_name, first_name)
+) ENGINE=InnoDB;
+CREATE TABLE `t_employees` (
+  `emp_id` int(11) NOT NULL AUTO_INCREMENT,
+  `emp_number` varchar(20) DEFAULT NULL,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `company_code` varchar(10) DEFAULT NULL,
+  `branch_code` varchar(5) DEFAULT NULL,
+  `department` varchar(50) DEFAULT NULL,
+  `salary` decimal(15,2) DEFAULT 0.00,
+  `hire_date` date DEFAULT NULL,
+  PRIMARY KEY (`emp_id`),
+  UNIQUE KEY `emp_number` (`emp_number`),
+  KEY `idx_company_branch` (`company_code`,`branch_code`),
+  KEY `idx_emp_name` (`last_name`,`first_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_employees;
+DROP TABLE t_companies;
+CREATE TABLE t_categories (
+category_id INT AUTO_INCREMENT PRIMARY KEY,
+category_name VARCHAR(100) NOT NULL,
+parent_category_id INT,
+level INT DEFAULT 1,
+sort_order INT DEFAULT 0,
+is_active BOOLEAN DEFAULT TRUE,
+description TEXT,
+# Self-referencing foreign key
+CONSTRAINT fk_category_parent 
+FOREIGN KEY (parent_category_id) REFERENCES t_categories(category_id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+INDEX idx_parent_category (parent_category_id),
+INDEX idx_category_name (category_name),
+INDEX idx_sort_order (sort_order)
+) ENGINE=InnoDB;
+CREATE TABLE `t_categories` (
+  `category_id` int(11) NOT NULL AUTO_INCREMENT,
+  `category_name` varchar(100) NOT NULL,
+  `parent_category_id` int(11) DEFAULT NULL,
+  `level` int(11) DEFAULT 1,
+  `sort_order` int(11) DEFAULT 0,
+  `is_active` tinyint(1) DEFAULT 1,
+  `description` text DEFAULT NULL,
+  PRIMARY KEY (`category_id`),
+  KEY `idx_parent_category` (`parent_category_id`),
+  KEY `idx_category_name` (`category_name`),
+  KEY `idx_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_categories;
+CREATE TABLE t_departments (
+dept_id INT PRIMARY KEY,
+dept_name VARCHAR(100) UNIQUE NOT NULL,
+budget DECIMAL(20,2) DEFAULT 0
+) ENGINE=InnoDB;
+CREATE TABLE t_projects (
+project_id INT PRIMARY KEY,
+project_name VARCHAR(100) UNIQUE NOT NULL,
+start_date DATE,
+end_date DATE,
+budget DECIMAL(20,2)
+) ENGINE=InnoDB;
+CREATE TABLE t_staff (
+staff_id INT AUTO_INCREMENT PRIMARY KEY,
+employee_number VARCHAR(20) UNIQUE,
+first_name VARCHAR(50) NOT NULL,
+last_name VARCHAR(50) NOT NULL,
+email VARCHAR(100),
+phone VARCHAR(20),
+department_id INT,
+project_id INT,
+manager_id INT,
+hire_date DATE,
+salary DECIMAL(12,2),
+# Multiple foreign keys with different actions
+CONSTRAINT fk_staff_department
+FOREIGN KEY (department_id) REFERENCES t_departments(dept_id)
+ON DELETE SET NULL ON UPDATE CASCADE,
+CONSTRAINT fk_staff_project
+FOREIGN KEY (project_id) REFERENCES t_projects(project_id)
+ON DELETE SET NULL ON UPDATE CASCADE,
+CONSTRAINT fk_staff_manager
+FOREIGN KEY (manager_id) REFERENCES t_staff(staff_id)
+ON DELETE SET NULL ON UPDATE CASCADE,
+INDEX idx_staff_dept (department_id),
+INDEX idx_staff_project (project_id),
+INDEX idx_staff_manager (manager_id),
+INDEX idx_staff_name (last_name, first_name),
+INDEX idx_staff_email (email)
+) ENGINE=InnoDB;
+CREATE TABLE `t_staff` (
+  `staff_id` int(11) NOT NULL AUTO_INCREMENT,
+  `employee_number` varchar(20) DEFAULT NULL,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `department_id` int(11) DEFAULT NULL,
+  `project_id` int(11) DEFAULT NULL,
+  `manager_id` int(11) DEFAULT NULL,
+  `hire_date` date DEFAULT NULL,
+  `salary` decimal(12,2) DEFAULT NULL,
+  PRIMARY KEY (`staff_id`),
+  UNIQUE KEY `employee_number` (`employee_number`),
+  KEY `idx_staff_dept` (`department_id`),
+  KEY `idx_staff_project` (`project_id`),
+  KEY `idx_staff_manager` (`manager_id`),
+  KEY `idx_staff_name` (`last_name`,`first_name`),
+  KEY `idx_staff_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_staff;
+DROP TABLE t_projects;
+DROP TABLE t_departments;
+CREATE TABLE t_lookup_tables (
+table_id CHAR(5) PRIMARY KEY,
+table_name VARCHAR(50) NOT NULL,
+description TEXT
+) ENGINE=InnoDB;
+CREATE TABLE t_lookup_values (
+value_id INT AUTO_INCREMENT PRIMARY KEY,
+table_id CHAR(5),
+value_code VARCHAR(20),
+value_name VARCHAR(100),
+sort_order SMALLINT DEFAULT 0,
+is_default BOOLEAN DEFAULT FALSE,
+CONSTRAINT fk_lookup_table
+FOREIGN KEY (table_id) REFERENCES t_lookup_tables(table_id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+UNIQUE KEY uk_table_code (table_id, value_code),
+INDEX idx_sort_order (sort_order)
+) ENGINE=InnoDB;
+CREATE TABLE `t_lookup_values` (
+  `value_id` int(11) NOT NULL AUTO_INCREMENT,
+  `table_id` char(5) DEFAULT NULL,
+  `value_code` varchar(20) DEFAULT NULL,
+  `value_name` varchar(100) DEFAULT NULL,
+  `sort_order` smallint(6) DEFAULT 0,
+  `is_default` tinyint(1) DEFAULT 0,
+  PRIMARY KEY (`value_id`),
+  UNIQUE KEY `uk_table_code` (`table_id`,`value_code`),
+  KEY `idx_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_lookup_values;
+DROP TABLE t_lookup_tables;
+CREATE TABLE t_very_long_parent_table_name_for_testing_frm_parser_limits (
+reference_id BIGINT PRIMARY KEY,
+reference_code VARCHAR(50) UNIQUE,
+reference_description LONGTEXT,
+created_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE t_very_long_child_table_name_for_testing_frm_parser_capability (
+child_record_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+parent_reference_id BIGINT NOT NULL,
+child_specific_data JSON,
+processing_status ENUM('new', 'processing', 'completed', 'failed') DEFAULT 'new',
+last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+# Long constraint name
+CONSTRAINT fk_child_table_parent_ref
+FOREIGN KEY (parent_reference_id) 
+REFERENCES t_very_long_parent_table_name_for_testing_frm_parser_limits(reference_id)
+ON DELETE RESTRICT ON UPDATE CASCADE,
+INDEX idx_parent_ref (parent_reference_id),
+INDEX idx_status (processing_status)
+) ENGINE=InnoDB;
+CREATE TABLE `t_very_long_child_table_name_for_testing_frm_parser_capability` (
+  `child_record_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `parent_reference_id` bigint(20) NOT NULL,
+  `child_specific_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`child_specific_data`)),
+  `processing_status` enum('new','processing','completed','failed') DEFAULT 'new',
+  `last_modified` timestamp NULL DEFAULT current_timestamp(0) ON UPDATE current_timestamp(),
+  PRIMARY KEY (`child_record_id`),
+  KEY `idx_parent_ref` (`parent_reference_id`),
+  KEY `idx_status` (`processing_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_very_long_child_table_name_for_testing_frm_parser_capability;
+DROP TABLE t_very_long_parent_table_name_for_testing_frm_parser_limits;
+CREATE TABLE t_master_entities (
+entity_uuid CHAR(36) PRIMARY KEY,
+entity_type VARCHAR(50) NOT NULL,
+entity_name VARCHAR(200) NOT NULL,
+version_number INT DEFAULT 1,
+is_active TINYINT(1) DEFAULT 1,
+metadata JSON,
+created_by VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+UNIQUE KEY uk_entity_type_name (entity_type, entity_name),
+INDEX idx_entity_type (entity_type),
+INDEX idx_active_entities (is_active, entity_type)
+) ENGINE=InnoDB;
+CREATE TABLE t_entity_relationships (
+relationship_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+source_entity_uuid CHAR(36) NOT NULL,
+target_entity_uuid CHAR(36) NOT NULL,
+relationship_type VARCHAR(50) NOT NULL,
+relationship_strength DECIMAL(3,2) DEFAULT 1.00,
+relationship_metadata JSON,
+effective_from DATE,
+effective_to DATE,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+# Multiple foreign keys to same table
+CONSTRAINT fk_relationship_source_entity
+FOREIGN KEY (source_entity_uuid) 
+REFERENCES t_master_entities(entity_uuid)
+ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT fk_relationship_target_entity
+FOREIGN KEY (target_entity_uuid) 
+REFERENCES t_master_entities(entity_uuid)
+ON DELETE CASCADE ON UPDATE CASCADE,
+# Prevent self-referencing in application logic, but allow in DB
+UNIQUE KEY uk_source_target_type (source_entity_uuid, target_entity_uuid, relationship_type),
+INDEX idx_source_entity (source_entity_uuid),
+INDEX idx_target_entity (target_entity_uuid),
+INDEX idx_relationship_type (relationship_type),
+INDEX idx_effective_period (effective_from, effective_to)
+) ENGINE=InnoDB;
+CREATE TABLE `t_entity_relationships` (
+  `relationship_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `source_entity_uuid` char(36) NOT NULL,
+  `target_entity_uuid` char(36) NOT NULL,
+  `relationship_type` varchar(50) NOT NULL,
+  `relationship_strength` decimal(3,2) DEFAULT 1.00,
+  `relationship_metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`relationship_metadata`)),
+  `effective_from` date DEFAULT NULL,
+  `effective_to` date DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`relationship_id`),
+  UNIQUE KEY `uk_source_target_type` (`source_entity_uuid`,`target_entity_uuid`,`relationship_type`),
+  KEY `idx_source_entity` (`source_entity_uuid`),
+  KEY `idx_target_entity` (`target_entity_uuid`),
+  KEY `idx_relationship_type` (`relationship_type`),
+  KEY `idx_effective_period` (`effective_from`,`effective_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_entity_relationships;
+DROP TABLE t_master_entities;
+CREATE TABLE t_audit_log (
+log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+table_name VARCHAR(100) NOT NULL,
+operation_type ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
+record_id VARCHAR(50),
+old_values JSON,
+new_values JSON,
+user_id INT,
+session_id VARCHAR(100),
+timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+INDEX idx_table_operation (table_name, operation_type),
+INDEX idx_timestamp (timestamp),
+INDEX idx_user_session (user_id, session_id)
+) ENGINE=InnoDB;
+CREATE TABLE t_audit_details (
+detail_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+audit_log_id BIGINT,
+field_name VARCHAR(100),
+old_value TEXT,
+new_value TEXT,
+change_type ENUM('INSERT', 'UPDATE', 'DELETE') NOT NULL,
+# Test CASCADE on both DELETE and UPDATE
+CONSTRAINT fk_audit_detail_log
+FOREIGN KEY (audit_log_id) REFERENCES t_audit_log(log_id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+INDEX idx_audit_log (audit_log_id),
+INDEX idx_field_name (field_name)
+) ENGINE=InnoDB;
+CREATE TABLE `t_audit_details` (
+  `detail_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `audit_log_id` bigint(20) DEFAULT NULL,
+  `field_name` varchar(100) DEFAULT NULL,
+  `old_value` text DEFAULT NULL,
+  `new_value` text DEFAULT NULL,
+  `change_type` enum('INSERT','UPDATE','DELETE') NOT NULL,
+  PRIMARY KEY (`detail_id`),
+  KEY `idx_audit_log` (`audit_log_id`),
+  KEY `idx_field_name` (`field_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_audit_details;
+DROP TABLE t_audit_log;
+CREATE SEQUENCE seq_order_numbers START WITH 1000 INCREMENT BY 1;
+CREATE TABLE t_orders (
+order_id INT PRIMARY KEY DEFAULT NEXTVAL(seq_order_numbers),
+order_number VARCHAR(20) AS (CONCAT('ORD-', LPAD(order_id, 8, '0'))) STORED,
+customer_code VARCHAR(20) NOT NULL,
+order_date DATE DEFAULT CURRENT_DATE,
+total_amount DECIMAL(15,2) DEFAULT 0.00,
+UNIQUE KEY uk_order_number (order_number),
+INDEX idx_customer (customer_code),
+INDEX idx_order_date (order_date)
+) ENGINE=InnoDB;
+CREATE TABLE t_order_items (
+item_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+order_id INT NOT NULL,
+line_number SMALLINT NOT NULL,
+product_code VARCHAR(50) NOT NULL,
+quantity DECIMAL(10,3) NOT NULL,
+unit_price DECIMAL(12,2) NOT NULL,
+line_total DECIMAL(15,2) AS (quantity * unit_price) STORED,
+discount_percent DECIMAL(5,2) DEFAULT 0.00,
+net_amount DECIMAL(15,2) AS (line_total * (100 - discount_percent) / 100) STORED,
+# Foreign key referencing table with sequence-based primary key
+CONSTRAINT fk_order_item_order
+FOREIGN KEY (order_id) REFERENCES t_orders(order_id)
+ON DELETE CASCADE ON UPDATE CASCADE,
+UNIQUE KEY uk_order_line (order_id, line_number),
+INDEX idx_product (product_code),
+INDEX idx_line_total (line_total)
+) ENGINE=InnoDB;
+DROP TABLE t_order_items;
+DROP TABLE t_orders;
+DROP SEQUENCE seq_order_numbers;
+Foreign key constraints test completed
+FRM parser should handle all foreign key metadata correctly

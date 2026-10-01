@@ -169,6 +169,9 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root);
 extern bool plugin_is_ready(const LEX_CSTRING *name, int type);
 #define my_plugin_lock_by_name(A,B,C) plugin_lock_by_name(A,B,C)
 #define my_plugin_lock(A,B) plugin_lock(A,B)
+extern plugin_ref (*plugin_lock_hook)(THD *thd, plugin_ref ptr);
+extern void (*plugin_unlock_hook)(THD *thd, plugin_ref plugin);
+
 extern plugin_ref plugin_lock(THD *thd, plugin_ref ptr);
 extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name,
                                       int type);

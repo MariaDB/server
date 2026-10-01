@@ -493,8 +493,13 @@ void free_sysvar_table_options(ha_create_table_option *rules)
   @retval FALSE OK
 */
 
+bool (*parse_engine_table_options_hook)(THD *thd, handlerton *ht, TABLE_SHARE *share) = nullptr;
+bool (*engine_table_options_frm_read_hook)(const uchar *buff, size_t length, TABLE_SHARE *share) = nullptr;
+
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
 {
+  if (parse_engine_table_options_hook)
+    return parse_engine_table_options_hook(thd, ht, share);
   MEM_ROOT *root= &share->mem_root;
   DBUG_ENTER("parse_engine_table_options");
 
@@ -796,6 +801,8 @@ uchar *engine_option_value::frm_read(const uchar *buff, const uchar *buff_end,
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share)
 {
+  if (engine_table_options_frm_read_hook)
+    return engine_table_options_frm_read_hook(buff, length, share);
   const uchar *buff_end= buff + length;
   engine_option_value *UNINIT_VAR(end);
   MEM_ROOT *root= &share->mem_root;
