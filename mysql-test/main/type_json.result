@@ -2,7 +2,7 @@ create or replace table t1(a json);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`))
+  `a` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json character set utf8);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'character set utf8)' at line 1
@@ -10,13 +10,13 @@ create or replace table t1(a json default '{a:1}');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{a:1}' CHECK (json_valid(`a`))
+  `a` json DEFAULT '{a:1}'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
+  `a` json NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
@@ -25,7 +25,7 @@ create or replace table t1(a json not null);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
+  `a` json NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
@@ -35,7 +35,7 @@ create or replace table t1(a json default(json_object('now', now())));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',current_timestamp()) CHECK (json_valid(`a`))
+  `a` json DEFAULT json_object('now',current_timestamp())
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ();
 select * from t1;
@@ -51,18 +51,18 @@ t
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
+  `t` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
+  `a` json DEFAULT NULL,
   `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
+  `t` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2,t3;
 create table t1 (t json check (length(t) > 0));
@@ -91,13 +91,17 @@ a
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',1) CHECK (json_valid(`a`))
+  `a` json DEFAULT json_object('now',1)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select cast('{a:1}' as text);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
+# CAST(... AS JSON) is a placeholder cast_type (see sql_yacc.yy),
+# equivalent to LONGTEXT, with no validation of its own until
+# MDEV-38740 gives JSON a real data type
 select cast('{a:1}' as json);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'json)' at line 1
+cast('{a:1}' as json)
+{a:1}
 #
 # Start of 10.5 tests
 #
@@ -178,4 +182,201 @@ json_arrayagg(v1_json)
 drop view v1;
 #
 # End of 10.5 tests
+#
+#
+# SHOW CREATE TABLE prints a column as "json" only when it's exactly
+# what the JSON keyword itself creates (long blob, utf8mb4_bin) --
+# every other string type with an equivalent CHECK(json_valid(...))
+# keeps printing its real type, so dump+reload can't silently change
+# a column's size or charset
+#
+# CHAR/VARCHAR: never promoted, regardless of the check
+CREATE TABLE t1 (a CHAR(20) CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(20) CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(20) DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# TEXT family: only the long (JSON-sized) variant, and only with
+# utf8mb4_bin, gets promoted
+CREATE TABLE t1 (a TINYTEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinytext DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMTEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumtext DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# LONGTEXT, right size but wrong charset/collation: not promoted
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET latin1 CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# LONGTEXT, utf8mb4_bin: exactly what JSON creates -- promoted
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# BLOB family (binary charset): never promoted
+CREATE TABLE t1 (a TINYBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# JSON keyword itself: the control case, always promoted
+CREATE TABLE t1 (a JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` json DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# Round-trip: recreate each via its own printed DDL (captured below)
+# and show it again -- it must print byte-for-byte the same as the
+# first time, i.e. none of the above silently changed shape
+#
+CREATE TABLE t1 (a CHAR(20) CHECK (JSON_VALID(a)));
+CREATE TABLE t2 (a VARCHAR(20) CHECK (JSON_VALID(a)));
+CREATE TABLE t3 (a TINYTEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t4 (a TEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t5 (a MEDIUMTEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t6 (a LONGTEXT CHARACTER SET latin1 CHECK (JSON_VALID(a)));
+CREATE TABLE t7 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+CHECK (JSON_VALID(a)));
+CREATE TABLE t8 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+CHECK (JSON_VALID(a)));
+CREATE TABLE t9 (a TINYBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t10 (a BLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t11 (a MEDIUMBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t12 (a LONGBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t13 (a JSON);
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(20) DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(20) DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` tinytext DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` text DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `a` mediumtext DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t6;
+Table	Create Table
+t6	CREATE TABLE `t6` (
+  `a` longtext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t7;
+Table	Create Table
+t7	CREATE TABLE `t7` (
+  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t8;
+Table	Create Table
+t8	CREATE TABLE `t8` (
+  `a` json DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t9;
+Table	Create Table
+t9	CREATE TABLE `t9` (
+  `a` tinyblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t10;
+Table	Create Table
+t10	CREATE TABLE `t10` (
+  `a` blob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t11;
+Table	Create Table
+t11	CREATE TABLE `t11` (
+  `a` mediumblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t12;
+Table	Create Table
+t12	CREATE TABLE `t12` (
+  `a` longblob DEFAULT NULL CHECK (json_valid(`a`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SHOW CREATE TABLE t13;
+Table	Create Table
+t13	CREATE TABLE `t13` (
+  `a` json DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
+#
+# End of SHOW CREATE TABLE / JSON tests
 #

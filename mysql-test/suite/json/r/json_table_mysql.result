@@ -1118,12 +1118,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb LONGTEXT PATH '$')) as alias;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-SELECT * FROM 
+SELECT * FROM
 (SELECT CAST(blb AS JSON) jf FROM
 JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti) AS dt,
 JSON_TABLE(jf, '$' COLUMNS (blb BLOB PATH '$')) AS jto;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'JSON) jf FROM
-JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti)...' at line 2
+ERROR HY000: Syntax error in JSON text in argument 1 to function 'JSON_TABLE' at position 1
 DROP TABLE t1;
 #
 # Bug#26500384: ASSERT FAILURE IN QUERY WITH WINDOW FUNCTION AND

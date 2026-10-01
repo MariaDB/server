@@ -1,7 +1,7 @@
 #ifndef SQL_TYPE_JSON_INCLUDED
 #define SQL_TYPE_JSON_INCLUDED
 /*
-   Copyright (c) 2019, 2021 MariaDB
+   Copyright (c) 2019, 2026 MariaDB plc.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -38,6 +38,7 @@ public:
   static const Type_handler *json_type_handler_sum(const Item_sum *sum);
   static const Type_handler *json_type_handler_from_generic(const Type_handler *th);
   static bool has_json_valid_constraint(const Field *field);
+  static bool is_literal_json_field(const Field *field);
   static const Type_collection *type_collection();
   static bool is_json_type_handler(const Type_handler *handler)
   {
