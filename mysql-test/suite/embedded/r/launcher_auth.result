@@ -1,0 +1,33 @@
+#
+# MDEV-11111: the embedded server does not check credentials (its only
+# client is the process that has started it), but the account of the
+# user name decides the privileges. An unknown name is root.
+#
+create user lim@localhost identified by 'secret';
+create database emb_auth;
+create table emb_auth.t (a int);
+grant select on emb_auth.* to lim@localhost;
+# The password is wrong, and the connection is accepted
+connect  c_lim,localhost,lim,wrong password,;
+select current_user();
+current_user()
+lim@localhost
+select * from emb_auth.t;
+a
+create table emb_auth.t2 (a int);
+ERROR 42000: CREATE command denied to user 'lim'@'localhost' for table `emb_auth`.`t2`
+# COM_CHANGE_USER
+change_user root,whatever,;
+select current_user();
+current_user()
+root@localhost
+disconnect c_lim;
+# A name without an account is the root account
+connect  c_nobody,localhost,no_such_user,x,;
+select current_user();
+current_user()
+root@localhost
+disconnect c_nobody;
+connection default;
+drop user lim@localhost;
+drop database emb_auth;

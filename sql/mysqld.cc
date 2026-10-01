@@ -5533,6 +5533,25 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
 
+  if (opt_embedded_lifeline && !opt_noacl && !opt_bootstrap)
+  {
+    /*
+      Embedded server (MDEV-11111) started on an empty data directory: there
+      are no grant tables, and nobody to create them. Run as with
+      --skip-grant-tables, instead of refusing to start.
+    */
+    char path[FN_REFLEN];
+    MY_STAT stat_area;
+    strxnmov(path, sizeof(path) - 1, mysql_real_data_home,
+             "mysql/global_priv.frm", NullS);
+    if (!my_stat(path, &stat_area, MYF(0)))
+    {
+      sql_print_information("Embedded server: no grant tables in '%s', "
+                            "running without them", mysql_real_data_home);
+      opt_noacl= 1;
+    }
+  }
+
   /*
     Plugins may not be completed because system table DDLs are only
     run after the ddl recovery done. Therefore between the

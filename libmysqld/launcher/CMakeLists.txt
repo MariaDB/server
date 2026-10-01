@@ -47,4 +47,6 @@ IF(TARGET mariadb_obj AND TARGET mariadbclient)
   # An unmodified client program: only the client API, linked with libmariadbd
   ADD_EXECUTABLE(embedded_app_test EXCLUDE_FROM_ALL embedded_app_test.c)
   TARGET_LINK_LIBRARIES(embedded_app_test libmariadbd)
+  ADD_EXECUTABLE(embedded_auth_test EXCLUDE_FROM_ALL embedded_auth_test.c)
+  TARGET_LINK_LIBRARIES(embedded_auth_test libmariadbd)
 ENDIF()

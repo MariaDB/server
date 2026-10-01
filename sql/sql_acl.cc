@@ -15831,6 +15831,15 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
 
+  /*
+    Embedded server (MDEV-11111): the application, not a user, is connecting,
+    and no credentials are checked (see embedded_skip_auth()). A name without
+    an account is the application's own choice, so use the root account
+    rather than refuse the connection.
+  */
+  if (!user && opt_embedded_lifeline)
+    user= find_user_or_anon(sctx->host, "root", sctx->ip);
+
   if (user && !user->dont_accept_new_connections())
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
@@ -16750,6 +16759,54 @@ static void make_ssl_info(THD *thd, LEX_CSTRING salt, char *info)
 #endif
 }
 
+/**
+  Embedded server (MDEV-11111): the only client is the process that has started
+  the server, over a private socket or pipe, so there is nobody to
+  authenticate. Read the client handshake to learn the user name (the grant
+  tables still decide what the user may do), but do not run the plugin
+  dialog and do not check credentials.
+
+  If the account could not be found, find_mpvio_user() has set make_it_fail,
+  and the connection is refused.
+*/
+static int embedded_skip_auth(MPVIO_EXT *mpvio)
+{
+  if (mpvio->packets_read == 0)
+  {
+    THD *thd= mpvio->auth_info.thd;
+    uchar *pkt;
+
+    /*
+      The same first steps as native_password_authenticate(): send the
+      server handshake with a scramble, which every client expects, then read
+      the client's reply, which tells us the user name.
+    */
+    if (thd->scramble[SCRAMBLE_LENGTH])
+      thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
+    if (server_mpvio_write_packet(mpvio, (uchar*) thd->scramble,
+                                  SCRAMBLE_LENGTH + 1))
+      return CR_AUTH_HANDSHAKE;
+
+    /* Without grant tables the parser reports success as a "negative"
+       length, with the status set; see parse_client_handshake_packet() */
+    if (server_mpvio_read_packet(mpvio, &pkt) < 0 &&
+        mpvio->status != MPVIO_EXT::SUCCESS)
+      return CR_ERROR;
+  }
+  if (mpvio->make_it_fail)
+  {
+    mpvio->status= MPVIO_EXT::FAILURE;
+    return CR_ERROR;
+  }
+  /* what server_mpvio_read_packet() does; without it the account is taken
+     for a proxy of someone else, in COM_CHANGE_USER where it is not called */
+  if (mpvio->acl_user)
+    strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user.str);
+  mpvio->status= MPVIO_EXT::SUCCESS;
+  return CR_OK;
+}
+
+
 static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
                         MPVIO_EXT *mpvio)
 {
@@ -16760,7 +16817,14 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   mpvio->plugin= plugin;
   mpvio->auth_info.user_name= NULL;
 
-  if (plugin)
+  if (opt_embedded_lifeline)
+  {
+    /* the account's plugin is not needed, and may be not even loaded */
+    res= embedded_skip_auth(mpvio);
+    if (plugin && unlock_plugin)
+      plugin_unlock(thd, plugin);
+  }
+  else if (plugin)
   {
     st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
     switch (info->interface_version >> 8) {
