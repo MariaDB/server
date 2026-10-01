@@ -1,6 +1,6 @@
 --- backup_innodb.result
 +++ backup_innodb,debug.result
-@@ -26,8 +26,10 @@
+@@ -25,8 +25,10 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
@@ -11,10 +11,36 @@
  connect rename,localhost,root;
  RENAME TABLE rt TO rtt;
  CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
-@@ -35,6 +37,7 @@
+@@ -34,6 +36,33 @@
  disconnect rename;
  connection default;
- INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
+ INSERT INTO t SELECT seq a, '' b FROM seq_1_to_30000;
++SET DEBUG_SYNC='now SIGNAL resume';
++connection backup;
++Got one of the listed errors
++disconnect backup;
++connection default;
++DROP TABLE t, rt, rtt;
++CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
++SELECT seq a, '' b FROM seq_1_to_100000;
++CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
++SET GLOBAL innodb_log_checkpoint_now=ON;
++CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b)) ENGINE=INNODB
++SELECT 1 a, '' b;
++BEGIN;
++DELETE FROM t;
++connect backup,localhost,root;
++SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
++BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
++connection default;
++SET DEBUG_SYNC='now WAIT_FOR start';
++connect rename,localhost,root;
++RENAME TABLE rt TO rtt;
++CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
++DROP TABLE dt;
++disconnect rename;
++connection default;
++INSERT INTO t SELECT seq a, '' b FROM seq_1_to_30000;
 +SET DEBUG_SYNC='now SIGNAL resume';
  connection backup;
  disconnect backup;

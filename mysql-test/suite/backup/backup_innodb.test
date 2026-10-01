@@ -1,6 +1,15 @@
 --source include/have_sequence.inc
 --source include/have_innodb.inc
 --source include/maybe_debug.inc
+--let $attempts= 1
+if ($have_debug) {
+inc $attempts;
+--source include/have_debug_sync.inc
+--disable_query_log
+call mtr.add_suppression("mariadbd.*: Unknown error");
+call mtr.add_suppression("mariadbd.*: Can't create file .*mysql/");
+--enable_query_log
+}
 
 --disable_query_log
 call mtr.add_suppression("mariadbd.*: IO Write error:");
@@ -21,10 +30,9 @@ CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 # instead of recovering it via a FILE_CREATE record.
 SET GLOBAL innodb_log_checkpoint_now=ON;
 
-CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
-ENGINE=INNODB;
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB;
 BEGIN;
-INSERT INTO t SET a=1;
+INSERT INTO t SET a=1, b='';
 
 --let $target_directory=/tmp/some_directory$MTR_COMBINATION_ARCHIVED
 
@@ -38,7 +46,6 @@ INSERT INTO t SET a=1;
 --rmdir $target_directory
 
 evalp BACKUP SERVER TO '$target_directory';
---rmdir $target_directory
 ROLLBACK;
 # BACKUP SERVER will implicitly commit the current transaction
 SELECT * FROM t;
@@ -53,9 +60,14 @@ BACKUP SERVER WITH '/bin/false';
 --error ER_IO_WRITE_ERROR
 BACKUP SERVER WITH 'no-such-command';
 
-BEGIN;
-DELETE FROM t;
+--write_file $target_directory.empty_file
+EOF
 
+BEGIN; DELETE FROM t;
+
+while ($attempts) {
+dec $attempts;
+--rmdir $target_directory
 --connect backup,localhost,root
 if ($have_debug) {
 SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
@@ -66,21 +78,50 @@ send_eval BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
 if ($have_debug) {
 SET DEBUG_SYNC='now WAIT_FOR start';
 }
+if ($attempts) {
+--move_file $target_directory.empty_file $target_directory/mysql
+}
 --connect rename,localhost,root
 RENAME TABLE rt TO rtt;
 CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE dt;
 --disconnect rename
 --connection default
-INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
+INSERT INTO t SELECT seq a, '' b FROM seq_1_to_30000;
 if ($have_debug) {
 SET DEBUG_SYNC='now SIGNAL resume';
 }
+if (!$attempts) {
 --connection backup
 --reap
 --disconnect backup
 --connection default
 ROLLBACK;
+}
+if ($attempts) {
+--connection backup
+--error ER_CANT_CREATE_FILE,ER_UNKNOWN_ERROR
+--reap
+--disconnect backup
+--connection default
+# Clean up for a retry without a fault injection.
+DROP TABLE t, rt, rtt;
+CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
+SELECT seq a, '' b FROM seq_1_to_100000;
+# Create a table that must be copied and renamed during the backup
+CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
+# Because log checkpoint will complete before BACKUP SERVER,
+# the above CREATE TABLE must lead to copying the data file,
+# instead of recovering it via a FILE_CREATE record.
+SET GLOBAL innodb_log_checkpoint_now=ON;
+
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b)) ENGINE=INNODB
+SELECT 1 a, '' b;
+BEGIN; DELETE FROM t;
+}
+}
+--error 0,1
+--remove_file $target_directory.empty_file
 SELECT * FROM rt;
 SELECT * FROM rtt;
 SELECT * FROM t;

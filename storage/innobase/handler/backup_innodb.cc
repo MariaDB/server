@@ -687,6 +687,8 @@ public:
     {
       /* An error was flagged. */
       size= size_t(-1);
+      /* Interrupt log_track(). */
+      ctx.last_lsn= 0;
       my_error(ER_UNKNOWN_ERROR, MYF(0));
     done:
       mutex.wr_unlock();
@@ -702,6 +704,8 @@ public:
     queue.pop_back();
     mutex.wr_unlock();
 
+    int res= int(std::min(size_t{std::numeric_limits<int>::max()}, size - 1));
+
     if (size > non_log_files)
     {
       log_sys.latch.rd_lock();
@@ -711,7 +715,7 @@ public:
         /* Wait for checkpoint_complete(). */
         buf_flush_sync_batch(id_limit, true);
       if (replicate(id_limit, target, sink, id_limit < first))
-        return -1;
+        res= -1;
     }
     else
     {
@@ -725,16 +729,26 @@ public:
         mysql_mutex_unlock(&fil_system.mutex);
 
         if (acquired)
-          if (int res= backup_space(target, *space, sink, backup_name,
+          if (int err= backup_space(target, *space, sink, backup_name,
                                     uint32_t(id_limit >> 32)))
-            return res;
+          {
+            ut_ad(err < 0);
+            res= err;
+          }
       }
       else
         mysql_mutex_unlock(&fil_system.mutex);
     }
 
-    ut_ad(size > 0);
-    return int(std::min(size_t{std::numeric_limits<int>::max()}, size - 1));
+    if (UNIV_UNLIKELY(res < 0))
+    {
+      /* Interrupt log_track(). */
+      mutex.wr_lock();
+      ctx.last_lsn= 0;
+      mutex.wr_unlock();
+    }
+
+    return res;
   }
 
   /**
