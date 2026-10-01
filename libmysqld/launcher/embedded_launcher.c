@@ -30,6 +30,7 @@
 #include "embedded_launcher.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,7 +69,17 @@ static HANDLE server_process, lifeline_write;
 #else
 static pid_t server_pid;
 static int lifeline_write= -1;
+static int log_fd= -1;
 static char socket_dir[200];
+
+#ifdef __linux__
+/*
+  An abstract socket has no file system entry, so there is nothing to protect
+  with permissions and nothing to clean up after a crash. Anyone can try to
+  connect, which is why the server checks who does (--embedded-client-pid).
+*/
+#define ABSTRACT_SOCKET 1
+#endif
 #endif
 
 static int running;
@@ -98,12 +109,15 @@ static int timeout_sec(const char *env, int def)
 
 /* Server output goes to a file in the private directory, not to the
    application's stderr. On startup failure, show the end of it. */
+#ifdef _WIN32
 static char log_path[600];
+#endif
 
 static void add_log_tail(void)
 {
   char tail[400];
-  size_t n, len= strlen(error_buf);
+  size_t n= 0, len= strlen(error_buf);
+#ifdef _WIN32
   FILE *f= log_path[0] ? fopen(log_path, "r") : NULL;
   if (!f)
     return;
@@ -111,6 +125,17 @@ static void add_log_tail(void)
     rewind(f);
   n= fread(tail, 1, sizeof(tail) - 1, f);
   fclose(f);
+#else
+  /* the log is a temp file that was removed at once, we have its fd */
+  off_t end;
+  ssize_t r;
+  if (log_fd < 0 || (end= lseek(log_fd, 0, SEEK_END)) < 0)
+    return;
+  r= pread(log_fd, tail, sizeof(tail) - 1,
+           end > (off_t) (sizeof(tail) - 1) ? end - (off_t) (sizeof(tail) - 1)
+                                            : 0);
+  n= r > 0 ? (size_t) r : 0;
+#endif
   tail[n]= 0;
   snprintf(error_buf + len, sizeof(error_buf) - len, "; server log: %s", tail);
 }
@@ -162,7 +187,7 @@ static char **build_args(int argc, char **argv, const char *lifeline,
                          int *count)
 {
   int i, n= 0;
-  char **a= calloc(argc + 8, sizeof(char *));
+  char **a= calloc(argc + 9, sizeof(char *));
   char buf[600];
   if (!a)
     return NULL;
@@ -178,6 +203,15 @@ static char **build_args(int argc, char **argv, const char *lifeline,
   a[n++]= strdup("--enable-named-pipe");
 #endif
   snprintf(buf, sizeof(buf), "--embedded-lifeline=%s", lifeline);
+  a[n++]= strdup(buf);
+  /* the server accepts connections from this process only */
+#ifdef _WIN32
+  snprintf(buf, sizeof(buf), "--embedded-client-pid=%lu",
+           (unsigned long) GetCurrentProcessId());
+#else
+  snprintf(buf, sizeof(buf), "--embedded-client-pid=%lu",
+           (unsigned long) getpid());
+#endif
   a[n++]= strdup(buf);
   a[n]= NULL;
   *count= n;
@@ -458,22 +492,27 @@ static void sleep_ms(int ms)
 static int socket_ready(void)
 {
   struct sockaddr_un sa;
+  socklen_t len= sizeof(sa);
   int fd, ok;
   memset(&sa, 0, sizeof(sa));
   sa.sun_family= AF_UNIX;
   strncpy(sa.sun_path, socket_name, sizeof(sa.sun_path) - 1);
+#ifdef ABSTRACT_SOCKET
+  sa.sun_path[0]= '\0';                 /* "@name" is an abstract name */
+  len= offsetof(struct sockaddr_un, sun_path) + strlen(socket_name);
+#endif
   if ((fd= socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
     return 0;
-  ok= connect(fd, (struct sockaddr *) &sa, sizeof(sa)) == 0;
+  ok= connect(fd, (struct sockaddr *) &sa, len) == 0;
   close(fd);
   return ok;
 }
 
+#ifndef ABSTRACT_SOCKET
 /*
-  An application that was killed cannot clean up after itself. Its server
-  shuts down, but the private directory (with the server's log) stays.
-  The directory name has the pid of the application: remove the ones of
-  our own user whose application is no longer there.
+  An application that was killed cannot remove the private directory of its
+  server's socket. The name has the pid of the application: remove the
+  directories of our own user whose application is no longer there.
 */
 static void sweep_stale(const char *tmpdir)
 {
@@ -512,22 +551,46 @@ static void sweep_stale(const char *tmpdir)
   }
   closedir(d);
 }
+#endif
+
+#ifdef ABSTRACT_SOCKET
+/* Something that differs between the servers of one process and of others */
+static unsigned long random_id(void)
+{
+  unsigned long id= 0;
+  int fd= open("/dev/urandom", O_RDONLY);
+  if (fd >= 0)
+  {
+    if (read(fd, &id, sizeof(id)) != (ssize_t) sizeof(id))
+      id= 0;
+    close(fd);
+  }
+  return id ? id : (unsigned long) time(NULL) * 2654435761UL;
+}
+#endif
 
 int mariadb_embedded_start(int argc, char **argv, char **groups)
 {
   int fds[2], nargs, timeout, rc= 1, waited_ms= 0;
   char **args, lifeline[16];
-  const char *tmp;
+  const char *tmp, *logenv;
+#ifndef ABSTRACT_SOCKET
   struct sockaddr_un sa;
+#endif
 
   (void) groups;
   if (running)
     return fail("embedded server is already started");
 
-  /* Private directory: only the current user can reach the socket */
   tmp= getenv("TMPDIR");
   if (!tmp || !*tmp)
     tmp= "/tmp";
+
+#ifdef ABSTRACT_SOCKET
+  snprintf(socket_name, sizeof(socket_name), "@mariadb-embedded-%ld-%08lx",
+           (long) getpid(), random_id() & 0xffffffffUL);
+#else
+  /* Private directory: only the current user can reach the socket */
   sweep_stale(tmp);
   snprintf(socket_dir, sizeof(socket_dir), "%s/mariadb-embedded-%ld-XXXXXX",
            tmp, (long) getpid());
@@ -537,13 +600,31 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   if (strlen(socket_name) >= sizeof(sa.sun_path))
   {
     rmdir(socket_dir);
+    socket_dir[0]= 0;
     return fail("socket path is too long: %s", socket_name);
+  }
+#endif
+
+  /*
+    The server's output goes to a temp file, removed at once: it lives while
+    we and the server have it open, and cannot be left behind.
+  */
+  logenv= getenv("MARIADB_EMBEDDED_LOG");
+  if (!logenv || strcmp(logenv, "stderr"))
+  {
+    char lp[700];
+    snprintf(lp, sizeof(lp), "%s/mariadb-embedded-log-XXXXXX", tmp);
+    if ((log_fd= mkstemp(lp)) >= 0)
+    {
+      unlink(lp);
+      fcntl(log_fd, F_SETFD, FD_CLOEXEC);
+    }
   }
 
   if (pipe(fds))
   {
-    rmdir(socket_dir);
-    return fail("pipe() failed: %s", strerror(errno));
+    fail("pipe() failed: %s", strerror(errno));
+    goto err_nopipe;
   }
   fcntl(fds[1], F_SETFD, FD_CLOEXEC); /* write end stays with us */
 
@@ -555,15 +636,12 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   {
     pid_t pid;
     posix_spawn_file_actions_t fa;
-    const char *log= getenv("MARIADB_EMBEDDED_LOG");
     int sp;
     posix_spawn_file_actions_init(&fa);
-    if (!log || strcmp(log, "stderr"))
+    if (log_fd >= 0)
     {
-      snprintf(log_path, sizeof(log_path), "%s/mysqld.log", socket_dir);
       posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
-      posix_spawn_file_actions_addopen(&fa, 2, log_path,
-                                       O_WRONLY | O_CREAT | O_TRUNC, 0600);
+      posix_spawn_file_actions_adddup2(&fa, log_fd, 2);
     }
     sp= posix_spawnp(&pid, args[0], &fa, NULL, args, environ);
     posix_spawn_file_actions_destroy(&fa);
@@ -616,10 +694,12 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
 err:
   close(fds[0]);
   close(fds[1]);
-  if (log_path[0])
-    unlink(log_path);
-  log_path[0]= 0;
-  rmdir(socket_dir);
+err_nopipe:
+  if (log_fd >= 0)
+    close(log_fd);
+  log_fd= -1;
+  if (socket_dir[0])
+    rmdir(socket_dir);
   socket_dir[0]= 0;
   return 1;
 }
@@ -647,12 +727,14 @@ void mariadb_embedded_stop(void)
     }
     server_pid= 0;
   }
+  if (log_fd >= 0)
+  {
+    close(log_fd);
+    log_fd= -1;
+  }
   if (socket_dir[0])
   {
     unlink(socket_name); /* normally removed by the server already */
-    if (log_path[0])
-      unlink(log_path);
-    log_path[0]= 0;
     rmdir(socket_dir);
     socket_dir[0]= 0;
   }

@@ -432,6 +432,23 @@ struct Pipe_Listener : public Listener
 
   static void create_pipe_connection(HANDLE pipe)
   {
+    /*
+      Embedded server (MDEV-11111): the pipe is limited to the user, and here
+      to the one process that has started the server.
+    */
+    ULONG client_pid= 0;
+    if (opt_embedded_client_pid &&
+        (!GetNamedPipeClientProcessId(pipe, &client_pid) ||
+         client_pid != opt_embedded_client_pid))
+    {
+      sql_print_warning("Embedded server: refused a connection from "
+                        "another process than %lu",
+                        (ulong) opt_embedded_client_pid);
+      statistic_increment(aborted_connects, &LOCK_status);
+      DisconnectNamedPipe(pipe);
+      CloseHandle(pipe);
+      return;
+    }
     if (auto connect= new CONNECT(pipe))
       create_new_thread(connect);
     else

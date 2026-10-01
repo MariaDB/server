@@ -6094,6 +6094,24 @@ static void test_lc_time_sz()
 */
 const char *opt_embedded_lifeline;
 
+/*
+  The process that has started the embedded server, and the only one that may
+  connect to it (0: no restriction). Windows named pipes get the same check in
+  handle_connections_win.cc.
+*/
+ulong opt_embedded_client_pid;
+
+#ifdef __linux__
+static bool embedded_peer_allowed(MYSQL_SOCKET s)
+{
+  struct ucred cred;
+  socklen_t len= sizeof(cred);
+  if (getsockopt(mysql_socket_getfd(s), SOL_SOCKET, SO_PEERCRED, &cred, &len))
+    return false;
+  return cred.pid == (pid_t) opt_embedded_client_pid && cred.uid == geteuid();
+}
+#endif
+
 static void *embedded_lifeline_thread(void *)
 {
   my_thread_init();
@@ -6916,7 +6934,25 @@ void handle_connections_sockets()
                                     (struct sockaddr *)(&cAddr),
                                     &length);
       if (mysql_socket_getfd(new_sock) != INVALID_SOCKET)
+      {
+#ifdef __linux__
+        /*
+          Embedded server (MDEV-11111): its socket is an abstract one, which
+          anybody on the machine can connect to. The kernel tells us who
+          does: refuse everybody but the process that has started us.
+        */
+        if (opt_embedded_client_pid && !embedded_peer_allowed(new_sock))
+        {
+          statistic_increment(aborted_connects, &LOCK_status);
+          sql_print_warning("Embedded server: refused a connection from "
+                            "another process than %lu",
+                            (ulong) opt_embedded_client_pid);
+          mysql_socket_close(new_sock);
+        }
+        else
+#endif
         handle_accepted_socket(new_sock, sock);
+      }
       else if (socket_errno == SOCKET_EAGAIN || socket_errno == SOCKET_EWOULDBLOCK)
         break;
       else if (socket_errno != SOCKET_EINTR)
@@ -7030,6 +7066,10 @@ struct my_option my_long_options[]=
   {"bootstrap", OPT_BOOTSTRAP, "Used by MariaDB installation scripts", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
+  {"embedded-client-pid", OPT_EMBEDDED_CLIENT_PID,
+   "Used by the embedded server launcher. The only process that may connect",
+   &opt_embedded_client_pid, &opt_embedded_client_pid, 0, GET_ULONG,
+   REQUIRED_ARG, 0, 0, ULONG_MAX, 0, 0, 0},
   {"embedded-lifeline", OPT_EMBEDDED_LIFELINE,
    "Used by the embedded server launcher. Inherited pipe fd (HANDLE on "
    "Windows) that the server watches; on EOF the server shuts down",

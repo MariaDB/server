@@ -117,6 +117,7 @@ extern handlerton *opt_binlog_engine_hton;
 extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern const char *opt_embedded_lifeline;
+extern ulong opt_embedded_client_pid;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
 extern my_bool opt_disable_networking, opt_skip_show_db;
@@ -762,6 +763,7 @@ enum options_mysqld
   OPT_BIN_LOG,
   OPT_BOOTSTRAP,
   OPT_EMBEDDED_LIFELINE,
+  OPT_EMBEDDED_CLIENT_PID,
   OPT_COSTS_DISK_READ_COST,
   OPT_COSTS_INDEX_BLOCK_COPY_COST,
   OPT_COSTS_KEY_CMP_COST,
