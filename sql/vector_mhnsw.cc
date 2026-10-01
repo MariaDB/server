@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2024, 2025, MariaDB plc
+   Copyright (c) 2024, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1517,16 +1517,15 @@ struct Search_context: public Sql_alloc
 };
 
 
-int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+int mhnsw_read_first(TABLE *table, KEY *keyinfo, const uchar *value,
+                     size_t value_len, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
-  auto *fun= static_cast<Item_func_vec_distance*>(dist->real_item());
-  DBUG_ASSERT(fun);
 
   limit= std::min<ulonglong>(limit, max_ef);
 
-  String buf, *res= fun->get_const_arg()->val_str(&buf);
+  String buf;
   MHNSW_Share *ctx;
 
   if (int err= table->file->ha_rnd_init(0))
@@ -1549,17 +1548,17 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     NULL, so the result is basically unsorted, we can return rows
     in any order. Let's use some hardcoded value here
   */
-  if (!res || ctx->byte_len != res->length())
+  if (value_len != ctx->byte_len)
   {
-    res= &buf;
     buf.alloc(ctx->byte_len);
     buf.length(ctx->byte_len);
     for (size_t i=0; i < ctx->vec_len; i++)
       ((float*)buf.ptr())[i]= i == 0;
+    value= (const uchar *)buf.ptr();
   }
 
   auto target= FVector::create(ctx, thd->alloc(FVector::alloc_size(ctx->vec_len)),
-                               res->ptr());
+                               value);
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;

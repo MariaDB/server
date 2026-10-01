@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1871,7 +1871,7 @@ public:
 
   int hlindex_open(uint nr);
   int hlindex_lock(uint nr);
-  int hlindex_read_first(uint nr, Item *item, ulonglong limit);
+  int hlindex_read_first(uint nr, const uchar *value, size_t value_len, ulonglong limit);
   int hlindex_read_next();
   int hlindex_read_end();
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2024, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10266,7 +10266,8 @@ int TABLE::hlindexes_on_delete_all(bool truncate)
   return 0;
 }
 
-int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
+int TABLE::hlindex_read_first(uint nr, const uchar *value, size_t value_len,
+                              ulonglong limit)
 {
   DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
@@ -10276,7 +10277,7 @@ int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
 
   DBUG_ASSERT(hlindex->in_use == in_use);
 
-  return mhnsw_read_first(this, key_info + s->keys, item, limit);
+  return mhnsw_read_first(this, key_info + s->keys, value, value_len, limit);
 }
 
 int TABLE::hlindex_read_next()
