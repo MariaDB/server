@@ -89,12 +89,12 @@ char empty_c_string[1]= {0};    /* used for not defined db */
 ** User variables
 ****************************************************************************/
 
-extern "C" const uchar *get_var_key(const void *entry_, size_t *length,
-                                    my_bool)
+extern "C" const void *get_var_key(const void *entry_, size_t *length,
+                                   my_bool)
 {
   const user_var_entry *entry= static_cast<const user_var_entry *>(entry_);
   *length= entry->name.length;
-  return reinterpret_cast<const uchar *>(entry->name.str);
+  return entry->name.str;
 }
 
 extern "C" void free_user_var(void *entry_)
@@ -107,8 +107,8 @@ extern "C" void free_user_var(void *entry_)
 
 /* Functions for last-value-from-sequence hash */
 
-extern "C" const uchar *get_sequence_last_key(const void *entry_,
-                                              size_t *length, my_bool)
+extern "C" const void *get_sequence_last_key(const void *entry_,
+                                             size_t *length, my_bool)
 {
   const SEQUENCE_LAST_VALUE *entry= static_cast<const SEQUENCE_LAST_VALUE *>(entry_);
   *length= entry->length;
@@ -4177,12 +4177,12 @@ Statement::~Statement() = default;
 
 C_MODE_START
 
-static const uchar *get_statement_id_as_hash_key(const void *record,
-                                                 size_t *key_length, my_bool)
+static const void *get_statement_id_as_hash_key(const void *record,
+                                                size_t *key_length, my_bool)
 {
   const Statement *statement= static_cast<const Statement *>(record);
   *key_length= sizeof(statement->id);
-  return reinterpret_cast<const uchar *>(&(statement)->id);
+  return &(statement)->id;
 }
 
 static void delete_statement_as_hash_key(void *key)
@@ -4190,12 +4190,12 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static const uchar *get_stmt_name_hash_key(const void *entry_, size_t *length,
-                                           my_bool)
+static const void *get_stmt_name_hash_key(const void *entry_, size_t *length,
+                                          my_bool)
 {
   const Statement *entry= static_cast<const Statement *>(entry_);
   *length= entry->name.length;
-  return reinterpret_cast<const uchar *>(entry->name.str);
+  return entry->name.str;
 }
 
 C_MODE_END

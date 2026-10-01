@@ -365,12 +365,12 @@ err:
 }
 
 static
-const uchar *
+const void *
 get_file_entry_key(const void *entry_, size_t *length, my_bool)
 {
   const file_entry_t *entry= static_cast<const file_entry_t *>(entry_);
   *length= entry->pathlen;
-  return reinterpret_cast<const uchar *>(entry->path);
+  return entry->path;
 }
 
 static
