@@ -382,6 +382,17 @@ typedef struct st_mysql_parameters
 */
 int STDCALL mysql_server_init(int argc, char **argv, char **groups);
 void STDCALL mysql_server_end(void);
+/*
+  Hooks for an embedded server launcher (MDEV-11111, see libmariadbd in the
+  server tree). server_init is called from mysql_server_init(), server_end
+  from mysql_server_end(). While socket_name() returns non-NULL, connections
+  to the local host (no host, "localhost", or "." on Windows) that do not
+  specify a socket go to that socket / named pipe.
+*/
+void STDCALL mariadb_set_embedded_hooks(
+  int (STDCALL *server_init)(int argc, char **argv, char **groups),
+  void (STDCALL *server_end)(void),
+  const char *(STDCALL *socket_name)(void));
 
 /*
   mysql_server_init/end need to be called when using libmariadbd or
