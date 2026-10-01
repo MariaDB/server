@@ -1245,14 +1245,25 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     thd->mdl_context.release_lock(mdl_request.ticket);
     return true;
   }
+#ifndef NDEBUG
+# define calloca(n) memset(alloca(n), 0, n)
+#else
+# define calloca(n) alloca(n)
+#endif
   backup_target_phase *target_phase= static_cast<backup_target_phase*>
-    (alloca(threads * sizeof *target_phase));
+    (calloca(threads * sizeof *target_phase));
+#undef calloca
+
   if (threads > 1 && !(tp= tpool::create_thread_pool_generic()))
   {
   oor:
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
   err_exit:
     delete tp;
+#ifndef NDEBUG
+    for (int t{threads}; t--; )
+      assert(!target_phase[t].stream);
+#endif
     goto release_and_exit;
   }
 
@@ -1279,8 +1290,13 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       FILE *f= my_popen(cmd, "w");
       if (!f)
       {
-        while (t < threads)
-          my_pclose(target_phase[t++].stream);
+        while (t++ < threads)
+        {
+          my_pclose(target_phase[threads - t].stream);
+#ifndef NDEBUG
+          target_phase[threads - t].stream= nullptr;
+#endif
+        }
         goto oor;
       }
 #ifdef _WIN32
