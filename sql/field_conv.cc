@@ -794,6 +794,35 @@ Field::Copy_func *Field_temporal::get_copy_func(const Field *from) const
 }
 
 
+Field::Copy_func *Field_year::get_copy_func(const Field *from) const
+{
+  if (eq_def(from))
+    return get_identical_copy_func();
+  switch (from->cmp_type()) {
+  case STRING_RESULT:
+  {
+    const Type_handler *handler= from->type_handler();
+    if (handler == &type_handler_enum || handler == &type_handler_set)
+      return do_field_int;
+    return do_field_string;
+  }
+  case TIME_RESULT:
+    return do_field_date;
+  case DECIMAL_RESULT:
+    return do_field_decimal;
+  case REAL_RESULT:
+    return do_field_real;
+  case INT_RESULT:
+    break;
+  case ROW_RESULT:
+  default:
+    DBUG_ASSERT(0);
+    break;
+  }
+  return do_field_int;
+}
+
+
 Field::Copy_func *Field_varstring::get_copy_func(const Field *from) const
 {
   if (from->type() == MYSQL_TYPE_BIT)
