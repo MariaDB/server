@@ -10295,6 +10295,8 @@ bool get_schema_tables_result(JOIN *join,
           }
           plan->fp_state= IS_table_read_plan::FP_STREAMING;
         }
+        /* FOUND_ROWS() without SQL_CALC_FOUND_ROWS is rows sent. */
+        thd->limit_found_rows= plan->sent_rows;
         my_eof(thd);
         result= 1;
       }
