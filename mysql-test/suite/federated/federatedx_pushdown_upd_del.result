@@ -679,12 +679,9 @@ a	b
 3	three
 4	four
 DROP TABLE t4;
-# A merged VIEW is not pushed down. get_fed_table_for_pushdown() walks
-# SELECT_LEX::join->tables_list, where a merged VIEW is still present as
-# its own TABLE_LIST carrying the view's internal temporary table. That
-# table's handler is not FederatedX, so the check that every table
-# belongs to the same FederatedX server fails and the whole statement is
-# executed locally, row by row.
+# A VIEW is not pushed down: the pushed statement would be printed with
+# the view's local name, which the remote server doesn't have. The
+# whole statement is executed locally, row by row.
 CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE VIEW v2 AS SELECT * FROM v1;
 CALL fill_tables();
@@ -857,6 +854,202 @@ a	b
 1	one
 3	three
 4	four
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+#
+# MDEV-41340: Statements referring to a view must not be pushed down
+#
+# A view exists only on the local server, but a pushed down statement
+# is printed with the view's name, so the remote server could not
+# resolve it. Every such statement is executed locally instead.
+#
+connection master;
+set global federated_pushdown=1;
+CALL fill_tables();
+#
+# With LIMIT the view is always materialized. The plan shows only the
+# view's body as pushed down (PUSHED DERIVED), not the UPDATE join.
+#
+CREATE VIEW v1 AS SELECT * FROM t1 LIMIT 2;
+# plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t1 JOIN v1 SET t1.a= 1 WHERE v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+UPDATE t1 JOIN v1 SET t1.a= 1 WHERE v1.a < 3;
+affected rows: 6
+info: Rows matched: 8  Changed: 6  Warnings: 0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+1	two
+1	three
+1	four
+DROP VIEW v1;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+#
+# Multi-table DELETE with a materialized view.
+#
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1 LIMIT 2;
+# plan must not contain PUSHED DELETE
+EXPLAIN
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	federated.t1.a	1	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+3	three
+4	four
+DROP VIEW v1;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+#
+# Multi-table DELETE with a mergeable view.
+#
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1;
+# plan must not contain PUSHED DELETE
+EXPLAIN
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+affected rows: 2
+SELECT * FROM t1 ORDER BY a;
+a	b
+3	three
+4	four
+DROP VIEW v1;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+#
+# A merged view over several tables, a view of a view, a view in a
+# subquery, SELECT and INSERT ... SELECT from views.
+#
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT t1.a, t2.c FROM t1 JOIN t2 ON t1.a= t2.a;
+CREATE VIEW v3 AS SELECT * FROM v1 WHERE a < 4;
+CREATE VIEW v4 AS SELECT * FROM t1 LIMIT 2;
+# merged view over several tables
+# plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3 JOIN v2 ON t3.a= v2.a SET t3.b= t3.b + 100 WHERE v2.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+UPDATE t3 JOIN v2 ON t3.a= v2.a SET t3.b= t3.b + 100 WHERE v2.a < 3;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	110
+2	120
+3	30
+# view of a view
+# plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3 JOIN v3 ON t3.a= v3.a SET t3.b= t3.b + 100 WHERE v3.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+UPDATE t3 JOIN v3 ON t3.a= v3.a SET t3.b= t3.b + 100 WHERE v3.a < 3;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	210
+2	220
+3	30
+# view inside a subquery
+# plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3, t2 SET t3.b= t3.b + 100
+WHERE t3.a= t2.a AND t3.a IN (SELECT a FROM v1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	4	
+UPDATE t3, t2 SET t3.b= t3.b + 100
+WHERE t3.a= t2.a AND t3.a IN (SELECT a FROM v1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	310
+2	320
+3	130
+# SELECT from views
+# plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM v1, t2 WHERE v1.a= t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+SELECT * FROM v1, t2 WHERE v1.a= t2.a ORDER BY v1.a;
+a	b	a	c
+1	one	1	I
+2	two	2	II
+3	three	3	III
+# plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+SELECT * FROM v2 ORDER BY a;
+a	c
+1	I
+2	II
+3	III
+# plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM t2 WHERE a IN (SELECT a FROM v1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	4	
+SELECT * FROM t2 WHERE a IN (SELECT a FROM v1) ORDER BY a;
+a	c
+1	I
+2	II
+3	III
+# INSERT ... SELECT from a materialized and from a mergeable view
+# plan must not contain PUSHED SELECT
+EXPLAIN INSERT INTO t2 SELECT a + 10, b FROM v4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+INSERT INTO t2 SELECT a + 10, b FROM v4;
+# plan must not contain PUSHED SELECT
+EXPLAIN INSERT INTO t2 SELECT a + 20, b FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+INSERT INTO t2 SELECT a + 20, b FROM v1;
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	I
+2	II
+3	III
+11	one
+12	two
+21	one
+22	two
+23	three
+24	four
+DROP VIEW v4, v3, v2, v1;
+connection master;
+set global federated_pushdown=0;
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;
@@ -871,4 +1064,6 @@ DROP DATABASE IF EXISTS federated;
 connection slave;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
+#
 # End of 13.2 tests
+#
