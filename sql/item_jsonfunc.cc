@@ -2082,15 +2082,18 @@ bool Item_func_json_contains_path::val_bool()
   result= 0;
   while (json_get_path_next(&je, &p) == 0)
   {
-    int n_path= arg_count - 2, value= 0, *value_ptr= NULL;
+    int n_path= arg_count - 2;
 
-    value_ptr= (int*)(json_depth_array.buffer)+(p.last_step_idx);
+    int *value_ptr=
+        (int *)mem_root_dynamic_array_resize_and_get_val(&json_depth_array,
+                                                         p.last_step_idx);
+    if (!value_ptr)
+    {
+      je.s.error= JE_EOS;
+      break;
+    }
     if (has_negative_path && je.value_type == JSON_VALUE_ARRAY &&
-        (json_skip_array_and_count(&je,
-                                 value_ptr ? value_ptr : &value) ||
-        mem_root_dynamic_array_resize_and_set_val(&json_depth_array,
-                                       value_ptr ? value_ptr : &value,
-                                       p.last_step_idx)))
+        json_skip_array_and_count(&je, value_ptr))
     {
       result= 1;
       break;
