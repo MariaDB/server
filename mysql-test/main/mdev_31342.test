@@ -393,3 +393,6 @@ SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user' PROCEDURE ANALYSE();
 
 --echo #
+--echo # MDEV-41204: client cursor protocol uses fallback
+--echo # (also covered by running this test with --cursor-protocol)
+--echo #
