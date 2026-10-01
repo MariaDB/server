@@ -590,6 +590,8 @@ public:
 
   virtual bool supports_removal() const { return false; }
   virtual void remove() { DBUG_ASSERT(0); }
+  /* add() only accumulates: rows can be added to an existing result */
+  virtual bool supports_append() const { return false; }
 
   void cleanup() override;
   bool check_vcol_func_processor(void *arg) override;
@@ -1067,6 +1069,7 @@ public:
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
   Sumfunctype sum_func () const override { return VARIANCE_FUNC; }
+  bool supports_append() const override { return true; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   void clear() override final;
@@ -1177,6 +1180,7 @@ public:
   { }
   bool fix_fields(THD *, Item **) override;
   bool fix_length_and_dec(THD *thd) override;
+  bool supports_append() const override { return true; }
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear() override;
   void direct_add(Item *item);
