@@ -190,7 +190,11 @@ my $file_size= 4<<20;
 open(FILE, "+<", $file) or die "Unable to open $file\n";
 binmode FILE;
 print FILE pack("NN", 0, $file_size - 33) x 1536;
+seek FILE, -33, 2 or die "Unable to seek $file\n";
+my $data;
+read FILE, $data, 33 or die "Unable to read $file\n";
 seek FILE, $file_size - 17, 0 or die "Unable to seek $file\n";
+print "End:", unpack("H*", $data), "\n";
 my $polynomial = 0x82f63b78; # CRC-32C
 my $FILE_MODIFY=pack("CCxa*", 0xb9, 127, "a/b.ibd");
 $FILE_MODIFY .= pack("CNxx", 1, mycrc32($FILE_MODIFY, 0, $polynomial));

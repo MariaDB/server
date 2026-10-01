@@ -5642,7 +5642,15 @@ inline void log_t::set_recovered() noexcept
     if we recovered from a single log file.
   */
   circular_recovery_from_sequence_bit_0= archive
-    ? recv_sys.log_archive.size() < 2
+    ? recv_sys.log_archive.size() < 2 &&
+    /*
+      Single-file innodb_log_archive=ON may have been converted from
+      innodb_log_archive=OFF. A conversion back must write a
+      checkpoint, unless the log contents since the latest checkpoint
+      is a single FILE_CHECKPOINT record.
+    */
+    get_flushed_lsn() !=
+    last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT + 8 * is_encrypted()
     : !get_sequence_bit(last_checkpoint_lsn);
   ut_ad(write_size >= 512);
   ut_ad(ut_is_2pow(write_size));
