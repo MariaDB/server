@@ -1,0 +1,795 @@
+# MDEV-31342: Test I_S fast path optimization
+#
+# Test 1: Simple SELECT - should use fast path
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+TABLE_NAME
+user
+#
+# Test 2: WHERE filter
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'information_schema' and information_schema.`TABLES`.`TABLE_NAME` = 'TABLES'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME, TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES';
+TABLE_NAME	TABLE_SCHEMA
+TABLES	information_schema
+#
+# Test 3: Scalar subquery - should trigger single row early exit
+#
+EXPLAIN FORMAT=JSON SELECT (
+SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user'
+) AS result;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "No tables used"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": 0.01423506,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "TABLES",
+                "access_type": "ALL",
+                "key": "TABLE_SCHEMA,TABLE_NAME",
+                "loops": 1,
+                "cost": 0.01423506,
+                "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+                "skip_open_table": true,
+                "scanned_databases": 0
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+SELECT (
+SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user'
+) AS result;
+result
+user
+#
+# Test 4: LIMIT 1 - should trigger early exit
+#
+EXPLAIN FORMAT=JSON SELECT COUNT(*) > 0 FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+  LIMIT 1
+) t;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.010089369,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": 0.010089369,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.01423506,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "TABLES",
+                    "access_type": "ALL",
+                    "key": "TABLE_SCHEMA",
+                    "loops": 1,
+                    "cost": 0.01423506,
+                    "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+                    "skip_open_table": true,
+                    "scanned_databases": 1,
+                    "is_fast_path": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT COUNT(*) > 0 FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+  LIMIT 1
+) t;
+COUNT(*) > 0
+1
+#
+# Test 5: Fallback path - ORDER BY should still work correctly
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME
+LIMIT 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.`TABLES`.`TABLE_NAME`",
+            "table": {
+              "table_name": "TABLES",
+              "access_type": "ALL",
+              "key": "TABLE_SCHEMA",
+              "loops": 1,
+              "cost": 0.01423506,
+              "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+              "skip_open_table": true,
+              "scanned_databases": 1
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME
+LIMIT 3;
+TABLE_NAME
+columns_priv
+column_stats
+db
+#
+# Test 6: Fallback path - GROUP BY should still work
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_SCHEMA, COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+GROUP BY TABLE_SCHEMA;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_SCHEMA, COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+GROUP BY TABLE_SCHEMA;
+TABLE_SCHEMA	COUNT(*)
+mysql	31
+#
+# Test 7: Fallback path - DISTINCT should still work
+#
+EXPLAIN FORMAT=JSON SELECT DISTINCT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT DISTINCT TABLE_SCHEMA FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+TABLE_SCHEMA
+mysql
+#
+# Test 8: HAVING clause - should use fallback path
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+HAVING TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "having_condition": "information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+HAVING TABLE_NAME = 'user';
+TABLE_SCHEMA	TABLE_NAME
+mysql	user
+#
+# Test 9: WHERE TABLE_SCHEMA and TABLE_CATALOG mismatch - no rows
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_CATALOG = 'nope';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.TABLE_CATALOG = 'nope'",
+          "skip_open_table": true,
+          "scanned_databases": 1,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_CATALOG = 'nope';
+TABLE_NAME
+#
+# Test 10: LIMIT n > 1 without ORDER BY - not the single-row early-exit
+# case, so is_simple_is_query() rejects it -> fallback path
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT COUNT(*) FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 3
+) t;
+COUNT(*)
+3
+# Test 11: LIMIT 1 OFFSET 1 - offset_limit set -> fallback path
+# (regression coverage: fast path must not skip the offset row)
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1 OFFSET 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT COUNT(*) FROM (
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1 OFFSET 1
+) t;
+COUNT(*)
+1
+# Test 12: SQL_CALC_FOUND_ROWS - OPTION_FOUND_ROWS set -> fallback path
+# (regression coverage: fast path must not short-circuit the full scan
+# needed for an accurate FOUND_ROWS() count)
+#
+EXPLAIN FORMAT=JSON SELECT SQL_CALC_FOUND_ROWS TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT SQL_CALC_FOUND_ROWS TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+31
+#
+# Test 13: SELECT * - non-field item shape rejected -> fallback path
+#
+EXPLAIN FORMAT=JSON SELECT * FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+          "open_full_table": true,
+          "scanned_databases": 0
+        }
+      }
+    ]
+  }
+}
+SELECT * FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+def	mysql	user	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
+#
+# Verify: simple query temp table behavior
+#
+FLUSH STATUS;
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+TABLE_NAME
+user
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	2
+#
+# Verify: ORDER BY uses fallback
+#
+FLUSH STATUS;
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME LIMIT 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.`TABLES`.`TABLE_NAME`",
+            "table": {
+              "table_name": "TABLES",
+              "access_type": "ALL",
+              "key": "TABLE_SCHEMA",
+              "loops": 1,
+              "cost": 0.01423506,
+              "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+              "skip_open_table": true,
+              "scanned_databases": 1
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql'
+ORDER BY TABLE_NAME LIMIT 3;
+TABLE_NAME
+columns_priv
+column_stats
+db
+SHOW SESSION STATUS LIKE 'Created_tmp_tables';
+Variable_name	Value
+Created_tmp_tables	2
+#
+# EXPLAIN shows no filesort for fast-path query
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' LIMIT 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+#
+# EXPLAIN shows filesort for fallback query (ORDER BY)
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' ORDER BY TABLE_NAME LIMIT 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "information_schema.`TABLES`.`TABLE_NAME`",
+            "table": {
+              "table_name": "TABLES",
+              "access_type": "ALL",
+              "key": "TABLE_SCHEMA",
+              "loops": 1,
+              "cost": 0.01423506,
+              "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+              "skip_open_table": true,
+              "scanned_databases": 1
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+#
+# Test: Prepared statements - fast path re-execution correctness
+#
+PREPARE stmt FROM 'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+SET @db = 'mysql', @tbl = 'user';
+EXECUTE stmt USING @db, @tbl;
+TABLE_NAME
+user
+EXECUTE stmt USING @db, @tbl;
+TABLE_NAME
+user
+DEALLOCATE PREPARE stmt;
+#
+# Test: Prepared statement with LIMIT 1
+#
+PREPARE stmt2 FROM 'SELECT COUNT(*) > 0 FROM (SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? LIMIT 1) t';
+SET @db = 'mysql';
+EXECUTE stmt2 USING @db;
+COUNT(*) > 0
+1
+EXECUTE stmt2 USING @db;
+COUNT(*) > 0
+1
+DEALLOCATE PREPARE stmt2;
+#
+# Test: I_S query inside stored procedure
+#
+CREATE PROCEDURE test_is_proc()
+BEGIN
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+END//
+CALL test_is_proc();
+TABLE_NAME
+user
+CALL test_is_proc();
+TABLE_NAME
+user
+DROP PROCEDURE test_is_proc;
+#
+# Test: I_S query inside a merged view - still eligible for fast path
+#
+CREATE VIEW test_is_view AS
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql';
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM test_is_view WHERE TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.`TABLE_NAME` = 'user' and information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM test_is_view WHERE TABLE_NAME = 'user';
+TABLE_NAME
+user
+DROP VIEW test_is_view;
+#
+# Test: WHERE with multiple conditions
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME LIKE 'user%'
+LIMIT 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` like 'user%'",
+          "skip_open_table": true,
+          "scanned_databases": 1,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME LIKE 'user%'
+LIMIT 1;
+TABLE_NAME
+user
+#
+# Test: I_S query inside trigger
+#
+CREATE TABLE test_mdev31342 (id INT);
+CREATE TRIGGER test_is_trigger BEFORE INSERT ON test_mdev31342
+FOR EACH ROW
+BEGIN
+SET NEW.id = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql');
+END//
+INSERT INTO test_mdev31342 VALUES (0);
+SELECT id > 0 AS has_tables FROM test_mdev31342;
+has_tables
+1
+DROP TRIGGER test_is_trigger;
+DROP TABLE test_mdev31342;
+# End of 13.1 tests
+#
+# Test: Query cache - ensure results are not served from cache
+#
+SET SESSION query_cache_type = 0;
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+TABLE_NAME
+user
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+TABLE_NAME
+user
+SET SESSION query_cache_type = DEFAULT;
+#
+# Test: Prepared statement with ? placeholders - second execution
+#
+PREPARE stmt3 FROM
+'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+   WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+SET @s1= 'mysql', @t1= 'user';
+EXECUTE stmt3 USING @s1, @t1;
+TABLE_NAME
+user
+SET @s1= 'information_schema', @t1= 'TABLES';
+EXECUTE stmt3 USING @s1, @t1;
+TABLE_NAME
+TABLES
+DEALLOCATE PREPARE stmt3;
+#
+# Test: Verify fast path via EXPLAIN (no filesort = fast path engaged)
+#
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA,TABLE_NAME",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+          "skip_open_table": true,
+          "scanned_databases": 0,
+          "is_fast_path": true
+        }
+      }
+    ]
+  }
+}
