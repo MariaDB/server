@@ -2929,11 +2929,7 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
 		sql_print_error("InnoDB: Cannot save table statistics for"
-#ifdef EMBEDDED_LIBRARY
-				" table %.*s.%s: %s",
-#else
 				" table %.*sQ.%sQ: %s",
-#endif
 				int(table->name.dblen()), table->name.m_name,
 				table->name.basename(), ut_strerr(ret));
 rollback_and_exit:
@@ -3523,11 +3519,7 @@ void dict_stats_update_for_index(trx_t *trx, dict_index_t *index) noexcept
         break;
       table->stats_error_printed= true;
       sql_print_information("InnoDB: Recalculation of persistent statistics"
-#ifdef EMBEDDED_LIBRARY
-                            " requested for table %.*s.%s index %s but"
-#else
                             " requested for table %.*sQ.%sQ index %sQ but"
-#endif
                             " the required persistent statistics storage"
                             " is corrupted. Using transient stats instead.",
                             int(table->name.dblen()), table->name.m_name,

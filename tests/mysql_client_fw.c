@@ -34,10 +34,8 @@
   a good coverage testing of the non-blocking API as well.
 */
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "nonblock-wrappers.h"
-#endif
 
 #define MAX_TEST_QUERY_LENGTH 300 /* MAX QUERY BUFFER LENGTH */
 #define MAX_KEY MAX_INDEXES
@@ -894,7 +892,6 @@ static void verify_field_count(MYSQL_RES *result, uint exp_count)
 
 /* Utility function to execute a query using prepare-execute */
 
-#ifndef EMBEDDED_LIBRARY
 static void execute_prepare_query(const char *query, ulonglong exp_count)
 {
   MYSQL_STMT *stmt;
@@ -915,7 +912,6 @@ static void execute_prepare_query(const char *query, ulonglong exp_count)
   DIE_UNLESS(affected_rows == exp_count);
   mysql_stmt_close(stmt);
 }
-#endif
 
 /*
 Accepts arbitrary number of queries and runs them against the database.

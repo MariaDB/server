@@ -1926,11 +1926,6 @@ dberr_t srv_start(bool create_new_db)
 		    && !recv_sys.rpo) {
 			/* Drop partially created indexes. */
 			row_merge_drop_temp_indexes();
-#ifdef EMBEDDED_LIBRARY
-			/* Rollback incomplete non-DDL transactions */
-			trx_rollback_is_active = true;
-			srv_thread_pool->submit_task(&rollback_all_recovered_task);
-#endif
 		}
 	}
 
@@ -2066,7 +2061,6 @@ void innodb_preshutdown()
   if (recv_sys.rpo)
     return;
 
-#ifndef EMBEDDED_LIBRARY
   if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started &&
       !trx_rollback_is_active && trx_sys.any_active_transaction_recovered())
   {
@@ -2077,7 +2071,6 @@ void innodb_preshutdown()
     trx_rollback_is_active= true;
     srv_thread_pool->submit_task(&rollback_all_recovered_task);
   }
-#endif
 
   if (!srv_fast_shutdown && srv_operation <= SRV_OPERATION_EXPORT_RESTORED)
     if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO && srv_was_started)

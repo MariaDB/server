@@ -19,7 +19,7 @@
 #ifndef MY_SERVICE_MANAGER_INCLUDED
 #define MY_SERVICE_MANAGER_INCLUDED
 
-#if defined(HAVE_SYSTEMD) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_SYSTEMD)
 /*
   sd-daemon.h may include inttypes.h. Explicitly request format macros before
   the first inclusion of inttypes.h.
@@ -44,7 +44,7 @@
 #define SD_LISTEN_FDS_START (0)
 #define sd_notify(X, Y)
 #define sd_notifyf(E, F, ...)
-#if defined (_WIN32) && !defined(EMBEDDED_LIBRARY)
+#if defined (_WIN32)
   #define service_manager_extend_timeout(I, F, ...) \
     mysqld_win_extend_service_timeout(I)
 #else

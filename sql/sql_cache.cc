@@ -328,7 +328,7 @@ TODO list:
       (This could be done with almost no speed penalty)
 */
 
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"
@@ -352,9 +352,6 @@ TODO list:
 
 const uchar *query_state_map;
 
-#ifdef EMBEDDED_LIBRARY
-#include "emb_qcache.h"
-#endif
 
 #if defined(EXTRA_DEBUG) && !defined(DBUG_OFF)
 #define RW_WLOCK(M) {DBUG_PRINT("lock", ("rwlock wlock %p",(M))); \
@@ -1182,10 +1179,6 @@ void Query_cache::end_of_result(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-#ifdef EMBEDDED_LIBRARY
-  insert(thd, query_cache_tls, (char*)thd,
-                     emb_count_querycache_size(thd), 0);
-#endif
 
   if (try_lock(thd, Query_cache::WAIT))
   {
@@ -1393,13 +1386,11 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     transaction tracker items, but this will make behavior
     more straight forward.
   */
-#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info != TX_TRACK_NONE)
   {
     DBUG_PRINT("qcache", ("Do not work with transaction tracking"));
     DBUG_VOID_RETURN;
   }
-#endif //EMBEDDED_LIBRARY
 
 
   /* The following assert fails if we haven't called send_result_to_client */
@@ -1601,7 +1592,6 @@ end:
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   Send a single memory block from the query cache.
 
@@ -1649,7 +1639,6 @@ send_data_in_chunks(NET *net, const uchar *packet, size_t len)
 
   return FALSE;
 }
-#endif
 
 
 /**
@@ -1711,9 +1700,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
 {
   ulonglong engine_data;
   Query_cache_query *query;
-#ifndef EMBEDDED_LIBRARY
   Query_cache_block *first_result_block;
-#endif
   Query_cache_block *result_block;
   Query_cache_block_table *block_table, *block_table_end;
   size_t tot_length;
@@ -1747,13 +1734,11 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     state. This is a safeguard in case an otherwise matching query
     was added to the cache before tracking was turned on.
   */
-#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info != TX_TRACK_NONE)
   {
     DBUG_PRINT("qcache", ("Do not work with transaction tracking"));
     goto err;
   }
-#endif //EMBEDDED_LIBRARY
 
 
   thd->query_cache_is_applicable= 1;
@@ -2016,9 +2001,7 @@ lookup:
 
   query = query_block->query();
   result_block= query->result();
-#ifndef EMBEDDED_LIBRARY
   first_result_block= result_block;
-#endif
 
   if (result_block == 0 || result_block->type != Query_cache_block::RESULT)
   {
@@ -2079,7 +2062,6 @@ lookup:
     table_list.alias.str= table_list.table_name.str= table->table();
     table_list.alias.length= table_list.table_name.length= strlen(table->table());
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (check_table_access(thd,SELECT_ACL,&table_list, FALSE, 1,TRUE))
     {
       DBUG_PRINT("qcache",
@@ -2100,7 +2082,6 @@ lookup:
       thd->lex->safe_to_cache_query= 0;         // For prepared statements
       goto err_unlock;				// Parse query
     }
-#endif /*!NO_EMBEDDED_ACCESS_CHECKS*/
     engine_data= table->engine_data();
     if (table->callback()) 
     {
@@ -2163,7 +2144,6 @@ lookup:
   /*
     Send cached result to client
   */
-#ifndef EMBEDDED_LIBRARY
   THD_STAGE_INFO(thd, stage_sending_cached_result_to_client);
   do
   {
@@ -2181,13 +2161,6 @@ lookup:
     result_block = result_block->next;
     thd->net.pkt_nr= query->last_pkt_nr; // Keep packet number updated
   } while (result_block != first_result_block);
-#else
-  {
-    Querycache_stream qs(result_block, result_block->headers_len() +
-			 ALIGN_SIZE(sizeof(Query_cache_result)));
-    emb_load_querycache_result(thd, &qs);
-  }
-#endif /*!EMBEDDED_LIBRARY*/
 
   thd->set_sent_row_count(thd->limit_found_rows = query->found_rows());
   thd->status_var.last_query_cost= 0.0;
@@ -3149,7 +3122,6 @@ my_bool Query_cache::write_result_data(Query_cache_block **result_block,
     unlock();
     uint headers_len = (ALIGN_SIZE(sizeof(Query_cache_block)) +
 			ALIGN_SIZE(sizeof(Query_cache_result)));
-#ifndef EMBEDDED_LIBRARY
     Query_cache_block *block= *result_block;
     uchar *rest= data;
     // Now fill list of blocks that created by allocate_data_chain
@@ -3164,15 +3136,6 @@ my_bool Query_cache::write_result_data(Query_cache_block **result_block,
       block = block->next;
       type = Query_cache_block::RES_CONT;
     } while (block != *result_block);
-#else
-    /*
-      Set type of first block, emb_store_querycache_result() will handle
-      the others.
-    */
-    (*result_block)->type= type;
-    Querycache_stream qs(*result_block, headers_len);
-    emb_store_querycache_result(&qs, (THD*)data);
-#endif /*!EMBEDDED_LIBRARY*/
   }
   else
   {
@@ -4061,7 +4024,6 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
   for (; tables_used; tables_used= tables_used->next_global)
   {
     table_count++;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS 
     /*
       Disable any attempt to store this statement if there are
       column level grants on any referenced tables.
@@ -4088,7 +4050,6 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
       thd->lex->safe_to_cache_query= 0;         // For prepared statements
       DBUG_RETURN(0);
     }
-#endif
     if (tables_used->view)
     {
       DBUG_PRINT("qcache", ("view: %s  db: %s",
@@ -4137,11 +4098,7 @@ In non-embedded QC intercepts result in net_real_write
 but if we have no net.vio then net_real_write
 will not be called, so QC can't get results of the query
 */
-#ifdef EMBEDDED_LIBRARY
-#define qc_is_able_to_intercept_result(T) 1
-#else
 #define qc_is_able_to_intercept_result(T) ((T)->net.vio)
-#endif
 
 
 /*

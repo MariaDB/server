@@ -754,9 +754,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    last_sql_command(SQLCOM_END), spcont(NULL),
    m_parser_state(NULL),
-#ifndef EMBEDDED_LIBRARY
    audit_plugin_version(-1),
-#endif
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -1482,9 +1480,7 @@ void THD::init()
   my_rnd_init(&rand, tmp + (ulong)(intptr) this,
                      (ulong)(my_timer_cycles() + global_query_id));
 
-#ifndef EMBEDDED_LIBRARY
   session_tracker.enable(this);
-#endif //EMBEDDED_LIBRARY
 
   apc_target.init(&LOCK_thd_kill);
   gap_tracker_data.init();
@@ -1823,7 +1819,6 @@ void THD::free_connection()
   DBUG_ASSERT(free_connection_done == 0);
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
-#ifndef EMBEDDED_LIBRARY
   if (net.vio)
     vio_delete(net.vio);
   net.vio= nullptr;
@@ -1832,7 +1827,6 @@ void THD::free_connection()
   rgi_fake= NULL;
   delete(rli_fake);
   rli_fake= NULL;
-#endif
  if (!cleanup_done)
    cleanup();
   ha_close_connection(this);
@@ -1949,14 +1943,12 @@ THD::~THD()
 #ifdef DBUG_ASSERT_EXISTS
   dbug_sentry= THD_SENTRY_GONE;
 #endif  
-#ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_session();
 
   statement_rcontext_reinit();
 
   my_free(semisync_info);
-#endif
   main_lex.free_set_stmt_mem_root();
   free_root(&main_mem_root, MYF(0));
   free_root(&user_vars_memroot, MYF(0));
@@ -1974,12 +1966,10 @@ THD::~THD()
   status_var.local_memory_used-= sizeof(THD);
 
   /* trick to make happy memory accounting system */
-#ifndef EMBEDDED_LIBRARY
   session_tracker.sysvars.deinit();
 #ifdef USER_VAR_TRACKING
   session_tracker.user_variables.deinit();
 #endif // USER_VAR_TRACKING
-#endif //EMBEDDED_LIBRARY
 
   if (status_var.local_memory_used != 0)
   {
@@ -2602,7 +2592,6 @@ void THD::cleanup_after_query()
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
     used&= ~THD::RAND_USED;
-#ifndef EMBEDDED_LIBRARY
     /*
       Clean possible unused INSERT_ID events by current statement.
       is_update_query() is needed to ignore SET statements:
@@ -2614,7 +2603,6 @@ void THD::cleanup_after_query()
     */
     if ((rgi_slave || rli_fake) && is_update_query(lex->sql_command))
       auto_inc_intervals_forced.empty();
-#endif
   }
   /*
     Forget the binlog stmt filter for the next query.
@@ -2641,10 +2629,8 @@ void THD::cleanup_after_query()
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
 
-#ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
     rgi_slave->cleanup_after_query();
-#endif
 
 #ifdef WITH_WSREP
   if (!in_active_multi_stmt_transaction())
@@ -3193,13 +3179,11 @@ void THD::close_active_vio()
 {
   DBUG_ENTER("close_active_vio");
   mysql_mutex_assert_owner(&LOCK_thd_data);
-#ifndef EMBEDDED_LIBRARY
   if (active_vio)
   {
     vio_close(active_vio);
     active_vio = 0;
   }
-#endif
   DBUG_VOID_RETURN;
 }
 #endif
@@ -4999,9 +4983,7 @@ void Security_context::init()
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
   master_access= access_t(NO_ACL);
   password_expired= false;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   db_access= access_t(NO_ACL);
-#endif
 }
 
 
@@ -5067,7 +5049,6 @@ bool Security_context::check_access(const privilege_t want_access,
                          : ((master_access & want_access) == want_access)));
 }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Initialize this security context from the passed in credentials
   and activate it in the current thread.
@@ -5157,7 +5138,6 @@ Security_context::restore_security_context(THD *thd,
   if (backup)
     thd->security_ctx= backup;
 }
-#endif
 
 
 /**
@@ -6345,7 +6325,6 @@ print_check_msg(THD *thd, const char *db_name, const char *table_name, const cha
 void THD::reset_sub_statement_state(Sub_statement_state *backup,
                                     uint new_state)
 {
-#ifndef EMBEDDED_LIBRARY
   /* BUG#33029, if we are replicating from a buggy master, reset
      auto_inc_intervals_forced to prevent substatement
      (triggers/functions) from using erroneous INSERT_ID value
@@ -6356,7 +6335,6 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
     backup->auto_inc_intervals_forced.copy_shallow(&auto_inc_intervals_forced);
     MEM_UNDEFINED(&auto_inc_intervals_forced, sizeof auto_inc_intervals_forced);
   }
-#endif
   
   backup->option_bits=     variables.option_bits;
   backup->count_cuted_fields= count_cuted_fields;
@@ -6427,7 +6405,6 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
 void THD::restore_sub_statement_state(Sub_statement_state *backup)
 {
   DBUG_ENTER("THD::restore_sub_statement_state");
-#ifndef EMBEDDED_LIBRARY
   /* BUG#33029, if we are replicating from a buggy master, restore
      auto_inc_intervals_forced so that the top statement can use the
      INSERT_ID value set before this statement.
@@ -6437,7 +6414,6 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     auto_inc_intervals_forced.copy_shallow(&backup->auto_inc_intervals_forced);
     DBUG_ASSERT(backup->auto_inc_intervals_forced.nb_elements() == 0);
   }
-#endif
 
   /*
     To save resources we want to release savepoints which were created
@@ -8545,17 +8521,13 @@ THD::signal_wakeup_ready()
 
 void THD::set_last_commit_gtid(rpl_gtid &gtid)
 {
-#ifndef EMBEDDED_LIBRARY
   bool changed_gtid= (m_last_commit_gtid.seq_no != gtid.seq_no);
-#endif
   m_last_commit_gtid= gtid;
-#ifndef EMBEDDED_LIBRARY
   if (changed_gtid)
   {
     DBUG_ASSERT(current_thd == this);
     session_tracker.sysvars.mark_as_changed(this, Sys_last_gtid_ptr);
   }
-#endif
 }
 
 void

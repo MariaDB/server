@@ -28,9 +28,6 @@
 #ifndef MYSQL_PSI_BASE_H
 #define MYSQL_PSI_BASE_H
 
-#ifdef EMBEDDED_LIBRARY
-#define DISABLE_ALL_PSI
-#endif /* EMBEDDED_LIBRARY */
 
 #ifdef __cplusplus
 extern "C" {

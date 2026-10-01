@@ -619,14 +619,12 @@ error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
 bool check_has_super(sys_var *self, THD *thd, set_var *var)
 {
   DBUG_ASSERT(self->scope() != sys_var::GLOBAL);// don't abuse check_has_super()
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (!(thd->security_ctx->master_access &
         PRIV_SET_RESTRICTED_SESSION_SYSTEM_VARIABLE))
   {
     my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
     return true;
   }
-#endif
   return false;
 }
 
@@ -4274,7 +4272,7 @@ static Sys_var_set Sys_new_behavior(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_new_mode_var_value), 0, 0,
        new_mode_hidden_names);
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
 #else
 #define SSL_OPT(X) NO_CMD_LINE
@@ -4698,7 +4696,6 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
     // @see Sys_var_tx_isolation::session_update() above for the rules.
     thd->tx_read_only= var->save_result.ulonglong_value;
 
-#ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
     {
       if (var->type == OPT_DEFAULT)
@@ -4708,7 +4705,6 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
         thd->session_tracker.transaction_info.set_read_flags(thd,
                             TX_READ_INHERIT);
     }
-#endif //EMBEDDED_LIBRARY
   }
   return false;
 }
@@ -5416,7 +5412,6 @@ static Sys_var_charptr Sys_hostname(
        READ_ONLY GLOBAL_VAR(glob_hostname_ptr), NO_CMD_LINE,
        DEFAULT(glob_hostname));
 
-#ifndef EMBEDDED_LIBRARY
 static Sys_var_charptr Sys_repl_report_host(
        "report_host",
        "Hostname or IP of the slave to be reported to the master during "
@@ -5457,7 +5452,6 @@ static Sys_var_mybool Sys_show_slave_auth_info(
        "Show user and password in SHOW SLAVE HOSTS on this master",
        READ_ONLY GLOBAL_VAR(opt_show_slave_auth_info), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
-#endif
 
 static Sys_var_mybool Sys_keep_files_on_create(
        "keep_files_on_create",
@@ -7341,20 +7335,16 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
   longlong val= (longlong) var->save_result.ulonglong_value;
   bool rli_fake= false;
 
-#ifndef EMBEDDED_LIBRARY
   rli_fake= thd->rli_fake ? true : false;
-#endif
 
   if (rli_fake)
   {
     if (!val)
     {
-#ifndef EMBEDDED_LIBRARY
       delete thd->rli_fake;
       thd->rli_fake= NULL;
       delete thd->rgi_fake;
       thd->rgi_fake= NULL;
-#endif
     }
     else if (previous_val && val)
       goto ineffective;
@@ -7423,7 +7413,6 @@ static Sys_var_ulonglong Sys_max_session_mem_used(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(8192,  ULONGLONG_MAX),
        DEFAULT(LONGLONG_MAX), BLOCK_SIZE(1));
 
-#ifndef EMBEDDED_LIBRARY
 /**
  Validate a redirect_url string.
 
@@ -7573,7 +7562,6 @@ static Sys_var_mybool Sys_session_track_user_variables(
        ON_UPDATE(update_session_track_user_variables));
 #endif // USER_VAR_TRACKING
 
-#endif //EMBEDDED_LIBRARY
 
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "

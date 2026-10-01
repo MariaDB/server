@@ -53,11 +53,6 @@
 PSI_memory_key key_memory_NET_buff;
 PSI_memory_key key_memory_NET_compress_packet;
 
-#ifdef EMBEDDED_LIBRARY
-#undef MYSQL_SERVER
-#undef MYSQL_CLIENT
-#define MYSQL_CLIENT
-#endif /*EMBEDDED_LIBRARY */
 
 /*
   to reduce the number of ifdef's in the code
@@ -256,7 +251,7 @@ my_bool net_realloc(NET *net, size_t length)
     -1   Don't know if data is ready or not
 */
 
-#if !defined(EMBEDDED_LIBRARY) && defined(DBUG_OFF)
+#if defined(DBUG_OFF)
 
 static int net_data_is_ready(my_socket sd)
 {
@@ -295,7 +290,7 @@ static int net_data_is_ready(my_socket sd)
 #endif /* HAVE_POLL */
 }
 
-#endif /* EMBEDDED_LIBRARY */
+#endif /* DBUG_OFF */
 
 /**
   Clear (reinitialize) the NET structure for a new command.
@@ -329,7 +324,7 @@ void net_clear(NET *net, my_bool clear_buffer __attribute__((unused)))
   protocol handling.
 */
 
-#if (!defined(EMBEDDED_LIBRARY) && defined(DBUG_OFF)) || defined(USE_NET_CLEAR)
+#if (defined(DBUG_OFF)) || defined(USE_NET_CLEAR)
   if (clear_buffer)
   {
     size_t count;
@@ -369,7 +364,7 @@ void net_clear(NET *net, my_bool clear_buffer __attribute__((unused)))
     }
 #endif /* NET_DATA_IS_READY_CAN_RETURN_MINUS_ONE */
   }
-#endif /* EMBEDDED_LIBRARY */
+#endif /* DBUG_OFF || USE_NET_CLEAR */
   net->pkt_nr=net->compress_pkt_nr=0;		/* Ready for new command */
   net->write_pos=net->buff;
   DBUG_VOID_RETURN;
@@ -751,7 +746,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
 typedef enum { RETRY, ABORT, IGNORE} handle_proxy_header_result;
 static handle_proxy_header_result handle_proxy_header(NET *net)
 {
-#if !defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
+#if !defined(MYSQL_SERVER)
   return IGNORE;
 #else
   THD *thd= (THD *)net->thd;

@@ -55,9 +55,6 @@
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
 
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-#define sp_restore_security_context(A,B) while (0) {}
-#endif
 
 bool check_reserved_words(const LEX_CSTRING *name)
 {
@@ -5041,10 +5038,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->set_charset(cs);
   }
 #ifdef USER_VAR_TRACKING
-#ifndef EMBEDDED_LIBRARY
   THD *thd= current_thd;
   thd->session_tracker.user_variables.mark_as_changed(thd, entry);
-#endif
 #endif // USER_VAR_TRACKING
   return 0;
 }
@@ -6989,7 +6984,6 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       the used stored procedure has SQL SECURITY DEFINER.
     */
     res= sp_check_access(thd);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /*
       Try to set and restore the security context to see whether it's valid
     */
@@ -6998,7 +6992,6 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (!res)
       m_sp->m_security_ctx.restore_security_context(thd, save_secutiry_ctx);
     
-#endif /* ! NO_EMBEDDED_ACCESS_CHECKS */
   }
 
   if (!m_sp->detistic())

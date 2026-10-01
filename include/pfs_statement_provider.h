@@ -23,7 +23,6 @@
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 #ifdef MYSQL_SERVER
-#ifndef EMBEDDED_LIBRARY
 #ifndef MYSQL_DYNAMIC_PLUGIN
 
 #include "mysql/psi/psi.h"
@@ -110,7 +109,6 @@ void pfs_digest_end_v1(PSI_digest_locker *locker,
 C_MODE_END
 
 #endif /* MYSQL_DYNAMIC_PLUGIN */
-#endif /* EMBEDDED_LIBRARY */
 #endif /* MYSQL_SERVER */
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
 

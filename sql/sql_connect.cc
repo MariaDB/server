@@ -57,7 +57,6 @@ extern vio_keepalive_opts opt_vio_keepalive;
   Get structure for logging connection data for the current user
 */
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static HASH hash_user_connections;
 
 int get_or_create_user_conn(THD *thd, const char *user,
@@ -298,7 +297,6 @@ end:
   DBUG_RETURN(error);
 }
 
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
 /*
   Check for maximum allowable user connections, if the mysqld server is
@@ -316,25 +314,20 @@ extern "C" const uchar *get_key_conn(const void *buff_, size_t *length,
 
 void init_max_user_conn(void)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_init(key_memory_user_conn, &hash_user_connections,
                USER_CONN::user_host_key_charset_info_for_hash(),
                max_connections, 0, 0, get_key_conn, my_free, 0);
-#endif
 }
 
 
 void free_max_user_conn(void)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_free(&hash_user_connections);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 }
 
 
 void reset_mqh(LEX_USER *lu, bool get_them= 0)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_lock(&LOCK_user_conn);
   if (lu)  // for GRANT
   {
@@ -370,7 +363,6 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
     }
   }
   mysql_mutex_unlock(&LOCK_user_conn);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 }
 
 /*****************************************************************************
@@ -598,7 +590,6 @@ static bool increment_count_by_name(const char *name, size_t name_length,
     return TRUE;
 
   ++user_stats->total_connections;
-#ifndef EMBEDDED_LIBRARY
   /*
     For the embedded library, we get here only because THD::update_all_stats
     is called after command dispatch, not because of any connection events
@@ -608,7 +599,6 @@ static bool increment_count_by_name(const char *name, size_t name_length,
     concurrent_connections.
    */
   ++user_stats->concurrent_connections;
-#endif
   if (thd->net.vio && thd->net.vio->type == VIO_TYPE_SSL)
     ++user_stats->total_ssl_connections;
 
@@ -622,7 +612,6 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   and TRUE on error.
 */
 
-#ifndef EMBEDDED_LIBRARY
 static bool decrement_count_by_name(const char *name, size_t name_length,
                                     const char *role_name,
                                     HASH *users_or_clients, THD *thd)
@@ -708,7 +697,6 @@ static bool decrement_connection_count(THD* thd)
 
   return FALSE;
 }
-#endif
 
 /*
   Used to update the global user and client stats
@@ -907,7 +895,6 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
   Initialize connection threads
 */
 
-#ifndef EMBEDDED_LIBRARY
 bool init_new_connection_handler_thread()
 {
   pthread_detach_this_thread();
@@ -1426,7 +1413,7 @@ pthread_handler_t handle_one_connection(void *arg)
     do_handle_one_connection(connect, true);
 
   DBUG_PRINT("info", ("killing thread"));
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   ERR_remove_state(0);
 #endif
   my_thread_end();
@@ -1554,7 +1541,6 @@ end_thread:
   }
   delete thd;
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 /* Handling of CONNECT objects */

@@ -23,7 +23,6 @@
 
 #ifdef HAVE_PSI_FILE_INTERFACE
 #ifdef MYSQL_SERVER
-#ifndef EMBEDDED_LIBRARY
 #ifndef MYSQL_DYNAMIC_PLUGIN
 
 #include "mysql/psi/psi.h"
@@ -83,7 +82,6 @@ void pfs_end_file_rename_wait_v1(PSI_file_locker *locker, const char *old_name,
 
 C_MODE_END
 
-#endif /* EMBEDDED_LIBRARY */
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 #endif /* MYSQL_SERVER */
 #endif /* HAVE_PSI_FILE_INTERFACE */

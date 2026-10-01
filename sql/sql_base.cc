@@ -7036,14 +7036,12 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
 
   if (fld)
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* Check if there are sufficient access rights to the found field. */
     if (check_privileges &&
         !table_list->is_derived() &&
         check_column_grant_in_table_ref(thd, *actual_table, name, fld))
       fld= WRONG_GRANT;
     else
-#endif
       if (should_mark_column(thd->column_usage))
       {
         /*
@@ -7217,12 +7215,10 @@ find_field_in_tables(THD *thd, Item_ident *item,
 
       found= find_field_in_table(thd, table_ref->table, name,
                                  TRUE, &(item->cached_field_index));
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
       if (found && check_privileges && !is_temporary_table(table_ref) &&
           check_column_grant_in_table_ref(thd, table_ref, name, found))
         found= WRONG_GRANT;
-#endif
     }
     else
       found= find_field_in_table_ref(thd, table_ref, name,
@@ -7406,7 +7402,6 @@ find_field_in_tables(THD *thd, Item_ident *item,
     if (report_error == REPORT_ALL_ERRORS ||
         report_error == REPORT_EXCEPT_NON_UNIQUE)
     {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*
         If the user has no rights on this column in any candidate table,
         check_grant_column() will issue a generic "access denied" error
@@ -7427,7 +7422,6 @@ find_field_in_tables(THD *thd, Item_ident *item,
             return found;
         }
       }
-#endif
       my_error(ER_BAD_FIELD_ERROR, MYF(0), item->full_name(), thd_where(thd));
     }
     else
@@ -9059,7 +9053,6 @@ insert_fields(THD *thd, Name_resolution_context *context,
         (db_name.str && strcmp(tables->db.str, db_name.str)))
       continue;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* 
        Ensure that we have access rights to all fields to be inserted
        the table 'tables'. Under some circumstances, this check may be skipped.
@@ -9083,7 +9076,6 @@ insert_fields(THD *thd, Name_resolution_context *context,
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))
         DBUG_RETURN(TRUE);
     }
-#endif
 
     /*
       Update the tables used in the query based on the referenced fields. For
@@ -9140,7 +9132,6 @@ insert_fields(THD *thd, Name_resolution_context *context,
       if (item->type() == Item::FIELD_ITEM && item->field_type() == MYSQL_TYPE_BIT)
         (*hidden_bit_fields)++;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*
         Set privilege information for the fields of newly created views.
         We have that (any_priviliges == TRUE) if and only if we are creating
@@ -9172,7 +9163,6 @@ insert_fields(THD *thd, Name_resolution_context *context,
           DBUG_RETURN(TRUE);
         }
       }
-#endif
 
       if ((field= field_iterator.field()))
       {

@@ -150,12 +150,10 @@ static const LEX_CSTRING sp_data_access_name[]=
 LEX_CSTRING DATA_clex_str= { STRING_WITH_LEN("DATA") };
 LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
   "process","file","grant","references","index","alter"};
 static TYPELIB grant_types = CREATE_TYPELIB_FOR(grant_names);
-#endif
 
 /* Match the values of enum ha_choice */
 static const LEX_CSTRING ha_choice_values[]=
@@ -1443,16 +1441,13 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
 {
   char buff[2048+DATABASE_COMMENT_MAXLEN];
   String buffer(buff, sizeof(buff), system_charset_info);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
   access_t db_access(NO_ACL);
-#endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
   List<Item> field_list;
   DBUG_ENTER("mysql_show_create_db");
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access= access_t(DB_ACLS);
   else
@@ -1471,7 +1466,6 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
                       sctx->priv_user, sctx->host_or_ip, orig_dbname->str);
     DBUG_RETURN(TRUE);
   }
-#endif
   if (is_infoschema_db(dbname))
   {
     *dbname= INFORMATION_SCHEMA_NAME;
@@ -2912,7 +2906,6 @@ public:
 
 static const char *thread_state_info(THD *tmp)
 {
-#ifndef EMBEDDED_LIBRARY
   if (tmp->net.reading_or_writing)
   {
     if (tmp->net.reading_or_writing == 2)
@@ -2921,10 +2914,6 @@ static const char *thread_state_info(THD *tmp)
       return "";
     return "Reading from net";
   }
-#else
-  if (tmp->get_command() == COM_SLEEP)
-    return "";
-#endif
 
   if (tmp->proc_info)
     return tmp->proc_info;
@@ -5413,7 +5402,6 @@ privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
                                                   const privilege_t need,
                                                   bool on_any_column)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* 
     We know that the table or at least some of the columns have
     necessary privileges, but the caller didn't pass down the GRANT_INFO
@@ -5431,9 +5419,6 @@ privilege_t get_schema_privileges_for_show(THD *thd, TABLE_LIST *tables,
   check_grant(thd, need, tables, 0, 1, true);
   return (on_any_column ? tables->grant.all_privilege()
                         : tables->grant.privilege) & need;
-#else
-  return need;
-#endif
 }
 
 
@@ -5508,9 +5493,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   Item *partial_cond= plan->partial_cond;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-#endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   MEM_ROOT tmp_mem_root;
@@ -5625,12 +5608,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     access_t acc= acl_get_all3(sctx, db_name->str, 0).
                    merge_with_parent(sctx->master_access);       
     if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
        (acc.maybe_allowed(DB_ACLS | SHOW_DB_ACL)))
-#endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
 
@@ -5646,7 +5627,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         LEX_CSTRING *table_name= table_names.at(j);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & (TABLE_ACLS & ~GRANT_ACL)))
         {
           TABLE_LIST table_acl_check;
@@ -5658,7 +5638,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                           1, TRUE))
             continue;
         }
-#endif
         restore_record(table, s->default_values);
         table->field[schema_table->idx_field1]->
           store(db_name->str, db_name->length, system_charset_info);
@@ -5796,9 +5775,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   Dynamic_array<LEX_CSTRING*> db_names(PSI_INSTRUMENT_MEM);
   Schema_specification_st create;
   TABLE *table= tables->table;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-#endif
   DBUG_ENTER("fill_schema_shemata");
 
   if (get_lookup_field_values(thd, cond, true, tables, &lookup_field_vals))
@@ -5829,12 +5806,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
         DBUG_RETURN(1);
       continue;
     }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     access_t acc= acl_get_all3(sctx, db_name->str, false)
                             .merge_with_parent(sctx->master_access);
     if  (acc.maybe_allowed(DB_ACLS | SHOW_DB_ACL) ||
         !check_grant_db(thd, acc ,db_name->str))
-#endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
       if (store_schema_schemata(thd, table, db_name,
@@ -6518,11 +6493,9 @@ get_schema_period_records(THD *thd, TABLE_LIST *tl,
   if (!table || (!table->s->period.name && !table->versioned()))
     return 0;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   check_access(thd, SELECT_ACL, db_name->str,
                &tl->grant.privilege, 0, 0, MY_TEST(tl->schema_table));
   DBUG_ASSERT(!is_temporary_table(tl));
-#endif
   int err= 0;
   if (table->versioned())
     err= store_schema_period_record(thd, tl, schema_table, db_name, table_name,
@@ -6556,14 +6529,12 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   check_access(thd, SELECT_ACL, db_name->str,
                &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
   if (is_temporary_table(tables))
   {
     tables->grant.privilege.force_allow(TMP_TABLE_ACLS, true);
   }
-#endif
 
   for (; (field= *ptr) ; ptr++)
   {
@@ -6583,7 +6554,6 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     /* Get default row, with all NULL fields set to NULL */
     restore_record(table, s->default_values);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     ulonglong col_access=
       get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
                        field->field_name) & COL_ACLS;
@@ -6602,7 +6572,6 @@ int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     table->field[18]->store(tmp+1,end == tmp ? 0 : (uint) (end-tmp-1), cs);
 
-#endif
     table->field[0]->store(STRING_WITH_LEN("def"), cs);
     table->field[1]->store(db_name->str, db_name->length, cs);
     table->field[2]->store(table_name->str, table_name->length, cs);
@@ -7581,7 +7550,6 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
     {
       if (sctx->is_priv_user(tables->definer.user, tables->definer.host))
         tables->allowed_show= TRUE;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       else
       {
         if ((thd->col_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
@@ -7600,7 +7568,6 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 	    tables->allowed_show= TRUE;
         }
       }
-#endif
     }
     restore_record(table, s->default_values);
     table->field[0]->store(STRING_WITH_LEN("def"), cs);
@@ -7722,7 +7689,6 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
   if (!tables->view)
   {
     StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     TABLE_LIST table_acl_check;
     bzero((char*) &table_acl_check, sizeof(table_acl_check));
 
@@ -7734,7 +7700,6 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
       if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
         DBUG_RETURN(res);
     }
-#endif
     for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
       Virtual_column_info *check= tables->table->check_constraints[i];
@@ -7910,7 +7875,6 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     Table_triggers_list *triggers= tables->table->triggers;
     int event, timing;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     bool trigger_priv=
                 !check_table_access(thd, TRIGGER_ACL, tables, FALSE, 1, TRUE);
 
@@ -7921,9 +7885,6 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
       if (!(tables->grant.all_privilege() & need))
         DBUG_RETURN(0);
     }
-#else
-    bool trigger_priv= true;
-#endif
 
     for (event= 0; event < (int)TRG_EVENT_MAX; event++)
     {
@@ -7968,15 +7929,12 @@ store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
     have any non-SELECT privilege on the column and no table level privilege
     is necessary.
   */
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool need_column_checks=
     !get_schema_privileges_for_show(thd, tbl, (INSERT_ACL|UPDATE_ACL), false);
-#endif
 
   restore_record(table, s->default_values);
   while(LEX_CSTRING *trigger_column= it++)
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (need_column_checks)
     {
       Lex_ident_column col(*trigger_column);
@@ -7986,7 +7944,6 @@ store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
       if (!col_access)
         continue;
     }
-#endif
 
     table->field[0]->store(STRING_WITH_LEN("def"), cs);
     table->field[1]->store(db_name->str, db_name->length, cs);
@@ -8132,7 +8089,6 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
         it1(f_key_info->referenced_fields);
       uint f_idx= 0;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
         while ((r_info= it1++))
@@ -8148,7 +8104,6 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
           continue;
         it1.rewind();
       }
-#endif
       while ((f_info= it++))
       {
         r_info= it1++;
@@ -8985,7 +8940,6 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       table->field[4]->store(f_key_info->referenced_db->str, 
                              f_key_info->referenced_db->length, cs);
       bool show_ref_table= true;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
     if (!(thd->col_access & need))
     {
@@ -8999,7 +8953,6 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       if (!(table_acl_check.grant.all_privilege() & need))
         show_ref_table= false;
     }
-#endif
       if (show_ref_table)
       {
         table->field[10]->set_notnull();

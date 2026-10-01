@@ -1265,7 +1265,6 @@ bool check_db_routine_access(THD *thd, privilege_t privilege,
                              const Sp_handler *sph,
                              bool no_errors);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool
 sp_change_security_context(THD *thd, sp_head *sp,
                            Security_context **backup);
@@ -1274,7 +1273,6 @@ sp_restore_security_context(THD *thd, Security_context *backup);
 
 bool
 set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
 TABLE_LIST *
 sp_add_to_query_tables(THD *thd, LEX *lex,

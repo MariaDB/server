@@ -406,12 +406,12 @@ ulong slow_start_timeout;
 static MEM_ROOT startup_root;
 MEM_ROOT read_only_root;
 
-#if defined(HAVE_RO_AFTER_INIT) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_RO_AFTER_INIT)
 // start and end of the ro_after_init section, to test if a variable is in it
 extern char ro_after_init_start[] __attribute__((weak));
 extern char ro_after_init_end[] __attribute__((weak));
 
-#elif defined(_MSC_VER) && !defined(EMBEDDED_LIBRARY)
+#elif defined(_MSC_VER)
 
 /*
   $a/$z bracket the ro_after_init$m section (see READ_ONLY_SYSVAR in
@@ -803,9 +803,7 @@ READ_ONLY_SYSVAR SHOW_COMP_OPTION have_compress;
 READ_ONLY_SYSVAR SHOW_COMP_OPTION have_profiling;
 READ_ONLY_SYSVAR SHOW_COMP_OPTION have_openssl;
 
-#ifndef EMBEDDED_LIBRARY
 static std::atomic<char*> shutdown_user;
-#endif //EMBEDDED_LIBRARY
 std::atomic<my_thread_id> shutdown_thread_id;
 
 /* Thread specific variables */
@@ -902,10 +900,6 @@ static int cleanup_done;
 static ulong opt_specialflag;
 READ_ONLY_SYSVAR char *mysql_home_ptr;
 READ_ONLY_SYSVAR char *pidfile_name_ptr;
-#ifdef EMBEDDED_LIBRARY
-/** Initial command line arguments (count), after load_defaults().*/
-static int defaults_argc;
-#endif
 /**
   Initial command line arguments (arguments), after load_defaults().
   This memory is allocated by @c load_defaults() and should be freed
@@ -1308,7 +1302,6 @@ PSI_statement_info stmt_info_new_packet;
 
 static int calculate_server_uid(char *dest);
 
-#ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
 {
   DBUG_ASSERT(thd);
@@ -1374,11 +1367,6 @@ void init_net_server_extension(THD *thd)
   /* Activate this private extension for the mysqld server. */
   thd->net.extension= & thd->m_net_server_extension;
 }
-#else
-void init_net_server_extension(THD *thd)
-{
-}
-#endif /* EMBEDDED_LIBRARY */
 
 
 /**
@@ -1515,7 +1503,6 @@ static Buffered_logs buffered_logs;
 
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
-#ifndef EMBEDDED_LIBRARY
 
 Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
@@ -1572,10 +1559,8 @@ static void charset_error_reporter(enum loglevel level,
 C_MODE_END
 
 struct passwd *user_info;
-#endif
 
 /* OS specific variables */
-#ifndef EMBEDDED_LIBRARY
 #ifdef _WIN32
 /** wakeup main thread by signaling this event */
 HANDLE hEventShutdown;
@@ -1583,14 +1568,9 @@ HANDLE hEventShutdown;
 /** wakeup listening(main) thread by writing to this descriptor */
 static int termination_event_fd= -1;
 #endif
-#endif
 
 
-#ifndef EMBEDDED_LIBRARY
 bool mysqld_embedded=0;
-#else
-bool mysqld_embedded=1;
-#endif
 
 my_bool plugins_are_initialized= FALSE;
 
@@ -1635,9 +1615,7 @@ static void openssl_dynlock_destroy(openssl_lock_t *, const char *, int);
 static void openssl_lock_function(int, int, const char *, int);
 static void openssl_lock(int, openssl_lock_t *, const char *, int);
 #endif /* HAVE_OPENSSL10 */
-#ifndef EMBEDDED_LIBRARY
 struct st_VioSSLFd *ssl_acceptor_fd;
-#endif
 #endif /* HAVE_OPENSSL */
 
 /**
@@ -1670,7 +1648,6 @@ pthread_handler_t handle_slave(void *arg);
 static void clean_up(bool print_message, bool use_dummy_thd= false);
 static int test_if_case_insensitive(const char *dir_name);
 
-#ifndef EMBEDDED_LIBRARY
 static bool pid_file_created= false;
 static void usage(void);
 static void start_signal_handler(void);
@@ -1678,12 +1655,10 @@ static void clean_up_mutexes(void);
 static void wait_for_signal_thread_to_end(void);
 static void create_pid_file();
 ATTRIBUTE_NORETURN static void mysqld_exit(int exit_code);
-#endif
 static void delete_pid_file(myf flags);
 static void end_ssl();
 
 
-#ifndef EMBEDDED_LIBRARY
 extern Atomic_counter<uint32_t> local_connection_thread_count;
 
 uint THD_count::connection_thd_count()
@@ -1966,7 +1941,6 @@ static void close_connections(void)
   DBUG_VOID_RETURN;
 }
 
-#endif /*EMBEDDED_LIBRARY*/
 
 
 extern "C" sig_handler print_signal_warning(int sig)
@@ -1986,7 +1960,6 @@ static void dummy_svc_status(DWORD, DWORD, DWORD) {}
 static report_svc_status_t my_report_svc_status= dummy_svc_status;
 #endif
 
-#ifndef EMBEDDED_LIBRARY
 extern "C" void unireg_abort(int exit_code)
 {
   DBUG_ENTER("unireg_abort");
@@ -2069,7 +2042,6 @@ static void mysqld_exit(int exit_code)
   exit(exit_code); /* purecov: inspected */
 }
 
-#endif /* !EMBEDDED_LIBRARY */
 
 static void clean_up(bool print_message, bool use_dummy_thd)
 {
@@ -2100,10 +2072,8 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   my_dboptions_cache_free();
   ignore_db_dirs_free();
   servers_free(1);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   acl_free(1);
   grant_free();
-#endif
   query_cache_destroy();
   hostname_cache_free();
   item_func_sleep_free();
@@ -2130,9 +2100,7 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   sp_cache_end();
   free_status_vars();
   end_thr_timer();
-#ifndef EMBEDDED_LIBRARY
   Events::deinit();
-#endif
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -2151,10 +2119,8 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   delete binlog_filter;
   delete global_rpl_filter;
   end_ssl();
-#ifndef EMBEDDED_LIBRARY
   vio_end();
   listen_sockets.free_memory();
-#endif /*!EMBEDDED_LIBRARY*/
 #if defined(ENABLED_DEBUG_SYNC)
   /* End the debug sync facility. See debug_sync.cc. */
   debug_sync_end();
@@ -2188,7 +2154,6 @@ static void clean_up(bool print_message, bool use_dummy_thd)
 } /* clean_up */
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   This is mainly needed when running with purify, but it's still nice to
   know that all child threads have died when mysqld exits.
@@ -2227,7 +2192,6 @@ static void wait_for_signal_thread_to_end()
   }
 #endif
 }
-#endif /*EMBEDDED_LIBRARY*/
 
 static void clean_up_mutexes()
 {
@@ -2279,9 +2243,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_commit_ordered);
   mysql_mutex_destroy(&LOCK_slave_deadlock_handler);
   mysql_cond_destroy(&COND_slave_deadlock_handler);
-#ifndef EMBEDDED_LIBRARY
   mysql_mutex_destroy(&LOCK_error_log);
-#endif
   DBUG_VOID_RETURN;
 }
 
@@ -2290,11 +2252,6 @@ static void clean_up_mutexes()
 ** Init IP and UNIX socket
 ****************************************************************************/
 
-#ifdef EMBEDDED_LIBRARY
-void close_connection(THD *thd, uint sql_errno)
-{
-}
-#else
 static void set_ports()
 {
   char	*env;
@@ -3000,7 +2957,6 @@ extern "C" sig_handler end_mysqld_signal(int sig __attribute__((unused)))
     break_connect_loop();                         // Take down mysqld nicely
   DBUG_VOID_RETURN;				/* purecov: deadcode */
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 /*
@@ -3035,7 +2991,7 @@ void unlink_thd(THD *thd)
 }
 
 
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
+#if defined(_WIN32)
 /*
   If server is started as service, the service routine will set
   the callback function.
@@ -3232,11 +3188,9 @@ void init_signals(void)
 
 static void start_signal_handler(void)
 {
-#ifndef EMBEDDED_LIBRARY
   // Save vm id of this process
   if (!opt_bootstrap)
     create_pid_file();
-#endif /* EMBEDDED_LIBRARY */
 }
 
 
@@ -3278,7 +3232,6 @@ mariadb_dbug_assert_failed(const char *assert_expr, const char *file,
 #define SA_NODEFER 0
 #endif /* SA_NODEFER */
 
-#ifndef EMBEDDED_LIBRARY
 
 void init_signals(void)
 {
@@ -3486,7 +3439,6 @@ pthread_handler_t signal_hand(void *)
 static void check_data_home(const char *path)
 {}
 
-#endif /*!EMBEDDED_LIBRARY*/
 #endif	/* _WIN32*/
 
 
@@ -3599,9 +3551,7 @@ check_enough_stack_size(int recurse_level)
 
 static void init_libstrings()
 {
-#ifndef EMBEDDED_LIBRARY
   my_string_stack_guard= check_enough_stack_size;
-#endif
 }
 
 
@@ -4274,10 +4224,8 @@ static int init_common_variables()
 
   sf_leaking_memory= 0; // no memory leaks from now on
 
-#ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
     unireg_abort(0);
-#endif /*!EMBEDDED_LIBRARY*/
 
   DBUG_PRINT("info",("%s  Ver %s for %s on %s\n",my_progname,
 		     server_version, SYSTEM_TYPE,MACHINE_TYPE));
@@ -4877,7 +4825,6 @@ LEX_CUSTRING ssl_acceptor_fingerprint()
 
 static void init_ssl()
 {
-#if !defined(EMBEDDED_LIBRARY)
 /*
   Not need to check require_secure_transport on the Linux,
   because it always has Unix domain sockets that are secure:
@@ -4935,13 +4882,12 @@ static void init_ssl()
     have_ssl= SHOW_OPTION_DISABLED;
   }
 #endif /* HAVE_OPENSSL */
-#endif /* !EMBEDDED_LIBRARY */
 }
 
 /* Reinitialize SSL (FLUSH SSL) */
 int reinit_ssl()
 {
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   if (!opt_use_ssl)
     return 0;
 
@@ -4969,13 +4915,11 @@ int reinit_ssl()
 static void end_ssl()
 {
 #ifdef HAVE_OPENSSL
-#ifndef EMBEDDED_LIBRARY
   if (ssl_acceptor_fd)
   {
     free_vio_ssl_acceptor_fd(ssl_acceptor_fd);
     ssl_acceptor_fd= 0;
   }
-#endif /* ! EMBEDDED_LIBRARY */
 #endif /* HAVE_OPENSSL */
 }
 
@@ -5205,11 +5149,7 @@ static int init_server_components()
     else
     {
       my_bool res;
-#ifndef EMBEDDED_LIBRARY
       res= reopen_fstreams(log_error_file, stdout, stderr);
-#else
-      res= reopen_fstreams(log_error_file, NULL, stderr);
-#endif
 
       if (!res)
         setbuf(stderr, NULL);
@@ -5256,14 +5196,12 @@ static int init_server_components()
   buffered_logs.cleanup();
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-#ifndef EMBEDDED_LIBRARY
   /*
     Now that the logger is available, redirect character set
     errors directly to the logger
     (instead of the buffered_logs used at the server startup time).
   */
   my_charset_error_reporter= charset_error_reporter;
-#endif
 
   xid_cache_init();
 
@@ -5414,9 +5352,7 @@ static int init_server_components()
   /* It's now safe to use thread specific memory */
   mysqld_server_initialized= 1;
 
-#ifndef EMBEDDED_LIBRARY
   wsrep_thr_init();
-#endif
 
 #ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
@@ -5486,7 +5422,6 @@ static int init_server_components()
     }
   }
 
-#ifndef EMBEDDED_LIBRARY
   DBUG_PRINT("debug",
              ("opt_bin_logname: %s, opt_relay_logname: %s, pidfile_name: %s",
               opt_bin_logname, opt_relay_logname, pidfile_name));
@@ -5508,7 +5443,6 @@ static int init_server_components()
       unireg_abort(1);
     }
   }
-#endif /* !EMBEDDED_LIBRARY */
 
   /* call ha_init_key_cache() on all key caches to init them */
   process_key_caches(&ha_init_key_cache, 0);
@@ -5582,10 +5516,8 @@ static int init_server_components()
   }
 #endif
 
-#ifndef EMBEDDED_LIBRARY
   if (session_tracker_init())
     return 1;
-#endif //EMBEDDED_LIBRARY
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5650,7 +5582,7 @@ static int init_server_components()
 
       /* The following options were added after 5.6.10 */
       MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
-      MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins"), // NO_EMBEDDED_ACCESS_CHECKS
+      MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins"),
 
       /* The following options were deprecated in 10.5 or earlier */
       MARIADB_REMOVED_OPTION("innodb-adaptive-max-sleep-delay"),
@@ -5905,9 +5837,7 @@ static int init_server_components()
   }
 #endif
 
-#ifndef EMBEDDED_LIBRARY
   start_handle_manager();
-#endif
 
   /*
     When binlog is stored in InnoDB, checksums are done on the page level, so
@@ -5991,7 +5921,7 @@ static int init_server_components()
   if (opt_myisam_log)
     (void) mi_log(1);
 
-#if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT)
   if (locked_in_memory)
   {
     int error;
@@ -6045,7 +5975,6 @@ static int init_server_components()
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 
 #ifndef DBUG_OFF
 /*
@@ -6204,9 +6133,6 @@ int mysqld_main(int argc, char **argv)
   orig_argv= argv;
   my_defaults_mark_files= TRUE;
   load_defaults_or_exit(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv);
-#ifdef EMBEDDED_LIBRARY
-  defaults_argc= argc;
-#endif
   defaults_argv= argv;
   remaining_argc= argc;
   remaining_argv= argv;
@@ -6633,14 +6559,13 @@ termination:
   */
   PSI_CALL_delete_current_thread();
 
-#if (defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY))
+#if (defined(HAVE_OPENSSL))
   ERR_remove_state(0);
 #endif
   mysqld_exit(0);
   return 0;
 }
 
-#endif /* !EMBEDDED_LIBRARY */
 
 
 static bool read_init_file(char *file_name)
@@ -6665,7 +6590,6 @@ void inc_thread_created(void)
   statistic_increment(thread_created, &LOCK_status);
 }
 
-#ifndef EMBEDDED_LIBRARY
 
 /*
    Simple scheduler that use the main thread to handle the request
@@ -6764,12 +6688,10 @@ void create_new_thread(CONNECT *connect)
 
   DBUG_VOID_RETURN;
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 	/* Handle new connections and spawn new process to handle them */
 
-#ifndef EMBEDDED_LIBRARY
 
 void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 {
@@ -6983,7 +6905,6 @@ void handle_connections_sockets()
 }
 
 #endif /* _WIN32*/
-#endif /* EMBEDDED_LIBRARY */
 
 
 /****************************************************************************
@@ -7442,7 +7363,7 @@ struct my_option my_long_options[]=
    &slave_parallel_mode_typelib, GET_ENUM | GET_ASK_ADDR, REQUIRED_ARG,
    SLAVE_PARALLEL_CONSERVATIVE, 0, 0, 0, 0, 0},
 #endif
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
+#if defined(_WIN32)
   {"slow-start-timeout", 0,
    "Maximum number of milliseconds that the service control manager should wait "
    "before trying to kill the windows service during startup",
@@ -7699,7 +7620,7 @@ static int show_table_definitions(THD *, SHOW_VAR *var, void *buff,
 }
 
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
 
 /*
    Functions relying on SSL
@@ -7914,7 +7835,7 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
 
 static int show_default_keycache(THD *thd, SHOW_VAR *var, void *buff,
                                  system_status_var *, enum_var_type)
@@ -8272,7 +8193,6 @@ SHOW_VAR status_vars[]= {
   {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows_), SHOW_LONG_STATUS},
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
-#ifndef EMBEDDED_LIBRARY
   {"Ssl_accept_renegotiates",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_accepts",              (char*) &ssl_acceptor_stats.accept, SHOW_LONG},
   {"Ssl_callback_cache_hits",  (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
@@ -8298,7 +8218,6 @@ SHOW_VAR status_vars[]= {
   {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
   {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
-#endif
 #endif /* HAVE_OPENSSL */
   SHOW_FUNC_ENTRY("stack_usage", &show_stack_usage),
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
@@ -8371,7 +8290,6 @@ static bool add_many_options(DYNAMIC_ARRAY *options, my_option *list,
   return 0;
 }
 
-#ifndef EMBEDDED_LIBRARY
 static void print_version(void)
 {
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
@@ -8482,7 +8400,6 @@ static void usage(void)
   }
   DBUG_VOID_RETURN;
 }
-#endif /*!EMBEDDED_LIBRARY*/
 
 /**
   Initialize MySQL global variables to default values.
@@ -8624,7 +8541,7 @@ static int mysql_init_variables(void)
     have_profiling = SHOW_OPTION_NO;
 #endif
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   have_ssl=SHOW_OPTION_YES;
 #if defined(HAVE_WOLFSSL)
   have_openssl= SHOW_OPTION_NO;
@@ -8656,9 +8573,7 @@ static int mysql_init_variables(void)
   libwrapName= NullS;
 #endif
 #ifdef HAVE_OPENSSL
-#ifndef EMBEDDED_LIBRARY
   ssl_acceptor_fd= 0;
-#endif /* ! EMBEDDED_LIBRARY */
 #endif /* HAVE_OPENSSL */
 
 #if defined(_WIN32)
@@ -8788,13 +8703,11 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
       set_sys_var_value_origin(&server_version_ptr,
                 *filename ? sys_var::CONFIG : sys_var::COMMAND_LINE, filename);
     }
-#ifndef EMBEDDED_LIBRARY
     else
     {
       print_version();
       opt_abort= 1;                    // Abort after parsing all options
     }
-#endif /*EMBEDDED_LIBRARY*/
     break;
   case 'W':
     if (!argument)
@@ -9082,7 +8995,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case OPT_PFS_INSTRUMENT:
   {
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-#ifndef EMBEDDED_LIBRARY
     /* Parse instrument name and value from argument string */
     const char *name= argument, *ptr, *val;
 
@@ -9140,7 +9052,6 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
                              "'%s'", name);
       return 0;
     }
-#endif /* EMBEDDED_LIBRARY */
 #endif
     break;
   }
@@ -9389,7 +9300,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     return 1;
   }
 
-#ifndef EMBEDDED_LIBRARY
   if (validate_redirect_url(global_system_variables.redirect_url,
                             strlen(global_system_variables.redirect_url)))
   {
@@ -9397,7 +9307,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                     global_system_variables.redirect_url);
     return 1;
   }
-#endif
 
   if (opt_disable_networking)
     mysqld_port= mysqld_extra_port= 0;
@@ -9468,14 +9377,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* Set global MyISAM variables from delay_key_write_options */
   fix_delay_key_write(0, 0, OPT_GLOBAL);
 
-#ifndef EMBEDDED_LIBRARY
   if (mysqld_chroot)
     set_root(mysqld_chroot);
-#else
-  SYSVAR_AUTOSIZE(thread_handling, SCHEDULER_NO_THREADS);
-  max_allowed_packet= global_system_variables.max_allowed_packet;
-  net_buffer_length= global_system_variables.net_buffer_length;
-#endif
   if (fix_paths())
     return 1;
 
@@ -9509,15 +9412,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (opt_short_log_format)
     opt_specialflag|= SPECIAL_SHORT_LOG_FORMAT;
 
-#ifdef EMBEDDED_LIBRARY
-  one_thread_scheduler(thread_scheduler, &connection_count);
-  /*
-    It looks like extra_connection_count should be passed here but
-    its been using connection_count for the last 10+ years and
-    no-one has requested a change so lets not surprise anyone.
-  */
-  one_thread_scheduler(extra_thread_scheduler, &connection_count);
-#else
 
   if (thread_handling <= SCHEDULER_ONE_THREAD_PER_CONNECTION)
     one_thread_per_connection_scheduler(thread_scheduler, &max_connections,
@@ -9531,7 +9425,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   one_thread_per_connection_scheduler(extra_thread_scheduler,
                                       &extra_max_connections,
                                       &extra_connection_count);
-#endif
 
   opt_readonly= read_only;
 
@@ -9829,7 +9722,6 @@ static int test_if_case_insensitive(const char *dir_name)
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Create file to store pid number.
@@ -9855,7 +9747,6 @@ static void create_pid_file()
   sql_perror("Can't start server: can't create PID file");
   exit(1);
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 /**
@@ -9866,13 +9757,11 @@ static void create_pid_file()
 
 static void delete_pid_file(myf flags)
 {
-#ifndef EMBEDDED_LIBRARY
   if (pid_file_created)
   {
     mysql_file_delete(key_file_pid, pidfile_name, flags);
     pid_file_created= false;
   }
-#endif /* EMBEDDED_LIBRARY */
   return;
 }
 

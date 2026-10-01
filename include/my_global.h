@@ -97,11 +97,7 @@
 #define IF_WIN(A,B) B
 #endif
 
-#ifdef EMBEDDED_LIBRARY
-#define IF_EMBEDDED(A,B) A
-#else
 #define IF_EMBEDDED(A,B) B
-#endif
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #define IF_PARTITIONING(A,B) A
@@ -1022,9 +1018,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
   just before the server starts accepting connection. All READ_ONLY sysvars
   must be tagged this way.
 */
-#if defined(HAVE_RO_AFTER_INIT) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_RO_AFTER_INIT)
 #define READ_ONLY_SYSVAR __attribute__((section("ro_after_init")))
-#elif defined(_MSC_VER) && !defined(EMBEDDED_LIBRARY)
+#elif defined(_MSC_VER)
 #pragma section("ro_after_init$m", read, write)
 #define READ_ONLY_SYSVAR __declspec(allocate("ro_after_init$m"))
 #else
@@ -1047,10 +1043,6 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb3"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
-#endif
-
-#if defined(EMBEDDED_LIBRARY) && !defined(HAVE_EMBEDDED_PRIVILEGE_CONTROL)
-#define NO_EMBEDDED_ACCESS_CHECKS
 #endif
 
 #ifdef _WIN32
@@ -1163,15 +1155,8 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Defines that are unique to the embedded version of MySQL */
 
-#ifdef EMBEDDED_LIBRARY
-
-/* Things we don't need in the embedded version of MySQL */
-/* TODO HF add #undef HAVE_VIO if we don't want client in embedded library */
-
-#else
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
-#endif /* EMBEDDED_LIBRARY */
 
 /*
   Provide defaults for the CPU cache line size, if it has not been detected by

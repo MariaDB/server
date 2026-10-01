@@ -1001,11 +1001,7 @@ int bootstrap(MYSQL_FILE *file)
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= access_t(ALL_KNOWN_ACL);
 
-#ifndef EMBEDDED_LIBRARY
   mysql_thread_set_psi_id(thd->thread_id);
-#else
-  thd->mysql= 0;
-#endif
 
   /* The following must be called before DBUG_ENTER */
   thd->store_globals();
@@ -1176,7 +1172,6 @@ static inline bool wsrep_command_no_result(char command)
 }
 #endif /* WITH_WSREP */
 
-#ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
   enum enum_server_command
@@ -1472,7 +1467,6 @@ out:
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);
 }
-#endif  /* EMBEDDED_LIBRARY */
 
 /**
   @brief Determine if an attempt to update a non-temporary table while the
@@ -1800,11 +1794,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     }
     else
     {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* we've authenticated new user */
       if (save_user_connect)
 	decrease_user_connections(save_user_connect);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
       my_free((char*) save_db.str);
       my_free(const_cast<char*>(save_security_ctx.user));
     }
@@ -2129,7 +2121,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     thd->get_stmt_da()->disable_status();       // Don't send anything back
     error=TRUE;					// End server
     break;
-#ifndef EMBEDDED_LIBRARY
   case COM_BINLOG_DUMP:
     {
       ulong pos;
@@ -2178,7 +2169,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
       error = TRUE;
       break;
     }
-#endif
   case COM_REFRESH:
   {
     int not_used;
@@ -2237,7 +2227,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     my_ok(thd);
     break;
   }
-#ifndef EMBEDDED_LIBRARY
   case COM_SHUTDOWN:
   {
     status_var_increment(thd->status_var.com_other);
@@ -2267,7 +2256,6 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     DBUG_EXECUTE_IF("simulate_slow_client_at_shutdown", my_sleep(2000000););
     break;
   }
-#endif
   case COM_STATISTICS:
   {
     STATUS_VAR *current_global_status_var;      // Big; Don't allocate on stack
@@ -2286,9 +2274,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
       queries_per_second1000= 0;
     else
       queries_per_second1000= thd->query_id * 1000 / uptime;
-#ifndef EMBEDDED_LIBRARY
     size_t length=
-#endif
     my_snprintf(buff, buff_len - 1,
                         "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  "
@@ -2299,14 +2285,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
                         tc_records(),
                         (uint) (queries_per_second1000 / 1000),
                         (uint) (queries_per_second1000 % 1000));
-#ifdef EMBEDDED_LIBRARY
-    /* Store the buffer in permanent memory */
-    my_ok(thd, 0, 0, buff);
-#else
     (void) my_net_write(net, (uchar*) buff, length);
     (void) net_flush(net);
     thd->get_stmt_da()->disable_status();
-#endif
     break;
   }
   case COM_PING:
@@ -2874,14 +2855,12 @@ bool sp_process_definer(THD *thd)
 
   /* Check that the specified definer exists. Emit a warning if not. */
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (!is_acl_user(lex->definer->host, lex->definer->user))
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_MALFORMED_DEFINER, ER_THD(thd, ER_MALFORMED_DEFINER),
                         lex->definer->user.str, lex->definer->host.str);
   }
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
   DBUG_RETURN(FALSE);
 }
@@ -3159,7 +3138,6 @@ mysql_create_routine(THD *thd, LEX *lex)
 
   if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* only add privileges if really neccessary */
 
     Security_context security_context;
@@ -3220,14 +3198,11 @@ mysql_create_routine(THD *thd, LEX *lex)
       thd->security_ctx->restore_security_context(thd, backup);
     }
 
-#endif
     return false;
   }
   (void) trans_commit_stmt(thd);
 
-#if !defined(NO_EMBEDDED_ACCESS_CHECKS) || defined(WITH_WSREP)
 wsrep_error_label:
-#endif
   return true;
 }
 
@@ -4075,7 +4050,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= mysqld_help(thd,lex->help_arg);
     break;
 
-#ifndef EMBEDDED_LIBRARY
   case SQLCOM_PURGE:
   {
     if (check_global_access(thd, PRIV_STMT_PURGE_BINLOG))
@@ -4102,7 +4076,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res = purge_master_logs_before_date(thd, (ulong)it->val_int());
     break;
   }
-#endif
   case SQLCOM_SHOW_WARNS:
   {
     res= mysqld_show_warnings(thd, (ulong)
@@ -4428,7 +4401,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       goto error;
     break;
   }
-#ifndef EMBEDDED_LIBRARY
   case SQLCOM_SHOW_BINLOGS:
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND, ER_THD(thd, ER_NOT_ALLOWED_COMMAND),
@@ -4443,7 +4415,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       break;
     }
 #endif
-#endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE:
   {
      DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -5074,7 +5045,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_BACKUP_LOCK:
     if (check_global_access(thd, RELOAD_ACL, true))
     {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*
         In case there is no global privilege, check DB privilege for LOCK TABLES.
       */
@@ -5115,7 +5085,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           goto error;
         }
       }
-#endif
     }
     /*
       There is reload privilege, first table is set for lock.
@@ -5285,7 +5254,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #endif
     break;
   }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_CREATE_USER:
   case SQLCOM_CREATE_ROLE:
   {
@@ -5360,7 +5328,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       my_ok(thd);
     break;
   }
-#endif /*!NO_EMBEDDED_ACCESS_CHECKS*/
   case SQLCOM_RESET:
     /*
       RESET commands are never written to the binary log, so we have to
@@ -5515,18 +5482,13 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   }
   case SQLCOM_SHUTDOWN:
-#ifndef EMBEDDED_LIBRARY
     DBUG_EXECUTE_IF("crash_shutdown", DBUG_SUICIDE(););
     if (check_global_access(thd,SHUTDOWN_ACL))
       goto error;
     kill_mysql(thd);
     my_ok(thd);
-#else
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "embedded server");
-#endif
     break;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_CREATE_USER:
   {
     LEX_USER *grant_user= lex->grant_user;
@@ -5546,7 +5508,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res = mysql_show_grants(thd, grant_user);
     break;
   }
-#endif
   case SQLCOM_HA_OPEN:
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE))
@@ -5854,11 +5815,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   case SQLCOM_BINLOG_BASE64_EVENT:
   {
-#ifndef EMBEDDED_LIBRARY
     mysql_client_binlog_statement(thd);
-#else /* EMBEDDED_LIBRARY */
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "embedded");
-#endif /* EMBEDDED_LIBRARY */
     break;
   }
   case SQLCOM_CREATE_SERVER:
@@ -5950,9 +5907,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   default:
 
-#ifndef EMBEDDED_LIBRARY
     DBUG_ASSERT(0);                             /* Impossible */
-#endif
     my_ok(thd);
     break;
   }
@@ -6579,7 +6534,6 @@ absent:
   /* Conditionally writes to binlog */
   sp_result= sph->sp_drop_routine(thd, lex->spname);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     We're going to issue an implicit REVOKE statement so we close all
     open tables. We have to keep metadata locks as this ensures that
@@ -6609,7 +6563,6 @@ absent:
     /* If this happens, an error should have been reported. */
     return 1;
   }
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
   switch (sp_result) {
   case SP_OK:
@@ -6678,11 +6631,6 @@ check_access(THD *thd, privilege_t want_access,
              GRANT_INTERNAL_INFO *grant_internal_info,
              bool dont_check_global_grants, bool no_errors)
 {
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-  if (save_priv)
-    *save_priv= access_t(GLOBAL_ACLS);
-  return false;
-#else
   Security_context *sctx= thd->security_ctx;
   access_t db_access(NO_ACL);
 
@@ -6878,11 +6826,9 @@ check_access(THD *thd, privilege_t want_access,
                          "unknown")));
   }
   DBUG_RETURN(TRUE);
-#endif // NO_EMBEDDED_ACCESS_CHECKS
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   Check grants for commands which work only with one table.
 
@@ -7251,7 +7197,6 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
   DBUG_RETURN(1);
 }
 
-#endif /*NO_EMBEDDED_ACCESS_CHECKS*/
 
 
 /**
@@ -7272,7 +7217,6 @@ bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
 
 bool check_global_access(THD *thd, privilege_t want_access, bool no_errors)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
   if (thd->security_ctx->master_access & want_access)
     return 0;
@@ -7283,9 +7227,6 @@ bool check_global_access(THD *thd, privilege_t want_access, bool no_errors)
   }
   status_var_increment(thd->status_var.access_denied_errors);
   return 1;
-#else
-  return 0;
-#endif
 }
 
 
@@ -7962,14 +7903,12 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
         MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
                                sql_statement_info[thd->lex->sql_command].
                                m_key);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (mqh_used && thd->user_connect &&
 	  check_mqh(thd, lex->sql_command))
       {
 	thd->net.error = 0;
       }
       else
-#endif
       {
 	if (likely(! thd->is_error()))
 	{

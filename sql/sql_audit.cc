@@ -21,7 +21,6 @@
 extern int initialize_audit_plugin(void *plugin);
 extern int finalize_audit_plugin(void *plugin);
 
-#ifndef EMBEDDED_LIBRARY
 
 struct st_mysql_event_generic
 {
@@ -439,46 +438,3 @@ void mysql_audit_notify(THD *thd, uint event_class, const void *event)
 }
 
 
-#else /* EMBEDDED_LIBRARY */
-
-
-void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask)
-{
-}
-
-
-void mysql_audit_initialize()
-{
-}
-
-
-void mysql_audit_finalize()
-{
-}
-
-
-int initialize_audit_plugin(void *plugin)
-{
-  return 1;
-}
-
-
-int finalize_audit_plugin(void *plugin)
-{
-  return 0;
-}
-
-
-void mysql_audit_release(THD *thd)
-{
-}
-
-void mysql_audit_init_thd(THD *thd)
-{
-}
-
-void mysql_audit_free_thd(THD *thd)
-{
-}
-
-#endif /* EMBEDDED_LIBRARY */

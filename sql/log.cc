@@ -25,7 +25,7 @@
     Abort logging when we get an error in reading or writing log files
 */
 
-#include "mariadb.h"		/* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "log.h"
 #include "sql_base.h"                           // open_log_table
@@ -3773,10 +3773,7 @@ bool MYSQL_LOG::open(
   {
     char *end;
     size_t len=my_snprintf(buff, sizeof(buff), "%s, Version: %s (%s). "
-#ifdef EMBEDDED_LIBRARY
-                        "embedded library\n",
-                        my_progname, server_version, MYSQL_COMPILATION_COMMENT
-#elif defined(_WIN32)
+#ifdef _WIN32
 			"started with:\nTCP Port: %d, Named Pipe: %s\n",
                         my_progname, server_version, MYSQL_COMPILATION_COMMENT,
                         mysqld_port, mysqld_unix_port
@@ -11890,7 +11887,6 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
 #endif /* _WIN32 */
 
 
-#ifndef EMBEDDED_LIBRARY
 #ifndef _WIN32
 #define fprintf_stderr(format, ...) fprintf(stderr, format, __VA_ARGS__)
 #else
@@ -12003,7 +11999,6 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
 
   DBUG_RETURN(0);
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 void sql_print_error(const char *format, ...) 

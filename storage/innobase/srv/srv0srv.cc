@@ -1333,7 +1333,7 @@ static bool srv_purge_should_exit(size_t old_history_size)
     if (now - progress_time >= 15)
     {
       progress_time= now;
-#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+#if defined HAVE_SYSTEMD
       service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				     "InnoDB: to purge %zu transactions",
 				     history_size);

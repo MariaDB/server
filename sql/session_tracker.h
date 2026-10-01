@@ -21,7 +21,6 @@
 #include "thr_lock.h"
 #include "sql_hset.h"
 
-#ifndef EMBEDDED_LIBRARY
 /* forward declarations */
 class THD;
 class set_var;
@@ -475,25 +474,5 @@ public:
 
 
 int session_tracker_init();
-#else
-
-#define TRANSACT_TRACKER(X) do{}while(0)
-
-class Session_tracker
-{
-  class Dummy_tracker
-  {
-  public:
-    void mark_as_changed(THD *thd) {}
-    void mark_all_as_changed(THD *thd) {}
-    void mark_as_changed(THD *thd, const sys_var *var) {}
-  };
-public:
-  Dummy_tracker current_schema;
-  Dummy_tracker state_change;
-  Dummy_tracker sysvars;
-};
-
-#endif //EMBEDDED_LIBRARY
 
 #endif /* SESSION_TRACKER_INCLUDED */

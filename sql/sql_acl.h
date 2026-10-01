@@ -332,12 +332,10 @@ class Sql_cmd_grant: public Sql_cmd
 protected:
   enum_sql_command m_command;
   bool m_deny;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
   bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
   void grant_stage0(THD *thd);
   bool should_bypass_revoke_deny(THD *thd);
-#endif
 public:
   Sql_cmd_grant(enum_sql_command command)
    :m_command(command),m_deny(false)
@@ -351,9 +349,7 @@ public:
 class Sql_cmd_grant_proxy: public Sql_cmd_grant
 {
   privilege_t m_grant_option;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool check_access_proxy(THD *thd, List<LEX_USER> &list);
-#endif
 public:
   Sql_cmd_grant_proxy(enum_sql_command command, privilege_t grant_option)
    :Sql_cmd_grant(command), m_grant_option(grant_option)
@@ -365,9 +361,7 @@ public:
 class Sql_cmd_grant_object: public Sql_cmd_grant, public Grant_privilege
 {
 protected:
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool grant_stage0_exact_object(THD *thd, TABLE_LIST *table);
-#endif
 public:
   Sql_cmd_grant_object(enum_sql_command command, const Grant_privilege &grant)
    :Sql_cmd_grant(command), Grant_privilege(grant)
@@ -377,10 +371,8 @@ public:
 
 class Sql_cmd_grant_table: public Sql_cmd_grant_object
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool execute_table_mask(THD *thd);
   bool execute_exact_table(THD *thd, TABLE_LIST *table);
-#endif
 public:
   Sql_cmd_grant_table(enum_sql_command command, const Grant_privilege &grant)
    :Sql_cmd_grant_object(command, grant)

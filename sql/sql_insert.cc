@@ -56,7 +56,7 @@
 
 */
 
-#include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_list.h"
 #include "sql_priv.h"
 #include "sql_insert.h"
@@ -89,7 +89,6 @@
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
 #endif /* WITH_WSREP */
 
-#ifndef EMBEDDED_LIBRARY
 static bool delayed_get_table(THD *thd, MDL_ticket *grl_protection_ticket,
                               TABLE_LIST *table_list);
 static int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
@@ -97,7 +96,6 @@ static int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
 static void end_delayed_insert(THD *thd);
 pthread_handler_t handle_delayed_insert(void *arg);
 static void unlink_blobs(TABLE *table);
-#endif
 static bool check_view_insertability(THD *thd, TABLE_LIST *view,
                                      List<Item> &fields);
 static int binlog_show_create_table(THD *thd, TABLE *table,
@@ -238,12 +236,10 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
     }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     Field_iterator_table_ref field_it;
     field_it.set(table_list);
     if (check_grant_all_columns(thd, INSERT_ACL, &field_it))
       DBUG_RETURN(-1);
-#endif
     /*
       No fields are provided so all fields must be provided in the values.
       Thus we set all bits in the write set.
@@ -309,9 +305,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     }
   }
   // For the values we need select_priv
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
-#endif
 
   if (check_key_in_view(thd, table_list) ||
       (table_list->view &&
@@ -562,7 +556,6 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
 {
   DBUG_ENTER("open_and_lock_for_insert_delayed");
 
-#ifndef EMBEDDED_LIBRARY
   /* INSERT DELAYED is not allowed in a read only transaction. */
   if (thd->tx_read_only)
   {
@@ -640,7 +633,6 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
 
   if (error || table_list->table)
     DBUG_RETURN(error);
-#endif
   /*
     * This is embedded library and we don't have auxiliary
     threads OR
@@ -767,7 +759,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   List<List_item> insert_values_cache;
   bool cache_insert_values= FALSE;
 
-#ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
   /*
     log_on is about delayed inserts only.
@@ -775,7 +766,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     runs without --log-bin).
   */
   bool log_on= (thd->variables.option_bits & OPTION_BIN_LOG);
-#endif
   thr_lock_type lock_type;
   Item *unused_conds= 0;
   DBUG_ENTER("mysql_insert");
@@ -984,9 +974,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     values_list.elements, and - if nothing else - to initialize
     the code to make the call of end_bulk_insert() below safe.
   */
-#ifndef EMBEDDED_LIBRARY
   if (lock_type != TL_WRITE_DELAYED)
-#endif /* EMBEDDED_LIBRARY */
   {
     if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
       goto abort;
@@ -1218,7 +1206,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         break;
       }
 
-#ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {
         LEX_STRING const st_query = { query, thd->query_length() };
@@ -1228,7 +1215,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         query=0;
       }
       else
-#endif
         error= write.write_record();
       if (unlikely(error))
         break;
@@ -1257,7 +1243,6 @@ values_loop_end:
     Now all rows are inserted. Time to update logs and sends response to
     user
   */
-#ifndef EMBEDDED_LIBRARY
   if (unlikely(lock_type == TL_WRITE_DELAYED))
   {
     if (likely(!error))
@@ -1267,7 +1252,6 @@ values_loop_end:
     }
   }
   else
-#endif
   {
     /*
       Do not do this release if this is a delayed insert, it would steal
@@ -1508,14 +1492,11 @@ values_loop_end:
 
   thd->push_final_warnings();
   my_free(readbuff);
-#ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
     table->expr_arena->free_items();
-#endif
   DBUG_RETURN(FALSE);
 
 abort:
-#ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED)
   {
     end_delayed_insert(thd);
@@ -1531,7 +1512,6 @@ abort:
     if (table_list->table->expr_arena)
       table_list->table->expr_arena->free_items();
   }
-#endif
   if (table != NULL)
     table->file->ha_release_auto_increment();
 
@@ -2596,7 +2576,6 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *t
   A thread is created for each table that one uses with the DELAYED attribute.
 *****************************************************************************/
 
-#ifndef EMBEDDED_LIBRARY
 
 class delayed_row :public ilink {
 public:
@@ -4149,7 +4128,6 @@ bool Delayed_insert::handle_inserts(void)
   thread_safe_increment(delayed_insert_errors, &LOCK_delayed_status);
   DBUG_RETURN(1);
 }
-#endif /* EMBEDDED_LIBRARY */
 
 /***************************************************************************
   Store records in INSERT ... SELECT *

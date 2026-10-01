@@ -17,7 +17,7 @@
 
 /* Some general useful functions */
 
-#include "mariadb.h"                 /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "table.h"
 #include "key.h"                                // find_ref_key
@@ -7147,7 +7147,6 @@ void TABLE_LIST::register_want_access(privilege_t want_access)
     TRUE   Error
 */
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
 {
   DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
@@ -7196,7 +7195,6 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
   DBUG_RETURN(FALSE);
 
 }
-#endif
 
 
 /*
@@ -7208,7 +7206,6 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd, bool upgrade_check)
 
 */
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 Security_context *TABLE_LIST::find_view_security_context(THD *thd)
 {
   Security_context *sctx;
@@ -7235,7 +7232,6 @@ Security_context *TABLE_LIST::find_view_security_context(THD *thd)
   }
   DBUG_RETURN(sctx);
 }
-#endif
 
 
 /*
@@ -7255,7 +7251,6 @@ bool TABLE_LIST::prepare_security(THD *thd)
   List_iterator_fast<TABLE_LIST> tb(*view_tables);
   TABLE_LIST *tbl;
   DBUG_ENTER("TABLE_LIST::prepare_security");
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     Check if we are running REPAIR VIEW FOR UPGRADE
     In this case we are probably comming from mysql_upgrade and
@@ -7305,10 +7300,6 @@ bool TABLE_LIST::prepare_security(THD *thd)
       tbl->table->grant= grant;
   }
   thd->security_ctx= save_security_ctx;
-#else
-  while ((tbl= tb++))
-    tbl->grant.privilege= access_t(ALL_KNOWN_ACL);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
   DBUG_RETURN(FALSE);
 }
 

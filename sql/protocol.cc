@@ -28,9 +28,7 @@
 #include <stdarg.h>
 
 static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
-#ifndef EMBEDDED_LIBRARY
 static bool write_eof_packet(THD *, NET *, uint, uint);
-#endif
 
 CHARSET_INFO *Protocol::character_set_results() const
 {
@@ -38,11 +36,7 @@ CHARSET_INFO *Protocol::character_set_results() const
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 bool Protocol::net_store_data(const uchar *from, size_t length)
-#else
-bool Protocol_binary::net_store_data(const uchar *from, size_t length)
-#endif
 {
   ulong packet_length=packet->length();
   /* 
@@ -72,13 +66,8 @@ bool Protocol_binary::net_store_data(const uchar *from, size_t length)
   because column, table, database names fit into this limit.
 */
 
-#ifndef EMBEDDED_LIBRARY
 bool Protocol::net_store_data_cs(const uchar *from, size_t length,
                               CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
-#else
-bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
-                              CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
-#endif
 {
   uint dummy_errors;
   /* Calculate maximum possible result length */
@@ -202,7 +191,6 @@ bool Protocol::net_send_error(THD *thd, uint sql_errno, const char *err,
 
 */
 
-#ifndef EMBEDDED_LIBRARY
 bool
 Protocol::net_send_ok(THD *thd,
                       uint server_status, uint statement_warn_count,
@@ -475,7 +463,6 @@ bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   DBUG_RETURN(ret);
 }
 
-#endif /* EMBEDDED_LIBRARY */
 
 /**
   Faster net_store_length when we know that length is less than 65536.
@@ -809,18 +796,13 @@ void Protocol::end_partial_result_set(THD *thd_arg)
 
 bool Protocol::flush()
 {
-#ifndef EMBEDDED_LIBRARY
   bool error;
   thd->get_stmt_da()->set_overwrite_status(true);
   error= net_flush(&thd->net);
   thd->get_stmt_da()->set_overwrite_status(false);
   return error;
-#else
-  return 0;
-#endif
 }
 
-#ifndef EMBEDDED_LIBRARY
 
 
 class Send_field_packed_extended_metadata: public Binary_string
@@ -1314,7 +1296,6 @@ bool Protocol::write()
   DBUG_RETURN(my_net_write(&thd->net, (uchar*) packet->ptr(),
                            packet->length()));
 }
-#endif /* EMBEDDED_LIBRARY */
 
 
 bool Protocol_text::store_item_metadata(THD *thd, Item *item, uint pos)
@@ -1424,7 +1405,6 @@ bool Protocol::store(I_List<i_string>* str_list)
   All data are sent as 'packed-string-length' followed by 'string-data'
 ****************************************************************************/
 
-#ifndef EMBEDDED_LIBRARY
 void Protocol_text::prepare_for_resend()
 {
   packet->length(0);
@@ -1442,7 +1422,6 @@ bool Protocol_text::store_null()
   buff[0]= (char)251;
   return packet->append(buff, sizeof(buff), PACKET_BUFFER_EXTRA_ALLOC);
 }
-#endif
 
 
 /**

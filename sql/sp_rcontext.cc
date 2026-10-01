@@ -294,12 +294,8 @@ check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
                                 const Lex_ident_column &name,
                                 Field *fld)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
   return check_column_grant_in_table_ref(thd, table_list, name, fld);
-#else
-  return false;
-#endif
 }
 
 

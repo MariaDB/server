@@ -402,7 +402,6 @@ size_t trx_sys_t::any_active_transactions(size_t *prepared)
   return total_trx;
 }
 
-#ifndef EMBEDDED_LIBRARY
 /** @return true if any active (non-prepared) transactions is recovered */
 bool trx_sys_t::any_active_transaction_recovered()
 {
@@ -418,4 +417,3 @@ bool trx_sys_t::any_active_transaction_recovered()
     return found;
   });
 }
-#endif

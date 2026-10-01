@@ -362,12 +362,10 @@ static void init_username();
 static void add_int_to_prompt(int toadd);
 static int get_result_width(MYSQL_RES *res);
 static int get_field_disp_length(MYSQL_FIELD * field);
-#ifndef EMBEDDED_LIBRARY
 static uint last_progress_report_length= 0;
 static void report_progress(const MYSQL *mysql, uint stage, uint max_stage,
                             double progress, const char *proc_info,
                             uint proc_info_length);
-#endif
 static void report_progress_end();
 
 /* A structure which contains information on the commands this program
@@ -2083,37 +2081,15 @@ get_one_option(const struct my_option *opt, const char *argument,
     }
     break;
   case OPT_MYSQL_PROTOCOL:
-#ifndef EMBEDDED_LIBRARY
     if (!argument[0])
       opt_protocol= 0;
     else if ((opt_protocol=
               find_type_with_warning(argument, &sql_protocol_typelib,
                                                    opt->name)) <= 0)
       exit(1);
-#endif
     break;
   case OPT_SERVER_ARG:
-#ifdef EMBEDDED_LIBRARY
-    /*
-      When the embedded server is being tested, the client needs to be
-      able to pass command-line arguments to the embedded server so it can
-      locate the language files and data directory.
-    */
-    if (!embedded_server_arg_count)
-    {
-      embedded_server_arg_count= 1;
-      embedded_server_args[0]= (char*) "";
-    }
-    if (embedded_server_arg_count == MAX_SERVER_ARGS-1 ||
-        !(embedded_server_args[embedded_server_arg_count++]=
-          my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE))))
-    {
-        put_info("Can't use server argument", INFO_ERROR);
-        return 0;
-    }
-#else /*EMBEDDED_LIBRARY */
     printf("WARNING: --server-arg option not supported in this configuration.\n");
-#endif
     break;
   case OPT_COMPATIBILTY_CLEARTEXT_PLUGIN:
     /*
@@ -3337,7 +3313,6 @@ static int reconnect(void)
   return 0;
 }
 
-#ifndef EMBEDDED_LIBRARY
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wvarargs"
@@ -3362,9 +3337,6 @@ static void status_info_cb(void *data, enum enum_mariadb_status_info type, ...)
 
 #ifdef __clang__
 #pragma clang diagnostic pop
-#endif
-#else
-#define mysql_optionsv(A,B,C,D) do { } while(0)
 #endif
 
 static void get_current_db()
@@ -4042,11 +4014,9 @@ print_as_hex(FILE *output_file, const char *str, size_t len, size_t total_bytes_
 static inline MYSQL_ROW fetch_row(MYSQL_RES *result)
 {
   MYSQL_ROW row = mysql_fetch_row(result);
-#ifndef EMBEDDED_LIBRARY
   if (last_progress_report_length) {
     report_progress_end();
   }
-#endif
   return row;
 }
 
@@ -5257,7 +5227,6 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   }
   adjust_console_codepage(charset_info->cs_name.str);
   connected=1;
-#ifndef EMBEDDED_LIBRARY
   mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);
 
   /*
@@ -5266,12 +5235,6 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 */
   if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
-#else
-  {
-    my_bool reconnect= 1;
-    mysql_options(&mysql, MYSQL_OPT_RECONNECT, &reconnect);
-  }
-#endif
 #ifdef HAVE_READLINE
   build_completion_hash(opt_rehash, 1);
 #endif
@@ -5342,12 +5305,12 @@ static int com_status(String *, char *)
     mysql_free_result(result);
   }
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   if ((status_str= mysql_get_ssl_cipher(&mysql)))
     tee_fprintf(stdout, "SSL:\t\t\tCipher in use is %s, cert is %s\n",
                 status_str, opt_ssl_verify_server_cert ? "OK" : "UNKNOWN");
   else
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
     tee_puts("SSL:\t\t\tNot in use", stdout);
 
   if (skip_updates)
@@ -5396,14 +5359,12 @@ static int com_status(String *, char *)
                 mysql_character_set_name(&mysql));
   }
 
-#ifndef EMBEDDED_LIBRARY
   if (strstr(mysql_get_host_info(&mysql),"TCP/IP") || ! mysql.unix_socket)
     tee_fprintf(stdout, "TCP port:\t\t%d\n", mysql.port);
   else
     tee_fprintf(stdout, "UNIX socket:\t\t%s\n", mysql.unix_socket);
   if (mysql.net.compress)
     tee_fprintf(stdout, "Protocol:\t\tCompressed\n");
-#endif
 
   const char *pos;
   if ((status_str= mysql_stat(&mysql)) && !mysql_error(&mysql)[0] &&
@@ -5754,7 +5715,6 @@ static const char *construct_prompt()
       }
       case 'p':
       {
-#ifndef EMBEDDED_LIBRARY
 	if (!connected)
 	{
 	  processed_prompt.append(STRING_WITH_LEN("not_connected"));
@@ -5775,7 +5735,6 @@ static const char *construct_prompt()
           const char *tmp= pos ? pos+1 : mysql.unix_socket;
           processed_prompt.append(tmp, strlen(tmp));
 	}
-#endif
       }
 	break;
       case 'U':
@@ -5931,7 +5890,6 @@ static int com_prompt(String *, char *line)
   return 0;
 }
 
-#ifndef EMBEDDED_LIBRARY
 static void report_progress(const MYSQL *mysql, uint stage, uint max_stage,
                             double progress, const char *proc_info,
                             uint proc_info_length)
@@ -5954,8 +5912,3 @@ static void report_progress_end()
     last_progress_report_length= 0;
   }
 }
-#else
-static void report_progress_end()
-{
-}
-#endif

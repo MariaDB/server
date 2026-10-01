@@ -2115,7 +2115,6 @@ public:
 
   bool set_user(char *user_arg);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   bool
   change_security_context(THD *thd,
                           LEX_CSTRING *definer_user,
@@ -2125,7 +2124,6 @@ public:
 
   void
   restore_security_context(THD *thd, Security_context *backup);
-#endif
   bool priv_user_matches(const Security_context *) const;
   /**
     Check global access
@@ -3378,25 +3376,6 @@ public:
 
   void reset_for_next_command(bool do_clear_errors= 1);
 
-#ifdef EMBEDDED_LIBRARY
-  struct st_mysql  *mysql;
-  unsigned long	 client_stmt_id;
-  unsigned long  client_param_count;
-  struct st_mysql_bind *client_params;
-  char *extra_data;
-  ulong extra_length;
-  struct st_mysql_data *cur_data;
-  struct st_mysql_data *first_data;
-  struct st_mysql_data **data_tail;
-  void clear_data_list();
-  struct st_mysql_data *alloc_new_dataset();
-  /*
-    In embedded server it points to the statement that is processed
-    in the current query. We store some results directly in statement
-    fields then.
-  */
-  struct st_mysql_stmt *current_stmt;
-#endif
   Query_cache_tls query_cache_tls;
   NET	  net;				// client connection descriptor
   /** Additional network instrumentation for the server only. */
@@ -4667,7 +4646,6 @@ public:
   partition_info *work_part_info;
 #endif
 
-#ifndef EMBEDDED_LIBRARY
   /**
     Array of active audit plugins which have been used by this THD.
     This list is later iterated to invoke release_thd() on those
@@ -4680,7 +4658,6 @@ public:
   */
   unsigned long audit_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
   int audit_plugin_version;
-#endif
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Debug Sync facility. See debug_sync.cc. */
@@ -5238,7 +5215,6 @@ public:
     DBUG_VOID_RETURN;
   }
 
-#ifndef EMBEDDED_LIBRARY
   inline bool vio_ok() const { return net.vio != 0; }
   /** Return FALSE if connection to client is broken. */
   bool is_connected()
@@ -5250,10 +5226,6 @@ public:
     */
     return system_thread || (vio_ok() ? vio_is_connected(net.vio) : FALSE);
   }
-#else
-  inline bool vio_ok() const { return TRUE; }
-  inline bool is_connected() { return TRUE; }
-#endif
 
    void my_ok_with_recreate_info(const Recreate_info &info, ulong warn_count);
   /**
@@ -6423,7 +6395,6 @@ public:
 public:
   void set_query_timer_if_needed()
   {
-#ifndef EMBEDDED_LIBRARY
     /*
       Slave vs user threads have timeouts configured via different variables,
       so pick the appropriate one to use.
@@ -6441,22 +6412,17 @@ public:
     if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
       return;
     set_query_timer_force(timeout_val);
-#endif
   }
   void set_query_timer_force(ulonglong timeout_val)
   {
-#ifndef EMBEDDED_LIBRARY
     thr_timer_settime(&query_timer, timeout_val);
-#endif
   }
   void reset_query_timer()
   {
-#ifndef EMBEDDED_LIBRARY
     if (spcont || in_sub_stmt)
       return;
     if (!query_timer.expired)
       thr_timer_end(&query_timer);
-#endif
   }
   bool restore_set_statement_var()
   {
@@ -7454,11 +7420,7 @@ public:
     // EXPLAIN should never output to a select_union_direct
     DBUG_ASSERT(false); /* purecov: inspected */
   }
-#ifdef EMBEDDED_LIBRARY
-  void begin_dataset() override
-#else
   void begin_dataset()
-#endif
   {
     // Only called for sp_cursor::Select_fetch_into_spvars
     DBUG_ASSERT(false); /* purecov: inspected */

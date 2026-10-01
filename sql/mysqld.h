@@ -922,12 +922,7 @@ extern __attribute__((warn_unused_result)) my_thread_id next_thread_id(void);
 /*
   TODO: Replace this with an inline function.
  */
-#ifndef EMBEDDED_LIBRARY
 extern "C" void unireg_abort(int exit_code) __attribute__((noreturn));
-#else
-extern "C" void unireg_clear(int exit_code);
-#define unireg_abort(exit_code) do { unireg_clear(exit_code); DBUG_RETURN(exit_code); } while(0)
-#endif
 
 extern char *set_server_version(char *buf, size_t size);
 

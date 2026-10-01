@@ -18,7 +18,7 @@
 
 /* create and drop of databases */
 
-#include "mariadb.h"                   /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_db.h"
@@ -1605,9 +1605,7 @@ static void mysql_change_db_impl(THD *thd,
 
   /* 2. Update security context. */
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= new_db_access;
-#endif
 
   /* 3. Update db-charset environment variables. */
 
@@ -1783,7 +1781,6 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
 
   DBUG_PRINT("info",("Use database: %s", new_db_file_name.str));
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (test_all_bits(sctx->master_access, DB_ACLS))
   {
     db_access= access_t(DB_ACLS);
@@ -1805,7 +1802,6 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING &new_db_name, bool force)
                       sctx->priv_user, sctx->priv_host, new_db_file_name.str);
     DBUG_RETURN(ER_DBACCESS_DENIED_ERROR);
   }
-#endif
 
   DEBUG_SYNC(thd, "before_db_dir_check");
 

@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_prepare.h"
@@ -1624,7 +1624,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   set_routine_security_ctx() changes routine security context, and
   checks if there is an EXECUTE privilege in new context.  If there is
@@ -1677,7 +1676,6 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx)
 
   return FALSE;
 }
-#endif // ! NO_EMBEDDED_ACCESS_CHECKS
 
 
 bool sp_head::check_execute_access(THD *thd) const
@@ -1710,18 +1708,14 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
   if (!(m_flags & HAS_COLUMN_TYPE_REFS))
     return sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
   sp_rcontext *res= NULL;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
   if (switch_security_ctx &&
       set_routine_security_ctx(thd, this, &save_security_ctx))
     return NULL;
-#endif
   if (!defs->resolve_type_refs(thd))
     res= sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (switch_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
-#endif
   return res;
 }
 
@@ -1790,7 +1784,6 @@ sp_head::execute_trigger(THD *thd,
   DBUG_ENTER("sp_head::execute_trigger");
   DBUG_PRINT("info", ("trigger %s", m_name.str));
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_ctx= NULL;
 
 
@@ -1828,7 +1821,6 @@ sp_head::execute_trigger(THD *thd,
     m_security_ctx.restore_security_context(thd, save_ctx);
     DBUG_RETURN(TRUE);
   }
-#endif // NO_EMBEDDED_ACCESS_CHECKS
 
   if (thd->lex->error_if_contains_dynamic_sql())
     DBUG_RETURN(true);
@@ -1864,9 +1856,7 @@ sp_head::execute_trigger(THD *thd,
 err_with_cleanup:
   thd->restore_active_arena(&call_arena, &backup_arena);
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   m_security_ctx.restore_security_context(thd, save_ctx);
-#endif // NO_EMBEDDED_ACCESS_CHECKS
 
   delete nctx;
   call_arena.free_items();
@@ -2108,14 +2098,12 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   }
   thd->spcont= *func_ctx;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
   if (set_routine_security_ctx(thd, this, &save_security_ctx))
   {
     err_status= TRUE;
     goto err_with_cleanup;
   }
-#endif
 
   if (need_binlog_call)
   {
@@ -2202,9 +2190,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     }
   }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   m_security_ctx.restore_security_context(thd, save_security_ctx);
-#endif
 
 err_with_cleanup:
 
@@ -2409,11 +2395,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   }
   thd->spcont= nctx;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx= 0;
   if (!err_status)
     err_status= set_routine_security_ctx(thd, this, &save_security_ctx);
-#endif
 
   opt_trace_disable_if_no_stored_proc_func_access(thd, this);
 
@@ -2456,10 +2440,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (thd->spcont)
     thd->spcont->expr_event_handler_not_persistent(thd,
                                          expr_event_t::DESTRUCT_OUT_OF_SCOPE);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
-#endif
 
   if (!save_spcont)
     delete octx;
@@ -4466,7 +4448,6 @@ bool sp_head::get_typedef_package_spec_or_error(THD *thd,
                                           const Lex_ident_sys_st &package,
                                           const Lex_ident_sys_st &type)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx= nullptr;
   if ((m_parent ? m_parent->suid() : suid()) != SP_IS_NOT_SUID &&
       m_definer.user.length/*Explicit DEFINER was given in CREATE*/)
@@ -4474,14 +4455,11 @@ bool sp_head::get_typedef_package_spec_or_error(THD *thd,
                                            &m_definer.host,
                                            &m_db,
                                            &save_security_ctx);
-#endif
   bool rc= check_routine_access(thd, EXECUTE_ACL,
                                 &spec->m_db, &spec->m_name,
                                 &sp_handler_package_spec, false);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (save_security_ctx)
     m_security_ctx.restore_security_context(thd, save_security_ctx);
-#endif
   if (rc)
     return true;
   if (!(tdef[0]= spec->find_type_def(type)))

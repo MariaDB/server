@@ -31,10 +31,8 @@
 */
 void trans_track_end_trx(THD *thd)
 {
-#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
     thd->session_tracker.transaction_info.end_trx(thd);
-#endif //EMBEDDED_LIBRARY
 }
 
 
@@ -44,13 +42,11 @@ void trans_track_end_trx(THD *thd)
 */
 void trans_reset_one_shot_chistics(THD *thd)
 {
-#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
     thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_INHERIT);
     thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
   }
-#endif //EMBEDDED_LIBRARY
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
   thd->tx_read_only= thd->variables.tx_read_only;
 }
@@ -158,10 +154,8 @@ bool trans_begin(THD *thd, uint flags)
   if (flags & MYSQL_START_TRANS_OPT_READ_ONLY)
   {
     thd->tx_read_only= true;
-#ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
       thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_ONLY);
-#endif //EMBEDDED_LIBRARY
   }
   else if (flags & MYSQL_START_TRANS_OPT_READ_WRITE)
   {
@@ -185,10 +179,8 @@ bool trans_begin(THD *thd, uint flags)
       This flags that transaction_read_only was set explicitly, rather than
       just from the session's default.
     */
-#ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
       thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_WRITE);
-#endif //EMBEDDED_LIBRARY
   }
 
 #ifdef WITH_WSREP
@@ -208,18 +200,14 @@ bool trans_begin(THD *thd, uint flags)
     thd->server_status|= SERVER_STATUS_IN_TRANS_READONLY;
   DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
 
-#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
     thd->session_tracker.transaction_info.add_trx_state(thd, TX_EXPLICIT);
-#endif //EMBEDDED_LIBRARY
 
   /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
   {
-#ifndef EMBEDDED_LIBRARY
     if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
       thd->session_tracker.transaction_info.add_trx_state(thd, TX_WITH_SNAPSHOT);
-#endif //EMBEDDED_LIBRARY
     res= ha_start_consistent_snapshot(thd);
   }
   /*

@@ -104,7 +104,6 @@ void post_kill_notification(THD *thd)
   Initialize scheduler for --thread-handling=one-thread-per-connection
 */
 
-#ifndef EMBEDDED_LIBRARY
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections,
@@ -117,11 +116,6 @@ void one_thread_per_connection_scheduler(scheduler_functions *func,
   func->add_connection= create_thread_to_handle_connection;
   func->post_kill_notification= post_kill_notification;
 }
-#else
-void handle_connection_in_main_thread(CONNECT *connect)
-{
-}
-#endif
 
 /*
   Initialize scheduler for --thread-handling=no-threads

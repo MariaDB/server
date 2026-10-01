@@ -114,11 +114,7 @@ public:
     select_result_sink::reinit(thd_arg);
     unit= NULL;
   }
-#ifdef EMBEDDED_LIBRARY
-  virtual void begin_dataset() {}
-#else
   void begin_dataset() {}
-#endif
   virtual void update_used_tables() {}
 
   /* this method is called just before the first row of the table can be read */

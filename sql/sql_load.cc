@@ -270,10 +270,8 @@ public:
   */
   void skip_data_till_eof()
   {
-#ifndef EMBEDDED_LIBRARY
     if (mysql_bin_log.is_open())
       cache.read_function= cache.real_read_function;
-#endif
     while (GET != my_b_EOF)
       ;
   }
@@ -296,10 +294,8 @@ static int read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                           String &enclosed, ulong skip_lines,
                           bool ignore_check_option_errors);
 
-#ifndef EMBEDDED_LIBRARY
 static bool write_execute_load_query_log_event(THD *, const sql_exchange*, const
            char*, const char*, bool, enum enum_duplicates, bool, bool, int);
-#endif /* EMBEDDED_LIBRARY */
 
 
 bool Load_data_param::add_outvar_field(THD *thd, const Field *field)
@@ -358,10 +354,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   TABLE *table= NULL;
   int error= 0;
   bool is_fifo=0;
-#ifndef EMBEDDED_LIBRARY
   killed_state killed_status;
   bool is_concurrent;
-#endif
   const char *db= table_list->db.str;		// This is never null
 
   /*
@@ -382,9 +376,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   */
   thd->set_current_stmt_binlog_format_row_if_mixed();
 
-#ifdef EMBEDDED_LIBRARY
-  read_file_from_client  = 0; //server is always in the same process 
-#endif
 
   if (ex->escaped->length() > 1 || ex->enclosed->length() > 1)
   {
@@ -461,9 +452,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
   table= table_list->table;
   transactional_table= table->file->has_transactions_and_rollback();
-#ifndef EMBEDDED_LIBRARY
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
-#endif
 
   if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
     DBUG_RETURN(true);
@@ -543,14 +532,12 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   if (read_file_from_client && handle_duplicates == DUP_ERROR)
     ignore= 1;
 
-#ifndef EMBEDDED_LIBRARY
   if (read_file_from_client)
   {
     (void)net_request_file(&thd->net,ex->file_name);
     file = -1;
   }
   else
-#endif
   {
 #ifdef DONT_ALLOW_FULL_LOAD_DATA_PATHS
     ex->file_name+=dirname_length(ex->file_name);
@@ -640,7 +627,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);				// Can't allocate buffers
   }
 
-#ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
     read_info.cache.thd = thd;
@@ -648,7 +634,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     read_info.cache.last_pos_in_file = HA_POS_ERROR;
     read_info.cache.log_delayed= transactional_table;
   }
-#endif /*!EMBEDDED_LIBRARY*/
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;		/* calc cuted fields */
   thd->cuted_fields=0L;
@@ -746,9 +731,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                     thd->set_killed(KILL_QUERY);
                   };);
 
-#ifndef EMBEDDED_LIBRARY
   killed_status= (error == 0) ? NOT_KILLED : thd->killed;
-#endif
 
   /*
     We must invalidate the table in query cache before binlog writing and
@@ -760,7 +743,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     if (read_file_from_client)
       read_info.skip_data_till_eof();
 
-#ifndef EMBEDDED_LIBRARY
     if (mysql_bin_log.is_open())
     {
       {
@@ -792,7 +774,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 	}
       }
     }
-#endif /*!EMBEDDED_LIBRARY*/
     error= -1;				// Error on read
     goto err;
   }
@@ -805,7 +786,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     thd->transaction->all.modified_non_trans_table= TRUE;
   thd->transaction->all.m_unsafe_rollback_flags|=
     (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
-#ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
     /*
@@ -847,7 +827,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     if (unlikely(error))
       goto err;
   }
-#endif /*!EMBEDDED_LIBRARY*/
 
   /* ok to client sent only after binlog write and engine commit */
   my_ok(thd, info.copied + info.deleted, 0L, name);
@@ -863,7 +842,6 @@ err:
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                const char* db_arg,  /* table's database */
                                                const char* table_name_arg,
@@ -1003,7 +981,6 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   return mysql_bin_log.write(&e);
 }
 
-#endif
 
 /****************************************************************************
 ** Read of rows of fixed size + optional garage + optional newline
@@ -1491,7 +1468,6 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
     }
     else
     {
-#ifndef EMBEDDED_LIBRARY
       if (get_it_from_net)
 	cache.read_function = _my_b_net_read;
 
@@ -1500,7 +1476,6 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
         cache.real_read_function= cache.read_function;
         cache.read_function= log_loaded_block;
       }
-#endif
     }
   }
 }

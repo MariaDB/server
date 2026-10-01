@@ -43,22 +43,7 @@
 #undef max_allowed_packet
 #undef net_buffer_length
 
-#ifdef EMBEDDED_LIBRARY
-
-#undef MYSQL_SERVER
-
-#ifndef MYSQL_CLIENT
-#define MYSQL_CLIENT
-#endif
-
-#define CLI_MYSQL_REAL_CONNECT STDCALL cli_mysql_real_connect
-
-#undef net_flush
-my_bool	net_flush(NET *net);
-
-#else  /*EMBEDDED_LIBRARY*/
 #define CLI_MYSQL_REAL_CONNECT STDCALL mysql_real_connect
-#endif /*EMBEDDED_LIBRARY*/
 
 #include <my_sys.h>
 #include <mysys_err.h>
@@ -118,9 +103,9 @@ PSI_memory_key key_memory_MYSQL_ROW;
 PSI_memory_key key_memory_MYSQL_state_change_info;
 PSI_memory_key key_memory_MYSQL_HANDSHAKE;
 
-#if defined (_WIN32) && !defined (EMBEDDED_LIBRARY)
+#if defined (_WIN32)
 PSI_memory_key key_memory_create_shared_memory;
-#endif /* _WIN32 && ! EMBEDDED_LIBRARY */
+#endif /* _WIN32 */
 
 #ifdef HAVE_PSI_INTERFACE
 /*
@@ -132,9 +117,9 @@ PSI_memory_key key_memory_create_shared_memory;
 
 static PSI_memory_info all_client_memory[]=
 {
-#if defined (_WIN32) && !defined (EMBEDDED_LIBRARY)
+#if defined (_WIN32)
   { &key_memory_create_shared_memory, "create_shared_memory", 0},
-#endif /* _WIN32 && ! EMBEDDED_LIBRARY */
+#endif /* _WIN32 */
 
   { &key_memory_mysql_options, "mysql_options", 0},
   { &key_memory_MYSQL_DATA, "MYSQL_DATA", 0},
@@ -865,7 +850,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
   EXTENSION_SET_STRING_X(OPTS, X, STR, opt_strdup)
 
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
 #define SET_SSL_OPTION_X(OPTS, opt_var, arg, dup)                \
   my_free((OPTS)->opt_var);                                      \
   (OPTS)->opt_var= arg ? dup(arg, MYF(MY_WME)) : NULL;
@@ -882,7 +867,7 @@ static char *set_ssl_option_unpack_path(const char *arg, myf flags)
 #else
 #define SET_SSL_OPTION_X(OPTS, opt_var,arg, dup) do { } while(0)
 #define EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, dup) do { } while(0)
-#endif /* defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY) */
+#endif /* defined(HAVE_OPENSSL) */
 
 #define SET_SSL_OPTION(OPTS, opt_var,arg) SET_SSL_OPTION_X(OPTS, opt_var, arg, opt_strdup)
 #define EXTENSION_SET_SSL_STRING(OPTS, X, STR) EXTENSION_SET_SSL_STRING_X(OPTS, X, STR, opt_strdup)
@@ -1493,14 +1478,14 @@ mysql_ssl_set(MYSQL *mysql __attribute__((unused)) ,
 {
   my_bool result= 0;
   DBUG_ENTER("mysql_ssl_set");
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   result= (mysql_options(mysql, MYSQL_OPT_SSL_KEY, key) |
            mysql_options(mysql, MYSQL_OPT_SSL_CERT,   cert) |
            mysql_options(mysql, MYSQL_OPT_SSL_CA,     ca) |
            mysql_options(mysql, MYSQL_OPT_SSL_CAPATH, capath) |
            mysql_options(mysql, MYSQL_OPT_SSL_CIPHER, cipher) ?
            1 : 0);
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
   mysql->options.use_ssl= TRUE;
   DBUG_RETURN(result);
 }
@@ -1511,7 +1496,7 @@ mysql_ssl_set(MYSQL *mysql __attribute__((unused)) ,
   NB! Errors are not reported until you do mysql_real_connect.
 */
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
 
 static void
 mysql_ssl_free(MYSQL *mysql __attribute__((unused)))
@@ -1542,7 +1527,7 @@ mysql_ssl_free(MYSQL *mysql __attribute__((unused)))
   DBUG_VOID_RETURN;
 }
 
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
 
 /*
   Return the SSL cipher (if any) used for current
@@ -1558,10 +1543,10 @@ const char * STDCALL
 mysql_get_ssl_cipher(MYSQL *mysql __attribute__((unused)))
 {
   DBUG_ENTER("mysql_get_ssl_cipher");
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   if (mysql->net.vio && mysql->net.vio->ssl_arg)
     DBUG_RETURN(SSL_get_cipher_name((SSL*)mysql->net.vio->ssl_arg));
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
   DBUG_RETURN(NULL);
 }
 
@@ -3358,9 +3343,9 @@ static void mysql_close_free_options(MYSQL *mysql)
     delete_dynamic(init_commands);
     my_free(init_commands);
   }
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_OPENSSL)
   mysql_ssl_free(mysql);
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
   if (mysql->options.extension)
   {
     my_free(mysql->options.extension->plugin_dir);
@@ -3838,12 +3823,6 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     my_free(mysql->options.my_cnf_group);
     mysql->options.my_cnf_group= opt_strdup(arg,MYF(MY_WME));
     break;
-#ifdef EMBEDDED_LIBRARY
-  case MYSQL_SET_CHARSET_DIR:
-    my_free(mysql->options.charset_dir);
-    mysql->options.charset_dir= opt_strdup(arg,MYF(MY_WME));
-    break;
-#endif
   case MYSQL_SET_CHARSET_NAME:
     my_free(mysql->options.charset_name);
     mysql->options.charset_name= opt_strdup(arg,MYF(MY_WME));

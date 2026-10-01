@@ -16,7 +16,7 @@
 */
 
 #define MYSQL_LEX 1
-#include "mariadb.h"           /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_view.h"
@@ -238,7 +238,6 @@ fill_defined_view_parts (THD *thd, TABLE_LIST *view)
   return FALSE;
 }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 
 /**
   @brief CREATE VIEW privileges pre-check.
@@ -375,15 +374,6 @@ err:
   DBUG_RETURN(res || thd->is_error());
 }
 
-#else
-
-bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
-                          enum_view_create_mode mode)
-{
-  return FALSE;
-}
-
-#endif
 
 
 /**
@@ -622,7 +612,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     DBUG_ASSERT(0);
   }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /*
     Compare/check grants on view with grants of underlying tables
   */
@@ -687,7 +676,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       goto err;
     }
   }
-#endif
 
   /*
     Reset item list names within derived tables so that when reparsed in the
@@ -1769,7 +1757,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
 
     parent_query_lex->default_used|= view_query_lex->default_used;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (view_table_alias->view_suid)
     {
       /*
@@ -1790,7 +1777,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *view_table_alias,
       */
       security_ctx= view_table_alias->security_ctx;
     }
-#endif
 
     /* Assign the context to the tables referenced in the view */
     if (view_tables)

@@ -22,7 +22,7 @@
 */
 
 
-#include "mariadb.h"                         /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -973,7 +973,6 @@ exit:
     TABLE *table= derived->table;
     table->derived_select_number= first_select->select_number;
     table->s->tmp_table= INTERNAL_TMP_TABLE;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (derived->is_view())
       table->grant= derived->grant;
     else
@@ -983,7 +982,6 @@ exit:
       table->grant.privilege= access_t(SELECT_ACL);
       derived->grant.privilege= access_t(SELECT_ACL);
     }
-#endif
     /* Add new temporary table to list of open derived tables */
     if (!derived->is_with_table_recursive_reference())
     {

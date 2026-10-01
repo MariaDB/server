@@ -55,13 +55,9 @@ static const my_bool my_true= 1;
 
 static my_bool get_reconnect(MYSQL *mysql)
 {
-#ifdef EMBEDDED_LIBRARY
-  return mysql->reconnect;
-#else
   my_bool reconnect;
   mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
   return reconnect;
-#endif
 }
 
 static void client_query()
@@ -7409,108 +7405,6 @@ static void test_set_option()
   mysql_stmt_close(stmt);
 }
 
-#ifdef EMBEDDED_LIBRARY
-static void test_embedded_start_stop()
-{
-  MYSQL *mysql_emb=NULL;
-  int i, j;
-  int argc= original_argc;                    // Start with the original args
-  char **argv, **my_argv;
-  char test_name[]= "test_embedded_start_stop";
-#define EMBEDDED_RESTARTS 64
-
-  myheader("test_embedded_start_stop");
-
-  /* Must stop the main embedded server, since we use the same config. */
-  client_disconnect(mysql);    /* disconnect from server */
-  free_defaults(defaults_argv);
-  mysql_server_end();
-  /* Free everything allocated by my_once_alloc */
-  my_end(0);
-
-  /*
-    Use a copy of the original arguments.
-    The arguments will be altered when reading the configs and parsing
-    options.
-  */
-  my_argv= malloc((argc + 1) * sizeof(char*));
-  if (!my_argv)
-    exit(1);
-
-  /* Test restarting the embedded library many times. */
-  for (i= 1; i <= EMBEDDED_RESTARTS; i++)
-  {
-    argv= my_argv;
-    argv[0]= test_name;
-    for (j= 1; j < argc; j++)
-      argv[j]= original_argv[j];
-
-    /* Initialize everything again. */
-    MY_INIT(argv[0]);
-
-    /* Load the client defaults from the .cnf file[s]. */
-    load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
-
-    /* Parse the options (including the ones given from defaults files). */
-    get_options(&argc, &argv);
-
-    /* mysql_library_init is the same as mysql_server_init. */
-    if (mysql_library_init(embedded_server_arg_count,
-                           embedded_server_args,
-                           (char**) embedded_server_groups))
-    {
-      myerror("mysql_library_init failed"); 
-      exit(1);
-    }
-
-    /* Create a client connection. */
-    if (!(mysql_emb= mysql_client_init(NULL)))
-    {
-      myerror("mysql_client_init failed");
-      exit(1);
-    }
-
-    /* Connect it and see if we can use the database. */
-    if (!(mysql_real_connect(mysql_emb, opt_host, opt_user,
-                             opt_password, current_db, 0,
-                             NULL, 0)))
-    {
-      myerror("mysql_real_connect failed");
-    }
-
-    /* Close the client connection */
-    mysql_close(mysql_emb);
-    mysql_emb = NULL;
-    /* Free arguments allocated for defaults files. */
-    free_defaults(defaults_argv);
-    /* mysql_library_end is a define for mysql_server_end. */
-    mysql_library_end();
-    /* Free everything allocated by my_once_alloc */
-    my_end(0);
-  }
-
-  argc= original_argc;
-  argv= my_argv;
-  argv[0]= test_name;
-  for (j= 1; j < argc; j++)
-    argv[j]= original_argv[j];
-
-  MY_INIT(argv[0]);
-
-  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
-  get_options(&argc, &argv);
-
-  /* Must start the main embedded server again after the test. */
-  if (mysql_server_init(embedded_server_arg_count,
-                        embedded_server_args,
-                        (char**) embedded_server_groups))
-    DIE("Can't initialize MariaDB server");
-
-  /* connect to server with no flags, default protocol, auto reconnect true */
-  mysql= client_connect(0, MYSQL_PROTOCOL_DEFAULT, 1);
-  free(my_argv);
-}
-#endif /* EMBEDDED_LIBRARY */
 
 
 /*
@@ -7518,7 +7412,6 @@ static void test_embedded_start_stop()
   bug #89 (reported by mark@mysql.com)
 */
 
-#ifndef EMBEDDED_LIBRARY
 static void test_prepare_grant()
 {
   int rc;
@@ -7612,7 +7505,6 @@ static void test_prepare_grant()
 
   }
 }
-#endif /* EMBEDDED_LIBRARY */
 
 /*
   Test a crash when invalid/corrupted .frm is used in the
@@ -13716,7 +13608,7 @@ from t2);");
 
 static void test_bug8378()
 {
-#if defined(HAVE_CHARSET_gbk) && !defined(EMBEDDED_LIBRARY)
+#if defined(HAVE_CHARSET_gbk)
   MYSQL *lmysql;
   char out[9]; /* strlen(TEST_BUG8378)*2+1 */
   char buf[256];
@@ -15702,7 +15594,6 @@ static void test_opt_reconnect()
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 
 static void test_bug12744()
 {
@@ -15735,7 +15626,6 @@ static void test_bug12744()
   DIE_UNLESS(rc == 0);
 }
 
-#endif /* EMBEDDED_LIBRARY */
 
 /* Bug #16143: mysql_stmt_sqlstate returns an empty string instead of '00000' */
 
@@ -17761,11 +17651,9 @@ static void test_bug31669()
 {
   int rc;
   static char buff[LARGE_BUFFER_SIZE+1];
-#ifndef EMBEDDED_LIBRARY
   static char user[OLD_USERNAME_CHAR_LENGTH+1];
   static char db[NAME_CHAR_LEN+1];
   static char query[LARGE_BUFFER_SIZE*2];
-#endif
   MYSQL* conn;
 
   DBUG_ENTER("test_bug31669");
@@ -17791,7 +17679,6 @@ static void test_bug31669()
   rc = mysql_change_user(conn, opt_user, opt_password, current_db);
   DIE_UNLESS(!rc);
 
-#ifndef EMBEDDED_LIBRARY
   memset(db, 'a', sizeof(db));
   db[NAME_CHAR_LEN]= 0;
   strxmov(query, "CREATE DATABASE IF NOT EXISTS ", db, NullS);
@@ -17853,7 +17740,6 @@ static void test_bug31669()
   rc= mysql_query(conn, query);
   myquery(rc);
   DIE_UNLESS(mysql_affected_rows(conn) == 2);
-#endif
 
   mysql_close(conn);
 
@@ -20603,7 +20489,6 @@ typedef struct {
   } addr;
 } v2_proxy_header;
 
-#ifndef EMBEDDED_LIBRARY
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
   int rc;
@@ -21477,7 +21362,6 @@ static void test_bulk_delete_returning()
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
 }
-#endif
 
 
 static void test_ps_params_in_ctes()
@@ -22121,7 +22005,6 @@ static void test_mdev_16128()
   myquery(rc);
 }
 
-#ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
 static void test_mdev19838()
@@ -22365,7 +22248,6 @@ static void test_mdev_24411()
   myquery(rc);
 }
 
-#endif // EMBEDDED_LIBRARY
 
 
 /*
@@ -22458,7 +22340,6 @@ static void test_mdev_30159()
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   Test case for bulk UPDATE against a table with an active AFTER UPDATE
   trigger.
@@ -23288,7 +23169,6 @@ static void test_mdev_36678()
                   table_stmt3, insert_stmt1, view_stmt31, proc_stmt2, "call proc(null, 0, 25)");
 }
 
-#endif // EMBEDDED_LIBRARY
 
 /*
   Check that server_status returned after connecting to server
@@ -23331,12 +23211,10 @@ static void test_connect_autocommit()
 
 static void test_execute_direct()
 {
-#ifndef EMBEDDED_LIBRARY
   MYSQL_STMT* stmt= mysql_stmt_init(mysql);
   int rc= mariadb_stmt_execute_direct(stmt,"do 1",-1);
   myquery(rc);
   mysql_stmt_close(stmt);
-#endif
 }
 
 
@@ -23583,7 +23461,6 @@ static void test_mdev_10075()
   mysql_query(mysql, "drop table t1");
 }
 
-#ifndef EMBEDDED_LIBRARY
 /*
   MDEV-36080: Run a Prepared Statement that hits a failure when the query
     optimizer is doing once-per-statement-life optimization. The server should
@@ -23707,7 +23584,6 @@ static void test_mdev35953()
 
   mysql_query(mysql, "drop table t1");
 }
-#endif
 
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
@@ -23717,9 +23593,6 @@ static struct my_tests_st my_tests[]= {
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },
   { "test_prepare_insert_update", test_prepare_insert_update},
-#ifdef EMBEDDED_LIBRARY
-  { "test_embedded_start_stop", test_embedded_start_stop },
-#endif
 #ifdef NOT_YET_WORKING
   { "test_drop_temp", test_drop_temp },
 #endif
@@ -23797,10 +23670,8 @@ static struct my_tests_st my_tests[]= {
   { "test_stiny_bug", test_stiny_bug },
   { "test_field_misc", test_field_misc },
   { "test_set_option", test_set_option },
-#ifndef EMBEDDED_LIBRARY
   { "test_prepare_grant", test_prepare_grant },
 
-#endif
   { "test_frm_bug", test_frm_bug },
   { "test_explain_bug", test_explain_bug },
   { "test_decimal_bug", test_decimal_bug },
@@ -23919,9 +23790,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug14845", test_bug14845 },
   { "test_opt_reconnect", test_opt_reconnect },
   { "test_bug15510", test_bug15510},
-#ifndef EMBEDDED_LIBRARY
   { "test_bug12744", test_bug12744 },
-#endif
   { "test_bug16143", test_bug16143 },
   { "test_bug16144", test_bug16144 },
   { "test_bug15613", test_bug15613 },
@@ -23999,19 +23868,15 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev14013", test_mdev14013 },
   { "test_mdev14013_1", test_mdev14013_1 },
   { "test_mdev14454", test_mdev14454 },
-#ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
   { "test_bulk_delete", test_bulk_delete },
   { "test_bulk_replace", test_bulk_replace },
   { "test_bulk_insert_returning", test_bulk_insert_returning },
   { "test_bulk_delete_returning", test_bulk_delete_returning },
-#endif
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
-#ifndef EMBEDDED_LIBRARY
   { "test_mdev19838", test_mdev19838 },
-#endif
   { "test_mdev_16128", test_mdev_16128 },
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
@@ -24020,7 +23885,6 @@ static struct my_tests_st my_tests[]= {
   { "test_execute_direct", test_execute_direct },
   { "test_cache_metadata", test_cache_metadata},
   { "test_mdev_38242", test_mdev_38242 },
-#ifndef EMBEDDED_LIBRARY
   { "test_mdev_24411", test_mdev_24411},
   { "test_mdev_34718_bu", test_mdev_34718_bu },
   { "test_mdev_34718_au", test_mdev_34718_au },
@@ -24029,12 +23893,9 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34958", test_mdev_34958 },
   { "test_mdev_32086", test_mdev_32086 },
   { "test_mdev_36678", test_mdev_36678 },
-#endif
   { "test_mdev_10075", test_mdev_10075},
-#ifndef EMBEDDED_LIBRARY
   { "test_mdev_36080", test_mdev_36080},
   { "test_mdev35953", test_mdev35953 },
-#endif
   { 0, 0 }
 };
 

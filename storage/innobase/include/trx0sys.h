@@ -1227,10 +1227,8 @@ public:
   /** @return total number of active (non-prepared) transactions */
   size_t any_active_transactions(size_t *prepared= nullptr);
 
-#ifndef EMBEDDED_LIBRARY
   /** @return true if any active (non-prepared) transactions is recovered */
   bool any_active_transaction_recovered();
-#endif
 
   /**
     Determine the rollback segment identifier.

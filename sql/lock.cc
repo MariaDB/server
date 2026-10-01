@@ -299,7 +299,6 @@ void reset_lock_data(MYSQL_LOCK *sql_lock, bool unlock)
    @param count        The number of tables to lock.
 */
 
-#ifndef EMBEDDED_LIBRARY
 static void track_table_access(THD *thd, TABLE **tables, size_t count)
 {
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
@@ -312,9 +311,6 @@ static void track_table_access(THD *thd, TABLE **tables, size_t count)
     }
   }
 }
-#else
-#define track_table_access(A,B,C)
-#endif //EMBEDDED_LIBRARY
 
 
 

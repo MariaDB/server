@@ -33,7 +33,6 @@ extern void mysql_audit_free_thd(THD *thd);
 extern void mysql_audit_acquire_plugins(THD *thd, ulong *event_class_mask);
 
 
-#ifndef EMBEDDED_LIBRARY
 extern void mysql_audit_notify(THD *thd, uint event_class, const void *event);
 
 static inline bool mysql_audit_general_enabled()
@@ -51,13 +50,6 @@ static inline bool mysql_audit_table_enabled()
   return mysql_global_audit_mask[0] & MYSQL_AUDIT_TABLE_CLASSMASK;
 }
 
-#else
-static inline void mysql_audit_notify(THD *thd, uint event_class,
-                                      const void *event) {}
-#define mysql_audit_general_enabled() 0
-#define mysql_audit_connection_enabled() 0
-#define mysql_audit_table_enabled() 0
-#endif
 extern my_bool mysql_audit_release_required(THD *thd);
 extern void mysql_audit_release(THD *thd);
 

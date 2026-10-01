@@ -1293,7 +1293,6 @@ innobase_commit_by_xid(
 /*===================*/
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
-#ifndef EMBEDDED_LIBRARY
 /**
    In binlog recovery, persistently mark that a transaction will be
    rolled back.
@@ -1308,7 +1307,6 @@ static int innobase_recover_rollback_by_xid(const XID *xid) noexcept;
    innobase_recover_rollback_by_xid() was invoked.
 */
 static void innobase_tc_log_recovery_done() noexcept;
-#endif
 
 
 /** Ignore FOREIGN KEY constraints that would be violated by DROP DATABASE */
@@ -4317,11 +4315,9 @@ static int innodb_init(void* p)
 	innobase_hton->recover = innobase_xa_recover;
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
-#ifndef EMBEDDED_LIBRARY
 	innobase_hton->recover_rollback_by_xid =
 		innobase_recover_rollback_by_xid;
 	innobase_hton->signal_tc_log_recovery_done = innobase_tc_log_recovery_done;
-#endif
 	innobase_hton->commit_checkpoint_request = innodb_log_flush_request;
 	innobase_hton->create = innobase_create_handler;
 
@@ -17775,7 +17771,6 @@ innobase_commit_by_xid(
 	}
 }
 
-#ifndef EMBEDDED_LIBRARY
 static int innobase_recover_rollback_by_xid(const XID *xid) noexcept
 {
   if (high_level_read_only || recv_sys.rpo)
@@ -17835,7 +17830,6 @@ static void innobase_tc_log_recovery_done() noexcept
     srv_thread_pool->submit_task(&rollback_all_recovered_task);
   }
 }
-#endif // EMBEDDED_LIBRARY
 
 bool
 ha_innobase::check_if_incompatible_data(

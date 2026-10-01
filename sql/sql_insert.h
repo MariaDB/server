@@ -135,8 +135,5 @@ public:
 
   int last_errno() { return info->last_errno; }
 };
-#ifdef EMBEDDED_LIBRARY
-inline void kill_delayed_threads(void) {}
-#endif
 
 #endif /* SQL_INSERT_INCLUDED */

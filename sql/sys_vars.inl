@@ -627,7 +627,6 @@ public:
   }
 };
 
-#ifndef EMBEDDED_LIBRARY
 class Sys_var_sesvartrack: public Sys_var_charptr
 {
 public:
@@ -684,7 +683,6 @@ public:
      }
   }
 };
-#endif //EMBEDDED_LIBRARY
 
 
 class Sys_var_proxy_user: public sys_var
@@ -2431,7 +2429,6 @@ public:
     {
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
 
-#ifndef EMBEDDED_LIBRARY
       if (var->type == OPT_DEFAULT)
       {
         enum enum_tx_isol_level l;
@@ -2457,7 +2454,6 @@ public:
       }
       else if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
         thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
-#endif //EMBEDDED_LIBRARY
     }
     return FALSE;
   }

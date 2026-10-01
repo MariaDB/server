@@ -394,7 +394,6 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
   reinit_stmt_before_use(thd, m_lex);
 
-#ifndef EMBEDDED_LIBRARY
   /*
     If there was instruction which changed tracking state,
     the result of changed tracking state send to client in OK packed.
@@ -404,7 +403,6 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   if ((thd->client_capabilities & CLIENT_SESSION_TRACK) &&
       (thd->server_status & SERVER_SESSION_STATE_CHANGED))
     thd->lex->safe_to_cache_query= 0;
-#endif
 
   Opt_trace_start ots(thd);
   ots.init(thd, m_lex->query_tables, SQLCOM_SELECT, &m_lex->var_list,

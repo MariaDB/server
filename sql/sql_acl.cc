@@ -25,7 +25,7 @@
   in the relevant fields. Empty strings comes last.
 */
 
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
 #include "sql_base.h"                           // close_mysql_tables
@@ -65,17 +65,12 @@
 bool using_global_priv_table= true;
 
 // set that from field length in acl_load?
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 const uint max_hostname_length= HOSTNAME_LENGTH;
 const uint max_dbname_length= NAME_CHAR_LEN;
-#endif
 
 const char *safe_vio_type_name(Vio *vio)
 {
   size_t unused;
-#ifdef EMBEDDED_LIBRARY
-  if (!vio) return "Internal";
-#endif
   return vio_type_name(vio_type(vio), &unused);
 }
 
@@ -130,15 +125,11 @@ struct acl_host_and_ip
   long ip, ip_mask;                      // Used with masked ip:s
 };
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool compare_hostname(const acl_host_and_ip *, const char *, const char *);
 static inline bool is_public(const char *l) { return l == public_name.str; }
 static inline bool is_public(const LEX_CSTRING *l) { return is_public(l->str); }
 static inline bool is_public(const LEX_USER *l) { return is_public(&l->user); }
 
-#else
-#define compare_hostname(X,Y,Z) 0
-#endif
 
 class ACL_ACCESS {
 public:
@@ -336,7 +327,6 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
       role_column_merges= 0, role_routine_merges= 0;
 #endif
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool ignore_max_password_errors(const ACL_USER *acl_user);
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
 static bool show_proxy_grants (THD *, const char *, const char *,
@@ -688,7 +678,7 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem,
 #define MIN_HANDSHAKE_SIZE      2
 #else
 #define MIN_HANDSHAKE_SIZE      6
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
+#endif /* HAVE_OPENSSL */
 #define NORMAL_HANDSHAKE_SIZE   6
 
 #define ROLE_ASSIGN_COLUMN_IDX  44
@@ -10200,9 +10190,6 @@ void GRANT_INFO::refresh(const Security_context *sctx,
 void GRANT_INFO::read(const Security_context *sctx,
                          const char *db, const char *table)
 {
-#ifdef EMBEDDED_LIBRARY
-  grant_table_user= grant_table_role= grant_public= NULL;
-#else
   grant_table_user=
     table_hash_search(sctx->host, sctx->ip, db, sctx->priv_user,
                       table, FALSE);         /* purecov: inspected */
@@ -10212,7 +10199,6 @@ void GRANT_INFO::read(const Security_context *sctx,
   grant_public=
     acl_public ? table_hash_search("", NULL, db, public_name.str,
                                    table, TRUE) : NULL;
-#endif
   version= grant_version;		/* purecov: inspected */
 }
 
@@ -14218,19 +14204,6 @@ static int show_database_grants(THD *thd, SHOW_VAR *var, void *buff,
   return 0;
 }
 
-#else
-static bool set_user_salt_if_needed(ACL_USER *, int, plugin_ref)
-{ return 0; }
-bool check_grant(THD *, privilege_t, TABLE_LIST *, bool, uint, bool)
-{ return 0; }
-inline access_t public_access()
-{ return access_t(NO_ACL); }
-access_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
-                             const Lex_ident_column &)
-{ return access_t(ALL_KNOWN_ACL); }
-int acl_check_setrole(THD *, const LEX_CSTRING &, access_t *) { return 0; }
-int acl_setrole(THD *, const LEX_CSTRING &, const access_t&) { return 0; }
-#endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
 {
@@ -14284,28 +14257,6 @@ static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
 }
 
 
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-
-bool Sql_cmd_grant_proxy::execute(THD *thd)
-{
-  my_ok(thd);
-  return false;
-}
-
-bool Sql_cmd_grant_table::execute(THD *thd)
-{
-  my_ok(thd);
-  return false;
-}
-
-
-bool Sql_cmd_grant_sp::execute(THD *thd)
-{
-  my_ok(thd);
-  return false;
-}
-
-#else // not NO_EMBEDDED_ACCESS_CHECKS
 
 
 void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
@@ -14623,12 +14574,10 @@ access_denied:
   return 1;
 }
 
-#endif // NO_EMBEDDED_ACCESS_CHECKS
 
 
 
 SHOW_VAR acl_statistics[] = {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   {"column_grants",    (char*)show_column_grants,          SHOW_SIMPLE_FUNC},
   {"database_grants",  (char*)show_database_grants,        SHOW_SIMPLE_FUNC},
   {"function_grants",  (char*)&func_priv_hash.records,     SHOW_ULONG},
@@ -14640,7 +14589,6 @@ SHOW_VAR acl_statistics[] = {
   {"roles",            (char*)&acl_roles.records,          SHOW_ULONG},
   {"table_grants",     (char*)&column_priv_hash.records,   SHOW_ULONG},
   {"users",            (char*)&acl_users.elements,         SHOW_SIZE_T},
-#endif
   {NullS, NullS, SHOW_LONG},
 };
 
@@ -14655,7 +14603,6 @@ bool check_role_is_granted(const char *username, const char *hostname,
 {
   DBUG_ENTER("check_role_is_granted");
   bool result= false;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   ACL_USER_BASE *root;
   mysql_mutex_lock(&acl_cache->lock);
   if (hostname)
@@ -14678,14 +14625,12 @@ bool check_role_is_granted(const char *username, const char *hostname,
 
   /* We haven't found the role or we had no initial grantee to start from. */
   mysql_mutex_unlock(&acl_cache->lock);
-#endif
   DBUG_RETURN(result);
 }
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   TABLE *table= tables->table;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (thd->security_ctx->priv_role[0])
   {
     mysql_rwlock_rdlock(&LOCK_grant);
@@ -14700,7 +14645,6 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     if (acl_role)
       return 0;
   }
-#endif
 
   restore_record(table, s->default_values);
   table->field[0]->set_null();
@@ -14715,7 +14659,6 @@ int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   int res= 0;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (initialized)
   {
     TABLE *table= tables->table;
@@ -14740,7 +14683,6 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
   }
-#endif
 
   return res;
 }
@@ -14790,7 +14732,6 @@ int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
                                     const char* db, const char* t_name,
                                     const char* column, uint col_length,
@@ -14812,10 +14753,8 @@ static bool update_schema_privilege(THD *thd, TABLE *table, const char *buff,
   table->field[i]->store(is_grantable, strlen(is_grantable), cs);
   return schema_table_store_record(thd, table);
 }
-#endif
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 class Grantee_str
 {
   char m_buff[USER_HOST_BUFF_SIZE + 6 /* 4 quotes, @, '\0' */];
@@ -14829,12 +14768,10 @@ public:
   }
   operator const char *() const { return m_buff; }
 };
-#endif
 
 
 int fill_schema_user_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint counter;
   TABLE *table= tables->table;
@@ -14895,15 +14832,11 @@ err:
   mysql_mutex_unlock(&acl_cache->lock);
 
   DBUG_RETURN(error);
-#else
-  return(0);
-#endif
 }
 
 
 int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint counter;
   ACL_DB *acl_db;
@@ -14970,15 +14903,11 @@ err:
   mysql_mutex_unlock(&acl_cache->lock);
 
   DBUG_RETURN(error);
-#else
-  return (0);
-#endif
 }
 
 
 int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint index;
   TABLE *table= tables->table;
@@ -15052,15 +14981,11 @@ err:
   mysql_rwlock_unlock(&LOCK_grant);
 
   DBUG_RETURN(error);
-#else
-  return (0);
-#endif
 }
 
 
 int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   int error= 0;
   uint index;
   TABLE *table= tables->table;
@@ -15133,9 +15058,6 @@ err:
   mysql_rwlock_unlock(&LOCK_grant);
 
   DBUG_RETURN(error);
-#else
-  return (0);
-#endif
 }
 
 namespace Show
@@ -15149,7 +15071,6 @@ namespace Show
   };
 };
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
 {
   ulonglong lifetime= user->password_lifetime < 0
@@ -15187,13 +15108,11 @@ static int fill_users_schema_record(THD *thd, TABLE * table, ACL_USER *user)
 
   return schema_table_store_record(thd, table);
 }
-#endif
 
 int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   int res= 0;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* --skip-grants */
   if (!initialized)
     return res;
@@ -15227,12 +15146,10 @@ int fill_users_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
     res= fill_users_schema_record(thd, table, user);
   }
   mysql_mutex_unlock(&acl_cache->lock);
-#endif
   return res;
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 /*
   fill effective privileges for table
 
@@ -15288,21 +15205,6 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   DBUG_VOID_RETURN;
 }
 
-#else /* NO_EMBEDDED_ACCESS_CHECKS */
-
-/****************************************************************************
- Dummy wrappers when we don't have any access checks
-****************************************************************************/
-
-bool check_routine_level_acl(THD *thd, privilege_t acl,
-                             const char *db, const char *name,
-                             const Sp_handler *sph,
-                             const access_t &)
-{
-  return FALSE;
-}
-
-#endif
 
 /**
   Return information about user or current user.
@@ -15332,7 +15234,6 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
     if (!dup)
       return 0;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (has_auth(user, thd->lex))
     {
       dup->host= host_not_specified;
@@ -15359,7 +15260,6 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       dup->host= host_not_specified;
     if (lock)
       mysql_mutex_unlock(&acl_cache->lock);
-#endif
 
     return dup;
   }
@@ -15475,14 +15375,6 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 ****************************************************************************/
 
 /* few defines to have less ifdef's in the code below */
-#ifdef EMBEDDED_LIBRARY
-#undef HAVE_OPENSSL
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-#define initialized 0
-#define check_for_max_user_connections(X,Y)   0
-#define get_or_create_user_conn(A,B,C,D) 0
-#endif
-#endif
 #ifndef HAVE_OPENSSL
 #define ssl_acceptor_fd 0
 #define sslaccept(A,B,C,D) 1
@@ -15794,7 +15686,6 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
                                 (uchar*) data, data_len));
 }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
 
 /**
   Safeguard to avoid blocking the root, when max_password_errors
@@ -15966,7 +15857,6 @@ read_client_connect_attrs(char **ptr, char *end, THD* thd)
   return false;
 }
 
-#endif
 
 /* the packet format is described in send_change_user_packet() */
 static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
@@ -16088,7 +15978,6 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
     DBUG_RETURN(0);
   }
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->password= passwd_len > 0;
   if (find_mpvio_user(mpvio))
     DBUG_RETURN(1);
@@ -16138,13 +16027,11 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
   mpvio->cached_client_reply.plugin= client_plugin;
   mpvio->status= MPVIO_EXT::RESTART;
-#endif
 
   DBUG_RETURN (0);
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 /**
   Check that a client uses secure connection type in case the option
   require_secure_transport is on.
@@ -16169,14 +16056,12 @@ static bool check_require_secured_transport(THD *thd)
   }
   return 0;
 }
-#endif
 
 
 /* the packet format is described in send_client_reply_packet() */
 static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                                            uchar **buff, ulong pkt_len)
 {
-#ifndef EMBEDDED_LIBRARY
   THD *thd= mpvio->auth_info.thd;
   NET *net= &thd->net;
   char *end;
@@ -16471,9 +16356,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   *buff= (uchar*) passwd;
   return (ulong)passwd_len;
-#else
-  return 0;
-#endif
 }
 
 
@@ -16864,14 +16746,12 @@ static void handle_password_errors(const LEX_CSTRING &user,
                                    const LEX_CSTRING &hostname,
                                    ACL_USER::PASSWD_ERROR_ACTION action)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_assert_not_owner(&acl_cache->lock);
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *u = find_user_exact(hostname, user);
   if (u)
     u->update_password_errors(action);
   mysql_mutex_unlock(&acl_cache->lock);
-#endif
 }
 
 static bool check_password_lifetime(THD *thd, const ACL_USER &acl_user)
@@ -17081,7 +16961,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
     sctx->password_expired= password_expired;
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!password_expired)
     {
       bool is_proxy_user= FALSE;
@@ -17132,7 +17011,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
         mysql_mutex_unlock(&acl_cache->lock);
       }
     }
-#endif
 
     if (set_privs_on_login(thd, acl_user))
       DBUG_RETURN(1);
@@ -17284,9 +17162,6 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
     DBUG_RETURN(CR_AUTH_HANDSHAKE);
   DBUG_PRINT("info", ("reply read : pkt_len=%d", pkt_len));
 
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-  DBUG_RETURN(CR_OK);
-#endif
 
   DBUG_EXECUTE_IF("native_password_bad_reply", { pkt_len= 12; });
 
@@ -17388,9 +17263,6 @@ static int old_password_authenticate(MYSQL_PLUGIN_VIO *vio,
   if ((pkt_len= mpvio->read_packet(mpvio, &pkt)) < 0)
     return CR_AUTH_HANDSHAKE;
 
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-  return CR_OK;
-#endif
 
   /*
     legacy: if switch_from_long_to_short_scramble,
@@ -17512,16 +17384,12 @@ extern "C" int maria_compare_hostname(
                   const char *wild_host, long wild_ip, long ip_mask,
                   const char *host, const char *ip)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   acl_host_and_ip h;
   h.hostname= (char *) wild_host;
   h.ip= wild_ip;
   h.ip_mask= ip_mask;
 
   return compare_hostname(&h, host, ip);
-#else
-  return 0;
-#endif
 }
 
 
@@ -17529,11 +17397,9 @@ extern "C" void maria_update_hostname(
                   const char **wild_host, long *wild_ip, long *ip_mask,
                   const char *host)
 {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   acl_host_and_ip h;
   update_hostname(&h, host);
   *wild_host= h.hostname;
   *wild_ip= h.ip;
   *ip_mask= h.ip_mask;
-#endif
 }

@@ -58,11 +58,6 @@ protected:
   virtual bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
                            bool);
   virtual bool net_send_error_packet(THD *, uint, const char *, const char *);
-#ifdef EMBEDDED_LIBRARY
-  char **next_field;
-  MYSQL_FIELD *next_mysql_field;
-  MEM_ROOT *alloc;
-#endif
   bool needs_conversion(CHARSET_INFO *fromcs,
                         CHARSET_INFO *tocs) const
   {
@@ -169,13 +164,7 @@ public:
   // End of wrappers
 
   virtual bool send_out_parameters(List<Item_param> *sp_params)=0;
-#ifdef EMBEDDED_LIBRARY
-  bool begin_dataset();
-  bool begin_dataset(THD *thd, uint numfields);
-  virtual void remove_last_row() {}
-#else
   void remove_last_row() {}
-#endif
   enum enum_protocol_type
   {
     /*
@@ -226,9 +215,6 @@ public:
   bool store_numeric_zerofill_str(const char *from, size_t length,
                                   protocol_send_type_t send_type);
 
-#ifdef EMBEDDED_LIBRARY
-  void remove_last_row() override;
-#endif
   bool store_field_metadata(const THD *thd, const Send_field &field,
                             CHARSET_INFO *charset_for_protocol,
                             uint pos);
@@ -248,12 +234,6 @@ public:
   Protocol_binary(THD *thd_arg) :Protocol(thd_arg) {}
   bool prepare_for_send(uint num_columns) override;
   void prepare_for_resend() override;
-#ifdef EMBEDDED_LIBRARY
-  bool write() override;
-  bool net_store_data(const uchar *from, size_t length) override;
-  bool net_store_data_cs(const uchar *from, size_t length,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-#endif
   bool store_null() override;
   bool store_tiny(longlong from) override;
   bool store_short(longlong from) override;

@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include <mysql.h>
 #include <m_ctype.h>
@@ -6876,7 +6876,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       }
     }
   }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (any_privileges)
   {
     const char *db, *tab;
@@ -6892,7 +6891,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       goto error;
     }
   }
-#endif
   base_flags|= item_base_t::FIXED;
   if (check_ora_join(reference, outer_fixed))
     goto error;
@@ -11001,7 +10999,6 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 
   if (likely(field_idx != NO_CACHED_FIELD_INDEX))
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
     /*
       Check access privileges for the subject table. We check privileges only
       in runtime.
@@ -11017,7 +11014,6 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
                              field_name, thd->security_ctx))
         return TRUE;
     }
-#endif // NO_EMBEDDED_ACCESS_CHECKS
 
     field= (row_version == OLD_ROW) ? triggers->old_field[field_idx] :
                                       triggers->new_field[field_idx];

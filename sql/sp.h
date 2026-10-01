@@ -18,7 +18,7 @@
 #ifndef _SP_H_
 #define _SP_H_
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "my_global.h"
 #include "sql_string.h"                         // LEX_STRING
 #include "sql_cmd.h"
 #include "mdl.h"
@@ -169,9 +169,7 @@ public:
   virtual MDL_key::enum_mdl_namespace get_mdl_type() const= 0;
   virtual const Sp_handler *sp_handler_mysql_proc() const { return this; }
   virtual sp_cache **get_cache(THD *) const { return NULL; }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   virtual HASH *get_priv_hash() const { return NULL; }
-#endif
   virtual ulong recursion_depth(THD *thd) const { return 0; }
   /**
     Return appropriate error about recursion limit reaching
@@ -326,9 +324,7 @@ public:
   }
   const Sp_handler *package_routine_handler() const override;
   sp_cache **get_cache(THD *) const override;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const override;
-#endif
   ulong recursion_depth(THD *thd) const override;
   void recursion_level_error(THD *thd, const sp_head *sp) const override;
   bool add_instr_preturn(THD *thd, sp_head *sp, sp_pcontext *spcont) const override;
@@ -384,9 +380,7 @@ public:
   }
   const Sp_handler *package_routine_handler() const override;
   sp_cache **get_cache(THD *) const override;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const override;
-#endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
                          Item *item, sp_expr_lex *lex) const override;
 };
@@ -464,9 +458,7 @@ public:
     return MDL_key::PACKAGE_BODY;
   }
   sp_cache **get_cache(THD *) const override;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const override;
-#endif
 };
 
 
@@ -505,9 +497,7 @@ public:
     return MDL_key::PACKAGE_BODY;
   }
   sp_cache **get_cache(THD *) const override;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   HASH *get_priv_hash() const override;
-#endif
 };
 
 

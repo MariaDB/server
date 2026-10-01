@@ -31,7 +31,7 @@
 
 #include "sql_basic_types.h"
 
-#if defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
+#if defined(MYSQL_SERVER)
 #include "sql_string.h"                         /* String */
 #endif
 
@@ -422,7 +422,7 @@ inline int str2my_decimal(uint mask, const char *from, size_t length,
   return str2my_decimal(mask, from, length, charset, decimal_value, &end);
 }
 
-#if defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY)
+#if defined(MYSQL_SERVER)
 inline
 int string2my_decimal(uint mask, const String *str, my_decimal *d)
 {
@@ -435,7 +435,7 @@ int string2my_decimal(uint mask, const String *str, my_decimal *d)
 my_decimal *date2my_decimal(const MYSQL_TIME *ltime, my_decimal *dec);
 
 
-#endif /*defined(MYSQL_SERVER) || defined(EMBEDDED_LIBRARY) */
+#endif /* defined(MYSQL_SERVER) */
 
 inline
 int double2my_decimal(uint mask, double val, my_decimal *d)

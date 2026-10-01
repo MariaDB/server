@@ -4221,9 +4221,7 @@ String *Item_load_file::val_str(String *str)
   DBUG_ENTER("load_file");
 
   if (!(file_name= args[0]->val_str(str))
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
       || !(current_thd->security_ctx->master_access & FILE_ACL)
-#endif
       )
     goto err;
 

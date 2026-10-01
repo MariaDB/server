@@ -17,7 +17,7 @@
 
 
 #define MYSQL_LEX 1
-#include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sp_head.h"
