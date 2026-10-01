@@ -876,3 +876,35 @@ SELECT FOUND_ROWS();
 FOUND_ROWS()
 3
 DROP DATABASE mdev41171;
+#
+# MDEV-41196: SQL_BUFFER_RESULT must not return empty column values
+#
+EXPLAIN FORMAT=JSON SELECT SQL_BUFFER_RESULT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "TABLES",
+            "access_type": "ALL",
+            "key": "TABLE_SCHEMA,TABLE_NAME",
+            "loops": 1,
+            "cost": 0.01423506,
+            "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql' and information_schema.`TABLES`.`TABLE_NAME` = 'user'",
+            "skip_open_table": true,
+            "scanned_databases": 0
+          }
+        }
+      ]
+    }
+  }
+}
+SELECT SQL_BUFFER_RESULT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME
+def	mysql	user
