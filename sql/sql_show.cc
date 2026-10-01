@@ -4241,9 +4241,9 @@ static bool is_simple_is_query(THD *thd)
     }
   }
   /*
-    Only allow no LIMIT, or LIMIT 1 exactly (the single-row early-exit
-    case, which is tested and proven correct). Any other LIMIT n is
-    rejected for now until validated against the fast path.
+    Only allow no LIMIT, or LIMIT 1 exactly. Any other explicit LIMIT n
+    is rejected until a general LIMIT implementation is validated.
+    Implicit @@sql_select_limit is applied later via plan->max_rows.
   */
   if (sel->limit_params.explicit_limit &&
       sel->limit_params.select_limit &&
@@ -4348,6 +4348,12 @@ bool schema_table_store_record(THD *thd, TABLE *table)
       */
       if (plan->full_cond && !plan->full_cond->val_bool())
         return 0;
+      /* Honour LIMIT / @@sql_select_limit; do not count filtered rows. */
+      if (plan->sent_rows >= plan->max_rows)
+      {
+        plan->abort_scan= true;
+        return 0;
+      }
       if (proj)
       {
         protocol->prepare_for_resend();
@@ -4355,18 +4361,24 @@ bool schema_table_store_record(THD *thd, TABLE *table)
           return 1;
         if (protocol->write())
           return 1;
-        return 0;
       }
-      protocol->prepare_for_resend();
-      for (Field **f= table->field; *f; f++)
+      else
       {
-        if ((*f)->is_null())
-          protocol->store_null();
-        else if (protocol->store(*f))
+        protocol->prepare_for_resend();
+        for (Field **f= table->field; *f; f++)
+        {
+          if ((*f)->is_null())
+            protocol->store_null();
+          else if (protocol->store(*f))
+            return 1;
+        }
+        if (protocol->write())
           return 1;
       }
-      if (protocol->write())
-        return 1;
+      plan->sent_rows++;
+      thd->inc_sent_row_count(1);
+      if (plan->sent_rows >= plan->max_rows)
+        plan->abort_scan= true;
       return 0;
     }
   }
@@ -5859,8 +5871,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
             if (schema_table_store_record(thd, table))
               goto err;      /* Out of space in temporary table */
-            if (plan->is_single_row &&
-                plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+            /*
+              Stop only after a matching row was sent (MDEV-41167).
+              abort_scan is set in schema_table_store_record() once
+              sent_rows reaches max_rows; filtered rows do not count.
+            */
+            if (plan->abort_scan)
             {
               error= 0;
               goto err;
@@ -9869,9 +9885,15 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
     plan->is_optimized_query= true;
     SELECT_LEX *sel= thd->lex->current_select;
     if (sel && sel->limit_params.select_limit &&
-        sel->limit_params.select_limit->const_item() &&
-        sel->limit_params.select_limit->val_int() == 1)
-      plan->is_single_row= true;
+        sel->limit_params.select_limit->const_item())
+    {
+      longlong lim= sel->limit_params.select_limit->val_int();
+      if (lim < 0)
+        plan->max_rows= HA_POS_ERROR;
+      else
+        plan->max_rows= (ha_rows) lim;
+    }
+    plan->is_single_row= (plan->max_rows == 1);
   }
 
   plan->full_cond= cond;
@@ -10113,16 +10135,22 @@ bool get_schema_tables_result(JOIN *join,
         table_list->table->file->ha_delete_all_rows();
         table_list->table->null_row= 0;
         /* Reset fast-path state for re-execution */
-        if (table_list->is_table_read_plan)
-          table_list->is_table_read_plan->fp_state=
-            IS_table_read_plan::FP_INACTIVE;
+        if (IS_table_read_plan *p= table_list->is_table_read_plan)
+        {
+          p->fp_state= IS_table_read_plan::FP_INACTIVE;
+          p->sent_rows= 0;
+          p->abort_scan= false;
+        }
       }
       else
       {
         table_list->table->file->stats.records= 0;
-        if (table_list->is_table_read_plan)
-          table_list->is_table_read_plan->fp_state=
-            IS_table_read_plan::FP_INACTIVE;
+        if (IS_table_read_plan *p= table_list->is_table_read_plan)
+        {
+          p->fp_state= IS_table_read_plan::FP_INACTIVE;
+          p->sent_rows= 0;
+          p->abort_scan= false;
+        }
       }
 
       Item *cond= tab->select_cond;
