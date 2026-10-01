@@ -983,3 +983,45 @@ WHERE TABLE_SCHEMA='mdev41240' AND TABLE_NAME='t1'
 TABLE_NAME
 t1
 DROP DATABASE mdev41240;
+#
+# MDEV-41241: stored function must not assert in get_all_tables
+#
+CREATE DATABASE mdev41241;
+CREATE TABLE mdev41241.t1(a INT);
+CREATE TABLE mdev41241.t2(a INT);
+CREATE FUNCTION mdev41241.f_ct2(s VARCHAR(64)) RETURNS INT
+BEGIN
+CREATE TEMPORARY TABLE IF NOT EXISTS mdev41241.ttx(a INT);
+RETURN 1;
+END//
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41241' AND mdev41241.f_ct2(TABLE_CATALOG)=1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mdev41241' and mdev41241.f_ct2(information_schema.`TABLES`.TABLE_CATALOG) = 1",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mdev41241' AND mdev41241.f_ct2(TABLE_CATALOG)=1;
+TABLE_NAME
+t1
+t2
+DROP FUNCTION mdev41241.f_ct2;
+DROP TEMPORARY TABLE IF EXISTS mdev41241.ttx;
+DROP DATABASE mdev41241;
