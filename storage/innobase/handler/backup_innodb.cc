@@ -1234,6 +1234,7 @@ private:
           fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
           if (!next)
             break;
+          ut_ad(&space == fil_system.sys_space);
           const uint32_t size{node->size};
           start+= size;
           if (limit >= size)
@@ -1241,6 +1242,7 @@ private:
           else
             limit= 0;
           node= next;
+          name= node->name;
         }
       }
       else
@@ -1252,6 +1254,7 @@ private:
           fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
           if (!next)
             break;
+          ut_ad(&space == fil_system.sys_space);
           const uint32_t size{node->size};
           start+= size;
           if (limit >= size)
@@ -1259,6 +1262,7 @@ private:
           else
             limit= 0;
           node= next;
+          name= node->name;
         }
       }
 #else
@@ -1274,24 +1278,24 @@ private:
         fd= sink.stream;
         method= stream;
       }
+# ifdef HAVE_POSIX_FALLOCATE
+      if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+      {
+        const uint32_t page_size{space.physical_size()};
+        if ((limit * page_size) & 4095)
+          /*
+            os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+            multiples of 4096 bytes. There may be up to 3 pages
+            (of 1024 bytes) that have not been written out yet.
+            We must cap the limit to the actual file size.
+          */
+          limit=
+            std::min(limit,
+                     uint32_t(os_file_get_size(node->handle) / page_size));
+      }
+# endif
       for (;;)
       {
-# ifdef HAVE_POSIX_FALLOCATE
-        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
-        {
-          const uint32_t page_size{space.physical_size()};
-          if ((limit * page_size) & 4095)
-            /*
-              os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
-              multiples of 4096 bytes. There may be up to 3 pages
-              (of 1024 bytes) that have not been written out yet.
-              We must cap the limit to the actual file size.
-            */
-            limit=
-              std::min(limit,
-                       uint32_t(os_file_get_size(node->handle) / page_size));
-        }
-# endif
         res= (*method)(fd, node, name, start, limit);
 #ifdef POSIX_FADV_DONTNEED
         std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
@@ -1301,6 +1305,7 @@ private:
         fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
         if (!next)
           break;
+        ut_ad(&space == fil_system.sys_space);
         const uint32_t size{node->size};
         start+= size;
         if (limit >= size)
@@ -1308,6 +1313,7 @@ private:
         else
           limit= 0;
         node= next;
+        name= node->name;
       }
 #endif
       mysql_mutex_lock(&fil_system.mutex);
@@ -1733,7 +1739,7 @@ private:
                     uint32_t start, uint32_t limit) noexcept
   {
     const uint32_t page_size{node->space->physical_size()},
-      file_size= std::max(std::max(limit, node->size),
+      file_size= std::max(node->size,
                           (FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift) /
                           page_size);
     uint64_t physical_size{uint64_t{limit} * page_size};
@@ -1746,7 +1752,7 @@ private:
     if (file_size < limit)
     {
       limit= file_size;
-      chunk[0].length= chunk[1].offset;
+      physical_size= chunk[0].length= chunk[1].offset;
     }
 
 #ifdef POSIX_FADV_SEQUENTIAL
@@ -1757,7 +1763,7 @@ private:
     if (node == fil_system.sys_space->chain.start &&
         buf_dblwr.end() &&
         buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
-        limit > buf_dblwr.end())
+        limit >= buf_dblwr.end())
     {
       n_chunk= 2 + !!n_chunk;
       limit= buf_dblwr.begin();

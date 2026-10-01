@@ -1,5 +1,6 @@
 [archived]
 innodb_log_archive=ON
+innodb_data_file_path=ibdata1:3M;ibdata2:1M;ibdata3:2M:autoextend
 [circular]
 innodb_log_archive=OFF
 loose_innodb_log_file_buffering=ON

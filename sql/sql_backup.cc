@@ -1575,6 +1575,15 @@ int backup_stream_start(backup_fd stream,
                         const char *name, mode_t mode, uint64_t size,
                         const backup_chunk *chunks, size_t n_chunks) noexcept
 {
+#ifndef NDEBUG
+  if (size_t n{n_chunks})
+  {
+    /* The physical size must be a sum of the chunk sizes. */
+    uint64_t s{size};
+    do s-= chunks[--n].length; while (n);
+    assert(!s);
+  }
+#endif
   assert(stream != backup_sink::NO_STREAM);
   char buf[512];
   size_t s= strlen(name);
