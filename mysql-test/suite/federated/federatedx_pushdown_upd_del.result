@@ -857,6 +857,140 @@ a	b
 1	one
 3	three
 4	four
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+#
+# MDEV-41340: update query with a view i.e. not available on the remote server
+# is getting pushed down
+#
+connection master;
+set global federated_pushdown=1;
+CALL fill_tables();
+#
+# with limit, v1 can't be merged (only ever materialized), so it is
+# never a transparent stand-in for t1: the whole UPDATE shouldn't be
+# pushed down either, and executes locally instead, without error.
+# The plan shows only the view's derived table as pushed down
+# (PUSHED DERIVED), not the UPDATE join.
+#
+create view v1 as select * from t1 limit 2;
+explain
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+1	two
+1	three
+1	four
+drop view v1;
+connection slave;
+SET global general_log=0;
+# Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+UPDATE `t1` SET `a` = 1 WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 3 AND `b` = 'three' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 4 AND `b` = 'four' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 3 AND `b` = 'three' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 4 AND `b` = 'four' LIMIT 1
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+#
+# even without a limit in the view definition, although v1 can be merged,
+# the whole update query shouldn't be pushed down. 
+# This is a limitation with the federatedx engine now.
+#
+connection master;
+CALL fill_tables();
+create view v1 as select * from t1;
+explain
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	one
+1	two
+1	three
+1	four
+drop view v1;
+connection slave;
+SET global general_log=0;
+# Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+argument
+UPDATE `t1` SET `a` = 1 WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 3 AND `b` = 'three' LIMIT 1
+UPDATE `t1` SET `a` = 1 WHERE `a` = 4 AND `b` = 'four' LIMIT 1
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+#
+# Same for multi-table DELETE: with limit, v1 is only ever materialized,
+# so the whole DELETE shouldn't be pushed down, and executes locally.
+#
+CALL fill_tables();
+create view v1 as select * from t1 limit 2;
+explain
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	federated.t1.a	1	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+3	three
+4	four
+drop view v1;
+connection slave;
+SET global general_log=0;
+# Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete % where %';
+argument
+DELETE FROM `t1` WHERE `a` = 1 AND `b` = 'one' LIMIT 1
+DELETE FROM `t1` WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+#
+# Multi-table DELETE with a mergeable view, also not pushed down.
+#
+CALL fill_tables();
+create view v1 as select * from t1;
+explain
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+3	three
+4	four
+drop view v1;
+connection slave;
+SET global general_log=0;
+# Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete % where %';
+argument
+DELETE FROM `t1` WHERE `a` = 1 AND `b` = 'one' LIMIT 1
+DELETE FROM `t1` WHERE `a` = 2 AND `b` = 'two' LIMIT 1
+connection master;
+set global federated_pushdown=0;
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;

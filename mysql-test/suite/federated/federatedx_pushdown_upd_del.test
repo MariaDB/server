@@ -647,6 +647,117 @@ DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
 --disable_info
 SELECT * FROM t1 ORDER BY a;
 
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+--echo #
+--echo # MDEV-41340: update query with a view i.e. not available on the remote server
+--echo # is getting pushed down
+--echo #
+connection master;
+set global federated_pushdown=1;
+CALL fill_tables();
+
+--echo #
+--echo # with limit, v1 can't be merged (only ever materialized), so it is
+--echo # never a transparent stand-in for t1: the whole UPDATE shouldn't be
+--echo # pushed down either, and executes locally instead, without error.
+--echo # The plan shows only the view's derived table as pushed down
+--echo # (PUSHED DERIVED), not the UPDATE join.
+--echo #
+create view v1 as select * from t1 limit 2;
+explain
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+
+drop view v1;
+
+connection slave;
+SET global general_log=0;
+--echo # Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+
+--echo #
+--echo # even without a limit in the view definition, although v1 can be merged,
+--echo # the whole update query shouldn't be pushed down. 
+--echo # This is a limitation with the federatedx engine now.
+--echo #
+connection master;
+CALL fill_tables();
+
+create view v1 as select * from t1;
+explain
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+
+update t1 join v1 set t1.a = 1 where v1.a < 3;
+
+SELECT * FROM t1 ORDER BY a;
+
+drop view v1;
+
+connection slave;
+SET global general_log=0;
+--echo # Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'update %';
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+
+--echo #
+--echo # Same for multi-table DELETE: with limit, v1 is only ever materialized,
+--echo # so the whole DELETE shouldn't be pushed down, and executes locally.
+--echo #
+CALL fill_tables();
+create view v1 as select * from t1 limit 2;
+explain
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+
+drop view v1;
+
+connection slave;
+SET global general_log=0;
+--echo # Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete % where %';
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+
+--echo #
+--echo # Multi-table DELETE with a mergeable view, also not pushed down.
+--echo #
+CALL fill_tables();
+create view v1 as select * from t1;
+explain
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+
+delete t1 from t1 join v1 on t1.a = v1.a where v1.a < 3;
+SELECT * FROM t1 ORDER BY a;
+
+drop view v1;
+
+connection slave;
+SET global general_log=0;
+--echo # Row by row, not a pushed down join
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'delete % where %';
+
+connection master;
+set global federated_pushdown=0;
+
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 
