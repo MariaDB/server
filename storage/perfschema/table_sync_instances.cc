@@ -174,7 +174,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
         set_field_varchar_utf8(f, m_row.m_name, m_row.m_name_length);
         break;
       case 1: /* OBJECT_INSTANCE */
-        set_field_ulonglong(f, (intptr) m_row.m_identity);
+        set_field_ulonglong(f, m_row.m_identity);
         break;
       case 2: /* LOCKED_BY_THREAD_ID */
         if (m_row.m_locked)
@@ -334,7 +334,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
         set_field_varchar_utf8(f, m_row.m_name, m_row.m_name_length);
         break;
       case 1: /* OBJECT_INSTANCE */
-        set_field_ulonglong(f, (intptr) m_row.m_identity);
+        set_field_ulonglong(f, m_row.m_identity);
         break;
       case 2: /* WRITE_LOCKED_BY_THREAD_ID */
         if (m_row.m_write_locked)
@@ -480,7 +480,7 @@ int table_cond_instances::read_row_values(TABLE *table,
         set_field_varchar_utf8(f, m_row.m_name, m_row.m_name_length);
         break;
       case 1: /* OBJECT_INSTANCE */
-        set_field_ulonglong(f, (intptr) m_row.m_identity);
+        set_field_ulonglong(f, m_row.m_identity);
         break;
       default:
         assert(false);
@@ -490,4 +490,3 @@ int table_cond_instances::read_row_values(TABLE *table,
 
   return 0;
 }
-

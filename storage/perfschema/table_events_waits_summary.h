@@ -48,7 +48,7 @@ struct row_events_waits_summary_by_instance
   /** Length in bytes of @c m_name. */
   uint m_name_length;
   /** Column OBJECT_INSTANCE_BEGIN. */
-  intptr m_object_instance_addr;
+  pfs_identity m_object_instance_addr;
   /** Columns COUNT_STAR, SUM/MIN/AVG/MAX TIMER_WAIT. */
   PFS_stat_row m_stat;
 };
@@ -65,7 +65,7 @@ public:
 
 protected:
   void make_instr_row(PFS_instr *pfs, PFS_instr_class *klass,
-                      const void *object_instance_begin,
+                      pfs_identity object_instance_begin,
                       PFS_single_stat *pfs_stat);
   void make_mutex_row(PFS_mutex *pfs) override;
   void make_rwlock_row(PFS_rwlock *pfs) override;

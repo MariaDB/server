@@ -41,6 +41,9 @@ select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 
 --connection server_1
 --source include/save_master_gtid.inc
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/save_master_gtid.inc
 --connection server_3
 --source include/sync_with_master_gtid.inc
 

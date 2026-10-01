@@ -10,6 +10,13 @@ call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm
 call mtr.add_suppression(" IP address .* could not be resolved");
 call mtr.add_suppression("Aborted connection .* host: '192.0.2.50'");
 call mtr.add_suppression("Aborted connection .* host: 'santa.claus.ipv6.example.com'");
+call mtr.add_suppression("Failed to parse proxy header");
+call mtr.add_suppression("Proxy header is not accepted from ");
+call mtr.add_suppression("Host '192.0.2.50' is blocked because of many connection errors");
+call mtr.add_suppression("Host '2001:db8::6:6' is blocked because of many connection errors");
+call mtr.add_suppression("Host '192.0.2.22[234]' is not allowed to connect to this MariaDB server");
+call mtr.add_suppression("Host '1.2.3.4' is not allowed to connect to this MariaDB server");
+FOUND 1 /Host '192\.0\.2\.222' is not allowed to connect to this MariaDB server/ in mysqld.1.err
 ok
 
 # cat MYSQL_TMP_DIR/test_wl4435.out.log

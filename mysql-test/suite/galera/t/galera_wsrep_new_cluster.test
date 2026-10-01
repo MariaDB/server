@@ -8,6 +8,10 @@
 # This is needed because we use wsrep-new-cluster
 --source include/have_perfschema.inc
 
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.28
+source ../wsrep/include/check_galera_version.inc;
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
@@ -86,6 +90,11 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME 
 
 --echo Starting server ...
 --let $start_mysqld_params=
+# Rejoining with an emptied datadir requires a full SST. That is much slower
+# than a plain restart and on a loaded machine it does not finish within the
+# default 60 seconds, which used to abort the test here while the SST was
+# still running.
+--let $galera_wait_ready_timeout=300
 --source include/start_mysqld.inc
 --source include/wait_until_ready.inc
 

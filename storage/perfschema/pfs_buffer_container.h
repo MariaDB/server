@@ -33,7 +33,26 @@
 #include "pfs_prepared_stmt.h"
 #include "pfs_builtin_memory.h"
 
-#define USE_SCALABLE
+typedef std::uint16_t pfs_container_id;
+typedef std::uint16_t pfs_page_id;
+typedef std::uint16_t pfs_object_id;
+
+/**
+ * Build an artificial object identity, for OBJECT_INSTANCE_BEGIN columns.
+ * To be globally unique, identity consists of:
+ * - the container id, so objects A and B from different containers
+ *   (instrument classes) will not collide. Note that partitioned containers
+ *   get a container id per partition.
+ * - the page id within the container
+ * - the object index within the page
+ * - the version number from the pfs_lock dirty_state, to resolve ABA
+ *   problems
+ */
+extern pfs_identity make_identity(pfs_container_id container_id,
+                                  pfs_page_id page_id, pfs_object_id object_id,
+                                  pfs_dirty_state *dirty_state);
+
+extern std::atomic<pfs_container_id> global_container_id;
 
 class PFS_opaque_container_page;
 class PFS_opaque_container;
@@ -77,7 +96,9 @@ class PFS_buffer_default_array
 public:
   typedef T value_type;
 
-  value_type *allocate(pfs_dirty_state *dirty_state)
+  value_type *allocate(pfs_dirty_state *dirty_state,
+                       pfs_container_id container_id, pfs_page_id page_id,
+                       pfs_identity *id)
   {
     uint index;
     uint monotonic;
@@ -97,10 +118,11 @@ public:
 
       if (pfs->m_lock.free_to_dirty(dirty_state))
       {
+        if (id != nullptr)
+          *id = make_identity(container_id, page_id, index, dirty_state);
         return pfs;
       }
       monotonic= m_monotonic.m_u32.fetch_add(1);
-
     }
 
     m_full= true;
@@ -400,6 +422,11 @@ template <class T,
 class PFS_buffer_scalable_container
 {
 public:
+  static_assert(PFS_PAGE_SIZE <= std::numeric_limits<pfs_object_id>::max(),
+                "pfs_object_id field is only 16 bits");
+  static_assert(PFS_PAGE_COUNT <= std::numeric_limits<pfs_page_id>::max(),
+                "pfs_page_id field is only 16 bits");
+
   friend class PFS_buffer_scalable_iterator<T, PFS_PAGE_SIZE, PFS_PAGE_COUNT, U, V>;
 
   /**
@@ -427,6 +454,7 @@ public:
 
   PFS_buffer_scalable_container(allocator_type *allocator)
   {
+    m_container_id = global_container_id++;
     m_allocator= allocator;
     m_initialized= false;
     m_lost= 0;
@@ -533,7 +561,7 @@ public:
     return get_row_count() * get_row_size();
   }
 
-  value_type *allocate(pfs_dirty_state *dirty_state)
+  value_type *allocate(pfs_dirty_state *dirty_state, pfs_identity *id)
   {
     if (m_full)
     {
@@ -578,7 +606,7 @@ public:
 
         if (array != NULL)
         {
-          pfs= array->allocate(dirty_state);
+          pfs = array->allocate(dirty_state, m_container_id, index, id);
           if (pfs != NULL)
           {
             /* Keep a pointer to the parent page, for deallocate(). */
@@ -695,7 +723,7 @@ public:
       }
 
       assert(array != NULL);
-      pfs= array->allocate(dirty_state);
+      pfs= array->allocate(dirty_state, m_container_id, current_page_count, id);
       if (pfs != NULL)
       {
         /* Keep a pointer to the parent page, for deallocate(). */
@@ -1019,6 +1047,7 @@ private:
   array_type * m_pages[PFS_PAGE_COUNT];
   allocator_type *m_allocator;
   pthread_mutex_t m_critical_section;
+  pfs_container_id m_container_id;
 };
 
 template <class T, class U, class V>
@@ -1178,11 +1207,12 @@ public:
     return sum;
   }
 
-  value_type *allocate(pfs_dirty_state *dirty_state, uint partition)
+  value_type *allocate(pfs_dirty_state *dirty_state, uint partition,
+                       pfs_identity *id)
   {
     assert(partition < PFS_PARTITION_COUNT);
 
-    return m_partitions[partition]->allocate(dirty_state);
+    return m_partitions[partition]->allocate(dirty_state, id);
   }
 
   void deallocate(value_type *safe_pfs)
@@ -1373,116 +1403,60 @@ private:
   uint m_sub_index;
 };
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_mutex, 1024, 1024> PFS_mutex_basic_container;
 typedef PFS_partitioned_buffer_scalable_container<PFS_mutex_basic_container, PSI_COUNT_VOLATILITY> PFS_mutex_container;
-#else
-typedef PFS_buffer_container<PFS_mutex> PFS_mutex_container;
-#endif
 typedef PFS_mutex_container::iterator_type PFS_mutex_iterator;
 extern PFS_mutex_container global_mutex_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_rwlock, 1024, 1024> PFS_rwlock_container;
-#else
-typedef PFS_buffer_container<PFS_rwlock> PFS_rwlock_container;
-#endif
 typedef PFS_rwlock_container::iterator_type PFS_rwlock_iterator;
 extern PFS_rwlock_container global_rwlock_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_cond, 256, 256> PFS_cond_container;
-#else
-typedef PFS_buffer_container<PFS_cond> PFS_cond_container;
-#endif
 typedef PFS_cond_container::iterator_type PFS_cond_iterator;
 extern PFS_cond_container global_cond_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_file, 4 * 1024, 4 * 1024> PFS_file_container;
-#else
-typedef PFS_buffer_container<PFS_file> PFS_file_container;
-#endif
 typedef PFS_file_container::iterator_type PFS_file_iterator;
 extern PFS_file_container global_file_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_socket, 256, 256> PFS_socket_container;
-#else
-typedef PFS_buffer_container<PFS_socket> PFS_socket_container;
-#endif
 typedef PFS_socket_container::iterator_type PFS_socket_iterator;
 extern PFS_socket_container global_socket_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_metadata_lock, 1024, 1024> PFS_mdl_container;
-#else
-typedef PFS_buffer_container<PFS_metadata_lock> PFS_mdl_container;
-#endif
 typedef PFS_mdl_container::iterator_type PFS_mdl_iterator;
 extern PFS_mdl_container global_mdl_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_setup_actor, 128, 1024> PFS_setup_actor_container;
-#else
-typedef PFS_buffer_container<PFS_setup_actor> PFS_setup_actor_container;
-#endif
 typedef PFS_setup_actor_container::iterator_type PFS_setup_actor_iterator;
 extern PFS_setup_actor_container global_setup_actor_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_setup_object, 128, 1024> PFS_setup_object_container;
-#else
-typedef PFS_buffer_container<PFS_setup_object> PFS_setup_object_container;
-#endif
 typedef PFS_setup_object_container::iterator_type PFS_setup_object_iterator;
 extern PFS_setup_object_container global_setup_object_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_table, 1024, 1024> PFS_table_container;
-#else
-typedef PFS_buffer_container<PFS_table> PFS_table_container;
-#endif
 typedef PFS_table_container::iterator_type PFS_table_iterator;
 extern PFS_table_container global_table_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_table_share, 4 * 1024, 4 * 1024> PFS_table_share_container;
-#else
-typedef PFS_buffer_container<PFS_table_share> PFS_table_share_container;
-#endif
 typedef PFS_table_share_container::iterator_type PFS_table_share_iterator;
 extern PFS_table_share_container global_table_share_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_table_share_index, 8 * 1024, 8 * 1024> PFS_table_share_index_container;
-#else
-typedef PFS_buffer_container<PFS_table_share_index> PFS_table_share_index_container;
-#endif
 typedef PFS_table_share_index_container::iterator_type PFS_table_share_index_iterator;
 extern PFS_table_share_index_container global_table_share_index_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_table_share_lock, 4 * 1024, 4 * 1024> PFS_table_share_lock_container;
-#else
-typedef PFS_buffer_container<PFS_table_share_lock> PFS_table_share_lock_container;
-#endif
 typedef PFS_table_share_lock_container::iterator_type PFS_table_share_lock_iterator;
 extern PFS_table_share_lock_container global_table_share_lock_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_program, 1024, 1024> PFS_program_container;
-#else
-typedef PFS_buffer_container<PFS_program> PFS_program_container;
-#endif
 typedef PFS_program_container::iterator_type PFS_program_iterator;
 extern PFS_program_container global_program_container;
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_prepared_stmt, 1024, 1024> PFS_prepared_stmt_container;
-#else
-typedef PFS_buffer_container<PFS_prepared_stmt> PFS_prepared_stmt_container;
-#endif
 typedef PFS_prepared_stmt_container::iterator_type PFS_prepared_stmt_iterator;
 extern PFS_prepared_stmt_container global_prepared_stmt_container;
 
@@ -1503,17 +1477,9 @@ public:
   void free_array(PFS_account_array *array);
 };
 
-#ifdef USE_SCALABLE
-typedef PFS_buffer_scalable_container<PFS_account,
-                                      128,
-                                      128,
+typedef PFS_buffer_scalable_container<PFS_account, 128, 128,
                                       PFS_account_array,
                                       PFS_account_allocator> PFS_account_container;
-#else
-typedef PFS_buffer_container<PFS_account,
-                             PFS_account_array,
-                             PFS_account_allocator> PFS_account_container;
-#endif
 typedef PFS_account_container::iterator_type PFS_account_iterator;
 extern PFS_account_container global_account_container;
 
@@ -1534,17 +1500,11 @@ public:
   void free_array(PFS_host_array *array);
 };
 
-#ifdef USE_SCALABLE
 typedef PFS_buffer_scalable_container<PFS_host,
                                       128,
                                       128,
                                       PFS_host_array,
                                       PFS_host_allocator> PFS_host_container;
-#else
-typedef PFS_buffer_container<PFS_host,
-                             PFS_host_array,
-                             PFS_host_allocator> PFS_host_container;
-#endif
 typedef PFS_host_container::iterator_type PFS_host_iterator;
 extern PFS_host_container global_host_container;
 
@@ -1577,17 +1537,8 @@ public:
   void free_array(PFS_thread_array *array);
 };
 
-#ifdef USE_SCALABLE
-typedef PFS_buffer_scalable_container<PFS_thread,
-                                      256,
-                                      256,
-                                      PFS_thread_array,
+typedef PFS_buffer_scalable_container<PFS_thread, 256, 256, PFS_thread_array,
                                       PFS_thread_allocator> PFS_thread_container;
-#else
-typedef PFS_buffer_container<PFS_thread,
-                             PFS_thread_array,
-                             PFS_thread_allocator> PFS_thread_container;
-#endif
 typedef PFS_thread_container::iterator_type PFS_thread_iterator;
 extern PFS_thread_container global_thread_container;
 
@@ -1608,17 +1559,8 @@ public:
   void free_array(PFS_user_array *array);
 };
 
-#ifdef USE_SCALABLE
-typedef PFS_buffer_scalable_container<PFS_user,
-                                      128,
-                                      128,
-                                      PFS_user_array,
+typedef PFS_buffer_scalable_container<PFS_user, 128, 128, PFS_user_array,
                                       PFS_user_allocator> PFS_user_container;
-#else
-typedef PFS_buffer_container<PFS_user,
-                             PFS_user_array,
-                             PFS_user_allocator> PFS_user_container;
-#endif
 typedef PFS_user_container::iterator_type PFS_user_iterator;
 extern PFS_user_container global_user_container;
 

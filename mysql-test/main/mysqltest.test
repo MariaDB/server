@@ -3054,6 +3054,11 @@ EOF
 --error 1
 --exec echo "--write_file $file EOF junk" | $MYSQL_TEST 2>&1
 
+--echo #
+--echo # \0 in a query
+--echo #
+select hex("1 2");
+
 --echo # End of 10.6 tests
 
 --echo #
@@ -3077,12 +3082,11 @@ SELECT 1 /* doesn't throw error */;
 
 --rmdir $srcdir
 
+--echo # End of 10.11 tests
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
 
 --disable_query_log
 --eval SET GLOBAL max_connections = $saved_max_connections
 --enable_query_log
-
---echo # End of 10.11 tests
-

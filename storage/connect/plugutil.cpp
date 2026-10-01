@@ -601,6 +601,16 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 } /* end of PlugSubAlloc */
 
 /***********************************************************************/
+/*  Return the number of bytes still free (unreserved) in a pool.      */
+/***********************************************************************/
+size_t PlugSubAllocLeft(PGLOBAL g, void *memp)
+{
+  PPOOLHEADER pph = (PPOOLHEADER)((memp) ? memp : g->Sarea);
+
+  return pph->FreeBlk;
+} /* end of PlugSubAllocLeft */
+
+/***********************************************************************/
 /*  Program for sub-allocating and copying a string in a storage area. */
 /***********************************************************************/
 char *PlugDup(PGLOBAL g, const char *str)

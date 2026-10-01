@@ -20919,12 +20919,14 @@ static void proxy_send_handshake_error(const char *client_ip)
 }
 
 /*
-  Connect through PROXY protocol, advertising 'client_ip' as the client.
-  On success returns the connection (caller closes it); on failure returns NULL
-  and stores the client error code in *out_errno.
+  Connect through PROXY protocol, advertising 'client_ip' as the client,
+  optionally requiring SSL. On success returns the connection (caller
+  closes it); on failure returns NULL and stores the client error code
+  in *out_errno.
 */
 static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
-                               const char *passwd, unsigned int *out_errno)
+                               const char *passwd, my_bool use_ssl,
+                               unsigned int *out_errno)
 {
   MYSQL *m= mysql_client_init(NULL);
   char header[128];
@@ -20935,6 +20937,8 @@ static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
            v6 ? "TCP6" : "TCP4", client_ip, v6 ? "::1" : "127.0.0.1", opt_port);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header, strlen(header));
   mysql_optionsv(m, MYSQL_OPT_PROTOCOL, &proto);
+  if (use_ssl)
+    mysql_ssl_set(m, NULL, NULL, NULL, NULL, NULL);
   if (!mysql_real_connect(m, opt_host, user, passwd, NULL, opt_port, NULL, 0))
   {
     if (out_errno)
@@ -20978,7 +20982,7 @@ static void test_proxy_header_connect_errors_reset()
   /* max_connect_errors handshake errors block the host. */
   for (i= 0; i < 3; i++)
     proxy_send_handshake_error(client_ip);
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
 
   rc= mysql_query(mysql, "FLUSH HOSTS");
@@ -20989,7 +20993,7 @@ static void test_proxy_header_connect_errors_reset()
   proxy_send_handshake_error(client_ip);
 
   /* Below the limit: must connect, and this success must reset the counter. */
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);
   mysql_close(m);
 
@@ -20998,7 +21002,7 @@ static void test_proxy_header_connect_errors_reset()
   proxy_send_handshake_error(client_ip);
   proxy_send_handshake_error(client_ip);
 
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED with unfixed MDEV-25817 */
   mysql_close(m);
 
@@ -21051,7 +21055,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
      max_connect_errors of them block it. */
   for (i= 0; i < 3; i++)
     proxy_send_handshake_error(NULL);
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
 
   rc= mysql_query(mysql, "FLUSH HOSTS");
@@ -21062,7 +21066,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
   proxy_send_handshake_error(NULL);
 
   /* Success: client has no errors, so this must reset the proxy host's two. */
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);
   mysql_close(m);
 
@@ -21070,7 +21074,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
   proxy_send_handshake_error(NULL);
   proxy_send_handshake_error(NULL);
 
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED if proxy host not reset */
   mysql_close(m);
 
@@ -21086,6 +21090,84 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
 #endif /* !DBUG_OFF */
 }
 
+/*
+  MDEV-40967: a host that fails the check on its PROXY-derived address
+  must still be rejected with ER_HOST_NOT_PRIVILEGED when SSL isn't even
+  requested. This plain case already worked before the fix too - it is
+  baseline coverage, not the regression case; see
+  test_proxy_header_ssl_host_denied() for that.
+*/
+static void test_proxy_header_host_denied()
+{
+  const char *client_ip= "192.0.2.222";
+  unsigned int conn_errno= 0;
+  MYSQL *m;
+
+  myheader("test_proxy_header_host_denied");
+
+  m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
+  DIE_UNLESS(m == NULL);
+  DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+}
+
+/*
+  MDEV-40967: repeated ER_HOST_NOT_PRIVILEGED rejections via the deferred
+  path must never count toward max_connect_errors - the pre-deferral,
+  immediate check never did either, since a host with no matching grant
+  did nothing resembling a failed handshake.
+*/
+static void test_proxy_header_host_denied_not_counted()
+{
+  const char *client_ip= "192.0.2.224";
+  unsigned int conn_errno= 0;
+  int rc, i;
+  MYSQL *m;
+
+  myheader("test_proxy_header_host_denied_not_counted");
+
+  rc= mysql_query(mysql,
+                  "SET @save_max_connect_errors= @@global.max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @@global.max_connect_errors=3");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  /* More attempts than max_connect_errors: every one must still be
+     ER_HOST_NOT_PRIVILEGED, never ER_HOST_IS_BLOCKED. */
+  for (i= 0; i < 5; i++)
+  {
+    m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
+    DIE_UNLESS(m == NULL);
+    DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  }
+
+  rc= mysql_query(mysql,
+                  "SET @@global.max_connect_errors=@save_max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+}
+
+/*
+  MDEV-40967: same deferred rejection as test_proxy_header_host_denied(),
+  but with the client requesting (and completing) SSL - the actual
+  regression case: before the fix, the host check ran before the SSL
+  handshake, corrupting it.
+*/
+static void test_proxy_header_ssl_host_denied()
+{
+  const char *client_ip= "192.0.2.223";
+  unsigned int conn_errno= 0;
+  MYSQL *m;
+
+  myheader("test_proxy_header_ssl_host_denied");
+
+  m= proxy_connect_as(client_ip, "root", "", TRUE, &conn_errno);
+  DIE_UNLESS(m == NULL);
+  DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+}
+
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
@@ -21098,6 +21180,9 @@ static void test_proxy_header()
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
   test_proxy_header_proxy_host_connect_errors_reset();
+  test_proxy_header_host_denied();
+  test_proxy_header_host_denied_not_counted();
+  test_proxy_header_ssl_host_denied();
 }
 
 

@@ -24,6 +24,17 @@ SET GLOBAL gtid_slave_pos= '1-2-3 ';
 --error ER_INCORRECT_GTID_STATE
 SET GLOBAL gtid_slave_pos= '1-2-3,2-4';
 
+# Test that a parse error in the middle of the GTID string does not leave
+# a partial updated value.
+SET GLOBAL gtid_slave_pos= '0-1-10,1-1-20,2-1-30';
+--error ER_INCORRECT_GTID_STATE
+SET GLOBAL gtid_slave_pos= '0-1-110,1-1-120,,2-1-130';
+SELECT @@GLOBAL.gtid_slave_pos;
+SELECT A.domain_id, A.server_id, A.seq_no
+  FROM mysql.gtid_slave_pos A
+ WHERE A.sub_id=(SELECT MAX(B.sub_id) FROM mysql.gtid_slave_pos B WHERE A.domain_id=B.domain_id)
+ ORDER BY A.domain_id;
+
 --error ER_DUPLICATE_GTID_DOMAIN
 SET GLOBAL gtid_slave_pos= '0-1-10,0-2-20';
 --error ER_DUPLICATE_GTID_DOMAIN

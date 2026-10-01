@@ -12,6 +12,7 @@
 //#include <mysql/thread_pool_priv.h>
 
 #include <string>
+#include <algorithm>
 
 /* MyRocks includes */
 #include "./rdb_threads.h"

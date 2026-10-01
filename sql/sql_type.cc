@@ -8791,7 +8791,9 @@ void Type_handler_enum::
   Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
                                         uchar *buff) const
 {
-  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_INTERVAL) == 0);
+  DBUG_ASSERT(f_decimals(def->pack_flag &
+                         ~(FIELDFLAG_INTERVAL|
+                           FIELDFLAG_FRM_HEX_ENCODED_TYPELIB)) == 0);
   DBUG_ASSERT(def->decimals == 0);
   Type_handler::Column_definition_attributes_frm_pack(def, buff);
 }
@@ -8801,7 +8803,9 @@ void Type_handler_set::
   Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
                                         uchar *buff) const
 {
-  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_BITFIELD) == 0);
+  DBUG_ASSERT(f_decimals(def->pack_flag &
+                         ~(FIELDFLAG_BITFIELD|
+                           FIELDFLAG_FRM_HEX_ENCODED_TYPELIB)) == 0);
   DBUG_ASSERT(def->decimals == 0);
   Type_handler::Column_definition_attributes_frm_pack(def, buff);
 }

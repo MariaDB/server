@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--echo #
+--echo # MDEV-39556 SIGSEGV in ha_mroonga::storage_set_keys_in_use on SELECT
+--echo #
+
+CREATE TABLE t (c INT KEY,c2 GEOMETRY NOT NULL,SPATIAL INDEX idx_sp (c2)) ENGINE=InnoDB;
+
+ALTER TABLE t ENGINE=Mroonga;
+CHECK TABLE t;
+SELECT COUNT(*) > 0 AS r FROM information_schema.STATISTICS;
+
+DROP TABLE t;
+
+--echo # End of 10.6 tests

@@ -693,7 +693,8 @@ nochange_index:
 					  rec_offs_comp(clust_offsets))) {
 			row_ext_t*	ext;
 
-			/* The stack of versions is locked by mtr.
+			/* The stack of versions is locked by mtr, and
+			purge_sys.view is frozen for the whole batch.
 			Thus, it is safe to fetch the prefixes for
 			externally stored columns. */
 			row = row_build(ROW_COPY_POINTERS, clust_index,

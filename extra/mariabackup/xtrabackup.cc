@@ -3750,6 +3750,19 @@ static void log_copying_thread()
     return;
   }
 
+  /*
+    This thread polls Innodb_lsn_flushed via SHOW STATUS on its own connection.
+    On a Galera donor wsrep_sync_wait may include SHOW, which would make that
+    poll wait until the node has applied the latest cluster transactions. During
+    a backup the donor's commit position can legitimately lag (e.g. a transaction
+    sitting between its binary log write and engine commit), so the poll could
+    block indefinitely and stall the redo log copier - failing the backup with a
+    misleading "Was only able to copy log ..." error. The main backup connection
+    already disables wsrep_sync_wait for the same reason, so do the same here.
+  */
+  if (have_galera_enabled)
+    xb_mysql_query(limit_con, "SET SESSION wsrep_sync_wait=0", false);
+
   mysql_mutex_lock(&recv_sys.mutex);
   for (;;)
   {
@@ -5577,13 +5590,14 @@ static bool xtrabackup_backup_func()
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
 	if (innodb_log_checkpoint_now) {
-		msg("Initiating checkpoint");
-		if (mysql_send_query(mysql_connection,
-		    C_STRING_WITH_LEN("SET GLOBAL "
-				      "innodb_log_checkpoint_now=ON;"))) {
-			msg("initiating checkpoint failed");
-			return(false);
-		}
+		/* This had better finish before recv_sys.find_checkpoint()
+		starts executing below. The command may not be recognised
+		by an old server; we can ignore a failure to execute this
+		performance tweak. */
+		xb_mysql_query(
+			mysql_connection,
+			"SET GLOBAL innodb_log_checkpoint_now=ON;",
+			false, false);
 	}
 
 	msg("open files limit requested %lu, set to %lu",
@@ -5692,13 +5706,6 @@ fail:
 		msg("Error: failed to open the target stream for '%s'.",
 		    LOG_FILE_NAME);
 		goto fail;
-	}
-
-	/* try to wait for a log checkpoint, but do not fail if the
-	server does not support this */
-	if (innodb_log_checkpoint_now != false) {
-		mysql_read_query_result(mysql_connection);
-		msg("Finished waiting for checkpoint");
 	}
 
 	if (!select_history()) {

@@ -201,11 +201,8 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     existing connection, per the manual.
   */
   if (!(thd->main_security_ctx.check_access(GLOBAL_ACLS & ~GRANT_ACL)) &&
-      (0 != strcmp(thd->main_security_ctx.priv_user,
-                   thd->security_context()->priv_user) ||
-       0 != my_strcasecmp(system_charset_info,
-                          thd->main_security_ctx.priv_host,
-                          thd->security_context()->priv_host)))
+      !thd->main_security_ctx.is_priv_user(thd->security_context()->priv_user,
+                                           thd->security_context()->priv_host))
     trace->missing_privilege();
 }
 

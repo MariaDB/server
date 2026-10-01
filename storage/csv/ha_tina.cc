@@ -1,4 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -646,7 +647,8 @@ int ha_tina::chain_append()
       if (chain_alloced)
       {
         if ((chain= (tina_set *) my_realloc(csv_key_memory_tina_set,
-                                            (uchar*)chain, chain_size,
+                                            (uchar*)chain,
+                                            chain_size * sizeof(tina_set),
                                             MYF(MY_WME))) == NULL)
           return -1;
       }

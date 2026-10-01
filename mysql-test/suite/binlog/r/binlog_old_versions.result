@@ -13,6 +13,7 @@ SELECT COUNT(*) FROM t3;
 COUNT(*)
 17920
 DROP TABLE t1, t2, t3;
+FOUND 3 /[Uu]nknown [Ee]vent/ in invalid_row_v2_tag.sql
 ==== Read modern binlog (version 5.1.23) ====
 SELECT * FROM t1 ORDER BY a;
 a	b

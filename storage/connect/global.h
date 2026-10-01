@@ -220,6 +220,7 @@ DllExport bool    AllocSarea(PGLOBAL, size_t);
 DllExport void    FreeSarea(PGLOBAL);
 DllExport BOOL    PlugSubSet(void *, size_t);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
+DllExport size_t  PlugSubAllocLeft(PGLOBAL, void *);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);

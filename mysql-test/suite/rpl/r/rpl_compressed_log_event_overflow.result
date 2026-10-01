@@ -1,0 +1,78 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+call mtr.add_suppression("Uncompressed data size too large");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+#
+# Initialize test data
+#
+connection master;
+create table t1 (a int);
+create table t2 (a longtext);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#
+# Test Case 1: a compressed Query event
+#
+connection master;
+set @saved_dbug= @@session.debug_dbug;
+set @@session.debug_dbug= "+d,binlog_compress_corrupt_len";
+set @saved_binlog_format= @@session.binlog_format;
+set @@session.binlog_format= STATEMENT;
+set @@session.binlog_format= @saved_binlog_format;
+set @@session.debug_dbug= @saved_dbug;
+connection slave;
+# Waiting for the IO thread to reject the compressed Query event
+include/wait_for_slave_io_error.inc [errno=1256, 1595]
+# Ensure the replica rejected the event on its recorded length
+include/assert_grep.inc [The IO thread reported an oversized uncompressed length]
+# Move the replica past the corrupt event
+include/stop_slave_sql.inc
+include/start_slave.inc
+# Ensure replication resumes
+connection master;
+insert into t1 values (1);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Test Case 2: a compressed Write_rows event
+#
+connection master;
+set @saved_dbug= @@session.debug_dbug;
+set @@session.debug_dbug= "+d,binlog_compress_corrupt_len";
+set @saved_binlog_format= @@session.binlog_format;
+set @@session.binlog_format= ROW;
+insert into t2 values (repeat('a', 65536));
+set @@session.binlog_format= @saved_binlog_format;
+set @@session.debug_dbug= @saved_dbug;
+connection slave;
+# Waiting for the IO thread to reject the compressed Write_rows event
+include/wait_for_slave_io_error.inc [errno=1256, 1595]
+# Ensure the replica rejected the event on its recorded length
+include/assert_grep.inc [The IO thread reported an oversized uncompressed length]
+# Move the replica past the corrupt event
+include/stop_slave_sql.inc
+include/start_slave.inc
+# Ensure replication resumes
+connection master;
+insert into t1 values (2);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:t1,slave:t1]
+#
+# Cleanup
+#
+connection master;
+drop table t1, t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_compressed_log_event_overflow.test

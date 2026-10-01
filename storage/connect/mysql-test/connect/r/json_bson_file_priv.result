@@ -1,0 +1,156 @@
+#
+# Test FILE privilege and secure_file_priv enforcement for JSON/BSON file UDFs
+#
+# Privileged user: path inside secure_file_priv MYSQL_TMP_DIR
+select json_file('MYSQL_TMP_DIR/bib0.json', 0) IS NOT NULL AS ok;
+ok
+1
+select bson_file('MYSQL_TMP_DIR/biblio.json', 0) IS NOT NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	File pretty format doesn't match the specified pretty value
+select jfile_make('{"test":1}', 'MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok;
+ok
+1
+select bfile_make('{"test":1}', 'MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok;
+ok
+1
+select jbin_file('MYSQL_TMP_DIR/bib0.json') IS NOT NULL AS ok;
+ok
+1
+select bbin_file('MYSQL_TMP_DIR/biblio.json') IS NOT NULL AS ok;
+ok
+1
+# Privileged user: path outside secure_file_priv
+select json_file('DATADIR/bib0.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bson_file('DATADIR/biblio.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select jfile_make('{"test":1}', 'DATADIR/out.json', 0) IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bfile_make('{"test":1}', 'DATADIR/out.json', 0) IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select jbin_file('DATADIR/bib0.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bbin_file('DATADIR/biblio.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+# NULL argument: no "access denied", UDF reports its own error
+select json_file(NULL) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+select bson_file(NULL) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+select jfile_make('{"test":1}', NULL, 0) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+select bfile_make('{"test":1}', NULL, 0) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+select jbin_file(NULL) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+select bbin_file(NULL) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing file name
+# Privileged user: relative path resolving outside secure_file_priv
+select json_file('../../bib0.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bson_file('../../biblio.json') IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+# Overlong filename: MY_SAFE_PATH rejects it, fail closed
+select json_file(concat('MYSQL_TMP_DIR/', repeat('x', 512))) IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bson_file(concat('MYSQL_TMP_DIR/', repeat('x', 512))) IS NULL AS denied;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+# Non-constant filename expression (args->args[0] is NULL at init time)
+set @fname = 'MYSQL_TMP_DIR/bib0.json';
+select jbin_file(@fname) IS NOT NULL AS ok;
+ok
+1
+set @fname = 'MYSQL_TMP_DIR/biblio.json';
+select bbin_file(@fname) IS NOT NULL AS ok;
+ok
+1
+# User without FILE privilege
+create user unprivileged@localhost;
+grant select ON *.* TO unprivileged@localhost;
+connect unprivileged,localhost,unprivileged,,;
+connection unprivileged;
+# inside secure_file_priv: denied without FILE privilege
+select json_file('MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bson_file('MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select jfile_make('{"test":1}', 'MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bfile_make('{"test":1}', 'MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select jbin_file('MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+select bbin_file('MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;;
+denied
+1
+Warnings:
+Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+disconnect unprivileged;
+connection default;
+drop user unprivileged@localhost;

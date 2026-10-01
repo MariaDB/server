@@ -4700,9 +4700,8 @@ change_security_context(THD *thd,
   DBUG_ASSERT(definer_user->str && definer_host->str);
 
   *backup= NULL;
-  needs_change= (strcmp(definer_user->str, thd->security_ctx->priv_user) ||
-                 my_strcasecmp(system_charset_info, definer_host->str,
-                               thd->security_ctx->priv_host));
+  needs_change= !thd->security_ctx->is_priv_user(definer_user->str,
+                                                 definer_host->str);
   if (needs_change)
   {
     if (acl_getroot(this, definer_user->str, definer_host->str,
@@ -4730,13 +4729,19 @@ Security_context::restore_security_context(THD *thd,
 #endif
 
 
-bool Security_context::user_matches(Security_context *them)
+/**
+  check that `this` is not system or pre-auth thread and
+  is owned by the same account as in `them`
+
+  Note that it's not symmetric, it's used in KILL/SHOW commands
+  to see whether "them" can kill/see "us", never the other way around!
+*/
+bool Security_context::priv_user_matches(const Security_context *them) const
 {
-  return ((user != NULL) && (them->user != NULL) &&
-          !strcmp(user, them->user));
+  return user && is_priv_user(them->priv_user, them->priv_host);
 }
 
-bool Security_context::is_priv_user(const char *user, const char *host)
+bool Security_context::is_priv_user(const char *user, const char *host) const
 {
   return ((user != NULL) && (host != NULL) &&
           !strcmp(user, priv_user) &&

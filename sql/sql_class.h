@@ -206,6 +206,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
 #define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 #define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
+#define OLD_MODE_X509_LENIENT_COMPARE (1 << 7)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -1574,7 +1575,7 @@ public:
   void
   restore_security_context(THD *thd, Security_context *backup);
 #endif
-  bool user_matches(Security_context *);
+  bool priv_user_matches(const Security_context *) const;
   /**
     Check global access
     @param want_access The required privileges
@@ -1583,7 +1584,7 @@ public:
     @return True if the security context fulfills the access requirements.
   */
   bool check_access(const privilege_t want_access, bool match_any = false);
-  bool is_priv_user(const char *user, const char *host);
+  bool is_priv_user(const char *user, const char *host) const;
   bool is_user_defined() const
     { return user && user != delayed_user && user != slave_user && user != wsrep_user; };
 };

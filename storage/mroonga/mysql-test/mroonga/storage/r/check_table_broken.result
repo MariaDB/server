@@ -9,10 +9,17 @@ INSERT INTO diaries VALUES ('Hello');
 FLUSH TABLES;
 CHECK TABLE diaries;
 Table	Op	Msg_type	Msg_text
+check_test.diaries	check	Error	system call error: No such file or directory: failed to open path: <check_test.mrn.000010C>
 check_test.diaries	check	error	Corrupt
 REPAIR TABLE diaries;
 Table	Op	Msg_type	Msg_text
+check_test.diaries	repair	Error	system call error: No such file or directory: failed to open path: <check_test.mrn.000010C>
 check_test.diaries	repair	status	OK
+SELECT *
+FROM diaries
+WHERE MATCH(title) AGAINST('+Hello' IN BOOLEAN MODE);
+title
+Hello
 DROP TABLE diaries;
 DROP DATABASE check_test;
 USE test;

@@ -1,10 +1,10 @@
+--source include/platform.inc
 --echo #
 --echo # Bug50373 --secure-file-priv=""
 --echo #
 CREATE TABLE t1 (c1 VARCHAR(50));
 INSERT INTO t1 VALUES ("one"),("two"),("three"),("four"),("five");
 SHOW VARIABLES LIKE 'secure_file_priv';
---disable_query_log
 
 # Atempt to create a file where we normally aren't allowed to create one.
 #
@@ -17,35 +17,23 @@ SHOW VARIABLES LIKE 'secure_file_priv';
 # If we run tests with --mem, it will be /dev/shm.
 # If we run tests with --parallel, it will be mysql-test/var
 # (because MYSQLTEST_VARDIR in this case is mysql-test/var/N).
---disable_cursor_protocol
 
---perl
-use File::Basename;
-my $protected_file= dirname($ENV{MYSQLTEST_VARDIR}).'/bug50373.txt';
-# Ensure bug50373.txt does not exist (e.g. leftover from previous
-# test runs).
-unlink $protected_file;
-open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/bug50373.inc") or die;
-print FILE "SELECT * FROM t1 INTO OUTFILE '".$protected_file."';\n";
-print FILE "DELETE FROM t1;\n";
-print FILE "LOAD DATA INFILE '".$protected_file."' INTO TABLE t1;\n";
-print FILE "SELECT * FROM t1;\n";
-print FILE "SELECT load_file('",$protected_file,"') AS loaded_file;\n";
-close(FILE);
-EOF
-
---enable_prepare_warnings
---source $MYSQL_TMP_DIR/bug50373.inc
---disable_prepare_warnings
---remove_file $MYSQL_TMP_DIR/bug50373.inc
---enable_query_log
-
---enable_cursor_protocol
-
+evalp SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/../bug50373.txt' FROM t1;
+DELETE FROM t1;
+evalp LOAD DATA INFILE '$MYSQLTEST_VARDIR/../bug50373.txt' INTO TABLE t1;
+SELECT * FROM t1;
+evalp SELECT load_file('$MYSQLTEST_VARDIR/../bug50373.txt') AS loaded_file;
 DROP TABLE t1;
 
---perl
-use File::Basename;
-unlink dirname($ENV{MYSQLTEST_VARDIR}).'/bug50373.txt';
-EOF
+--remove_file $MYSQLTEST_VARDIR/../bug50373.txt
 
+--echo #
+--echo # MDEV-40589 default exclude list for secure-file-priv
+--echo #
+CREATE TABLE t1 (c1 VARCHAR(50));
+--disable_abort_on_error
+LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+--enable_abort_on_error
+DROP TABLE t1;
+
+--echo # End of 10.6 tests

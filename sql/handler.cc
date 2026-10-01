@@ -2556,7 +2556,7 @@ static my_xid wsrep_order_and_check_continuity(XID *list, int len)
     if (!wsrep_is_wsrep_xid(list + i) ||
         wsrep_xid_seqno(list + i) != cur_seqno + 1)
     {
-      WSREP_WARN("Discovered discontinuity in recovered wsrep "
+      WSREP_INFO("Discovered discontinuity in recovered wsrep "
                  "transaction XIDs. Truncating the recovery list to "
                  "%d entries", i);
       break;
@@ -2843,6 +2843,53 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
                        x <= wsrep_limit) && info->dry_run,
                      info->dry_run))
         {
+#ifdef WITH_WSREP
+          /*
+            MDEV-40179: a wsrep transaction still in the prepared state at the
+            final recovery pass (the dry run, commit_list == 0) but they don't
+            have corresponding binlog events because they are no longer part of
+            SST. With log_bin=ON they can't be committed.
+            After recovering from SST without binlogs in place the joiner runs
+            no binlog XA recovery to commit or roll back such transactions, so
+            without binlog events they would abort startup with "Found N prepared
+            transactions!". Roll them back here; the node re-receives them
+            from the donor via IST. Non-wsrep (e.g. user XA) prepared transactions
+            are left untouched and still reported.
+
+            Notice that in the wsrep_emulate_bin_log case below we don't need the
+            binlog events, so these prepared and wsrep-ordered transactions can be
+            safely committed.
+
+            The guard is WSREP_PROVIDER_EXISTS ("a Galera provider is loaded"):
+            a node configured with a provider will rejoin and receive
+            these transactions; a standalone node (no provider) cannot, so
+            there we keep the conservative default and still report them.
+          */
+          if (WSREP_PROVIDER_EXISTS && wsrep_is_wsrep_xid(info->list + i))
+          {
+            int rc= hton->rollback_by_xid(hton, info->list + i);
+            if (rc == 0)
+            {
+              sql_print_warning("Rolled back orphan prepared wsrep "
+                                    "transaction %lld", (longlong) x);
+              continue;
+            }
+            /*
+              A failed rollback is critical: the storage engine is left with
+              a transaction in the prepared state, which blocks purge and will
+              re-surface at the next recovery. We cannot safely continue, so
+              flag the error and abort startup (ha_recover() returns non-zero,
+              which makes the caller unireg_abort()).
+            */
+            sql_print_error("Failed to roll back orphan prepared wsrep "
+                            "transaction %lld during recovery (error %d). "
+                            "The storage engine is left with a transaction in "
+                            "the prepared state; aborting startup.",
+                            (longlong) x, rc);
+            info->error= true;
+            break;
+          }
+#endif /* WITH_WSREP */
           info->found_my_xids++;
           continue;
         }
@@ -2892,7 +2939,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
           }
         }
       }
-      if (got < info->len)
+      if (got < info->len || info->error)
         break;
     }
   }
@@ -7393,7 +7440,11 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-static int wsrep_after_row(THD *thd)
+/*
+  If skip_streaming is true, the row is counted against wsrep_max_ws_rows
+  and validated as usual, but no streaming fragment is replicated for it.
+*/
+static int wsrep_after_row(THD *thd, bool skip_streaming= false)
 {
   DBUG_ENTER("wsrep_after_row");
 #ifdef WITH_WSREP
@@ -7416,7 +7467,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row_internal(thd))
+  else if (wsrep_after_row_internal(thd, skip_streaming))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -7843,9 +7894,20 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
   }
 
+  /*
+    Sequence tables are written with SEQUENCE::mutex held (see
+    SEQUENCE::next_value() and ha_sequence::write_row()). For a streaming
+    transaction the streaming step would replicate a fragment and block
+    waiting for certification and commit order, while an applier may be
+    waiting for the same mutex in SEQUENCE::set_value(). That deadlocks
+    the node, so skip only that step here. The row has already been
+    appended to the write set and will be replicated with the following
+    fragment, or at commit. Everything else wsrep_after_row() does, in
+    particular counting the row against wsrep_max_ws_rows, still applies.
+  */
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
       ht->flags & HTON_WSREP_REPLICATION && !error)
-    error= wsrep_after_row(ha_thd());
+    error= wsrep_after_row(ha_thd(), table_share->sequence != NULL);
 
 err:
   DEBUG_SYNC_C("ha_write_row_end");

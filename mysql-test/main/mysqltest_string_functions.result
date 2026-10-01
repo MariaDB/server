@@ -1116,4 +1116,11 @@ insert(upper('hello world'), 7, 5, lower('MARIADB')) -> HELLO mariadb
 concat_ws(' ', upper('hello'), lower('WORLD')) -> HELLO world
 ifnull(nullif('same', 'same'), 'default') -> default
 coalesce(nullif('test', 'test'), 'backup') -> backup
+#
+# MDEV-37859: Mysqltest hex() not working for string values
+#
+hex("abc") -> 616263
+hex("255") -> 323535
+hex('') -> 
 # Expression evaluation string functions tests completed successfully
+# End of 10.6 tests

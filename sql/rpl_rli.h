@@ -282,6 +282,19 @@ public:
   */
   bool are_sql_threads_caught_up();
 
+  /**
+    Bitmask of bugs present in the master version of the current
+    description_event_for_exec. Of atomic type, since it is written when
+    applying master's format description events, and read concurrently without
+    locking from parallel replication worker threads. Though note that the
+    value will only change during a master restart, and we do not replicate
+    events concurrently across such restart event, so the value will not change
+    in practice while worker threads are working.
+  */
+  std::atomic<rpl_bug_id_t> rpl_master_bug_bitmask;
+  static_assert(sizeof(rpl_bug_id_t) > ((RPL_BUG_END - 1) >> 3),
+                "rpl_master_bug_bitmask too small to hold all bits");
+
   void clear_until_condition();
   /**
     Reset the delay.
@@ -557,6 +570,7 @@ public:
   int32 get_sql_delay() { return sql_delay; }
   void set_sql_delay(int32 _sql_delay) { sql_delay= _sql_delay; }
   time_t get_sql_delay_end() { return sql_delay_end; }
+  void calc_master_bug_bitmask(const Format_description_log_event * fd_event);
   rpl_gtid last_seen_gtid;
   ulong last_trans_retry_count;
 private:
@@ -1088,5 +1102,20 @@ int find_gtid_slave_pos_tables(THD *thd);
 int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                      Log_event_type typ, Log_event *ev);
+
+bool
+rpl_master_has_bug_ext(const Relay_log_info *rli, rpl_bug_id_t bug_id,
+                       bool report,
+                       bool (*pred)(const void *), const void *param);
+static inline bool
+rpl_master_has_bug(const Relay_log_info *rli, rpl_bug_id_t bug_id,
+                   bool report, bool (*pred)(const void *), const void *param)
+{
+  rpl_bug_id_t mask=
+    rli->rpl_master_bug_bitmask.load(std::memory_order_relaxed);
+  if (likely(!(mask & (1 << bug_id))))
+    return false;
+  return rpl_master_has_bug_ext(rli, bug_id, report, pred, param);
+}
 
 #endif /* RPL_RLI_H */

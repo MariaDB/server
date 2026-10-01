@@ -228,11 +228,18 @@ void Wsrep_server_service::log_view(
     static_cast<Wsrep_high_priority_service*>(high_priority_service);
   /* Update global system variables */
   mysql_mutex_lock(&LOCK_global_system_variables);
+  /* The negotiated protocol version gates the writeset format, so it must be
+  picked up regardless of wsrep_auto_increment_control. Leaving it at this
+  node's own maximum would make a node in a cluster that settled on an older
+  version keep emitting the newer format. */
+  if (view.own_index() >= 0)
+  {
+    wsrep_protocol_version= view.protocol_version();
+  }
   if (wsrep_auto_increment_control && view.own_index() >= 0)
   {
     global_system_variables.auto_increment_offset= view.own_index() + 1;
     global_system_variables.auto_increment_increment= view.members().size();
-    wsrep_protocol_version= view.protocol_version();
   }
   mysql_mutex_unlock(&LOCK_global_system_variables);
 

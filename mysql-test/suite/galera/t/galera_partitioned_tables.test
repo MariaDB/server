@@ -168,3 +168,39 @@ SET GLOBAL wsrep_mode=DEFAULT;
 --connection node_2
 SELECT * FROM sales;
 DROP TABLE sales;
+
+#
+# MDEV-40929 : CREATE TABLE ... AS SELECT is not replicated in Galera when the table is partitioned
+#
+
+--connection node_1
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a,b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0),(2,0),(3,0);
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a,b)) ENGINE=InnoDB PARTITION BY LIST (a MOD 2) (PARTITION p0 VALUES IN (0), PARTITION p1 VALUES IN (1)) AS SELECT * FROM t1;
+SELECT COUNT(*) FROM t2;
+ 
+--connection node_2
+--let $c= query_get_value(SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2', c, 1)
+if ($c != 1) {
+  --die The new partitioned table exists on node 1 but not on node 2. It was not replicated to the cluster.
+}
+--let $c= query_get_value(SELECT COUNT(*) AS c FROM t2, c, 1)
+if ($c != 3) {
+  --die The new partitioned table on node 2 is missing rows. The rows selected on node 1 were not replicated to the cluster.
+}
+ 
+--connection node_1
+DROP TABLE t1, t2;
+ 
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a,b)) ENGINE=InnoDB PARTITION BY LIST (a MOD 2) (PARTITION p0 VALUES IN (0), PARTITION p1 VALUES IN (1)) AS SELECT * FROM t1;
+SELECT COUNT(*) FROM t2;
+ 
+--connection node_2
+--let $c= query_get_value(SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = 'test' AND table_name = 't2', c, 1)
+if ($c != 1) {
+  --die The new partitioned table exists on node 1 but not on node 2, with an empty source table. It was not replicated to the cluster.
+}
+ 
+--connection node_1
+DROP TABLE t1, t2;

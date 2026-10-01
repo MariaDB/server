@@ -1,0 +1,109 @@
+#
+# MDEV-38147 follow-up: binary-log GTID seeding must apply only with
+# wsrep_gtid_mode=ON.
+#
+# After MDEV-38147 a mariabackup-SST joiner starts a fresh binary log and, in
+# wsrep_gtid_mode=ON, seeds @@gtid_binlog_pos from the storage-engine checkpoint
+# (cluster writes are re-tagged to wsrep_gtid_domain_id and binlogged with the
+# cluster seqno, so the checkpoint position maps directly onto the binlog GTID
+# state - see MDEV-38147.test for the ON-mode case).
+#
+# With wsrep_gtid_mode=OFF that mapping does not hold: cluster writes keep the
+# node's own gtid_domain_id and are binlogged with a locally allocated seq_no,
+# while the cluster seqno lives only in thd->wsrep_current_gtid_seqno and is
+# never written to the binlog GTID. Seeding gtid_domain_id from the checkpoint
+# seqno would therefore inject a wrong, node-unrelated position. So in OFF mode
+# the joiner must seed nothing; a fresh binary log simply resumes its own local
+# counter.
+#
+# This test drives a full mariabackup SST of node_3 in wsrep_gtid_mode=OFF and
+# asserts the seeding code path did NOT run on the joiner.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values so that MTR's post-check is
+# happy after node_3 has been restarted.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--echo # Precondition: Galera GTID mode is OFF
+SELECT @@global.wsrep_gtid_mode AS wsrep_gtid_mode;
+
+--connection node_1
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+
+# Make sure the data reached node_3 before we purge it.
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+
+#
+# Stop node_3 and purge its data directory so that rejoining forces a full
+# mariabackup SST (which restores the wsrep position into the SE checkpoint).
+#
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data
+
+# Restart node_3 (non-blocking): it rejoins via a mariabackup SST from node_1.
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--write_line restart $_expect_file_name
+
+--connection node_1
+--let $wait_timeout = 60
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Re-establish the node_3 client connection (it was started without waiting).
+--connection node_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+--source include/galera_wait_ready.inc
+
+# The SST data made it across.
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) AS rows_on_joiner FROM t1;
+
+#
+# Regression assertion: in wsrep_gtid_mode=OFF the joiner must NOT seed its
+# binary-log GTID state from the wsrep checkpoint. The seeding code path emits
+# this exact line only when it runs (it does run in the ON-mode
+# MDEV-38147.test); here it must be absent on the joiner.
+#
+--let $assert_text = joiner did not seed binlog GTID state in wsrep_gtid_mode=OFF
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.3.err
+--let $assert_select = seeding binlog GTID state
+--let $assert_count = 0
+--source include/assert_grep.inc
+
+#
+# Cleanup.
+#
+--connection node_1
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

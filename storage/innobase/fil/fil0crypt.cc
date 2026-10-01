@@ -2363,6 +2363,9 @@ void fil_crypt_set_thread_cnt(const uint new_cnt)
 	}
 
 	pthread_cond_broadcast(&fil_crypt_threads_cond);
+	/* Thread waiting on fil_crypt_iops_cond too. They must
+	be woken as well */
+	pthread_cond_broadcast(&fil_crypt_iops_cond);
 
 	while (srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		my_cond_wait(&fil_crypt_cond,

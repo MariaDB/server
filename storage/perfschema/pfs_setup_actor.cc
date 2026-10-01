@@ -154,7 +154,7 @@ int insert_setup_actor(const String *user, const String *host, const String *rol
   PFS_setup_actor *pfs;
   pfs_dirty_state dirty_state;
 
-  pfs= global_setup_actor_container.allocate(& dirty_state);
+  pfs= global_setup_actor_container.allocate(& dirty_state, NULL);
   if (pfs != NULL)
   {
     set_setup_actor_key(&pfs->m_key,

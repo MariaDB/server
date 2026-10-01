@@ -1,0 +1,10 @@
+--- secure_file_priv.result
++++ secure_file_priv.reject
+@@ -30,6 +30,6 @@
+ #
+ CREATE TABLE t1 (c1 VARCHAR(50));
+ LOAD DATA INFILE '/proc/cpuinfo' INTO TABLE t1;
+-ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
++ERROR HY000: File 'C:\proc\cpuinfo' not found (Errcode: 2 "No such file or directory")
+ DROP TABLE t1;
+ # End of 10.6 tests

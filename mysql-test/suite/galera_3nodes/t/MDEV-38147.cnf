@@ -1,0 +1,31 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+gtid_strict_mode=ON
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=100
+gtid_domain_id=10
+log_bin
+log_slave_updates=ON
+innodb_flush_log_at_trx_commit=1
+sync_binlog=1
+wsrep_sync_wait=6 # allow SHOW to workaround MDEV-39468 and reproduce "error 1950"
+
+[mysqld.1]
+server_id=11
+
+[mysqld.2]
+server_id=12
+
+[mysqld.3]
+server_id=13
+# Force node_3 to always SST from node_1 (the node on which we freeze a
+# transaction between binary log write and engine commit), so the snapshot
+# node_3 receives is the one whose binary log is ahead of its engine checkpoint.
+wsrep_sst_donor=node1
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream

@@ -482,3 +482,48 @@ drop procedure if exists p1;
 drop function if exists f1;
 drop view if exists t1;
 drop schema if exists mysqltest;
+#
+# MDEV-38472 Assertion `! is_set() || m_can_overwrite_status'
+# failed in Diagnostics_area::set_error_status
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+PREPARE stmt FROM "UPDATE t1 SET a = ? LIMIT ?";
+ALTER TABLE t1 FORCE;
+EXECUTE stmt USING 1, DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, c INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+INSERT INTO t2 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT t1.a, t1.b, t2.c FROM t1 JOIN t2 ON t1.a = t2.a;
+PREPARE stmt FROM "UPDATE v1 SET b = ? LIMIT ?";
+ALTER TABLE t1 FORCE;
+EXECUTE stmt USING 1, DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a INT);
+CREATE TABLE t3 (a INT);
+INSERT INTO t3 VALUES (1),(2),(3);
+PREPARE stmt FROM "INSERT INTO t1 SELECT a FROM t3 LIMIT ?";
+ALTER TABLE t1 FORCE;
+EXECUTE stmt USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t3;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE TABLE t3 (a INT);
+INSERT INTO t3 VALUES (1),(2),(3);
+PREPARE stmt FROM "REPLACE INTO t1 SELECT a FROM t3 LIMIT ?";
+ALTER TABLE t1 FORCE;
+EXECUTE stmt USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t3;
+#
+# End of 10.11 tests
+#

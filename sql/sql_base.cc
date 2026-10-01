@@ -2247,7 +2247,7 @@ retry_share:
       goto retry_share;
     }
 
-    if (thd->open_tables && thd->open_tables->s->tdc->flushed)
+    if (!table_list->sequence && thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*
         If the version changes while we're opening the tables,
@@ -5349,6 +5349,10 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
     if (lock_tables(thd, table->internal_tables, counter,
                     MYSQL_LOCK_USE_MALLOC))
       goto err;
+
+    /* no existing lock to merge with */
+    if (save_lock == nullptr)
+      DBUG_RETURN(0);
 
     if (!(new_lock= mysql_lock_merge(save_lock, thd->lock)))
     {
@@ -9372,17 +9376,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    if (table->vfield && fields.elements)
-    {
-      Item *fld= (Item_field*) fields.head();
-      Item_field *item_field= fld->field_for_view_update();
-      if (item_field)
-      {
-        DBUG_ASSERT(table == item_field->field->table);
-        result|= table->update_virtual_fields(table->file,
-                                              VCOL_UPDATE_FOR_WRITE);
-      }
-    }
+    if (table->vfield)
+      result|= table->update_virtual_fields(table->file,
+                                            VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 }

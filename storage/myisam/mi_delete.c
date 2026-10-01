@@ -767,7 +767,7 @@ err:
 	  returns how many chars was removed or 0 on error
 	*/
 
-#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930
+#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930 && _MSC_VER < 1951
 #pragma optimize("g", off)
 #endif
 
@@ -896,6 +896,6 @@ static uint remove_key(MI_KEYDEF *keyinfo, uint nod_flag,
   DBUG_RETURN((uint) s_length);
 } /* remove_key */
 
-#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930
+#if defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1930 && _MSC_VER < 1951
 #pragma optimize("",on)
 #endif

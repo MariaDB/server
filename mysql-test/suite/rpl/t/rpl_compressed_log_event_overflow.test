@@ -1,0 +1,160 @@
+#
+#   This test verifies that a replica rejects a compressed event whose
+# recorded uncompressed length is larger than the biggest packet the
+# server accepts. A compressed Query event and a compressed Write_rows
+# event are both covered, because the IO thread uncompresses each with
+# its own function. MDEV-39762 reported that the compressed Query event
+# crashed the replica.
+#
+#   A debug injection makes the master write each of those events with
+# a corrupted length field. The event stays in the master's binary log
+# and is resent as it is, so each case moves gtid_slave_pos past it
+# before checking that replication resumes. The sibling .opt file turns
+# on log_bin_compress, without which the master writes no compressed
+# events at all.
+#
+# References:
+#
+#   * MDEV-39762: Slave Overflow on Malformed Query_compressed_log_event
+#
+
+--source include/have_debug.inc
+# Each test case sets the binlog format that its event type needs
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# Test requires slave_pos, as each case recovers by moving gtid_slave_pos
+# past the corrupt event.
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+
+call mtr.add_suppression("Uncompressed data size too large");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+
+--echo #
+--echo # Initialize test data
+--echo #
+--connection master
+# t1 tracks what replicates. t2 takes the corrupt events, and the replica
+# never receives its rows.
+create table t1 (a int);
+create table t2 (a longtext);
+
+# The content must uncompress to far more than the 4096 byte stack buffer
+# that queue_event() passes to the uncompress functions.
+--let $long_value= `SELECT REPEAT('a', 65536)`
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Test Case 1: a compressed Query event
+--echo #
+--connection master
+set @saved_dbug= @@session.debug_dbug;
+set @@session.debug_dbug= "+d,binlog_compress_corrupt_len";
+set @saved_binlog_format= @@session.binlog_format;
+set @@session.binlog_format= STATEMENT;
+# In statement format the compressed content is the query text itself, so
+# the value has to appear in the statement rather than come from repeat().
+--disable_query_log
+--eval insert into t2 values ('$long_value')
+--enable_query_log
+set @@session.binlog_format= @saved_binlog_format;
+set @@session.debug_dbug= @saved_dbug;
+--let $corrupt_gtid_pos= `SELECT @@gtid_binlog_pos`
+
+--connection slave
+--echo # Waiting for the IO thread to reject the compressed Query event
+# The IO thread reports ER_TOO_BIG_FOR_UNCOMPRESS (1256) and then
+# overwrites it with ER_SLAVE_RELAY_LOG_WRITE_FAILURE (1595), so the
+# wait can sample either errno.
+--let $slave_io_errno= 1256, 1595
+--source include/wait_for_slave_io_error.inc
+
+--echo # Ensure the replica rejected the event on its recorded length
+--let $assert_text= The IO thread reported an oversized uncompressed length
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Uncompressed data size too large
+--let $assert_match= Uncompressed data size too large; the maximum size is 1073741824
+--source include/assert_grep.inc
+
+--echo # Move the replica past the corrupt event
+--source include/stop_slave_sql.inc
+--disable_query_log
+--eval SET GLOBAL gtid_slave_pos= '$corrupt_gtid_pos'
+--enable_query_log
+--source include/start_slave.inc
+
+--echo # Ensure replication resumes
+--connection master
+insert into t1 values (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Test Case 2: a compressed Write_rows event
+--echo #
+--connection master
+set @saved_dbug= @@session.debug_dbug;
+set @@session.debug_dbug= "+d,binlog_compress_corrupt_len";
+set @saved_binlog_format= @@session.binlog_format;
+set @@session.binlog_format= ROW;
+# In row format the compressed content is the record, so the statement
+# that writes it can stay short.
+insert into t2 values (repeat('a', 65536));
+set @@session.binlog_format= @saved_binlog_format;
+set @@session.debug_dbug= @saved_dbug;
+--let $corrupt_gtid_pos= `SELECT @@gtid_binlog_pos`
+
+--connection slave
+--echo # Waiting for the IO thread to reject the compressed Write_rows event
+# The IO thread reports ER_TOO_BIG_FOR_UNCOMPRESS (1256) and then
+# overwrites it with ER_SLAVE_RELAY_LOG_WRITE_FAILURE (1595), so the
+# wait can sample either errno.
+--let $slave_io_errno= 1256, 1595
+--source include/wait_for_slave_io_error.inc
+
+--echo # Ensure the replica rejected the event on its recorded length
+--let $assert_text= The IO thread reported an oversized uncompressed length
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Uncompressed data size too large
+--let $assert_match= Uncompressed data size too large; the maximum size is 1073741824
+--source include/assert_grep.inc
+
+--echo # Move the replica past the corrupt event
+--source include/stop_slave_sql.inc
+--disable_query_log
+--eval SET GLOBAL gtid_slave_pos= '$corrupt_gtid_pos'
+--enable_query_log
+--source include/start_slave.inc
+
+--echo # Ensure replication resumes
+--connection master
+insert into t1 values (2);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+drop table t1, t2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_compressed_log_event_overflow.test

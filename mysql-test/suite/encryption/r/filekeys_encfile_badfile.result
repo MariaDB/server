@@ -1,9 +1,46 @@
-call mtr.add_suppression("File 'bad' not found");
+call mtr.add_suppression("File 'bad.key' not found");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
-FOUND 1 /File 'bad' not found/ in mysqld.1.err
+FOUND 1 /File 'bad.key' not found/ in mysqld.1.err
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 select plugin_status from information_schema.plugins
 where plugin_name = 'file_key_management';
 plugin_status
+install soname 'file_key_management';
+ERROR HY000: Cannot decrypt MTR_SUITE_DIR/t/filekeys-data.enc. Wrong key?
+call mtr.add_suppression("Cannot decrypt .*filekeys-data.enc. Wrong key");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+FOUND 1 /Cannot decrypt .*filekeys-data.enc. Wrong key/ in mysqld.1.err
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+select plugin_status from information_schema.plugins
+where plugin_name = 'file_key_management';
+plugin_status
+install soname 'file_key_management';
+ERROR HY000: Cannot read bad.key, the filekey is too long, max secret size is 256B 
+call mtr.add_suppression("the filekey is too long");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+FOUND 1 /the filekey is too long/ in mysqld.1.err
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+select plugin_status from information_schema.plugins
+where plugin_name = 'file_key_management';
+plugin_status
+#
+# MDEV-40658 file_key_management crash on empty FILE: file
+#
+install soname 'file_key_management';
+ERROR HY000: Cannot decrypt MTR_SUITE_DIR/t/filekeys-data.enc. Wrong key?
+call mtr.add_suppression("Cannot decrypt .*filekeys-data.enc. Wrong key");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
+call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+FOUND 1 /Cannot decrypt .*filekeys-data.enc. Wrong key/ in mysqld.1.err
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+select plugin_status from information_schema.plugins
+where plugin_name = 'file_key_management';
+plugin_status
+# End of 10.6 tests

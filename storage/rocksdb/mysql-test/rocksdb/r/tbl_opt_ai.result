@@ -23,6 +23,8 @@ a
 10
 100
 ALTER TABLE t1 AUTO_INCREMENT=50;
+Warnings:
+Note	4190	ALTER TABLE is implicitly changing the value of 'AUTO_INCREMENT' from '50' to '101'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

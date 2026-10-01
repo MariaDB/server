@@ -233,6 +233,7 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     compile_time_assert(QUERY_CACHE_DB_LENGTH_SIZE == 2); 
     db= key + statement_text_length + 1 + QUERY_CACHE_DB_LENGTH_SIZE;
     db_length= uint2korr(db - QUERY_CACHE_DB_LENGTH_SIZE);
+    set_if_smaller(db_length, (size_t)(key + key_length - QUERY_CACHE_FLAGS_SIZE - db));
 
     table->field[COLUMN_STATEMENT_SCHEMA]->store(db, db_length, scs);
 

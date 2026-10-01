@@ -2256,16 +2256,19 @@ static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
 	cannot have purged the BLOBs referenced by that version
 	yet).
 
-	This function does not fetch any BLOBs.  The callers might, by
-	possibly invoking row_ext_create() via row_build().  However,
-	they should have all needed information in the *old_vers
-	returned by this function.  This is because *old_vers is based
-	on the transaction undo log records.  The function
-	trx_undo_page_fetch_ext() will write BLOB prefixes to the
-	transaction undo log that are at least as long as the longest
-	possible column prefix in a secondary index.  Thus, secondary
-	index entries for *old_vers can be constructed without
-	dereferencing any BLOB pointers. */
+	This function does not fetch any BLOBs, but the callers might,
+	by invoking row_ext_create() via row_build().  Both (a) and (b)
+	are statements about purge_sys.view, and they cover a reference
+	that the version merely inherited only if no transaction whose
+	undo log record was applied on the way down is visible to that
+	view, because one of those records disowned the reference.  Such
+	a caller must therefore freeze purge_sys.view across the
+	dereference, by holding purge_sys.latch or by being a purge task,
+	and establish that condition under the freeze.  Testing the
+	oldest writer applied suffices: a newer version can only have
+	been written once the older writer released the exclusive lock on
+	the record, so a view that sees a newer writer saw the older one
+	end before the view was created. */
 
 	ptr = trx_undo_rec_skip_row_ref(ptr, index);
 
@@ -2281,18 +2284,12 @@ static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
 		records in secondary indexes, it normally covers some
 		history that is already being purged. This is safe as
 		long as the undo log records have not been freed yet.
+		Whether the externally stored columns of the version
+		built here may still be dereferenced is left to the
+		caller, the only one that knows whether it will
+		dereference any and can test that atomically with it.
 
-		However, BLOBs are only safe to access as long as the
-		purge_sys.view does not permit them to be freed. The
-		check.latch will freeze the purge_sys.view by blocking
-		purge_sys.clone_oldest_view() at the start of
-		trx_purge() or by blocking purge_sys.batch_cleanup()
-		at the end of trx_purge(). */
-		if (check.is_extended() && purge_sys.is_purgeable(trx_id)) {
-			return DB_SUCCESS;
-		}
-
-		/* We should confirm the existence of disowned external data,
+		We should confirm the existence of disowned external data,
 		if the previous version record is delete marked. If the trx_id
 		of the previous record is seen by purge view, we should treat
 		it as missing history, because the disowned external data

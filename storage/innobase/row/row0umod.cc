@@ -520,6 +520,11 @@ static bool row_undo_mod_sec_is_unsafe(const rec_t *rec, dict_index_t *index,
 	version = rec;
 
 	for (;;) {
+		/* The writer of version, whose undo log record rebuilds the
+		next one. Read before the heap holding version is freed. */
+		const trx_id_t version_trx_id = row_get_rec_trx_id(
+			version, clust_index, clust_offsets);
+
 		heap2 = heap;
 		heap = mem_heap_create(1024);
 		vrow = NULL;
@@ -566,12 +571,54 @@ nochange_index:
 		if (!rec_get_deleted_flag(prev_version, comp)) {
 			row_ext_t*	ext;
 
-			/* The stack of versions is locked by mtr.
-			Thus, it is safe to fetch the prefixes for
-			externally stored columns. */
-			row = row_build(ROW_COPY_POINTERS, clust_index,
-					prev_version, clust_offsets,
-					NULL, NULL, NULL, &ext, heap);
+			const bool extern_cols =
+				rec_offs_any_extern(clust_offsets);
+
+			if (!extern_cols
+			    || DBUG_IF("purge_no_blob_freeze")) {
+				/* Nothing to dereference: the stack of
+				versions being locked by mtr is enough.
+				purge_no_blob_freeze sends a version that does
+				have externally stored columns here as well,
+				which is how the dereference below behaved
+				before it was protected. */
+				if (extern_cols) {
+					DEBUG_SYNC_C(
+					"row_undo_mod_sec_is_unsafe_row_build");
+				}
+				row = row_build(ROW_COPY_POINTERS, clust_index,
+						prev_version, clust_offsets,
+						NULL, NULL, NULL, &ext, heap);
+			} else {
+				/* Freeze purge_sys.view across the
+				dereference and confirm that purge cannot see
+				the writer of version, the oldest one this
+				walk has applied. If it can, stop and report
+				the secondary index entry as still needed,
+				which is the conservative answer. Only the
+				dereference needs the freeze: the prefixes end
+				up copied into heap. */
+				purge_sys_t::view_guard freeze{
+					purge_sys_t::view_guard::VIEW};
+
+				/* row_undo_mod_sec_is_unsafe_purgeable forces
+				this branch, which is otherwise reached only
+				when the view advances between the walk
+				starting and the freeze. */
+				if (freeze.view().changes_visible(
+					    version_trx_id)
+				    || DBUG_IF(
+				    "row_undo_mod_sec_is_unsafe_purgeable")) {
+					break;
+				}
+
+				DEBUG_SYNC_C(
+					"row_undo_mod_sec_is_unsafe_row_build");
+
+				row = row_build(ROW_COPY_POINTERS, clust_index,
+						prev_version, clust_offsets,
+						NULL, NULL, NULL, &ext, heap);
+			}
 
 			if (dict_index_has_virtual(index)) {
 				ut_ad(cur_vrow);

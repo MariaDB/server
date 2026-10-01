@@ -1,0 +1,198 @@
+#
+# MDEV-38147 - Mariadb error 1950 after SST
+#
+# Here a single transaction is frozen on the donor in the 2PC window between
+# the binary log write (step 2) and the engine commit (step 3), while a
+# mariabackup SST to a joiner is paused just before it fixes its redo-log
+# copy point. That makes the copied binary log carry a Gtid_list ahead of
+# the copied engine snapshot - exactly the condition the bug is about.
+#
+# The bug:
+#
+# BACKUP STAGE BLOCK_COMMIT fixes the InnoDB redo copy point but does not stop
+# a wsrep transaction from having its GTID written to the binary log before it
+# commits in the engine. So the copied binary log can carry a Gtid_list ahead
+# of the copied engine snapshot. After the SST the joiner reports the
+# (committed, behind) engine position, IST resends the missing transaction, and
+# re-binlogging it under gtid_strict_mode=ON collides with the ahead Gtid_list
+# -> ER_GTID_STRICT_OUT_OF_ORDER (error 1950), and the joiner never reaches
+# synced state. (The same snapshot also captures the transaction in the InnoDB
+# XA-prepared state, i.e. the MDEV-40179 condition.)
+#
+# The fix makes the joiner discard the received binary log and seed its GTID
+# position from the engine checkpoint, so re-binlogging over IST stays in
+# lockstep with the cluster and node_3 rejoins cleanly.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source include/have_debug_sync.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values so that MTR's post-check is
+# happy after node_3 has been restarted.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--echo # gtid_strict_mode must be enabled on all nodes
+SELECT @@global.gtid_strict_mode AS gtid_strict_mode;
+
+--connection node_1
+--disable_query_log
+CREATE TABLE t1 (pk BIGINT AUTO_INCREMENT PRIMARY KEY, val INT) ENGINE=InnoDB;
+--enable_query_log
+
+# Make sure the schema reached all nodes before we purge node_3.
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+#
+# Stop node_3 and purge its data directory so that rejoining forces a full
+# mariabackup SST.
+#
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.3/data
+
+#
+# Arm the donor-side backup sync point: mariabackup will pause after
+# BACKUP STAGE BLOCK_DDL, before BLOCK_COMMIT (which fixes the redo copy point).
+#
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL debug_dbug = '+d,sync.after_mdl_block_ddl';
+
+#
+# Start node_3 WITHOUT waiting for it to become ready: it rejoins via a
+# mariabackup SST from node_1, whose donor backup pauses at the sync point armed
+# above. We must not block on node_3 here, because releasing that pause (and
+# everything that lets node_3 finish) happens below on the node_1 connection.
+# So just trigger the restart via the expect file and continue.
+#
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--write_line restart $_expect_file_name
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR sync.after_mdl_block_ddl_reached';
+
+#
+# Freeze one transaction between binary log write and engine commit.
+# commit_before_get_LOCK_commit_ordered is reached after the GTID/Xid events
+# have been written and fsync'd to the binary log but before the engine commit.
+#
+--connect node_1_freeze, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1_freeze
+SET DEBUG_SYNC = 'commit_before_get_LOCK_commit_ordered SIGNAL t_frozen WAIT_FOR t_go';
+--send INSERT INTO t1 (val) VALUES (1)
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR t_frozen';
+
+#
+# Let mariabackup continue. It fixes the redo copy point at BLOCK_COMMIT with
+# the frozen transaction still in-doubt (so it is excluded from the engine
+# snapshot), then issues "FLUSH BINARY LOGS" while shipping the binary log,
+# which blocks on the in-doubt transaction's binary log checkpoint.
+#
+SET DEBUG_SYNC = 'now SIGNAL signal.after_mdl_block_ddl_continue';
+
+--let $wait_condition = SELECT COUNT(*) >= 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'FLUSH BINARY LOGS%'
+--source include/wait_condition.inc
+
+#
+# Release the frozen transaction. Its engine commit happens now - after the
+# redo copy point was fixed - so it is absent from the copied engine snapshot
+# while present in the shipped binary log's Gtid_list.
+#
+SET DEBUG_SYNC = 'now SIGNAL t_go';
+
+--connection node_1_freeze
+--reap
+--connection node_1
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = '';
+
+#
+# node_3 must rejoin and the cluster must reconverge to three nodes.
+#
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Re-establish the node_3 client connection (it was started without waiting).
+--connection node_3
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+--connection node_1
+--source include/galera_wait_ready.inc
+--connection node_2
+--source include/galera_wait_ready.inc
+--connection node_3
+--source include/galera_wait_ready.inc
+
+#
+# Verify data / GTID consistency across all nodes. node_1 is the origin of the
+# highest GTID, so node_2 and node_3 are waited *up* to node_1's position.
+#
+--connection node_1
+SET SESSION wsrep_sync_wait = 15;
+SELECT VARIABLE_VALUE AS wsrep_cluster_size FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--let $expect_count = `SELECT COUNT(*) FROM t1`
+--let $expect_sum   = `SELECT COALESCE(SUM(pk), 0) + COALESCE(SUM(val), 0) FROM t1`
+# Compare only the wsrep domain (wsrep_gtid_domain_id) of gtid_binlog_pos - that
+# is the part the whole cluster shares; other domains are node-local.
+--let $wsrep_dom = `SELECT @@global.wsrep_gtid_domain_id`
+--let $expect_gtid = `SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos, '(?<![0-9])$wsrep_dom-[0-9]+-[0-9]+')`
+
+--connection node_3
+SET SESSION wsrep_sync_wait = 15;
+--let $wait_condition = SELECT COUNT(*) = $expect_count FROM t1
+--source include/wait_condition.inc
+--let $wait_condition = SELECT REGEXP_SUBSTR(@@global.gtid_binlog_pos, '(?<![0-9])$wsrep_dom-[0-9]+-[0-9]+') = '$expect_gtid'
+--source include/wait_condition.inc
+--disable_query_log
+--eval SELECT $expect_count = (SELECT COUNT(*) FROM t1) AS count_match, $expect_sum = (SELECT COALESCE(SUM(pk), 0) + COALESCE(SUM(val), 0) FROM t1) AS checksum_match, '$expect_gtid' = REGEXP_SUBSTR(@@global.gtid_binlog_pos, '(?<![0-9])$wsrep_dom-[0-9]+-[0-9]+') AS gtid_match
+# The joiner intentionally warns when it rolls back the orphan prepared wsrep
+# transaction during recovery (MDEV-40179); it is re-applied over IST.
+CALL mtr.add_suppression("Rolled back orphan prepared wsrep transaction");
+--enable_query_log
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 15;
+--let $wait_condition = SELECT COUNT(*) = $expect_count FROM t1
+--source include/wait_condition.inc
+--disable_query_log
+--eval SELECT $expect_count = (SELECT COUNT(*) FROM t1) AS count_match, $expect_sum = (SELECT COALESCE(SUM(pk), 0) + COALESCE(SUM(val), 0) FROM t1) AS checksum_match, '$expect_gtid' = REGEXP_SUBSTR(@@global.gtid_binlog_pos, '(?<![0-9])$wsrep_dom-[0-9]+-[0-9]+') AS gtid_match
+--enable_query_log
+
+#
+# Cleanup.
+#
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

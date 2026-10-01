@@ -782,3 +782,22 @@ a	c1
 Warnings:
 Warning	1292	Incorrect datetime value: '0'
 DROP TABLE t1;
+#
+# MDEV-40480 LOAD DATA leaves a stale STORED generated column after a
+#            BEFORE INSERT trigger changes its base column
+#
+create table t (
+id   int primary key,
+v    int not null,
+g    int generated always as (v * 2) stored,
+note varchar(20)
+) engine=innodb;
+create trigger t_bi before insert on t for each row set new.v = 20;
+select 2, 12, 'new' into outfile 'load_40480';
+load data infile 'load_40480' into table t (id, v, note);
+# The trigger sets v=20, so the STORED column g must be v*2 = 40, not 24.
+select * from t;
+id	v	g	note
+2	20	40	new
+drop table t;
+# End of 10.11 tests

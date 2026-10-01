@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: Will never receive state. Need to abort.");
+connection node_2;
+# Force a fresh SST on node_2
+# Start node_2 with stunnel simulated as missing
+# node_2 failed to start, as expected
+# Joiner refused the SST instead of running unencrypted
+FOUND 1 /ssl-mode is set to .REQUIRED., but the .stunnel. binary was not found/ in mysqld.2.err
+# Restart node_2 normally so it rejoins
+connection node_2;
+call mtr.add_suppression("WSREP_SST:");
+call mtr.add_suppression("WSREP: Process completed with error:");
+call mtr.add_suppression("WSREP: Failed to read .ready <addr>.");
+call mtr.add_suppression("WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script.");
+call mtr.add_suppression("WSREP: Failed to read state from: .*");
+call mtr.add_suppression("WSREP: Failed to prepare for .*");
+call mtr.add_suppression("WSREP: SST failed:.*");
+call mtr.add_suppression("WSREP: SST request callback failed. This is unrecoverable, restart required.");
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP: Requesting state transfer failed:.*");
+connection node_1;

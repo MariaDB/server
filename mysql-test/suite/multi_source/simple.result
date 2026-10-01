@@ -453,6 +453,9 @@ Executed_log_entries	7
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
 Gtid_Slave_Pos	
+#
+# MDEV-40996: the connection name may be given as a variable
+#
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'slave2' stopped

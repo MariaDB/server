@@ -487,10 +487,19 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   unsigned char compress;
   my_bool pkt_nr_can_be_reset;
-  /* Bits: NET_PROXY_PROTOCOL, NET_PROXY_PROTOCOL_CONNECT_ERRORS */
-  my_bool using_proxy_protocol;
+  /* Bits: NET_PROXY_PROTOCOL, NET_PROXY_PROTOCOL_CONNECT_ERRORS,
+     NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED, NET_PROXY_PROTOCOL_HOST_BLOCKED */
+  unsigned char using_proxy_protocol;
 #define NET_PROXY_PROTOCOL 1
 #define NET_PROXY_PROTOCOL_CONNECT_ERRORS 2
+/*
+  A PROXY-header-derived peer address failed the "host privileged"/"host
+  blocked" check; rejection is deferred until the client's handshake
+  response is parsed, after SSL if requested, instead of being sent in
+  clear text right away.
+*/
+#define NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED 4
+#define NET_PROXY_PROTOCOL_HOST_BLOCKED 8
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet

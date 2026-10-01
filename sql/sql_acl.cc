@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3797,7 +3797,7 @@ privilege_t acl_get(const char *host, const char *ip,
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  tmp_db= strmov(strmov(key, safe_str(ip)) + 1, user) + 1;
+  tmp_db= strmov(strmov(key, safe_str(ip ? ip : host)) + 1, user) + 1;
   end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
 
   if (end >= key + sizeof(key)) // db name was truncated
@@ -9613,8 +9613,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   {
     *username= lex_user->user.str;
     *hostname= lex_user->host.str;
-    do_check_access= strcmp(*username, sctx->priv_user) ||
-                     strcmp(*hostname, sctx->priv_host);
+    do_check_access= !sctx->is_priv_user(*username, *hostname);
   }
 
   if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
@@ -11923,6 +11922,61 @@ Silence_routine_definer_errors::handle_condition(
 }
 
 
+/*
+  The low level function to revoke routine privileges for the given sp handler
+  @param thd         the thd
+  @param proc_privs  the table mysql.proc_privs
+  @param sp_db       the routine database
+  @param sp_name     the routine name
+  @param sph         the sp handler
+*/
+static void sp_revoke_privileges_for_handler(THD *thd, TABLE *proc_privs,
+#if MYSQL_VERSION_ID < 110501
+                                             const char *sp_db,
+                                             const char *sp_name,
+#else
+#error Remove the above conditional code
+                                             const Lex_ident_db &sp_db,
+                                             const Lex_ident_routine &sp_name,
+#endif
+                                             const Sp_handler *sph)
+{
+  uint counter, revoked;
+  HASH *hash= sph->get_priv_hash();
+  do
+  {
+    for (counter= 0, revoked= 0 ; counter < hash->records ; )
+    {
+      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
+#if MYSQL_VERSION_ID < 110501
+      if (!my_strcasecmp(&my_charset_utf8mb3_bin, grant_proc->db, sp_db) &&
+	  !my_strcasecmp(system_charset_info, grant_proc->tname, sp_name))
+#else
+#error Remove the above conditional code
+      if (sp_db.streq(Lex_cstring_strlen(grant_proc->db)) &&
+          sp_name.streq(Lex_cstring_strlen(grant_proc->tname)))
+#endif
+      {
+        LEX_USER lex_user;
+	lex_user.user.str= grant_proc->user;
+	lex_user.user.length= strlen(grant_proc->user);
+        lex_user.host.str= safe_str(grant_proc->host.hostname);
+        lex_user.host.length= strlen(lex_user.host.str);
+        if (replace_routine_table(thd, grant_proc,
+                                  proc_privs, lex_user,
+                                  grant_proc->db, grant_proc->tname,
+                                  sph, ALL_KNOWN_ACL, 1) == 0)
+	{
+	  revoked= 1;
+	  continue;
+	}
+      }
+      counter++;
+    }
+  } while (revoked);
+}
+
+
 /**
   Revoke privileges for all users on a stored procedure.  Use an error handler
   that converts errors about missing grants into warnings.
@@ -11943,9 +11997,7 @@ Silence_routine_definer_errors::handle_condition(
 bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
                           const Sp_handler *sph)
 {
-  uint counter, revoked;
   int result;
-  HASH *hash= sph->get_priv_hash();
   Silence_routine_definer_errors error_handler;
   DBUG_ENTER("sp_revoke_privileges");
 
@@ -11965,31 +12017,12 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
   mysql_mutex_lock(&acl_cache->lock);
 
   /* Remove procedure access */
-  do
-  {
-    for (counter= 0, revoked= 0 ; counter < hash->records ; )
-    {
-      GRANT_NAME *grant_proc= (GRANT_NAME*) my_hash_element(hash, counter);
-      if (!my_strcasecmp(&my_charset_utf8mb3_bin, grant_proc->db, sp_db) &&
-	  !my_strcasecmp(system_charset_info, grant_proc->tname, sp_name))
-      {
-        LEX_USER lex_user;
-	lex_user.user.str= grant_proc->user;
-	lex_user.user.length= strlen(grant_proc->user);
-        lex_user.host.str= safe_str(grant_proc->host.hostname);
-        lex_user.host.length= strlen(lex_user.host.str);
-        if (replace_routine_table(thd, grant_proc,
-                                  tables.procs_priv_table().table(), lex_user,
-                                  grant_proc->db, grant_proc->tname,
-                                  sph, ALL_KNOWN_ACL, 1) == 0)
-	{
-	  revoked= 1;
-	  continue;
-	}
-      }
-      counter++;
-    }
-  } while (revoked);
+  if (sph == &sp_handler_package_spec)
+    sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                     sp_db, sp_name, &sp_handler_package_body);
+
+  sp_revoke_privileges_for_handler(thd, tables.procs_priv_table().table(),
+                                   sp_db, sp_name, sph);
 
   mysql_mutex_unlock(&acl_cache->lock);
   mysql_rwlock_unlock(&LOCK_grant);
@@ -14036,6 +14069,18 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     }
   }
 
+  /* Deferred host check from thd_set_peer_addr(), raised here instead,
+     now that SSL (if requested) has already been negotiated. */
+  if (net->using_proxy_protocol &
+     (NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED | NET_PROXY_PROTOCOL_HOST_BLOCKED))
+  {
+    myf flag= MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0);
+    uint err= (net->using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED) ?
+      ER_HOST_IS_BLOCKED : ER_HOST_NOT_PRIVILEGED;
+    my_error(err, flag, thd->main_security_ctx.host_or_ip);
+    return packet_error;
+  }
+
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
@@ -14414,6 +14459,76 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
   mpvio_info(mpvio->auth_info.thd->net.vio, info);
 }
 
+#ifdef HAVE_OPENSSL
+/*
+  Whether the linked library's X509_NAME_oneline() backslash-escapes a
+  literal '/' or '+' inside an RDN value. True for OpenSSL >= 3.0.0.
+  False for OpenSSL < 3.0 and WolfSSL, which never escapes (reported
+  upstream: wolfSSL/wolfssl#11392).
+*/
+#if !defined(HAVE_WOLFSSL) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+#define X509_LIB_ESCAPES_SEPARATORS 1
+#else
+#define X509_LIB_ESCAPES_SEPARATORS 0
+#endif
+
+/**
+  Compare two X509_NAME_oneline() strings where only one side may carry
+  a backslash-escape before a literal '/' or '+'.
+
+  @param escaped  name that may contain a backslash before '/' or '+'
+  @param raw      name that never does
+
+  @return same sign convention as strcmp()
+*/
+static int x509_cmp_escaped_raw(const char *escaped, const char *raw)
+{
+  for (;;)
+  {
+    if (*escaped == '\\' && (escaped[1] == '/' || escaped[1] == '+'))
+      escaped++;
+    if (*escaped != *raw)
+      return (unsigned char) *escaped - (unsigned char) *raw;
+    if (*escaped == '\0')
+      return 0;
+    escaped++;
+    raw++;
+  }
+}
+
+/**
+  Compare a REQUIRE ISSUER/SUBJECT value against a certificate's
+  X509_NAME_oneline() rendering.
+
+  strcmp(), unless that fails and lenient is set: then fall back to
+  x509_cmp_escaped_raw(), applied to whichever side the currently-linked
+  library's own escaping puts the backslash on. lenient is opt-in
+  (old_mode=X509_LENIENT_COMPARE), since it reintroduces ambiguity
+  between an escaped literal '/' or '+' and a real separator.
+
+  @param stored   the REQUIRE ISSUER/SUBJECT value from ACL_USER
+  @param cert     X509_NAME_oneline() of the connecting certificate
+  @param lenient  @@old_mode & OLD_MODE_X509_LENIENT_COMPARE
+
+  @return 0 if they match, non-zero otherwise
+*/
+static int my_x509_oneline_cmp(const char *stored, const char *cert,
+                                bool lenient)
+{
+  int c;
+  if (!stored || !cert)
+    return stored != cert;
+  c= strcmp(stored, cert);
+  if (!c || !lenient)
+    return c;
+#if X509_LIB_ESCAPES_SEPARATORS
+  return x509_cmp_escaped_raw(cert, stored);   /* cert is canonically escaped */
+#else
+  return x509_cmp_escaped_raw(stored, cert);   /* cert never escapes */
+#endif
+}
+#endif /* HAVE_OPENSSL */
+
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
   Vio *vio= thd->net.vio;
@@ -14493,13 +14608,15 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
+    bool x509_lenient_compare=
+      (thd->variables.old_behavior & OLD_MODE_X509_LENIENT_COMPARE) != 0;
     /* If X509 issuer is specified, we check it... */
     if (acl_user->x509_issuer[0])
     {
       char *ptr= X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing issuers: '%s' and '%s'",
                          acl_user->x509_issuer, ptr));
-      if (strcmp(acl_user->x509_issuer, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_issuer, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
@@ -14516,7 +14633,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       char *ptr= X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing subjects: '%s' and '%s'",
                          acl_user->x509_subject, ptr));
-      if (strcmp(acl_user->x509_subject, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_subject, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
@@ -14739,7 +14856,18 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_auth_plugin= 1;
       break;
     case CR_AUTH_HANDSHAKE:
-      errors.m_handshake= 1;
+      /*
+        A deferred PROXY host-check rejection lands here as a generic
+        handshake failure; attribute it like the check itself would
+        have, not as m_handshake - that feeds max_connect_errors, which
+        host-privilege/host-blocked failures never did.
+      */
+      if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED)
+        errors.m_host_blocked= 1;
+      else if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED)
+        errors.m_host_acl= 1;
+      else
+        errors.m_handshake= 1;
       break;
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;

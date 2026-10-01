@@ -501,8 +501,11 @@ void mtr_t::commit()
       ut_ad(!m_freed_pages->empty());
       ut_ad(m_freed_space == fil_system.temp_space);
       ut_ad(!m_trim_pages);
-      for (const auto &range : *m_freed_pages)
-        m_freed_space->add_free_range(range);
+      {
+        std::lock_guard<std::mutex> freed_lock(m_freed_space->freed_range_mutex);
+        for (const auto &range : *m_freed_pages)
+          m_freed_space->add_free_range(range);
+      }
       delete m_freed_pages;
       m_freed_pages= nullptr;
       m_freed_space= nullptr;

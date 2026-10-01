@@ -1,0 +1,18 @@
+CHANGE MASTER TO master_host='127.0.0.1', master_user='root';
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
+SET @@SESSION.debug_sync=
+'hold_sss_with_run_lock SIGNAL sss_got_run_lock WAIT_FOR sss_continue';
+SHOW SLAVE STATUS;
+connect  stopper, 127.0.0.1, root, , , $SERVER_MYPORT_1;
+SET @@SESSION.debug_sync= 'now WAIT_FOR sss_got_run_lock';
+STOP SLAVE SQL_THREAD;
+connect  continuer, 127.0.0.1, root, , , $SERVER_MYPORT_1;
+SET @@SESSION.debug_sync= 'now SIGNAL sss_continue';
+connection stopper;
+disconnect continuer;
+connection default;
+disconnect stopper;
+SET @@SESSION.debug_sync= RESET;
+include/wait_for_slave_sql_to_stop.inc
+RESET SLAVE ALL;

@@ -45,6 +45,21 @@ json_normalize('{ "invalid": "no_close"')
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
+select json_normalize('');
+json_normalize('')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
+select json_normalize('   ');
+json_normalize('   ')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_normalize'
+select json_normalize('123 garbage');
+json_normalize('123 garbage')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_normalize' at position 5
 drop table t1;
 drop view v1;
 create table t1 (text varchar(200) character set 'latin1');

@@ -173,6 +173,34 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
 
 PSI_memory_key key_memory_table_def_memory;
 
+uint table_def::field_metadata_length(uint binlog_type)
+{
+  switch (static_cast<enum_field_types>(binlog_type)) {
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_DOUBLE:
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_GEOMETRY:
+  case MYSQL_TYPE_TIME2:
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIMESTAMP2:
+    return 1;
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_ENUM:
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_NEWDECIMAL:
+    return 2;
+  default:
+    return 0;
+  }
+}
+
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
                      uchar *null_bitmap, uint16 flags)

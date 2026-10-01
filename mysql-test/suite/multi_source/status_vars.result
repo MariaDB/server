@@ -52,9 +52,7 @@ Variable_name	Value
 Slave_received_heartbeats	0
 start slave;
 include/wait_for_slave_to_start.inc
-show status like 'Slave_received_heartbeats';
-Variable_name	Value
-Slave_received_heartbeats	2
+include/assert.inc [Slave_received_heartbeats is non-zero for the default connection]
 stop slave;
 include/wait_for_slave_to_stop.inc
 set default_master_connection = 'master1';
@@ -66,9 +64,7 @@ include/wait_for_slave_to_stop.inc
 change master to master_heartbeat_period=2;
 start slave;
 include/wait_for_slave_to_start.inc
-show status like 'Slave_received_heartbeats';
-Variable_name	Value
-Slave_received_heartbeats	1
+include/assert.inc [Slave_received_heartbeats is non-zero for the default connection]
 #
 # Slave_open_temp_tables should be global
 #

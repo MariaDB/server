@@ -245,6 +245,14 @@ DECLARE a mysql_json;
 END;
 $$
 ERROR HY000: 'MYSQL_JSON' is not allowed in this context
-#
 # End of 10.5 tests
 #
+# MDEV-40678 mysql_json plugin OOB reads
+#
+alter table t1 force;
+ERROR HY000: Error parsing MySQL JSON format, please dump this table from MySQL and then restore it to be able to use it in MariaDB.
+flush tables;
+alter table t1 force;
+ERROR HY000: Error parsing MySQL JSON format, please dump this table from MySQL and then restore it to be able to use it in MariaDB.
+drop table t1;
+# End of 10.6 tests

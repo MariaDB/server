@@ -723,7 +723,7 @@ The following specify which files/extra groups are read (specified before remain
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: NO_DUP_KEY_WARNINGS_WITH_IGNORE,
  NO_PROGRESS_INFO, ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3, IGNORE_INDEX_ONLY_FOR_JOIN,
- COMPAT_5_1_CHECKSUM, NO_NULL_COLLATION_IDS
+ COMPAT_5_1_CHECKSUM, NO_NULL_COLLATION_IDS, X509_LENIENT_COMPARE
  Use 'ALL' to set all combinations.
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
@@ -1216,7 +1216,8 @@ The following specify which files/extra groups are read (specified before remain
  (Defaults to on; use --skip-secure-auth to disable.)
  --secure-file-priv=name 
  Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to
- files within specified directory
+ files within specified directory. Empty value means no
+ limits except /proc
  --secure-timestamp=name 
  Restricts direct setting of a session timestamp. Possible
  levels are: YES - timestamp cannot deviate from the

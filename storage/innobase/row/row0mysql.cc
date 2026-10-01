@@ -2081,6 +2081,8 @@ row_create_table_for_mysql(
 
 	que_run_threads(thr);
 
+	DEBUG_SYNC_C("create_table_inserted");
+
 	dberr_t err = trx->error_state;
 
 	if (err != DB_SUCCESS) {

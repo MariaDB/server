@@ -14,6 +14,7 @@
 # [Warning] Host name 'santa.claus.ipv4.example.com' could not be resolved:
 # Temporary failure in name resolution
 call mtr.add_suppression("santa.claus.ipv4.example.com");
+call mtr.add_suppression("Host '192.0.2.4' is not allowed to connect to this MariaDB server");
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc

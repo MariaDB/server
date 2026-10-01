@@ -23,7 +23,8 @@ CREATE EVENT e
 
 # Wait until the event worker appears in PROCESSLIST for the current user
 let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
-                     WHERE INFO LIKE '%SLEEP(10000)%' AND ID <> CONNECTION_ID();
+                     WHERE INFO LIKE '%SLEEP(10000)%' AND ID <> CONNECTION_ID()
+                       AND STATE='User sleep';
 --source include/wait_condition.inc
 
 # Check that show processlist works

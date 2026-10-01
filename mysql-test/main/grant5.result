@@ -494,6 +494,34 @@ CREATE USER for u2@localhost
 CREATE USER `u2`@`localhost` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
 drop user u1@localhost;
 drop user u2@localhost;
+#
+# MDEV-40541 role vs user@localhost acl_cache key confusion
+#
+create database db;
+create table db.t1(a varchar(40));
+insert into db.t1 values ('role-cache-collision-row');
+create role r1;
+create user r1@localhost identified by 'r1pass';
+create user u1@'127.0.0.1' identified by 'u1pass';
+grant select on db.* to r1@localhost;
+grant r1 to u1@'127.0.0.1';
+connect r1,localhost,r1,r1pass;
+select a as precache from db.t1;
+precache
+role-cache-collision-row
+connect u1,127.0.0.1,u1,u1pass;
+set role r1;
+show grants;
+Grants for u1@127.0.0.1
+GRANT `r1` TO `u1`@`127.0.0.1`
+GRANT USAGE ON *.* TO `u1`@`127.0.0.1` IDENTIFIED BY PASSWORD '*4C5C0A2C80D7567C7CFBDFC09409901AADC4B390'
+GRANT USAGE ON *.* TO `r1`
+select a from db.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db`.`t1`
+connection default;
+drop database db;
+drop role r1;
+drop user r1@localhost, u1@'127.0.0.1';
 # End of 10.6 tests
 #
 # MDEV-37256: The permission check of LOAD INDEX INTO CACHE and CACHE INDEX is broken

@@ -4497,7 +4497,8 @@ static int i_s_sys_error_handling(int err, THD *thd)
 @param rec       record to read from (nullptr=use the dict_sys cache)
 @param table     the converted dict_table_t
 @return error message
-@retval nullptr on success */
+@retval nullptr on success, or if the record is not visible, in
+which case *table will be nullptr*/
 static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, mtr_t *mtr,
                                       const rec_t *rec, dict_table_t **table)
 {
@@ -4560,7 +4561,7 @@ i_s_sys_tables_fill_table(
 		}
 
 		const char*	err_msg;
-		dict_table_t*	table_rec;
+		dict_table_t*	table_rec = nullptr;
 
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
@@ -4568,20 +4569,18 @@ i_s_sys_tables_fill_table(
 		mtr.commit();
 		dict_sys.unlock();
 
-		if (!err_msg) {
+		if (err_msg) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					    ER_CANT_FIND_SYSTEM_REC, "%s",
+					    err_msg);
+		} else if (table_rec) {
 			err = i_s_dict_fill_sys_tables(
 				thd, table_rec, tables->table);
 			if (err) {
 				err = i_s_sys_error_handling(err, thd);
-				if (table_rec) {
-					dict_mem_table_free(table_rec);
-				}
+				dict_mem_table_free(table_rec);
 				goto func_exit;
 			}
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
 		}
 
 		if (table_rec) {

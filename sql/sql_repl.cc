@@ -223,6 +223,24 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   String *packet= info->packet;
   ha_checksum crc= 0;
 
+#ifndef DBUG_OFF
+  /*
+    Name a binary log file longer than any file name a replica can hold, to
+    test that a replica bounds the event before copying it into a buffer of
+    its own. The length is a large multiple of FN_REFLEN rather than one byte
+    over it, so that the copy of a replica missing the bound runs past its
+    whole stack frame. An overrun of a few hundred bytes only reaches the
+    buffers next to the target, which that replica never reads on this path.
+    The name is replaced here, ahead of the header, so that both the event
+    length the header carries and the checksum below cover it.
+  */
+  static char oversized_ident[32 * FN_REFLEN];
+  DBUG_EXECUTE_IF("binlog_sender_oversized_fake_rotate",
+                  memset(oversized_ident, 'a', sizeof(oversized_ident));
+                  p= oversized_ident;
+                  ident_len= (uint) sizeof(oversized_ident););
+#endif
+
   /* reset transmit packet for the fake rotate event below */
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
@@ -863,10 +881,28 @@ static int send_heartbeat_event(binlog_send_info *info,
     event_len+= HB_SUB_HEADER_LEN;
   }
 
+  size_t hb_header_len= sizeof(header);
+#ifndef DBUG_OFF
+  /*
+    Corrupt the heartbeat event to test that a replica can correctly identify
+    malformed events. 17 bytes keeps LOG_POS_OFFSET on the wire and clears
+    queue_event()'s minimum length, so the heartbeat parser rejects it.
+    13 bytes falls under that minimum, so queue_event() rejects it first.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_truncated_heartbeat", hb_header_len= 17;);
+  DBUG_EXECUTE_IF("binlog_sender_undersized_heartbeat", hb_header_len= 13;);
+  if (hb_header_len != sizeof(header))
+  {
+    ident_len= 0;
+    event_len= hb_header_len + (sub_header_in_use ? HB_SUB_HEADER_LEN : 0) +
+      (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  }
+#endif
+
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
-  packet->append(header, sizeof(header));
+  packet->append(header, hb_header_len);
   if (sub_header_in_use)
     packet->append(sub_header_buf, sizeof(sub_header_buf));
   packet->append(p, ident_len);                    // log_file_name
@@ -874,7 +910,7 @@ static int send_heartbeat_event(binlog_send_info *info,
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
-    ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
+    ha_checksum crc= my_checksum(0, (uchar*) header, hb_header_len);
     if (sub_header_in_use)
       crc= my_checksum(crc, (uchar*) sub_header_buf, sizeof(sub_header_buf));
     crc= my_checksum(crc, (uchar*) p, ident_len);
@@ -1511,10 +1547,10 @@ gtid_state_from_pos(const char *name, uint32 offset,
         goto end;
       }
 
-      current_checksum_alg= get_checksum_alg((uchar*) packet.ptr(),
-                                             packet.length());
       found_format_description_event= true;
-      if (unlikely(!(tmp= new Format_description_log_event((uchar*) packet.ptr(),
+      if (unlikely(get_checksum_alg((uchar*) packet.ptr(), packet.length(),
+                                    &current_checksum_alg) ||
+                   !(tmp= new Format_description_log_event((uchar*)packet.ptr(),
                                                            packet.length(),
                                                            fdev))))
       {
@@ -2035,6 +2071,161 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return "run 'before_send_event' hook failed";
   }
 
+#ifndef DBUG_OFF
+  /*
+    Declare a length in the event's header that differs from the number of
+    bytes the packet carries, to test that a replica reconciles the two
+    lengths before relay logging the event. Real Rotate events carry this
+    injection, which keeps the injection on one event of a known length
+    instead of on every event of the connection. Eight bytes moves the
+    declared end of the event off the packet's own end in either
+    direction: short of that end, into the file name the event closes
+    with, or past that end entirely.
+
+    fix_checksum() cannot serve here. That helper checksums the range
+    EVENT_LEN_OFFSET declares, the field this injection falsifies, and a
+    replica checksums the event over the length of the packet the event
+    arrived in. Recomputing over the packet is what carries the
+    event past the replica's checksum test and on to the length
+    comparison.
+  */
+  if (event_type == ROTATE_EVENT)
+  {
+    long len_delta= 0;
+    DBUG_EXECUTE_IF("binlog_sender_short_event_len", len_delta= -8;);
+    DBUG_EXECUTE_IF("binlog_sender_long_event_len", len_delta= 8;);
+    if (len_delta)
+    {
+      uchar *ev= (uchar*) packet->ptr() + ev_offset;
+      ulong ev_len= (ulong) (len - ev_offset);
+
+      int4store(ev + EVENT_LEN_OFFSET, (ulong) ((long) ev_len + len_delta));
+      if (current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+          current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+        int4store(ev + ev_len - BINLOG_CHECKSUM_LEN,
+                  my_checksum(0, ev, ev_len - BINLOG_CHECKSUM_LEN));
+    }
+  }
+
+  /*
+    For a Table_map event, rewrite the copy sent to the replica so its table
+    name is 255 bytes, the largest a one-byte length can express, with no
+    terminating null. Growing the name shifts the column count and metadata
+    after it to the right and lengthens the event, so the event's declared
+    length is rewritten to match. Note that, for simplicity, the test that
+    invokes this is configured without checksumming.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_oversized_table_name",
+  {
+    if (event_type == TABLE_MAP_EVENT)
+    {
+      uchar *base= (uchar*) packet->ptr();
+      uchar *ev= base + ev_offset;
+      uchar *dbnam_len_ptr= ev + LOG_EVENT_HEADER_LEN + TABLE_MAP_HEADER_LEN;
+      uint dblen= *dbnam_len_ptr;
+      uchar *tblnam_len_ptr= dbnam_len_ptr + dblen + 2;
+      uint tbllen= *tblnam_len_ptr;
+      size_t tblnam_len_off= (size_t) (tblnam_len_ptr - base);
+      size_t tblnam_off= tblnam_len_off + 1;
+      size_t tail_off= tblnam_off + tbllen + 1;
+      size_t tail_len= len - tail_off;
+      long delta= 256 - (long) (tbllen + 1);
+
+      if (!packet->realloc((size_t) ((long) len + delta)))
+      {
+        base= (uchar*) packet->ptr();
+        memmove(base + tail_off + delta, base + tail_off, tail_len);
+        base[tblnam_len_off]= 255;
+        memset(base + tblnam_off, 'a', 256);
+        len= (size_t) ((long) len + delta);
+        packet->length(len);
+        int4store(base + ev_offset + EVENT_LEN_OFFSET,
+                  (uint32) (len - ev_offset));
+      }
+    }
+  });
+
+  /*
+    Put a second copy of the event in the packet behind the first, the
+    other shape the same disagreement takes on the wire. This injection
+    leaves the header alone and grows the packet, so the bytes behind the
+    length the header declares form a complete event of their own, and a
+    replica that frames its relay log by those headers goes on to apply
+    that second event.
+
+    Query events carry this injection, because a statement that runs a
+    second time inserts a row the master never sent, which the replica's
+    own data then shows. A row event cannot carry the injection. The
+    trailing copy reaches the applier after the leading copy's STMT_END_F
+    has closed the statement's tables and cleared the table map, so
+    Rows_log_event::do_apply_event() finds no table for the copy's table
+    id and returns without applying or reporting anything.
+
+    The master must be logging no checksum for the trailing copy to
+    survive: the packet ends in the checksum bytes the trailing copy
+    carries, and those bytes cover that copy alone, not the packet.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_append_extra_event",
+  {
+    if (event_type == QUERY_EVENT)
+    {
+      String extra;
+      if (!extra.copy(packet->ptr() + ev_offset, len - ev_offset,
+                      &my_charset_bin) &&
+          !packet->append(extra))
+        len= packet->length();
+    }
+  });
+  /*
+    Rewrite the body of a Table_map event so it declares columns whose types
+    need more field metadata than the event carries, to test that a replica
+    bounds the metadata before decoding it. Every column becomes
+    MYSQL_TYPE_STRING, which reads two metadata bytes, and the event is left
+    with a single metadata byte, so a replica missing the bound reads past the
+    metadata while decoding the columns. The rewrite keeps the column count the
+    master already wrote, which the test fixes at 24 columns, enough to carry
+    the metadata reads well past the end of the replica's allocation.
+
+    The event is rewritten here, on the wire, rather than in the master's own
+    binary log, so the injection lands on the copy the dump thread sends and
+    the master's binary log stays well formed.
+  */
+  DBUG_EXECUTE_IF("binlog_sender_undersized_table_map_metadata",
+  {
+    if (event_type == TABLE_MAP_EVENT)
+    {
+      /* The rewritten event can be one byte longer than the original.  */
+      packet->realloc(len + 1);
+      uchar *ev= (uchar*) packet->ptr() + ev_offset;
+      uchar *p= ev + LOG_EVENT_HEADER_LEN + TABLE_MAP_HEADER_LEN;
+      uint db_len= *p;
+      p+= 1 + db_len + 1;                     // db name length byte, name, null
+      uint tbl_len= *p;
+      p+= 1 + tbl_len + 1;                    // table name length byte, name, null
+      uint colcnt= *p++;                      // column count (one packed byte)
+      uchar *coltype= p;
+
+      memset(coltype, MYSQL_TYPE_STRING, colcnt);
+      uchar *w= coltype + colcnt;
+      *w++= 1;                                // field metadata size (one byte)
+      *w++= 0;                                // the single metadata byte
+      uint null_bytes= (colcnt + 7) / 8;
+      memset(w, 0, null_bytes);
+      w+= null_bytes;
+
+      ulong new_ev_len= (ulong) (w - ev);
+      if (current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+        new_ev_len+= BINLOG_CHECKSUM_LEN;
+      int4store(ev + EVENT_LEN_OFFSET, new_ev_len);
+      if (current_checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+        int4store(ev + new_ev_len - BINLOG_CHECKSUM_LEN,
+                  my_checksum(0, ev, new_ev_len - BINLOG_CHECKSUM_LEN));
+      len= ev_offset + new_ev_len;
+      packet->length(len);
+    }
+  });
+#endif
+
   if (my_net_write(info->net, (uchar*) packet->ptr(), len))
   {
     info->error= ER_UNKNOWN_ERROR;
@@ -2248,6 +2439,8 @@ static int init_binlog_sender(binlog_send_info *info,
 static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                         LOG_INFO *linfo, my_off_t start_pos)
 {
+  static constexpr const char* CORRUPT_FDE=
+    "Corrupt Format_description event found or out-of-memory";
   int error;
   ulong ev_offset;
   THD *thd= info->thd;
@@ -2314,9 +2507,14 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  info->current_checksum_alg= get_checksum_alg((uchar*) packet->ptr() +
-                                               ev_offset,
-                                               packet->length() - ev_offset);
+  if (unlikely(get_checksum_alg((uchar*) packet->ptr() + ev_offset,
+                                packet->length() - ev_offset,
+                                &(info->current_checksum_alg))))
+  {
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    info->errmsg= CORRUPT_FDE;
+    DBUG_RETURN(1);
+  }
 
   DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
               info->current_checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
@@ -2344,8 +2542,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                               ev_len, info->fdev)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-    info->errmsg= "Corrupt Format_description event found "
-        "or out-of-memory";
+    info->errmsg= CORRUPT_FDE;
     DBUG_RETURN(1);
   }
   delete info->fdev;

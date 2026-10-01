@@ -402,9 +402,6 @@ static bool wsrep_sst_complete (THD*                thd,
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   enum wsrep::server_state::state state= server_state.state();
   bool failed= false;
-  char start_pos_buf[FN_REFLEN];
-  ssize_t len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN-1);
-  start_pos_buf[len]='\0';
 
   // Do not call sst_received if we are not in joiner or
   // initialized state on server. This is because it
@@ -419,14 +416,31 @@ static bool wsrep_sst_complete (THD*                thd,
     }
     else
     {
-      WSREP_INFO("SST succeeded for position %s", start_pos_buf);
+      /*
+        Note: sst_received() does NOT use sst_gtid (the position reported by
+        the SST script). It determines the position internally from storage via
+        Wsrep_server_service::get_position().
+        For physical SST methods these two may differ (e.g. the joiner's storage
+        recovers to an earlier position than the script reported). Log the
+        position actually adopted, not the script-reported one, to avoid
+        confusion.
+      */
+      wsrep::gtid const received_gtid= wsrep_get_SE_checkpoint<wsrep::gtid>();
+      char recv_pos_buf[FN_REFLEN];
+      ssize_t const recv_len=
+        wsrep::print_to_c_str(received_gtid, recv_pos_buf, FN_REFLEN-1);
+      recv_pos_buf[recv_len > 0 ? recv_len : 0]= '\0';
+      WSREP_INFO("SST succeeded for position %s", recv_pos_buf);
     }
   }
   else
   {
+    char start_pos_buf[FN_REFLEN];
+    ssize_t const len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN - 1);
+    start_pos_buf[len > 0 ? len : 0]= '\0';
+
     WSREP_ERROR("SST failed for position %s initialized %d server_state %s",
-                start_pos_buf,
-                server_state.is_initialized(),
+                start_pos_buf, server_state.is_initialized(),
                 wsrep::to_c_string(state));
     failed= true;
   }
@@ -1349,30 +1363,38 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
       if (ret > 0 && ret < s)
       {
         *addr_out= tmp;
+      }
+      else
+      {
+        if (ret > 0) /* buffer too short */ ret= -EMSGSIZE;
+        free (tmp);
+        WSREP_ERROR ("Could not prepare state transfer request: "
+                     "adding default port failed: %zd.", ret);
         return ret;
       }
-      if (ret > 0) /* buffer too short */ ret= -EMSGSIZE;
-      free (tmp);
     }
     else {
       ret= -ENOMEM;
+      WSREP_ERROR ("Could not prepare state transfer request: "
+                   "adding default port failed: %zd.", ret);
+      return ret;
     }
-
-    WSREP_ERROR ("Could not prepare state transfer request: "
-                 "adding default port failed: %zd.", ret);
   }
   else {
     *addr_out= addr_in;
   }
 
   pthread_t monitor;
-  ret = mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor, NULL, wsrep_sst_joiner_monitor_thread, NULL);
+  int thread_ret= mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor,
+                                        NULL, wsrep_sst_joiner_monitor_thread,
+                                        NULL);
 
-  if (ret)
+  if (thread_ret)
   {
-    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
-                ret, strerror(ret));
-    return -ret;
+    WSREP_ERROR("sst_prepare_mysqldump(): mysql_thread_create() failed: "
+                "%d (%s)", thread_ret, strerror(thread_ret));
+    if (*addr_out != addr_in) free ((char*) *addr_out);
+    return -thread_ret;
   }
 
   sst_joiner_completed= false;

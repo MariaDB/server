@@ -1,0 +1,47 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection n1_load_1;
+CALL p_load('t1_1');
+connection n2_load_1;
+CALL p_load('t1_5');
+connection n1_load_2;
+CALL p_load('t1_2');
+connection n2_load_2;
+CALL p_load('t1_6');
+connection n1_load_3;
+CALL p_load('t1_3');
+connection n2_load_3;
+CALL p_load('t1_7');
+connection n1_load_4;
+CALL p_load('t1_4');
+connection n2_load_4;
+CALL p_load('t1_8');
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+UPDATE ctrl SET stop = 1 WHERE id = 1;
+connection node_1;
+SET SESSION wsrep_sync_wait = 15;
+SELECT VARIABLE_VALUE AS wsrep_cluster_size FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+wsrep_cluster_size
+3
+connection node_2;
+SET SESSION wsrep_sync_wait = 15;
+count_match	checksum_match	gtid_match
+1	1	1
+connection node_3;
+SET SESSION wsrep_sync_wait = 15;
+count_match	checksum_match	gtid_match
+1	1	1
+connection node_1;
+connection node_2;
+connection node_3;
+disconnect node_2;
+disconnect node_1;

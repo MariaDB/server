@@ -1409,8 +1409,8 @@ bool Item_func_sformat::fix_length_and_dec(THD *thd)
       return TRUE;
   }
 
-  max_length= MY_MIN((uint32)thd->variables.max_allowed_packet,
-                     (uint32)thd->variables.max_mem_used);
+  max_length= (uint32)MY_MIN((ulonglong)thd->variables.max_allowed_packet,
+                             thd->variables.max_mem_used);
   return FALSE;
 }
 

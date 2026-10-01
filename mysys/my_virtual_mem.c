@@ -37,12 +37,14 @@
   InnoDB, the only user of this functionality), but it's the established
   terminology.
 
-  We try to respect use_large_pages setting, both on Windows and Linux
+  The caller requests large pages by passing my_large_pages_flag in
+  my_flags, consistently across the reserve/commit/decommit/release
+  calls for a given allocation.
 */
-char *my_virtual_mem_reserve(size_t *size)
+char *my_virtual_mem_reserve(size_t *size, myf my_flags)
 {
 #ifdef _WIN32
-  DWORD flags= my_use_large_pages
+  DWORD flags= (my_flags & MY_TRY_LARGE_PAGES)
     ? MEM_LARGE_PAGES | MEM_RESERVE | MEM_COMMIT
     : MEM_RESERVE;
   char *ptr= VirtualAlloc(NULL, *size, flags, PAGE_READWRITE);
@@ -55,7 +57,7 @@ char *my_virtual_mem_reserve(size_t *size)
   }
   return ptr;
 #else
-  return my_large_virtual_alloc(size);
+  return my_large_virtual_alloc(size, my_flags);
 #endif
 }
 
@@ -76,12 +78,12 @@ static my_bool is_memory_committed(char *ptr, size_t size)
 
   This is compatible with the mmap / VirtualAlloc semantics.
 */
-char *my_virtual_mem_commit(char *ptr, size_t size)
+char *my_virtual_mem_commit(char *ptr, size_t size, myf my_flags)
 {
 #ifdef _WIN32
   if (!ptr)
     return VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-  if (my_use_large_pages)
+  if (my_flags & MY_TRY_LARGE_PAGES)
   {
     DBUG_ASSERT(is_memory_committed(ptr, size));
   }
@@ -102,7 +104,7 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     return p == MAP_FAILED ? NULL : p;
   }
-  if (my_use_large_pages)
+  if (my_flags & MY_TRY_LARGE_PAGES)
     /* my_large_virtual_alloc() already created a read/write mapping. */;
   else
   {
@@ -142,44 +144,50 @@ char *my_virtual_mem_commit(char *ptr, size_t size)
   return ptr;
 }
 
-void my_virtual_mem_decommit(char *ptr, size_t size)
+void my_virtual_mem_decommit(char *ptr, size_t size, myf my_flags)
 {
 #ifdef _WIN32
   DBUG_ASSERT(is_memory_committed(ptr, size));
-  if (!my_use_large_pages)
+#endif
+  /*
+    For large pages, decommit is no-op, except accounting.
+    This mirrors virtual_mem_commit behavior.
+  */
+  if (!(my_flags & MY_TRY_LARGE_PAGES))
   {
+#ifdef _WIN32
     if (!VirtualFree(ptr, size, MEM_DECOMMIT))
     {
       my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size,
                GetLastError());
       DBUG_ASSERT(0);
     }
-  }
 #else
 # ifdef _AIX
-  disclaim(ptr, size, DISCLAIM_ZEROMEM);
+    disclaim(ptr, size, DISCLAIM_ZEROMEM);
 # elif defined __linux__ || defined __osf__
-  madvise(ptr, size, MADV_DONTNEED); /* OSF/1, Linux mimicing AIX disclaim() */
+    madvise(ptr, size, MADV_DONTNEED); /* OSF/1, Linux mimicing AIX disclaim() */
 # elif defined MADV_FREE_REUSABLE && defined MADV_FREE_REUSE
-  /* Mac OS X 10.9; undocumented in Apple macOS */
-  madvise(ptr, size, MADV_FREE_REUSABLE); /* macOS mimicing AIX disclaim() */
+    /* Mac OS X 10.9; undocumented in Apple macOS */
+    madvise(ptr, size, MADV_FREE_REUSABLE); /* macOS mimicing AIX disclaim() */
 # elif defined MADV_PURGE /* Illumos */
-  madvise(ptr, size, MADV_PURGE); /* Illumos mimicing AIX disclaim() */
+    madvise(ptr, size, MADV_PURGE); /* Illumos mimicing AIX disclaim() */
 # elif defined MADV_FREE
-  /* FreeBSD, NetBSD, OpenBSD, Dragonfly BSD, OpenSolaris, Apple macOS */
-  madvise(ptr, size, MADV_FREE); /* allow lazy zeroing out */
+    /* FreeBSD, NetBSD, OpenBSD, Dragonfly BSD, OpenSolaris, Apple macOS */
+    madvise(ptr, size, MADV_FREE); /* allow lazy zeroing out */
 # elif defined MADV_DONTNEED
 #  warning "It is unclear if madvise(MADV_DONTNEED) works as intended"
-  madvise(ptr, size, MADV_DONTNEED);
+    madvise(ptr, size, MADV_DONTNEED);
 # else
 #  warning "Do not know how to decommit memory"
 # endif
-  if (mprotect(ptr, size, PROT_NONE))
-  {
-    my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
-    DBUG_ASSERT(0);
-  }
+    if (mprotect(ptr, size, PROT_NONE))
+    {
+      my_error(EE_BADMEMORYRELEASE, MYF(ME_ERROR_LOG_ONLY), ptr, size, errno);
+      DBUG_ASSERT(0);
+    }
 #endif
+  }
   update_malloc_size(-(longlong) size, 0);
 }
 

@@ -3509,6 +3509,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
 1	row_number() over (order by 1)
+1	1
 drop table t1;
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual

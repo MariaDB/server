@@ -1,6 +1,7 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_stunnel.inc
 
 --let $node_1=node_1
 --let $node_2=node_2
