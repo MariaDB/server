@@ -1,0 +1,53 @@
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # BACKUP SERVER TO (directory target)
+--echo #
+
+CREATE TABLE ti(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO ti SET a=1;
+
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_dir
+--error 0,1
+--rmdir $targetdir
+--replace_result $targetdir target_dir
+--eval BACKUP SERVER TO '$targetdir'
+--file_exists $targetdir/#rocksdb
+
+INSERT INTO tr VALUES (4,'r-four');
+INSERT INTO ti VALUES (2,'two');
+
+if ($MARIADB_UPGRADE_EXE) {
+let targetdir=$targetdir;
+perl;
+open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+open OUT, ">>", "$ENV{targetdir}/backup.cnf";
+print OUT while (<IN>);
+close(IN);
+close(OUT);
+EOF
+}
+if (!$MARIADB_UPGRADE_EXE) {
+  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $targetdir/backup.cnf
+}
+--let $restart_parameters=--defaults-file=$targetdir/backup.cnf --datadir=$targetdir --plugin-load-add=$HA_ROCKSDB_SO
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+--echo # restart on the original datadir
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM ti;
+SELECT * FROM tr;
+
+DROP TABLE ti, tr;
+--rmdir $targetdir
