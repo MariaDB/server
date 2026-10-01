@@ -38,6 +38,7 @@
 #include <windows.h>
 #else
 #include <dlfcn.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -221,6 +222,42 @@ static void append_quoted(char *dst, size_t size, const char *s)
   dst[len]= 0;
 }
 
+/*
+  Logs of servers whose application was killed stay in the temp directory.
+  The name has the pid of the application: delete the ones whose application
+  is no longer there.
+*/
+static void sweep_stale(void)
+{
+  char tmp[MAX_PATH], pattern[MAX_PATH + 32], path[MAX_PATH + 300];
+  WIN32_FIND_DATAA fd;
+  HANDLE h;
+
+  if (!GetTempPathA(sizeof(tmp), tmp))
+    return;
+  snprintf(pattern, sizeof(pattern), "%sMariaDB-embedded-*.log", tmp);
+  if ((h= FindFirstFileA(pattern, &fd)) == INVALID_HANDLE_VALUE)
+    return;
+  do
+  {
+    unsigned long pid;
+    HANDLE p;
+    if (sscanf(fd.cFileName, "MariaDB-embedded-%lu-", &pid) != 1)
+      continue;
+    p= OpenProcess(SYNCHRONIZE, FALSE, (DWORD) pid);
+    if (p)
+    {
+      CloseHandle(p);                           /* still running */
+      continue;
+    }
+    if (GetLastError() != ERROR_INVALID_PARAMETER)
+      continue;                                 /* exists, but not for us */
+    snprintf(path, sizeof(path), "%s%s", tmp, fd.cFileName);
+    DeleteFileA(path);
+  } while (FindNextFileA(h, &fd));
+  FindClose(h);
+}
+
 int mariadb_embedded_start(int argc, char **argv, char **groups)
 {
   HANDLE rd= NULL, wr= NULL, logh= INVALID_HANDLE_VALUE;
@@ -241,6 +278,7 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
   if (running)
     return fail("embedded server is already started");
 
+  sweep_stale();
   snprintf(socket_name, sizeof(socket_name), "MariaDB-embedded-%lu-%lu",
            (unsigned long) GetCurrentProcessId(),
            (unsigned long) GetTickCount());
@@ -431,6 +469,50 @@ static int socket_ready(void)
   return ok;
 }
 
+/*
+  An application that was killed cannot clean up after itself. Its server
+  shuts down, but the private directory (with the server's log) stays.
+  The directory name has the pid of the application: remove the ones of
+  our own user whose application is no longer there.
+*/
+static void sweep_stale(const char *tmpdir)
+{
+  DIR *d= opendir(tmpdir);
+  struct dirent *e;
+  if (!d)
+    return;
+  while ((e= readdir(d)))
+  {
+    long pid;
+    char path[600], file[900];
+    struct stat st;
+    DIR *sub;
+    struct dirent *se;
+
+    if (sscanf(e->d_name, "mariadb-embedded-%ld-", &pid) != 1 || pid <= 0)
+      continue;
+    if (kill((pid_t) pid, 0) == 0 || errno != ESRCH)
+      continue;                                 /* still running, or not ours */
+    snprintf(path, sizeof(path), "%s/%s", tmpdir, e->d_name);
+    if (lstat(path, &st) || !S_ISDIR(st.st_mode) || st.st_uid != getuid())
+      continue;
+    if ((sub= opendir(path)))
+    {
+      while ((se= readdir(sub)))
+      {
+        if (strcmp(se->d_name, ".") && strcmp(se->d_name, ".."))
+        {
+          snprintf(file, sizeof(file), "%s/%s", path, se->d_name);
+          unlink(file);
+        }
+      }
+      closedir(sub);
+    }
+    rmdir(path);
+  }
+  closedir(d);
+}
+
 int mariadb_embedded_start(int argc, char **argv, char **groups)
 {
   int fds[2], nargs, timeout, rc= 1, waited_ms= 0;
@@ -444,8 +526,11 @@ int mariadb_embedded_start(int argc, char **argv, char **groups)
 
   /* Private directory: only the current user can reach the socket */
   tmp= getenv("TMPDIR");
-  snprintf(socket_dir, sizeof(socket_dir), "%s/mariadb-embedded-XXXXXX",
-           tmp && *tmp ? tmp : "/tmp");
+  if (!tmp || !*tmp)
+    tmp= "/tmp";
+  sweep_stale(tmp);
+  snprintf(socket_dir, sizeof(socket_dir), "%s/mariadb-embedded-%ld-XXXXXX",
+           tmp, (long) getpid());
   if (!mkdtemp(socket_dir))
     return fail("cannot create temporary directory: %s", strerror(errno));
   snprintf(socket_name, sizeof(socket_name), "%s/mysqld.sock", socket_dir);

@@ -1611,15 +1611,6 @@ sub command_line_setup {
   # Embedded server flag
   # --------------------------------------------------------------------------
   $opt_embedded_server= 1 if $opt_embedded_launcher;
-  if ($opt_embedded_launcher)
-  {
-    # The server lives only as long as one mysqltest, so the per-test check
-    # of the error log (which applies suppressions added by the tests with
-    # mtr.add_suppression) never runs, and the final scan would flag
-    # warnings that tests provoke on purpose.
-    # ToDo: run include/check-warnings.inc from mysqltest before it exits.
-    $opt_warnings= 0;
-  }
   if ( $opt_embedded_server )
   {
     $opt_skip_ssl= 1;              # Turn off use of SSL
@@ -4749,7 +4740,12 @@ sub check_warnings ($) {
   my %started;
   foreach my $mysqld ( mysqlds() )
   {
-    if ( defined $mysqld->{'proc'} )
+    # With --embedded-launcher there is no running mysqld: the server of the
+    # test has exited, and the check starts another private one on its
+    # datadir (as mysqltest does for the test), to apply the suppressions
+    # that the test has stored in it with mtr.add_suppression.
+    my $launcher_check= $opt_embedded_launcher && $mysqld->name() eq 'mysqld.1';
+    if ( defined $mysqld->{'proc'} or $launcher_check )
     {
       my $proc= start_check_warnings($tinfo, $mysqld);
       $started{$proc->pid()}= $proc;
