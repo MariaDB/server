@@ -303,3 +303,66 @@ IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
 GOOD
 alter table t1 drop column va;
 drop table t1;
+#
+# MDEV-36896 Assertion `marked_for_read()' failed in virtual String *Field_varstring::val_str(String *, String *)
+#
+set @old_isolation_level= @@session.tx_isolation;
+set @@session.tx_isolation= 'READ-UNCOMMITTED';
+create table t (a varchar(10),b int,c char(10) generated always as (a) virtual,key(b,c)) engine=innodb;
+insert into t (a) values ('A');
+select * from t where b is null order by a;
+a	b	c
+A	NULL	A
+drop table t;
+create table t (
+a varchar(10),
+b int,
+c char(10) generated always as (a) virtual,
+d int generated always as (if(a = c, 1, 0)) virtual,
+key(b, c)
+) engine=innodb;
+insert into t (a) values ('A');
+insert into t (a, b) values ('B', 1);
+select * from t where b is null order by a;
+a	b	c	d
+A	NULL	A	1
+drop table t;
+set @@session.tx_isolation= @old_isolation_level;
+#
+# MDEV-41365 Wrong results from filesort over indexed virtual columns
+#            during a concurrent uncommitted update
+#
+create table t (
+pk int primary key,
+f int,
+v1 int as (f & 1) virtual,
+v2 int as (f & 2) virtual,
+key (v1)
+) engine=innodb;
+insert into t (pk, f) values (1, 0);
+explain select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ref	v1	v1	5	const	1	Using where; Using filesort
+select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+pk	f	v1	v2
+1	0	0	0
+connect con1, localhost, root;
+begin;
+update t set f = 1 where pk = 1;
+connection default;
+# No filesort
+select * from t force index (v1) where v1 = 0 and v2 = 0;
+pk	f	v1	v2
+1	0	0	0
+# Filesort: must return pk=1
+select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+pk	f	v1	v2
+1	0	0	0
+connection con1;
+rollback;
+disconnect con1;
+connection default;
+drop table t;
+#
+# End of 10.11 tests
+#

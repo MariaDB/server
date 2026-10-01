@@ -9,16 +9,20 @@ SELECT 1 FROM DUAL;
 LOCK TABLE t2 WRITE;
 connect node_2_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2_ctrl;
-SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait = 0;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
+SET DEBUG_SYNC = 'mdl_acquire_lock_wait SIGNAL optimize_blocked';
 OPTIMIZE TABLE t1,t2;;
 connection node_2_ctrl;
-SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = 'now WAIT_FOR optimize_blocked';
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2b;
+SET DEBUG_SYNC = 'wsrep_before_toi_begin SIGNAL repair_at_toi';
 REPAIR TABLE t1,t2;;
 connection node_2_ctrl;
+SET DEBUG_SYNC = 'now WAIT_FOR repair_at_toi';
+SET DEBUG_SYNC = 'RESET';
 connection node_1;
 INSERT INTO t2 VALUES (1);
 connection node_2;
@@ -29,10 +33,12 @@ test.t1	optimize	note	Table does not support optimize, doing recreate + analyze 
 test.t1	optimize	status	OK
 test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t2	optimize	status	OK
+SET DEBUG_SYNC = 'RESET';
 connection node_2b;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	note	The storage engine for the table doesn't support repair
 test.t2	repair	note	The storage engine for the table doesn't support repair
+SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
 DROP TABLE t2;
 connection node_1;

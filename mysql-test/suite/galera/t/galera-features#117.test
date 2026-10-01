@@ -35,7 +35,6 @@ CREATE TABLE test.t2 (f1 INTEGER);
 SHOW TABLES IN test;
 
 --source include/kill_galera.inc
---source include/wait_until_disconnected.inc
 --source include/start_mysqld.inc
 
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");

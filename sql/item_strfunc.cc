@@ -642,10 +642,10 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
   if (str->alloced_length() >= length)
     return false; // Alloced space is big enough, nothing to do.
 
-  if (str->alloced_length() == 0)
-    return str->alloc(length);
-
   /*
+    A string with zero allocated capacity may still reference external data.
+    realloc() preserves that data, while alloc() would empty the string.
+
     Item_func_concat::val_str() makes sure the result length does not grow
     higher than max_allowed_packet. So "length" is limited to 1G here.
     We can't say anything about the current value of str->alloced_length(),
