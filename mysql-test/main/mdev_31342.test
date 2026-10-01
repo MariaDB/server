@@ -312,6 +312,15 @@ WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user';
 --remove_file $outfile
 
 --echo #
+--echo # MDEV-41165: ANALYZE SELECT must not assert / double-EOF
+--echo #
+--disable_result_log
+ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+--enable_result_log
+SELECT 'analyze_ok' AS mdev_41165;
+
+--echo #
 --echo # MDEV-41167: LIMIT 1 must stop after a matching row, not the first scan
 --echo #
 CREATE DATABASE mdev41167;
