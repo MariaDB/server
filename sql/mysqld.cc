@@ -2930,7 +2930,8 @@ void close_connection(THD *thd, uint sql_errno)
     thd->protocol->net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
     thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
   }
-  else if (!thd->main_security_ctx.user)
+  else if (!thd->main_security_ctx.user && !opt_embedded_lifeline)
+    /* the launcher of an embedded server connects once to see it is up */
     thd->print_aborted_warning(lvl, "This connection closed normally without"
                                     " authentication");
 
