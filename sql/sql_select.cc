@@ -71,6 +71,7 @@
 #include "derived_handler.h"
 #include "opt_hints.h"
 #include "opt_group_by_cardinality.h"
+#include "item_vectorfunc.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -25899,8 +25900,13 @@ join_read_first(JOIN_TAB *tab)
     DBUG_ASSERT(order);
     DBUG_ASSERT(order->next == NULL);
     DBUG_ASSERT(order->item[0]->real_item()->type() == Item::FUNC_ITEM);
+    auto *fun= static_cast<Item_func_vec_distance*>(order->item[0]->real_item());
+    DBUG_ASSERT(dynamic_cast<Item_func_vec_distance*>(fun));
+    String buf, *res= fun->get_const_arg()->val_str(&buf);
     tab->read_record.read_record_func= join_hlindex_read_next;
-    error= tab->table->hlindex_read_first(tab->index, *order->item,
+    error= tab->table->hlindex_read_first(tab->index,
+                                          res ? (const uchar*) res->ptr() : NULL,
+                                          res ? res->length() : 0,
                                           tab->join->select_limit);
   }
   else
