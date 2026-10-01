@@ -7233,7 +7233,17 @@ void Item_equal::merge_into_list(THD *thd, List<Item_equal> *list,
     if (!merge_into)
     {
       if (item->merge_with_check(thd, this, save_merged))
+      {
         merge_into= item;
+        /*
+          If the caller doesn't set save_merged, then remove the items from the
+          source, which is 'this' object.  That prevents an ASAN problem where
+          an item appearing in both lists has its memory deleted via one list
+          and then is later read via the other.
+        */
+        if (!save_merged)
+          equal_items.empty();
+      }
     }
     else
     {
