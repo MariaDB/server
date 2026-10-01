@@ -466,7 +466,8 @@ static int arch_ppc_probe(void) {
   arch_ppc_crc32 = 0;
 
 #  if defined(__powerpc64__)
-  elf_aux_info(AT_HWCAP2, &cpufeatures, sizeof(cpufeatures));
+  if (elf_aux_info(AT_HWCAP2, &cpufeatures, sizeof(cpufeatures)) != 0)
+    cpufeatures = 0;
   if (cpufeatures & PPC_FEATURE2_HAS_VEC_CRYPTO) arch_ppc_crc32 = 1;
 #  endif  /* __powerpc64__ */
 
