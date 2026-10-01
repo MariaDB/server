@@ -525,12 +525,9 @@ UPDATE t1, t4 SET t1.b= t4.d WHERE t1.a= t4.a;
 SELECT * FROM t1 ORDER BY a;
 DROP TABLE t4;
 
---echo # A merged VIEW is not pushed down. get_fed_table_for_pushdown() walks
---echo # SELECT_LEX::join->tables_list, where a merged VIEW is still present as
---echo # its own TABLE_LIST carrying the view's internal temporary table. That
---echo # table's handler is not FederatedX, so the check that every table
---echo # belongs to the same FederatedX server fails and the whole statement is
---echo # executed locally, row by row.
+--echo # A VIEW is not pushed down: the pushed statement would be printed with
+--echo # the view's local name, which the remote server doesn't have. The
+--echo # whole statement is executed locally, row by row.
 CREATE VIEW v1 AS SELECT * FROM t1;
 CREATE VIEW v2 AS SELECT * FROM v1;
 CALL fill_tables();
@@ -647,6 +644,139 @@ DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
 --disable_info
 SELECT * FROM t1 ORDER BY a;
 
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+--echo #
+--echo # MDEV-41340: Statements referring to a view must not be pushed down
+--echo #
+--echo # A view exists only on the local server, but a pushed down statement
+--echo # is printed with the view's name, so the remote server could not
+--echo # resolve it. Every such statement is executed locally instead.
+--echo #
+connection master;
+set global federated_pushdown=1;
+CALL fill_tables();
+
+--echo #
+--echo # With LIMIT the view is always materialized. The plan shows only the
+--echo # view's body as pushed down (PUSHED DERIVED), not the UPDATE join.
+--echo #
+CREATE VIEW v1 AS SELECT * FROM t1 LIMIT 2;
+--echo # plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t1 JOIN v1 SET t1.a= 1 WHERE v1.a < 3;
+--enable_info
+UPDATE t1 JOIN v1 SET t1.a= 1 WHERE v1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+DROP VIEW v1;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+
+--echo #
+--echo # Multi-table DELETE with a materialized view.
+--echo #
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1 LIMIT 2;
+--echo # plan must not contain PUSHED DELETE
+EXPLAIN
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+--enable_info
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+DROP VIEW v1;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+
+--echo #
+--echo # Multi-table DELETE with a mergeable view.
+--echo #
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1;
+--echo # plan must not contain PUSHED DELETE
+EXPLAIN
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+--enable_info
+DELETE t1 FROM t1 JOIN v1 ON t1.a= v1.a WHERE v1.a < 3;
+--disable_info
+SELECT * FROM t1 ORDER BY a;
+DROP VIEW v1;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+
+--echo #
+--echo # A merged view over several tables, a view of a view, a view in a
+--echo # subquery, SELECT and INSERT ... SELECT from views.
+--echo #
+CALL fill_tables();
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT t1.a, t2.c FROM t1 JOIN t2 ON t1.a= t2.a;
+CREATE VIEW v3 AS SELECT * FROM v1 WHERE a < 4;
+CREATE VIEW v4 AS SELECT * FROM t1 LIMIT 2;
+
+--echo # merged view over several tables
+--echo # plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3 JOIN v2 ON t3.a= v2.a SET t3.b= t3.b + 100 WHERE v2.a < 3;
+--enable_info
+UPDATE t3 JOIN v2 ON t3.a= v2.a SET t3.b= t3.b + 100 WHERE v2.a < 3;
+--disable_info
+SELECT * FROM t3 ORDER BY a;
+
+--echo # view of a view
+--echo # plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3 JOIN v3 ON t3.a= v3.a SET t3.b= t3.b + 100 WHERE v3.a < 3;
+--enable_info
+UPDATE t3 JOIN v3 ON t3.a= v3.a SET t3.b= t3.b + 100 WHERE v3.a < 3;
+--disable_info
+SELECT * FROM t3 ORDER BY a;
+
+--echo # view inside a subquery
+--echo # plan must not contain PUSHED UPDATE
+EXPLAIN
+UPDATE t3, t2 SET t3.b= t3.b + 100
+WHERE t3.a= t2.a AND t3.a IN (SELECT a FROM v1);
+--enable_info
+UPDATE t3, t2 SET t3.b= t3.b + 100
+WHERE t3.a= t2.a AND t3.a IN (SELECT a FROM v1);
+--disable_info
+SELECT * FROM t3 ORDER BY a;
+
+--echo # SELECT from views
+--echo # plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM v1, t2 WHERE v1.a= t2.a;
+SELECT * FROM v1, t2 WHERE v1.a= t2.a ORDER BY v1.a;
+--echo # plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM v2;
+SELECT * FROM v2 ORDER BY a;
+--echo # plan must not contain PUSHED SELECT
+EXPLAIN SELECT * FROM t2 WHERE a IN (SELECT a FROM v1);
+SELECT * FROM t2 WHERE a IN (SELECT a FROM v1) ORDER BY a;
+
+--echo # INSERT ... SELECT from a materialized and from a mergeable view
+--echo # plan must not contain PUSHED SELECT
+EXPLAIN INSERT INTO t2 SELECT a + 10, b FROM v4;
+INSERT INTO t2 SELECT a + 10, b FROM v4;
+--echo # plan must not contain PUSHED SELECT
+EXPLAIN INSERT INTO t2 SELECT a + 20, b FROM v1;
+INSERT INTO t2 SELECT a + 20, b FROM v1;
+SELECT * FROM t2 ORDER BY a;
+
+DROP VIEW v4, v3, v2, v1;
+
+connection master;
+set global federated_pushdown=0;
+
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 
@@ -659,4 +789,6 @@ DROP TABLE federated.t1, federated.t2, federated.t3;
 connection default;
 source include/federated_cleanup.inc;
 
+--echo #
 --echo # End of 13.2 tests
+--echo #
