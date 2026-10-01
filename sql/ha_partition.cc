@@ -11522,6 +11522,11 @@ void ha_partition::release_auto_increment()
 
 void ha_partition::init_table_handle_for_HANDLER()
 {
+  handler **file= m_file;
+  do
+  {
+    (*file)->init_table_handle_for_HANDLER();
+  } while (*(++file));
   return;
 }
 
