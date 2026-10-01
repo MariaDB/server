@@ -323,3 +323,38 @@ SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='mdev41167' AND (TABLE_NAME='tb3' OR TABLE_CATALOG='nope')
 LIMIT 1;
 DROP DATABASE mdev41167;
+
+--echo #
+--echo # MDEV-41171: @@sql_select_limit and FOUND_ROWS() on the fast path
+--echo #
+CREATE DATABASE mdev41171;
+CREATE TABLE mdev41171.t1(i INT);
+CREATE TABLE mdev41171.t2(i INT);
+CREATE TABLE mdev41171.t3(i INT);
+SET @@session.sql_select_limit=2;
+# CALL (used by --sp-protocol) sets sql_select_limit=HA_POS_ERROR, so
+# do not compare the row list. Capture FOUND_ROWS() immediately.
+--disable_result_log
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mdev41171';
+--enable_result_log
+--disable_query_log
+--disable_result_log
+let $n= query_get_value(SELECT FOUND_ROWS(), FOUND_ROWS(), 1);
+--enable_result_log
+--enable_query_log
+if (`SELECT $SP_PROTOCOL = 0`)
+{
+  if ($n != 2)
+  {
+    --echo # sql_select_limit=2 returned $n rows
+    --die
+  }
+}
+SET @@session.sql_select_limit=DEFAULT;
+SELECT 1;
+--sorted_result
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mdev41171';
+--disable_ps_protocol
+SELECT FOUND_ROWS();
+--enable_ps_protocol
+DROP DATABASE mdev41171;
