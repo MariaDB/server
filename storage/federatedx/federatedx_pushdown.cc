@@ -105,7 +105,8 @@ static bool same_remote_server(const FEDERATEDX_SHARE *a,
 
 /*
   Check that all tables in the sel_lex use the FederatedX storage engine and
-  live on the same remote server, and return one of them.
+  live on the same remote server, and return one of them. Views, and entries
+  that are not opened tables, make it return nullptr.
 
   @param sel_lex    the select to check
   @param ref_share  in/out: the share of the first FederatedX table seen so
@@ -124,8 +125,19 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex,
     return nullptr;
   for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
   {
+    /*
+      We can't handle VIEWs, even when they only contain eligible FederatedX
+      tables: a view exists only on the local server, but the pushed down
+      statement is printed with the view's name, which the remote server
+      can't resolve.
+    */
+    if (tbl->is_view())
+      return nullptr;
+
+    // Defensive: an entry that has not been opened as a table
     if (!tbl->table)
       return nullptr;
+
     if (tbl->derived)
     {
       /*
