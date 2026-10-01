@@ -908,3 +908,10 @@ SELECT SQL_BUFFER_RESULT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME
 def	mysql	user
+#
+# MDEV-41199: PROCEDURE ANALYSE() must not be ignored
+#
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='user' PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+information_schema.TABLES.TABLE_NAME	user	user	4	4	0	0	4.0000	NULL	ENUM('user') NOT NULL
