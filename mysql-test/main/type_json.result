@@ -2,40 +2,40 @@ create or replace table t1(a json);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`))
+  `a` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json character set utf8);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'character set utf8)' at line 1
-create or replace table t1(a json default '{a:1}');
+ERROR HY000: Data type 'json' doesn't support CHARACTER SET attribute.
+create or replace table t1(a json default '{"a":1}');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '{a:1}' CHECK (json_valid(`a`))
+  `a` json DEFAULT '{"a":1}'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1(a json not null check (json_valid(a)));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
+  `a` json NOT NULL CHECK (json_valid(`a`))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 22007: Incorrect json value: 'a' for column `test`.`t1`.`a` at row 1
 create or replace table t1(a json not null);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`a`))
+  `a` json NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ('[]');
 insert t1 values ('a');
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 22007: Incorrect json value: 'a' for column `test`.`t1`.`a` at row 1
 set timestamp=unix_timestamp('2010:11:12 13:14:15');
 create or replace table t1(a json default(json_object('now', now())));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',current_timestamp()) CHECK (json_valid(`a`))
+  `a` json DEFAULT json_object('now',current_timestamp())
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 values ();
 select * from t1;
@@ -51,31 +51,38 @@ t
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
+  `t` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`a`)),
+  `a` json DEFAULT NULL,
   `t` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`t`))
+  `t` json DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2,t3;
 create table t1 (t json check (length(t) > 0));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (octet_length(`t`) > 0)
+  `t` json DEFAULT NULL CHECK (octet_length(`t`) > 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (t text) engine=myisam;
 insert into t1 values ("{}"),("");
 create table t2 (t json) select t from t1;
-ERROR 23000: CONSTRAINT `t2.t` failed for `test`.`t2`
+ERROR 22007: Incorrect json value: '' for column `test`.`t2`.`t` at row 2
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+drop table t1;
+create table t1 (t text) engine=myisam;
+insert into t1 values (""),("{}");
+create table t2 (t json) select t from t1;
+ERROR 22007: Incorrect json value: '' for column `test`.`t2`.`t` at row 1
 select * from t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
@@ -83,7 +90,7 @@ create or replace table t1(a json default(json_object('now', 1)) check (json_val
 insert into t1 values ();
 insert into t1 values ("{}");
 insert into t1 values ("xxx");
-ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+ERROR 22007: Incorrect json value: 'xxx' for column `test`.`t1`.`a` at row 1
 select * from t1;
 a
 {"now": 1}
@@ -91,13 +98,120 @@ a
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT json_object('now',1) CHECK (json_valid(`a`))
+  `a` json DEFAULT json_object('now',1) CHECK (json_valid(`a`))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+SELECT CAST('{"a":1}' AS JSON);
+CAST('{"a":1}' AS JSON)
+{"a":1}
+SELECT CAST('[]' AS JSON);
+CAST('[]' AS JSON)
+[]
+SELECT CAST('xxx' AS JSON);
+CAST('xxx' AS JSON)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'xxx'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect JSON value: 'xxx'
+SELECT CAST(NULL AS JSON);
+CAST(NULL AS JSON)
+NULL
+SELECT CAST('{"a":1}' AS JSON);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CAST('{"a":1}' AS JSON)	251 (type=json)	7	7	Y	0	0	8
+CAST('{"a":1}' AS JSON)
+{"a":1}
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 SELECT CAST('{"x":1}' AS JSON);
+SELECT * FROM t1;
+a
+{"x":1}
+INSERT INTO t1 SELECT CAST('bad' AS JSON);
+ERROR 22007: Truncated incorrect JSON value: 'bad'
+DROP TABLE t1;
+SELECT CAST('{}' AS JSON CHARACTER SET utf8);
+ERROR HY000: Data type 'JSON' doesn't support CHARACTER SET attribute.
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('{"ok":1}'), ('bad');
+SELECT a FROM t1 WHERE CAST(a AS JSON) IS NOT NULL;
+a
+{"ok":1}
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'bad'
+DROP TABLE t1;
+SELECT CAST('{"a":1}' AS JSON) UNION ALL SELECT CAST('{"b":2}' AS JSON);
+CAST('{"a":1}' AS JSON)
+{"a":1}
+{"b":2}
+EXPLAIN EXTENDED SELECT CAST('{}' AS JSON);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast('{}' as json) AS `CAST('{}' AS JSON)`
+EXPLAIN EXTENDED SELECT `JSON`('{}');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast('{}' as json) AS ```JSON``('{}')`
+SELECT `JSON`('{"a":1}');
+`JSON`('{"a":1}')
+{"a":1}
+SELECT `JSON`('[]');
+`JSON`('[]')
+[]
+SELECT `JSON`('not-json');
+`JSON`('not-json')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: 'not-json'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect JSON value: 'not-json'
 select cast('{a:1}' as text);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
 select cast('{a:1}' as json);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'json)' at line 1
+cast('{a:1}' as json)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect JSON value: '{a:1}'
+#
+# Prohibit numeric aggregate functions and arithmetic on JSON data type
+#
+CREATE TABLE t1 (j JSON);
+INSERT INTO t1 VALUES ('{"a": 10}'), ('{"a": 20}'), ('[1, 2, 3]');
+SELECT SUM(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'sum'
+SELECT AVG(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'avg'
+SELECT VARIANCE(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'variance('
+SELECT VAR_SAMP(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'var_samp('
+SELECT STD(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'std('
+SELECT STDDEV_SAMP(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'stddev_samp('
+SELECT BIT_AND(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_and('
+SELECT BIT_OR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_or('
+SELECT BIT_XOR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'bit_xor('
+SELECT -j FROM t1;
+ERROR HY000: Illegal parameter data type json for operation '-'
+SELECT ABS(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'abs'
+SELECT ROUND(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'round'
+SELECT TRUNCATE(j, 1) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'truncate'
+SELECT CEIL(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'ceiling'
+SELECT FLOOR(j) FROM t1;
+ERROR HY000: Illegal parameter data type json for operation 'floor'
+DROP TABLE t1;
 #
 # Start of 10.5 tests
 #
@@ -113,14 +227,14 @@ js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
 ) CHARACTER SET utf8;
 SELECT * FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	224
+def	test	t1	t1	js0	js0	251 (type=json)	4294967295	0	Y	144	0	224
 def	test	t1	t1	js1	js1	252 (format=json)	262140	0	Y	16	0	224
 def	test	t1	t1	js2	js2	252 (format=json)	262140	0	Y	16	0	224
 def	test	t1	t1	js3	js3	252	262140	0	Y	16	0	224
 js0	js1	js2	js3
 SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	js0	js0	252 (format=json)	4294967295	0	Y	144	0	224
+def	test	t1	t1	js0	js0	251 (type=json)	4294967295	0	Y	144	0	224
 def					JSON_COMPACT(js0)	251 (format=json)	4294967295	0	Y	128	0	224
 def					JSON_COMPACT('{}')	253 (format=json)	8	0	Y	0	0	224
 js0	JSON_COMPACT(js0)	JSON_COMPACT('{}')
@@ -132,9 +246,9 @@ CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"a":"b"}');
 SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	a	a	252 (format=json)	4294967295	9	Y	144	0	224
+def	test	t1	t1	a	a	251 (type=json)	4294967295	9	Y	144	0	224
 def					JSON_COMPACT(a)	251 (format=json)	4294967295	9	Y	128	0	224
-def					COALESCE(a)	251 (format=json)	4294967295	9	Y	128	39	224
+def					COALESCE(a)	251 (type=json)	4294967295	9	Y	128	39	224
 a	JSON_COMPACT(a)	COALESCE(a)
 {"a":"b"}	{"a":"b"}	{"a":"b"}
 SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
@@ -176,6 +290,16 @@ select json_arrayagg(v1_json) from v1;
 json_arrayagg(v1_json)
 [{"a": "b"}]
 drop view v1;
+create table t1 (a json);
+insert into t1 values (777);
+insert into t1 values (123.45);
+insert into t1 values (true);
+select * from t1;
+a
+777
+123.45
+1
+drop table t1;
 #
 # End of 10.5 tests
 #

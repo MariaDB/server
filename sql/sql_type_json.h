@@ -41,7 +41,10 @@ public:
   static const Type_collection *type_collection();
   static bool is_json_type_handler(const Type_handler *handler)
   {
-    return handler->type_collection() == type_collection();
+    if (handler->type_collection() == type_collection())
+      return true;
+    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
+    return handler->name().eq(fmt);
   }
 };
 
