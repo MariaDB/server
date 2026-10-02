@@ -5310,7 +5310,24 @@ public:
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
   int prepare_for_modify(bool can_set_fields, bool can_lookup);
-  int binlog_log_row(const uchar *before_record, const uchar *after_record,
+
+  /*
+    Convert the row that the engine's FK-cascade cursor is currently
+    positioned on into MySQL row format, into 'buf'.
+
+    Called by the server (thd_fk_cascade_capture()) while reporting a cascade
+    action the engine performed on a child table; see
+    include/mysql/service_thd_fk_cascade.h. The server has already set the
+    table's column bitmaps to the image it wants, so the engine only has to
+    honour them. Engines that do not perform FK cascades internally never see
+    this call.
+  */
+  virtual int fk_cascade_fetch_row(uchar *buf)
+  { return HA_ERR_WRONG_COMMAND; }
+
+  int prepare_for_insert(bool do_create);
+  int binlog_log_row(const uchar *before_record,
+                     const uchar *after_record,
                      Log_func *log_func);
 
   inline void clear_cached_table_binlog_row_based_flag()

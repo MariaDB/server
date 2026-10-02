@@ -159,7 +159,7 @@ my_bool mysql_rm_tmp_tables(void);
 void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
                              const MDL_savepoint &start_of_statement_svp,
                              bool remove_indirect);
-bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
+TABLE_LIST *table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
                                 LEX_CSTRING *table, thr_lock_type lock_type);
 TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                TABLE_LIST *TABLE_LIST::*link,
