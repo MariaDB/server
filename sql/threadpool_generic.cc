@@ -1409,7 +1409,7 @@ TP_connection_generic::TP_connection_generic(CONNECT *c):
   waiting(false),
   fix_group(false)
 {
-  DBUG_ASSERT(c->vio_type != VIO_CLOSED);
+  DBUG_ASSERT(c->vio_type != VIO_TYPE_INVALID);
 
 #ifdef _WIN32
   fd= (c->vio_type == VIO_TYPE_NAMEDPIPE) ?

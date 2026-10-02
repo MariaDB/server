@@ -59,7 +59,7 @@ public:
   ~CONNECT()
   {
     count--;
-    DBUG_ASSERT(vio_type == VIO_CLOSED);
+    DBUG_ASSERT(vio_type == VIO_TYPE_INVALID);
   }
   void close_and_delete(uint err);
   void close_with_error(uint sql_errno,

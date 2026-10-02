@@ -15,6 +15,8 @@
 
 #include "feedback.h"
 
+#include <ssl_compat.h>
+
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
@@ -233,7 +235,7 @@ int Url_http::send(const char* data, size_t data_length)
     enum enum_ssl_init_error ssl_init_error= SSL_INITERR_NOERROR;
     ulong ssl_error= 0;
     if (!(ssl_fd= new_VioSSLConnectorFd(0, 0, 0, 0, 0, &ssl_init_error, 0, 0)) ||
-        sslconnect(ssl_fd, vio, send_timeout, &ssl_error))
+        sslconnect(ssl_fd, &vio, send_timeout, &ssl_error))
     {
       const char *err;
       if (ssl_init_error != SSL_INITERR_NOERROR)
@@ -345,7 +347,7 @@ int Url_http::send(const char* data, size_t data_length)
 #ifdef HAVE_OPENSSL
   if (ssl)
   {
-    SSL_CTX_free(ssl_fd->ssl_context);
+    SSL_CTX_free(static_cast<SSL_CTX *>(ssl_fd->ssl_context));
     my_free(ssl_fd);
   }
 #endif

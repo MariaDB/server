@@ -26,12 +26,12 @@
 struct Slave :public ilink
 {
   THD *thd;
-  Vio vio;
+  Vio *vio;
 #ifdef HAVE_POLL
   uint m_fds_index;
 #endif
   bool active;
-  my_socket sock_fd() const { return vio.mysql_socket.fd; }
+  my_socket sock_fd() const { return vio_fd(vio); }
   uint server_id() const { return thd->variables.server_id; }
 };
 
