@@ -1338,11 +1338,11 @@ private:
           node= next;
           name= node->name;
         }
-#endif
-        mysql_mutex_lock(&fil_system.mutex);
-        node->clear_backup_name();
-        mysql_mutex_unlock(&fil_system.mutex);
       }
+#endif
+      mysql_mutex_lock(&fil_system.mutex);
+      node->clear_backup_name();
+      mysql_mutex_unlock(&fil_system.mutex);
     }
     else
     {
