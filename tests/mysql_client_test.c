@@ -22997,6 +22997,158 @@ static void test_mdev_34958()
   myquery(rc);
 }
 
+/*
+  MDEV-41213 Bulk unit results include rows for DML run by triggers and
+  stored functions
+
+  With MARIADB_OPT_BULK_UNIT_RESULTS the server returns a result set with
+  one (Id, Affected_rows) row per bulk unit. DML executed on behalf of the
+  bulk statement by a trigger or a stored function must not add rows to it.
+*/
+static void test_mdev_41213()
+{
+  int rc;
+  MYSQL *conn;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1], bind_out[2];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  my_bool unit_results= 1;
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int vals_array_len= 3;
+  unsigned int rowcount;
+  my_ulonglong id, affected_rows;
+  const char *insert_stmt= "INSERT INTO t1 (b) VALUES (f1(?))";
+
+  myheader("test_mdev_41213");
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT "
+                  "PRIMARY KEY, b INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t3 (a INT)");
+  myquery(rc);
+
+  /*
+    The AFTER INSERT trigger deletes 1 row for the first unit, 2 rows for
+    the second one and nothing for the third one.
+  */
+  rc= mysql_query(mysql, "INSERT INTO t2 VALUES (1), (2), (2)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                  "FOR EACH ROW DELETE FROM t2 WHERE a = NEW.b");
+  myquery(rc);
+
+  /*
+    The stored function evaluated for every unit runs an UPDATE affecting
+    1, 2 and 3 rows and a DELETE affecting 0, 0 and 3 rows.
+  */
+  rc= mysql_query(mysql, "INSERT INTO t3 VALUES (1), (2), (2), (3), (3), (3)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE FUNCTION f1(x INT) RETURNS INT "
+                  "DETERMINISTIC MODIFIES SQL DATA "
+                  "BEGIN "
+                  "  UPDATE t3 SET a= a + 10 WHERE a = x; "
+                  "  DELETE FROM t3 WHERE a > 12; "
+                  "  RETURN x; "
+                  "END");
+  myquery(rc);
+
+  /* Unit results are requested per connection */
+  conn= mysql_client_init(NULL);
+  DIE_UNLESS(conn);
+  rc= mysql_options(conn, MARIADB_OPT_BULK_UNIT_RESULTS, &unit_results);
+  DIE_UNLESS(rc == 0);
+  if (!mysql_real_connect(conn, opt_host, opt_user, opt_password, current_db,
+                          opt_port, opt_unix_socket, 0))
+  {
+    myerror("connection failed");
+    DIE_UNLESS(0);
+  }
+
+  stmt= mysql_stmt_init(conn);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, insert_stmt, strlen(insert_stmt));
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  /*
+    Exactly one (Id, Affected_rows) row per bulk unit is expected, with the
+    auto-increment id of the inserted row and the single row inserted by
+    the unit. Before the fix the DML run by the trigger and by the function
+    added their own rows to the result set.
+  */
+  memset(bind_out, 0, sizeof(bind_out));
+  bind_out[0].buffer_type= MYSQL_TYPE_LONGLONG;
+  bind_out[0].buffer= &id;
+  bind_out[0].is_unsigned= 1;
+  bind_out[1].buffer_type= MYSQL_TYPE_LONGLONG;
+  bind_out[1].buffer= &affected_rows;
+  bind_out[1].is_unsigned= 1;
+
+  rc= mysql_stmt_bind_result(stmt, bind_out);
+  check_execute(stmt, rc);
+
+  rowcount= 0;
+  while ((rc= mysql_stmt_fetch(stmt)) == 0)
+  {
+    rowcount++;
+    if (!opt_silent)
+      fprintf(stdout, "\n unit %u: Id=%llu Affected_rows=%llu",
+              rowcount, id, affected_rows);
+    DIE_UNLESS(id == rowcount);
+    DIE_UNLESS(affected_rows == 1);
+  }
+  DIE_UNLESS(rc == MYSQL_NO_DATA);
+  DIE_UNLESS(rowcount == vals_array_len);
+
+  mysql_stmt_close(stmt);
+  mysql_close(conn);
+
+  /* The trigger and the function did run their DML for every unit */
+  rc= mysql_query(mysql, "SELECT (SELECT COUNT(*) FROM t1), "
+                  "(SELECT COUNT(*) FROM t2), "
+                  "(SELECT COUNT(*) FROM t3), (SELECT SUM(a) FROM t3)");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row);
+  DIE_UNLESS(atoi(row[0]) == 3);
+  DIE_UNLESS(atoi(row[1]) == 0);
+  DIE_UNLESS(atoi(row[2]) == 3);
+  DIE_UNLESS(atoi(row[3]) == 35);
+  mysql_free_result(result);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP FUNCTION f1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2, t3");
+  myquery(rc);
+}
+
 /* Server crash when inserting from derived table containing insert target table */
 static void test_mdev_32086()
 {
@@ -23998,6 +24150,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34718_bd", test_mdev_34718_bd },
   { "test_mdev_34718_ad", test_mdev_34718_ad },
   { "test_mdev_34958", test_mdev_34958 },
+  { "test_mdev_41213", test_mdev_41213 },
   { "test_mdev_32086", test_mdev_32086 },
   { "test_mdev_36678", test_mdev_36678 },
 #endif
