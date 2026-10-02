@@ -490,6 +490,9 @@ ENDIF()
 
 UNSET (MYSQLD_STATIC_PLUGIN_LIBS CACHE)
 
+OPTION(WITH_EMBEDDED_SERVER
+  "Build libmariadbd (a client library that starts a private mariadbd) and the embedded test programs" OFF)
+
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 INCLUDE(cpack_tgz)
@@ -510,12 +513,18 @@ ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(libservices)
-ADD_SUBDIRECTORY(libmariadbd)
 ADD_SUBDIRECTORY(sql/share)
 
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
+  IF(WITH_EMBEDDED_SERVER)
+    ADD_SUBDIRECTORY(libmariadbd)
+  ENDIF()
+  IF(NOT WIN32)
+    ADD_FEATURE_INFO(EMBEDDED_SERVER WITH_EMBEDDED_SERVER "Embedded MariaDB Server Library")
+  ENDIF()
+
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
   ADD_SUBDIRECTORY(sql-bench)

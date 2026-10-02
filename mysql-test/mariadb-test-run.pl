@@ -1944,24 +1944,27 @@ sub executable_setup () {
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
   # Look for mysqltest executable
-  if ( defined $ENV{'MYSQL_TEST'} )
+  if ( $opt_embedded_server )
   {
-    $exe_mysqltest=$ENV{'MYSQL_TEST'};
-    print "===========================================================\n";
-    print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
-    print "===========================================================\n";
+    # mysqltest linked with libmariadbd: given --server-arg it starts the
+    # server itself, a private mariadbd (MDEV-11111)
+    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test-embedded");
+    $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir);
+    $ENV{MTR_EMBEDDED_LAUNCHER}= 1;
   }
   else
   {
-    $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
-  }
-
-  # With --embedded-server mysqltest starts the server itself, given
-  # --server-arg: a private mariadbd (MDEV-11111)
-  if ($opt_embedded_server)
-  {
-    $ENV{MARIADB_EMBEDDED_SERVER}= find_mysqld($bindir);
-    $ENV{MTR_EMBEDDED_LAUNCHER}= 1;
+    if ( defined $ENV{'MYSQL_TEST'} )
+    {
+      $exe_mysqltest=$ENV{'MYSQL_TEST'};
+      print "===========================================================\n";
+      print "WARNING:The mysqltest binary is fetched from $exe_mysqltest\n";
+      print "===========================================================\n";
+    }
+    else
+    {
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
+    }
   }
 
 }
@@ -5965,7 +5968,8 @@ Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons: the
                         server is a private mariadbd process, started by
-                        mysqltest (see libmariadbd/)
+                        mysqltest_embedded, which is linked with libmariadbd
+                        (cmake -DWITH_EMBEDDED_SERVER=ON)
   ps-protocol           Use the binary protocol between client and server
   cursor-protocol       Use the cursor protocol between client and server
                         (implies --ps-protocol)

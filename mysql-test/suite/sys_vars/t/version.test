@@ -1,6 +1,6 @@
 SELECT @@version;
 perl;
-  $cnt= $ENV{MYSQL_TEST} =~ /embedded |--server-arg/ ? 1 :
+  $cnt= $ENV{MYSQL_TEST} =~ /embedded(.exe)? / ? 1 :
         grep /my_favorite_version/, `$ENV{MYSQL} -e status`;
   print "$cnt\n";
 EOF

@@ -38,7 +38,7 @@ SET(CLIENT_LIB mariadbclient mysys)
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb completion_hash.cc mysql.cc readline.cc
                            ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
-TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB} mariadb_embedded_launcher)
+TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB})
 IF(UNIX)
   TARGET_LINK_LIBRARIES(mariadb ${MY_READLINE_LIBRARY})
   SET_TARGET_PROPERTIES(mariadb PROPERTIES ENABLE_EXPORTS TRUE)
@@ -46,9 +46,19 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS ${PCRE2_DEBIAN_HACK}")
-TARGET_LINK_LIBRARIES(mariadb-test  ${CLIENT_LIB} pcre2-posix pcre2-8
-                      mariadb_embedded_launcher)
+TARGET_LINK_LIBRARIES(mariadb-test  ${CLIENT_LIB} pcre2-posix pcre2-8)
 SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
+
+IF(TARGET mariadbd_static)
+  # mysqltest linked with libmariadbd: it starts a private mariadbd
+  # (mtr --embedded-server, MDEV-11111)
+  MYSQL_ADD_EXECUTABLE(mariadb-test-embedded mysqltest.cc
+                       ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
+  TARGET_COMPILE_DEFINITIONS(mariadb-test-embedded PRIVATE EMBEDDED_LIBRARY)
+  TARGET_LINK_LIBRARIES(mariadb-test-embedded mariadbd_static mysys
+                        pcre2-posix pcre2-8)
+  SET_TARGET_PROPERTIES(mariadb-test-embedded PROPERTIES ENABLE_EXPORTS TRUE)
+ENDIF()
 
 
 MYSQL_ADD_EXECUTABLE(mariadb-check mysqlcheck.c)

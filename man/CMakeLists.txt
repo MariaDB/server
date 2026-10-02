@@ -39,5 +39,5 @@ INSTALL_MANPAGES(Client
 INSTALL_MANPAGES(Development mariadb_config.1)
 INSTALL_MANPAGES(Test
   mysql-stress-test.pl.1 mysql-test-run.pl.1 mariadb-client-test.1
-  mariadb-test.1
+  mariadb-test.1 mariadb-test-embedded.1
   my_safe_process.1)

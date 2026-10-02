@@ -118,8 +118,12 @@ ELSE()
   SET(TEST_NIST echo "NIST tests not found")
 ENDIF()
 
-SET(TEST_EMBEDDED  ${MTR_FORCE} --comment=embedded  --timer  --embedded-server
-  --skip-rpl ${EXP})
+IF(WITH_EMBEDDED_SERVER)
+ SET(TEST_EMBEDDED  ${MTR_FORCE} --comment=embedded  --timer  --embedded-server 
+   --skip-rpl ${EXP})
+ELSE()
+ SET(TEST_EMBEDDED echo "Can not test embedded, not compiled in")
+ENDIF()
 
 SET(TEST_BT_START
   COMMAND ${SETCONFIG_COMMAND}

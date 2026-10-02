@@ -250,7 +250,10 @@ static const char *embedded_server_groups[]=
   NullS
 };
 
-#include "../libmariadbd/embedded_launcher.h"
+#ifdef EMBEDDED_LIBRARY
+/* linked with libmariadbd, mysql_server_init() starts a private mariadbd */
+#include <ma_embedded_launcher.h>
+#endif
 
 static int embedded_server_arg_count=0;
 static char *embedded_server_args[MAX_EMBEDDED_SERVER_ARGS];
@@ -8783,8 +8786,10 @@ void do_connect(struct st_command *command)
       append tmpdir in front
     */
     if (*ds_sock.str != FN_LIBCHAR && *ds_sock.str != '@'
+#ifdef EMBEDDED_LIBRARY
         && !(mariadb_embedded_socket() &&
              !strcmp(ds_sock.str, mariadb_embedded_socket()))
+#endif
         )
     {
       char buff[FN_REFLEN];
@@ -12960,14 +12965,12 @@ int main(int argc, char **argv)
                      result_file_name ? result_file_name : ""));
   verbose_msg("Results saved in '%s'.", 
               result_file_name ? result_file_name : "");
-  /* MDEV-11111: --server-arg means "also run the server, privately" */
-  if (embedded_server_arg_count)
-    mariadb_embedded_register();
   if (mysql_server_init(embedded_server_arg_count,
 			embedded_server_args,
 			(char**) embedded_server_groups))
     die("Can't initialize MariaDB server");
   server_initialized= 1;
+#ifdef EMBEDDED_LIBRARY
   if (mariadb_embedded_socket())
   {
     /* Default connections go to the server we have just started, whatever
@@ -12985,6 +12988,7 @@ int main(int argc, char **argv)
     opt_host= 0;
 #endif
   }
+#endif /* EMBEDDED_LIBRARY */
   if (cur_file == file_stack && cur_file->file == 0)
   {
     cur_file->file= stdin;
