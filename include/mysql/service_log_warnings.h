@@ -20,9 +20,15 @@
   @file
   This service provides access to the log warning level for the
   current session.
+*/
 
-  thd_log_warnings(thd)
-  @return thd->log_warnings
+/**
+  @defgroup plugin_api_service_log_warnings Log Warnings service
+  @ingroup plugin_api_services
+  This service provides access to the log warning level for the
+  current session.
+
+  @{
 */
 
 #ifdef __cplusplus
@@ -33,14 +39,14 @@ extern struct thd_log_warnings_service_st {
   void *(*thd_log_warnings)(MYSQL_THD);
 } *thd_log_warnings_service;
 
+/**
+  Log warnings accessor
+  @param THD   the current session
+  @return pointer to thd->log_warnings
+*/
 #ifdef MYSQL_DYNAMIC_PLUGIN
 # define thd_log_warnings(THD) thd_log_warnings_service->thd_log_warnings(THD)
 #else
-/**
-  MDL_context accessor
-  @param thd   the current session
-  @return pointer to thd->mdl_context
-*/
 int thd_log_warnings(MYSQL_THD thd);
 #endif
 
@@ -48,5 +54,6 @@ int thd_log_warnings(MYSQL_THD thd);
 }
 #endif
 
+/** @} */
 #endif
 
