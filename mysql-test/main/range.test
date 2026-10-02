@@ -2557,6 +2557,54 @@ evalp $query;
 drop table t1;
 
 --echo #
+--echo # MDEV-39323: Wrong result with NOT BETWEEN and mismatched types
+--echo #
+CREATE TABLE `t1` (
+  `float_key` float,
+  `int_key` int,
+  UNIQUE KEY `float_key` (`float_key`),
+  UNIQUE KEY `int_key` (`int_key`)
+);
+
+INSERT INTO `t1` VALUES
+  (567621000,  NULL),
+  (0.363988,   -1643936528),
+  (-422810000, NULL),
+  (0,          0),
+  (NULL,       NULL),
+  (NULL,       NULL),
+  (NULL,       NULL);
+
+SELECT COUNT(*) FROM t1 WHERE NOT (1 BETWEEN t1.float_key AND t1.int_key);
+
+set @osw_tmp= @@optimizer_switch;
+set optimizer_switch='index_merge=on,index_merge_sort_union=on';
+EXPLAIN
+SELECT COUNT(*) FROM t1 WHERE NOT (1 BETWEEN t1.float_key AND t1.int_key);
+set optimizer_switch= @osw_tmp;
+
+DROP TABLE t1;
+
+--echo # The ticket's column types, FLOAT and INT.  The FLOAT bound matches
+--echo # the REAL comparison type and builds an exact range.  The INT bound
+--echo # does not match, so it builds a superset range instead of being
+--echo # dropped.  2.4 rounds down, so the INT range i < 2.4 becomes i <= 2
+--echo # and the row with i=2 must appear.
+CREATE TABLE t1 (f FLOAT, i INT, UNIQUE KEY(f), UNIQUE KEY(i));
+INSERT INTO t1 VALUES
+  (3.5,20),(5.5,21),(-1.5,2),(-9.5,1),
+  (0.5,3),(1.5,4),(2.0,5),(-2.5,6),(-3.5,7),(-4.5,8),(-5.5,9),(-6.5,10);
+
+set @osw_tmp= @@optimizer_switch;
+set optimizer_switch='index_merge=on,index_merge_sort_union=on';
+EXPLAIN SELECT f,i FROM t1 WHERE 2.4 NOT BETWEEN f AND i;
+--sorted_result
+SELECT f,i FROM t1 WHERE 2.4 NOT BETWEEN f AND i;
+set optimizer_switch= @osw_tmp;
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

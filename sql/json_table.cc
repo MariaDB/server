@@ -376,8 +376,7 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
   case JSON_VALUE_TRUE:
   case JSON_VALUE_FALSE:
   {
-    Item_result rt= f->result_type();
-    if (rt == INT_RESULT || rt == DECIMAL_RESULT || rt == REAL_RESULT)
+    if (f->type_handler()->is_numeric())
     {
       f->store(je->value_type == JSON_VALUE_TRUE, false);
       return;
