@@ -2999,12 +2999,24 @@ bool Item_func_min_max::get_date_native(THD *thd, MYSQL_TIME *ltime,
 
   for (uint i=0; i < arg_count ; i++)
   {
-    longlong res= args[i]->val_datetime_packed(thd);
+    /*
+      TIME_FUZZY_DATES turns failed conversions into zero dates, so DATE('')
+      can succeed before the NULL check. Do not pass it through DATE/DATETIME
+      arguments. Keep TIME_INVALID_DATES for comparison; the selected result
+      is checked against the caller's flags below.
+    */
+    date_conv_mode_t flags= Datetime::comparison_flags_for_get_date();
+    enum_mysql_timestamp_type type=
+      args[i]->type_handler()->mysql_timestamp_type();
+    if (type == MYSQL_TIMESTAMP_DATE || type == MYSQL_TIMESTAMP_DATETIME)
+      flags= flags & ~TIME_FUZZY_DATES;
+    Datetime value(thd, args[i], Datetime::Options(flags, thd));
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (unlikely(args[i]->null_value))
+    if (unlikely(!value.is_valid_datetime()))
       return (null_value= 1);
 
+    longlong res= value.valid_datetime_to_packed();
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
       min_max= res;
   }
