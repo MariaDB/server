@@ -1,2 +1,0 @@
-libmysqlservices_la_SOURCES =			\
-	mrn_mysqlservices.cpp

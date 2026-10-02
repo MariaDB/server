@@ -3463,33 +3463,7 @@ public:
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
-  Copy_func *get_copy_func(const Field *from) const override
-  {
-    if (eq_def(from))
-      return get_identical_copy_func();
-    switch (from->cmp_type()) {
-    case STRING_RESULT:
-    {
-      const Type_handler *handler= from->type_handler();
-      if (handler == &type_handler_enum || handler == &type_handler_set)
-        return do_field_int;
-      return do_field_string;
-    }
-    case TIME_RESULT:
-      return do_field_date;
-    case DECIMAL_RESULT:
-      return do_field_decimal;
-    case REAL_RESULT:
-      return do_field_real;
-    case INT_RESULT:
-      break;
-    case ROW_RESULT:
-    default:
-      DBUG_ASSERT(0);
-      break;
-    }
-    return do_field_int;
-  }
+  Copy_func *get_copy_func(const Field *from) const override;
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
   int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;
@@ -4808,8 +4782,7 @@ public:
   }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type)
     override;
-  const Type_handler *type_handler() const override
-  { return &type_handler_enum; }
+  const Type_handler *type_handler() const override;
   enum ha_base_keytype key_type() const override;
   sql_mode_t can_handle_sql_mode_dependency_on_store() const override;
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
@@ -4938,8 +4911,7 @@ public:
   String *val_str(String *, String *) override;
   void sql_type(String &str) const override;
   uint size_of() const override { return sizeof *this; }
-  const Type_handler *type_handler() const override
-  { return &type_handler_set; }
+  const Type_handler *type_handler() const override;
   bool has_charset() const override { return true; }
   Binlog_type_info binlog_type_info() const override;
 };
