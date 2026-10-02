@@ -320,7 +320,8 @@ private:
     {
       try {
 #ifndef _WIN32
-        const std::string path{log_sys.get_archive_path(lsn)};
+        std::string path{};
+        log_sys.append_archive_name(path, lsn);
         int log= openat(target.fd, path.c_str(),
                         O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
         if (log >= 0)
