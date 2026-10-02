@@ -4,7 +4,7 @@
 The most common reasons the server does not start are:
 - AppArmor is enforced and something is wrong with the confinement profile.
 - Process supervisor scripts (init, systemd etc) fail to execute normally.
-- The configuration in /etc/mysql/... is wrong and prevents server from running.
+- The configuration in /etc/mariadb/... is wrong and prevents server from running.
 
 First check the contents of syslog (or systemd journal) and then check the
 logs at /var/log/mysql/ for any hints of what might be wrong.
@@ -64,11 +64,11 @@ You may never ever delete the MariaDB user "root". Although it has no password
 is set, the unix_auth plugin ensure that it can only be run locally as the root
 user.
 
-The credentials in /etc/mysql/debian.cnf specify the user which is used by the
+The credentials in /etc/mariadb/debian.cnf specify the user which is used by the
 init scripts to stop the server and perform log rotation. This used to be the
 debian-sys-maint user which is no longer used as root can run directly.
 
-If you have start/stop problems make sure that the /etc/mysql/debian.cnf file
+If you have start/stop problems make sure that the /etc/mariadb/debian.cnf file
 specifies the root user and no password. In the long run please stop using that
 file as is has been obsoleted.
 
@@ -79,8 +79,8 @@ file as is has been obsoleted.
 MariaDB in Debian is secure by default, because:
 
 - It only listens to the localhost socket and cannot be accessed remotely unless
-  the sysadmin changes the configuration in /etc/mysql to allow so.
-- There is no debian-sys-maint with password in /etc/mysql/debian.cnf anymore.
+  the sysadmin changes the configuration in /etc/mariadb to allow so.
+- There is no debian-sys-maint with password in /etc/mariadb/debian.cnf anymore.
 - There is no root account with password anymore. The system admin needs to
   create one themselves if they need it. With no password, all issues related
   to password management and password leaking are gone. Sysadmins can access
@@ -125,7 +125,7 @@ The only thing that is left over for the admin is
 ============
 
 For security reasons, the Debian package has enabled networking only on the
-loop-back device using "bind-address" in /etc/mysql/mariadb.cnf.  Check with
+loop-back device using "bind-address" in /etc/mariadb/mariadb.cnf.  Check with
 "netstat -tlnp" where it is listening. If your connection is aborted
 immediately check your firewall rules or network routes.
 

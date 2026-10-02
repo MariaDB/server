@@ -1,0 +1,2 @@
+mv_conffile /etc/mysql/debian-start /etc/mariadb/debian-start 1:13.2.0~
+mv_conffile /etc/mysql/mariadb.conf.d/50-server.cnf /etc/mariadb/mariadb.conf.d/50-server.cnf 1:13.2.0~

@@ -42,8 +42,8 @@ exec $MYSQLD --defaults-file=no_extension --print-defaults 2>&1;
 exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/my.cnf --help --verbose | grep -A 1 'Default options are read';
 
 --echo # Test on `defaults-extra-file`
-# <first-defaults> = `/etc/my.cnf /etc/mysql/my.cnf`
-# Using sysconfdir configuration, we don't always have `/etc/mysql/my.cnf`, so replace them with a regex as well.
+# <first-defaults> = `/etc/my.cnf /etc/mariadb/my.cnf`
+# Using sysconfdir configuration, we don't always have `/etc/mariadb/my.cnf`, so replace them with a regex as well.
 copy_file $MYSQLTEST_VARDIR/my.cnf $MYSQLTEST_VARDIR/my_test.cnf;
 --replace_regex /.*my_test.cnf/<first-defaults> MYSQLTEST_VARDIR\/my_test.cnf/
 exec $MYSQLD --defaults-extra-file=$MYSQLTEST_VARDIR/my_test.cnf --help --verbose | grep -A 1 'Default options are read';

@@ -204,7 +204,7 @@ blhc:
   dpkg -l | grep -e "mariadb-server.*10\.11"
   mkdir -p debug # Ensure dir exists before using it
   find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
-  cp -ra /etc/mysql debug/etc-mysql
+  cp -ra /etc/mariadb debug/etc-mariadb
   mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
   mariadb --table -e "SHOW DATABASES;" # List databases
   mariadb --table -e "SELECT host,user,plugin,authentication_string FROM user;" mysql
@@ -593,7 +593,7 @@ test basic features:
       openssl verify -CAfile $CERT_PATH/cacert.pem $CERT_PATH/server-cert.pem
       openssl x509 -subject -issuer -noout -in $CERT_PATH/cacert.pem
       openssl x509 -subject -issuer -noout -in $CERT_PATH/server-cert.pem
-      cat <<EOF > /etc/mysql/mariadb.conf.d/tls.cnf
+      cat <<EOF > /etc/mariadb/mariadb.conf.d/tls.cnf
       [client-server]
       ssl = on
       ssl-ca = $CERT_PATH/cacert.pem
@@ -757,8 +757,8 @@ mysql-8.0 in Ubuntu 23.10 upgrade:
     - apt-get install -qq --yes mariadb-server
     # Due to usrmerge, full-upgrade from Mantic to Trixie or newer may not work
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
-    # Remove everything MySQL except mysql-common which also MariaDB depends on
-    - apt-get purge --yes mysql-s* mysql-cl* libmysql*
+    # Remove everything MySQL
+    - apt-get purge --yes mysql-* libmysql*
     - *test-verify-final
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
@@ -943,12 +943,12 @@ mariadb.org-10.2 upgrade:
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - service mysql status
-    # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
+    # prepending with --defaults-file=/etc/mariadb/debian.cnf is needed in upstream 5.5–10.3
     - |
-      mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SHOW DATABASES;"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost;"
-      mysql --defaults-file=/etc/mysql/debian.cnf --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS;"
+      mysql --defaults-file=/etc/mariadb/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
+      mysql --defaults-file=/etc/mariadb/debian.cnf --table -e "SHOW DATABASES;"
+      mysql --defaults-file=/etc/mariadb/debian.cnf --table -e "SELECT * FROM mysql.user; SHOW CREATE USER root@localhost;"
+      mysql --defaults-file=/etc/mariadb/debian.cnf --table -e "SELECT * FROM mysql.plugin; SHOW PLUGINS;"
     - *test-install-all
     # mariadb-10.2 in ships a /etc/init.d/mysql and it continues to exist
     # after upgrade, and is removed only on purge

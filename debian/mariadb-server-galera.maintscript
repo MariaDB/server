@@ -1,0 +1,2 @@
+mv_conffile /etc/mysql/mariadb.conf.d/60-galera.cnf /etc/mariadb/mariadb.conf.d/60-galera.cnf 1:13.2.0~
+mv_conffile /etc/mysql/mariadb.conf.d/wsrep_info.cnf /etc/mariadb/mariadb.conf.d/wsrep_info.cnf 1:13.2.0~

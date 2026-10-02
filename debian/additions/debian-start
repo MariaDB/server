@@ -22,10 +22,10 @@ then
   . /etc/default/mariadb
 fi
 
-MARIADB="/usr/bin/mariadb --defaults-extra-file=/etc/mysql/debian.cnf"
-MYADMIN="/usr/bin/mariadb-admin --defaults-extra-file=/etc/mysql/debian.cnf"
+MARIADB="/usr/bin/mariadb --defaults-extra-file=/etc/mariadb/debian.cnf"
+MYADMIN="/usr/bin/mariadb-admin --defaults-extra-file=/etc/mariadb/debian.cnf"
 # Don't run full mariadb-upgrade on every server restart, use --version-check to do it only once
-MYUPGRADE="/usr/bin/mariadb-upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
+MYUPGRADE="/usr/bin/mariadb-upgrade --defaults-extra-file=/etc/mariadb/debian.cnf --version-check --silent"
 
 # The following commands should be run when the server is up but in background
 # where they do not block the server start and in one shell instance so that
