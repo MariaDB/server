@@ -169,21 +169,21 @@ private:
   /** log_tracking work item */
   struct tracked_log
   {
-    /** the next tracked log */
-    tracked_log *next= nullptr;
+    /** the next tracked log; protected by innodb_backup.mutex */
+    tracked_log *next{nullptr};
     union
     {
       /** source file handle */
-      os_file_t file;
+      const os_file_t file;
 #ifdef HAVE_PMEM
       /** source buffer */
       const byte *buf;
 #endif
     };
     /** the LSN at log_sys.START_OFFSET */
-    lsn_t first_lsn;
+    const lsn_t first_lsn{};
     /** the file size */
-    lsn_t file_size;
+    const lsn_t file_size{};
 
     /** Constructor */
     tracked_log(os_file_t file, lsn_t first_lsn, lsn_t file_size) :
@@ -868,6 +868,7 @@ public:
 
       if (lsn == last)
       {
+        /* The log copying finishes at the commit() LSN. */
         if (!extend_log(ctx.log_dst, end))
         {
           const os_file_t first_log_dst{ctx.first_log_dst};
@@ -885,7 +886,8 @@ public:
               err= IF_WIN(!CloseHandle,close)(first_log_dst);
               ctx.first_log_dst= OS_FILE_CLOSED;
               if (!err)
-                break;
+                /* We successfully copied all log. */
+                return 0;
             }
           }
         }
@@ -896,24 +898,31 @@ public:
       }
 
       lsn_t wait_lsn= last;
-      if (last == LSN_MAX)
+
+      if (wait_lsn == LSN_MAX)
       {
+        /*
+          As long as some data files are being copied, it makes sense
+          to keep copying the log in reasonable-sized increments.
+        */
         wait_lsn= log_get_lsn();
-        if (wait_lsn == write_lsn)
+
+        if (!non_log)
+          return 0;
+
+        if (wait_lsn - lsn < 1U << 20)
         {
+          /* Wait for some more log to be written. */
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          wait_lsn= log_get_lsn();
           if (!non_log)
-            break;
-          /* Wait for some more log */
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));
-          continue;
+            return 0;
         }
       }
 
       /* Ensure that we can copy what we need. */
       log_write_up_to(wait_lsn, false);
     }
-
-    return 0;
   }
 
 #ifdef HAVE_PMEM
@@ -2258,6 +2267,9 @@ void InnoDB_backup::context::destroy() noexcept
   }
   tracked_log *tracked= innodb_backup.ctx.tracked;
   innodb_backup.ctx.tracked= nullptr;
+  innodb_backup.ctx.state= IDLE;
+  ut_ad(!innodb_backup.ctx.is_log_tracking());
+  innodb_backup.mutex.wr_unlock();
 #ifdef HAVE_PMEM
   if (log_sys.is_mmap())
   {
@@ -2270,9 +2282,6 @@ void InnoDB_backup::context::destroy() noexcept
     for (; tracked_log *head= tracked; delete head)
       if ((tracked= tracked->next))
         IF_WIN(CloseHandle,close)(head->file);
-  innodb_backup.ctx.state= IDLE;
-  ut_ad(!innodb_backup.ctx.is_log_tracking());
-  innodb_backup.mutex.wr_unlock();
 }
 
 }

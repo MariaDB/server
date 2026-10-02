@@ -1081,15 +1081,14 @@ static my_bool backup_step(THD *thd, plugin_ref plugin, void *arg) noexcept
   const handlerton *hton= plugin_hton(plugin);
   backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
   assert(int{t.phase} >= 0 || t.phase == BACKUP_PHASE_FINISH);
-  int res= 0;
   if (hton->backup_step)
   {
     t.sink.ha_data= t.context.ha_data[hton];
-    while ((res= hton->backup_step(thd, &t.target, t.phase, &t.sink)))
+    while (int res= hton->backup_step(thd, &t.target, t.phase, &t.sink))
       if (res < 0)
-        break;
+        return true;
   }
-  return res != 0;
+  return false;
 }
 
 /**
