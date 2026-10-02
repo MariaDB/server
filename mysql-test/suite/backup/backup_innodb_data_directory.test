@@ -19,12 +19,9 @@ SET GLOBAL innodb_log_checkpoint_now=ON;
 --error ER_CANT_CREATE_FILE
 evalp BACKUP SERVER TO '$target_directory';
 
-if ($MARIADB_UPGRADE_EXE)
-{
 --exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
-}
-
 BACKUP SERVER WITH 'cat';
+--remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
 
 --source include/shutdown_mysqld.inc
 --rmdir $target_directory
