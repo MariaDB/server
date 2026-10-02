@@ -30,7 +30,8 @@ class hlindex : public Sql_alloc
 {
 public:
   TABLE *table;
-  hlindex(TABLE *t) : table(t) { }
+  bool update_needed; // index columns are in write_set, only used for UPDATE
+  hlindex(TABLE *t) : table(t), update_needed(false) { }
   virtual ~hlindex();
 
   virtual int read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,

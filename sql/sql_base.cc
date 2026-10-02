@@ -38,6 +38,7 @@
                                                 // mysql_derived_filling
 #include "sql_handler.h"                        // mysql_ha_flush
 #include "sql_test.h"
+#include "key.h"                                // is_key_used
 #include "sql_partition.h"                      // ALTER_PARTITION_PARAM_TYPE
 #include "log_event.h"                          // Query_log_event
 #include "sql_select.h"
@@ -10214,6 +10215,8 @@ int TABLE::open_hlindexes_for_write()
   for (uint i= s->keys; i < s->total_keys; i++)
     if (hlindex_open(i) || hlindex_lock(i))
       return 1;
+    else
+      hli->update_needed= is_key_used(this, i, write_set);
   return 0;
 }
 
@@ -10239,7 +10242,7 @@ int TABLE::hlindexes_on_insert()
 int TABLE::hlindexes_on_update()
 {
   DBUG_ASSERT(s->hlindexes() == (hli != NULL));
-  if (hli && hli->table->in_use)
+  if (hli && hli->update_needed)
   {
     int err;
     // mark deleted node invalid and insert node for new row
