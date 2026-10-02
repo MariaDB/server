@@ -193,7 +193,10 @@ pushdown_handler::pushdown_handler(THD *thd_arg, handlerton *ht_arg,
                                    select_result *result_arg)
   : select_lex(sel_lex), thd(thd_arg), ht(ht_arg), result(result_arg),
     is_analyze(thd_arg->lex->analyze_stmt)
-{}
+{
+  /* Pushdown skips optimization, so don't freeze the mem_root */
+  thd_arg->lex->mark_pushed_down();
+}
 
 
 void pushdown_handler::print_error(int error, myf errflag)

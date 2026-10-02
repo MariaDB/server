@@ -53,9 +53,7 @@ public:
 
   SELECT_LEX *select;      // The first select of the specification
 
-  derived_handler(THD *thd_arg, handlerton *ht_arg)
-    : thd(thd_arg), ht(ht_arg), derived(0),table(0), tmp_table_param(0),
-    unit(0), select(0) {}
+  derived_handler(THD *thd_arg, handlerton *ht_arg);
   virtual ~derived_handler() = default;
 
   /*
