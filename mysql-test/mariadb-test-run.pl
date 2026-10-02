@@ -4668,23 +4668,16 @@ sub start_check_warnings ($$) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    # The server is a normal mariadbd (a private one, started by mysqltest),
-    # which reads the groups of a regular test server: use [mysqld.1].
-    my $mysqld=  $config->group('mysqld.1')
-      or mtr_error("Could not get [mysqld.1] section");
+    # The server is a private mariadbd, started by mysqltest. Like the
+    # embedded server before it, it reads the [server] and [embedded] groups.
+    my $mysqld=  $config->group('embedded')
+      or mtr_error("Could not get [embedded] section");
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
-    # --defaults-group-suffix must follow --defaults-file directly
-    splice(@$mysqld_args, 1, 0,
-           "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
-    # the private server reads the groups of a server here, as the test
-    # configuration is written for one (the default is [server] and [embedded])
-    mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
-                "mysqld,server,mariadb,mariadbd,client-server");
     # the old embedded server had no TLS; keep the SSL tests skipped
     mtr_add_arg($args, "--server-arg=--skip-ssl");
   }
@@ -5788,23 +5781,16 @@ sub start_mysqltest ($) {
     # and append them to args prefixed
     # with --sever-arg=
 
-    # The server is a normal mariadbd (a private one, started by mysqltest),
-    # which reads the groups of a regular test server: use [mysqld.1].
-    my $mysqld=  $config->group('mysqld.1')
-      or mtr_error("Could not get [mysqld.1] section");
+    # The server is a private mariadbd, started by mysqltest. Like the
+    # embedded server before it, it reads the [server] and [embedded] groups.
+    my $mysqld=  $config->group('embedded')
+      or mtr_error("Could not get [embedded] section");
 
     my $mysqld_args;
     mtr_init_args(\$mysqld_args);
     my $extra_opts= get_extra_opts($mysqld, $tinfo);
     mysqld_arguments($mysqld_args, $mysqld, $extra_opts);
-    # --defaults-group-suffix must follow --defaults-file directly
-    splice(@$mysqld_args, 1, 0,
-           "--defaults-group-suffix=" . $mysqld->after('mysqld'));
     mtr_add_arg($args, "--server-arg=%s", $_) for @$mysqld_args;
-    # the private server reads the groups of a server here, as the test
-    # configuration is written for one (the default is [server] and [embedded])
-    mtr_add_arg($args, "--server-arg=--embedded-defaults-groups=%s",
-                "mysqld,server,mariadb,mariadbd,client-server");
     # the old embedded server had no TLS; keep the SSL tests skipped
     mtr_add_arg($args, "--server-arg=--skip-ssl");
   }
