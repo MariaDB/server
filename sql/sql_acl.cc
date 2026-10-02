@@ -2751,10 +2751,8 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::open_and_lock");
 
-    TABLE_LIST *first= nullptr, *tables=
-      static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
-                                         (USER_TABLE + 1) * sizeof *tables,
-                                         MYF(MY_WME)));
+    TABLE_LIST *first= nullptr,
+               *tables= thd->calloc<TABLE_LIST>(USER_TABLE + 1);
     int res= -1;
     uint counter;
 
@@ -2814,7 +2812,6 @@ class Grant_tables
     }
 
 func_exit:
-    my_free(tables);
     DBUG_RETURN(res);
   }
 
