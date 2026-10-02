@@ -86,6 +86,9 @@ std::string call_mariadbd(const char *mariadbd_path, const char *plugin_dir, con
              " --help";
 #ifdef _WIN32
   command << "\"";
+#else
+  setenv("LSAN_OPTIONS=detect_leaks", "0", 1);
+  setenv("ASAN_OPTIONS=detect_leaks", "0", 1);
 #endif
   std::cout << "Executing command: " << command.str() << '\n';
   FILE *f= my_popen(command.str().c_str(), "r");

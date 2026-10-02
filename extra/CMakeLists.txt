@@ -47,11 +47,11 @@ ADD_CUSTOM_TARGET(GenError
                   ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
 
 # this approach doesn't work with cross-compiing (runs mariadbd)
-# and doesn't work with ASAN, because LSAN complains about RocksDB (MDEV-36345).
-IF(NOT CMAKE_CROSSCOMPILING AND NOT WITH_ASAN AND TARGET mariadbd)
+IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(generate_option_list generate_option_list.cc)
   TARGET_LINK_LIBRARIES(generate_option_list mysys pcre2-8)
   TARGET_INCLUDE_DIRECTORIES(generate_option_list PRIVATE ${PCRE_INCLUDE_DIRS})
+
   GET_PROPERTY(dynamic_plugins GLOBAL PROPERTY SERVER_DYNAMIC_PLUGINS)
   GET_PROPERTY(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
   IF(is_multi_config)
@@ -93,6 +93,7 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT WITH_ASAN AND TARGET mariadbd)
    #COMMAND ${CMAKE_COMMAND} -E echo "Executing generate_option_list $<TARGET_FILE:mariadbd> ${my_plugin_dir} ${escaped_plugin_load} ${genhdr}"
    COMMAND generate_option_list "$<TARGET_FILE:mariadbd>" "${my_plugin_dir}" "${escaped_plugin_load}" "${genhdr}"
    COMMAND_EXPAND_LISTS
+   DEPENDS mariadbd ${dynamic_plugins}
  )
 
  ADD_CUSTOM_TARGET(gen_mariadbd_options_h
