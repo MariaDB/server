@@ -118,6 +118,10 @@ FOREACH(t mariadb mariadb-test mariadb-check mariadb-dump mariadb-import mariadb
   ADD_DEPENDENCIES(${t} GenError ${CLIENT_LIB})
 ENDFOREACH()
 
+IF(TARGET mariadb-test-embedded)
+  ADD_DEPENDENCIES(mariadb-test-embedded GenError mariadbd_static mysys)
+ENDIF()
+
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
 IF(WITH_UNIT_TESTS)
   ADD_SUBDIRECTORY(${PROJECT_SOURCE_DIR}/unittest/client ${PROJECT_BINARY_DIR}/unittest/client)
