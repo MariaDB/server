@@ -1,7 +1,6 @@
 include/master-slave.inc
 [connection master]
 connection slave;
-INSTALL SONAME 'type_mysql_json';
 include/stop_slave.inc
 connection master;
 include/rpl_stop_server.inc [server_number=1]
@@ -32,5 +31,4 @@ CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_u
 START SLAVE;
 connection master;
 connection slave;
-UNINSTALL SONAME 'type_mysql_json';
 include/rpl_end.inc

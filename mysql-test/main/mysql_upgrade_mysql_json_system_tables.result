@@ -1,6 +1,18 @@
 #
 # MDEV-32462: mysql_upgrade -s still checks for non system tables
 #
+# MDEV-39143 merged the mysql_json type into the server (it was
+# previously the optional type_mysql_json plugin), so the column type
+# is now always resolvable: SHOW CREATE TABLE on the old-format .frm
+# below gets ER_TABLE_NEEDS_REBUILD, not ER_UNKNOWN_DATA_TYPE, and
+# mysql_upgrade's check-and-repair pass over the mysql database can
+# now actually fix mysql.mysql_json_test (it couldn't before, since
+# the type was unresolvable without the plugin).  That sharpens this
+# test's real point rather than changing it: mysql.mysql_json_test
+# gets repaired because mysql_upgrade always checks the mysql schema's
+# own tables, not because of -s; test.mysql_json_test is never even
+# looked at, confirming mysql_upgrade does not reach into user schemas.
+#
 call mtr.add_suppression("Table rebuild required");
 SET NAMES utf8;
 # mariadb_upgrade on system and user table
@@ -9,9 +21,9 @@ Tables_in_mysql (%json%)
 mysql_json_test
 use mysql;
 show create table mysql.mysql_json_test;
-ERROR HY000: Unknown data type: 'MYSQL_JSON'
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `mysql.mysql_json_test` FORCE" or dump/reload to fix it!
 show create table test.mysql_json_test;
-ERROR HY000: Unknown data type: 'MYSQL_JSON'
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 SET @old_general_log= @@global.general_log;
 SET @old_log_output= @@global.log_output;
 SET @@global.general_log = ON;
@@ -38,9 +50,7 @@ error    : Corrupt
 mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-mysql.mysql_json_test
-Error    : Unknown data type: 'MYSQL_JSON'
-error    : Corrupt
+mysql.mysql_json_test                              Needs upgrade with ALTER TABLE FORCE
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -65,12 +75,10 @@ error    : Corrupt
 mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
-mysql.mysql_json_test
-Error    : Unknown data type: 'MYSQL_JSON'
-error    : Corrupt
 mysql.transaction_registry
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
+`mysql`.`mysql_json_test`                          OK
 Phase 2/8: Installing used storage engines... Skipped
 Phase 3/8: Running 'mysql_fix_privilege_tables'
 Phase 4/8: Fixing views... Skipped
@@ -84,9 +92,14 @@ SET @@global.log_output = @old_log_output;
 select command_type, argument from mysql.general_log where argument like "%SELECT table_comment FROM information_schema.tables%";
 command_type	argument
 show create table mysql.mysql_json_test;
-ERROR HY000: Unknown data type: 'MYSQL_JSON'
+Table	Create Table
+mysql_json_test	CREATE TABLE `mysql_json_test` (
+  `description` varchar(100) DEFAULT NULL,
+  `expected` longtext DEFAULT NULL,
+  `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 show create table test.mysql_json_test;
-ERROR HY000: Unknown data type: 'MYSQL_JSON'
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 drop table mysql.mysql_json_test;
 drop table test.mysql_json_test;
 #

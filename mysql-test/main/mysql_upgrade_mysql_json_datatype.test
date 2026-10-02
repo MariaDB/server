@@ -1,7 +1,6 @@
 -- source include/mysql_upgrade_preparation.inc
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
--- source include/have_type_mysql_json.inc
 
 call mtr.add_suppression("Table rebuild required");
 call mtr.add_suppression("is marked as crashed");

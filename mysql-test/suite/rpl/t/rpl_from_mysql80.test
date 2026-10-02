@@ -59,7 +59,6 @@
 
 
 --connection slave
-INSTALL SONAME 'type_mysql_json';
 --source include/stop_slave.inc
 
 --connection master
@@ -129,7 +128,6 @@ START SLAVE SQL_THREAD;
 --sync_with_master
 
 DROP TABLE t1, t2;
-UNINSTALL SONAME 'type_mysql_json';
 CALL mtr.add_suppression('TRANSACTION_PAYLOAD_EVENT event. You can avoid this event by specifying');
 
 --connection master

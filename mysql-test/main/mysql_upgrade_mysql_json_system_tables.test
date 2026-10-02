@@ -1,8 +1,19 @@
 --echo #
 --echo # MDEV-32462: mysql_upgrade -s still checks for non system tables
 --echo #
+--echo # MDEV-39143 merged the mysql_json type into the server (it was
+--echo # previously the optional type_mysql_json plugin), so the column type
+--echo # is now always resolvable: SHOW CREATE TABLE on the old-format .frm
+--echo # below gets ER_TABLE_NEEDS_REBUILD, not ER_UNKNOWN_DATA_TYPE, and
+--echo # mysql_upgrade's check-and-repair pass over the mysql database can
+--echo # now actually fix mysql.mysql_json_test (it couldn't before, since
+--echo # the type was unresolvable without the plugin).  That sharpens this
+--echo # test's real point rather than changing it: mysql.mysql_json_test
+--echo # gets repaired because mysql_upgrade always checks the mysql schema's
+--echo # own tables, not because of -s; test.mysql_json_test is never even
+--echo # looked at, confirming mysql_upgrade does not reach into user schemas.
+--echo #
 
-# Let's now load plugin first
 --source include/have_utf8.inc
 --source include/not_embedded.inc
 
@@ -23,9 +34,9 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 show tables from mysql like '%json%';
 use mysql;
---error ER_UNKNOWN_DATA_TYPE
+--error ER_TABLE_NEEDS_REBUILD
 show create table mysql.mysql_json_test;
---error ER_UNKNOWN_DATA_TYPE
+--error ER_TABLE_NEEDS_REBUILD
 show create table test.mysql_json_test;
 
 SET @old_general_log= @@global.general_log;
@@ -39,10 +50,11 @@ SET @@global.log_output = @old_log_output;
 
 select command_type, argument from mysql.general_log where argument like "%SELECT table_comment FROM information_schema.tables%";
 
-# User table is not upgraded in `mysql\test` DB, so we cannot see it.
---error ER_UNKNOWN_DATA_TYPE
+# mysql.mysql_json_test was repaired as part of mysql_upgrade's ordinary
+# check of the mysql database's own tables.
 show create table mysql.mysql_json_test;
---error ER_UNKNOWN_DATA_TYPE
+# test.mysql_json_test sits outside the mysql schema and was never examined.
+--error ER_TABLE_NEEDS_REBUILD
 show create table test.mysql_json_test;
 drop table mysql.mysql_json_test;
 drop table test.mysql_json_test;

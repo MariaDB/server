@@ -51,6 +51,7 @@
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
 #include "rpl_utility.h"         // MYSQL_TYPE_JSON_MYSQL
+#include "sql_type_mysql_json.h" // type_handler_mysql_json
 #include "vector_mhnsw.h"
 #include "opt_group_by_cardinality.h"
 
@@ -2594,8 +2595,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               share->mysql_version >= 50700)
           {
             share->incompatible_version|= HA_CREATE_USED_ENGINE;
-            const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
-            handler= Type_handler::handler_by_name_or_error(thd, mysql_json);
+            handler= &type_handler_mysql_json;
           }
 
           if (!handler)

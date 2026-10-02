@@ -1,5 +1,4 @@
 --source include/have_utf8.inc
---source include/have_type_mysql_json.inc
 
 --echo #
 --echo # The following test takes 2 tables containing a JSON column and attempts

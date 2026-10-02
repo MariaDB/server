@@ -43,7 +43,6 @@ usr/lib/mysql/plugin/query_response_time.so
 usr/lib/mysql/plugin/server_audit.so
 usr/lib/mysql/plugin/simple_password_check.so
 usr/lib/mysql/plugin/sql_errlog.so
-usr/lib/mysql/plugin/type_mysql_json.so
 usr/lib/systemd/system/mariadb-extra@.socket
 usr/lib/systemd/system/mariadb.service
 usr/lib/systemd/system/mariadb@.service

@@ -47,7 +47,6 @@
 --source include/master-slave.inc
 
 --connection slave
-INSTALL SONAME 'type_mysql_json';
 --source include/stop_slave.inc
 
 --connection master
@@ -91,5 +90,4 @@ START SLAVE;
 --save_master_pos
 --connection slave
 --sync_with_master
-UNINSTALL SONAME 'type_mysql_json';
 --source include/rpl_end.inc
