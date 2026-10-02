@@ -1,0 +1,23 @@
+CREATE USER 'gp_admin'@'localhost' IDENTIFIED BY 'Admin123!';
+GRANT ALL PRIVILEGES ON *.* TO 'gp_admin'@'localhost' WITH GRANT OPTION;
+RENAME TABLE mysql.global_priv TO mysql.global_priv_local;
+CREATE TABLE IF NOT EXISTS mysql.global_priv (
+Host CHAR(255) BINARY NOT NULL,
+User CHAR(128) BINARY NOT NULL,
+Priv JSON NOT NULL,
+PRIMARY KEY (Host, User)
+) ENGINE=InnoDB CHARACTER SET utf8mb3 COLLATE utf8mb3_bin;
+SELECT engine
+FROM information_schema.tables
+WHERE table_schema = 'mysql' AND table_name = 'global_priv';
+engine
+InnoDB
+INSERT INTO mysql.global_priv SELECT * FROM mysql.global_priv_local;
+FLUSH PRIVILEGES;
+connect  joiner, localhost, gp_admin, Admin123!;
+USE mysql;
+disconnect joiner;
+connection default;
+DROP TABLE mysql.global_priv;
+RENAME TABLE mysql.global_priv_local TO mysql.global_priv;
+DROP USER 'gp_admin'@'localhost';
