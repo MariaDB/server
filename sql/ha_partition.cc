@@ -8103,6 +8103,15 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
       error= file->ha_index_read_map(buf, m_start_key.key,
                                      m_start_key.keypart_map,
                                      m_start_key.flag);
+      /*
+        TODO: Is the prefix check only needed for prev? If so then we
+        need to add that check here. If not then we may need to add
+        the same prefix key compare check in handle_unordered_next
+      */
+      if (!error && m_unordered_prefix_len &&
+          key_cmp_if_same(table, m_start_key.key, active_index,
+                          m_unordered_prefix_len))
+        error= HA_ERR_END_OF_FILE;
       break;
     case partition_index_first:
       DBUG_PRINT("info", ("index_first on partition %u", i));

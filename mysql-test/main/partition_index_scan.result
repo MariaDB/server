@@ -651,7 +651,7 @@ a	MIN(b)
 show status like 'handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	6
+Handler_read_key	8
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -1251,4 +1251,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT * FROM t1 FORCE INDEX(b) WHERE b=1;
 a	b
 1	1
+DROP TABLE t1;
+#
+# MDEV-41366 Wrong result with Case 2 of non-merging partition index scan
+#
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b,c)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=1 AND c<=15 ORDER BY c DESC;
+c
+5
+DROP TABLE t1;
+# desc key
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b desc,c desc)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=0 AND c>=2 ORDER BY c;
+c
+12
 DROP TABLE t1;

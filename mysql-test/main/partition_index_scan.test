@@ -610,5 +610,26 @@ SELECT * FROM t1 FORCE INDEX(b) WHERE b=1;
 SELECT * FROM t1 FORCE INDEX(b) WHERE b=1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-41366 Wrong result with Case 2 of non-merging partition index scan
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b,c)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=1 AND c<=15 ORDER BY c DESC;
+
+DROP TABLE t1;
+
+--echo # desc key
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b desc,c desc)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=0 AND c>=2 ORDER BY c;
+
+DROP TABLE t1;
+
 --enable_cursor_protocol
 --enable_ps2_protocol
