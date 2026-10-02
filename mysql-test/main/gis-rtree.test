@@ -195,8 +195,8 @@ drop table t1;
 CREATE TABLE t1 (st varchar(100));
 INSERT INTO t1 VALUES ("Fake string");
 CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom));
---error 1416
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
+SELECT * FROM t2;
 drop table t1, t2;
 
 CREATE TABLE t1 (`geometry` geometry NOT NULL, SPATIAL KEY `gndx` (`geometry`)) DEFAULT CHARSET=latin1;
@@ -868,8 +868,8 @@ drop table t1;
 CREATE TABLE t1(foo GEOMETRY NOT NULL, SPATIAL INDEX(foo) );
 --error 1048
 INSERT INTO t1(foo) VALUES (NULL);
---error 1416
 INSERT IGNORE INTO t1() VALUES ();
+SELECT * FROM t1;
 --error 1416
 INSERT INTO t1(foo) VALUES ('');
 DROP TABLE t1;
@@ -954,7 +954,7 @@ HANDLER t1 CLOSE;
 DROP TABLE t1;
 
 
---echo End of 5.0 tests.
+--echo # End of 5.0 tests.
 
 
 --echo #
@@ -965,24 +965,23 @@ DROP TABLE t1;
 CREATE TABLE t1(a POINT NOT NULL, b GEOMETRY NOT NULL,
   SPATIAL KEY(a), SPATIAL KEY(b));
 INSERT INTO t1 VALUES(GEOMFROMTEXT("point (0 0)"), GEOMFROMTEXT("point (1 1)"));
---error ER_CANT_CREATE_GEOMETRY_OBJECT
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=GEOMFROMTEXT("error");
---error ER_CANT_CREATE_GEOMETRY_OBJECT
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=NULL;
+INSERT IGNORE INTO t1 VALUES(GEOMFROMTEXT("point (7 7)"), GEOMFROMTEXT("point (7 7)")),
+                            (GEOMFROMTEXT("point (8 8)"), GEOMFROMTEXT("abracadabra")),
+                            (GEOMFROMTEXT("point (9 9)"), GEOMFROMTEXT("point (9 9)"));
 SELECT ASTEXT(a), ASTEXT(b) FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1(a INT NOT NULL, b GEOMETRY NOT NULL,
   KEY(a), SPATIAL KEY(b));
 INSERT INTO t1 VALUES(0, GEOMFROMTEXT("point (1 1)"));
---error ER_CANT_CREATE_GEOMETRY_OBJECT
 INSERT IGNORE INTO t1 SET a=0, b=GEOMFROMTEXT("error");
---error ER_CANT_CREATE_GEOMETRY_OBJECT
 INSERT IGNORE INTO t1 SET a=1, b=NULL;
 SELECT a, ASTEXT(b) FROM t1;
 DROP TABLE t1;
 
---echo End of 5.1 tests
+--echo # End of 5.1 tests
 
 #
 # MDEV-4521 MBRContains, MBRWithin no longer work with geometries of different type.
@@ -1003,11 +1002,6 @@ SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRContains(l, GEOMFROMTEXT('POINT(
 SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0.5 0.5)'), l);
 
 DROP TABLE t1;
-
-
---echo #
---echo # Start of 10.1 tests
---echo #
 
 --echo #
 --echo # MDEV-8239 Reverse spatial operations OP(const, field) do not get optimized

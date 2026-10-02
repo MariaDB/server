@@ -5632,7 +5632,7 @@ uint handler::get_dup_key(int error)
   errkey= (uint)-1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
-      error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
+      error == HA_ERR_FOUND_DUPP_UNIQUE ||
       error == HA_ERR_DROP_INDEX_FK)
     info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
   DBUG_RETURN(errkey);
