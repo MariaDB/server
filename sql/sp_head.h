@@ -148,6 +148,14 @@ protected:
   */
   ulong executed_counter;
 #endif
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    Set when an executed instruction has LEX::dont_freeze_mem_root set.
+    Prevents freezing main_mem_root for this execution of the routine;
+    cleared at the end of sp_head::execute().
+  */
+  bool dont_freeze_mem_root= false;
+#endif
 public:
   /** Possible values of m_flags */
   enum {
@@ -946,6 +954,7 @@ public:
 #ifdef PROTECT_STATEMENT_MEMROOT
   int has_all_instrs_executed();
   void reset_instrs_executed_counter();
+  void set_dont_freeze_mem_root() { dont_freeze_mem_root= true; }
 #endif
 
   /* Add tables used by routine to the table list. */
