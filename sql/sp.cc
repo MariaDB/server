@@ -1148,7 +1148,8 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   sp_head *sp;
   sp_cache **spc= get_cache(thd);
   DBUG_ASSERT(spc);
-  if ((sp= sp_cache_lookup(spc, name)))
+  /* Removing a running routine would free the LEX being executed */
+  if ((sp= sp_cache_lookup(spc, name)) && !sp->is_invoked())
     sp_cache_remove(spc, &sp);
   /* Drop statistics for this stored program from performance schema. */
   MYSQL_DROP_SP(type(), name->m_db.str, static_cast<uint>(name->m_db.length),

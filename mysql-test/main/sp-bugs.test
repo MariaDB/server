@@ -439,6 +439,61 @@ DROP FUNCTION f;
 --echo #
 
 --echo #
+--echo # MDEV-38861 heap-use-after-free in Prepared_statement::execute()
+--echo #
+--echo # A routine must not be removed from the SP cache while it is executing.
+--echo #
+
+--echo # DROP of the running routine
+delimiter $$;
+create procedure p0()
+begin
+  prepare stmt from "drop procedure p0";
+  execute stmt;
+end$$
+delimiter ;$$
+call p0();
+--error ER_SP_DOES_NOT_EXIST
+call p0();
+deallocate prepare stmt;
+
+--echo # CREATE OR REPLACE of the running routine
+delimiter $$;
+create procedure p0()
+begin
+  prepare stmt from "create or replace procedure p0() begin select 1 as replaced; end";
+  execute stmt;
+end$$
+delimiter ;$$
+call p0();
+call p0();
+deallocate prepare stmt;
+drop procedure p0;
+
+--echo # DROP of the caller, which then keeps running
+delimiter $$;
+create procedure outer_p()
+begin
+  call inner_p();
+  select 'outer survived' as state;
+end$$
+create procedure inner_p()
+begin
+  prepare stmt from "drop procedure outer_p";
+  execute stmt;
+end$$
+delimiter ;$$
+call outer_p();
+--error ER_SP_DOES_NOT_EXIST
+call outer_p();
+deallocate prepare stmt;
+drop procedure inner_p;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
+--echo #
 --echo # MDEV-36876 Crash during the Item_subselect::init - outer_select is NULL
 --echo #
 --echo # Vectors are not allowed for SOME/ANY

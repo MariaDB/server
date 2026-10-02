@@ -400,6 +400,54 @@ DROP FUNCTION f;
 # End of 10.5 tests
 #
 #
+# MDEV-38861 heap-use-after-free in Prepared_statement::execute()
+#
+# A routine must not be removed from the SP cache while it is executing.
+#
+# DROP of the running routine
+create procedure p0()
+begin
+prepare stmt from "drop procedure p0";
+execute stmt;
+end$$
+call p0();
+call p0();
+ERROR 42000: PROCEDURE test.p0 does not exist
+deallocate prepare stmt;
+# CREATE OR REPLACE of the running routine
+create procedure p0()
+begin
+prepare stmt from "create or replace procedure p0() begin select 1 as replaced; end";
+execute stmt;
+end$$
+call p0();
+call p0();
+replaced
+1
+deallocate prepare stmt;
+drop procedure p0;
+# DROP of the caller, which then keeps running
+create procedure outer_p()
+begin
+call inner_p();
+select 'outer survived' as state;
+end$$
+create procedure inner_p()
+begin
+prepare stmt from "drop procedure outer_p";
+execute stmt;
+end$$
+call outer_p();
+state
+outer survived
+call outer_p();
+ERROR 42000: PROCEDURE test.outer_p does not exist
+deallocate prepare stmt;
+drop procedure inner_p;
+#
+# End of 11.4 tests
+#
+#
 # MDEV-36876 Crash during the Item_subselect::init - outer_select is NULL
 #
 # Vectors are not allowed for SOME/ANY
