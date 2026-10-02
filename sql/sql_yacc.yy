@@ -18695,6 +18695,7 @@ object_privilege:
         | REPLICATION SLAVE ADMIN_SYM      { $$= REPL_SLAVE_ADMIN_ACL; }
         | SLAVE MONITOR_SYM                { $$= SLAVE_MONITOR_ACL; }
         | SHOW CREATE ROUTINE_SYM          { $$= SHOW_CREATE_ROUTINE_ACL; }
+        | XA_SYM RECOVER_SYM ADMIN_SYM     { $$= XA_RECOVER_ADMIN_ACL; }
         ;
 
 opt_and:

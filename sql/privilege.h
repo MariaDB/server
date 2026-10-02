@@ -68,7 +68,8 @@ enum privilege_t: unsigned long long
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
   SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
-  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39)  // added in 11.3.0
+  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39), // added in 11.3.0
+  XA_RECOVER_ADMIN_ACL  = (1ULL << 40)  // added in 13.2.0
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -105,9 +106,10 @@ constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
 constexpr privilege_t LAST_110300_ACL= SHOW_CREATE_ROUTINE_ACL;
+constexpr privilege_t LAST_130200_ACL= XA_RECOVER_ADMIN_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_110300_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_130200_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -129,6 +131,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
 
 // A combination of all bits defined in 11.3.0
 constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);
+
+// A combination of all bits defined in 13.2.0
+constexpr privilege_t ALL_KNOWN_ACL_130200= ALL_KNOWN_BITS(LAST_130200_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -289,7 +294,7 @@ constexpr privilege_t PROC_ACLS=
 constexpr privilege_t GLOBAL_ACLS=
   DB_ACLS | SHOW_DB_ACL | CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
-  REPL_SLAVE_ACL |
+  REPL_SLAVE_ACL | XA_RECOVER_ADMIN_ACL |
   ALLOWED_BY_SUPER_BEFORE_101100 | ALLOWED_BY_SUPER_BEFORE_110000;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
@@ -492,6 +497,11 @@ constexpr privilege_t PRIV_STMT_SHOW_BINLOG_EVENTS= BINLOG_MONITOR_ACL;
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_DO_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
 
 constexpr privilege_t PRIV_SET_SYSTEM_GLOBAL_VAR_BINLOG_IGNORE_DB = BINLOG_ADMIN_ACL | SUPER_ACL;
+
+/*
+  Privilege for the XA RECOVER statement.
+*/
+constexpr privilege_t PRIV_STMT_XA_RECOVER= XA_RECOVER_ADMIN_ACL;
 
 /*
   Privileges for replication related statements and commands
