@@ -824,7 +824,11 @@ CREATE TABLE t1 (st varchar(100));
 INSERT INTO t1 VALUES ("Fake string");
 CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom));
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1048	Column 'geom' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+SELECT * FROM t2;
+geom
 drop table t1, t2;
 CREATE TABLE t1 (`geometry` geometry NOT NULL, SPATIAL KEY `gndx` (`geometry`)) DEFAULT CHARSET=latin1;
 INSERT INTO t1 (geometry) VALUES
@@ -1477,7 +1481,11 @@ CREATE TABLE t1(foo GEOMETRY NOT NULL, SPATIAL INDEX(foo) );
 INSERT INTO t1(foo) VALUES (NULL);
 ERROR 23000: Column 'foo' cannot be null
 INSERT IGNORE INTO t1() VALUES ();
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1364	Field 'foo' doesn't have a default value
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+SELECT * FROM t1;
+foo
 INSERT INTO t1(foo) VALUES ('');
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP TABLE t1;
@@ -1565,7 +1573,7 @@ INSERT INTO t1 VALUES (GeomFromText('Polygon((40 40,60 40,60 60,40 60,40 40))'))
 HANDLER t1 READ a NEXT;
 HANDLER t1 CLOSE;
 DROP TABLE t1;
-End of 5.0 tests.
+# End of 5.0 tests.
 #
 # Bug #57323/11764487: myisam corruption with insert ignore
 # and invalid spatial data
@@ -1574,25 +1582,41 @@ CREATE TABLE t1(a POINT NOT NULL, b GEOMETRY NOT NULL,
 SPATIAL KEY(a), SPATIAL KEY(b));
 INSERT INTO t1 VALUES(GEOMFROMTEXT("point (0 0)"), GEOMFROMTEXT("point (1 1)"));
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=GEOMFROMTEXT("error");
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1048	Column 'b' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=NULL;
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1048	Column 'b' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+INSERT IGNORE INTO t1 VALUES(GEOMFROMTEXT("point (7 7)"), GEOMFROMTEXT("point (7 7)")),
+(GEOMFROMTEXT("point (8 8)"), GEOMFROMTEXT("abracadabra")),
+(GEOMFROMTEXT("point (9 9)"), GEOMFROMTEXT("point (9 9)"));
+Warnings:
+Warning	1048	Column 'b' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
 SELECT ASTEXT(a), ASTEXT(b) FROM t1;
 ASTEXT(a)	ASTEXT(b)
 POINT(0 0)	POINT(1 1)
+POINT(7 7)	POINT(7 7)
+POINT(9 9)	POINT(9 9)
 DROP TABLE t1;
 CREATE TABLE t1(a INT NOT NULL, b GEOMETRY NOT NULL,
 KEY(a), SPATIAL KEY(b));
 INSERT INTO t1 VALUES(0, GEOMFROMTEXT("point (1 1)"));
 INSERT IGNORE INTO t1 SET a=0, b=GEOMFROMTEXT("error");
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1048	Column 'b' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
 INSERT IGNORE INTO t1 SET a=1, b=NULL;
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+Warnings:
+Warning	1048	Column 'b' cannot be null
+Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
 SELECT a, ASTEXT(b) FROM t1;
 a	ASTEXT(b)
 0	POINT(1 1)
 DROP TABLE t1;
-End of 5.1 tests
+# End of 5.1 tests
 CREATE TABLE t1 (
 l LINESTRING NOT NULL,
 SPATIAL KEY(l)
@@ -1613,9 +1637,6 @@ SELECT COUNT(*) FROM t1 FORCE INDEX(l) WHERE MBRWithin(GEOMFROMTEXT('POINT(0.5 0
 COUNT(*)
 1
 DROP TABLE t1;
-#
-# Start of 10.1 tests
-#
 #
 # MDEV-8239 Reverse spatial operations OP(const, field) do not get optimized
 #

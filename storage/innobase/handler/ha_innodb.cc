@@ -3,7 +3,7 @@
 Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2023, MariaDB Corporation.
+Copyright (c) 2013, 2026, MariaDB plc.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -2129,7 +2129,6 @@ convert_error_code_to_mysql(
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
-		my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, MYF(0));
 		return(HA_ERR_NULL_IN_SPATIAL);
 
 	case DB_ERROR:

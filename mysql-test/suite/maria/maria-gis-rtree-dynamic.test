@@ -6,9 +6,6 @@ set default_storage_engine=aria;
 #
 # test of rtree (using with spatial data)
 #
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
 
 CREATE TABLE t1 (
   fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY, 
@@ -172,8 +169,8 @@ drop table t1;
 CREATE TABLE t1 (st varchar(100));
 INSERT INTO t1 VALUES ("Fake string");
 CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom)) row_format=dynamic;
---error 1416
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
+SELECT * FROM t2;
 drop table t1, t2;
 
 CREATE TABLE t1 (`geometry` geometry NOT NULL, SPATIAL KEY `gndx` (`geometry`)) row_format=dynamic DEFAULT CHARSET=latin1;
@@ -848,8 +845,8 @@ drop table t1;
 CREATE TABLE t1(foo GEOMETRY NOT NULL, SPATIAL INDEX(foo) ) row_format=dynamic;
 --error 1048
 INSERT INTO t1(foo) VALUES (NULL);
---error 1416
 INSERT IGNORE INTO t1() VALUES ();
+SELECT * FROM t1;
 --error 1416
 INSERT INTO t1(foo) VALUES ('');
 DROP TABLE t1;

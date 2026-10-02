@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -4209,6 +4209,7 @@ public:
          (error == HA_ERR_FOUND_DUPP_KEY ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
         error == HA_ERR_AUTOINC_ERANGE ||
+        error == HA_ERR_NULL_IN_SPATIAL ||
         ((flags & HA_CHECK_FK_ERROR) &&
          (error == HA_ERR_ROW_IS_REFERENCED ||
           error == HA_ERR_NO_REFERENCED_ROW)))
