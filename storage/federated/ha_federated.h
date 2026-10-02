@@ -219,8 +219,6 @@ public:
   ha_rows estimate_rows_upper_bound() override;
   int index_read(uchar *buf, const uchar *key,
                  uint key_len, enum ha_rkey_function find_flag) override;
-  int index_read_idx(uchar *buf, uint idx, const uchar *key,
-                     uint key_len, enum ha_rkey_function find_flag);
   int index_next(uchar *buf) override;
   int index_end() override;
   int read_range_first(const key_range *start_key,
