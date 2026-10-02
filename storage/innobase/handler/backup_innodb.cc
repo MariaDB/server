@@ -1238,8 +1238,18 @@ private:
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
     if (UNIV_LIKELY(name != nullptr))
     {
+      if (sink.stream == sink.NO_STREAM && FSP_FLAGS_HAS_DATA_DIR(space.flags))
+      {
+        /*
+          In BACKUP SERVER TO, the DATA DIRECTORY source
+          would be identical to the destination.
+          Streaming backup (BACKUP SERVER WITH) would work.
+        */
+        my_error(ER_CANT_CREATE_FILE, MYF(0), name, EEXIST);
+        res= -1;
+      }
 #ifdef _WIN32
-      if (sink.stream == sink.NO_STREAM)
+      else if (sink.stream == sink.NO_STREAM)
       {
         for (;;)
         {
@@ -1280,59 +1290,59 @@ private:
         }
       }
 #else
-      int fd;
-      int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
-      if (sink.stream == sink.NO_STREAM)
-      {
-        fd= target.fd;
-        method= backup;
-      }
       else
       {
-        fd= sink.stream;
-        method= stream;
-      }
-# ifdef HAVE_POSIX_FALLOCATE
-      if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
-      {
-        const uint32_t page_size{space.physical_size()};
-        if ((limit * page_size) & 4095)
-          /*
-            os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
-            multiples of 4096 bytes. There may be up to 3 pages
-            (of 1024 bytes) that have not been written out yet.
-            We must cap the limit to the actual file size.
-          */
-          limit=
-            std::min(limit,
-                     uint32_t(os_file_get_size(node->handle) / page_size));
-      }
-# endif
-      for (;;)
-      {
-        res= (*method)(fd, node, name, start, limit);
-#ifdef POSIX_FADV_DONTNEED
-        std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
-#endif
-        if (res)
-          break;
-        fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
-        if (!next)
-          break;
-        ut_ad(&space == fil_system.sys_space);
-        const uint32_t size{node->size};
-        start+= size;
-        if (limit >= size)
-          limit-= size;
+        int fd= sink.stream;
+        int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
+        if (fd == sink.NO_STREAM)
+        {
+          fd= target.fd;
+          method= backup;
+        }
         else
-          limit= 0;
-        node= next;
-        name= node->name;
-      }
+          method= stream;
+# ifdef HAVE_POSIX_FALLOCATE
+        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+        {
+          const uint32_t page_size{space.physical_size()};
+          if ((limit * page_size) & 4095)
+            /*
+              os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+              multiples of 4096 bytes. There may be up to 3 pages
+              (of 1024 bytes) that have not been written out yet.
+              We must cap the limit to the actual file size.
+            */
+            limit=
+              std::min(limit,
+                       uint32_t(os_file_get_size(node->handle) / page_size));
+        }
+# endif
+        for (;;)
+        {
+          res= (*method)(fd, node, name, start, limit);
+#ifdef POSIX_FADV_DONTNEED
+          std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
 #endif
-      mysql_mutex_lock(&fil_system.mutex);
-      node->clear_backup_name();
-      mysql_mutex_unlock(&fil_system.mutex);
+          if (res)
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          ut_ad(&space == fil_system.sys_space);
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+          name= node->name;
+        }
+#endif
+        mysql_mutex_lock(&fil_system.mutex);
+        node->clear_backup_name();
+        mysql_mutex_unlock(&fil_system.mutex);
+      }
     }
     else
     {

@@ -741,6 +741,7 @@ struct backup_context
     case 0x2e54524e: /* .TRN trigger name */
     case 0x2e66726d: /* .frm form (SHOW CREATE TABLE) */
     case 0x2e706172: /* .par PARTITION metadata */
+    case 0x2e69736c: /* .isl ENGINE=InnoDB DATA DIRECTORY "symbolic link" */
 #else
     case 0x4d52412e: /* .ARM ENGINE=ARCHIVE metadata */
     case 0x5a52412e: /* .ARZ ENGINE=ARCHIVE compressed data */
@@ -753,6 +754,7 @@ struct backup_context
     case 0x4e52542e: /* .TRN trigger name */
     case 0x6d72662e: /* .frm form (SHOW CREATE TABLE) */
     case 0x7261702e: /* .par PARTITION metadata */
+    case 0x6c73692e: /* .isl ENGINE=InnoDB DATA DIRECTORY "symbolic link" */
 #endif
       return true;
     }

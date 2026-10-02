@@ -20,19 +20,11 @@ INSERT INTO at1 VALUES (2), (3), (5), (7);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
 
-# Create a table that must be copied and dropped during the backup
-CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
-SELECT seq a, '' b FROM seq_1_to_100000;
-# Create a table that must be copied and renamed during the backup
-CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
-# Because log checkpoint will complete before BACKUP SERVER,
-# the above CREATE TABLE must lead to copying the data file,
-# instead of recovering it via a FILE_CREATE record.
+evalp CREATE TABLE td(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB
+DATA DIRECTORY '$MYSQL_TMP_DIR';
+# Ensure that the data file for the above table must be copied.
 SET GLOBAL innodb_log_checkpoint_now=ON;
-
-CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB;
-BEGIN;
-INSERT INTO t SET a=1, b='';
+BEGIN; INSERT INTO td VALUES(1,'');
 
 --let $target_directory=/tmp/some_directory$MTR_COMBINATION_ARCHIVED
 
@@ -45,10 +37,18 @@ INSERT INTO t SET a=1, b='';
 --error 0,1
 --rmdir $target_directory
 
+# An attempt to copy the DATA DIRECTORY file to itself will fail.
+# This limitation will not apply to BACKUP SERVER WITH (streaming backup).
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--replace_regex / \(errno:.*/ (errno: ...)/
+--error ER_CANT_CREATE_FILE
 evalp BACKUP SERVER TO '$target_directory';
 ROLLBACK;
 # BACKUP SERVER will implicitly commit the current transaction
-SELECT * FROM t;
+SELECT * FROM td;
+
+DROP TABLE td;
+--rmdir $MYSQL_TMP_DIR/test
 
 --error ER_PARSE_ERROR
 evalp BACKUP SERVER TO '$target_directory' WITH '/bin/false';
@@ -63,9 +63,20 @@ BACKUP SERVER WITH 'no-such-command';
 --write_file $target_directory.empty_file
 EOF
 
+while ($attempts) {
+CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
+SELECT seq a, '' b FROM seq_1_to_100000;
+# Create a table that must be copied and renamed during the backup
+CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
+# Because log checkpoint will complete before BACKUP SERVER,
+# the above CREATE TABLE must lead to copying the data file,
+# instead of recovering it via a FILE_CREATE record.
+SET GLOBAL innodb_log_checkpoint_now=ON;
+
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b)) ENGINE=INNODB
+SELECT 1 a, '' b;
 BEGIN; DELETE FROM t;
 
-while ($attempts) {
 dec $attempts;
 --rmdir $target_directory
 --connect backup,localhost,root
@@ -106,18 +117,6 @@ if ($attempts) {
 --connection default
 # Clean up for a retry without a fault injection.
 DROP TABLE t, rt, rtt;
-CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
-SELECT seq a, '' b FROM seq_1_to_100000;
-# Create a table that must be copied and renamed during the backup
-CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
-# Because log checkpoint will complete before BACKUP SERVER,
-# the above CREATE TABLE must lead to copying the data file,
-# instead of recovering it via a FILE_CREATE record.
-SET GLOBAL innodb_log_checkpoint_now=ON;
-
-CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b)) ENGINE=INNODB
-SELECT 1 a, '' b;
-BEGIN; DELETE FROM t;
 }
 }
 --error 0,1

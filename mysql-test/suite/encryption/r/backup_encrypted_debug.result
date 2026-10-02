@@ -2,18 +2,18 @@ CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (2), (3), (5), (7);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
 INSERT INTO at0 VALUES (1), (1), (2), (3), (5);
-CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
-SELECT seq a, '' b FROM seq_1_to_100000;
-CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE td(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB
+DATA DIRECTORY '$MYSQL_TMP_DIR';
 SET GLOBAL innodb_log_checkpoint_now=ON;
-CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB;
 BEGIN;
-INSERT INTO t SET a=1, b='';
+INSERT INTO td VALUES(1,'');
 BACKUP SERVER TO '$target_directory';
+ERROR HY000: Can't create file 'MYSQL_TMP_DIR/test/td.ibd' (errno: ...)
 ROLLBACK;
-SELECT * FROM t;
+SELECT * FROM td;
 a	b
 1	
+DROP TABLE td;
 BACKUP SERVER TO '$target_directory' WITH '/bin/false';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'WITH '/bin/false'' at line 1
 BACKUP SERVER TO '$target_directory' WITH 4 CONCURRENT '/bin/false';
@@ -22,6 +22,12 @@ BACKUP SERVER WITH '/bin/false';
 ERROR HY000: Incorrect arguments to BACKUP SERVER WITH
 BACKUP SERVER WITH 'no-such-command';
 ERROR HY000: IO Write error: (...) BACKUP SERVER
+CREATE TABLE dt(a INT PRIMARY KEY, b CHAR(255)) ENGINE=InnoDB
+SELECT seq a, '' b FROM seq_1_to_100000;
+CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL innodb_log_checkpoint_now=ON;
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255), INDEX(b)) ENGINE=INNODB
+SELECT 1 a, '' b;
 BEGIN;
 DELETE FROM t;
 connect backup,localhost,root;
