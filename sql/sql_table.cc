@@ -13009,7 +13009,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           {
             /* Ordinary ALTER TABLE. Report duplicate key error. */
             uint key_nr= to->file->get_dup_key(error);
-            if ((int) key_nr >= 0)
+            if ((int) key_nr >= 0 && error != HA_ERR_BAD_FIELD_VALUE)
             {
               const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
               if (key_nr == 0 && to->s->keys > 0 &&

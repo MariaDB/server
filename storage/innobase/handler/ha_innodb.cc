@@ -2129,7 +2129,7 @@ convert_error_code_to_mysql(
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
-		return(HA_ERR_NULL_IN_SPATIAL);
+		return(HA_ERR_BAD_FIELD_VALUE);
 
 	case DB_ERROR:
 	default:

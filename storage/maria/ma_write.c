@@ -1,5 +1,6 @@
-/* Copyright (C) 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (C) 2008-2009 Sun Microsystems, Inc.
+/* Copyright (C) 2004, 2008, MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (C) 2008, 2009, Sun Microsystems, Inc.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -333,7 +334,7 @@ err:
       my_errno == HA_ERR_RECORD_FILE_FULL ||
       my_errno == HA_ERR_LOCK_DEADLOCK ||
       my_errno == HA_ERR_LOCK_WAIT_TIMEOUT ||
-      my_errno == HA_ERR_NULL_IN_SPATIAL ||
+      my_errno == HA_ERR_BAD_FIELD_VALUE ||
       my_errno == HA_ERR_OUT_OF_MEM)
   {
     info->errkey= i < share->base.keys ? (int) i : -1;

@@ -4209,7 +4209,7 @@ public:
          (error == HA_ERR_FOUND_DUPP_KEY ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
         error == HA_ERR_AUTOINC_ERANGE ||
-        error == HA_ERR_NULL_IN_SPATIAL ||
+        error == HA_ERR_BAD_FIELD_VALUE ||
         ((flags & HA_CHECK_FK_ERROR) &&
          (error == HA_ERR_ROW_IS_REFERENCED ||
           error == HA_ERR_NO_REFERENCED_ROW)))

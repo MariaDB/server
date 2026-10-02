@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ static const char *HA_ERR(int i)
   case HA_ERR_NO_SUCH_TABLE: return "HA_ERR_NO_SUCH_TABLE";
   case HA_ERR_TABLE_EXIST: return "HA_ERR_TABLE_EXIST";
   case HA_ERR_NO_CONNECTION: return "HA_ERR_NO_CONNECTION";
-  case HA_ERR_NULL_IN_SPATIAL: return "HA_ERR_NULL_IN_SPATIAL";
+  case HA_ERR_BAD_FIELD_VALUE: return "HA_ERR_BAD_FIELD_VALUE";
   case HA_ERR_TABLE_DEF_CHANGED: return "HA_ERR_TABLE_DEF_CHANGED";
   case HA_ERR_NO_PARTITION_FOUND: return "HA_ERR_NO_PARTITION_FOUND";
   case HA_ERR_RBR_LOGGING_FAILED: return "HA_ERR_RBR_LOGGING_FAILED";

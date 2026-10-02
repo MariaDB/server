@@ -5109,9 +5109,29 @@ void handler::print_error(int error, myf errflag)
     }
     DBUG_VOID_RETURN;
   }
-  case HA_ERR_NULL_IN_SPATIAL:
-    my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, errflag);
+  case HA_ERR_BAD_FIELD_VALUE:
+  {
+    uint key_nr= get_dup_key(error);
+    if (key_nr < MAX_KEY)
+    {
+      KEY *keyinfo= table->key_info + key_nr;
+      DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+      Field *field= keyinfo->key_part->field;
+      StringBuffer<1024> buf;
+      StringBuffer<64> type;
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+      String *res= field->val_str(&buf);
+      dbug_tmp_restore_column_map(&table->read_set, old_map);
+      field->sql_type(type);
+      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, errflag, type.c_ptr(),
+               ErrConvString(res).ptr(), table->s->db.str, table->alias.c_ptr(),
+               field->field_name.str,
+               ha_thd()->get_stmt_da()->current_row_for_warning());
+    }
+    else // temporary backward compatibility fallback
+      my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, errflag);
     DBUG_VOID_RETURN;
+  }
   case HA_ERR_FOUND_DUPP_UNIQUE:
     textno=ER_DUP_UNIQUE;
     break;
@@ -5556,7 +5576,8 @@ uint handler::get_dup_key(int error)
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE ||
-      error == HA_ERR_DROP_INDEX_FK)
+      error == HA_ERR_DROP_INDEX_FK ||
+      error == HA_ERR_BAD_FIELD_VALUE)
     info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
   DBUG_RETURN(errkey);
 }

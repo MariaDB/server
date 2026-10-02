@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2021, MariaDB Corporation.
+   Copyright (c) 1995, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -505,8 +505,7 @@ enum ha_base_keytype {
 #define HA_ERR_NO_SUCH_TABLE     155  /* The table does not exist in engine */
 #define HA_ERR_TABLE_EXIST       156  /* The table existed in storage engine */
 #define HA_ERR_NO_CONNECTION     157  /* Could not connect to storage engine */
-/* NULLs are not supported in spatial index */
-#define HA_ERR_NULL_IN_SPATIAL   158
+#define HA_ERR_BAD_FIELD_VALUE   158  /* Used when cannot do just a warning */
 #define HA_ERR_TABLE_DEF_CHANGED 159  /* The table changed in storage engine */
 /* There's no partition in table for given value */
 #define HA_ERR_NO_PARTITION_FOUND 160

@@ -804,7 +804,7 @@ CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom)) row_format=dynami
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
 Warnings:
 Warning	1048	Column 'geom' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t2`.`geom` at row 1
 SELECT * FROM t2;
 geom
 drop table t1, t2;
@@ -1470,7 +1470,7 @@ ERROR 23000: Column 'foo' cannot be null
 INSERT IGNORE INTO t1() VALUES ();
 Warnings:
 Warning	1364	Field 'foo' doesn't have a default value
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`foo` at row 1
 SELECT * FROM t1;
 foo
 INSERT INTO t1(foo) VALUES ('');
