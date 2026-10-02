@@ -176,7 +176,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     ha_federatedx::index_init
     ha_federatedx::index_read
-    ha_federatedx::index_read_idx
     ha_federatedx::rnd_next
     ha_federatedx::convert_row_to_internal_format
     ha_federatedx::update_row
@@ -1100,7 +1099,7 @@ read_range_first: start_key 3 end_key 3
 numeric keys:
 
 id = 4
-index_read_idx: start_key 0 end_key NULL 
+index_read_idx_map: start_key 0 end_key NULL
 
 id > 4
 records_in_range: start_key 3 end_key NULL
@@ -2579,8 +2578,7 @@ int ha_federatedx::delete_row(const uchar *buf)
 /*
   Positions an index cursor to the index specified in the handle. Fetches the
   row if available. If the key value is null, begin at the first key of the
-  index. This method, which is called in the case of an SQL statement having
-  a WHERE clause on a non-primary key index, simply calls index_read_idx.
+  index.
 */
 
 int ha_federatedx::index_read(uchar *buf, const uchar *key,
@@ -2593,36 +2591,6 @@ int ha_federatedx::index_read(uchar *buf, const uchar *key,
   DBUG_RETURN(index_read_idx_with_result_set(buf, active_index, key,
                                              key_len, find_flag,
                                              &stored_result));
-}
-
-
-/*
-  Positions an index cursor to the index specified in key. Fetches the
-  row if any.  This is only used to read whole keys.
-
-  This method is called via index_read in the case of a WHERE clause using
-  a primary key index OR is called DIRECTLY when the WHERE clause
-  uses a PRIMARY KEY index.
-
-  NOTES
-    This uses an internal result set that is deleted before function
-    returns.  We need to be able to be callable from ha_rnd_pos()
-*/
-
-int ha_federatedx::index_read_idx(uchar *buf, uint index, const uchar *key,
-                                 uint key_len, enum ha_rkey_function find_flag)
-{
-  int retval;
-  FEDERATEDX_IO_RESULT *io_result= 0;
-  DBUG_ENTER("ha_federatedx::index_read_idx");
-
-  if ((retval= index_read_idx_with_result_set(buf, index, key,
-                                              key_len, find_flag,
-                                              &io_result)))
-    DBUG_RETURN(retval);
-  /* io is correct, as index_read_idx_with_result_set was ok */
-  io->free_result(io_result);
-  DBUG_RETURN(retval);
 }
 
 
@@ -2811,7 +2779,7 @@ int ha_federatedx::rnd_init(bool scan)
     using indexed columns.
 
     When the initial query contains a WHERE clause of the query using an
-    indexed column, it's index_read_idx that selects the exact record from
+    indexed column, it's index_read that selects the exact record from
     the foreign database.
 
     When there is NO index in the query, either due to not having a WHERE
@@ -2820,14 +2788,14 @@ int ha_federatedx::rnd_init(bool scan)
     a 'select * from ...' on the foreign table.
 
     In other words, this 'scan' flag gives us the means to ensure that if
-    there is an index involved in the query, we want index_read_idx to
+    there is an index involved in the query, we want index_read to
     retrieve the exact record (scan flag is 0), and do not  want rnd_init
     to do a 'full table scan' and wipe out that result set.
 
     Prior to using this flag, the problem was most apparent with updates.
 
     An initial query like 'UPDATE tablename SET anything = whatever WHERE
-    indexedcol = someval', index_read_idx would get called, using a query
+    indexedcol = someval', the index lookup would run, using a query
     constructed with a WHERE clause built from the values of index ('indexcol'
     in this case, having a value of 'someval').  mysql_store_result would
     then get called (this would be the result set we want to use).
@@ -2835,7 +2803,7 @@ int ha_federatedx::rnd_init(bool scan)
     After this rnd_init (from sql_update.cc) would be called, it would then
     unecessarily call "select * from table" on the foreign table, then call
     mysql_store_result, which would wipe out the correct previous result set
-    from the previous call of index_read_idx's that had the result set
+    from the previous index lookup that had the result set
     containing the correct record, hence update the wrong row!
 
   */
