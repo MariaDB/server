@@ -1,6 +1,6 @@
 --- backup_stream.result
 +++ backup_stream,debug.result
-@@ -11,9 +11,12 @@
+@@ -8,10 +8,13 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
@@ -8,8 +8,9 @@
  BACKUP SERVER WITH 2 CONCURRENT 'cat';
  connection default;
 +SET DEBUG_SYNC='now WAIT_FOR start';
- INSERT INTO t SELECT seq, '' FROM seq_1_to_30000;
+ INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
 +SET DEBUG_SYNC='now SIGNAL resume';
  connection backup;
  disconnect backup;
  connection default;
+ ROLLBACK;

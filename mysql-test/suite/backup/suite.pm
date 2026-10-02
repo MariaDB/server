@@ -19,8 +19,12 @@ my $have_tar = `tar --version 2>&1` =~ /tar .*\d\.\d/;
 
 sub skip_combinations {
   my %skip;
-  $skip{'backup_stream.test'} = 'needs cat,tar,mariadb-backup-cat'
-      unless $have_cat && $have_tar && $have_mbc;
+  unless ($have_cat && $have_tar && $have_mbc)
+  {
+    my $needs= 'needs cat,tar,mariadb-backup-cat';
+    $skip{'backup_stream.test'} = $needs;
+    $skip{'backup_innodb_data_directory.test'} = $needs;
+  }
   %skip;
 }
 

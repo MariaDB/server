@@ -1,0 +1,54 @@
+--source include/have_innodb.inc
+--source include/have_symlink.inc
+
+evalp CREATE TABLE td(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB
+DATA DIRECTORY '$MYSQL_TMP_DIR';
+# Ensure that the data file for the above table must be copied.
+SET GLOBAL innodb_log_checkpoint_now=ON;
+
+--let $target_directory=$MYSQLTEST_VARDIR/some_data_directory
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+
+# An attempt to copy the DATA DIRECTORY file to itself will fail.
+# This limitation will not apply to BACKUP SERVER WITH (streaming backup).
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--replace_regex / \(errno:.*/ (errno: ...)/
+--error ER_CANT_CREATE_FILE
+evalp BACKUP SERVER TO '$target_directory';
+
+if ($MARIADB_UPGRADE_EXE)
+{
+--exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+
+BACKUP SERVER WITH 'cat';
+
+--source include/shutdown_mysqld.inc
+--rmdir $target_directory
+--mkdir $target_directory
+
+--move_file $MYSQL_TMP_DIR/test/td.ibd $MYSQL_TMP_DIR/test.ibd
+--exec tar xPf $MARIADB_DATADIR/1.tar -C $target_directory
+
+--list_files $MYSQL_TMP_DIR/test
+--exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/start_mysqld.inc
+
+SELECT * FROM td;
+--error ER_OPEN_AS_READONLY
+DROP TABLE td;
+
+--source include/shutdown_mysqld.inc
+--rmdir $target_directory
+--move_file $MYSQL_TMP_DIR/test.ibd $MYSQL_TMP_DIR/test/td.ibd
+--let $restart_parameters=
+--source include/start_mysqld.inc
+SELECT * FROM td;
+DROP TABLE td;
+
+--rmdir $MYSQL_TMP_DIR/test

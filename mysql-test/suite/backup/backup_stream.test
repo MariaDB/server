@@ -2,6 +2,10 @@
 --source include/have_innodb.inc
 --source include/maybe_debug.inc
 
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
+ENGINE=INNODB;
+INSERT INTO t SET a=1;
+
 CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (1);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
@@ -16,13 +20,8 @@ if ($MARIADB_UPGRADE_EXE)
 --exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
 
-evalp CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) NOT NULL, INDEX(b))
-ENGINE=INNODB DATA DIRECTORY '$MYSQL_TMP_DIR' SELECT 1 a, '' b;
-# To have the $MYSQL_TMP_DIR/test/t.ibd appear in the streams,
-# write a log checkpoint between the CREATE TABLE and BACKUP SERVER.
-SET GLOBAL innodb_log_checkpoint_now=ON;
-
-BEGIN; DELETE FROM t;
+BEGIN;
+DELETE FROM t;
 
 --connect backup,localhost,root
 if ($have_debug) {
@@ -33,8 +32,7 @@ send_eval BACKUP SERVER WITH 2 CONCURRENT 'cat';
 if ($have_debug) {
 SET DEBUG_SYNC='now WAIT_FOR start';
 }
-
-INSERT INTO t SELECT seq, '' FROM seq_1_to_30000;
+INSERT INTO t(a) SELECT * FROM seq_1_to_30000;
 if ($have_debug) {
 SET DEBUG_SYNC='now SIGNAL resume';
 }
@@ -53,10 +51,8 @@ DROP DATABASE `$$$$$$$$$$$$`;
 --error 0,1
 --rmdir $target_directory
 --mkdir $target_directory
---move_file $MYSQL_TMP_DIR/test/t.ibd $MYSQL_TMP_DIR/test.ibd
---exec tar xPf $MARIADB_DATADIR/1.tar -C $target_directory
---exec tar xPf $MARIADB_DATADIR/2.tar -C $target_directory
---list_files $MYSQL_TMP_DIR/test
+--exec tar xf $MARIADB_DATADIR/1.tar -C $target_directory
+--exec tar xf $MARIADB_DATADIR/2.tar -C $target_directory
 --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
 
 --let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
@@ -77,15 +73,11 @@ if ($MARIADB_UPGRADE_EXE)
 --remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
 
---source include/shutdown_mysqld.inc
---remove_file $MYSQL_TMP_DIR/test/t.ibd
---move_file $MYSQL_TMP_DIR/test.ibd $MYSQL_TMP_DIR/test/t.ibd
 --let $restart_parameters=
---source include/start_mysqld.inc
+--source include/restart_mysqld.inc
 SELECT * FROM t;
 DROP TABLE t;
 --error ER_NO_SUCH_TABLE
 DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 
 --rmdir $target_directory
---rmdir $MYSQL_TMP_DIR/test
