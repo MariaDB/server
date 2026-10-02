@@ -73,6 +73,57 @@ to que_run_threads: this is to allow canceling runaway queries */
 #define	SEL_EXHAUSTED	1
 #define SEL_RETRY	2
 
+/** Lookups that no slot of row_prebuilt_t::clust_leaf_hint answered, with no
+lookup that one did between them, after which a scan is taken to have too
+little locality to pay for the slots. It then stops testing them and stops
+refreshing them, which is the larger half of their cost: two key copies for
+every lookup that they do not answer.
+
+What a hit saves is one buffer pool access and one page-local search for
+each level above the leaf, so a scan that seldom hits pays more for the
+slots than it takes from them. This count is what a scan spends before it
+finds that out. Misses are weighted against hits, so a scan that answers a
+part of its lookups reaches the threshold later than one that answers none,
+and a scan that answers enough of them never reaches it; see
+CLUST_LEAF_HINT_MISS_WEIGHT. */
+constexpr unsigned CLUST_LEAF_HINT_MAX_MISSES= 8;
+
+/** What a lookup that no slot answered adds to the miss counter, against
+the one that a lookup that a slot answered takes away. The counter therefore
+follows the answer rate of the scan and not the length of its longest run of
+misses. Without the weight a hit would clear the count, and a scan that
+answered one lookup in ten would keep the slots for the whole statement.
+
+At this weight the counter climbs while the scan answers less than two
+thirds of its lookups and falls while it answers more, so two thirds is the
+rate that a scan has to hold to keep the slots. The floor at zero holds a
+scan that answers well away from the threshold, so a run of misses alone
+does not stand it down. */
+constexpr unsigned CLUST_LEAF_HINT_MISS_WEIGHT= 2;
+
+/** The miss counter at which a scan gives the slots up. A scan reaches it
+after CLUST_LEAF_HINT_MAX_MISSES lookups that no slot answered where no
+lookup between them was answered, and later than that where some were. */
+constexpr unsigned CLUST_LEAF_HINT_GIVE_UP=
+  CLUST_LEAF_HINT_MAX_MISSES * CLUST_LEAF_HINT_MISS_WEIGHT;
+
+/** How often the clustered leaf hints are tested again once
+CLUST_LEAF_HINT_GIVE_UP has been reached, in lookups. A scan whose order
+becomes correlated only later recovers after at most this many rows, instead
+of losing the hints for the rest of the statement. The trial that a retry
+begins starts the count again, so a scan that is still uncorrelated pays at
+most CLUST_LEAF_HINT_MAX_MISSES lookups of the slots before it stands them
+down once more, which is under one part in a hundred of the interval. */
+constexpr unsigned CLUST_LEAF_HINT_RETRY= 1024;
+
+/** Clustered-index lookups that a statement makes before it fills its first
+slot. A slot is filled by copying two keys, and that is paid where a later
+lookup may read it, so a statement with fewer lookups than this copies keys
+that nothing tests. The value is the one that row_search_mvcc() holds its
+fetch cache to, MYSQL_FETCH_CACHE_THRESHOLD, for the same reason: under it a
+statement is a lookup or a short list of them and not a scan. */
+constexpr unsigned CLUST_LEAF_HINT_MIN_LOOKUPS= 4;
+
 /********************************************************************//**
 Returns TRUE if the user-defined column in a secondary index record
 is alphabetically the same as the corresponding BLOB column in the clustered
@@ -3353,6 +3404,316 @@ public:
                      dtuple_t **vrow, mtr_t *mtr);
 };
 
+/** Determine whether a key can be on the leaf that a clustered leaf hint
+remembers, comparing the key against the copies of that leaf's boundary
+records. This decides a miss without any buffer pool access, so an
+uncorrelated scan pays no page access for the hint it cannot use.
+@param hint   a non-empty clustered leaf hint
+@param tuple  key to search for
+@param index  the clustered index
+@return whether the hinted leaf is worth probing */
+static bool row_sel_clust_leaf_hint_covers(const clust_leaf_hint_slot &hint,
+                                           const dtuple_t *tuple,
+                                           const dict_index_t *index)
+{
+  ut_ad(hint.page_no);
+  /* A used slot always names the first key of its leaf. It names the last
+  one only where a lookup can read it, so a slot without one is a slot of
+  the rightmost leaf. */
+  ut_ad(hint.first);
+
+  /* The copies can only be interpreted with the dict_index_t::n_core_fields
+  that was in force when they were made, and that value can change under a
+  reader that holds no more than a shared metadata lock, in either
+  direction: a delete that empties a single-page table invokes
+  dict_index_t::clear_instant_alter(), which raises it to n_fields where
+  instant ADD COLUMN alone was used, and lowers it past the columns that a
+  generic instant ALTER TABLE dropped. A slot that such a change has
+  outlived is therefore no candidate. The next descent refreshes it. */
+  if (UNIV_UNLIKELY(hint.n_core_fields != index->n_core_fields))
+  {
+    DBUG_EXECUTE_IF("ib_log_stale_clust_leaf_hint",
+                    ib::info() << "Clustered leaf hint outlived a change of "
+                                  "n_core_fields from " << hint.n_core_fields
+                               << " to " << index->n_core_fields;);
+    return false;
+  }
+
+  /* This is the field count that row_sel_clust_leaf_hint_remember() copied,
+  and the one that its offsets describe. */
+  ut_ad(dtuple_get_n_fields_cmp(tuple) == dict_index_get_n_unique(index));
+
+  /* On the leftmost leaf of a table that was subjected to instant ALTER
+  TABLE, the first user record is the metadata pseudo-record.
+  cmp_dtuple_rec_with_match_low() settles that comparison from
+  REC_INFO_MIN_REC_FLAG alone, which rec_copy_prefix_to_buf() preserves,
+  and reports every key as sorting above it: the correct lower bound for
+  the leaf that precedes all others. */
+  bool covers= cmp_dtuple_rec(tuple, hint.first, index, hint.first_offs) >= 0;
+
+  /* A key above the last record of the rightmost leaf still belongs to
+  that leaf, mirroring the page_has_next() test in
+  btr_cur_t::try_leaf_hint(), and a slot of such a leaf names no last key. */
+  if (covers && hint.last)
+    covers= cmp_dtuple_rec(tuple, hint.last, index, hint.last_offs) <= 0;
+
+  return covers;
+}
+
+/** Move a clustered leaf hint to another position of the most recently used
+order, shifting every position in between by one. The order holds slot
+numbers, so this moves those and never a slot: a slot keeps the key buffers
+that it owns for the life of the handle, and a scan that alternates between
+a few leaves reorders a few bytes per row rather than the slots themselves.
+@param mru    the most recently used order
+@param from   the position to move
+@param to     where to move it */
+static void row_sel_clust_leaf_hint_move(uint8_t *mru, ulint from, ulint to)
+{
+  ut_ad(from < CLUST_LEAF_HINT_SLOTS);
+  ut_ad(to < CLUST_LEAF_HINT_SLOTS);
+  if (from == to)
+    return;
+  const uint8_t moved= mru[from];
+  if (from > to)
+    memmove(mru + to + 1, mru + to, from - to);
+  else
+    memmove(mru + from, mru + from + 1, to - from);
+  mru[to]= moved;
+}
+
+/** Decide whether the clustered leaf hints take part in this lookup.
+Both halves of their cost are governed here: the test of the slots before
+the descent, and the copies that refresh them after it. A scan that has
+given up must pay for neither.
+@param prebuilt  prebuilt struct of the handle
+@return whether the slots are to be tested and refreshed */
+static bool row_sel_clust_leaf_hint_armed(row_prebuilt_t *prebuilt)
+{
+  DBUG_EXECUTE_IF("ib_no_clust_leaf_hint", return false;);
+
+  const unsigned misses= prebuilt->clust_leaf_hint_miss;
+  if (misses < CLUST_LEAF_HINT_GIVE_UP)
+    return true;
+
+  if (misses % CLUST_LEAF_HINT_RETRY)
+  {
+    /* This scan has shown that it has no locality to exploit. */
+    prebuilt->clust_leaf_hint_miss= uint16_t(misses + 1);
+    return false;
+  }
+
+  /* One lookup in CLUST_LEAF_HINT_RETRY starts the count again, so that a
+  scan whose order becomes correlated only later recovers, after at most
+  that many rows, instead of losing the hints for the rest of the
+  statement. The trial that this begins is what makes the recovery
+  possible: the slots hold the leaves of the row where the scan gave up,
+  which nothing has refreshed since, so it takes a miss that remembers the
+  leaf the scan is on now before a later lookup can be answered. */
+  prebuilt->clust_leaf_hint_miss= 0;
+  return true;
+}
+
+/** Try the leaves that this statement remembered, most recently used first.
+@param prebuilt  prebuilt struct of the handle
+@param index     the clustered index
+@param mtr       mini-transaction
+@return whether prebuilt->clust_pcur was positioned on a remembered leaf */
+static bool row_sel_clust_leaf_hint_search(row_prebuilt_t *prebuilt,
+                                           const dict_index_t *index,
+                                           mtr_t *mtr)
+{
+  const ulint n= prebuilt->clust_leaf_hint_n;
+  ut_ad(n <= CLUST_LEAF_HINT_SLOTS);
+  const unsigned misses= prebuilt->clust_leaf_hint_miss;
+  ut_ad(misses < CLUST_LEAF_HINT_GIVE_UP);
+
+  clust_leaf_hint_slot *const hints= prebuilt->clust_leaf_hint;
+  ut_ad(hints || !n);
+  uint8_t *const mru= prebuilt->clust_leaf_hint_mru;
+
+  for (ulint i= 0; i < n; i++)
+  {
+    const clust_leaf_hint_slot &hint= hints[mru[i]];
+    if (!row_sel_clust_leaf_hint_covers(hint, prebuilt->clust_ref, index))
+      continue;
+
+    /* Two ranges can cover the same key only if one of them is stale, so
+    there is nothing to gain from looking past the first candidate: the
+    descent resolves whatever this one cannot. */
+    if (prebuilt->clust_pcur->btr_cur.try_leaf_hint(
+          prebuilt->clust_ref,
+          page_id_t(index->table->space_id, hint.page_no), mtr))
+    {
+      /* A hit takes one off the count rather than clearing it, so that the
+      count follows the answer rate of the scan and not the length of its
+      longest run of misses; see CLUST_LEAF_HINT_MISS_WEIGHT. */
+      prebuilt->clust_leaf_hint_miss= uint16_t(misses ? misses - 1 : 0);
+      row_sel_clust_leaf_hint_move(mru, i, 0);
+      return true;
+    }
+
+    /* The probe did not answer: the page is not in the buffer pool with an
+    uncompressed frame, a writer holds its latch, or the checks that
+    btr_cur_t::try_leaf_hint() makes on the latched page rejected it.
+    Discard the slot past the end of the used slots, where its key buffers
+    are the ones that the next insertion takes over: the descent that
+    follows remembers the leaf it lands on, so a slot dropped for a passing
+    reason is restored at once, and one whose range was stale is replaced by
+    a correct one. This counts as a miss, like a key that no range covered:
+    only a page that answered is locality. A page that never answers, as a
+    ROW_FORMAT=COMPRESSED page that the buffer pool holds without an
+    uncompressed frame never does, would otherwise hold the counter at zero
+    and be probed once per row for the whole statement. */
+    prebuilt->clust_leaf_hint_n= uint8_t(n - 1);
+    row_sel_clust_leaf_hint_move(mru, i, n - 1);
+    break;
+  }
+
+  prebuilt->clust_leaf_hint_miss=
+    uint16_t(misses + CLUST_LEAF_HINT_MISS_WEIGHT);
+  return false;
+}
+
+/** Remember the clustered leaf that a descent landed on, together with the
+keys of its first and last user record, at the front of the most recently
+used order. The key buffers grow in place and travel with their slot, so a
+scan allocates at most twice per slot, and nothing per row.
+@param prebuilt  prebuilt struct of the handle
+@param block     the clustered index leaf page the cursor is positioned on
+@param index     the clustered index */
+static void row_sel_clust_leaf_hint_remember(row_prebuilt_t *prebuilt,
+                                             const buf_block_t *block,
+                                             const dict_index_t *index)
+{
+  if (!prebuilt->clust_leaf_hint_n &&
+      prebuilt->clust_leaf_hint_miss <
+      CLUST_LEAF_HINT_MIN_LOOKUPS * CLUST_LEAF_HINT_MISS_WEIGHT)
+    /* One of the first lookups of this statement, counted by the misses that
+    a lookup makes while no slot is in use, both of which ha_innobase::reset()
+    zeroes. A statement that ends here copied keys that it never tested, so
+    the slots begin above the threshold. A statement that discarded its last
+    slot passes here again and pays the same descents, on the same terms. */
+    return;
+
+  if (block->page.id().page_no() == index->page)
+    /* The leaf is the root, so the clustered index is one page. A lookup
+    that a slot answers acquires that page and searches it, which is all
+    that the descent it replaces does, so there is no saving to pay for the
+    copies below or for the test of the slots that each row would make. */
+    return;
+
+  const page_t *const page= block->page.frame;
+  ut_ad(page_is_leaf(page));
+
+  const rec_t *const first= page_rec_get_next_const(page_get_infimum_rec(page));
+  const rec_t *const last= page_rec_get_prev_const(page_get_supremum_rec(page));
+
+  if (UNIV_UNLIKELY(!first || !last || page_rec_is_supremum(first) ||
+                    page_rec_is_infimum(last)))
+    /* A corrupted record list; there is nothing worth remembering. Only the
+    root of an empty tree is empty, and the check above left that one. */
+    return;
+
+  const ulint n_fields= dict_index_get_n_unique(index);
+  clust_leaf_hint_slot *hints= prebuilt->clust_leaf_hint;
+  if (!hints)
+  {
+    /* Allocated on the first descent rather than with the handle, so that a
+    handle that never needs a clustered lookup allocates nothing.
+
+    The offsets arrays are allocated here with the slots and never grow,
+    unlike the key buffers, because their size follows the key field count
+    of the index and not the length of a key: rec_get_offsets() describes at
+    most the n_fields fields that it is asked for. The order starts as the
+    identity and stays a permutation of the slots from there. */
+    const ulint n_offs= n_fields + (1 + REC_OFFS_HEADER_SIZE);
+    hints= static_cast<clust_leaf_hint_slot*>
+      (mem_heap_zalloc(prebuilt->heap, CLUST_LEAF_HINT_SLOTS * sizeof *hints));
+    rec_offs *offs= static_cast<rec_offs*>
+      (mem_heap_alloc(prebuilt->heap,
+                      2 * CLUST_LEAF_HINT_SLOTS * n_offs * sizeof *offs));
+    for (ulint i= 0; i < CLUST_LEAF_HINT_SLOTS; i++)
+    {
+      rec_offs_set_n_alloc(offs, n_offs);
+      hints[i].first_offs= offs;
+      offs+= n_offs;
+      rec_offs_set_n_alloc(offs, n_offs);
+      hints[i].last_offs= offs;
+      offs+= n_offs;
+      prebuilt->clust_leaf_hint_mru[i]= uint8_t(i);
+    }
+    prebuilt->clust_leaf_hint= hints;
+  }
+
+  const ulint n= prebuilt->clust_leaf_hint_n;
+  ut_ad(n <= CLUST_LEAF_HINT_SLOTS);
+  const uint32_t page_no= block->page.id().page_no();
+  ut_ad(page_no);
+
+  /* This leaf can be remembered already, because a lookup that no range
+  covered descends without consulting any page, and the live range of a leaf
+  grows past the remembered one where a record is inserted above its last, or
+  where a sibling merges into it. Refresh that slot, rather than spend a
+  second one of the few on the same page. */
+  uint8_t *const mru= prebuilt->clust_leaf_hint_mru;
+  ulint from= n < CLUST_LEAF_HINT_SLOTS ? n : CLUST_LEAF_HINT_SLOTS - 1;
+  bool remembered= false;
+  for (ulint i= 0; i < n; i++)
+    if (hints[mru[i]].page_no == page_no)
+    {
+      from= i;
+      remembered= true;
+      break;
+    }
+
+  /* Move the slot to the front of the order, taking the least recently used
+  one once the array is full. The slot that this displaces, or refreshes, is
+  the one whose buffers the copies below reuse, which makes the eviction
+  exact and free. */
+  row_sel_clust_leaf_hint_move(mru, from, 0);
+  if (!remembered && n < CLUST_LEAF_HINT_SLOTS)
+    prebuilt->clust_leaf_hint_n= uint8_t(n + 1);
+
+  clust_leaf_hint_slot &hint= hints[mru[0]];
+  hint.n_core_fields= index->n_core_fields;
+  /* The offsets go with the copy they describe, and both stay with the slot,
+  which the order above moves without moving; rec_copy_prefix_to_buf() can
+  still move a copy inside its slot when it grows the buffer.
+  prebuilt->heap is passed for a growth that the sizing above rules out,
+  so that an array which did grow would still outlive the statement. A
+  buffer size travels through a ulint, which is what
+  rec_copy_prefix_to_buf() takes, and a slot keeps it in 32 bits, wide
+  enough for a prefix of at most one page. */
+  ulint buf_size= hint.first_buf_size;
+  hint.first= rec_copy_prefix_to_buf(first, index, n_fields, &hint.first_buf,
+                                     &buf_size);
+  ut_ad(buf_size <= UINT32_MAX);
+  hint.first_buf_size= uint32_t(buf_size);
+  hint.first_offs= rec_get_offsets(hint.first, index, hint.first_offs,
+                                   hint.n_core_fields, n_fields,
+                                   &prebuilt->heap);
+  if (!page_has_next(page))
+    /* Every key above the last record of the rightmost leaf still belongs
+    to that leaf, so row_sel_clust_leaf_hint_covers() never reads the last
+    key of one, and the null that this leaves is what tells it so. The
+    buffer that the slot owns stays with it for the next occupant to
+    reuse. */
+    hint.last= nullptr;
+  else
+  {
+    buf_size= hint.last_buf_size;
+    hint.last= rec_copy_prefix_to_buf(last, index, n_fields, &hint.last_buf,
+                                      &buf_size);
+    ut_ad(buf_size <= UINT32_MAX);
+    hint.last_buf_size= uint32_t(buf_size);
+    hint.last_offs= rec_get_offsets(hint.last, index, hint.last_offs,
+                                    hint.n_core_fields, n_fields,
+                                    &prebuilt->heap);
+  }
+  hint.page_no= page_no;
+}
+
 /*********************************************************************//**
 Retrieves the clustered index record corresponding to a record in a
 non-clustered index. Does the necessary locking. Used in the MySQL
@@ -3397,9 +3758,57 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	clust_index = dict_table_get_first_index(sec_index->table);
 	prebuilt->clust_pcur->btr_cur.page_cur.index = clust_index;
 
-	dberr_t err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
+	/* The rows of a non-covering secondary-index scan often share a few
+	clustered leaf pages, so try the leaves that this statement already
+	visited before descending again. The remembered key ranges decide the
+	uncorrelated case in memory, so a scan that the hints cannot serve
+	pays neither a buffer pool access nor a pages_accessed for them.
+
+	A probe would come before the descent, and therefore also before the
+	adaptive hash index guess that the descent tries first. The two solve
+	the same problem, and the guess solves it better: it lands directly
+	on the record, with no page-local search and no buffer pool access to
+	charge, where a hint hit costs both. So where the adaptive hash index
+	is enabled, the hints stay out of its way entirely, neither used nor
+	collected.
+
+	The flag is read again at every lookup, so a change in the middle of
+	a statement takes effect at the next lookup, and the slots that the
+	change leaves behind are reset in ha_innobase::reset(). The test is
+	coarse, because the flag is global: an index that the adaptive hash
+	index does not serve loses the hints too. Both are heuristics, so the
+	price of either answer is a descent, never a wrong result. */
+#ifdef BTR_CUR_HASH_ADAPT
+	const bool	use_hints = !btr_search.enabled;
+#else
+	const bool	use_hints = true;
+#endif /* BTR_CUR_HASH_ADAPT */
+	dberr_t err;
+	const bool	hints_armed = use_hints
+		&& row_sel_clust_leaf_hint_armed(prebuilt);
+
+	if (hints_armed
+	    && row_sel_clust_leaf_hint_search(prebuilt, clust_index, mtr)) {
+		err = DB_SUCCESS;
+		/* Set what btr_pcur_open_with_no_init() below would set for
+		the same (PAGE_CUR_LE, BTR_SEARCH_LEAF) arguments, except
+		trx_if_known, which is assigned unconditionally further
+		down. */
+		prebuilt->clust_pcur->latch_mode
+			= BTR_LATCH_MODE_WITHOUT_INTENTION(BTR_SEARCH_LEAF);
+		prebuilt->clust_pcur->search_mode = PAGE_CUR_LE;
+		prebuilt->clust_pcur->pos_state = BTR_PCUR_IS_POSITIONED;
+	} else {
+		err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 prebuilt->clust_pcur, mtr);
+		if (hints_armed && err == DB_SUCCESS) {
+			row_sel_clust_leaf_hint_remember(
+				prebuilt,
+				prebuilt->clust_pcur->btr_cur.page_cur.block,
+				clust_index);
+		}
+	}
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		return err;
 	}
