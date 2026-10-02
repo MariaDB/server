@@ -1326,13 +1326,23 @@ Sys_slave_connections_needed_for_purge(
       "slave_connections_needed_for_purge",
       "Minimum number of connected slaves required for automatic binary "
       "log purge with max_binlog_total_size, binlog_expire_logs_seconds "
-      "or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 "
-      "otherwise.",
+      "or binlog_expire_logs_days.",
        GLOBAL_VAR(internal_slave_connections_needed_for_purge),
-       CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_binlog_space_limit));
+       CMD_LINE(REQUIRED_ARG, OPT_SLAVE_CONNECTIONS_NEEDED_FOR_PURGE),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+#ifdef HAVE_REPLICATION
+        ON_CHECK([](sys_var *, THD *, set_var *)
+        {
+          warn_slaves_not_needed_for_purge.store(false,
+            // no need to sync with the variable itself
+            std::memory_order_relaxed);
+          return false;
+        })
+#else
+        ON_CHECK(0)
+#endif
+       , ON_UPDATE(update_binlog_space_limit));
 
 
 static Sys_var_mybool Sys_flush(
