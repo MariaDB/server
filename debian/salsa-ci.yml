@@ -200,10 +200,24 @@ blhc:
   - dpkg -l | grep -iE 'maria|mysql|galera'
   # library tests don't have the mariadb client nor server, so don't check them
 
+.test-verify-using-legacy-data-directory: &test-verify-using-legacy-data-directory
+  # Verify that /var/lib/mysql is still in use as the data directory, and /var/lib/mariadb does not exist.
+  - |
+    test -d /var/lib/mysql || { echo "ERROR: Expected legacy data directory /var/lib/mysql does not exist"; exit 1; }
+    test -d /var/lib/mariadb && { echo "ERROR: Legacy install has new data directory /var/lib/mariadb that should not exist"; exit 1; } || true
+    mariadbd --help --verbose 2>/dev/null | grep --only-matching --perl-regex "datadir[ ]+\K(.*)" | grep /var/lib/mysql/ 1>/dev/null || { echo "ERROR: Legacy install is not using /var/lib/mysql as data directory"; exit 1; }
+
+.test-verify-using-new-data-directory: &test-verify-using-new-data-directory
+  # Verify that /var/lib/mariadb is in use as the data directory.
+  - |
+    test -d /var/lib/mariadb || { echo "ERROR: Expected new data directory /var/lib/mariadb does not exist"; exit 1; }
+    mariadbd --help --verbose 2>/dev/null | grep --only-matching --perl-regex "datadir[ ]+\K(.*)" | grep /var/lib/mariadb/ 1>/dev/null || { echo "ERROR: New install is not using /var/lib/mariadb as data directory"; exit 1; }
+
 .test-verify-final: &test-verify-final |
   dpkg -l | grep -e "mariadb-server.*10\.11"
   mkdir -p debug # Ensure dir exists before using it
   find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
+  find /var/lib/mariadb -ls > debug/var-lib-mariadb.list || true # Ignore errors about "no such file or directory"
   cp -ra /etc/mysql debug/etc-mysql
   mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
   mariadb --table -e "SHOW DATABASES;" # List databases
@@ -346,6 +360,7 @@ fresh install:
     - *test-prepare-container
     - *test-install-all
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-new-data-directory
     - *test-verify-final
 
 simple upgrade:
@@ -356,6 +371,7 @@ simple upgrade:
     - apt-get install -qq --yes 'default-mysql*' ${BUILT_PACKAGES}
     - *test-full-upgrade
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb and Bookworm upgrade:
@@ -374,6 +390,7 @@ mariadb and Bookworm upgrade:
     - service mariadb restart
     - *test-full-upgrade
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb-10.6 and Bookworm-20230208 upgrade:
@@ -397,6 +414,7 @@ mariadb-10.6 and Bookworm-20230208 upgrade:
     - *test-full-upgrade
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
     - apt-get purge --yes mariadb*10.?
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb-10.6 and Jammy upgrade:
@@ -423,6 +441,7 @@ mariadb-10.6 and Jammy upgrade:
     # Due to usrmerge, full-upgrade from Jammy to Trixie or newer cannot work
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
     - apt-get purge --yes mariadb*10.?
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb-10.5 and Bullseye upgrade:
@@ -445,6 +464,7 @@ mariadb-10.5 and Bullseye upgrade:
     # Due to usrmerge, full-upgrade from Bullseye to Trixie or newer cannot work
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
     - apt-get purge --yes mariadb*10.?
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb-10.3 and Buster upgrade:
@@ -504,6 +524,7 @@ mariadb-10.3 and Focal upgrade:
     # Give the mariadb-upgrade plenty of time to complete, otherwise next commands
     # fail on non-existing mariadb.sys user
     - sleep 15
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 # Similar to the Cacti install test, check that MariaDB consumer Zoph upgrades
@@ -524,6 +545,7 @@ default-mysql-server and Bookworm upgrade:
     - apt-get install -qq --yes default-mysql-server
     - *test-full-upgrade
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 # Similar to the Cacti install test, check that MariaDB consumer Zoph upgrades
@@ -544,6 +566,7 @@ default-mysql-server and Bullseye upgrade:
     - apt-get install -qq --yes default-mysql-server
     # Due to usrmerge, full-upgrade from Bullseye to Trixie or newer cannot work
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 test basic features:
@@ -552,6 +575,7 @@ test basic features:
     - *test-prepare-container
     - *test-install-all
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-new-data-directory
     - *test-verify-final
     - |
       # Print info about server
@@ -730,6 +754,7 @@ mysql-8.0 in Sid upgrade:
     # the service name 'mariadb' instead, and the fallback is always used.
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
     - service mysql status || service mariadb status
+    - *test-verify-using-new-data-directory
     - *test-verify-final
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
@@ -759,6 +784,7 @@ mysql-8.0 in Ubuntu 23.10 upgrade:
     - service mariadb status  # There is no init.d/mysql in MariaDB 10.5+
     # Remove everything MySQL except mysql-common which also MariaDB depends on
     - apt-get purge --yes mysql-s* mysql-cl* libmysql*
+    - *test-verify-using-new-data-directory
     - *test-verify-final
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
@@ -789,6 +815,7 @@ mysql-community-cluster-8.0 from MySQL.com with Bookworm upgrade:
     - systemctl status mysql || true
     - mysql -e 'SELECT VERSION()' || true
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - *test-verify-using-new-data-directory
     - *test-verify-final
 
 mariadb.org-10.11 upgrade:
@@ -856,6 +883,7 @@ mariadb.org-10.7 upgrade:
     - *test-verify-initial
     - *test-install-all
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 mariadb.org-10.6 upgrade:
@@ -871,6 +899,7 @@ mariadb.org-10.6 upgrade:
     - *test-verify-initial
     - *test-install-all
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 # archive.mariadb.org for Debian Sid latest is 10.5.13
@@ -885,6 +914,7 @@ mariadb.org-10.5 upgrade:
     - *test-verify-initial
     - *test-install-all
     - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-using-legacy-data-directory
     - *test-verify-final
 
 # archive.mariadb.org for Debian Sid latest is 10.4.17
@@ -1013,4 +1043,5 @@ percona-xtradb-5.7 with Bookworm upgrade:
     # Percona package owned /etc/init.d/mysql, so on removal and upgrade to MariaDB old service name can't be referenced anymore
     - service mariadb status
     - sleep 15 # Give the mysql_upgrade a bit of extra time to complete with MySQL 5.7 before querying the server
+    - *test-verify-using-new-data-directory
     - *test-verify-final
