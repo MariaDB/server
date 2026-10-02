@@ -4,8 +4,20 @@
 --source include/have_debug_sync.inc
 
 SET @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET @save_min=@@GLOBAL.innodb_buffer_pool_size_auto_min;
 SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
 SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+SET GLOBAL innodb_buffer_pool_size=25165824;
+
+SET GLOBAL innodb_buffer_pool_size_auto_min=8388608;
+SET STATEMENT debug_dbug='d,trigger_garbage_collection,buf_shrink_fail' FOR
+SET GLOBAL innodb_buffer_pool_size=25165824;
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=\[Note\] InnoDB: Memory pressure event failed to shrink innodb_buffer_pool_size=16m;
+--source include/search_pattern_in_file.inc
+
+SET GLOBAL innodb_buffer_pool_size_auto_min=@save_min;
 SET GLOBAL innodb_buffer_pool_size=16777216;
 
 call mtr.add_suppression("innodb_buffer_pool_size change aborted");
