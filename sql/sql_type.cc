@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2015, 2022, MariaDB
+/* Copyright (c) 2015, 2026, MariaDB plc.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -9928,4 +9927,15 @@ Item *Type_handler::make_typedef_constructor_item(THD *thd,
 const Type_handler *Type_typelib_attributes::type_handler() const
 {
   return &type_handler_enum;
+}
+
+
+/* helper */
+bool no_part_keypart(Key_part_spec *part)
+{
+  if (!part->length)
+    return false;
+
+  my_error(ER_WRONG_SUB_KEY, MYF(0));
+  return true;
 }

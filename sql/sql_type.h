@@ -2,7 +2,7 @@
 #define SQL_TYPE_H_INCLUDED
 /*
    Copyright (c) 2015  MariaDB Foundation.
-   Copyright (c) 2015, 2022, MariaDB Corporation.
+   Copyright (c) 2015, 2026, MariaDB plc.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -8181,5 +8181,7 @@ public:
 };
 
 extern Type_handler_data *type_handler_data;
+
+bool no_part_keypart(Key_part_spec *part);
 
 #endif /* SQL_TYPE_H_INCLUDED */

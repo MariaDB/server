@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2015, 2020, MariaDB
+/* Copyright (c) 2015, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -366,11 +365,8 @@ bool Type_handler_geometry::Key_part_spec_init_spatial(Key_part_spec *part,
                                                   const Column_definition &def)
                                                   const
 {
-  if (part->length)
-  {
-    my_error(ER_WRONG_SUB_KEY, MYF(0));
+  if (no_part_keypart(part))
     return true;
-  }
   /*
     4 is: (Xmin,Xmax,Ymin,Ymax), this is for 2D case
     Lately we'll extend this code to support more dimensions
