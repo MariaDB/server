@@ -1570,7 +1570,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   if (!err_status)
   {
     if (!(main_mem_root.flags & ROOT_FLAG_READ_ONLY) &&
-        has_all_instrs_executed())
+        !dont_freeze_mem_root && has_all_instrs_executed())
     {
       main_mem_root.flags |= ROOT_FLAG_READ_ONLY;
     }

@@ -3548,6 +3548,30 @@ public:
   */
   bool autocommit;          // Often used, better as bool
   bool sp_lex_in_use;       // Keep track on lex usage in SPs for error handling
+  /*
+    Set by the pushdown_handler and derived_handler constructors: the
+    statement was (or may have been) pushed down to an engine, so the
+    once-per-statement optimization may have been skipped. Only meaningful for
+    statements that are executed more than once (prepared statements and
+    stored routine instructions) in PROTECT_STATEMENT_MEMROOT builds, which
+    then must not mark the statement's mem_root as read-only.
+    Never reset on this LEX object: once a statement has been pushed down,
+    its mem_root stays unprotected, even if later executions are not pushed
+    down. A statement that is re-parsed or re-prepared into a new LEX
+    starts with the flag cleared, and so does its new mem_root.
+    A LEX object that is reused (thd->main_lex, an sp_lex_cursor across
+    reparse) keeps the flag.
+  */
+#ifdef PROTECT_STATEMENT_MEMROOT
+  bool dont_freeze_mem_root= false;
+#endif
+  /* To be called by the pushdown_handler and derived_handler constructors */
+  void mark_pushed_down()
+  {
+#ifdef PROTECT_STATEMENT_MEMROOT
+    dont_freeze_mem_root= true;
+#endif
+  }
 
   /* Bit fields, reset for every query */
   bool is_shutdown_wait_for_slaves:1;

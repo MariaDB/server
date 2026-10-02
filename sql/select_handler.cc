@@ -193,7 +193,16 @@ pushdown_handler::pushdown_handler(THD *thd_arg, handlerton *ht_arg,
                                    select_result *result_arg)
   : select_lex(sel_lex), thd(thd_arg), ht(ht_arg), result(result_arg),
     is_analyze(thd_arg->lex->analyze_stmt)
-{}
+{
+  /*
+    Pushdown skips (part of) the once-per-statement optimization, e.g. the
+    first_cond_optimization part of JOIN::optimize(), or the whole of
+    JOIN::optimize() when a whole UNION is pushed down. A later execution
+    without pushdown then allocates memory that was not allocated by the
+    first one. Don't freeze the statement's mem_root.
+  */
+  thd_arg->lex->mark_pushed_down();
+}
 
 
 void pushdown_handler::print_error(int error, myf errflag)
