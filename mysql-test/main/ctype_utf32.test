@@ -1134,11 +1134,8 @@ SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
 --echo # utf8 format, utf32 result
 SELECT DATE_FORMAT('2004-02-02',_utf8'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_utf8'%W'));
-#enable after fix MDEV-34215
---disable_cursor_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_utf8'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_utf8'%h'));
---enable_cursor_protocol
 
 --echo # utf32 format, utf8 result
 SET NAMES utf8;
