@@ -4573,6 +4573,7 @@ sub extract_warning_lines ($$) {
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
+     qr|Plugin '.*' is of maturity level .* while the server is|, # MDEV-12501
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL .* compatible option|,
      qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
