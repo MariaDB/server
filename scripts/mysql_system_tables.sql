@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS proc (db char(64) collate utf8mb3_bin DEFAULT '' NOT 
 
 CREATE TABLE IF NOT EXISTS procs_priv ( Host char(255) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(128) binary DEFAULT '' NOT NULL, Routine_name char(64) COLLATE utf8mb3_general_ci DEFAULT '' NOT NULL, Routine_type enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') NOT NULL, Grantor varchar(384) DEFAULT '' NOT NULL, Proc_priv set('Execute','Alter Routine','Grant') COLLATE utf8mb3_general_ci DEFAULT '' NOT NULL, Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (Host,Db,User,Routine_name,Routine_type), KEY Grantor (Grantor) ) engine=Aria transactional=1 CHARACTER SET utf8mb3 COLLATE utf8mb3_bin   comment='Procedure privileges';
 
+CREATE TABLE IF NOT EXISTS mariadb_upgrade_info (id tinyint NOT NULL DEFAULT 1, version varchar(60) NOT NULL, upgraded_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), CHECK (id = 1)) engine=Aria transactional=1 CHARACTER SET utf8mb3 COLLATE utf8mb3_bin comment='Tracks the version mariadb-upgrade last upgraded the system schema to; single row enforced by id=1 check';
 
 -- Create general_log if CSV is enabled.
 SET @have_csv = (SELECT support FROM information_schema.engines WHERE engine = 'CSV');

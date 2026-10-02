@@ -52,3 +52,9 @@ INSERT INTO tmp_proxies_priv SELECT Host, User, '', '', TRUE, '', now() FROM tmp
 REPLACE INTO tmp_proxies_priv SELECT @current_hostname, IFNULL(@auth_root_socket, 'root'), '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
 INSERT INTO  proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_user_nopasswd, tmp_user_socket, tmp_proxies_priv;
+
+-- Seed the initial "upgraded to" marker for a fresh install; a no-op if the
+-- row already exists (this file is only ever run at fresh-bootstrap time,
+-- never re-run against an existing datadir, but guarded anyway to match
+-- the defensive style of the inserts above).
+INSERT INTO mariadb_upgrade_info (version) SELECT VERSION() FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM mariadb_upgrade_info);

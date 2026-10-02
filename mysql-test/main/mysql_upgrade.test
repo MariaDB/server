@@ -18,22 +18,22 @@ call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 --echo Run mysql_upgrade once
 --exec $MYSQL_UPGRADE --force 2>&1
 
-# It should have created a file in the MySQL Servers datadir
+# It should have created a table in the MySQL database
 let $MYSQLD_DATADIR= `select @@datadir`;
-file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+SHOW TABLES LIKE 'mariadb_upgrade_info';
 
 --echo Run it again - should say already completed
 --replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
 --exec $MYSQL_UPGRADE 2>&1
 
-# It should have created a file in the MySQL Servers datadir
-file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+# It should have created a table in the MySQL database
+SHOW TABLES LIKE 'mariadb_upgrade_info';
 
 --echo Force should run it regardless of whether it has been run before
 --exec $MYSQL_UPGRADE --force 2>&1
 
-# It should have created a file in the MySQL Servers datadir
-file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+# It should have created a table in the MySQL database
+SHOW TABLES LIKE 'mariadb_upgrade_info';
 
 
 #
@@ -129,6 +129,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Droping the previously created mysql_upgrade_info file..
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table if exists mysql.mariadb_upgrade_info;
 
 --echo # Running mysql_upgrade with --skip-write-binlog..
 --replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
@@ -207,6 +208,7 @@ set sql_mode=default;
 #
 --echo # Droping the previously created mysql_upgrade_info file..
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table if exists mysql.mariadb_upgrade_info;
 
 create table test.t1(a int) engine=MyISAM;
 --echo # Trying to enforce InnoDB for all tables
@@ -215,13 +217,14 @@ SET GLOBAL enforce_storage_engine=InnoDB;
 --replace_result $MYSQLTEST_VARDIR var
 --exec $MYSQL_UPGRADE --force 2>&1
 
---echo # Should return 2
+--echo # Should return 3
 SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
 SHOW CREATE TABLE test.t1;
 DROP TABLE test.t1;
 # mysql_upgrade must have created mysql_upgrade_info file,
 # so the following command should never fail.
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+SHOW TABLES LIKE 'mysql.mariadb_upgrade_info';
 SET GLOBAL enforce_storage_engine=NULL;
 
 --echo # End of 10.1 tests
@@ -291,6 +294,8 @@ FLUSH PRIVILEGES;
 --echo # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
 --echo #
 
+--exec $MYSQL_UPGRADE --force
+
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
 --replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
@@ -305,7 +310,7 @@ FLUSH PRIVILEGES;
 --echo # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 --echo #
 
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table if exists mysql.mariadb_upgrade_info;
 --replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
 
@@ -320,15 +325,8 @@ FLUSH PRIVILEGES;
 
 let DATADIR= $MYSQLD_DATADIR;
 
-perl;
-  my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
-  my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
-  $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/$1.$2.0$4/;
-  open(FILE, ">$file/mysql_upgrade_info") or die "Failed to open $file";
-  binmode FILE;
-  print FILE "$ver\n";
-  close(FILE);
-EOF
+--exec $MYSQL_UPGRADE --force
+--eval UPDATE mysql.mariadb_upgrade_info SET version = CONCAT('$majorminor', '.0-MariaDB')
 
 --error 1
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
@@ -348,15 +346,8 @@ EOF
 
 let DATADIR= $MYSQLD_DATADIR;
 
-perl;
-  my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
-  my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
-  $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/$1.0.99/;
-  open(FILE, ">$file/mysql_upgrade_info") or die "Failed to open $file";
-  binmode FILE;
-  print FILE "$ver\n";
-  close(FILE);
-EOF
+--exec $MYSQL_UPGRADE --force
+--eval UPDATE mysql.mariadb_upgrade_info SET version = CONCAT('$major', '.0.99-MariaDB')
 
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
 --replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $major X
@@ -365,6 +356,7 @@ EOF
 --replace_regex /'mariadb.* as:[^\n]*/'mysql' as: mysql/
 --exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 

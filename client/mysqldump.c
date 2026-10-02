@@ -5682,7 +5682,17 @@ static int dump_all_tables_in_db(char *database)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", database, NullS);
 
   if (using_mysql_db)
+  {
     dump_first_mysql_tables(database);
+    /*
+      MDEV-39343: mariadb_upgrade_info must be dropped from the target
+      regardless of whether it is present on the source, so that once
+      dump is applied mariadb-upgrade can correctly detects a version mismatch
+      when the source and target binaries don't match.
+    */
+    fprintf(md_result_file, "DROP TABLE IF EXISTS mariadb_upgrade_info;\n");
+    check_io(md_result_file);
+  }
 
   if (lock_tables)
   {
