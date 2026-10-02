@@ -2374,14 +2374,44 @@ int ha_federated::delete_row(const uchar *buf)
 int ha_federated::index_read(uchar *buf, const uchar *key,
                              uint key_len, ha_rkey_function find_flag)
 {
-  int rc;
   DBUG_ENTER("ha_federated::index_read");
+  DBUG_RETURN(index_read_keep_result(buf, active_index, key, key_len,
+                                     find_flag));
+}
+
+
+/*
+  The default implementation ends the index scan after the read, which
+  frees the result set.  A const table is read this way during
+  optimization, but position() is called for its row during execution, so
+  the result set must stay in stored_result.
+*/
+
+int ha_federated::index_read_idx_map(uchar *buf, uint index,
+                                     const uchar *key,
+                                     key_part_map keypart_map,
+                                     enum ha_rkey_function find_flag)
+{
+  uint key_len= calculate_key_len(table, index, key, keypart_map);
+  DBUG_ENTER("ha_federated::index_read_idx_map");
+  DBUG_RETURN(index_read_keep_result(buf, index, key, key_len, find_flag));
+}
+
+
+/*
+  Reads the first row matching key and keeps its result set in
+  stored_result, so that position() can record the row.
+*/
+
+int ha_federated::index_read_keep_result(uchar *buf, uint index,
+                                         const uchar *key, uint key_len,
+                                         ha_rkey_function find_flag)
+{
+  DBUG_ENTER("ha_federated::index_read_keep_result");
 
   free_result();
-  rc= index_read_idx_with_result_set(buf, active_index, key,
-                                     key_len, find_flag,
-                                     &stored_result);
-  DBUG_RETURN(rc);
+  DBUG_RETURN(index_read_idx_with_result_set(buf, index, key, key_len,
+                                             find_flag, &stored_result));
 }
 
 
@@ -2968,6 +2998,7 @@ int ha_federated::reset(void)
     mysql_free_result(result);
   }
   reset_dynamic(&results);
+  stored_result= 0;
 
   if (mysql)
     mysql->net.thd= NULL;
