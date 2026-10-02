@@ -457,3 +457,26 @@ drop table t1;
 set in_predicate_conversion_threshold=default;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-31225: Signal 11 after select ..WHERE ROW(a,(a,a)) IN
+--echo # ((1,(1,1)),(2,(2,null))) with in_predicate_conversion_threshold=1
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+
+set in_predicate_conversion_threshold=2;
+
+let $query=
+select a from t1 where row(a,(a,a)) in ((1,(1,1)),(2,(2,null)));
+eval explain extended $query;
+eval $query;
+
+select a from t1 where row(a,(a,a)) not in ((1,(1,1)),(2,(2,2)));
+
+drop table t1;
+
+set in_predicate_conversion_threshold=default;
+
+--echo # End of 10.11 tests
