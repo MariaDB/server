@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-30886 Assertion `0' in Protocol::end_statement upon fulltext
+--echo # search in blackhole table
+--echo #
+--echo # A BLACKHOLE table cannot be searched by a user, but a statement with
+--echo # MATCH replicated from the primary has to be applied by the replica
+--echo # instead of stopping the replication.
+--echo #
+
+--source include/have_blackhole.inc
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT, b CHAR(100), FULLTEXT KEY (b)) ENGINE=MyISAM;
+--sync_slave_with_master
+ALTER TABLE t1 ENGINE=BLACKHOLE;
+
+--connection master
+INSERT INTO t1 VALUES (1,'wear'), (2,'shoes');
+UPDATE t1 SET a= 3 WHERE MATCH (b) AGAINST ('wear');
+DELETE FROM t1 WHERE MATCH (b) AGAINST ('shoes');
+INSERT INTO t1 VALUES (4,'more');
+--sync_slave_with_master
+
+--echo # The replication is still running
+--let $status_items= Slave_SQL_Running, Last_SQL_Errno
+--source include/show_slave_status.inc
+
+--echo # A user still gets an error
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT * FROM t1 WHERE MATCH (b) AGAINST ('wear');
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+--echo # End of 10.11 tests
+--source include/rpl_end.inc

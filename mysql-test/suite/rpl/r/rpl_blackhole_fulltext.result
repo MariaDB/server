@@ -1,0 +1,30 @@
+#
+# MDEV-30886 Assertion `0' in Protocol::end_statement upon fulltext
+# search in blackhole table
+#
+# A BLACKHOLE table cannot be searched by a user, but a statement with
+# MATCH replicated from the primary has to be applied by the replica
+# instead of stopping the replication.
+#
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT, b CHAR(100), FULLTEXT KEY (b)) ENGINE=MyISAM;
+connection slave;
+ALTER TABLE t1 ENGINE=BLACKHOLE;
+connection master;
+INSERT INTO t1 VALUES (1,'wear'), (2,'shoes');
+UPDATE t1 SET a= 3 WHERE MATCH (b) AGAINST ('wear');
+DELETE FROM t1 WHERE MATCH (b) AGAINST ('shoes');
+INSERT INTO t1 VALUES (4,'more');
+connection slave;
+# The replication is still running
+Slave_SQL_Running = 'Yes'
+Last_SQL_Errno = '0'
+# A user still gets an error
+SELECT * FROM t1 WHERE MATCH (b) AGAINST ('wear');
+ERROR HY000: The storage engine BLACKHOLE doesn't support FULLTEXT indexes
+connection master;
+DROP TABLE t1;
+connection slave;
+# End of 10.11 tests
+include/rpl_end.inc

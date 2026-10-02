@@ -6304,7 +6304,15 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
   ft_handler= table->file->ft_init_ext(match_flags, key, ft_tmp);
 
   if (!ft_handler)
+  {
+    /*
+      An engine reports its own errors. If it did not, it allows FULLTEXT
+      keys but cannot search them.
+    */
+    if (!thd->is_error())
+      my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
     DBUG_RETURN(1);
+  }
   if (join_key)
     table->file->ft_handler=ft_handler;
 
