@@ -241,6 +241,16 @@ detailed information:
 
 **Try to avoid getting into the re-assignment loop by being active!**
 
+> [!IMPORTANT]
+> When you have addressed all the points raised in the current review
+> round (preliminary or final) and the pull request is ready for another
+> round of review, please explicitly request a review from the reviewer
+> (e.g. by using the "Re-request review" button in the GitHub pull
+> request UI). Reviewers may not be notified of new pushes alone or
+> they may not be aware that commits from the new pushes are ready for
+> another round of review, so without such a request the pull request
+> might sit unattended.
+
 > [!NOTE]
 > There's a requirement that certain contributions need to undergo
 > a separate test step. This is usually done for the new features or
