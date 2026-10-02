@@ -3685,6 +3685,7 @@ public:
   {
     return this;
   }
+  bool can_handle_any_cs() const override { return 1; }
 };
 
 

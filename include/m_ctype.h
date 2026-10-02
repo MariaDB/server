@@ -1576,6 +1576,7 @@ extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 */
 extern struct charset_info_st my_collation_contextually_typed_default;
 extern struct charset_info_st my_collation_contextually_typed_binary;
+extern struct charset_info_st my_collation_contextually_typed_any_cs;
 
 
 #define MY_UTF8MB3                 "utf8mb3"

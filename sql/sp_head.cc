@@ -2438,11 +2438,16 @@ sp_head::bind_input_param(THD *thd,
     DBUG_RETURN(true);
   }
 
+  Settable_routine_parameter *srp=
+      arg_item->get_settable_routine_parameter();
+  if (srp && spvar->field_def.any_cs && !srp->can_handle_any_cs())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "this kind of argument");
+    DBUG_RETURN(TRUE);
+  }
+
   if (spvar->mode != sp_variable::MODE_IN)
   {
-    Settable_routine_parameter *srp=
-      arg_item->get_settable_routine_parameter();
-
     if (!srp)
     {
       my_error(ER_SP_NOT_VAR_ARG, MYF(0), arg_no+1, ErrConvDQName(this).ptr());

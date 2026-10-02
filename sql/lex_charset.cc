@@ -490,6 +490,7 @@ CHARSET_INFO *Lex_exact_charset_extended_collation_attrs_st::
   }
   case TYPE_CHARACTER_SET_COLLATE_EXACT:
   case TYPE_COLLATE_EXACT:
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
     DBUG_ASSERT(m_ci);
     return m_ci;
   case TYPE_COLLATE_CONTEXTUALLY_TYPED:
@@ -540,6 +541,8 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       *this= Lex_exact_charset_extended_collation_attrs(cl);
       return false;
     }
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
+    break;
   }
   DBUG_ASSERT(0);
   return false;
@@ -576,6 +579,8 @@ bool Lex_exact_charset_extended_collation_attrs_st::
   case TYPE_COLLATE_CONTEXTUALLY_TYPED:
     // COLLATE DEFAULT .. COLLATE DEFAULT
     return Lex_context_collation(m_ci).raise_if_not_equal(cl);
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
+    break;
   }
 
   DBUG_ASSERT(0);
@@ -678,6 +683,8 @@ bool Lex_exact_charset_extended_collation_attrs_st::
       *this= Lex_exact_charset_extended_collation_attrs(tmp);
       return false;
     }
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
+    break;
   }
   DBUG_ASSERT(0);
   return false;
@@ -806,6 +813,9 @@ Lex_extended_charset_extended_collation_attrs_st::
              resolved_to_character_set(used, map,
                                        ctx.charset_default().
                                          collation().charset_info());
+
+  case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
+    break;
   }
   DBUG_ASSERT(0);
   return NULL;
