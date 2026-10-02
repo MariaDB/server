@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, 2021, MariaDB Corporation.
+/* Copyright (c) 2013, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@
 { "HA_ERR_NO_SUCH_TABLE", HA_ERR_NO_SUCH_TABLE, "" },
 { "HA_ERR_TABLE_EXIST", HA_ERR_TABLE_EXIST, "" },
 { "HA_ERR_NO_CONNECTION", HA_ERR_NO_CONNECTION, "" },
-{ "HA_ERR_NULL_IN_SPATIAL", HA_ERR_NULL_IN_SPATIAL, "" },
+{ "HA_ERR_BAD_FIELD_VALUE", HA_ERR_BAD_FIELD_VALUE, "" },
 { "HA_ERR_TABLE_DEF_CHANGED", HA_ERR_TABLE_DEF_CHANGED, "" },
 { "HA_ERR_NO_PARTITION_FOUND", HA_ERR_NO_PARTITION_FOUND, "" },
 { "HA_ERR_RBR_LOGGING_FAILED", HA_ERR_RBR_LOGGING_FAILED, "" },

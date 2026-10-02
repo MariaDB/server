@@ -826,7 +826,7 @@ CREATE TABLE t2 (geom GEOMETRY NOT NULL, SPATIAL KEY gk(geom));
 INSERT IGNORE INTO t2 SELECT GeomFromText(st) FROM t1;
 Warnings:
 Warning	1048	Column 'geom' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t2`.`geom` at row 1
 SELECT * FROM t2;
 geom
 drop table t1, t2;
@@ -1483,7 +1483,7 @@ ERROR 23000: Column 'foo' cannot be null
 INSERT IGNORE INTO t1() VALUES ();
 Warnings:
 Warning	1364	Field 'foo' doesn't have a default value
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`foo` at row 1
 SELECT * FROM t1;
 foo
 INSERT INTO t1(foo) VALUES ('');
@@ -1584,17 +1584,17 @@ INSERT INTO t1 VALUES(GEOMFROMTEXT("point (0 0)"), GEOMFROMTEXT("point (1 1)"));
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=GEOMFROMTEXT("error");
 Warnings:
 Warning	1048	Column 'b' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`b` at row 1
 INSERT IGNORE INTO t1 SET a=GEOMFROMTEXT("point (-6 0)"), b=NULL;
 Warnings:
 Warning	1048	Column 'b' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`b` at row 1
 INSERT IGNORE INTO t1 VALUES(GEOMFROMTEXT("point (7 7)"), GEOMFROMTEXT("point (7 7)")),
 (GEOMFROMTEXT("point (8 8)"), GEOMFROMTEXT("abracadabra")),
 (GEOMFROMTEXT("point (9 9)"), GEOMFROMTEXT("point (9 9)"));
 Warnings:
 Warning	1048	Column 'b' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`b` at row 2
 SELECT ASTEXT(a), ASTEXT(b) FROM t1;
 ASTEXT(a)	ASTEXT(b)
 POINT(0 0)	POINT(1 1)
@@ -1607,11 +1607,11 @@ INSERT INTO t1 VALUES(0, GEOMFROMTEXT("point (1 1)"));
 INSERT IGNORE INTO t1 SET a=0, b=GEOMFROMTEXT("error");
 Warnings:
 Warning	1048	Column 'b' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`b` at row 1
 INSERT IGNORE INTO t1 SET a=1, b=NULL;
 Warnings:
 Warning	1048	Column 'b' cannot be null
-Warning	1416	Cannot get geometry object from data you send to the GEOMETRY field
+Warning	1366	Incorrect geometry value: '' for column `test`.`t1`.`b` at row 1
 SELECT a, ASTEXT(b) FROM t1;
 a	ASTEXT(b)
 0	POINT(1 1)
