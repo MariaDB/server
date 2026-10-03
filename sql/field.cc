@@ -11610,6 +11610,69 @@ void Field::raise_note_cannot_use_key_part(THD *thd,
   }
 }
 
+bool Field::is_supertype(Item *item) const
+{
+  return type_handler()->is_supertype(type_std_attributes(),
+                                      type_extra_attributes(),
+                                      item->type_handler(),
+                                      *item /*Type_std_attributes*/,
+                                      item->type_extra_attributes());
+}
+
+
+bool Field::is_const_strictly_inside_domain(Item *item)
+{
+  if (!item->can_eval_in_optimize())
+    return false;
+  /*
+    Store the constant into the field's record buffer, the same way
+    the range optimizer does it, see various implementations of
+    Field::get_mm_leaf_int
+  */
+  const int err= item->save_in_field_no_warnings(this, 1);
+  /* err > 0: the value was truncated, err < 0: the value was NULL */
+  if (err || is_real_null())
+    return false;
+  /* Examining the stored value reads the field, so mark it as readable */
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+  const bool res= stored_value_is_strictly_inside_domain();
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
+  return res;
+}
+
+
+bool Field_int::stored_value_is_strictly_inside_domain()
+{
+  const Type_limits_int *lim= type_limits_int();
+  const Longlong_hybrid val(val_int(), is_unsigned());
+  if (is_unsigned())
+    return val.cmp(Longlong_hybrid(0, true)) > 0 &&
+           val.cmp(Longlong_hybrid((longlong) lim->max_unsigned(), true)) < 0;
+  return val.cmp(Longlong_hybrid(lim->min_signed(), false)) > 0 &&
+         val.cmp(Longlong_hybrid(lim->max_signed(), false)) < 0;
+}
+
+
+/*
+    PAD SPACE collations are unsafe due to truncation and NOT yet
+    handled. For example, consider a table with
+
+      a varchar(20), vc varchar(5) as (concat('x',a)), index(vc)
+
+    A row a = 'abc z' results in vc = 'xabc ', and
+
+      concat('x', a) = 'xabc'
+
+    evaluates to 0 without substitution, but 1 with.
+*/
+bool Field_longstr::stored_value_is_strictly_inside_domain()
+{
+  StringBuffer<MAX_FIELD_WIDTH> buffer(charset());
+  String *value= val_str(&buffer);
+  return value &&
+    capacity_needed_to_exceed_truncation(*value) <= capacity_limit();
+}
+
 
 /*
   Give warning for unusable key

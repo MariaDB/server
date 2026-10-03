@@ -150,7 +150,7 @@ explain select * from t3 where concat('100', a)=10010;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
 Warnings:
-Note	1105	Cannot substitute virtual column expression concat('100',`t3`.`a`) -> vcol1 due to type mismatch
+Note	1105	Cannot substitute virtual column expression concat('100',`t3`.`a`) -> vcol1 due to collation mismatch
 # Character set change
 explain select * from t3 where concat('hello-', a)='abcd';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -192,6 +192,21 @@ explain select * from t1 force index(color)
 where json_unquote(json_extract(js1, '$.color')) IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	color	color	403	NULL	100	Using index condition
+# TODO: wrong results due to space padding
+set @save_sql_mode=@@sql_mode;
+set sql_mode='';
+insert into t1 (a, js1) values
+(101, concat('{"size": 101, "color": "hue101', repeat(' ', 94), 'X"}'));
+Warnings:
+Warning	1265	Data truncated for column 'color' at row 1
+explain select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue101';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	color	color	403	const	1	Using index condition
+select * from t1 where json_unquote(json_extract(js1, '$.color'))='hue101';
+a	js1	size1	color
+101	{"size": 101, "color": "hue101                                                                                              X"}	101	hue101                                                                                              
+delete from t1 where a = 101;
+set sql_mode=@save_sql_mode;
 alter table t1 drop column color;
 alter table t1 add
 color2 varchar(100)
@@ -387,16 +402,593 @@ EXPLAIN
     "table": {
       "delete": 1,
       "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["a1"],
-      "key": "a1",
-      "key_length": "5",
-      "used_key_parts": ["a1"],
+      "access_type": "ALL",
       "rows": 2,
-      "attached_condition": "t1.a1 > 'a'"
+      "attached_condition": "t1.v2 + t1.v3 > 'a'"
     }
   }
 }
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Note	1105	Cannot substitute virtual column expression `t1`.`v2` + `t1`.`v3` -> a1 due to unsafe const comparison
+drop table t1;
+#
+# MDEV-39525 WHERE virtual column index substitution causes wrong results when truncation happens
+#
+# a+1 is computed in a wider integer type than the TINYINT vcol
+# field, so storing the expression into the field can clamp the
+# value. Substitution is only allowed for the constants that are
+# strictly inside the TINYINT range.
+create table t1 (a tinyint, va tinyint as (a+1), index(va));
+set @save_sql_mode=@@sql_mode;
+set sql_mode='';
+# The last row has a+1=128, which is clamped to 127 in va:
+insert into t1 (a) values (10),(20),(126),(127);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 4
+set sql_mode=@save_sql_mode;
+select a, va from t1 order by a;
+a	va
+10	11
+20	21
+126	127
+127	127
+# An interior constant: the index is used
+explain
+select * from t1 where a+1=21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	
+select * from t1 where a+1=21;
+a	va
+20	21
+explain
+select * from t1 where a+1<21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	1	Using index condition
+select * from t1 where a+1<21;
+a	va
+10	11
+explain
+select * from t1 where a+1<=21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	2	Using index condition
+select * from t1 where a+1<=21;
+a	va
+10	11
+20	21
+explain
+select * from t1 where a+1>21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	2	Using index condition
+select * from t1 where a+1>21;
+a	va
+126	127
+127	127
+explain
+select * from t1 where a+1>=21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	3	Using index condition
+select * from t1 where a+1>=21;
+a	va
+20	21
+126	127
+127	127
+# A constant on the boundary of the domain: no substitution.
+# va=127 would also match the row with a=127, where a+1 is 128.
+explain
+select * from t1 where a+1=127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1=127;
+a	va
+126	127
+explain
+select * from t1 where a+1>127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1>127;
+a	va
+127	127
+explain
+select * from t1 where a+1>=127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1>=127 order by a;
+a	va
+126	127
+127	127
+explain
+select * from t1 where a+1<127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1<127 order by a;
+a	va
+10	11
+20	21
+explain
+select * from t1 where a+1<=127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1<=127 order by a;
+a	va
+10	11
+20	21
+126	127
+drop table t1;
+# When the vcol field can hold every value of the expression, the
+# substitution is allowed for any constant and any comparison:
+create table t1 (a int, va bigint as (a+1), index(va));
+insert into t1 (a) select seq from seq_1_to_20;
+explain
+select * from t1 where a+1=11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	9	const	1	
+explain
+select * from t1 where a+1=9223372036854775807;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	9	const	1	
+explain
+select * from t1 where a+1<11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	9	NULL	9	Using index condition
+explain
+select * from t1 where a+1>=11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	va	NULL	NULL	NULL	20	Using where
+drop table t1;
+# Strings: the expression is longer than the vcol field, so storing
+# it into the field can truncate the value. Substitution is only
+# allowed for the constants that are strictly shorter than the
+# capacity of the field.
+create table t1 (a varchar(20), vc varchar(5) as (concat('x',a)), index(vc));
+set sql_mode='';
+# The last row has concat('x',a)='xabcde', truncated to 'xabcd' in vc:
+insert into t1 (a) values ('abc'),('abcd'),('abcde');
+Warnings:
+Warning	1265	Data truncated for column 'vc' at row 3
+set sql_mode=@save_sql_mode;
+select a, vc from t1 order by a;
+a	vc
+abc	xabc
+abcd	xabcd
+abcde	xabcd
+# A constant shorter than the capacity of varchar(5): the index is used
+explain
+select * from t1 where concat('x',a)='xabc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vc	vc	23	const	1	Using index condition
+select * from t1 where concat('x',a)='xabc';
+a	vc
+abc	xabc
+# A constant of exactly varchar(5): no substitution.
+# vc='xabcd' would also match the row with a='abcde'.
+explain
+select * from t1 where concat('x',a)='xabcd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vc due to unsafe const comparison
+select * from t1 where concat('x',a)='xabcd';
+a	vc
+abcd	xabcd
+explain
+select * from t1 where concat('x',a)<'xabcd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vc due to unsafe const comparison
+select * from t1 where concat('x',a)<'xabcd' order by a;
+a	vc
+abc	xabc
+explain
+select * from t1 where concat('x',a)<='xabcd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vc due to unsafe const comparison
+select * from t1 where concat('x',a)<='xabcd' order by a;
+a	vc
+abc	xabc
+abcd	xabcd
+explain
+select * from t1 where concat('x',a)>'xabc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vc	vc	23	NULL	2	Using index condition
+select * from t1 where concat('x',a)>'xabc' order by a;
+a	vc
+abcd	xabcd
+abcde	xabcd
+explain
+select * from t1 where concat('x',a)>='xabc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vc	vc	23	NULL	3	Using index condition
+select * from t1 where concat('x',a)>='xabc' order by a;
+a	vc
+abc	xabc
+abcd	xabcd
+abcde	xabcd
+drop table t1;
+# A CHAR vcol field pads the value with spaces on store. Under a
+# NO PAD collation this changes comparison results, so a CHAR field
+# which is not a supertype to the expression is not substituted
+# even for a short constant:
+create table t1 (
+a varchar(20) collate utf8mb4_nopad_bin,
+vc char(5) collate utf8mb4_nopad_bin as (concat('x',a)),
+index(vc)
+);
+# concat('x',a) is 'xab ', which CHAR(5) stores and returns as 'xab'
+insert into t1 (a) values ('ab ');
+select a, concat('x',a) as expr, vc,
+concat('x',a)='xab' as expr_eq, vc='xab' as field_eq from t1;
+a	expr	vc	expr_eq	field_eq
+ab 	xab 	xab	0	1
+# Must return the empty set: under NO PAD 'xab ' <> 'xab'
+explain select * from t1 where concat('x',a)='xab';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vc due to unsafe const comparison
+select * from t1 where concat('x',a)='xab';
+a	vc
+drop table t1;
+# When the vcol field is a supertype to the expression, the
+# substitution is allowed for any constant and any comparison:
+create table t1 (a varchar(20), vc varchar(30) as (concat('x',a)), index(vc));
+insert into t1 (a) values ('abc'),('abcd'),('abcde');
+explain
+select * from t1 where concat('x',a)='xabcde';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vc	vc	123	const	1	Using index condition
+explain
+select * from t1 where concat('x',a)<'xabcde';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vc	vc	123	NULL	2	Using index condition
+explain
+select * from t1 where concat('x',a)>='xabc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	vc	vc	123	NULL	3	Using index condition
+drop table t1;
+# more coverage for the strict domain check
+create table t1 (a tinyint, va tinyint as (a+1), index(va));
+set @save_sql_mode=@@sql_mode;
+set sql_mode='';
+# The last row has a+1=128, which is clamped to 127 in va:
+insert into t1 (a) values (10),(20),(126),(127);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 4
+set sql_mode=@save_sql_mode;
+# The constant on the left hand side of the comparison:
+explain
+select * from t1 where 21=a+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	
+select * from t1 where 21=a+1;
+a	va
+20	21
+explain
+select * from t1 where 127<a+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where 127<a+1;
+a	va
+127	127
+# BETWEEN: every bound must be strictly inside the domain
+explain
+select * from t1 where a+1 between 11 and 21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	2	Using index condition
+select * from t1 where a+1 between 11 and 21 order by a;
+a	va
+10	11
+20	21
+# The upper bound is on the boundary: no substitution.
+# va between 21 and 127 would also match the row with a=127.
+explain
+select * from t1 where a+1 between 21 and 127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1 between 21 and 127 order by a;
+a	va
+20	21
+126	127
+# IN: every value in the list must be strictly inside the domain
+explain
+select * from t1 where a+1 in (11,21);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	2	Using index condition
+select * from t1 where a+1 in (11,21) order by a;
+a	va
+10	11
+20	21
+# The last value is on the boundary: no substitution.
+# va in (21,127) would also match the row with a=127.
+explain
+select * from t1 where a+1 in (21,127);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1 in (21,127) order by a;
+a	va
+20	21
+126	127
+# IS NULL / IS NOT NULL compare no values, so they are substituted
+# even though the field is not a supertype to the expression:
+insert into t1 (a) values (NULL);
+explain
+select * from t1 where a+1 is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	Using index condition
+select * from t1 where a+1 is null;
+a	va
+NULL	NULL
+explain
+select * from t1 force index(va) where a+1 is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	va	va	2	NULL	4	Using index condition
+# <=> behaves similarly to = / IS NULL:
+explain
+select * from t1 where a+1<=>21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	Using index condition
+select * from t1 where a+1<=>21;
+a	va
+20	21
+explain
+select * from t1 where a+1<=>127;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1<=>127;
+a	va
+126	127
+explain
+select * from t1 where a+1<=>NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	Using index condition
+select * from t1 where a+1<=>NULL;
+a	va
+NULL	NULL
+drop table t1;
+# An UNSIGNED field: both ends of the domain are checked
+create table t1 (a tinyint unsigned, va tinyint unsigned as (a+1), index(va));
+set sql_mode='';
+# The last row has a+1=256, which is clamped to 255 in va:
+insert into t1 (a) values (10),(254),(255);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 3
+set sql_mode=@save_sql_mode;
+select a, va from t1 order by a;
+a	va
+10	11
+254	255
+255	255
+# An interior constant: the index is used
+explain
+select * from t1 where a+1=11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	va	va	2	const	1	
+select * from t1 where a+1=11;
+a	va
+10	11
+# 255 is the upper boundary of the domain: no substitution
+explain
+select * from t1 where a+1=255;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+select * from t1 where a+1=255;
+a	va
+254	255
+# 0 is the lower boundary of the domain, and -1 is outside it:
+explain
+select * from t1 where a+1=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+explain
+select * from t1 where a+1>-1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 1 -> va due to unsafe const comparison
+drop table t1;
+# A TEXT vcol field declares its capacity in octets
+create table t1 (
+a varchar(300),
+vt tinytext as (concat('x',a)),
+index(vt(30))
+);
+set sql_mode='';
+# The last row has a 256 octet expression, truncated to 255 in vt:
+insert into t1 (a) values (repeat('y',250)),(repeat('y',251)),(repeat('y',255));
+Warnings:
+Warning	1265	Data truncated for column 'vt' at row 3
+set sql_mode=@save_sql_mode;
+select length(a), length(concat('x',a)) as expr_len, length(vt) as vt_len
+from t1 order by length(a);
+length(a)	expr_len	vt_len
+250	251	251
+251	252	252
+255	256	255
+# A constant of 251 octets, strictly inside the domain:
+explain
+select length(a) from t1 where concat('x',a)=concat('x',repeat('y',250));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vt	vt	123	const	3	Using where
+select length(a) from t1 where concat('x',a)=concat('x',repeat('y',250));
+length(a)
+250
+# A constant of exactly (256 - 4) octets: no substitution.
+explain
+select length(a) from t1 where concat('x',a)=concat('x',repeat('y',251));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vt due to unsafe const comparison
+select length(a) from t1 where concat('x',a)=concat('x',repeat('y',251));
+length(a)
+251
+drop table t1;
+# A testcase showing why the "padding" should be mbmaxlen()
+# instead of 1 for blob capacity limit.
+create table t1 (a varchar(300) charset utf8mb4,
+vt tinytext charset utf8mb4 as (concat('x',a)), index(vt(30)));
+set sql_mode='';
+insert into t1 (a) values (repeat(_utf8mb4 0xE282AC, 85)), (repeat(_utf8mb4 0xE282AC, 85));
+Warnings:
+Warning	1366	Incorrect string value: '\xE2\x82\xAC' for column `test`.`t1`.`vt` at row 1
+Warning	1366	Incorrect string value: '\xE2\x82\xAC' for column `test`.`t1`.`vt` at row 2
+set sql_mode=default;
+select octet_length(a) a_len,
+octet_length(concat('x',a)) expr_len,
+octet_length(vt) vt_len from t1;
+a_len	expr_len	vt_len
+255	256	253
+255	256	253
+explain
+select octet_length(a) from t1
+where concat('x',a) = concat('x',repeat(_utf8mb4 0xE282AC, 84));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vt due to unsafe const comparison
+# Would return rows (wrong) if "padding" was 1. Should be empty
+select octet_length(a) from t1
+where concat('x',a) = concat('x',repeat(_utf8mb4 0xE282AC, 84));
+octet_length(a)
+DROP TABLE t1;
+# A VARCHAR vcol field declares its capacity in characters, so a
+# multi-byte constant is measured in characters, not in octets
+create table t1 (
+a varchar(20) charset utf8mb4,
+vc varchar(5) charset utf8mb4 as (concat('x',a)),
+index(vc)
+);
+set sql_mode='';
+# The last row has a 6 character expression, truncated to 5 in vc:
+insert into t1 (a) values ('äöü'),('äöüß'),('äöüßé');
+Warnings:
+Warning	1265	Data truncated for column 'vc' at row 3
+set sql_mode=@save_sql_mode;
+select a, char_length(concat('x',a)) as expr_chars,
+vc, char_length(vc) as vc_chars, octet_length(vc) as vc_octets
+from t1 order by a;
+a	expr_chars	vc	vc_chars	vc_octets
+äöü	4	xäöü	4	7
+äöüß	5	xäöüß	5	9
+äöüßé	6	xäöüß	5	9
+# 4 characters (7 octets), strictly inside the 5 character domain:
+explain
+select a from t1 where concat('x',a)='xäöü';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	vc	vc	23	const	1	Using index condition
+select a from t1 where concat('x',a)='xäöü';
+a
+äöü
+# 5 characters, on the boundary of the domain: no substitution,
+# even though 9 octets fit into the 20 octets of the field.
+explain
+select a from t1 where concat('x',a)='xäöüß';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression concat('x',`t1`.`a`) -> vc due to unsafe const comparison
+select a from t1 where concat('x',a)='xäöüß';
+a
+äöüß
+drop table t1;
+# DECIMAL has no domain check of its own yet, so the constant
+# cannot help and there is no substitution. Note that a+0.4 is
+# rounded when stored into va, so substituting va=5 would match
+# the row with a=4.7, where a+0.4 is 5.1.
+create table t1 (a decimal(10,2), va decimal(10,0) as (a+0.4), index(va));
+insert into t1 (a) values (4.6),(4.7);
+Warnings:
+Note	1265	Data truncated for column 'va' at row 2
+select a, va from t1 order by a;
+a	va
+4.60	5
+4.70	5
+explain
+select * from t1 where a+0.4=5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` + 0.4 -> va due to unsafe const comparison
+select * from t1 where a+0.4=5;
+a	va
+4.60	5
+drop table t1;
+# The constant is strictly inside the domain of the vcol field,
+# but the expression is compared with it in another domain: a
+# string expression against an integer constant is compared as a
+# number. Substituting would compare the number with the
+# truncated value of the expression instead, so the row below,
+# where the expression is 12345 and vc is '012', would match.
+create table t1 (a varchar(10), vc varchar(3) as (a), index(vc));
+set sql_mode='';
+insert into t1 (a) values ('012345');
+Warnings:
+Warning	1265	Data truncated for column 'vc' at row 1
+set sql_mode=@save_sql_mode;
+select a, vc, a=12 as expr_eq, vc=12 as field_eq from t1;
+a	vc	expr_eq	field_eq
+012345	012	0	1
+# '12' is 2 characters, which is strictly inside varchar(3),
+# so only the comparison domain prevents the substitution here.
+# Must return the empty set:
+explain
+select * from t1 where a=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1105	Cannot substitute virtual column expression `t1`.`a` -> vc due to unsafe const comparison
+select * from t1 where a=12;
+a	vc
+drop table t1;
+# Cannot substitute here because decimal 5.1 would be converted
+# to 5 before comparing with va
+create table t1 (a decimal(10,2), va int as (a+0.4), index(va));
+set sql_mode='';
+# va is 5 for both rows
+insert into t1 (a) values (4.6),(4.7);
+set sql_mode=default;
+# must return only the 4.60 row
+select * from t1 where a+0.4 = 5.0;
+a	va
+4.60	5
+DROP TABLE t1;
+# The same comparison is substituted when the vcol field is a
+# supertype to the expression: the vcol field stores every
+# value of the vcol expression, so the comparison domain of the
+# constant does not matter.
+create table t1 (a varchar(3), vc varchar(10) as (a), index(vc));
+insert into t1 (a) values ('012'),('345');
+explain
+select * from t1 where a=12;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	vc	NULL	NULL	NULL	2	Using where
+Warnings:
+Note	1105	Cannot use key `vc` part[0] for lookup: `test`.`t1`.`vc` of type `varchar` = "12" of type `int`
+select * from t1 where a=12;
+a	vc
+012	012
 drop table t1;
