@@ -4037,6 +4037,13 @@ int select_exists_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_exists_subselect::send_data");
   Item_exists_subselect *it= (Item_exists_subselect *)item;
+  Item_in_subselect *in_subs= item->get_IN_subquery();
+  if (in_subs && in_subs->test_strategy(SUBS_IN_TO_EXISTS) &&
+      in_subs->needs_except_result_null_check() && items.head()->is_null())
+  {
+    in_subs->was_null= 1;
+    DBUG_RETURN(0);
+  }
   it->value= 1;
   it->assigned(1);
   DBUG_RETURN(0);
