@@ -47,9 +47,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 #ifdef _WIN32
 
 #include "mysys_priv.h"
+#include "mysys_err.h"
 #include <share.h>
 #include <sys/stat.h>
 #include <winternl.h>
+#include <errno.h>
+#include <my_rdtsc.h>
 
 extern "C" {
 
@@ -320,11 +323,461 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
 }
 
 
-File my_win_open(const char *path, int flags)
+/**
+  Strip the "\\?\" ("\\?\UNC\") prefix GetFinalPathNameByHandle() adds.
+
+  @param path     source path, possibly "\\?\"-prefixed
+  @param to       destination buffer
+  @param to_size  size of 'to', in chars
+
+  @retval 0   stripped path copied to 'to'
+  @retval -1  'to' too small (errno set to ENAMETOOLONG)
+*/
+static int strip_extended_prefix(const char *path, char *to,
+                                         size_t to_size)
 {
+  if (!strncmp(path, "\\\\?\\UNC\\", 8))
+  {
+    size_t len= strlen(path + 8);
+    if (len + 3 > to_size)
+    {
+      errno= ENAMETOOLONG;
+      return -1;
+    }
+    to[0]= to[1]= '\\';
+    strmov(to + 2, path + 8);
+    return 0;
+  }
+  if (!strncmp(path, "\\\\?\\", 4))
+    path+= 4;
+  if (strlen(path) >= to_size)
+  {
+    errno= ENAMETOOLONG;
+    return -1;
+  }
+  strmov(to, path);
+  return 0;
+}
+
+
+/**
+  Wide-char twin of strip_extended_prefix(), for GetFinalPathNameByHandleW()
+  output (see try_rename_to_unique_name()).
+
+  @param path     source path, possibly "\\?\"-prefixed
+  @param to       destination buffer
+  @param to_size  size of 'to', in WCHARs
+
+  @retval 0   stripped path copied to 'to'
+  @retval -1  'to' too small (errno set to ENAMETOOLONG)
+*/
+static int strip_extended_prefix_w(const WCHAR *path, WCHAR *to,
+                                           size_t to_size)
+{
+  if (!wcsncmp(path, L"\\\\?\\UNC\\", 8))
+  {
+    size_t len= wcslen(path + 8);
+    if (len + 3 > to_size)
+    {
+      errno= ENAMETOOLONG;
+      return -1;
+    }
+    to[0]= to[1]= L'\\';
+    wcscpy(to + 2, path + 8);
+    return 0;
+  }
+  if (!wcsncmp(path, L"\\\\?\\", 4))
+    path+= 4;
+  if (wcslen(path) >= to_size)
+  {
+    errno= ENAMETOOLONG;
+    return -1;
+  }
+  wcscpy(to, path);
+  return 0;
+}
+
+
+/** Warn once per process that FILE_NAME_NORMALIZED failed and the
+    weaker FILE_NAME_OPENED fallback is being used instead. */
+static void warn_final_path_fallback_once(const char *name)
+{
+  static volatile LONG warned= 0;
+  if (!InterlockedExchange(&warned, 1))
+    my_printf_error(0, "Can't normalize path for '%s': falling back to a "
+                    "less strict check. If this is on an SMB share, make "
+                    "sure every directory in the path grants read access",
+                    MYF(ME_WARNING | ME_ERROR_LOG), name);
+}
+
+
+/**
+  Report the resolved path 'handle' was opened for. Reparse points were
+  already followed at the CreateFile() that produced 'handle'; this just reads
+  the result back via GetFinalPathNameByHandle().
+
+  @param handle   handle to query
+  @param to       destination buffer
+  @param to_size  size of 'to', in chars
+  @param name     path being resolved, for the fallback warning message only
+
+  @retval 0   resolved path copied to 'to'
+  @retval -1  errno set (ENAMETOOLONG, or mapped from GetLastError())
+*/
+static int get_final_path(HANDLE handle, char *to, size_t to_size,
+                           const char *name)
+{
+  char buf[FN_REFLEN + 8];
+  DWORD len= GetFinalPathNameByHandle(handle, buf, (DWORD) sizeof(buf),
+                                       FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  DBUG_EXECUTE_IF("force_normalized_path_fail", len= 0;);
+  if (len == 0)
+  {
+    /* NORMALIZED fails outright on some SMB servers; fall back to OPENED
+       so such shares remain usable, though it may not fully resolve
+       reparse points, weakening MY_NOSYMLINKS verification. */
+    warn_final_path_fallback_once(name);
+    len= GetFinalPathNameByHandle(handle, buf, (DWORD) sizeof(buf),
+                                   FILE_NAME_OPENED | VOLUME_NAME_DOS);
+  }
+  if (len == 0 || len >= sizeof(buf))
+  {
+    if (len >= sizeof(buf))
+      errno= ENAMETOOLONG;
+    else
+      my_osmaperr(GetLastError());
+    return -1;
+  }
+  return strip_extended_prefix(buf, to, to_size);
+}
+
+
+/**
+  Windows implementation of my_realpath(), see my_symlink.c: open the
+  canonicalized path and read back CreateFile()'s resolved target via
+  GetFinalPathNameByHandle(), resolving symlinks, junctions and mount
+  points along the way.
+
+  @param to        destination buffer, FN_REFLEN bytes
+  @param filename  path to resolve; may be empty (current directory), and
+                    may alias 'to'
+  @param MyFlags   MY_WME to report errors via my_error()
+
+  @retval 0   resolved; 'to' holds the resolved path
+  @retval 1   'filename' doesn't exist; 'to' holds a fallback path
+  @retval -1  other error; 'to' holds a fallback path
+*/
+int my_win_realpath(char *to, const char *filename, myf MyFlags)
+{
+  char full_path[FN_REFLEN];
+  HANDLE h;
+  static const char cur_dir[]= {FN_CURLIB, '\0'};
+  my_bool enoent= FALSE, have_full_path= TRUE;
+  DWORD ret;
+  DBUG_ENTER("my_win_realpath");
+  ret= GetFullPathName(filename[0] ? filename : cur_dir,
+                        sizeof(full_path), full_path, NULL);
+
+  if (ret == 0 || ret >= sizeof(full_path))
+  {
+    have_full_path= FALSE;
+    if (ret >= sizeof(full_path))
+      my_errno= ENAMETOOLONG;
+    else
+    {
+      my_osmaperr(GetLastError());
+      my_errno= errno;
+    }
+    goto err;
+  }
+
+  h= my_create_file_with_retries(full_path, FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    DWORD err= GetLastError();
+    enoent= (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND);
+    if (enoent)
+      my_errno= ENOENT;
+    else
+    {
+      my_osmaperr(err);
+      my_errno= errno;
+    }
+    goto err;
+  }
+
+  if (get_final_path(h, to, FN_REFLEN, filename))
+  {
+    my_errno= errno; /* errno set by get_final_path() */
+    CloseHandle(h);
+    goto err;
+  }
+  CloseHandle(h);
+  DBUG_RETURN(0);
+
+err:
+  if (MyFlags & MY_WME)
+    my_error(EE_REALPATH, MYF(0), filename, my_errno);
+  if (have_full_path)
+    strmake(to, full_path, FN_REFLEN-1);
+  else
+    my_load_path(to, filename, NullS);
+  DBUG_RETURN(enoent ? 1 : -1);
+}
+
+
+/**
+  Verify that 'handle' (opened for 'path') didn't follow a symlink, junction or
+  mount point anywhere along the path.
+
+  @param handle  handle already opened for path
+  @param path    expected (my_realpath()-resolved) name
+
+  @retval 0   verified
+  @retval -1  errno set to ENOTDIR on a mismatch, or to whatever
+              get_final_path() failed with otherwise
+*/
+static int verify_nosymlinks(HANDLE handle, const char *path)
+{
+  char opened_path[FN_REFLEN];
+  if (get_final_path(handle, opened_path, sizeof(opened_path), path))
+    return -1; /* errno set by get_final_path() */
+  if (!strcmp(path, opened_path))
+    return 0;
+  errno= ENOTDIR;
+  return -1;
+}
+
+
+/**
+  Rename open file through the handle
+
+  @param handle  handle
+  @param target  new absolute path for the file
+
+  @retval true   renamed
+  @retval false  rename failed (errno/GetLastError() not preserved; log
+                 at the call site if needed)
+
+  @note handle  must have DELETE access, required for renames
+*/
+static my_bool rename_via_handle(HANDLE handle, const WCHAR *target)
+{
+  BYTE buf[sizeof(FILE_RENAME_INFO) + (FN_REFLEN + 40) * sizeof(WCHAR)];
+  FILE_RENAME_INFO *ri= (FILE_RENAME_INFO *) buf;
+  DWORD name_len= (DWORD) wcslen(target) * sizeof(WCHAR);
+  DWORD bufsize= (DWORD) FIELD_OFFSET(FILE_RENAME_INFO, FileName) + name_len;
+
+  /* FileName must be NUL-terminated (SetFileInformationByHandle() reads
+     it as a C string); zero the whole buffer, not just the header, or
+     this fails unpredictably on leftover stack garbage. */
+  memset(buf, 0, sizeof(buf));
+  ri->ReplaceIfExists= FALSE;
+  ri->RootDirectory= NULL;
+  ri->FileNameLength= name_len;
+  memcpy(ri->FileName, target, name_len);
+  return SetFileInformationByHandle(handle, FileRenameInfo, ri, bufsize) != 0;
+}
+
+
+/**
+  Rename an open file to a unique, throwaway name in the same directory.
+
+  The new name is derived from GetFinalPathNameByHandleW()'s own report
+  of where 'handle' actually is, not from any path string the caller used
+  to open it -- a symlink/junction in that original path can't send the
+  rename to the wrong directory this way.
+
+  Failure isn't fatal to the caller (see my_win_unlink()).
+
+  @param handle         handle already opened with DELETE access
+  @param old_name       filled with handle's path before the rename (only
+                        meaningful if this returns true); pass back to
+                        rename_via_handle() to undo the rename if a later
+                        step on 'handle' fails (see my_win_unlink())
+  @param old_name_size  number of WCHARs available in old_name
+  @param name           path being deleted, for the fallback warning
+                        message only
+
+  @retval true   renamed; 'old_name' holds the pre-rename path
+  @retval false  not renamed; 'old_name' left untouched
+*/
+static my_bool try_rename_to_unique_name(HANDLE handle, WCHAR *old_name,
+                                          size_t old_name_size,
+                                          const char *name)
+{
+  WCHAR raw_path[FN_REFLEN + 8];
+  WCHAR unique_name[FN_REFLEN + 40];
+  my_bool skip_rename= FALSE;
+  DWORD len= GetFinalPathNameByHandleW(handle, raw_path,
+                                        array_elements(raw_path),
+                                        FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+
+  if (len == 0)
+  {
+    /* FILE_NAME_NORMALIZED can fail on SMB */
+    warn_final_path_fallback_once(name);
+    len= GetFinalPathNameByHandleW(handle, raw_path, array_elements(raw_path),
+                                    FILE_NAME_OPENED | VOLUME_NAME_DOS);
+  }
+
+  if (len == 0 || len >= array_elements(raw_path))
+    return FALSE;
+
+  if (strip_extended_prefix_w(raw_path, old_name, old_name_size))
+    return FALSE;
+
+  if (_snwprintf(unique_name, array_elements(unique_name),
+                  L"%s.%llx.deleted", old_name, my_timer_cycles()) <= 0)
+    return FALSE;
+
+  DBUG_EXECUTE_IF("force_rename_fail", skip_rename= TRUE;);
+  if (skip_rename || !rename_via_handle(handle, unique_name))
+    return FALSE;
+  return TRUE;
+}
+
+
+/**
+  Windows implementation of my_delete(). Tries posix-semantics delete first
+  (frees 'name' for reuse immediately, even with other open handles);
+  falls back to renaming to a unique name, then marking for classic delete-on-close.
+  The fallback is needed for FAT32/ExFAT, which do not have "POSIX-semantics" delete.
+  Renaming to unique name is needed, otherwise recreating file with the same name might
+  fail if another handle on file is still open.
+
+  @param name     file to delete
+  @param MyFlags  MY_NOSYMLINKS to reject (ENOTDIR) a name containing a
+                  symlink or junction anywhere
+
+  @retval 0   deleted
+  @retval -1  errno set
+*/
+int my_win_unlink(const char *name, myf MyFlags)
+{
+  HANDLE handle;
+  DWORD last_error;
+  /*
+    Without MY_NOSYMLINKS, open the reparse point itself (don't follow a
+    leaf symlink). With MY_NOSYMLINKS, follow it - otherwise leaf symlink
+    would go undetected below.
+  */
+  DWORD open_flags= (MyFlags & MY_NOSYMLINKS) ? 0 : FILE_FLAG_OPEN_REPARSE_POINT;
+  DBUG_ENTER("my_win_unlink");
+
+  handle= my_create_file_with_retries(name, DELETE,
+                     FILE_SHARE_READ | FILE_SHARE_WRITE,
+                     NULL, OPEN_EXISTING, open_flags, NULL);
+  if (handle == INVALID_HANDLE_VALUE)
+  {
+    last_error= GetLastError();
+    /*
+      A directory fails here with ERROR_ACCESS_DENIED; report EINVAL
+      instead, since my_delete() refuses directories (not EACCES, a
+      permission problem -- there isn't one).
+    */
+    DWORD attr= GetFileAttributes(name);
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+      errno= EINVAL;
+    else
+      my_osmaperr(last_error);
+    DBUG_RETURN(-1);
+  }
+
+  if ((MyFlags & MY_NOSYMLINKS) && verify_nosymlinks(handle, name))
+  {
+    CloseHandle(handle);
+    DBUG_RETURN(-1); /* errno set by verify_nosymlinks() */
+  }
+
+  /*
+    Try Windows 10 "posix semantics" delete first: the file is unlinked,
+    and its name freed for reuse, right away -- even while other handles
+    to it (ours or another process') are still open.
+  */
+  DBUG_EXECUTE_IF("force_posix_delete_fail", goto nonposix_delete;);
+  FILE_DISPOSITION_INFO_EX disp_ex;
+  disp_ex.Flags= FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS;
+  if (SetFileInformationByHandle(handle, FileDispositionInfoEx, &disp_ex,
+                                  sizeof(disp_ex)))
+  {
+    CloseHandle(handle);
+    DBUG_RETURN(0);
+  }
+
+  /*
+    Only fall back when posix semantics are genuinely unsupported (e.g FAT/exFAT)
+    not on real errors.
+  */
+  last_error= GetLastError();
+  if (last_error != ERROR_INVALID_PARAMETER &&
+      last_error != ERROR_NOT_SUPPORTED &&
+      last_error != ERROR_INVALID_FUNCTION)
+  {
+    CloseHandle(handle);
+    my_osmaperr(last_error);
+    DBUG_RETURN(-1);
+  }
+
+#ifndef DBUG_OFF
+nonposix_delete:
+#endif
+  /* Rename to a unique name first, then mark delete-on-close. */
+  WCHAR old_name[FN_REFLEN + 8];
+  my_bool renamed= try_rename_to_unique_name(handle, old_name,
+                                              array_elements(old_name), name);
+  FILE_DISPOSITION_INFO disp= {TRUE};
+  if (SetFileInformationByHandle(handle, FileDispositionInfo, &disp,
+                                  sizeof(disp)))
+  {
+    CloseHandle(handle);
+    DBUG_RETURN(0);
+  }
+  last_error= GetLastError();
+  if (renamed && !rename_via_handle(handle, old_name))
+  {
+    /* Couldn't rename back either: the file is only reachable under the
+       throwaway name now. Distinguish this from a plain dispose failure. */
+    CloseHandle(handle);
+    errno= EIO;
+    DBUG_RETURN(-1);
+  }
+  CloseHandle(handle);
+  my_osmaperr(last_error);
+  DBUG_RETURN(-1);
+}
+
+
+/**
+  @param path     file to open
+  @param flags    O_RDONLY/O_RDWR/O_CREAT/... flags
+  @param MyFlags  if MY_NOSYMLINKS is set, enforce it via
+                  verify_nosymlinks() ('path' must already be a
+                  my_realpath()-resolved name). Checked after the open, so
+                  it can't stop O_CREAT/O_TRUNC acting first; no current
+                  caller combines them with MY_NOSYMLINKS.
+
+  @retval >=0  the open file descriptor
+  @retval -1   the open failed, or MY_NOSYMLINKS rejected it (errno set)
+*/
+File my_win_open(const char *path, int flags, myf MyFlags)
+{
+  File fd;
   DBUG_ENTER("my_win_open");
-  DBUG_RETURN(my_win_sopen((char *) path, flags | _O_BINARY, _SH_DENYNO, 
-    _S_IREAD | S_IWRITE));
+  fd= my_win_sopen((char *) path, flags | _O_BINARY, _SH_DENYNO,
+                    _S_IREAD | S_IWRITE);
+  if ((MyFlags & MY_NOSYMLINKS) && fd >= 0 &&
+      verify_nosymlinks(my_get_osfhandle(fd), path))
+  {
+    /* preserve errno: my_win_close() overwrites it if CloseHandle() fails */
+    int err= errno;
+    my_win_close(fd);
+    fd= -1;
+    errno= err;
+  }
+  DBUG_RETURN(fd);
 }
 
 
