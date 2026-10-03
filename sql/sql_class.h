@@ -929,6 +929,7 @@ typedef struct system_variables
   my_bool session_track_user_variables;
 #endif // USER_VAR_TRACKING
   my_bool tcp_nodelay;
+  my_bool json_schema_format_validation;
   my_bool optimizer_record_context;
   /* Name of the user @variable that has the context we're replaying */
   char *optimizer_replay_context;

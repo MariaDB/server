@@ -136,12 +136,46 @@ class Json_schema_annotation : public Json_schema_keyword
 
 class Json_schema_format : public Json_schema_keyword
 {
-  public:
-    bool handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
-                        json_engine_t *je,
-                        const char* key_start,
-                        const char* key_end,
-                        List<Json_schema_keyword> *all_keywords) override;
+public:
+  /*
+    Resolved once at schema-parse time from the format-name hash, so
+    validate() dispatches with a single call on the per-document path.
+  */
+  typedef bool (Json_schema_format::*Format_validator)(const char *val,
+                                                       int len) const;
+private:
+  Format_validator validator;
+  static HASH format_hash;
+
+  bool validate_date(const char *val, int len) const;
+  bool validate_time_part(const char *val, int len) const;
+  bool validate_datetime(const char *val, int len) const;
+  bool validate_duration(const char *val, int len) const;
+  bool validate_email(const char *val, int len) const;
+  bool validate_idn_email(const char *val, int len) const;
+  bool validate_hostname(const char *val, int len) const;
+  bool validate_idn_hostname(const char *val, int len) const;
+  bool validate_ipv4(const char *val, int len) const;
+  bool validate_ipv6(const char *val, int len) const;
+  bool validate_uri(const char *val, int len) const;
+  bool validate_iri(const char *val, int len) const;
+  bool validate_uri_reference(const char *val, int len) const;
+  bool validate_iri_reference(const char *val, int len) const;
+  bool validate_uuid(const char *val, int len) const;
+  bool validate_json_pointer(const char *val, int len) const;
+  bool validate_relative_json_pointer(const char *val, int len) const;
+  bool validate_regex(const char *val, int len) const;
+public:
+  Json_schema_format() : validator(NULL) {}
+  bool validate(const json_engine_t *je, MEM_ROOT *current_mem_root,
+                const uchar *k_start= NULL,
+                const uchar *k_end= NULL) override;
+  bool handle_keyword(THD *thd, MEM_ROOT *current_mem_root,
+                      json_engine_t *je, const char* key_start,
+                      const char* key_end,
+                      List<Json_schema_keyword> *all_keywords) override;
+  static bool setup_format_hash();
+  static void cleanup_format_hash();
 };
 
 typedef List<Json_schema_keyword> List_schema_keyword;
