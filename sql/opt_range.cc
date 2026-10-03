@@ -9521,9 +9521,21 @@ SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
   case SCALAR_CMP_LT:
     DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, key_part, this, value));
   case SCALAR_CMP_GT:
-    DBUG_RETURN(new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value));
+  {
+    SEL_ARG *arg= new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value);
+    if (arg && (key_part->flag & HA_PART_KEY_SEG) &&
+        charset()->uca != NULL)
+      arg->min_flag= NO_MIN_RANGE;
+    DBUG_RETURN(arg);
+  }
   case SCALAR_CMP_GE:
-    DBUG_RETURN(new (mem_root) SEL_ARG_GE(thd, str, key_part, this, value));
+  {
+    SEL_ARG *arg= new (mem_root) SEL_ARG_GE(thd, str, key_part, this, value);
+    if (arg && (key_part->flag & HA_PART_KEY_SEG) &&
+        charset()->uca != NULL)
+      arg->min_flag= NO_MIN_RANGE;
+    DBUG_RETURN(arg);
+  }
   case SCALAR_CMP_EQ:
   case SCALAR_CMP_EQUAL:
     DBUG_RETURN(new (mem_root) SEL_ARG(this, str, str));
