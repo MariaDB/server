@@ -216,9 +216,9 @@ std::string DMLConvertor::translate()
 
 void DMLConvertor::fill_index_fields_for_where(std::vector<Field *> &fields)
 {
-  KEY *key_info= m_table->key_info;
-  if (key_info)
+  if (m_table->s->primary_key != MAX_KEY)
   {
+    KEY *key_info= m_table->key_info + m_table->s->primary_key;
     KEY_PART_INFO *key_part= key_info->key_part;
     for (uint j= 0; j < key_info->user_defined_key_parts; j++, key_part++)
     {

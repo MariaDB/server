@@ -1,0 +1,108 @@
+--source ../include/have_duckdb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo # MIXED: UUID()/NOW() switch the statements to row events
+--connection master
+CREATE DATABASE mdev_40957_rpl CHARACTER SET utf8mb4;
+USE mdev_40957_rpl;
+SELECT @@binlog_format;
+CREATE TABLE invoice (
+  id UUID DEFAULT UUID() PRIMARY KEY,
+  product VARCHAR(64),
+  amount DECIMAL(12,2),
+  sold_at TIMESTAMP
+) ENGINE=DuckDB DEFAULT CHARSET utf8mb4;
+INSERT INTO invoice (product, amount, sold_at) VALUES
+  ('MariaDB mug', 12.00, NOW()),
+  ('DuckDB sticker', 2.50, NOW()),
+  ('Sea lion plush', 25.00, NOW()),
+  ('DuckDB sticker', 2.50, NOW());
+
+--sync_slave_with_master
+USE mdev_40957_rpl;
+SELECT COUNT(*) FROM invoice;
+
+--connection master
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM invoice;
+
+--echo # ROW: replicated UPDATE (including a PK change) and DELETE
+--connection master
+SET SESSION binlog_format=ROW;
+CREATE TABLE t_upd (
+  id INT PRIMARY KEY,
+  v VARCHAR(16),
+  untouched VARCHAR(16)
+) ENGINE=DuckDB;
+INSERT INTO t_upd VALUES
+  (1, 'one', 'keep-1'),
+  (2, 'two', 'keep-2'),
+  (3, 'three', 'keep-3'),
+  (4, 'four', 'keep-4'),
+  (6, 'six', 'keep-6'),
+  (7, 'seven', 'keep-7'),
+  (8, 'eight', 'keep-8');
+# Metadata-only DuckDB keys must not make the optimizer choose an index scan
+UPDATE t_upd SET v = 'TWO' WHERE id = 2;
+UPDATE t_upd SET id = 30, v = 'moved' WHERE id = 3;
+DELETE FROM t_upd WHERE id = 1;
+UPDATE t_upd FORCE INDEX(PRIMARY) SET v = 'FOUR' WHERE id = 4;
+# Non-indexed predicates continue to use table scans
+UPDATE t_upd SET v = 'SIX' WHERE v = 'six';
+UPDATE t_upd SET id = 70, v = 'moved-non-pk' WHERE v = 'seven';
+DELETE FROM t_upd WHERE v = 'eight';
+SELECT * FROM t_upd ORDER BY id;
+
+--sync_slave_with_master
+SELECT * FROM t_upd ORDER BY id;
+
+--connection master
+DELETE FROM t_upd;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM t_upd;
+
+--echo # MINIMAL row image: replicated UPDATE preserves unchanged columns
+--connection master
+SET GLOBAL duckdb_dml_in_batch=OFF;
+SET SESSION binlog_row_image=MINIMAL;
+INSERT INTO t_upd VALUES
+  (1, 'one', 'must-survive'),
+  (2, 'other', 'must-not-leak');
+UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
+
+--sync_slave_with_master
+SELECT * FROM t_upd WHERE id = 1;
+
+--connection master
+--let $replay_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $replay_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+UPDATE t_upd SET id = 20 WHERE v = 'other';
+
+--sync_slave_with_master
+SELECT * FROM t_upd ORDER BY id;
+UPDATE t_upd SET v = 'corrupt', untouched = 'corrupt' WHERE v = 'other';
+SELECT * FROM t_upd ORDER BY id;
+
+--source include/stop_slave.inc
+--replace_result $replay_file REPLAY_FILE $replay_pos REPLAY_POS
+--eval CHANGE MASTER TO MASTER_LOG_FILE='$replay_file', MASTER_LOG_POS=$replay_pos, MASTER_USE_GTID=NO
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+SELECT * FROM t_upd ORDER BY id;
+
+--connection master
+SET GLOBAL duckdb_dml_in_batch=ON;
+SET SESSION binlog_row_image=FULL;
+SET SESSION binlog_format=MIXED;
+DROP DATABASE mdev_40957_rpl;
+
+--sync_slave_with_master
+
+--source include/rpl_end.inc
