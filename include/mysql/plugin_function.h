@@ -29,6 +29,14 @@
 
 /*
   API for function plugins. (MariaDB_FUNCTION_PLUGIN)
+
+  An aggregate function's Create_func must create an Item_sum_plugin descendant.
+  Aggregate implementations use the normal Item_sum lifecycle and
+  aggregation_arg() to read values, including values replayed by DISTINCT.
+  DISTINCT does not guarantee replay order; order-sensitive implementations
+  must override supports_distinct() to return false. Aggregates can implement
+  supports_removal() and remove() for moving window frames, and val_native() to
+  preserve a pluggable result type.
 */
 #define MariaDB_FUNCTION_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
