@@ -29,6 +29,46 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0sys.h"
 #ifndef UNIV_INNOCHECKSUM
+
+struct irb_row_t;
+
+#ifdef UNIV_DEBUG
+# define SRV_INSTANT_ROLLBACK_THRESHOLD_DEF 0
+#else
+# define SRV_INSTANT_ROLLBACK_THRESHOLD_DEF 10000
+#endif
+
+extern my_bool srv_instant_rollback;
+extern longlong srv_instant_rollback_threshold;
+extern bool instant_rollback_recovered_enabled;
+extern undo_no_t n_undo_recs_recovered;
+extern thread_local irb_row_t *irb_row;
+
+void consider_instant_rollback_normal_trxs(trx_t *trx);
+void cal_instant_rollback_recovered_undos(trx_t *trx);
+void consider_instant_rollback_recovered_trxs();
+bool check_instant_rollback(trx_t *trx);
+
+struct irb_row_t {
+  explicit irb_row_t(trx_t *trx) : m_trx(trx)
+  {
+    UT_LIST_INIT(trx_locks, &lock_t::trx_locks);
+  }
+
+  ~irb_row_t()
+  {
+    if (heap)
+      mem_heap_free(heap);
+  }
+
+  void release_collected_locks();
+  void reset();
+
+  trx_lock_list_t trx_locks;
+  mem_heap_t *heap= nullptr;
+  trx_t *m_trx;
+};
+
 /** The LSB of the "is insert" flag in DB_ROLL_PTR */
 #define ROLL_PTR_INSERT_FLAG_POS 55
 /** The LSB of the 7-bit trx_rseg_t::id in DB_ROLL_PTR */

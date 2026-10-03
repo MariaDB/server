@@ -475,6 +475,12 @@ lock_rec_unlock(
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
 
+/** Release explicit record locks of a transaction. */
+void lock_release_record_locks(trx_t *trx);
+
+/** Release record locks collected by an instant rollback row context. */
+void lock_release_irb_locks(trx_t *trx, trx_lock_list_t &locks);
+
 /** Release the explicit locks of a committing transaction while
 dict_sys.latch is exclusively locked,
 and release possible other transactions waiting because of these locks. */
