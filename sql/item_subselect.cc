@@ -6463,10 +6463,16 @@ int subselect_partial_match_engine::exec()
     /* Try to find a matching row by index lookup. */
     if (lookup_engine->copy_ref_key(false))
     {
-      /* The result is FALSE based on the outer reference. */
-      item_in->value= 0;
-      item_in->null_value= 0;
-      return 0;
+      /*
+        A failed key conversion rules out a complete match, but NULLs in the
+        materialized subquery can still produce a partial match.
+      */
+      if (!count_columns_with_nulls)
+      {
+        item_in->value= 0;
+        item_in->null_value= 0;
+        return 0;
+      }
     }
     else
     {
