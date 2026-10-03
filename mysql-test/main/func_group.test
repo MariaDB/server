@@ -1815,3 +1815,17 @@ enable_view_protocol;
 disable_metadata;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-41220: GROUP_CONCAT(expr ORDER BY col) mis-sorts where col is NULL
+--echo #
+create table t1 (a int, b int, c int);
+insert into t1 values (0,1,10),(NULL,2,20),(0,3,30);
+select group_concat(c order by a, b) from t1;
+--echo # NULL sorts last for DESC
+select group_concat(c order by a desc, b) from t1;
+--echo # DISTINCT and ORDER BY combined
+select group_concat(distinct c order by a, b) from t1;
+--echo # ORDER BY on an expression
+select group_concat(c order by a+1, b) from t1;
+drop table t1;
