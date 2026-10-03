@@ -4491,9 +4491,15 @@ String* Item_func_group_concat::val_str(String* str)
   if (!result_finalized) // Result yet to be written.
   {
     if (tree != NULL) // order by
+    {
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
+      result_finalized= true;
+    }
     else if (distinct) // distinct (and no order by).
+    {
       unique_filter->walk(table, &dump_leaf_key, this);
+      result_finalized= true;
+    }
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
       return &result;
     else

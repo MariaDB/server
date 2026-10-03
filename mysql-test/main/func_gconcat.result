@@ -1556,3 +1556,17 @@ Warning	1260	Row 1 was cut by GROUP_CONCAT()
 disconnect u;
 connection default;
 # End of 10.6 tests
+#
+# MDEV-40692: Repeated evaluation of GROUP_CONCAT with an exhausted OFFSET
+#
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('d');
+SELECT QUOTE(GROUP_CONCAT(a ORDER BY a LIMIT 2 OFFSET 4)) AS concatenated
+FROM t1 HAVING concatenated LIKE '%';
+concatenated
+''
+SELECT QUOTE(GROUP_CONCAT(DISTINCT a LIMIT 2 OFFSET 4)) AS concatenated
+FROM t1 HAVING concatenated LIKE '%';
+concatenated
+''
+DROP TABLE t1;
