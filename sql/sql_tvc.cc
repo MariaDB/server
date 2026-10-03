@@ -893,6 +893,12 @@ static bool cmp_row_types(Item* item1, Item* item2)
   {
     Item *inner= item1->element_index(i);
     Item *outer= item2->element_index(i);
+    /*
+      A table value constructor cannot have a ROW as a column, so an IN
+      predicate with a nested ROW cannot be converted.
+    */
+    if (inner->cols() != 1 || outer->cols() != 1)
+      return true;
     if (!inner->type_handler()->subquery_type_allows_materialization(inner,
                                                                      outer,
                                                                      true))

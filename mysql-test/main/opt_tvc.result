@@ -759,3 +759,24 @@ deallocate prepare stmt;
 drop table t1;
 set in_predicate_conversion_threshold=default;
 # End of 10.3 tests
+#
+# MDEV-31225: Signal 11 after select ..WHERE ROW(a,(a,a)) IN
+# ((1,(1,1)),(2,(2,null))) with in_predicate_conversion_threshold=1
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+set in_predicate_conversion_threshold=2;
+explain extended select a from t1 where row(a,(a,a)) in ((1,(1,1)),(2,(2,null)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a`,(`test`.`t1`.`a`,`test`.`t1`.`a`)) in (<cache>((1,(1,1))),<cache>((2,(2,NULL))))
+select a from t1 where row(a,(a,a)) in ((1,(1,1)),(2,(2,null)));
+a
+1
+select a from t1 where row(a,(a,a)) not in ((1,(1,1)),(2,(2,2)));
+a
+3
+drop table t1;
+set in_predicate_conversion_threshold=default;
+# End of 10.11 tests
