@@ -10721,7 +10721,7 @@ double Item_cache_int::val_real()
 {
   if (!has_value())
     return 0.0;
-  return (double) value;
+  return unsigned_flag ? (double) (ulonglong) value : (double) value;
 }
 
 longlong Item_cache_int::val_int()
