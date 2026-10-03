@@ -45,8 +45,8 @@ const char *dbug_print(SELECT_LEX *x);
 const char *dbug_print(SELECT_LEX_UNIT *x);
 
 /* Print current table row */
-const char* dbug_print_table_row(TABLE *table);
-const char *dbug_print_row(TABLE *table, const uchar *rec);
+const char* dbug_print_table_row(TABLE *table, bool print_names= false);
+const char *dbug_print_row(TABLE *table, const uchar *rec, bool print_names= false);
 
 /* Check which MEM_ROOT the data is on */
 bool dbug_is_mem_on_mem_root(const MEM_ROOT *mem_root, void *ptr);
