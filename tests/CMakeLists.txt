@@ -22,7 +22,7 @@ INCLUDE_DIRECTORIES(BEFORE
   ${CMAKE_BINARY_DIR}/libmariadb/include
   ${CMAKE_SOURCE_DIR}/libmariadb/include)
 
-MYSQL_ADD_EXECUTABLE(mariadb-client-test mysql_client_test.c COMPONENT Test)
+MYSQL_ADD_EXECUTABLE(mariadb-client-test mysql_client_test.c COMPONENT Test DESTINATION ${INSTALL_LIBEXECDIR})
 SET(CLIENT_LIB mariadbclient mysys)
 
 TARGET_LINK_LIBRARIES(mariadb-client-test ${CLIENT_LIB})
