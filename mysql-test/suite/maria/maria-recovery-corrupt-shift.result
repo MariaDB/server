@@ -1,0 +1,38 @@
+call mtr.add_suppression("File '.*aria_log.000.*' not found");
+drop database if exists mysqltest;
+create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
+use mysqltest;
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+create table t1 (a int, b varchar(60), key(a), key(b))
+transactional=1 row_format=page engine=aria;
+set session debug_dbug="+d,corrupt_shift_down";
+select count(*) from t1;
+count(*)
+200
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+# Recovery must refuse the record, not apply it and notice later.
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40495.err
+NOT FOUND /Table file is corrupted/ in mdev40495.err
+use mysqltest;
+#
+# MDEV-40496: a positive length pushes page_length past the page.
+#
+create table t2 (a int, b varchar(60), key(a), key(b))
+transactional=1 row_format=page engine=aria;
+set session debug_dbug="+d,corrupt_shift_up";
+select count(*) from t2;
+count(*)
+200
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40496.err
+NOT FOUND /Table file is corrupted/ in mdev40496.err
+drop database mysqltest;
