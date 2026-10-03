@@ -21807,4 +21807,15 @@ id	id	id
 0	1	1
 0	3	3
 drop table t1,t2,t3;
+#
+# MDEV-26940 Item_cond::remove_eq_conds leaves corrupt Item_equal
+#
+CREATE TABLE t (f INT);
+CREATE VIEW v1 AS SELECT COUNT(*) as c FROM t;
+CREATE VIEW v2 AS SELECT a2.c FROM v1 AS a1, v1 AS a2
+WHERE a1.c = a2.c OR a2.c <= 10;
+SELECT c FROM v2 WHERE c = 83;
+c
+DROP VIEW v1, v2;
+DROP TABLE t;
 # End of 10.11 tests
