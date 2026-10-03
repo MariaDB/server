@@ -63,4 +63,55 @@ Note	1974	Can't drop user 'u3'@'localhost'; it doesn't exist
 connection slave;
 SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
 User	Password	plugin	authentication_string
+connection master;
+CREATE USER u3@localhost IDENTIFIED BY 'abcdefghijk';
+CREATE USER u4@localhost IDENTIFIED BY 'abcdefghijk';
+connection slave;
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+User
+u3
+u4
+connection master;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin, u4@localhost IDENTIFIED BY 'newpw12345678';
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+CREATE OR REPLACE USER u4@localhost IDENTIFIED BY 'newpw12345678', u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+connection slave;
+include/check_slave_no_error.inc
+connection master;
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+User
+u3
+u4
+connect  check_u3_master, localhost, u3, abcdefghijk,;
+SELECT CURRENT_USER;
+CURRENT_USER
+u3@localhost
+disconnect check_u3_master;
+connect  check_u4_master, localhost, u4, newpw12345678,;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_master;
+connection slave;
+SELECT user FROM mysql.user WHERE user IN ('u3','u4');
+User
+u3
+u4
+connect  check_u3_slave, localhost, u3, abcdefghijk,, $SLAVE_MYPORT;
+SELECT CURRENT_USER;
+CURRENT_USER
+u3@localhost
+disconnect check_u3_slave;
+connect  check_u4_slave, localhost, u4, newpw12345678,, $SLAVE_MYPORT;
+SELECT CURRENT_USER;
+CURRENT_USER
+u4@localhost
+disconnect check_u4_slave;
+connection master;
+DROP USER u3@localhost;
+DROP USER u4@localhost;
+connection slave;
 include/rpl_end.inc
