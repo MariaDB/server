@@ -1846,6 +1846,7 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
     transactional_tables(0),
     ignore(ignore_arg),
     error_handled(0),
+    direct_dml_done(0),
     prepared(0),
     updated_sys_ver(0),
     tables_to_update(get_table_map(fields))
@@ -2614,7 +2615,7 @@ void multi_update::abort_result_set()
   if (! trans_safe)
   {
     DBUG_ASSERT(thd->transaction->stmt.modified_non_trans_table);
-    if (do_update && table_count > 1)
+    if (do_update && table_count > 1 && !direct_dml_done)
     {
       /* Add warning here */
       (void) do_updates();
@@ -2930,6 +2931,45 @@ err2:
 }
 
 
+/*
+  The engine has performed the whole multi-table UPDATE on its own, the
+  statement was pushed down through the select_handler interface. Remember
+  the row counts reported by the engine and check whether modified tables
+  were transactional. send_eof() will need this info to binlog the statement
+  correctly.
+*/
+
+void multi_update::direct_update_delete_done(ha_rows found_rows,
+                                             ha_rows affected_rows)
+{
+  DBUG_ENTER("multi_update::direct_update_delete_done");
+
+  found= found_rows;
+  updated= affected_rows;
+  direct_dml_done= true;
+
+  /*
+    Do the same as multi_update::do_updates() does:
+    walk the tables that were updated and check if they were transactional
+  */
+  for (TABLE_LIST *cur_table= update_tables; cur_table;
+       cur_table= cur_table->next_local)
+  {
+    TABLE *table= cur_table->table;
+    if (!table)
+      continue;
+    if (table->file->has_transactions_and_rollback())
+      transactional_tables= TRUE;
+    else if (updated)
+    {
+      trans_safe= FALSE;
+      thd->transaction->stmt.modified_non_trans_table= TRUE;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+
 /* out: 1 if error, 0 if success */
 
 bool multi_update::send_eof()
@@ -2940,13 +2980,13 @@ bool multi_update::send_eof()
   DBUG_ENTER("multi_update::send_eof");
   THD_STAGE_INFO(thd, stage_updating_reference_tables);
 
-  /* 
+  /*
      Does updates for the last n - 1 tables, returns 0 if ok;
      error takes into account killed status gained in do_updates()
   */
   int local_error= thd->is_error();
   if (likely(!local_error))
-    local_error = (table_count) ? do_updates() : 0;
+    local_error= (table_count && !direct_dml_done) ? do_updates() : 0;
   /*
     if local_error is not set ON until after do_updates() then
     later carried out killing should not affect binlogging.
@@ -2994,7 +3034,14 @@ bool multi_update::send_eof()
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
-      bool force_stmt= thd->binlog_need_stmt_format(transactional_tables);
+      /*
+        When the engine has performed the whole UPDATE on its own no row
+        events were produced, so the statement must be binlogged in statement
+        format regardless of binlog_format, otherwise the change would not be
+        replicated.
+      */
+      bool force_stmt= direct_dml_done ||
+                       thd->binlog_need_stmt_format(transactional_tables);
       if (!force_stmt)
         for (TABLE *table= all_tables->table; table; table= table->next)
         {

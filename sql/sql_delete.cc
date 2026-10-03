@@ -1175,7 +1175,8 @@ multi_delete::multi_delete(THD *thd_arg,
     do_delete(0),
     transactional_tables(0),
     normal_tables(0),
-    error_handled(0)
+    error_handled(0),
+    direct_dml_done(0)
 {
   tmp_tables = thd->calloc<TABLE*>(table_count);
   tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
@@ -1523,7 +1524,7 @@ void multi_delete::abort_result_set()
     The same if all tables are transactional, regardless of where we are.
     In all other cases do attempt deletes ...
   */
-  if (do_delete && normal_tables &&
+  if (do_delete && normal_tables && !direct_dml_done &&
       (table_being_deleted != delete_tables ||
        !table_being_deleted->table->file->has_transactions_and_rollback()))
   {
@@ -1736,6 +1737,46 @@ err:
 
 
 /*
+  The engine has performed the whole multi-table DELETE on its own, the
+  statement was pushed down through the select_handler interface. Remember
+  the row counts reported by the engine and check whether modified tables
+  were transactional. send_eof() will need this info to binlog the statement
+  correctly.
+*/
+
+void multi_delete::direct_update_delete_done(ha_rows found_rows,
+                                             ha_rows affected_rows)
+{
+  DBUG_ENTER("multi_delete::direct_update_delete_done");
+
+  found= found_rows;
+  deleted= affected_rows;
+  direct_dml_done= true;
+
+  /*
+    Do the same as multi_delete's initialize_tables() and send_data():
+    walk the tables that we delete from and check if they are transactional
+  */
+  for (TABLE_LIST *walk= delete_tables; walk; walk= walk->next_local)
+  {
+    TABLE_LIST *tbl= walk->table ? walk :
+                     walk->correspondent_table->find_table_for_update();
+    if (!tbl || !tbl->table)
+      continue;
+    if (tbl->table->file->has_transactions())
+      transactional_tables= 1;
+    else
+    {
+      normal_tables= 1;
+      if (deleted)
+        thd->transaction->stmt.modified_non_trans_table= TRUE;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/*
   Send ok to the client
 
   return:  0 success
@@ -1748,7 +1789,7 @@ bool multi_delete::send_eof()
   THD_STAGE_INFO(thd, stage_deleting_from_reference_tables);
 
   /* Does deletes for the last n - 1 tables, returns 0 if ok */
-  int local_error= do_deletes();		// returns 0 if success
+  int local_error= direct_dml_done ? 0 : do_deletes(); // returns 0 if success
 
   /* compute a total error to know if something failed */
   local_error= local_error || error;
@@ -1788,7 +1829,14 @@ bool multi_delete::send_eof()
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
       thd->used|= THD::THREAD_SPECIFIC_USED;
-      StatementBinlog stmt_binlog(thd, thd->binlog_need_stmt_format(transactional_tables));
+      /*
+        When the engine has performed the whole DELETE on its own no row
+        events were produced, so the statement must be binlogged in statement
+        format regardless of binlog_format, otherwise the change would not be
+        replicated.
+      */
+      StatementBinlog stmt_binlog(thd, direct_dml_done ||
+                                  thd->binlog_need_stmt_format(transactional_tables));
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
                                      transactional_tables, FALSE, FALSE,
