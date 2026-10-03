@@ -132,6 +132,12 @@ void Expression_cache_tmptable::init()
     DBUG_VOID_RETURN;
   }
 
+  /* The result field stores an already evaluated DOUBLE.  Its declared
+     decimals describe the expression, but must not round the cached value:
+     a cache hit must return the same value as the preceding cache miss. */
+  if (cache_table->field[0]->type() == MYSQL_TYPE_DOUBLE)
+    static_cast<Field_double*>(cache_table->field[0])->not_fixed= true;
+
   if (cache_table->s->db_type() != heap_hton)
   {
     DBUG_PRINT("error", ("we need only heap table"));
