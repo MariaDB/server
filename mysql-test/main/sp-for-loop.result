@@ -236,3 +236,44 @@ DROP PROCEDURE forIterateBug;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-37563 Crash on a FOR loop with a row comparison in the upper bound
+#
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+DECLARE i INT;
+FOR i IN 0..((1,'b1')=(1,'b1')) DO
+SELECT i;
+END FOR;
+END;
+$$
+CALL p1;
+i
+0
+i
+1
+CALL p1;
+i
+0
+i
+1
+DROP PROCEDURE p1;
+# The same for a cursor FOR loop parameter
+CREATE OR REPLACE PROCEDURE p2()
+BEGIN
+DECLARE c CURSOR (p INT) FOR SELECT p;
+FOR r IN c((1,'b1')=(1,'b1')) DO
+SELECT r.p;
+END FOR;
+END;
+$$
+CALL p2;
+r.p
+1
+CALL p2;
+r.p
+1
+DROP PROCEDURE p2;
+#
+# End of 11.4 tests
+#

@@ -7223,12 +7223,24 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
     return true;
   }
+
+  /*
+    add_instr() gets free_list from m_thd->free_list. Pass each bound's
+    items so that they are owned by the instruction evaluating that bound,
+    then reset the bound to avoid two pointers to the same items.
+  */
+  DBUG_ASSERT(thd->free_list == NULL);
+  thd->free_list= bounds.m_index->get_free_list();
   if (!(loop->m_index=
         bounds.m_index->sp_add_for_loop_variable(thd, index,
                                                  bounds.m_index->get_item(),
                                                  bounds.m_index->get_expr_str())
                                                  ))
     return true;
+  bounds.m_index->set_item_and_free_list(bounds.m_index->get_item(), NULL);
+
+  DBUG_ASSERT(thd->free_list == NULL);
+  thd->free_list= bounds.m_target_bound->get_free_list();
   if (unlikely(!(loop->m_target_bound=
                  bounds.m_target_bound->
                  sp_add_for_loop_target_bound(thd,
@@ -7238,6 +7250,8 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                                               m_target_bound->get_expr_str()
                                               ))))
      return true;
+  bounds.m_target_bound->set_item_and_free_list(bounds.m_target_bound->get_item(), NULL);
+
   loop->m_direction= bounds.m_direction;
   loop->m_implicit_cursor= 0;
   return false;
@@ -7295,11 +7309,26 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
                pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
+  /*
+    Pass the items of the cursor expression to the first instruction added
+    below, so that they are owned by an instruction. An implicit cursor
+    ("FOR rec IN (SELECT...)") has no free_list of its own, its items are
+    still on THD::free_list, so leave THD::free_list alone in that case.
+  */
+  if (Item *free_list= bounds.m_index->get_free_list())
+  {
+    DBUG_ASSERT(thd->free_list == NULL);
+    thd->free_list= free_list;
+  }
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
                                                        bounds.m_index,
                                                        item_func_sp)))
     DBUG_RETURN(true);
+  /*
+    Reset the bound, to avoid two pointers to the same items.
+  */
+  bounds.m_index->set_item_and_free_list(bounds.m_index->get_item(), NULL);
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
