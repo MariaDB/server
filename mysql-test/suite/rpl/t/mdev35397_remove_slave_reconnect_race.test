@@ -1,0 +1,151 @@
+#
+# MDEV-35397: Assertion `rpl_semi_sync_master_off_times >
+# thd->expected_semi_sync_offs' failed in Repl_semi_sync_master::commit_trx()
+#
+# Root cause: Repl_semi_sync_master::remove_slave() wipes the whole
+# active-transaction list (clear_active_tranx_nodes(NULL, 0, ...)) when the
+# last slave disconnects, but unlike switch_off() it never bumps
+# rpl_semi_sync_master_off_times. A transaction parked in commit_trx()'s
+# wait loop tolerates a *lone* disconnect fine, because the loop's own
+# "no clients left" guard (semisync_master.cc:915) matches remove_slave()'s
+# own guard and is checked before the missing-entry branch. But if a slave
+# reconnects (add_slave(), clients 0->1) before the waiter re-checks, that
+# early-exit guard no longer fires, and the waiter falls through to find its
+# own entry missing -- tripping the assert.
+#
+# This test forces that exact interleaving deterministically via DEBUG_SYNC.
+# The slave's dump thread is frozen *before* the transaction under test ever
+# runs (repurposing the simulate_delay_at_shutdown DBUG_EXECUTE_IF in
+# mysql_binlog_send(), sql/sql_repl.cc, which sits right after dump_start()
+# and before the thread can read/send/ACK anything further), so it can never
+# race ahead and ACK the transaction for real -- only the remove_slave()/
+# add_slave() bookkeeping around the (frozen) reconnect matters here.
+#
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_debug_sync.inc
+
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--disable_query_log
+--connection master
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+# remove_slave()'s tranx-list-clearing branch (and commit_trx()'s early-exit
+# guard) are both gated on !rpl_semi_sync_master_wait_no_slave -- default is
+# TRUE, which would make remove_slave() a no-op on disconnect. Must be 0 for
+# this race to be reachable at all.
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= 0;
+
+--connection slave
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+--source include/start_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 1
+--source include/wait_for_status_var.inc
+
+CREATE TABLE t (c INT);
+--sync_slave_with_master
+--connection master
+
+# Position right after CREATE TABLE -- the slave's dump thread will be
+# repeatedly frozen at (or before) this same point for the rest of the
+# test, so it never advances past it and never ACKs anything after it.
+--let $old_master_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $old_master_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# Disconnect the (still-live, unfrozen) slave and reconnect it *frozen*,
+# BEFORE running the transaction under test, so it can never see or ACK it.
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 0
+--source include/wait_for_status_var.inc
+SET @@GLOBAL.debug_dbug= '+d,simulate_delay_at_shutdown';
+
+--connection slave
+--eval CHANGE MASTER TO MASTER_LOG_FILE='$old_master_file', MASTER_LOG_POS=$old_master_pos, MASTER_USE_GTID=NO
+--source include/start_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 1
+--source include/wait_for_status_var.inc
+
+# Now run the transaction under test. Its own registration/wait cannot be
+# resolved by the (frozen) currently-connected slave, since that slave is
+# stuck before this event was even written.
+--connection master1
+SET DEBUG_SYNC= 'rpl_semisync_master_commit_trx_before_lock SIGNAL parked WAIT_FOR resume';
+--enable_query_log
+--send
+  INSERT INTO t (c) VALUES (1);
+--disable_query_log
+
+--connection master
+SET DEBUG_SYNC= 'now WAIT_FOR parked';
+
+# Disconnect the frozen slave (remove_slave(): clients 1->0, wipes the
+# tranx list -- including our parked transaction's entry) and immediately
+# reconnect it, still frozen at the same old position (add_slave(): clients
+# 0->1), all before the parked transaction re-checks its wait condition.
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 0
+--source include/wait_for_status_var.inc
+
+--connection slave
+--eval CHANGE MASTER TO MASTER_LOG_FILE='$old_master_file', MASTER_LOG_POS=$old_master_pos, MASTER_USE_GTID=NO
+--source include/start_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 1
+--source include/wait_for_status_var.inc
+
+SET DEBUG_SYNC= 'now SIGNAL resume';
+
+# Before the fix, this reap crashes the (debug-build) server on the
+# assertion in commit_trx(). With the fix (remove_slave() bumping
+# rpl_semi_sync_master_off_times when it clears the list), the parked
+# transaction recognizes the missing entry as an off/on-style transition
+# and just skips the wait -- no crash, no server-side error.
+--connection master1
+--reap
+SET DEBUG_SYNC= 'RESET';
+
+--connection master
+--enable_query_log
+--echo # Server did not crash -- the race was handled cleanly.
+SELECT COUNT(*) FROM t;
+--disable_query_log
+
+--echo # Cleanup
+# Release the dump thread frozen above so it can catch up and replicate the
+# DROP TABLE below before the slave is stopped.
+SET DEBUG_SYNC= 'now SIGNAL greetings_from_kill_mysql';
+SET @@GLOBAL.debug_dbug= '';
+
+DROP TABLE t;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+SET @@GLOBAL.rpl_semi_sync_master_wait_no_slave= default;
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+
+--connection master
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
+--enable_query_log
