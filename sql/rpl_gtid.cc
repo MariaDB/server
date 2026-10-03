@@ -27,6 +27,7 @@
 #include "sql_parse.h"
 #include "key.h"
 #include "rpl_rli.h"
+#include "rpl_mi.h"
 #include "slave.h"
 #include "log_event.h"
 #include "transaction.h"
@@ -1714,6 +1715,12 @@ rpl_binlog_state_base::is_before_pos(slave_connection_state *pos)
     const slave_connection_state::entry *e=
       (const slave_connection_state::entry *)my_hash_element(&pos->hash, i);
     /*
+      For a domain ignored by the slave, a GTID state is always considered to
+      lie before the slave position.
+    */
+    if (pos->is_domain_filtered(e->gtid.domain_id))
+      continue;
+    /*
       IF we have an entry with the same (domain_id, server_id),
       AND either
         (    we are ahead in that server_id
@@ -1744,7 +1751,16 @@ rpl_binlog_state_base::is_before_pos(slave_connection_state *pos)
     const element *elem= (const element *) my_hash_element(&hash, i);
     if (likely(elem->hash.records > 0) &&
         !pos->find(elem->domain_id))
+    {
+      /*
+        For a domain ignored by the slave, a GTID state is always considered to
+        lie before the slave position, also when the slave has no position at
+        all in that domain.
+      */
+      if (pos->is_domain_filtered(elem->domain_id))
+        continue;
       return false;
+    }
   }
 
   /* Nothing in our state lies after anything in the position. */
@@ -2361,6 +2377,9 @@ end:
 
 slave_connection_state::slave_connection_state()
 {
+#ifdef HAVE_REPLICATION
+  domain_filter= NULL;
+#endif
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
@@ -2370,9 +2389,23 @@ slave_connection_state::slave_connection_state()
 
 slave_connection_state::~slave_connection_state()
 {
+#ifdef HAVE_REPLICATION
+  delete domain_filter;
+#endif
   my_hash_free(&hash);
   delete_dynamic(&gtid_sort_array);
 }
+
+
+#ifdef HAVE_REPLICATION
+bool slave_connection_state::is_domain_filtered(uint32 domain_id)
+{
+  if (!domain_filter)
+    return false;
+  domain_filter->do_filter(domain_id);
+  return domain_filter->is_group_filtered();
+}
+#endif
 
 
 /*

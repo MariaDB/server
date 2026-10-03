@@ -1,0 +1,7 @@
+# For the test description, see suite/rpl/t/rpl_gtid_ignored_domain_ids.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--source suite/rpl/t/rpl_gtid_ignored_domain_ids.inc
+
+--source include/rpl_end.inc
