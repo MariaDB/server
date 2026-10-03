@@ -6221,6 +6221,17 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
     tmp->mdl_request.ticket= NULL;
     /* We have to cleanup translation tables of views. */
     tmp->cleanup_items();
+    /*
+      A derived table/view has to be re-prepared: its TABLE is set to 0
+      above, but "prepared" and friends still say otherwise, so
+      mysql_derived_prepare() would skip rebuilding it. No-op for a
+      plain base table with no unit.
+    */
+#ifdef DBUG_ASSERT_EXISTS
+    bool res=
+#endif
+      tmp->handle_derived(thd->lex, DT_REINIT);
+    DBUG_ASSERT(res == 0);
   }
   /*
     No need to commit/rollback the statement transaction: it's
