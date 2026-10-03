@@ -226,3 +226,37 @@ alter table t1 change if exists a b int, algorithm=inplace;
 check table t1;
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-39609 - SIGSEGV in process_i_s_table_temporary_tables after failed ALTER TABLE on temporary TIMESTAMP table with CHECK constraint
+--echo #
+
+CREATE TEMPORARY TABLE t (c INT KEY) ENGINE=INNODB;
+ALTER TABLE t MODIFY c TIMESTAMP;
+ALTER TABLE t ADD CHECK(c=0);
+ALTER TABLE t ADD INDEX idx1 (c);
+SET SESSION sql_mode='TRADITIONAL';
+
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
+ALTER TABLE t ROW_FORMAT=COMPRESSED;
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+ALTER TABLE t ANALYZE PARTITION p2;
+
+SELECT table_schema, table_name, table_type, engine, temporary
+FROM information_schema.tables WHERE table_name='t';
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t VALUES (0);
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t VALUES ('0000-00-00 00:00:00');
+
+SET SESSION sql_mode=DEFAULT;
+DROP TEMPORARY TABLE t;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
