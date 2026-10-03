@@ -567,7 +567,9 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
   else
   {
     log_pos[0]= KEY_OP_OFFSET;
-    int2store(log_pos+1, offset);
+    int2store(log_pos+1,
+              (DBUG_IF("corrupt_change_offset") &&
+               (int) changed_length > move_length) ? current_size : offset);
     log_pos+= 3;
     if (move_length)
     {
@@ -600,7 +602,9 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
     }
     log_pos[0]= KEY_OP_CHANGE;
   }
-  int2store(log_pos+1, changed_length);
+  int2store(log_pos+1, (log_pos[0] == KEY_OP_CHANGE &&
+                        DBUG_IF("corrupt_change_length")) ?
+                       current_size - offset : changed_length);
   log_pos+= 3;
 
   log_array[TRANSLOG_INTERNAL_PARTS + 0].str=    log_data;
@@ -1017,7 +1021,15 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     {
       uint length= uint2korr(header);
       DBUG_PRINT("redo", ("key_op_change: %u", length));
-      DBUG_ASSERT(page_offset != 0 && page_offset + length <= page_length);
+
+      /* The data has to be inside the record and fit the used page */
+      if (unlikely((size_t) (header_end - header) < (size_t) length + 2 ||
+                   page_offset == 0 || page_offset + length > page_length))
+      {
+        DBUG_ASSERT(!maria_assert_if_crashed_table);
+        result= mark_crashed= 1;
+        goto err;
+      }
 
       memcpy(buff + page_offset, header + 2 , length);
       page_offset+= length;           /* Put offset after changed length */
