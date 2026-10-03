@@ -41,6 +41,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "sql_table.h"
 
 #include "btr0btr.h"
+#include "btr0blink_alloc.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "buf0buf.h"
@@ -1276,6 +1277,9 @@ dict_index_t *dict_index_t::clone() const
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
     (mem_heap_dup(heap, fields, n_fields * sizeof *fields));
+  index->blink_page_pool= nullptr;
+  if (index->type & DICT_BLINK)
+    blink_page_pool_register(index);
   index->stat_n_diff_key_vals= static_cast<ib_uint64_t*>
     (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_diff_key_vals));
   index->stat_n_sample_sizes= static_cast<ib_uint64_t*>
@@ -1897,6 +1901,10 @@ dict_index_add_to_cache(
 
 	new_index->n_core_fields = new_index->n_fields;
 
+	if (new_index->type & DICT_BLINK) {
+		blink_page_pool_register(new_index);
+	}
+
 	dict_mem_index_free(index);
 	index = new_index;
 	return DB_SUCCESS;
@@ -1924,6 +1932,8 @@ dict_index_remove_from_cache_low(
 
 	/* No need to acquire the dict_index_t::lock here because
 	there can't be any active operations on this index (or table). */
+
+	blink_page_pool_unregister(index);
 
 	if (index->online_log) {
 		row_log_free(index->online_log);
@@ -4467,3 +4477,4 @@ dict_tf_to_row_format_string(
 	ut_error;
 	return(0);
 }
+

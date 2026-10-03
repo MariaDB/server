@@ -285,6 +285,9 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
+/** Stamp newly created supported indexes as B-link PoC indexes. */
+extern my_bool srv_blink_enabled;
+
 extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
