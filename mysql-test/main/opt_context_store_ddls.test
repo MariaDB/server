@@ -329,4 +329,22 @@ explain select * from seq_1_to_15_step_2 where seq = 5;
 
 --echo # End of 13.1 tests
 
+--echo #
+--echo # MDEV-40837: A sequence used only in a column's DEFAULT expression
+--echo # should still have its definition captured in the context, since
+--echo # the dependent table cannot be recreated without it.
+--echo #
+create sequence s1;
+create table t1 (a int primary key default nextval(s1), b int);
+insert into t1 (b) values (1),(2),(3);
+
+--echo # ddls should include both s1 and t1, with s1 (and its current
+--echo # value) appearing before t1 so that replay can recreate them
+select * from t1 where b < 10;
+--source include/opt_context_list_tables_ddls.inc
+
+drop table t1, s1;
+
+--echo # End of 13.2 tests
+
 drop database db1;
