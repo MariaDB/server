@@ -1,0 +1,113 @@
+#
+# MDEV-41205 CREATE OR REPLACE FUNCTION/PROCEDURE/PACKAGE must
+# report an error, not crash or silently succeed, when it fails
+# to delete the routine it is replacing.
+#
+SET @save_dbug=@@session.debug_dbug;
+# FUNCTION: the delete of the old row fails.
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+SET @@session.debug_dbug="+d,sp_drop_routine_internal_fail";
+CREATE OR REPLACE FUNCTION f1() RETURNS INT RETURN 2;
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+# The engine error is the statement error; the routine-specific
+# ER_SP_DROP_FAILED safety net (never reached as the *statement*
+# error, since the engine error already claimed the
+# Diagnostics_area first) is still visible via SHOW WARNINGS.
+SHOW WARNINGS;
+Level	Code	Message
+Error	1030	Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+Error	1306	Failed to DROP FUNCTION f1
+SELECT f1();
+f1()
+1
+DROP FUNCTION f1;
+# FUNCTION: the old row is deleted fine, but writing the new one
+# fails.
+CREATE FUNCTION f2() RETURNS INT RETURN 1;
+SET @@session.debug_dbug="+d,sp_create_routine_write_row_fail";
+CREATE OR REPLACE FUNCTION f2() RETURNS INT RETURN 2;
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+# The old row is already gone (this is the pre-existing, documented
+# two-step drop-then-write behaviour of CREATE OR REPLACE, not
+# something this MDEV changes), so the function no longer exists.
+SELECT f2();
+ERROR 42000: FUNCTION test.f2 does not exist
+# PROCEDURE
+CREATE PROCEDURE p1() SELECT 1;
+SET @@session.debug_dbug="+d,sp_drop_routine_internal_fail";
+CREATE OR REPLACE PROCEDURE p1() SELECT 2;
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+CALL p1();
+1
+1
+DROP PROCEDURE p1;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode='';
+CREATE PACKAGE pkg1
+FUNCTION f() RETURNS INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+FUNCTION f() RETURNS INT
+BEGIN
+RETURN 1;
+END;
+END;
+$$
+# PACKAGE BODY alone
+SET @@session.debug_dbug="+d,sp_drop_routine_internal_fail";
+CREATE OR REPLACE PACKAGE BODY pkg1
+FUNCTION f() RETURNS INT
+BEGIN
+RETURN 1;
+END;
+END;
+$$
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+SELECT pkg1.f();
+pkg1.f()
+1
+# PACKAGE: the generic fault point fires on the first internal
+# delete, i.e. the PACKAGE BODY row
+# (Sp_handler_package_spec::sp_find_and_drop_routine() drops the
+# body before the spec), so this only exercises the "nothing
+# dropped yet" case.
+SET @@session.debug_dbug="+d,sp_drop_routine_internal_fail";
+CREATE OR REPLACE PACKAGE pkg1
+FUNCTION f() RETURNS INT;
+END;
+$$
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+SELECT pkg1.f();
+pkg1.f()
+1
+# PACKAGE: fail only the second internal delete (the spec row),
+# after the body row has already been dropped -- the more
+# dangerous ordering, since it leaves the package in a
+# partially-dropped state. The error must still be reported
+# (not this MDEV's crash/silent-OK bug); the resulting
+# inconsistent mysql.proc state is a separate, pre-existing
+# atomicity gap in the two-row PACKAGE drop and is not fixed
+# here (see MDEV-41205 comments).
+SET @@session.debug_dbug="+d,sp_drop_routine_internal_fail_package_spec_only";
+CREATE OR REPLACE PACKAGE pkg1
+FUNCTION f() RETURNS INT;
+END;
+$$
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine Aria
+SET @@session.debug_dbug=@save_dbug;
+# The above confirms: the PACKAGE BODY row is durably gone (it was
+# deleted and flushed before the spec delete was even attempted),
+# while the PACKAGE spec row survives -- a partially-dropped
+# package. Cleaning it up still works.
+SELECT name, type FROM mysql.proc WHERE db=DATABASE() AND name='pkg1' ORDER BY type;
+name	type
+pkg1	PACKAGE
+DROP PACKAGE pkg1;
+SET sql_mode=@save_sql_mode;
+# End of 11.4 tests
