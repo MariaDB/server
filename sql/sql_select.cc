@@ -12007,7 +12007,7 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
         partial_join_cost==pos->read_time*fraction:
         Catch larger negatives, proceed with non-negative cost.
       */
-      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON);
+      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON*pos->read_time*fraction);
       if (partial_join_cost < 0.0)
         partial_join_cost= 0.0;
 

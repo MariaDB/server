@@ -106,5 +106,38 @@ SET optimizer_join_limit_pref_ratio= default;
 DROP table t;
 
 --echo #
+--echo # MDEV-41252: Assertion partial_join_cost >= -2.2204460492503131e-16
+--echo # when optimizer_scan_setup_cost=100000000, and
+--echo # optimizer_join_limit_pref_ratio=1
+--echo #
+CREATE TABLE t (c INT NOT NULL UNIQUE) ENGINE=InnoDB;
+INSERT INTO t VALUES (0),(1),(2),(3),(4),(5);
+ANALYZE TABLE t;
+
+SET optimizer_scan_setup_cost=100000000;
+SET optimizer_join_limit_pref_ratio=1;
+
+EXPLAIN SELECT c FROM t ORDER BY c LIMIT 1;
+
+SET optimizer_join_limit_pref_ratio= DEFAULT;
+SET optimizer_scan_setup_cost= DEFAULT;
+
+DROP TABLE t;
+
+--echo # another variant, with only optimizer_join_limit_pref_ratio=1
+
+CREATE TABLE t (c INT NOT NULL UNIQUE) ENGINE=InnoDB;
+INSERT INTO t SELECT seq FROM seq_1_to_30000;
+ANALYZE TABLE t;
+
+SET optimizer_join_limit_pref_ratio=1;
+
+EXPLAIN SELECT c FROM t ORDER BY c LIMIT 28000;
+
+SET optimizer_join_limit_pref_ratio= DEFAULT;
+
+DROP TABLE t;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
