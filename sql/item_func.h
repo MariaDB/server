@@ -4195,6 +4195,14 @@ private:
   const Sp_handler *m_handler;
   Item *m_filter;
 
+  /*
+    True after named arguments have been reordered to formal parameter
+    positions in fix_fields(). The reordered args array is allocated on
+    the statement arena and persists across executions of a prepared
+    statement, so the reordering must not run again on re-execution.
+  */
+  bool m_args_reordered= false;
+
   bool execute();
 
 protected:
