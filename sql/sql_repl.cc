@@ -225,7 +225,7 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
 {
   DBUG_ENTER("fake_rotate_event");
   ulong ev_offset;
-  char buf[ROTATE_HEADER_LEN+100];
+  char buf[ROTATE_HEADER_LEN];
   my_bool do_checksum;
   int err;
   char* p = info->log_file_name+dirname_length(info->log_file_name);

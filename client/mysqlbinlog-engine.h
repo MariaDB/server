@@ -28,6 +28,7 @@ extern bool open_engine_binlog(handler_binlog_reader *reader,
                                ulonglong start_position,
                                const char *filename, IO_CACHE *opened_cache);
 
-
+extern bool read_initial_gtid_state(handler_binlog_reader *reader,
+                                    rpl_binlog_state_base *gtid_state);
 /* Shared functions defined in mysqlbinlog.cc */
 extern void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
