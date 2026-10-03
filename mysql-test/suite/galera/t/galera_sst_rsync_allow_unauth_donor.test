@@ -1,0 +1,71 @@
+#
+# sst-rsync-allow-unauthenticated-donor lets a joiner interoperate with an
+# older, unpatched donor during a rolling upgrade.
+#
+# STEPS:
+#   1. Form a 2-node cluster where node_1 simulates an older, unpatched
+#      donor for the whole test (mtr-sst-simulate-old-donor); node_2 starts
+#      with the escape hatch enabled, so this initial SST already exercises
+#      it.
+#   2. Force another full SST on node_2 with the escape hatch disabled:
+#      this must fail, since node_1 never presents credentials.
+#   3. Re-enable the escape hatch and force a full SST again: this must
+#      succeed despite node_1 still simulating an old donor.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+
+--connection node_1
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: .*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP_SST: .*rsync returned code");
+call mtr.add_suppression("WSREP_SST: .*Cleanup after exit with status:");
+call mtr.add_suppression("WSREP: Failed to read from: wsrep_sst_rsync --role .donor.");
+call mtr.add_suppression("WSREP: Process completed with error: wsrep_sst_rsync --role .donor.");
+call mtr.add_suppression("WSREP: Command did not run: wsrep_sst_rsync --role .donor.");
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+# Disable the escape hatch (the last occurrence of the option wins) and
+# force a full SST: node_1 still simulates an old donor, so this must fail.
+--exec echo '[mysqld.2]' >> $MYSQLTEST_VARDIR/my.cnf
+--exec echo 'loose-sst-rsync-allow-unauthenticated-donor=0' >> $MYSQLTEST_VARDIR/my.cnf
+
+--error 1,134
+--exec $MYSQLD_LAST_CMD
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = rsync returned code
+--source include/search_pattern_in_file.inc
+
+# Re-enable the escape hatch and force a full SST again: this must succeed.
+--exec echo '[mysqld.2]' >> $MYSQLTEST_VARDIR/my.cnf
+--exec echo 'loose-sst-rsync-allow-unauthenticated-donor=1' >> $MYSQLTEST_VARDIR/my.cnf
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--connection node_2
+call mtr.add_suppression("WSREP_SST:");
+call mtr.add_suppression("WSREP: Process completed with error:");
+call mtr.add_suppression("WSREP: Failed to read .ready <addr>.");
+call mtr.add_suppression("WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script.");
+call mtr.add_suppression("WSREP: Failed to read state from: .*");
+call mtr.add_suppression("WSREP: Failed to prepare for .*");
+call mtr.add_suppression("WSREP: SST failed:.*");
+call mtr.add_suppression("WSREP: SST request callback failed. This is unrecoverable, restart required.");
+call mtr.add_suppression("WSREP: .*State transfer to.* failed:");
+call mtr.add_suppression("WSREP: .*Will never receive state. Need to abort.");
+call mtr.add_suppression("WSREP: Requesting state transfer failed:.*");
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
