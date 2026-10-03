@@ -1,0 +1,12 @@
+include/master-slave.inc
+[connection master]
+SET binlog_row_image = NOBLOB;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, UNIQUE(a));
+INSERT IGNORE INTO t (pk) VALUES (1),(2);
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+Warning	1062	Duplicate entry '' for key 'a'
+connection slave;
+connection master;
+DROP TABLE t;
+include/rpl_end.inc
