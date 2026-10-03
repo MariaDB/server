@@ -1129,6 +1129,7 @@ struct TABLE_SHARE;
 struct HA_CREATE_INFO;
 struct st_foreign_key_info;
 typedef struct st_foreign_key_info FOREIGN_KEY_INFO;
+struct FK_TABLE_NAME;
 typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
                              const char *file, size_t file_len,
                              const char *status, size_t status_len);
@@ -4683,6 +4684,24 @@ public:
   get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
   /**
+    Get the names of tables referenced by foreign keys in this table
+    (the parent tables of the foreign keys where this table is the
+    dependent or child table).
+
+    A lightweight alternative to get_foreign_key_list() for callers
+    that need only the referenced table names: engines can implement
+    it without loading the referenced tables or blocking concurrent
+    access to their metadata cache.
+
+    @param thd  The thread handle.
+    @param fk_table_list[out]  The list of referenced table names.
+
+    @return The handler error code or zero for success.
+  */
+  virtual int
+  get_fk_referenced_table_names(THD *thd, List<FK_TABLE_NAME> *fk_table_list)
+  { return 0; }
+  /**
     Get the list of foreign keys referencing this table.
 
     @remark Returns the set of foreign keys where this table is the
@@ -4697,6 +4716,7 @@ public:
   get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
   virtual bool referenced_by_foreign_key() const noexcept { return false;}
+  virtual bool references_foreign_key() const noexcept { return false; }
   virtual void init_table_handle_for_HANDLER()
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}

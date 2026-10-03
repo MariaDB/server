@@ -16167,6 +16167,77 @@ ha_innobase::get_foreign_key_list(
 }
 
 /*******************************************************************//**
+Gets the names of the tables referenced by foreign keys in this table,
+without loading the referenced tables.
+@return 0 on success, HA_ERR_OUT_OF_MEM on allocation failure */
+
+int
+ha_innobase::get_fk_referenced_table_names(
+/*=======================================*/
+	THD*			thd,		/*!< in: user thread handle */
+	List<FK_TABLE_NAME>*	fk_table_list)	/*!< out: names of tables
+						referenced by foreign keys */
+{
+	int	err = 0;
+
+	update_thd(ha_thd());
+
+	m_prebuilt->trx->op_info = "getting names of referenced tables";
+
+	dict_sys.freeze(SRW_LOCK_CALL);
+
+	for (const dict_foreign_t* foreign : m_prebuilt->table->foreign_set) {
+		char		tmp_buff[MAX_DATABASE_NAME_LEN + 1];
+		char		name_buff[NAME_LEN + 1];
+		const char*	ptr;
+		size_t		len;
+
+		FK_TABLE_NAME*	fk_name = static_cast<FK_TABLE_NAME*>(
+			thd_alloc(thd, sizeof *fk_name));
+
+		if (!fk_name) {
+			err = HA_ERR_OUT_OF_MEM;
+			break;
+		}
+
+		/* Referenced (parent) database name. Convert quietly:
+		this is internal metadata reading for lock acquisition,
+		not user-facing reporting. */
+		len = dict_get_db_name_len(foreign->referenced_table_name);
+		ut_a(len < sizeof(tmp_buff));
+		memcpy(tmp_buff, foreign->referenced_table_name, len);
+		tmp_buff[len] = 0;
+
+		len = filename_to_tablename(tmp_buff, name_buff,
+					    sizeof(name_buff), 1);
+
+		if (!thd_make_lex_string(thd, &fk_name->db, name_buff,
+					 len, 0)) {
+			err = HA_ERR_OUT_OF_MEM;
+			break;
+		}
+
+		/* Referenced (parent) table name */
+		ptr = dict_remove_db_name(foreign->referenced_table_name);
+		len = filename_to_tablename(ptr, name_buff,
+					    sizeof(name_buff), 1);
+
+		if (!thd_make_lex_string(thd, &fk_name->table, name_buff,
+					 len, 0)
+		    || fk_table_list->push_back(fk_name)) {
+			err = HA_ERR_OUT_OF_MEM;
+			break;
+		}
+	}
+
+	dict_sys.unfreeze();
+
+	m_prebuilt->trx->op_info = "";
+
+	return(err);
+}
+
+/*******************************************************************//**
 Gets the set of foreign keys where this table is the referenced table.
 @return always 0, that is, always succeeds */
 
@@ -16234,6 +16305,21 @@ bool ha_innobase::referenced_by_foreign_key() const noexcept
   const bool empty= m_prebuilt->table->referenced_set.empty();
   dict_sys.unfreeze();
   return !empty;
+}
+
+/** Checks if this table has foreign keys referencing other tables
+(is a child table of some foreign key).
+@return whether the table references other tables by a FOREIGN KEY */
+bool ha_innobase::references_foreign_key() const noexcept
+{
+  /*
+    No dict_sys latch is needed here. The set of foreign keys of a
+    table can only change during DDL on that table, which would have
+    to hold an exclusive metadata lock on it. That conflicts with the
+    metadata lock under which this handle is open. The table object is
+    pinned by this handle and cannot be evicted from the cache.
+  */
+  return !m_prebuilt->table->foreign_set.empty();
 }
 
 inline void trx_t::reset_and_truncate_undo() noexcept

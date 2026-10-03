@@ -159,6 +159,16 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                        0))
     goto err;
 
+  /*
+    The renames rewrite the foreign key metadata shared with tables
+    related to the renamed ones by foreign keys. Lock the related
+    tables exclusively so that concurrent DML cannot read an old name
+    from that metadata and acquire a metadata lock on it after the
+    rename.
+  */
+  if (fk_lock_related_tables(thd, table_list))
+    goto err;
+
   error=0;
   bzero(&ddl_log_state, sizeof(ddl_log_state));
 
