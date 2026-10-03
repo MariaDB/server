@@ -1390,7 +1390,8 @@ typedef struct st_rollup
   State state;
   Item_null_array null_items;
   Ref_ptr_array *ref_pointer_arrays;
-  List<Item> *fields;
+  List<Item> *all_fields;
+  List<Item> *fields_list;
 } ROLLUP;
 
 

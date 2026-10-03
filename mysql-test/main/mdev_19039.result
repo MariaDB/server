@@ -1,0 +1,14 @@
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1), (1), (2), (2), (3), (3);
+SELECT i, SUM(i) OVER () FROM t1 GROUP BY i ;
+i	SUM(i) OVER ()
+1	6
+2	6
+3	6
+SELECT i, SUM(i) OVER () FROM t1 GROUP BY i WITH ROLLUP;
+i	SUM(i) OVER ()
+NULL	6
+1	6
+2	6
+3	6
+DROP TABLE t1;
