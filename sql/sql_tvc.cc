@@ -228,6 +228,33 @@ bool get_type_attributes_for_tvc(THD *thd,
 
 /**
   @brief
+    Check whether any value of the TVC contains a parameter (a placeholder)
+
+  @details
+    A parameter gets its data type only when the statement is executed,
+    so the types collected at PREPARE time cannot be relied upon then.
+*/
+
+static bool has_parameters(List_iterator_fast<List_item> &li)
+{
+  List_item *lst;
+  li.rewind();
+  while ((lst= li++))
+  {
+    List_iterator_fast<Item> it(*lst);
+    Item *item;
+    while ((item= it++))
+    {
+      if (item->with_param())
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
     Prepare of TVC
 
   @param
@@ -301,7 +328,34 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     if (unlikely(thd->is_fatal_error))
       DBUG_RETURN(true); // out of memory
   }
-    
+  else if (has_parameters(li))
+  {
+    /*
+      The cached types were computed at PREPARE time, when a parameter has
+      no value and hence no real type. Recompute them now into a temporary
+      array (allocated in the current execution's memory) and update the
+      already existing Item_type_holders in place, so that nothing gets
+      allocated in the statement arena on re-execution.
+    */
+    Type_holder *tmp_holders= new (thd->mem_root) Type_holder[cnt];
+    if (!tmp_holders ||
+        join_type_handlers_for_tvc(thd, li, tmp_holders, cnt) ||
+        get_type_attributes_for_tvc(thd, li, tmp_holders,
+                                    lists_of_values.elements, cnt))
+      DBUG_RETURN(true);
+
+    List_iterator_fast<Item> it(sl->item_list);
+    Item *item;
+    for (uint pos= 0; (item= it++); pos++)
+    {
+      DBUG_ASSERT(item->type() == Item::TYPE_HOLDER);
+      Item_type_holder *holder= static_cast<Item_type_holder*>(item);
+      holder->set_handler(tmp_holders[pos].type_handler());
+      holder->Type_std_attributes::set(tmp_holders[pos]);
+      holder->set_maybe_null(tmp_holders[pos].get_maybe_null());
+    }
+  }
+
   result= tmp_result;
   
   if (result && result->prepare(sl->item_list, unit_arg))
