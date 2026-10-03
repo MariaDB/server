@@ -24,12 +24,42 @@
 #include "vector_mhnsw.h"
 #include "sql_type_vector.h"
 
+/*
+  Distance functions use several independent accumulators instead of one.
+  The MariaDB build keeps strict floating-point order (no -ffast-math), so a
+  single `sum+= ...` accumulator is a serial dependency chain the compiler may
+  not reorder or vectorize. Independent partial sums break that chain and let
+  the compiler emit a vectorized reduction on every architecture, with no
+  intrinsics. The summation order changes, so results differ from the previous
+  code only in the last ~1 ULP; rankings are unaffected.
+*/
 static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
 {
-  double d= 0;
-  for (size_t i= 0; i < v_len; i++, v1++, v2++)
+  double a0= 0, a1= 0, a2= 0, a3= 0, a4= 0, a5= 0, a6= 0, a7= 0;
+  size_t i= 0;
+  for (; i + 8 <= v_len; i+= 8)
   {
-    double dist= get_float(v1) - get_float(v2);
+    double d0= get_float(v1 + i)     - get_float(v2 + i);
+    double d1= get_float(v1 + i + 1) - get_float(v2 + i + 1);
+    double d2= get_float(v1 + i + 2) - get_float(v2 + i + 2);
+    double d3= get_float(v1 + i + 3) - get_float(v2 + i + 3);
+    double d4= get_float(v1 + i + 4) - get_float(v2 + i + 4);
+    double d5= get_float(v1 + i + 5) - get_float(v2 + i + 5);
+    double d6= get_float(v1 + i + 6) - get_float(v2 + i + 6);
+    double d7= get_float(v1 + i + 7) - get_float(v2 + i + 7);
+    a0+= d0 * d0;
+    a1+= d1 * d1;
+    a2+= d2 * d2;
+    a3+= d3 * d3;
+    a4+= d4 * d4;
+    a5+= d5 * d5;
+    a6+= d6 * d6;
+    a7+= d7 * d7;
+  }
+  double d= ((a0 + a1) + (a2 + a3)) + ((a4 + a5) + (a6 + a7));
+  for (; i < v_len; i++)
+  {
+    double dist= get_float(v1 + i) - get_float(v2 + i);
     d+= dist * dist;
   }
   return sqrt(d);
@@ -37,15 +67,40 @@ static double calc_distance_euclidean(float *v1, float *v2, size_t v_len)
 
 static double calc_distance_cosine(float *v1, float *v2, size_t v_len)
 {
-  double dotp=0, abs1=0, abs2=0;
-  for (size_t i= 0; i < v_len; i++, v1++, v2++)
+  double dp0= 0, dp1= 0, dp2= 0, dp3= 0;
+  double abs1_0= 0, abs1_1= 0, abs1_2= 0, abs1_3= 0;
+  double abs2_0= 0, abs2_1= 0, abs2_2= 0, abs2_3= 0;
+  size_t i= 0;
+  for (; i + 4 <= v_len; i+= 4)
   {
-    float f1= get_float(v1), f2= get_float(v2);
+    float x0= get_float(v1 + i),     x1= get_float(v1 + i + 1),
+          x2= get_float(v1 + i + 2), x3= get_float(v1 + i + 3);
+    float y0= get_float(v2 + i),     y1= get_float(v2 + i + 1),
+          y2= get_float(v2 + i + 2), y3= get_float(v2 + i + 3);
+    dp0+= x0 * y0;
+    dp1+= x1 * y1;
+    dp2+= x2 * y2;
+    dp3+= x3 * y3;
+    abs1_0+= x0 * x0;
+    abs1_1+= x1 * x1;
+    abs1_2+= x2 * x2;
+    abs1_3+= x3 * x3;
+    abs2_0+= y0 * y0;
+    abs2_1+= y1 * y1;
+    abs2_2+= y2 * y2;
+    abs2_3+= y3 * y3;
+  }
+  double dotp= (dp0 + dp1) + (dp2 + dp3);
+  double abs1= (abs1_0 + abs1_1) + (abs1_2 + abs1_3);
+  double abs2= (abs2_0 + abs2_1) + (abs2_2 + abs2_3);
+  for (; i < v_len; i++)
+  {
+    float f1= get_float(v1 + i), f2= get_float(v2 + i);
     abs1+= f1 * f1;
     abs2+= f2 * f2;
     dotp+= f1 * f2;
   }
-  return 1 - dotp/sqrt(abs1*abs2);
+  return 1 - dotp / sqrt(abs1 * abs2);
 }
 
 Item_func_vec_distance::Item_func_vec_distance(THD *thd, Item *a, Item *b,
