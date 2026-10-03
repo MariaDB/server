@@ -986,6 +986,18 @@ Description: Amazon S3 archival storage engine for MariaDB
  third-party public or private cloud that implements S3 API), but still have
  them accessible in MariaDB in read-only mode.
 
+Package: mariadb-plugin-tidesdb
+Architecture: any
+Depends: mariadb-server (= ${server:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: TidesDB storage engine for MariaDB server
+ TidesDB is an LSM B+-tree storage engine with ACID transactions, MVCC,
+ configurable compression (zstd/lz4/snappy), per-row and table TTL,
+ full-text, spatial and vector indexes, and an optional S3-compatible
+ object store backend.
+ This package contains the TidesDB plugin for MariaDB server.
+
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el riscv64
 Depends: mariadb-server (= ${server:Version}),
@@ -1203,6 +1215,18 @@ Description: Snappy compression support in the server and storage engines
  .
  Note that these affect InnoDB and Mroonga only;
  RocksDB still uses the compression algorithms from its own library
+
+Package: mariadb-plugin-provider-zstd
+Architecture: any
+Depends: mariadb-server,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Zstandard compression support in the server and storage engines
+ The various MariaDB storage engines can use different compression libraries.
+ .
+ Plugin provides Zstandard (https://github.com/facebook/zstd) compression
+ .
+ Used by the TidesDB storage engine
 
 Package: mariadb-test
 Architecture: any

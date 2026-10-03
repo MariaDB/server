@@ -1,0 +1,32 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE w (
+id  INT PRIMARY KEY,
+v   INT NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO w VALUES (1, 100);
+connect  a, localhost, root,,;
+connect  b, localhost, root,,;
+connection default;
+connection a;
+BEGIN;
+UPDATE w SET v = v + 1 WHERE id = 1;
+connection b;
+SET SESSION tidesdb_lock_wait_timeout_ms = 300;
+BEGIN;
+UPDATE w SET v = v + 1 WHERE id = 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ROLLBACK;
+connection a;
+COMMIT;
+connection default;
+timeout_delta
+1
+# Row 1 incremented by T1 only.
+SELECT * FROM w WHERE id = 1;
+id	v
+1	101
+disconnect a;
+disconnect b;
+connection default;
+DROP TABLE w;
+# Done.

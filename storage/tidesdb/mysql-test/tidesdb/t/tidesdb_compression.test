@@ -1,0 +1,65 @@
+--source include/have_tidesdb.inc
+#
+# TidesDB per-table COMPRESSION option, one table per algorithm
+# (NONE, SNAPPY, LZ4, LZ4_FAST, ZSTD).  Verifies the option is accepted,
+# round-trips through SHOW CREATE TABLE, and that a compressible payload
+# survives a write / flush / read cycle for each codec.  LZ4_FAST maps to
+# liblz4's LZ4_compress_fast acceleration path.
+#
+
+--echo #
+--echo # === NONE ===
+--echo #
+CREATE TABLE t_none (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='NONE';
+SHOW CREATE TABLE t_none;
+INSERT INTO t_none VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_none WHERE id = 1;
+SELECT id, LENGTH(val) AS len, val = REPEAT('z', 1500) AS row2_ok FROM t_none WHERE id = 2;
+
+--echo #
+--echo # === SNAPPY ===
+--echo #
+CREATE TABLE t_snappy (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='SNAPPY';
+SHOW CREATE TABLE t_snappy;
+INSERT INTO t_snappy VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_snappy WHERE id = 1;
+
+--echo #
+--echo # === LZ4 ===
+--echo #
+CREATE TABLE t_lz4 (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='LZ4';
+SHOW CREATE TABLE t_lz4;
+INSERT INTO t_lz4 VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_lz4 WHERE id = 1;
+
+--echo #
+--echo # === LZ4_FAST ===
+--echo #   maps to TDB_COMPRESS_LZ4_FAST -> LZ4_compress_fast (acceleration > 1)
+--echo #
+CREATE TABLE t_lz4_fast (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='LZ4_FAST';
+SHOW CREATE TABLE t_lz4_fast;
+INSERT INTO t_lz4_fast VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_lz4_fast WHERE id = 1;
+SELECT id, LENGTH(val) AS len, val = REPEAT('z', 1500) AS row2_ok FROM t_lz4_fast WHERE id = 2;
+
+--echo # update + delete under LZ4_FAST to exercise re-compression on rewrite
+UPDATE t_lz4_fast SET val = REPEAT('mnop', 350) WHERE id = 1;
+SELECT id, val = REPEAT('mnop', 350) AS row1_updated FROM t_lz4_fast WHERE id = 1;
+DELETE FROM t_lz4_fast WHERE id = 2;
+SELECT COUNT(*) AS cnt FROM t_lz4_fast;
+
+--echo #
+--echo # === ZSTD ===
+--echo #
+CREATE TABLE t_zstd (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='ZSTD';
+SHOW CREATE TABLE t_zstd;
+INSERT INTO t_zstd VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_zstd WHERE id = 1;
+
+--echo #
+--echo # === Cleanup ===
+--echo #
+DROP TABLE t_none, t_snappy, t_lz4, t_lz4_fast, t_zstd;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

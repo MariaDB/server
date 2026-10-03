@@ -1,0 +1,89 @@
+#
+# Setup
+#
+CREATE TABLE docs (
+id    INT NOT NULL PRIMARY KEY,
+title VARCHAR(100),
+v     VECTOR(4) NOT NULL,
+VECTOR INDEX (v)
+) ENGINE=TidesDB;
+INSERT INTO docs VALUES (1, 'origin-x', Vec_FromText('[1.0, 0.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (2, 'origin-y', Vec_FromText('[0.0, 1.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (3, 'origin-z', Vec_FromText('[0.0, 0.0, 1.0, 0.0]'));
+INSERT INTO docs VALUES (4, 'near-x',   Vec_FromText('[0.9, 0.1, 0.0, 0.0]'));
+INSERT INTO docs VALUES (5, 'center',   Vec_FromText('[0.5, 0.5, 0.5, 0.5]'));
+#
+# TEST 1: Euclidean ANN search
+#
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+id	title
+1	origin-x
+4	near-x
+5	center
+#
+# TEST 2: Cosine ANN search
+#
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_COSINE(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+id	title
+1	origin-x
+4	near-x
+5	center
+#
+# TEST 3: UPDATE vector column
+#
+UPDATE docs SET v = Vec_FromText('[0.95, 0.05, 0.0, 0.0]') WHERE id = 4;
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+id	title
+1	origin-x
+4	near-x
+5	center
+#
+# TEST 4: DELETE vector row
+#
+DELETE FROM docs WHERE id = 1;
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 3;
+id	title
+4	near-x
+5	center
+2	origin-y
+#
+# TEST 5: UPDATE non-vector column
+#
+UPDATE docs SET title = 'renamed-near-x' WHERE id = 4;
+SELECT id, title FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[1.0, 0.0, 0.0, 0.0]'))
+LIMIT 2;
+id	title
+4	renamed-near-x
+5	center
+#
+# TEST 6: Different dimensionality
+#
+DROP TABLE docs;
+CREATE TABLE docs (
+id INT NOT NULL PRIMARY KEY,
+v  VECTOR(3) NOT NULL,
+VECTOR INDEX (v)
+) ENGINE=TidesDB;
+INSERT INTO docs VALUES (1, Vec_FromText('[1.0, 0.0, 0.0]'));
+INSERT INTO docs VALUES (2, Vec_FromText('[0.0, 1.0, 0.0]'));
+INSERT INTO docs VALUES (3, Vec_FromText('[0.0, 0.0, 1.0]'));
+SELECT id FROM docs
+ORDER BY VEC_DISTANCE_EUCLIDEAN(v, Vec_FromText('[0.9, 0.1, 0.0]'))
+LIMIT 2;
+id
+1
+2
+#
+# Cleanup
+#
+DROP TABLE docs;
+# Done.

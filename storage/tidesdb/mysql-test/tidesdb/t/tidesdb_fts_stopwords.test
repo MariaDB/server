@@ -1,0 +1,77 @@
+--source include/have_tidesdb.inc
+--source include/force_restart.inc
+
+--echo #
+--echo # TidesDB FTS stop word filtering
+--echo #
+
+CREATE TABLE docs (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  body TEXT,
+  FULLTEXT KEY ft_body (body)
+) ENGINE=TidesDB;
+
+INSERT INTO docs (body) VALUES
+  ('The quick brown fox jumps over the lazy dog'),
+  ('A man is walking in the park with his dog'),
+  ('How to build a house from scratch'),
+  ('This is a test of the emergency broadcast system'),
+  ('The cat sat on the mat by the door');
+
+--echo # Stop words should return 0 rows
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('the');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('is');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('a');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('of');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('in');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('on');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('by');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('with');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('for');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('this');
+
+--echo # Real words should return matches
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('fox');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('dog');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('house');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('cat');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('emergency');
+
+--echo # Boolean mode with stop words
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('+dog' IN BOOLEAN MODE);
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('+the' IN BOOLEAN MODE);
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('+dog -cat' IN BOOLEAN MODE);
+
+--echo # Multi-word query mixing stop words and real words
+SELECT id FROM docs WHERE MATCH(body) AGAINST('quick brown') ORDER BY id;
+SELECT id FROM docs WHERE MATCH(body) AGAINST('build house') ORDER BY id;
+
+--echo # Verify stop word sysvar exists and defaults
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_ft_stopword_table';
+
+--echo # Insert more rows after initial index creation
+INSERT INTO docs (body) VALUES
+  ('The world is a beautiful place to live in'),
+  ('Building bridges for the future of our community');
+
+--echo # Stop words still filtered for new rows
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('the');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('is');
+
+--echo # Real words from new rows work
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('beautiful');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('bridges');
+
+--echo # UPDATE should maintain stop word filtering
+UPDATE docs SET body = 'The revised document about the important topic' WHERE id = 1;
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('the');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('revised');
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('important');
+
+--echo # DELETE and verify
+DELETE FROM docs WHERE id = 2;
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('dog');
+
+DROP TABLE docs;
+
+--source include/cleanup_tidesdb.inc

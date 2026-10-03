@@ -1,0 +1,5 @@
+--plugin-load-add=$HA_TIDESDB_SO
+--plugin-maturity=unknown
+--plugin-load-add=provider_lz4
+--plugin-load-add=provider_snappy
+--plugin-load-add=provider_zstd
