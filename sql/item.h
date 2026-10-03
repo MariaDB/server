@@ -5904,6 +5904,7 @@ public:
   }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
+  void free_call_ctx();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
   bool execute_impl(THD *thd, Item **args, uint arg_count);

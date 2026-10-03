@@ -2874,13 +2874,29 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
   return { qname.c_ptr_safe(), qname.length() };
 }
 
+/*
+  Free the context of a stored function call.
+
+  note: The items on the call arena are allocated on sp_mem_root, so they
+        have to be destroyed before the memory root they live in is freed.
+*/
+
+void
+Item_sp::free_call_ctx()
+{
+  delete func_ctx;
+  func_ctx= NULL;
+  sp_query_arena->free_items();
+  free_root(&sp_mem_root, MYF(0));
+  memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+}
+
+
 void
 Item_sp::cleanup()
 {
   m_sp= NULL;
-  delete func_ctx;
-  func_ctx= NULL;
-  free_root(&sp_mem_root, MYF(0));
+  free_call_ctx();
   dummy_table->alias.free();
 }
 
@@ -3010,11 +3026,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   if (err_status || func_ctx->quit_func)
   {
     /* Free Items allocated during function execution. */
-    delete func_ctx;
-    func_ctx= NULL;
-    sp_query_arena->free_items();
-    free_root(&sp_mem_root, MYF(0));
-    memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+    free_call_ctx();
   }
   thd->restore_sub_statement_state(&statement_state);
 
