@@ -4910,59 +4910,54 @@ read_only_recovery:
 		}
 
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
-
-		if (rescan) {
-			recv_scan_log(true, parser);
-			if ((recv_sys.is_corrupt_log()
-			     && !srv_force_recovery)
-			    || recv_sys.is_corrupt_fs()) {
-				goto err_exit;
-			}
-
-			/* In case of multi-batch recovery,
-			redo log for the last batch is not
-			applied yet. */
-			ut_d(recv_sys.after_apply = false);
-		}
 	} else {
 		ut_ad(recv_sys.pages.empty());
 	}
 
-	if (!log_sys.is_recoverable()) {
-	} else if (recv_sys.validate_checkpoint()) {
+	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn || rescan);
+	if (false) {
 err_exit:
 		err = DB_ERROR;
 		goto func_exit;
 	}
 
-	if (!srv_read_only_mode && log_sys.is_recoverable()) {
-		log_sys.set_recovered();
-	}
-
 	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
-	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
-	    && log_sys.is_recoverable()) {
-		ut_ad("log parsing error" == 0);
-		mysql_mutex_unlock(&recv_sys.mutex);
-		err = DB_CORRUPTION;
-		goto func_exit;
-	}
-	recv_sys.apply_log_recs = true;
-	recv_no_ibuf_operations = false;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	if (srv_operation == SRV_OPERATION_NORMAL) {
 		err = recv_rename_files();
 	}
-
 	mysql_mutex_unlock(&recv_sys.mutex);
+
+	if (err != DB_SUCCESS) {
+	          goto func_exit;
+	}
+
+	if (rescan) {
+		recv_scan_log(true, parser);
+		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
+		    || recv_sys.is_corrupt_fs()) {
+			goto err_exit;
+		}
+
+		/* In case of multi-batch recovery, redo log
+		for the last batch is not applied yet. */
+		ut_d(recv_sys.after_apply = false);
+	}
+
+	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn);
+	if (recv_sys.validate_checkpoint()) {
+		goto err_exit;
+	}
+	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = false;
+	log_sys.set_recovered();
 
 	/* The database is now ready to start almost normal processing of user
 	transactions: transaction rollbacks and the application of the log
 	records in the hash table can be run in background. */
-	if (err == DB_SUCCESS && deferred_spaces.reinit_all()
-	    && !srv_force_recovery) {
+	if (deferred_spaces.reinit_all() && !srv_force_recovery) {
 		err = DB_CORRUPTION;
 	}
 
