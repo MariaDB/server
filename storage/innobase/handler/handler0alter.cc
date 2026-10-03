@@ -10182,11 +10182,15 @@ innobase_update_foreign_cache(
 	dictionary cache (work around the lack of WL#6049). */
 	dict_names_t	fk_tables;
         mtr_t mtr{ctx->trx};
+	/* The names in fk_tables must survive the temporary release of
+	the exclusive dict_sys.latch inside dict_sys.load_table() in the
+	loop below. */
+	mem_heap_t*	fk_heap = mem_heap_create(1000);
 
 	err = dict_load_foreigns(mtr, user_table->name.m_name,
 				 ctx->col_names, 1, true,
 				 DICT_ERR_IGNORE_FK_NOKEY,
-				 fk_tables);
+				 fk_heap, fk_tables);
 
 	if (err == DB_CANNOT_ADD_CONSTRAINT) {
 		fk_tables.clear();
@@ -10197,7 +10201,7 @@ innobase_update_foreign_cache(
 		err = dict_load_foreigns(mtr, user_table->name.m_name,
 					 ctx->col_names, 1, false,
 					 DICT_ERR_IGNORE_NONE,
-					 fk_tables);
+					 fk_heap, fk_tables);
 
 		/* The load with "charset_check" off is successful, warn
 		the user that the foreign key has loaded with mis-matched
@@ -10229,6 +10233,8 @@ innobase_update_foreign_cache(
 
 		fk_tables.pop_front();
 	}
+
+	mem_heap_free(fk_heap);
 
 	DBUG_RETURN(err);
 }

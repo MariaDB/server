@@ -1076,8 +1076,8 @@ dict_table_is_file_per_table(
 /** Acquire the table handle. */
 inline void dict_table_t::acquire()
 {
-  ut_d(const auto old=) n_ref_count++;
-  ut_ad(old || dict_sys.frozen());
+  ut_d(const auto old=) n_ref_count.fetch_add(1, std::memory_order_relaxed);
+  ut_ad((old & ~LOADING_MASK) || dict_sys.frozen());
 }
 
 /** Release the table handle.
@@ -1086,9 +1086,9 @@ inline
 bool
 dict_table_t::release()
 {
-	auto n = n_ref_count--;
-	ut_ad(n > 0);
-	return n == 1;
+	auto n = n_ref_count.fetch_sub(1, std::memory_order_relaxed);
+	ut_ad(n & ~LOADING_MASK);
+	return (n & ~LOADING_MASK) == 1;
 }
 
 /** Encode the number of columns and number of virtual columns in a
