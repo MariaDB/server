@@ -1,0 +1,116 @@
+--source include/not_embedded.inc
+
+--let $dump_file= $MYSQLTEST_VARDIR/tmp/mysqldump_disabled_keys.sql
+
+--echo # MDEV-40747 mariadb-dump does not preserve disabled indexes
+--echo # Default dump preserves disabled keys
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+--exec $MYSQL_DUMP --skip-comments test t1 > $dump_file
+--echo # DISABLE KEYS is written under the table lock
+--let SEARCH_FILE= $dump_file
+--let SEARCH_PATTERN= LOCK TABLES .t1. WRITE;\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS \*/;
+--source include/search_pattern_in_file.inc
+--echo # and nothing enables the keys again
+--let SEARCH_PATTERN= ENABLE KEYS
+--source include/search_pattern_in_file.inc
+DROP TABLE t1;
+--exec $MYSQL test < $dump_file
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # Default dump leaves enabled keys enabled
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+--exec $MYSQL_DUMP --skip-comments test t1 > $dump_file
+DROP TABLE t1;
+--exec $MYSQL test < $dump_file
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # --skip-disable-keys still preserves the source state
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--exec $MYSQL_DUMP --skip-comments --skip-disable-keys test t1 > $dump_file
+DROP TABLE t1;
+--exec $MYSQL test < $dump_file
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # --no-data preserves disabled keys without restoring rows
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--exec $MYSQL_DUMP --skip-comments --no-data test t1 > $dump_file
+--let SEARCH_FILE= $dump_file
+--let SEARCH_PATTERN= LOCK TABLES
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS
+--source include/search_pattern_in_file.inc
+DROP TABLE t1;
+--exec $MYSQL test < $dump_file
+SELECT COUNT(*) FROM t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # --no-create-info restores the state after its loading optimization
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--exec $MYSQL_DUMP --skip-comments --no-create-info test t1 > $dump_file
+DELETE FROM t1;
+--exec $MYSQL test < $dump_file
+SELECT COUNT(*) FROM t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # A data-only dump without key optimization leaves the target state alone
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--exec $MYSQL_DUMP --skip-comments --no-create-info --skip-disable-keys test t1 > $dump_file
+ALTER TABLE t1 ENABLE KEYS;
+DELETE FROM t1;
+--exec $MYSQL test < $dump_file
+SELECT COUNT(*) FROM t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo # --tab records the state in the table SQL file
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--let $tab_dir= $MYSQLTEST_VARDIR/tmp/dump_tab
+--mkdir $tab_dir
+--exec $MYSQL_DUMP --skip-comments --tab=$tab_dir/ test t1
+--let SEARCH_FILE= $tab_dir/t1.sql
+--let SEARCH_PATTERN= CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS
+--source include/search_pattern_in_file.inc
+DROP TABLE t1;
+--rmdir $tab_dir
+
+--echo # A table whose data is not dumped gets the state with its structure
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+--exec $MYSQL_DUMP --skip-comments --ignore-table-data=test.t1 test > $dump_file
+--let SEARCH_FILE= $dump_file
+--let SEARCH_PATTERN= LOCK TABLES
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS
+--source include/search_pattern_in_file.inc
+DROP TABLE t1;
+
+--remove_file $dump_file
+
+--echo # End of 10.11 tests
