@@ -12025,7 +12025,11 @@ void Item_direct_ref_to_item::change_item(THD *thd, Item *i)
 
 bool Item::cleanup_excluding_immutables_processor (void *arg)
 {
-  if (!(get_extraction_flag() == MARKER_IMMUTABLE))
+  /*
+    Basic constants are never marked with MARKER_IMMUTABLE, but must be
+    treated as such here: cleaning them up would only leave them unfixed.
+  */
+  if (get_extraction_flag() != MARKER_IMMUTABLE && !basic_const_item())
     return cleanup_processor(arg);
   else
     return false;
