@@ -1,6 +1,7 @@
 # Test for copying log tables tail
 --source include/have_aria.inc
 --source include/have_debug.inc
+--source include/have_mariabackup_combination.inc
 
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
 
@@ -21,8 +22,11 @@ SELECT * FROM mysql.general_log
   WHERE argument LIKE "INSERT INTO %" AND
   (command_type = "Query" OR command_type = "Execute") ;
 
+if (!$MTR_COMBINATION_SERVER)
+{
 --echo # Insert new row into general_log table after it has been copied on BLOCK_DDL.
 --let after_stage_block_ddl=INSERT INTO test.t VALUES (2)
+}
 
 --echo # Backup to dir.
 --disable_result_log

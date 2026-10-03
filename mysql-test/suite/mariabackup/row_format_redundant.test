@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_mariabackup_combination.inc
 
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
 
