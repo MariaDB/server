@@ -3053,7 +3053,15 @@ uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
 */
 inline key_part_map make_keypart_map(uint N)
 {
-  return ((key_part_map)2 << (N)) - 1;
+   /*
+    my_set_bits() builds the mask in 64 bits and only then narrows it to
+    key_part_map, which is 32 bits wide on LLP64 targets.  Computing the
+    mask as (1 << N) - 1 in key_part_map instead would shift by the width
+    of the type for a key that uses all MAX_REF_PARTS keyparts.
+  */
+
+  DBUG_ASSERT(N < MAX_REF_PARTS);
+  return (key_part_map) my_set_bits(N + 1);
 }
 
 /*
@@ -3062,7 +3070,8 @@ inline key_part_map make_keypart_map(uint N)
 */
 inline key_part_map make_prev_keypart_map(uint N)
 {
-  return ((key_part_map)1 << (N)) - 1;
+  DBUG_ASSERT(N <= MAX_REF_PARTS);
+  return N ? (key_part_map) my_set_bits(N) : 0;
 }
 
 
