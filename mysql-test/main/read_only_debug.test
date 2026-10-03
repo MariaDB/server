@@ -1,0 +1,124 @@
+# Test that changing the read_only option concurrently, while another
+# connection has already decided to reject a statement because of it, does
+# not confuse the rejection. The error must still be given and must name
+# the read_only value the rejection was decided on, not whatever the option
+# happens to be by the time the error is produced.
+
+--source include/not_embedded.inc
+--source include/have_debug_sync.inc
+
+set @start_read_only= @@global.read_only;
+
+# read_only does not apply to users with the READ ONLY ADMIN privilege,
+# so we use a user without it. SUPER is needed to set debug_sync and does
+# not imply READ ONLY ADMIN.
+create user test@localhost;
+grant SUPER on *.* to test@localhost;
+grant SELECT, INSERT, UPDATE, LOCK TABLES on test.* to test@localhost;
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+connect (con1,localhost,test,,test);
+connection default;
+
+--echo #
+--echo # read_only turned off between the statement check and the error
+--echo #
+
+set global read_only='NO_LOCK';
+
+connection con1;
+set debug_sync='after_read_only_check SIGNAL parked WAIT_FOR go';
+--send update t1 set a= a + 1
+
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # read_only changed to another level between the statement check and
+--echo # the error. The error must still name the level that was rejected on.
+--echo #
+
+connection default;
+set global read_only='NO_LOCK';
+
+connection con1;
+set debug_sync='after_read_only_check SIGNAL parked WAIT_FOR go';
+--send update t1 set a= a + 1
+
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='ON';
+set debug_sync='now SIGNAL go';
+
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # read_only turned off between the lock check and the error
+--echo #
+
+connection default;
+set global read_only='NO_LOCK';
+
+connection con1;
+set debug_sync='after_lock_tables_read_only_check SIGNAL parked WAIT_FOR go';
+--send lock tables t1 read
+
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+--reap
+unlock tables;
+set debug_sync='RESET';
+
+--echo #
+--echo # read_only turned off between the start transaction check and the
+--echo # error
+--echo #
+
+connection default;
+set global read_only='ON';
+
+connection con1;
+set debug_sync='after_trans_begin_read_only_check SIGNAL parked WAIT_FOR go';
+--send start transaction read write
+
+connection default;
+set debug_sync='now WAIT_FOR parked';
+set global read_only='OFF';
+set debug_sync='now SIGNAL go';
+
+connection con1;
+--error ER_OPTION_PREVENTS_STATEMENT
+--reap
+set debug_sync='RESET';
+
+--echo #
+--echo # The rows must be unchanged
+--echo #
+
+select * from t1;
+
+disconnect con1;
+connection default;
+set debug_sync='RESET';
+drop table t1;
+drop user test@localhost;
+set global read_only= @start_read_only;
+
+--echo # End of 13.1 tests
