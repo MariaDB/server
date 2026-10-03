@@ -2932,6 +2932,7 @@ public:
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
   table_map not_null_tables() const override
   { return is_top_level_item() ? not_null_tables_cache : 0; }
+  bool find_not_null_fields(table_map allowed) override;
   Item *neg_transformer(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
 
