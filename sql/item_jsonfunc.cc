@@ -1195,12 +1195,13 @@ String *Item_func_json_extract::read_json(String *str,
          goto return_null;
        }
        c_path->parsed= c_path->constant;
-       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
     }
 
     if (args[n_arg]->null_value)
       goto return_null;
+
+    has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
   }
 
   possible_multiple_values= arg_count > 2 ||
@@ -4173,9 +4174,9 @@ String *Item_func_json_search::val_str(String *str)
   for (n_arg=4; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 4;
-    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
+      c_path->p.types_used= JSON_PATH_KEY_NULL;
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-4));
       if (s_p)
       {
@@ -4186,11 +4187,12 @@ String *Item_func_json_search::val_str(String *str)
          goto null_return;
        }
        c_path->parsed= c_path->constant;
-       has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
       }
     }
     if (args[n_arg]->null_value)
       goto null_return;
+
+    has_negative_path|= c_path->p.types_used & JSON_PATH_NEGATIVE_INDEX;
   }
 
   json_get_path_start(&je, js->charset(),(const uchar *) js->ptr(),
