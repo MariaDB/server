@@ -2420,6 +2420,19 @@ Type_handler_int_result::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
 }
 
 
+Field *
+Type_handler_hex_hybrid::make_num_distinct_aggregator_field(
+    MEM_ROOT *mem_root, const Item *item) const
+{
+  /*
+    Hex and bit literals have unsigned integer values in numeric aggregates.
+    Their max_length is a byte count, not a DOUBLE(M,0) display width.
+  */
+  return type_handler_ulonglong.make_num_distinct_aggregator_field(mem_root,
+                                                                 item);
+}
+
+
 /***********************************************************************/
 
 Field *Type_handler_tiny::make_conversion_table_field(MEM_ROOT *root,

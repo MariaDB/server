@@ -107,3 +107,35 @@ SELECT * FROM (SELECT SUM(DISTINCT a) FROM t1) AS t;
 SUM(DISTINCT a)
 NULL
 DROP TABLE t1;
+#
+# MDEV-39194: SUM DISTINCT of a bit literal
+#
+SELECT SUM(DISTINCT b'1100') AS r;
+r
+12
+SELECT SUM(DISTINCT b'00000000') AS zero_value,
+SUM(DISTINCT b'11111111') AS byte_value,
+SUM(DISTINCT b'100000000') AS two_byte_value;
+zero_value	byte_value	two_byte_value
+0	255	256
+SELECT SUM(DISTINCT 0xff) AS hex_value,
+AVG(DISTINCT b'1100') = 12 AS bit_average_is_12;
+hex_value	bit_average_is_12
+255	1
+SELECT SUM(DISTINCT 0xffffffffffffffff) = SUM(0xffffffffffffffff)
+AS unsigned_sum_matches,
+AVG(DISTINCT 0xffffffffffffffff) = AVG(0xffffffffffffffff)
+AS unsigned_average_matches;
+unsigned_sum_matches	unsigned_average_matches
+1	1
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,1), (3,1);
+SELECT SUM(DISTINCT b'1100') AS bit_sum,
+AVG(DISTINCT b'1100') = 12 AS bit_average_is_12,
+COUNT(DISTINCT b'1100') AS bit_count FROM t1;
+bit_sum	bit_average_is_12	bit_count
+12	1	1
+SELECT AVG(DISTINCT b / a) AS decimal_average FROM t1;
+decimal_average
+0.61110000
+DROP TABLE t1;
