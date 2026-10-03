@@ -3813,6 +3813,12 @@ public:
   }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  /*
+    Preferred representation for storing a value that has both numeric and
+    string forms, such as a boolean. This is independent of the result,
+    comparison and protocol types and can be overridden by data type plugins.
+  */
+  virtual Item_result value_store_type() const { return result_type(); }
   virtual enum_dynamic_column_type
     dyncol_type(const Type_all_attributes *attr) const= 0;
   virtual enum_mysql_timestamp_type mysql_timestamp_type() const
@@ -6103,6 +6109,7 @@ class Type_handler_bit: public Type_handler_int_result
 {
 public:
   virtual ~Type_handler_bit() = default;
+  Item_result value_store_type() const override { return INT_RESULT; }
   enum_field_types field_type() const override { return MYSQL_TYPE_BIT; }
   uint flags() const override { return UNSIGNED_FLAG; }
   protocol_send_type_t protocol_send_type() const override

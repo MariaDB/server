@@ -10125,6 +10125,34 @@ int Field_bit::store(const char *from, size_t length, CHARSET_INFO *cs)
 }
 
 
+int Field_bit::store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
+{
+  char *end;
+  int error;
+  ulonglong nr= cs->strntoull10rnd(from, length, true, &end, &error);
+  int store_error= store((longlong) nr, true);
+
+  if (unlikely(error == MY_ERRNO_ERANGE))
+  {
+    if (!store_error)
+      set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+    return 1;
+  }
+  if (error == MY_ERRNO_EDOM || from == end)
+  {
+    ErrConvString str(from, length, cs);
+    set_warning_truncated_wrong_value("integer", str.ptr());
+    return 1;
+  }
+  if (test_if_important_data(cs, end, from + length))
+  {
+    set_warning(WARN_DATA_TRUNCATED, 1);
+    return 1;
+  }
+  return store_error;
+}
+
+
 int Field_bit::store(double nr)
 {
   return Field_bit::store((longlong) nr, FALSE);
