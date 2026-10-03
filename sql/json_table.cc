@@ -368,7 +368,7 @@ int ha_json_table::rnd_init(bool scan)
      for JSON's null, true, and false.
 */
 
-static void store_json_in_field(Field *f, const json_engine_t *je)
+static bool store_json_in_field(Field *f, const json_engine_t *je)
 {
   String res_tmp("", 0, je->s.cs);
 
@@ -376,7 +376,7 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
   {
   case JSON_VALUE_NULL:
     f->set_null();
-    return;
+    return false;
 
   case JSON_VALUE_TRUE:
   case JSON_VALUE_FALSE:
@@ -384,8 +384,7 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
     Item_result rt= f->result_type();
     if (rt == INT_RESULT || rt == DECIMAL_RESULT || rt == REAL_RESULT)
     {
-      f->store(je->value_type == JSON_VALUE_TRUE, false);
-      return;
+      return f->store(je->value_type == JSON_VALUE_TRUE, false) != 0;
     }
     break;
   }
@@ -393,7 +392,8 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
     break;
   };
   st_append_json(&res_tmp, je->s.cs, je->value, je->value_len);
-  f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(), je->s.cs);
+  return f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(),
+                  je->s.cs) != 0;
 }
 
 
@@ -474,7 +474,6 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
 {
   MY_BITMAP *orig_map= dbug_tmp_use_all_columns(table, &table->write_set);
   int error= 0;
-  Counting_error_handler er_handler;
   Field **f= table->field;
   Json_table_column *jc;
   List_iterator_fast<Json_table_column> jc_i(m_jt->m_columns);
@@ -483,8 +482,6 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
   enum_check_fields cf_orig= table->in_use->count_cuted_fields;
 
   table->in_use->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-
-  thd->push_internal_handler(&er_handler);
 
   while (!error && (jc= jc_i++))
   {
@@ -580,22 +577,25 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
           }
           else
           {
+            Counting_error_handler error_handler;
+            uint error_num= ER_JSON_TABLE_SCALAR_EXPECTED;
+
+            thd->push_internal_handler(&error_handler);
             if (jc->m_format_json)
             {
-              if (!(error= store_json_in_json(*f, &je)))
-                error= er_handler.errors;
+              error= store_json_in_json(*f, &je);
             }
             else if (!(error= !json_value_scalar(&je)))
             {
-              store_json_in_field(*f, &je);
-              error= er_handler.errors;
+              error= store_json_in_field(*f, &je);
+              error_num= ER_JSON_TABLE_ERROR_ON_FIELD;
             }
+            thd->pop_internal_handler();
+            error= error || error_handler.errors;
 
             if (error)
             {
-              error= jc->m_on_error.respond(jc, *f,
-                                            ER_JSON_TABLE_SCALAR_EXPECTED);
-              er_handler.errors= 0;
+              error= jc->m_on_error.respond(jc, *f, error_num);
             }
             else
             {
@@ -629,7 +629,6 @@ cont_loop:
   }
 
   dbug_tmp_restore_column_map(&table->write_set, orig_map);
-  thd->pop_internal_handler();
   thd->count_cuted_fields= cf_orig;
   return error;
 }
