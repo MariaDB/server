@@ -139,6 +139,7 @@ SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 def	db	t1	CONSTRAINT_1	Table	`b` > 0
 def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
+def	mysql	innodb_index_stats	innodb_index_stats_stat_value_defined	Table	`stat_value` <> 18446744073709551615
 CONNECT con1,localhost, foo,, db;
 SELECT a FROM t1;
 a
@@ -173,6 +174,7 @@ t	CREATE TABLE `t` (
 select * from information_schema.table_constraints where CONSTRAINT_TYPE='CHECK';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
 def	mysql	Priv	mysql	global_priv	CHECK
+def	mysql	innodb_index_stats_stat_value_defined	mysql	innodb_index_stats	CHECK
 def	test	CONSTRAINT_1	test	t	CHECK
 def	test	t1	test	t	CHECK
 def	test	t2	test	t	CHECK
@@ -181,6 +183,7 @@ def	test	tc_1	test	t	CHECK
 select * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 def	mysql	global_priv	Priv	Column	json_valid(`Priv`)
+def	mysql	innodb_index_stats	innodb_index_stats_stat_value_defined	Table	`stat_value` <> 18446744073709551615
 def	test	t	CONSTRAINT_1	Table	`t0` > 0
 def	test	t	t1	Column	`t1` < 0
 def	test	t	t2	Column	`t2` < -1
