@@ -1,0 +1,69 @@
+--echo # MDEV-7394 test dynamic slave_skip_errors (writable when slaves stopped)
+
+--source include/master-slave.inc
+connection slave;
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "1062";
+START SLAVE;
+SELECT @@global.slave_skip_errors;
+
+connection master;
+CREATE TABLE t1 (id INT PRIMARY KEY);
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+INSERT INTO t1 VALUES (2);
+
+connection master;
+INSERT INTO t1 VALUES (2);
+--source include/sync_slave_sql_with_master.inc
+  
+connection slave;  
+source include/check_slave_is_running.inc; 
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+--error ER_SLAVE_MUST_STOP
+SET GLOBAL slave_skip_errors = "1062";
+
+STOP SLAVE;  
+SET GLOBAL slave_skip_errors = "1050,1004,1104,1146";  
+START SLAVE; 
+
+--echo # erros should be showed in sorted order
+SELECT @@global.slave_skip_errors;    
+  
+SET GLOBAL slave_ddl_exec_mode = STRICT;
+--echo # test that mulitiple errors are set correctly  
+ 
+connection slave;  
+--source include/stop_slave.inc  
+CREATE TABLE t2 (id INT);  
+--source include/start_slave.inc  
+  
+connection master;  
+CREATE TABLE t2 (id INT);  
+INSERT INTO t1 VALUES (4);  
+sync_slave_with_master;  
+  
+connection slave;  
+source include/check_slave_is_running.inc;  
+
+connection master;
+INSERT INTO t1 VALUES (3);
+--source include/sync_slave_sql_with_master.inc
+
+connection slave;
+SELECT COUNT(*) FROM t1 WHERE id=3;
+
+STOP SLAVE;
+SET GLOBAL slave_skip_errors = "OFF";
+START SLAVE;
+
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+SET GLOBAL slave_ddl_exec_mode = DEFAULT;
+
+--source include/rpl_end.inc
