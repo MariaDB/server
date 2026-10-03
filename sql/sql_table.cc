@@ -3027,8 +3027,13 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
     else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
       key_part_length= kp.length;
   }
-  else if (key_part_length == 0 && (column->flags & NOT_NULL_FLAG) &&
-           !*is_hash_field_needed)
+  /*
+      A PRIMARY KEY column is implicitly NOT NULL, but NOT_NULL_FLAG is only
+      set later, in the key loop of mysql_prepare_create_table_finalize().
+      Test the key type directly so zero-length PK parts are rejected here.
+    */
+  else if (key_part_length == 0 && ((column->flags & NOT_NULL_FLAG) ||
+    key.type == Key::PRIMARY) && !*is_hash_field_needed)
   {
     my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(), field_name.str);
     DBUG_RETURN(TRUE);
