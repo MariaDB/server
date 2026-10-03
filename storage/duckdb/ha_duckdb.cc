@@ -1121,6 +1121,60 @@ ha_rows ha_duckdb::records_in_range(uint, const key_range *, const key_range *,
 
 /* ----- DDL operations ----- */
 
+
+namespace {
+
+// Pushes the warning if found any FOREIGN KEY clauses
+void warn_foreign_keys_ignored(THD *thd, Alter_info *alter_info,
+    const char *table_name)
+{
+    if (alter_info == nullptr) {
+        return;
+    }
+    List_iterator<Key> it(alter_info->key_list);
+    Key *key;
+    auto cols = [](auto &parts) {
+        std::string out;
+        List_iterator_fast<Key_part_spec> it(parts);
+        while (const Key_part_spec *part = it++) {
+            if (!out.empty()) {
+                out += ", ";
+            }
+            out.append(quote_duckdb_identifier(
+              {part->field_name.str, part->field_name.length}));
+        }
+        return out;
+    };
+
+    while ((key = it++)) {
+        if (key->type != Key::FOREIGN_KEY || key->old) {
+            continue;
+        }
+        auto *fk = static_cast<Foreign_key *>(key);
+        std::string clause;
+        if (fk->constraint_name.str != nullptr && fk->constraint_name.length > 0) {
+            clause = "CONSTRAINT " + quote_duckdb_identifier(
+              {fk->constraint_name.str, fk->constraint_name.length});
+        }
+        clause += "FOREIGN KEY (" + cols(fk->columns) + ") REFERENCES "
+            + quote_duckdb_identifier({fk->ref_table.str, fk->ref_table.length});
+
+        const bool refListWritten =
+            fk->ref_columns.elements != 0 &&
+            !(fk->ref_columns.elements == fk->columns.elements &&
+              fk->ref_columns.head() == fk->columns.head());
+        if (refListWritten) {
+            clause += " (" + cols(fk->ref_columns) + ")";
+        }
+        push_warning_printf(
+            thd, Sql_condition::WARN_LEVEL_WARN, WARN_OPTION_IGNORED,
+            "DuckDB: %s on '%s' is ignored.",
+            clause.c_str(), table_name);
+    }
+}
+
+}  // namespace
+
 int ha_duckdb::create(const char *name, TABLE *form,
                       HA_CREATE_INFO *create_info)
 {
@@ -1138,6 +1192,7 @@ int ha_duckdb::create(const char *name, TABLE *form,
   if (convertor.check())
     DBUG_RETURN(HA_DUCKDB_CREATE_ERROR);
 
+  warn_foreign_keys_ignored(ha_thd(), create_info->alter_info, form->s->table_name.str);
   std::string query= convertor.translate();
 
   auto *ctx= get_duckdb_context(thd);
@@ -1282,6 +1337,13 @@ ha_duckdb::check_if_supported_inplace_alter(TABLE *altered_table,
   {
     my_error(ER_REQUIRES_PRIMARY_KEY, MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
+  }
+
+  if (ha_alter_info->alter_info->flags & ALTER_ADD_FOREIGN_KEY)
+  {
+    my_printf_error(ER_ALTER_OPERATION_NOT_SUPPORTED,
+                    "ALTER TABLE ADD FOREIGN KEY operation not supported", MYF(0));
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
 
   DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
