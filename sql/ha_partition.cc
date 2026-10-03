@@ -8212,7 +8212,13 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       reverse_order= FALSE;
       break;
     case partition_index_last:
-      error= file->ha_index_last(rec_buf_ptr);
+      error= read_with_icp(table,
+                           pushed_idx_cond != nullptr,
+                           rec_buf_ptr,
+                           m_rec_length,
+                           [file] (uchar* read_buf) {
+                             return file->ha_index_last(read_buf);
+                           });
       reverse_order= TRUE;
       break;
     case partition_read_range:
@@ -8738,7 +8744,14 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   uchar *rec_buf= queue_top(&m_queue) + ORDERED_REC_OFFSET;
   handler *file= m_file[part_id];
 
-  if (unlikely((error= file->ha_index_prev(rec_buf))))
+  error= read_with_icp(table,
+                       pushed_idx_cond != nullptr,
+                       rec_buf,
+                       m_rec_length,
+                       [file] (uchar* read_buf) {
+                         return file->ha_index_prev(read_buf);
+                       });
+  if (unlikely(error))
   {
     if (error == HA_ERR_END_OF_FILE && m_queue.elements)
     {
