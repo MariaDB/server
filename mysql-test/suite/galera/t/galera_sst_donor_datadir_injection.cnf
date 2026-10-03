@@ -1,0 +1,19 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+wsrep_debug=1
+
+# Both nodes bootstrap as their own standalone single-member cluster, so
+# MTR's own startup does not depend on either being able to reach the other
+# (node_1's datadir below makes it permanently unable to serve as donor).
+# The test body then explicitly joins node_2 to node_1.
+[mysqld.1]
+wsrep_cluster_address=gcomm://
+# node_1 is the cluster's bootstrap member, so it never itself receives an
+# SST - only sst_donate_other() ever validates its datadir, when it serves
+# as donor. Give it a malicious datadir from its very first boot.
+datadir=@ENV.MYSQL_TMP_DIR/donor_dd_inj'&touch @ENV.MYSQL_TMP_DIR/donor_dd_inj_marker&'x
+
+[mysqld.2]
+wsrep_cluster_address=gcomm://
