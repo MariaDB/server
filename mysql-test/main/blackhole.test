@@ -54,3 +54,30 @@ CREATE TABLE `t` (
 DROP TABLE `t`;
 
 --echo End of 10.1 tests
+
+--echo #
+--echo # MDEV-30886 Assertion `0' in Protocol::end_statement upon fulltext
+--echo # search in blackhole table
+--echo #
+
+CREATE TABLE t (f CHAR(255), FULLTEXT KEY (f)) ENGINE=BLACKHOLE;
+INSERT INTO t VALUES ('wear'), ('shoes');
+
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT * FROM t WHERE MATCH (f) AGAINST ('wear');
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT * FROM t WHERE MATCH (f) AGAINST ('wear' WITH QUERY EXPANSION);
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT * FROM t WHERE MATCH (f) AGAINST ('+wear' IN BOOLEAN MODE);
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT f, MATCH (f) AGAINST ('wear') FROM t;
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT COUNT(*) FROM t WHERE MATCH (f) AGAINST ('wear');
+--error ER_TABLE_CANT_HANDLE_FT
+UPDATE t SET f= 'x' WHERE MATCH (f) AGAINST ('wear');
+--error ER_TABLE_CANT_HANDLE_FT
+DELETE FROM t WHERE MATCH (f) AGAINST ('wear');
+
+DROP TABLE t;
+
+--echo # End of 10.11 tests

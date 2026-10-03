@@ -311,6 +311,32 @@ int ha_blackhole::index_last(uchar * buf)
 }
 
 
+/*
+  The engine allows FULLTEXT keys, but it cannot be searched by a user: the
+  SQL layer reports an error. A statement replicated from the primary
+  still has to be applied by the replica though, and there a BLACKHOLE table
+  has no rows, so the search finds nothing.
+*/
+static _ft_vft blackhole_ft_vft=
+{
+  [](FT_INFO *, char *) { return HA_ERR_END_OF_FILE; },  // read_next
+  [](FT_INFO *, uchar *, uint) { return 0.0f; },         // find_relevance
+  [](FT_INFO *) {},                                      // close_search
+  [](FT_INFO *) { return 0.0f; },                        // get_relevance
+  [](FT_INFO *) {}                                       // reinit_search
+};
+
+static FT_INFO blackhole_ft_info= { &blackhole_ft_vft };
+
+
+FT_INFO *ha_blackhole::ft_init_ext(uint flags, uint inx, String *key)
+{
+  DBUG_ENTER("ha_blackhole::ft_init_ext");
+  DBUG_RETURN(ha_thd()->system_thread == SYSTEM_THREAD_SLAVE_SQL ?
+              &blackhole_ft_info : NULL);
+}
+
+
 static st_blackhole_share *get_share(const char *table_name)
 {
   st_blackhole_share *share;
