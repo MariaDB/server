@@ -57,3 +57,29 @@ col1
 2015-01-01
 2015-02-01
 DROP TABLE t1;
+#
+# MDEV-40310 use-of-uninitialized-value in XFILE::Write(_global*, void*, int, int, bool&)
+#
+CREATE TABLE t1 (d DATE KEY,
+dt DATETIME NOT NULL,
+y YEAR NOT NULL,
+KEY(d), KEY(dt), KEY(y)) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+INSERT IGNORE INTO t1 VALUES(1,1,-1);
+Warnings:
+Warning	1265	Data truncated for column 'd' at row 1
+Warning	1265	Data truncated for column 'dt' at row 1
+Warning	1264	Out of range value for column 'y' at row 1
+Warning	1105	Non matching Value types
+INSERT INTO t1
+VALUES ('2026-07-10', '2026-07-10 14:30:45', '2026');
+Warnings:
+Warning	1105	Non matching Value types
+SELECT * FROM t1;
+d	dt	y
+1970-01-01	1970-01-01 00:00:00	0000
+2026-07-10	2026-07-10 14:30:45	2026
+DROP TABLE t1;
+# End of 11.8 tests

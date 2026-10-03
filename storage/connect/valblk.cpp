@@ -81,8 +81,8 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
         blkp = new(g) TYPBLK<int>(mp, nval, type);
 
       break;
-    case TYPE_DATE:        // ?????
-      blkp = new(g) DATBLK(mp, nval);
+    case TYPE_DATE:
+      blkp = new(g) TYPBLK<ulonglong>(mp, nval, type, 0, true);
       break;
     case TYPE_BIGINT:
       if (un)
