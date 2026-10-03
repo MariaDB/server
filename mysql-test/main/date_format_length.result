@@ -1,0 +1,58 @@
+# MDEV-41375 multibyte formats and large TIME widths
+SET NAMES utf8mb3;
+SET lc_time_names='en_US';
+CREATE TABLE t1 AS SELECT
+DATE_FORMAT('1997-10-04 22:23:00', 'ß') AS literal_char,
+DATE_FORMAT('1997-10-04 22:23:00', '%T') AS ascii_time,
+DATE_FORMAT('1997-10-04 22:23:00', _utf32 0x0000002500000054)
+AS utf32_time,
+DATE_FORMAT('1997-10-04 22:23:00', CONVERT('%T' USING utf32))
+AS converted_time,
+DATE_FORMAT('2004-09-01', _utf32 0x0000002500000057) AS utf32_weekday,
+DATE_FORMAT('2004-09-01', _utf32 0x0000002500000061) AS utf32_ab_weekday
+WHERE 0;
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+literal_char	varchar(1)	YES		NULL	
+ascii_time	varchar(8)	YES		NULL	
+utf32_time	varchar(8)	YES		NULL	
+converted_time	varchar(8)	YES		NULL	
+utf32_weekday	varchar(64)	YES		NULL	
+utf32_ab_weekday	varchar(32)	YES		NULL	
+DROP TABLE t1;
+SELECT DATE_FORMAT('2004-09-01', _ucs2 0x0025004D) AS ucs2_month,
+DATE_FORMAT('2004-09-01', _utf16 0x0025004D) AS utf16_month,
+DATE_FORMAT('2004-09-01', _utf32 0x000000250000004D) AS utf32_month,
+DATE_FORMAT('2004-09-01', _utf32 0x0000002500000057) AS utf32_weekday,
+DATE_FORMAT('2004-09-01', _utf32 0x0000002500000061) AS utf32_ab_weekday;
+ucs2_month	utf16_month	utf32_month	utf32_weekday	utf32_ab_weekday
+September	September	September	Wednesday	Wed
+SET lc_time_names='ru_RU';
+SELECT DATE_FORMAT('2004-09-01', _utf32 0x000000250000004D) AS ru_month;
+ru_month
+Сентября
+SET lc_time_names='en_US';
+SELECT TIME_FORMAT(TIME'838:59:59', '%T') AS positive_time,
+TIME_FORMAT(TIME'-838:59:59', '%T') AS negative_time,
+DATE_FORMAT(TIME'-838:59:59', '%T') AS date_format_time;
+positive_time	negative_time	date_format_time
+838:59:59	-838:59:59	-838:59:59
+PREPARE stmt FROM
+'CREATE TABLE t1 AS SELECT
+     DATE_FORMAT("2004-09-04", CONVERT(? USING utf32)) AS formatted';
+SET @fmt='I';
+EXECUTE stmt USING @fmt;
+SELECT * FROM t1;
+formatted
+I
+DROP TABLE t1;
+SET @fmt='%M';
+EXECUTE stmt USING @fmt;
+SELECT * FROM t1;
+formatted
+September
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+# End of 10.11 tests

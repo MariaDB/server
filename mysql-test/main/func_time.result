@@ -3759,7 +3759,7 @@ t1	CREATE TABLE `t1` (
   `c2` varchar(2) DEFAULT NULL,
   `c3` varchar(4) DEFAULT NULL,
   `c4` varchar(2) DEFAULT NULL,
-  `c5` varchar(100) DEFAULT NULL
+  `c5` varchar(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
