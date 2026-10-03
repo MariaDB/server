@@ -388,3 +388,20 @@ CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-40274 Server aborts while reloading the table after
+#     DISCARD TABLESPACE
+#
+call mtr.add_suppression("InnoDB: DISCARD TABLESPACE of table `test`\\.`t1` failed");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("Table `test`\\.`t1` is corrupted");
+CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
+SET STATEMENT debug_dbug='+d,row_ins_sec_index_entry_timeout' FOR
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
+ALTER TABLE t1 ADD COLUMN cg16 INT AS(c1) VIRTUAL;
+ERROR 42000: Can't open table
+FLUSH TABLES;
+SELECT * FROM t1;
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
+DROP TABLE t1;
