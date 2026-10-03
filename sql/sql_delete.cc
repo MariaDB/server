@@ -1088,7 +1088,12 @@ cleanup:
     }
   }
   if (!binlogged)
-    table->mark_as_not_binlogged();
+  {
+    if (!thd->transaction->stmt.modified_non_trans_table && !deleted)
+      thd->tmp_table_binlog_handled= 1;
+    else
+      table->mark_as_not_binlogged();
+  }
 
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction->stmt.modified_non_trans_table);
   
@@ -1501,10 +1506,19 @@ void multi_delete::abort_result_set()
 
   ***************************************************************************/
 
-  /* the error was handled or nothing deleted and no side effects return */
-  if (error_handled ||
-      (!thd->transaction->stmt.modified_non_trans_table && !deleted))
+  /*
+    Nothing was deleted and there are no side effects: no temporary table
+    was changed, so they all stay up to date in the binary log.
+  */
+  if (!thd->transaction->stmt.modified_non_trans_table && !deleted)
+  {
+    thd->tmp_table_binlog_handled= 1;
     DBUG_VOID_RETURN;
+  }
+  /* The error was already handled */
+  if (error_handled)
+    goto end;
+
 
   /* Something already deleted so we have to invalidate cache */
   if (deleted)
@@ -1551,6 +1565,7 @@ void multi_delete::abort_result_set()
                                transactional_tables, FALSE, FALSE, errcode);
     }
   }
+end:
   /*
     Mark all temporay tables as not completely binlogged
     All future usage of these tables will enforce row level logging, which
