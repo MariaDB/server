@@ -242,6 +242,60 @@ ha_duckdb::write_row() / update_row() / delete_row()
         → DuckDB Appender API → temp table → flushed at commit
 ```
 
+`UpdateConvertor` / `DeleteConvertor` identify the row by the primary key
+(`DMLConvertor::fill_index_fields_for_where()` in `convertor/dml_convertor.cc`).
+**Tables without a primary key are not reliably supported on this path**
+(reached e.g. when the table has triggers, or when a replica applies row
+events): the WHERE clause then lists every column, and
+
+- a NULL value is emitted as `col = NULL`, which never matches, so the row is
+  not updated or deleted although MariaDB counts it as changed;
+- the NULL flag is read from the new row while the value comes from the old
+  row, so `value → NULL` updates are not applied either;
+- exact duplicate rows are all deleted or updated at once.
+
+Keep `duckdb_require_primary_key=ON` (the default) for such workloads.
+
+### Path 3a: Row-Based Replication Apply
+
+A replica applies `Update_rows`/`Delete_rows` events through the same
+`update_row()` / `delete_row()` entry points, without reading the row first:
+
+```
+Rows_log_event::find_row()                    (sql/log_event_server.cc)
+  → unpacks the before-image into record[0]
+  → ha_duckdb::rnd_pos_by_record()           // HA_PRIMARY_KEY_REQUIRED_FOR_POSITION
+      → returns success without a lookup (only for the replication applier)
+Update_rows_log_event::do_exec_row()
+  → unpacks the after-image into record[0]
+  → ha_duckdb::update_row()
+      → rejects the event unless write_set covers all columns
+      → batch: DeltaAppender::append_row_update()   (delete marker + full row)
+        otherwise: UPDATE … WHERE <before-image PK>
+```
+
+Requirements and limitations:
+
+- **The master must log full row images (`binlog_row_image=FULL`, the
+  default).** The batch path stores the whole `record[0]` as the new row
+  version, so columns absent from a `MINIMAL`, `NOBLOB` or `FULL_NODUP`
+  after-image would be replaced by defaults. `ha_duckdb::update_row()` checks
+  `write_set`, which `Rows_log_event::do_apply_event()` narrows to the
+  after-image columns, and fails the event with an error naming
+  `binlog_row_image=FULL` instead. The requirement applies to the master
+  table regardless of its engine (InnoDB master → DuckDB replica included).
+  The same check fires when the replica table has more columns than the
+  master table.
+- **Missing or conflicting rows are not detected.** Because no lookup is done,
+  a DELETE of a row absent on the replica is a silent no-op; an UPDATE of such
+  a row is a no-op without batching and inserts the after-image with batching
+  (the flush deletes by key, then inserts). An UPDATE that changes the primary
+  key to an existing key replaces that row with batching and leaves a duplicate
+  key without batching (DuckDB tables carry no primary key constraint).
+  `slave_exec_mode=STRICT` is therefore not enforced for DuckDB tables.
+- **Not crash-safe.** The replica position (`mysql.gtid_slave_pos`) and the
+  DuckDB data are committed separately.
+
 ### Path 4: Direct UPDATE/DELETE (Statement Pushdown)
 
 For single-table statements with simple WHERE (`HA_CAN_DIRECT_UPDATE_AND_DELETE`):

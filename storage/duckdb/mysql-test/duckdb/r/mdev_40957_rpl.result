@@ -76,42 +76,55 @@ connection slave;
 SELECT COUNT(*) FROM t_upd;
 COUNT(*)
 0
-# MINIMAL row image: replicated UPDATE preserves unchanged columns
+# InnoDB master, DuckDB slave: FULL row images are applied in batch
 connection master;
-SET GLOBAL duckdb_dml_in_batch=OFF;
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=InnoDB;
+SET SESSION sql_log_bin=1;
+connection slave;
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=DuckDB;
+SET SESSION sql_log_bin=1;
+connection master;
+INSERT INTO t_het VALUES
+(1, 'one', 'keep-1'),
+(2, 'two', 'keep-2'),
+(3, 'three', 'keep-3');
+UPDATE t_het SET v = 'ONE' WHERE id = 1;
+UPDATE t_het SET id = 20 WHERE id = 2;
+DELETE FROM t_het WHERE id = 3;
+connection slave;
+SELECT * FROM t_het ORDER BY id;
+id	v	untouched
+1	ONE	keep-1
+20	two	keep-2
+update_in_batch
+2
+# MINIMAL row image is rejected instead of losing columns
+connection master;
 SET SESSION binlog_row_image=MINIMAL;
-INSERT INTO t_upd VALUES
-(1, 'one', 'must-survive'),
-(2, 'other', 'must-not-leak');
-UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
+UPDATE t_het SET v = 'TWENTY' WHERE id = 20;
+SET SESSION binlog_row_image=FULL;
 connection slave;
-SELECT * FROM t_upd WHERE id = 1;
+call mtr.add_suppression("DuckDB tables require binlog_row_image=FULL on the master");
+include/wait_for_slave_sql_error.inc [errno=1296]
+SELECT * FROM t_het ORDER BY id;
 id	v	untouched
-1	ONE	must-survive
-connection master;
-UPDATE t_upd SET id = 20 WHERE v = 'other';
-connection slave;
-SELECT * FROM t_upd ORDER BY id;
-id	v	untouched
-1	ONE	must-survive
-20	other	must-not-leak
-UPDATE t_upd SET v = 'corrupt', untouched = 'corrupt' WHERE v = 'other';
-SELECT * FROM t_upd ORDER BY id;
-id	v	untouched
-1	ONE	must-survive
-20	corrupt	corrupt
-include/stop_slave.inc
-CHANGE MASTER TO MASTER_LOG_FILE='REPLAY_FILE', MASTER_LOG_POS=REPLAY_POS, MASTER_USE_GTID=NO;
+1	ONE	keep-1
+20	two	keep-2
+SET GLOBAL sql_slave_skip_counter=1;
 include/start_slave.inc
 connection master;
 connection slave;
-SELECT * FROM t_upd ORDER BY id;
-id	v	untouched
-1	ONE	must-survive
-20	other	must-not-leak
 connection master;
-SET GLOBAL duckdb_dml_in_batch=ON;
-SET SESSION binlog_row_image=FULL;
 SET SESSION binlog_format=MIXED;
 DROP DATABASE mdev_40957_rpl;
 connection slave;

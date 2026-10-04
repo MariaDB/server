@@ -66,40 +66,60 @@ DELETE FROM t_upd;
 --sync_slave_with_master
 SELECT COUNT(*) FROM t_upd;
 
---echo # MINIMAL row image: replicated UPDATE preserves unchanged columns
+--echo # InnoDB master, DuckDB slave: FULL row images are applied in batch
 --connection master
-SET GLOBAL duckdb_dml_in_batch=OFF;
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+  id INT PRIMARY KEY,
+  v VARCHAR(16),
+  untouched VARCHAR(16)
+) ENGINE=InnoDB;
+SET SESSION sql_log_bin=1;
+
+--connection slave
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+  id INT PRIMARY KEY,
+  v VARCHAR(16),
+  untouched VARCHAR(16)
+) ENGINE=DuckDB;
+SET SESSION sql_log_bin=1;
+--let $update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'Duckdb_rows_update_in_batch', Value, 1)
+
+--connection master
+INSERT INTO t_het VALUES
+  (1, 'one', 'keep-1'),
+  (2, 'two', 'keep-2'),
+  (3, 'three', 'keep-3');
+UPDATE t_het SET v = 'ONE' WHERE id = 1;
+UPDATE t_het SET id = 20 WHERE id = 2;
+DELETE FROM t_het WHERE id = 3;
+
+--sync_slave_with_master
+SELECT * FROM t_het ORDER BY id;
+--let $update_after= query_get_value(SHOW GLOBAL STATUS LIKE 'Duckdb_rows_update_in_batch', Value, 1)
+--disable_query_log
+--eval SELECT $update_after - $update_before AS update_in_batch
+--enable_query_log
+
+--echo # MINIMAL row image is rejected instead of losing columns
+--connection master
 SET SESSION binlog_row_image=MINIMAL;
-INSERT INTO t_upd VALUES
-  (1, 'one', 'must-survive'),
-  (2, 'other', 'must-not-leak');
-UPDATE t_upd SET v = 'ONE' WHERE v = 'one';
+UPDATE t_het SET v = 'TWENTY' WHERE id = 20;
+SET SESSION binlog_row_image=FULL;
 
---sync_slave_with_master
-SELECT * FROM t_upd WHERE id = 1;
-
---connection master
---let $replay_file= query_get_value(SHOW MASTER STATUS, File, 1)
---let $replay_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
-UPDATE t_upd SET id = 20 WHERE v = 'other';
-
---sync_slave_with_master
-SELECT * FROM t_upd ORDER BY id;
-UPDATE t_upd SET v = 'corrupt', untouched = 'corrupt' WHERE v = 'other';
-SELECT * FROM t_upd ORDER BY id;
-
---source include/stop_slave.inc
---replace_result $replay_file REPLAY_FILE $replay_pos REPLAY_POS
---eval CHANGE MASTER TO MASTER_LOG_FILE='$replay_file', MASTER_LOG_POS=$replay_pos, MASTER_USE_GTID=NO
+--connection slave
+call mtr.add_suppression("DuckDB tables require binlog_row_image=FULL on the master");
+--let $slave_sql_errno= 1296
+--source include/wait_for_slave_sql_error.inc
+SELECT * FROM t_het ORDER BY id;
+SET GLOBAL sql_slave_skip_counter=1;
 --source include/start_slave.inc
 
 --connection master
 --sync_slave_with_master
-SELECT * FROM t_upd ORDER BY id;
 
 --connection master
-SET GLOBAL duckdb_dml_in_batch=ON;
-SET SESSION binlog_row_image=FULL;
 SET SESSION binlog_format=MIXED;
 DROP DATABASE mdev_40957_rpl;
 
