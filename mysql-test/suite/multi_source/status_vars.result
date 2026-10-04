@@ -52,9 +52,7 @@ Variable_name	Value
 Slave_received_heartbeats	0
 start slave;
 include/wait_for_slave_to_start.inc
-show status like 'Slave_received_heartbeats';
-Variable_name	Value
-Slave_received_heartbeats	2
+include/wait_for_status_var.inc
 stop slave;
 include/wait_for_slave_to_stop.inc
 set default_master_connection = 'master1';
@@ -63,16 +61,17 @@ Variable_name	Value
 Slave_received_heartbeats	0
 stop slave;
 include/wait_for_slave_to_stop.inc
-change master to master_heartbeat_period=2;
+change master to master_heartbeat_period=1;
 start slave;
 include/wait_for_slave_to_start.inc
+include/wait_for_status_var.inc
+set default_master_connection = '';
 show status like 'Slave_received_heartbeats';
 Variable_name	Value
-Slave_received_heartbeats	1
+Slave_received_heartbeats	#status_var_value
 #
 # Slave_open_temp_tables should be global
 #
-set default_master_connection = '';
 start slave;
 include/wait_for_slave_to_start.inc
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;

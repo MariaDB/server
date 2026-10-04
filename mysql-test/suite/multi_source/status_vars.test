@@ -68,27 +68,32 @@ start slave;
 --source include/wait_for_slave_to_start.inc
 
 --let $status_var = Slave_received_heartbeats
---let $status_var_value = 2
-# The units are tens of seconds
---let $status_timeout = 30 
+--let $status_var_value = 0
+--let $status_var_comparsion= >
+# The units are tenths of seconds
+--let $status_timeout = 50
+--echo include/wait_for_status_var.inc
 --source include/wait_for_status_var.inc
-show status like 'Slave_received_heartbeats';
 stop slave;
 --source include/wait_for_slave_to_stop.inc
+let $status_var_value=
+  query_get_value("show status like 'Slave_received_heartbeats'", Value, 1);
 
 set default_master_connection = 'master1';
 show status like 'Slave_received_heartbeats';
 
 stop slave;
 --source include/wait_for_slave_to_stop.inc
-change master to master_heartbeat_period=2;
+change master to master_heartbeat_period=1;
 start slave;
 --source include/wait_for_slave_to_start.inc
 
 --let $status_var = Slave_received_heartbeats
---let $status_var_value = 1
---let $status_timeout = 30
+--echo include/wait_for_status_var.inc
 --source include/wait_for_status_var.inc
+
+set default_master_connection = '';
+--replace_result $status_var_value #status_var_value
 show status like 'Slave_received_heartbeats';
 
 
@@ -96,7 +101,6 @@ show status like 'Slave_received_heartbeats';
 --echo # Slave_open_temp_tables should be global
 --echo #
 
-set default_master_connection = '';
 start slave;
 --source include/wait_for_slave_to_start.inc
 
