@@ -1048,4 +1048,112 @@ INSERT INTO t1 VALUES (ST_GEOMFROMTEXT ('POINT(1 0)'));
 UPDATE t1 SET c='';
 DROP TABLE t1;
 
+--echo #
+--echo # AND of two independent spatial-relation predicates against the same
+--echo # SPATIAL index: get_claimed_key_part() (opt_range.cc) gives each one
+--echo # its own key part/idx instead of colliding on the one shared slot,
+--echo # so tree_and() treats them as if they were on different keys and
+--echo # keeps each one's range independently -- the cost-based optimizer
+--echo # picks whichever candidate is cheaper to drive the scan, with the
+--echo # other condition still enforced as a plain WHERE filter
+--echo #
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  g GEOMETRY NOT NULL,
+  c INT,
+  SPATIAL INDEX gidx (g),
+  INDEX cidx (c)
+);
+INSERT INTO t1 VALUES
+  (1, ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))'), 1),
+  (2, ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))'), 2),
+  (3, ST_GeomFromText('POLYGON((0 0,0 200,200 200,200 0,0 0))'), 3);
+
+SET @p1 = ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))');
+SET @p2 = ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))');
+
+EXPLAIN SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+--sorted_result
+SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+
+--echo # same rows forcing a full scan, to confirm the plan above isn't
+--echo # silently dropping anything
+--sorted_result
+SELECT id FROM t1 IGNORE INDEX (gidx)
+  WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+
+--echo # a third, independent condition on a different real key: the two
+--echo # spatial conditions against gidx must not regress versus the plain
+--echo # two-key case just because there's now more than one of them
+EXPLAIN SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND c=3 AND MBRIntersects(g,@p2);
+--sorted_result
+SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND c=3 AND MBRIntersects(g,@p2);
+
+DROP TABLE t1;
+
+--echo #
+--echo # OR of two independent spatial-relation predicates against the same
+--echo # SPATIAL index: same get_claimed_key_part() mechanism as above, but
+--echo # for OR this means tree_or() finds no common key between the two
+--echo # predicates and falls through to building a SEL_IMERGE (index_merge/
+--echo # sort_union) instead of per-key combination -- the existing,
+--echo # already-correct rowid-based dedup in that machinery is what makes
+--echo # a row matching BOTH predicates come back exactly once
+--echo #
+--source include/have_sequence.inc
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  g GEOMETRY NOT NULL,
+  c INT,
+  SPATIAL INDEX gidx (g),
+  INDEX cidx (c)
+);
+INSERT INTO t1 (id, g, c)
+  SELECT seq,
+         ST_GeomFromText(CONCAT('POLYGON((',seq,' ',seq,',',
+                                 seq,' ',seq+1,',',
+                                 seq+1,' ',seq+1,',',
+                                 seq+1,' ',seq,',',
+                                 seq,' ',seq,'))')),
+         seq
+  FROM seq_1_to_2000;
+--echo # row 1000's geometry overlaps both query polygons, so it must come
+--echo # back exactly once, not twice
+UPDATE t1 SET g = ST_GeomFromText('POLYGON((1 1,1 1001,1001 1001,1001 1,1 1))')
+  WHERE id = 1000;
+ANALYZE TABLE t1;
+
+SET @p1 = ST_GeomFromText('POLYGON((1 1,1 2,2 2,2 1,1 1))');
+SET @p2 = ST_GeomFromText('POLYGON((1000 1000,1000 1001,1001 1001,1001 1000,1000 1000))');
+
+--replace_column 9 #
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+--sorted_result
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+SELECT COUNT(*) AS total_rows, COUNT(DISTINCT id) AS distinct_ids
+  FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+
+--echo # a third, independent condition on a different real key: must not
+--echo # regress back to a full scan just because there's more than one
+--echo # spatial predicate sharing gidx (this exact 3-way shape used to
+--echo # degrade to ALL before get_claimed_key_part())
+--replace_column 9 #
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2);
+--sorted_result
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2);
+
+--echo # a real ORDER BY (not --sorted_result): forces a server-side
+--echo # filesort on top of the index_merge/sort_union plan, which must
+--echo # still see every column (c included) when re-checking the WHERE
+--echo # condition against each row
+--replace_column 9 #
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2)
+  ORDER BY id;
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2)
+  ORDER BY id;
+
+DROP TABLE t1;
+
+--echo # End of 13.3 tests
+
 

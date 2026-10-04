@@ -1681,3 +1681,130 @@ INSERT INTO t1 VALUES (ST_GEOMFROMTEXT ('POINT(1 0)'));
 UPDATE t1 SET c='';
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 DROP TABLE t1;
+#
+# AND of two independent spatial-relation predicates against the same
+# SPATIAL index: get_claimed_key_part() (opt_range.cc) gives each one
+# its own key part/idx instead of colliding on the one shared slot,
+# so tree_and() treats them as if they were on different keys and
+# keeps each one's range independently -- the cost-based optimizer
+# picks whichever candidate is cheaper to drive the scan, with the
+# other condition still enforced as a plain WHERE filter
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+g GEOMETRY NOT NULL,
+c INT,
+SPATIAL INDEX gidx (g),
+INDEX cidx (c)
+);
+INSERT INTO t1 VALUES
+(1, ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))'), 1),
+(2, ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))'), 2),
+(3, ST_GeomFromText('POLYGON((0 0,0 200,200 200,200 0,0 0))'), 3);
+SET @p1 = ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))');
+SET @p2 = ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))');
+EXPLAIN SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	gidx	gidx	34	NULL	2	Using where
+SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+id
+3
+# same rows forcing a full scan, to confirm the plan above isn't
+# silently dropping anything
+SELECT id FROM t1 IGNORE INDEX (gidx)
+WHERE ST_Intersects(g,@p1) AND MBRIntersects(g,@p2);
+id
+3
+# a third, independent condition on a different real key: the two
+# spatial conditions against gidx must not regress versus the plain
+# two-key case just because there's now more than one of them
+EXPLAIN SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND c=3 AND MBRIntersects(g,@p2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	gidx,cidx	cidx	5	const	1	Using where
+SELECT id FROM t1 WHERE ST_Intersects(g,@p1) AND c=3 AND MBRIntersects(g,@p2);
+id
+3
+DROP TABLE t1;
+#
+# OR of two independent spatial-relation predicates against the same
+# SPATIAL index: same get_claimed_key_part() mechanism as above, but
+# for OR this means tree_or() finds no common key between the two
+# predicates and falls through to building a SEL_IMERGE (index_merge/
+# sort_union) instead of per-key combination -- the existing,
+# already-correct rowid-based dedup in that machinery is what makes
+# a row matching BOTH predicates come back exactly once
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+g GEOMETRY NOT NULL,
+c INT,
+SPATIAL INDEX gidx (g),
+INDEX cidx (c)
+);
+INSERT INTO t1 (id, g, c)
+SELECT seq,
+ST_GeomFromText(CONCAT('POLYGON((',seq,' ',seq,',',
+seq,' ',seq+1,',',
+seq+1,' ',seq+1,',',
+seq+1,' ',seq,',',
+seq,' ',seq,'))')),
+seq
+FROM seq_1_to_2000;
+# row 1000's geometry overlaps both query polygons, so it must come
+# back exactly once, not twice
+UPDATE t1 SET g = ST_GeomFromText('POLYGON((1 1,1 1001,1001 1001,1001 1,1 1))')
+WHERE id = 1000;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET @p1 = ST_GeomFromText('POLYGON((1 1,1 2,2 2,2 1,1 1))');
+SET @p2 = ST_GeomFromText('POLYGON((1000 1000,1000 1001,1001 1001,1001 1000,1000 1000))');
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	gidx	gidx,gidx	34,34	NULL	#	Using sort_union(gidx,gidx); Using where
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+id
+1
+1000
+1001
+2
+999
+SELECT COUNT(*) AS total_rows, COUNT(DISTINCT id) AS distinct_ids
+FROM t1 WHERE MBRIntersects(g,@p1) OR MBRIntersects(g,@p2);
+total_rows	distinct_ids
+5	5
+# a third, independent condition on a different real key: must not
+# regress back to a full scan just because there's more than one
+# spatial predicate sharing gidx (this exact 3-way shape used to
+# degrade to ALL before get_claimed_key_part())
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	gidx,cidx	gidx,cidx,gidx	34,5,34	NULL	#	Using sort_union(gidx,cidx,gidx); Using where
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2);
+id
+1
+1000
+1001
+1500
+2
+999
+# a real ORDER BY (not --sorted_result): forces a server-side
+# filesort on top of the index_merge/sort_union plan, which must
+# still see every column (c included) when re-checking the WHERE
+# condition against each row
+EXPLAIN SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2)
+ORDER BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	gidx,cidx	gidx,cidx,gidx	34,5,34	NULL	#	Using sort_union(gidx,cidx,gidx); Using where; Using filesort
+SELECT id FROM t1 WHERE MBRIntersects(g,@p1) OR c=1500 OR MBRIntersects(g,@p2)
+ORDER BY id;
+id
+1
+2
+999
+1000
+1001
+1500
+DROP TABLE t1;
+# End of 13.3 tests
