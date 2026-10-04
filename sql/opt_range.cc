@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -254,14 +254,14 @@ public:
   */
   enum Type { IMPOSSIBLE, ALWAYS, MAYBE, KEY, KEY_SMALLER } type;
 
-  SEL_TREE(enum Type type_arg, MEM_ROOT *root, size_t num_keys)
-    : type(type_arg), keys(root, num_keys), n_ror_scans(0)
+  SEL_TREE(enum Type type_arg, MEM_ROOT *root)
+    : type(type_arg), keys(root, MAX_KEY), n_ror_scans(0)
   {
     keys_map.clear_all();
   }
 
-  SEL_TREE(MEM_ROOT *root, size_t num_keys) :
-    type(KEY), keys(root, num_keys), n_ror_scans(0)
+  SEL_TREE(MEM_ROOT *root) :
+    type(KEY), keys(root, MAX_KEY), n_ror_scans(0)
   { 
     keys_map.clear_all();
   }
@@ -272,6 +272,10 @@ public:
     keys[i]=0 for all i. (SergeyP: it is not clear whether there is any
     merit in range analyzer functions (e.g. get_mm_parts) returning a
     pointer to such SEL_TREE instead of NULL)
+
+    keys is always sized to MAX_KEY because one key of GEOM_FLAG can generate
+    many ranges (more than number of keys in a table), they cannot be combined.
+    See get_claimed_key_part().
   */
   Mem_root_array<SEL_ARG *, true> keys;
   key_map keys_map;        /* bitmask of non-NULL elements in keys */
@@ -310,6 +314,20 @@ public:
     to collect possible_keys. This is used by single table UPDATE/DELETE.
   */
   key_map possible_keys;
+  /*
+    Keys for which check_quick_select()/check_quick_select_array() has
+    already stored a candidate within this test_quick_select() call.
+    get_claimed_key_part() can give several idx the same real keynr
+    (RTREE: independent predicates sharing one spatial field; ARRAY:
+    independent MEMBER OF predicates against the same array field), so
+    more than one such call can reach the same keynr within one pass --
+    among those, only the cheapest is kept. A later, unrelated
+    test_quick_select() call (different PARAM, e.g. one built by
+    JOIN::make_range_rowid_filters() for a rowid filter) starts with this
+    cleared, so it always overwrites rather than being compared against a
+    now-irrelevant cost from a different pass.
+  */
+  key_map range_keys_seen;
   longlong baseflag;
   uint max_key_parts, range_count;
 
@@ -626,7 +644,7 @@ int SEL_IMERGE::and_sel_tree(RANGE_OPT_PARAM *param, SEL_TREE *tree,
   {
     SEL_TREE *res_or_tree= 0;
     SEL_TREE *and_tree= 0;
-    if (!(res_or_tree= new SEL_TREE(param->mem_root, param->keys)) ||
+    if (!(res_or_tree= new SEL_TREE(param->mem_root)) ||
         !(and_tree= new SEL_TREE(tree, TRUE, param)))
       return (-1);
     if (!and_range_trees(param, *or_tree, and_tree, res_or_tree))
@@ -833,13 +851,16 @@ int SEL_IMERGE::or_sel_imerge_with_checks(RANGE_OPT_PARAM *param,
   DESCRIPTION
     The constructor creates a full copy of the SEL_TREE arg if
     the prameter without_merges==FALSE. Otherwise a tree is created
-    that contains the copy only of the range part of the tree arg. 
-*/ 
+    that contains the copy only of the range part of the tree arg.
 
-SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges,
-                   RANGE_OPT_PARAM *param) 
+  NOTE
+    keys is sized to MAX_KEY because one key of GEOM_FLAG can generate many
+    ranges, they cannot be combined algebraically. See get_claimed_key_part().
+*/
+
+SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges, RANGE_OPT_PARAM *param)
   : Sql_alloc(),
-    keys(param->mem_root, param->keys),
+    keys(param->mem_root, MAX_KEY),
     n_ror_scans(0)
 {
   keys_map= arg->keys_map;
@@ -2834,10 +2855,14 @@ SQL_SELECT::test_quick_select(THD *thd,
   init_sql_alloc(key_memory_quick_range_select_root, &alloc,
                  thd->variables.range_alloc_block_size, 0,
                  MYF(MY_THREAD_SPECIFIC));
-  if (!(param.key_parts=
-         (KEY_PART*) alloc_root(&alloc,
-                                sizeof(KEY_PART) *
-                                head->s->actual_n_key_parts(thd))) ||
+  /*
+    The "+MAX_KEY" reserves room for get_claimed_key_part() to clone an
+    RTREE key part on the fly, once per independent predicate beyond the
+    first one against the same field within this pass.
+  */
+  if (!(param.key_parts= (KEY_PART*)
+          alloc_root(&alloc, sizeof(KEY_PART) *
+                      (head->s->actual_n_key_parts(thd) + MAX_KEY))) ||
       fill_used_fields_bitmap(&param))
   {
     thd->no_errors=0;
@@ -2900,6 +2925,7 @@ SQL_SELECT::test_quick_select(THD *thd,
       key_parts->image_type= Field::image_type(key_info->algorithm);
       /* Only HA_PART_KEY_SEG is used */
       key_parts->flag= (uint8) key_part_info->key_part_flag;
+      key_parts->claimed= false;
       trace_keypart.add(key_parts->field->field_name);
     }
     trace_keypart.end();
@@ -8769,7 +8795,7 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
   {
     /* It's turned out that all disjuncts are always FALSE */
     res_tree= new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE,
-                                             param->mem_root, param->keys);
+                                             param->mem_root);
   }
   DBUG_RETURN(res_tree);
 }
@@ -9020,7 +9046,7 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   const SEL_TREE::Type type= val_bool()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
 
-  tree= new (tmp_root) SEL_TREE(type, tmp_root, param->keys);
+  tree= new (tmp_root) SEL_TREE(type, tmp_root);
   DBUG_RETURN(tree);
 }
 
@@ -9046,8 +9072,7 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if ((ref_tables & param->current_table) ||
       (ref_tables & ~(param->prev_tables | param->read_tables)))
     DBUG_RETURN(0);
-  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root, 
-                                             param->keys));
+  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root));
 }
 
 
@@ -9426,6 +9451,48 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
 }
 
 
+/*
+  For a predicate matching an RTREE key part (image_type != itRAW),
+  return the key part to actually build a range against.
+
+  Two independent predicates against the same spatial field can't be
+  combined into one range tree (see key_and()/key_or()'s GEOM_FLAG checks):
+  each one needs its own key part/idx, so that tree_and()/tree_or() see
+  them as if they were different indexes and combine them the way they
+  already do for any two distinct real keys -- independent coexistence for
+  AND, a SEL_IMERGE branch for OR.
+
+  key_part itself goes to the first predicate seen against this field in
+  this range analysis pass. Every later, independent predicate against the
+  same field gets a clone of it instead, with its own key/idx (but the same
+  real_keynr, so it still resolves to the same physical index), appended
+  past param->key_parts_end (see +MAX_KEY in SQL_SELECT::test_quick_select()).
+
+  Returns NULL once param->keys has reached MAX_KEY: that predicate then
+  gets no index support at all (falls back to a plain WHERE filter)
+*/
+static KEY_PART *get_claimed_key_part(RANGE_OPT_PARAM *param,
+                                      KEY_PART *key_part)
+{
+  DBUG_ASSERT(key_part->image_type != Field::itRAW);
+  if (!key_part->claimed)
+  {
+    key_part->claimed= true;
+    return key_part;
+  }
+  if (param->keys >= MAX_KEY)
+    return NULL;
+  KEY_PART *new_part= param->key_parts_end++;
+  *new_part= *key_part;
+  new_part->key= (uint16) param->keys;
+  new_part->claimed= true;
+  param->key[param->keys]= new_part;
+  param->real_keynr[param->keys]= param->real_keynr[key_part->key];
+  param->keys++;
+  return new_part;
+}
+
+
 SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	                     Item_func::Functype type, Item *value)
@@ -9450,8 +9517,7 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
-                                                              param->keys)))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root)))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value_used_tables & ~param->read_tables))
       {
@@ -9493,10 +9559,17 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	if (!(sel_arg= new SEL_ARG(SEL_ARG::MAYBE_KEY)))
 	  DBUG_RETURN(0);			// OOM
       }
-      sel_arg->part=(uchar) key_part->part;
+      KEY_PART *use_key_part= key_part;
+      /* if we've created MAX_KEY parts with GEOM_FLAG, skip the rest */
+      if (sel_arg->type == SEL_ARG::KEY_RANGE &&
+          (sel_arg->min_flag & GEOM_FLAG) &&
+          !(use_key_part= get_claimed_key_part(param, key_part)))
+        continue;
+      sel_arg->part=(uchar) use_key_part->part;
       sel_arg->max_part_no= sel_arg->part+1;
-      tree->keys[key_part->key]=sel_add(tree->keys[key_part->key],sel_arg);
-      tree->keys_map.set_bit(key_part->key);
+      tree->keys[use_key_part->key]=sel_add(tree->keys[use_key_part->key],
+                                            sel_arg);
+      tree->keys_map.set_bit(use_key_part->key);
     }
   }
 
@@ -10584,8 +10657,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     }
     else
     {
-      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root,
-                                                   param->keys)))
+      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root)))
       {
         DBUG_RETURN(result);
       }
@@ -10609,8 +10681,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   }
   else
   {
-    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root,
-                                                            param->keys)))
+    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root)))
       DBUG_RETURN(result);
   }
 
@@ -10820,7 +10891,13 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
 
   if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
   {
-    /* TODO: why not leave one of the trees? */
+    /*
+      Combining two GEOM_FLAG trees is done elsewhere, so here it
+      means that one SEL_ARG has GEOM_FLAG and the other doesn't, like
+      MBRIntersects and IS NULL - which is impossible for spatial indexes
+    */
+    DBUG_ASSERT((key1->min_flag ^ key2->min_flag) & GEOM_FLAG);
+    DBUG_ASSERT(0);
     key1->free_tree();
     key2->free_tree();
     return 0;					// Can't optimize this
@@ -11051,9 +11128,22 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
   key1->use_count--;
   key2->use_count--;
 
-  if (key1->part != key2->part || 
-      (key1->min_flag | key2->min_flag) & GEOM_FLAG)
+  if (key1->part != key2->part)
   {
+    key1->free_tree();
+    key2->free_tree();
+    return 0;                                   // Can't optimize this
+  }
+
+  if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
+  {
+    /*
+      Combining two GEOM_FLAG trees is done elsewhere, so here it
+      means that one SEL_ARG has GEOM_FLAG and the other doesn't, like
+      MBRIntersects and IS NULL - which is impossible for spatial indexes
+    */
+    DBUG_ASSERT((key1->min_flag ^ key2->min_flag) & GEOM_FLAG);
+    DBUG_ASSERT(0);
     key1->free_tree();
     key2->free_tree();
     return 0;                                   // Can't optimize this
@@ -12574,36 +12664,45 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
       cost->comp_cost-= file->WHERE_COST * diff;
     }
     param->possible_keys.set_bit(keynr);
-    range->max_index_blocks=
+    ha_rows max_index_blocks=
         file->index_blocks(keynr, param->range_count, rows);
-    range->max_row_blocks=
+    ha_rows max_row_blocks=
         MY_MIN(file->row_blocks(), rows * file->stats.block_size / IO_SIZE);
+    if (!replay_ctx_rc)
+    {
+      /*
+        If an index/table is updated due to addition or deletion or
+        truncation etc.. then the max_index_blocks, and max_row_blocks read
+        from the handler (though accurate) would change the cost estimate
+        calculation when we are trying to replaying the context.
+        So, set them from the replay ctx, if no error has occured during the
+        fetch operation.
+      */
+      max_index_blocks= replay_ctx_max_index_blocks;
+      max_row_blocks= replay_ctx_max_row_blocks;
+    }
+    range->max_index_blocks= max_index_blocks;
+    range->max_row_blocks= max_row_blocks;
 
     if (update_tbl_stats)
     {
-      param->table->opt_range_keys.set_bit(keynr);
-      range->key_parts= param->max_key_parts;
-      range->ranges= param->range_count;
       param->table->set_opt_range_condition_rows(rows);
-      range->selectivity= (rows ?
-                           (param->table->opt_range_condition_rows /
-                            rows) :
-                           1.0);                // ok as rows is 0
-      range->rows= rows;
-      range->cost= *cost;
-      if (!replay_ctx_rc)
+      if (!param->range_keys_seen.is_set(keynr) ||
+          cost->total_cost() < range->cost.total_cost())
       {
-        // If an index/table is updated due to addition or deletion or
-        // truncation etc.. then the max_index_blocks, and max_row_blocks read
-        // from the handler (though accurate) would change the cost estimate
-        // calculation when we are trying to replaying the context.
-        // So, set them from the replay ctx, if no error has occured during the
-        // fetch operation.
-        range->max_index_blocks= replay_ctx_max_index_blocks;
-        range->max_row_blocks= replay_ctx_max_row_blocks;
+        param->range_keys_seen.set_bit(keynr);
+        param->table->opt_range_keys.set_bit(keynr);
+        range->key_parts= param->max_key_parts;
+        range->ranges= param->range_count;
+        range->selectivity= (rows ?
+                             (param->table->opt_range_condition_rows /
+                              rows) :
+                             1.0);                // ok as rows is 0
+        range->rows= rows;
+        range->cost= *cost;
+        range->first_key_part_has_only_one_value=
+          check_if_first_key_part_has_only_one_value(tree);
       }
-      range->first_key_part_has_only_one_value=
-        check_if_first_key_part_has_only_one_value(tree);
     }
   }
 
