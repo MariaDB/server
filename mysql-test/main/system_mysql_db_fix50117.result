@@ -37,6 +37,7 @@ host
 index_stats
 innodb_index_stats
 innodb_table_stats
+mariadb_info
 plugin
 proc
 procs_priv
@@ -271,6 +272,6 @@ index_stats	CREATE TABLE `index_stats` (
   PRIMARY KEY (`db_name`,`table_name`,`index_name`,`prefix_arity`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=0 COMMENT='Statistics on Indexes'
 DROP VIEW user;
-DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, proxies_priv, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv;
+DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, proxies_priv, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv, mariadb_info;
 show tables;
 Tables_in_test

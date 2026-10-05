@@ -115,6 +115,9 @@ def	mysql	innodb_table_stats	last_update	3	current_timestamp()	NO	timestamp	NULL
 def	mysql	innodb_table_stats	n_rows	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
 def	mysql	innodb_table_stats	sum_of_other_index_sizes	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
 def	mysql	innodb_table_stats	table_name	2	NULL	NO	varchar	199	597	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(199)	PRI		select,insert,update,references		NEVER	NULL
+def	mysql	mariadb_info	id	1	1	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(4)	PRI		select,insert,update,references		NEVER	NULL
+def	mysql	mariadb_info	upgraded_at	3	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp			select,insert,update,references		NEVER	NULL
+def	mysql	mariadb_info	version	2	NULL	NO	varchar	60	180	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(60)			select,insert,update,references		NEVER	NULL
 def	mysql	plugin	dl	2	''	NO	varchar	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(128)			select,insert,update,references		NEVER	NULL
 def	mysql	plugin	name	1	''	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)	PRI		select,insert,update,references		NEVER	NULL
 def	mysql	proc	aggregate	21	'NONE'	NO	enum	5	15	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('NONE','GROUP')			select,insert,update,references		NEVER	NULL
@@ -442,6 +445,9 @@ NULL	mysql	innodb_table_stats	last_update	timestamp	NULL	NULL	NULL	NULL	timestam
 NULL	mysql	innodb_table_stats	n_rows	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	innodb_table_stats	clustered_index_size	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	innodb_table_stats	sum_of_other_index_sizes	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	mysql	mariadb_info	id	tinyint	NULL	NULL	NULL	NULL	tinyint(4)
+3.0000	mysql	mariadb_info	version	varchar	60	180	utf8mb3	utf8mb3_bin	varchar(60)
+NULL	mysql	mariadb_info	upgraded_at	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	plugin	name	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	mysql	plugin	dl	varchar	128	384	utf8mb3	utf8mb3_general_ci	varchar(128)
 3.0000	mysql	proc	db	char	64	192	utf8mb3	utf8mb3_bin	char(64)

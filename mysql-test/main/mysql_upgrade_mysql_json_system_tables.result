@@ -38,6 +38,7 @@ error    : Corrupt
 mysql.innodb_table_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
+mysql.mariadb_info                                 OK
 mysql.mysql_json_test
 Error    : Unknown data type: 'MYSQL_JSON'
 error    : Corrupt

@@ -64,6 +64,355 @@
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
+static const
+TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Select_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Insert_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Update_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Delete_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Create_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Drop_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Grant_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("References_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Index_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Alter_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Create_tmp_table_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Lock_tables_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Create_view_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Show_view_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Create_routine_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Alter_routine_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Execute_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Event_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Trigger_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Delete_history_priv") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_db_table_def= {MYSQL_DB_FIELD_COUNT, mysql_db_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_roles_mapping_table_fields[4] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Role") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Admin_option") },
+    { STRING_WITH_LEN("enum('N','Y')") },
+    { STRING_WITH_LEN("utf8") }
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_roles_mapping_table_def= {4, mysql_roles_mapping_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_proxies_priv_table_fields[7] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Proxied_host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Proxied_user") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("With_grant") },
+    { STRING_WITH_LEN("tinyint(1)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Grantor") },
+    { STRING_WITH_LEN("varchar(384)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Timestamp") },
+    { STRING_WITH_LEN("timestamp") },
+    {NULL, 0}
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_proxies_priv_table_def= {7, mysql_proxies_priv_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_tables_priv_table_fields[8] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Table_name") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Grantor") },
+    { STRING_WITH_LEN("varchar(384)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Timestamp") },
+    { STRING_WITH_LEN("timestamp") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Table_priv") },
+    { STRING_WITH_LEN("set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Column_priv") },
+    { STRING_WITH_LEN("set('Select','Insert','Update','References')") },
+    { STRING_WITH_LEN("utf8") }
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_tables_priv_table_def= {8, mysql_tables_priv_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_columns_priv_table_fields[7] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Table_name") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Column_name") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Timestamp") },
+    { STRING_WITH_LEN("timestamp") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Column_priv") },
+    { STRING_WITH_LEN("set('Select','Insert','Update','References')") },
+    { STRING_WITH_LEN("utf8") }
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_columns_priv_table_def= {7, mysql_columns_priv_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_procs_priv_table_fields[8] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Db") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Routine_name") },
+    { STRING_WITH_LEN("char(64)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Routine_type") },
+    { STRING_WITH_LEN("enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY')") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Grantor") },
+    { STRING_WITH_LEN("varchar(384)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Proc_priv") },
+    { STRING_WITH_LEN("set('Execute','Alter Routine','Grant')") },
+    { STRING_WITH_LEN("utf8") }
+  },
+  {
+    { STRING_WITH_LEN("Timestamp") },
+    { STRING_WITH_LEN("timestamp") },
+    {NULL, 0}
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_procs_priv_table_def= {8, mysql_procs_priv_table_fields, 0, (uint*) 0 };
+
+static const
+TABLE_FIELD_TYPE mysql_global_priv_table_fields[3] = {
+  {
+    { STRING_WITH_LEN("Host") },
+    { STRING_WITH_LEN("char(255)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("User") },
+    { STRING_WITH_LEN("char(128)") },
+    {NULL, 0}
+  },
+  {
+    { STRING_WITH_LEN("Priv") },
+    { STRING_WITH_LEN("longtext") },
+    {NULL, 0}
+  }
+};
+
+const TABLE_FIELD_DEF
+mysql_global_priv_table_def= {3, mysql_global_priv_table_fields, 0, (uint*) 0 };
+
 // set that from field length in acl_load?
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 const uint max_hostname_length= HOSTNAME_LENGTH;
@@ -698,6 +1047,17 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
 static HASH acl_roles;
+
+/*
+  Set at the end of acl_reload()/grant_reload() (so recomputed on every
+  server startup and every FLUSH PRIVILEGES) to reflect whether the
+  on-disk grant tables' structure matches what this server binary
+  expects. Exposed read-only via SHOW STATUS (see acl_statistics /
+  status_vars in mysqld.cc) so a remote mariadb-upgrade can check it
+  without local filesystem access.
+*/
+my_bool grant_tables_intact= FALSE;
+static Table_check_intact_log_error table_intact;
 /*
   An hash containing mappings user <--> role
 
@@ -3071,6 +3431,44 @@ bool acl_reload(THD *thd)
     delete_dynamic_with_callback(&old_acl_users, free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
+
+    /*
+      MYSQL_TABLE_NAME[USER_TABLE] is "global_priv", not "user" - the
+      "user" view is never opened here at all (it's only a client-facing
+      compatibility layer). tables.user_table().table() is global_priv's
+      own TABLE* whenever using_global_priv_table is true; on the legacy
+      tabular fallback (pre-global_priv installs) it's the old mysql.user
+      base table instead, which is out of scope for this check.
+    */
+    /*
+      roles_mapping, proxies_priv and user_table are all opened with
+      OPEN_IF_EXISTS (anything from FIRST_OPTIONAL_TABLE up) - acl_load()
+      can succeed with any of them legitimately NULL (e.g. a renamed-away
+      table). Table_check_intact::check() dereferences its TABLE* argument
+      unconditionally (even just for DBUG_PRINT), so it must never be
+      called with NULL - a missing table is treated as "not intact", same
+      as a structurally wrong one.
+
+      Each table's result is computed independently below, rather than
+      chained in one &&, so that a NULL/mismatched table doesn't
+      short-circuit past (and thus skip checking and logging) the
+      remaining tables.
+    */
+    bool db_intact=
+      !table_intact.check(tables.db_table().table(), &mysql_db_table_def);
+    bool roles_mapping_intact= tables.roles_mapping_table().table() &&
+      !table_intact.check(tables.roles_mapping_table().table(),
+                          &mysql_roles_mapping_table_def);
+    bool proxies_priv_intact= tables.proxies_priv_table().table() &&
+      !table_intact.check(tables.proxies_priv_table().table(),
+                          &mysql_proxies_priv_table_def);
+    bool global_priv_intact= !using_global_priv_table ||
+      (tables.user_table().table() &&
+       !table_intact.check(tables.user_table().table(),
+                           &mysql_global_priv_table_def));
+
+    grant_tables_intact= db_intact && roles_mapping_intact &&
+      proxies_priv_intact && global_priv_intact;
   }
   mysql_mutex_unlock(&acl_cache->lock);
 end:
@@ -8388,6 +8786,37 @@ bool grant_reload(THD *thd)
     my_hash_free(&old_package_spec_priv_hash);
     my_hash_free(&old_package_body_priv_hash);
     free_root(&old_mem,MYF(0));
+
+    /*
+      acl_reload() always runs immediately before grant_reload(), both at
+      server startup and on FLUSH PRIVILEGES (see mysqld.cc and
+      sql_reload.cc), so it's safe to AND our tables' results onto the
+      value it just set rather than overwrite it.
+
+      procs_priv is opened with OPEN_IF_EXISTS (PROCS_PRIV_TABLE >=
+      FIRST_OPTIONAL_TABLE) - grant_load() can succeed with it legitimately
+      NULL (e.g. a renamed-away table), and Table_check_intact::check()
+      must never be called with NULL (see acl_reload() for the same
+      pattern). tables_priv/columns_priv are both below
+      FIRST_OPTIONAL_TABLE, so they can't be NULL here - a missing one
+      would already have failed grant_load() outright.
+
+      Each table's result is computed independently below, rather than
+      chained in one &&, so a mismatched/missing table doesn't
+      short-circuit past (and thus skip checking and logging) the others.
+    */
+    bool tables_priv_intact=
+      !table_intact.check(tables.tables_priv_table().table(),
+                          &mysql_tables_priv_table_def);
+    bool columns_priv_intact=
+      !table_intact.check(tables.columns_priv_table().table(),
+                          &mysql_columns_priv_table_def);
+    bool procs_priv_intact= tables.procs_priv_table().table() &&
+      !table_intact.check(tables.procs_priv_table().table(),
+                          &mysql_procs_priv_table_def);
+
+    grant_tables_intact= grant_tables_intact && tables_priv_intact &&
+      columns_priv_intact && procs_priv_intact;
   }
 
   mysql_mutex_lock(&acl_cache->lock);

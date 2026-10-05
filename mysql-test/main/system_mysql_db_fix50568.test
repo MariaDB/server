@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NUL
 
 # Drop all tables created by this test
 DROP VIEW user;
-DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, event, proxies_priv, general_log, slow_log, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv, ndb_binlog_index;
+DROP TABLE db, host, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, event, proxies_priv, general_log, slow_log, innodb_index_stats, innodb_table_stats, transaction_registry, table_stats, column_stats, index_stats, roles_mapping, gtid_slave_pos, global_priv, ndb_binlog_index, mariadb_info;
 
 # check that we dropped all system tables
 show tables;

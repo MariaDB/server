@@ -7613,6 +7613,7 @@ SHOW_VAR status_vars[]= {
   {"Aborted_connects",         (char*) &aborted_connects,       SHOW_LONG},
   {"Aborted_connects_preauth", (char*) &aborted_connects_preauth, SHOW_LONG},
   {"Acl",                      (char*) acl_statistics,          SHOW_ARRAY},
+  {"Grant_tables_intact",      (char*) &grant_tables_intact,    SHOW_MY_BOOL},
   {"Access_denied_errors",     (char*) offsetof(STATUS_VAR, access_denied_errors), SHOW_LONG_STATUS},
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},

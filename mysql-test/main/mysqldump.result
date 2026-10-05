@@ -6038,6 +6038,22 @@ CREATE TABLE `innodb_table_stats` (
   PRIMARY KEY (`database_name`,`table_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `mariadb_info`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `mariadb_info` (
+  `id` tinyint(4) NOT NULL DEFAULT 1,
+  `version` varchar(60) NOT NULL,
+  `upgraded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`id` = 1)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Tracks the last MariaDB version this installation was upgraded to; single row enforced by id=1 check';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `mariadb_info` WRITE;
+/*!40000 ALTER TABLE `mariadb_info` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mariadb_info` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE IF NOT EXISTS `transaction_registry` (
@@ -6144,6 +6160,22 @@ LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
 UNLOCK TABLES;
+DROP TABLE IF EXISTS `mariadb_info`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `mariadb_info` (
+  `id` tinyint(4) NOT NULL DEFAULT 1,
+  `version` varchar(60) NOT NULL,
+  `upgraded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`id` = 1)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Tracks the last MariaDB version this installation was upgraded to; single row enforced by id=1 check';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `mariadb_info` WRITE;
+/*!40000 ALTER TABLE `mariadb_info` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mariadb_info` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE IF NOT EXISTS `transaction_registry` (
@@ -6249,6 +6281,22 @@ CREATE TABLE `innodb_table_stats` (
 LOCK TABLES `innodb_table_stats` WRITE;
 /*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
 /*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `mariadb_info`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `mariadb_info` (
+  `id` tinyint(4) NOT NULL DEFAULT 1,
+  `version` varchar(60) NOT NULL,
+  `upgraded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`id` = 1)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Tracks the last MariaDB version this installation was upgraded to; single row enforced by id=1 check';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `mariadb_info` WRITE;
+/*!40000 ALTER TABLE `mariadb_info` DISABLE KEYS */;
+/*!40000 ALTER TABLE `mariadb_info` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -6659,6 +6707,13 @@ DROP TABLE IF EXISTS mysql.column_stats;
 
 /*!50106 SET GLOBAL LOG_OUTPUT=@save_log_output*/;
 
+	<table_structure name="mariadb_info">
+		<field Field="id" Type="tinyint(4)" Null="NO" Key="PRI" Default="1" Extra="" Comment="" />
+		<field Field="version" Type="varchar(60)" Null="NO" Key="" Extra="" Comment="" />
+		<field Field="upgraded_at" Type="timestamp" Null="NO" Key="" Default="current_timestamp()" Extra="" Comment="" />
+		<key Table="mariadb_info" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="id" Collation="A" Cardinality="0" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
+		<options Name="mariadb_info" Engine="Aria" Version="11" Row_format="Page" Rows="0" Avg_row_length="0" Data_length="8192" Max_data_length="17592186011648" Index_length="8192" Data_free="0" Create_time="TIMESTAMP" Update_time="TIMESTAMP" Collation="utf8mb3_bin" Create_options="page_checksum=1 transactional=1" Comment="Tracks the last MariaDB version this installation was upgraded to; single row enforced by id=1 check" Max_index_length="9007199254732800" Temporary="N" />
+	</table_structure>
 	<table_structure name="transaction_registry">
 		<field Field="transaction_id" Type="bigint(20) unsigned" Null="NO" Key="PRI" Extra="" Comment="" />
 		<field Field="commit_id" Type="bigint(20) unsigned" Null="NO" Key="UNI" Extra="" Comment="" />

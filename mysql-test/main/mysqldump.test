@@ -2974,7 +2974,7 @@ DROP TABLE IF EXISTS mysql.columns_priv;
 DROP TABLE IF EXISTS mysql.column_stats;
 
 --echo # Abbreviated contents
---replace_regex /Create_time="[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}"/Create_time="TIMESTAMP"/
+--replace_regex /Create_time="[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}"/Create_time="TIMESTAMP"/ /Update_time="[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}"/Update_time="TIMESTAMP"/
 --exec $MYSQL_DUMP --xml --skip-comments --no-data --add-drop-database --databases mysql test1
 
 SET @save_general_log=@@GENERAL_LOG;

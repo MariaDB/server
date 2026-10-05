@@ -109,6 +109,7 @@ help_keyword
 help_relation
 help_topic
 index_stats
+mariadb_info
 plugin
 proc
 procs_priv
@@ -2413,6 +2414,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	mariadb_info	CONSTRAINT_1	`id` = 1
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2425,6 +2427,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	mariadb_info	CONSTRAINT_1	`id` = 1
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2436,6 +2439,7 @@ NATURAL join information_schema.CHECK_CONSTRAINTS cc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	mariadb_info	CONSTRAINT_1	`id` = 1
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2447,6 +2451,7 @@ NATURAL join information_schema.TABLE_CONSTRAINTS tc
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 mysql	global_priv	Priv	json_valid(`Priv`)
+mysql	mariadb_info	CONSTRAINT_1	`id` = 1
 test	t	a	`i` > 0
 select
 tc.TABLE_SCHEMA,
@@ -2461,6 +2466,7 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 ;
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
 mysql	global_priv	Priv	json_valid(`Priv`)	def	mysql
+mysql	mariadb_info	CONSTRAINT_1	`id` = 1	def	mysql
 test	t	a	`i` > 0	def	test
 drop table t;
 #

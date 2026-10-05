@@ -18,6 +18,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -172,6 +173,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -324,6 +326,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -482,6 +485,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -640,6 +644,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -801,6 +806,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -957,6 +963,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1002,6 +1009,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1174,6 +1182,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1354,6 +1363,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1573,6 +1583,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1753,6 +1764,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -1988,6 +2000,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -2203,6 +2216,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -2373,6 +2387,7 @@ mysql.help_topic                                   OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
+mysql.mariadb_info                                 OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -2522,6 +2537,8 @@ name	dl
 call mtr.add_suppression("InnoDB: Fetch of persistent statistics requested for table `mysql`\\.`gtid_slave_pos` but the required system tables mysql\\.innodb_table_stats and mysql\\.innodb_index_stats are not present or have unexpected structure");
 call mtr.add_suppression("InnoDB: Unexpected length of mysql\\.innodb_table_stats\\.table_name");
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 5.5
 #
@@ -2531,6 +2548,8 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 10.0
 #
@@ -2540,6 +2559,8 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 10.1
 #
@@ -2549,6 +2570,8 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 10.2
 #
@@ -2558,6 +2581,8 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 10.3
 #
@@ -2567,6 +2592,8 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
 #
 # Upgrade from version 10.4
 #

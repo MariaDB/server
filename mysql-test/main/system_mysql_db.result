@@ -15,6 +15,7 @@ help_topic
 index_stats
 innodb_index_stats
 innodb_table_stats
+mariadb_info
 plugin
 proc
 procs_priv
