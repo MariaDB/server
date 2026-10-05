@@ -29,6 +29,14 @@ my %multipart_options=
   (
    "plugin-load-add" => 1,
    "optimizer-switch" => 1,
+   "replicate-do-table" => 1,
+   "replicate-ignore-table" => 1,
+   "replicate-wild-do-table" => 1,
+   "replicate-wild-ignore-table" => 1,
+   "replicate-do-db" => 1,
+   "replicate-ignore-db" => 1,
+   "binlog-do-db" => 1,
+   "binlog-ignore-db" => 1,
 );
 
 
