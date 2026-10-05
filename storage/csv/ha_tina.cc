@@ -46,6 +46,7 @@ TODO:
 #include "sql_priv.h"
 #include "sql_class.h"                          // SSV
 #include <mysql/psi/mysql_file.h>
+#include <mysys_err.h>
 #include "ha_tina.h"
 #include "probes_mysql.h"
 
@@ -1055,6 +1056,19 @@ int ha_tina::close(void)
 }
 
 /*
+  Write the first count bytes of buf, then fail with the error that a
+  write to a full disk reports.
+*/
+static size_t short_write(File file, const uchar *buf, size_t count)
+{
+  (void) mysql_file_write(file, buf, count, MYF(0));
+  my_errno= ENOSPC;
+  my_error(EE_WRITE, MYF(0), my_filename(file), my_errno);
+  return MY_FILE_ERROR;
+}
+
+
+/*
   This is an INSERT. At the moment this handler just seeks to the end
   of the file and appends the data. In an error case it really should
   just truncate to the original position (this is not done yet).
@@ -1180,8 +1194,12 @@ int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
     goto err;
 
   if (open_update_temp_file_if_needed() ||
-      mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
-                       MYF(MY_WME | MY_NABP)))
+      (DBUG_IF("tina_update_row_short_write") ?
+       short_write(update_temp_file, (uchar*) buffer.ptr(), 1) :
+       DBUG_IF("tina_update_row_full_write_error") ?
+       short_write(update_temp_file, (uchar*) buffer.ptr(), size) :
+       mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
+                        MYF(MY_WME | MY_NABP))))
   {
     undo_update_row(chain_count, last_end);
     goto err;
