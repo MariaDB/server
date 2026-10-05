@@ -28,6 +28,7 @@
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
+#include "grant_table_defs.h"
 #include "sql_base.h"                           // close_mysql_tables
 #include "key.h"             // key_copy, key_cmp_if_same, key_restore
 #include "sql_show.h"        // append_identifier
@@ -63,6 +64,17 @@
 
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
+
+/*
+  Set at the end of acl_reload()/grant_reload() (so recomputed on every
+  server startup and every FLUSH PRIVILEGES) to reflect whether the
+  on-disk grant tables' structure matches what this server binary
+  expects. Exposed read-only via SHOW STATUS (see acl_statistics /
+  status_vars in mysqld.cc) so a remote mariadb-upgrade can check it
+  without local filesystem access.
+*/
+my_bool grant_tables_intact= FALSE;
+static Table_check_intact_log_error table_intact;
 
 // set that from field length in acl_load?
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -2974,6 +2986,34 @@ void acl_free(bool end)
 
 
 /*
+  Check that a grant table has the structure this server expects.
+
+  A table that wasn't opened is reported in the error log and treated as
+  not intact, the same as a table with a wrong structure.
+  Table_check_intact::check() must not be called with a NULL TABLE.
+
+  @param table      Grant table, as returned by Grant_tables
+  @param name       Name of the table in the mysql schema, for the message
+  @param table_def  Expected structure (see grant_table_defs.cc)
+
+  @retval true   Table is intact
+  @retval false  Table is missing or its structure is wrong
+*/
+
+static bool grant_table_is_intact(const Grant_table_base &table,
+                                  const char *name,
+                                  const TABLE_FIELD_DEF *table_def)
+{
+  if (!table.table_exists())
+  {
+    sql_print_error("Table mysql.%s is missing", name);
+    return false;
+  }
+  return !table_intact.check(table.table(), table_def);
+}
+
+
+/*
   Forget current user/db-level privileges and read new privileges
   from the privilege tables.
 
@@ -3071,6 +3111,33 @@ bool acl_reload(THD *thd)
     delete_dynamic_with_callback(&old_acl_users, free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
+
+    /*
+      Check every table, even if an earlier one isn't intact, so that all
+      the problems are written to the error log.
+
+      The 'user' view is never opened here, it is only a client-facing
+      compatibility layer. Instead user_table() is mysql.global_priv, or the
+      old tabular mysql.user table on installations that haven't been
+      upgraded to global_priv yet (using_global_priv_table is false, set in
+      User_table_tabular::setup_sysvars()). Only global_priv has a
+      definition to compare with, so the legacy table is not checked.
+    */
+    bool db_intact=
+      grant_table_is_intact(tables.db_table(), "db", &mysql_db_table_def);
+    bool roles_mapping_intact=
+      grant_table_is_intact(tables.roles_mapping_table(), "roles_mapping",
+                            &mysql_roles_mapping_table_def);
+    bool proxies_priv_intact=
+      grant_table_is_intact(tables.proxies_priv_table(), "proxies_priv",
+                            &mysql_proxies_priv_table_def);
+    bool global_priv_intact=
+      (!using_global_priv_table ||
+       grant_table_is_intact(tables.user_table(), "global_priv",
+                             &mysql_global_priv_table_def));
+
+    grant_tables_intact= (db_intact && roles_mapping_intact &&
+                          proxies_priv_intact && global_priv_intact);
   }
   mysql_mutex_unlock(&acl_cache->lock);
 end:
@@ -8388,6 +8455,27 @@ bool grant_reload(THD *thd)
     my_hash_free(&old_package_spec_priv_hash);
     my_hash_free(&old_package_body_priv_hash);
     free_root(&old_mem,MYF(0));
+
+    /*
+      acl_reload() always runs immediately before grant_reload(), both at
+      server startup and on FLUSH PRIVILEGES so it's safe to AND our tables'
+      results onto the value it just set rather than overwrite it.
+
+      Check every table, even if an earlier one isn't intact, so that all
+      the problems are written to the error log.
+    */
+    bool tables_priv_intact=
+      grant_table_is_intact(tables.tables_priv_table(), "tables_priv",
+                            &mysql_tables_priv_table_def);
+    bool columns_priv_intact=
+      grant_table_is_intact(tables.columns_priv_table(), "columns_priv",
+                            &mysql_columns_priv_table_def);
+    bool procs_priv_intact=
+      grant_table_is_intact(tables.procs_priv_table(), "procs_priv",
+                            &mysql_procs_priv_table_def);
+
+    grant_tables_intact= (grant_tables_intact && tables_priv_intact &&
+                          columns_priv_intact && procs_priv_intact);
   }
 
   mysql_mutex_lock(&acl_cache->lock);

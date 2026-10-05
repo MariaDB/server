@@ -11,6 +11,15 @@
 # On 10.4 the local root was additionally given an empty password,
 # to avoid using unix_socket.
 
+# Older dumps have genuinely narrower grant tables than this server expects
+# (e.g. 10.4's roles_mapping/proxies_priv columns are shorter than today's),
+# and dropping Delete_history_priv further below also shrinks mysql.db by
+# one column - FLUSH PRIVILEGES during the upgrade will correctly log both
+# message shapes for each, which Table_check_intact/Grant_tables_intact are
+# designed to catch, not something gone wrong.
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
+
 # Backup the existing mysql schema, to restore it later
 --exec $MYSQL_DUMP mysql > $MYSQL_TMP_DIR/mysql_database_backup
 

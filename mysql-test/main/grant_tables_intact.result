@@ -1,0 +1,112 @@
+#
+# MDEV-39343 Grant_tables_intact status variable
+#
+# Grant_tables_intact reflects whether mysql.db, mysql.roles_mapping,
+# mysql.proxies_priv, mysql.tables_priv, mysql.columns_priv,
+# mysql.procs_priv and mysql.global_priv structurally match this
+# server's compiled-in column definitions. It is recomputed in
+# acl_reload()/grant_reload(), i.e. on every FLUSH PRIVILEGES.
+#
+# Both message shapes below are expected - they're exactly what
+# Table_check_intact logs when it finds the mismatches this test
+# deliberately introduces.
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
+# Baseline: a freshly bootstrapped server must report intact.
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+#
+# mysql.db has real historical tolerance (min_columns=9 against a
+# current 23 columns), so dropping one privilege column still lets
+# the table load - it just no longer matches exactly.
+#
+ALTER TABLE mysql.db DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.db ADD COLUMN Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+#
+# mysql.roles_mapping, mysql.proxies_priv, mysql.tables_priv,
+# mysql.columns_priv, mysql.procs_priv and mysql.global_priv all
+# have min_columns pinned to their current column count (no
+# tolerance at all), so dropping a column would instead trip the
+# pre-existing ER_CANNOT_LOAD_FROM_TABLE_V2 check in
+# Grant_table_base::set_table() before Grant_tables_intact's own
+# logic ever runs (see grant_repair.test for that mechanism).
+# A type change on Host, instead, leaves the column count and key
+# structure untouched, so the table still loads and our check
+# actually gets exercised.
+#
+# mysql.roles_mapping
+ALTER TABLE mysql.roles_mapping MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.roles_mapping MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# mysql.proxies_priv
+ALTER TABLE mysql.proxies_priv MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.proxies_priv MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# mysql.tables_priv
+ALTER TABLE mysql.tables_priv MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.tables_priv MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# mysql.columns_priv
+ALTER TABLE mysql.columns_priv MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.columns_priv MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# mysql.procs_priv
+ALTER TABLE mysql.procs_priv MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.procs_priv MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# mysql.global_priv
+ALTER TABLE mysql.global_priv MODIFY COLUMN Host char(60) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+ALTER TABLE mysql.global_priv MODIFY COLUMN Host char(255) binary NOT NULL DEFAULT '';
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# End of 10.11 tests

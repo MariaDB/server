@@ -9,6 +9,7 @@ connection default;
 disconnect conn1;
 drop user user1@localhost;
 call mtr.add_suppression("Incorrect database name");
+call mtr.add_suppression("Incorrect definition of table");
 alter table mysql.db modify User char(16) default "", modify Db varchar(200) default "";
 insert mysql.db set db=concat('=>', repeat(_utf8 'й', 200));
 Warnings:

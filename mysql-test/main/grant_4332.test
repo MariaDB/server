@@ -10,6 +10,10 @@
 set global sql_mode="";
 set local sql_mode="";
 
+# The narrowed User columns below make Table_check_intact log a mismatch
+# on the FLUSH PRIVILEGES just after - expected, not a new bug.
+call mtr.add_suppression("Incorrect definition of table");
+
 alter table mysql.user modify User char(16) binary not null default '';
 alter table mysql.db modify User char(16) binary not null default '';
 alter table mysql.tables_priv modify User char(16) binary not null default '';
