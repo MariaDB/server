@@ -471,3 +471,10 @@ select * from t1 partition (p1) where a=10;
 drop table t1;
 
 --echo # End of 13.1 tests
+
+--echo #
+--echo # MDEV-40553: unprintable gis ranges in trace and context
+--echo #
+--source include/opt_gis_range_print.inc
+
+--echo # End of 13.2 tests
