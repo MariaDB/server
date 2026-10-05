@@ -2553,5 +2553,15 @@ CREATE TABLE cluster_t (
 DROP TABLE utilisateur;
 
 --echo #
+--echo # MDEV-41221 memcpy() source and target overlap in dict_table_rename_in_cache
+--echo # (only fails without the fix on a libc that checks memcpy overlap, e.g. OpenBSD)
+--echo #
+
+CREATE TABLE loader_test7(id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE loader_test6(id INT PRIMARY KEY, loader_test7_id INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE loader_test6 ADD CONSTRAINT loader_test6_to_7_fk FOREIGN KEY(loader_test7_id) REFERENCES loader_test7(id);
+DROP TABLE loader_test6, loader_test7;
+
+--echo #
 --echo # End of 12.3 tests
 --echo #
