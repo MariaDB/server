@@ -1970,3 +1970,55 @@ ALTER TABLE t1 IETF_QUOTES=no;
 SELECT * FROM t1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # Two handlers of one CSV table locked by LOCK TABLES share the length
+--echo # of the data file
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+LOCK TABLES t1 WRITE, t1 AS a1 WRITE;
+--sorted_result
+SELECT * FROM t1 AS a1;
+--echo # makes the file longer through t1
+UPDATE t1 SET v=v*10;
+--sorted_result
+SELECT * FROM t1 AS a1;
+INSERT INTO t1 VALUES (4);
+--sorted_result
+SELECT * FROM t1 AS a1;
+--echo # makes the file shorter through a1
+DELETE a1 FROM t1 AS a1 WHERE a1.v=10;
+--sorted_result
+SELECT * FROM t1;
+UNLOCK TABLES;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # A handler that uses the data file length of another handler of the
+--echo # table unlocks after that handler is closed
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+--echo # t1 uses the length of a1, which holds the stronger lock
+LOCK TABLES t1 WRITE CONCURRENT, t1 AS a1 WRITE;
+INSERT INTO t1 VALUES (4);
+--echo # closes a1 before it unlocks t1
+FLUSH TABLES t1;
+UNLOCK TABLES;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+--echo # t1 uses the length of a1, which is listed first
+LOCK TABLES t1 AS a1 WRITE, t1 WRITE;
+INSERT INTO t1 VALUES (5);
+--echo # closes a1 and keeps t1 open and locked until the end of the ALTER
+ALTER TABLE t1 ALTER COLUMN v SET DEFAULT 5, LOCK=EXCLUSIVE;
+UNLOCK TABLES;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;

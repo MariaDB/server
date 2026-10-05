@@ -64,6 +64,14 @@ class ha_tina final : public handler
   my_off_t current_position;  /* Current position in the file during a file scan */
   my_off_t next_position;     /* Next position in the file scan */
   my_off_t local_saved_data_file_length; /* save position for reads */
+  /*
+    The data file length used by this handler.  It points to
+    local_saved_data_file_length, except while one thr_multi_lock() call
+    holds this table more than once.  Then it points to the length of the
+    first handler of the table in that call, so that every handler of the
+    table reads and changes the same length.
+  */
+  my_off_t *saved_length;
   my_off_t temp_file_length;
   uchar byte_buffer[IO_SIZE];
   Transparent_file *file_buff;
@@ -176,6 +184,7 @@ public:
   */
   void get_status();
   void update_status();
+  void copy_status(ha_tina *from);
 
   /* The following methods were added just for TINA */
   int encode_quote(const uchar *buf);
