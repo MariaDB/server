@@ -389,11 +389,83 @@ enum vcol_init_mode
 
 enum enum_vcol_update_mode
 {
+  /*
+    VCOL_UPDATE_FOR_READ
+
+    Engine-driven mode: invoked by the handler read methods (ha_rnd_next,
+    ha_rnd_pos, ha_index_*) for every row read into record[0].
+
+    For a field in the read_set: with keyread enabled, compute it only when
+    it is not directly part of the read index but is derivable from the
+    indexed columns; otherwise compute it only when it is not stored.
+
+    Blob values are stored into read_value (see swap_value_and_read_value()).
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_READ= 0,
+  /*
+    VCOL_UPDATE_FOR_WRITE
+
+    General write mode, used by all SQL-layer write paths (INSERT, the new
+    record in UPDATE, row-based replication apply, and ALTER ... copy).
+
+    Compute every vcol in the read_set, both stored and non-stored.
+
+    Blob values are stored into value.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_WRITE,
+  /*
+    VCOL_UPDATE_FOR_DELETE
+
+    Invoked only from record_should_be_deleted() while deciding whether to
+    delete a row, so the DELETE condition can reference virtual columns.
+
+    Same fields as VCOL_UPDATE_FOR_WRITE: every vcol in the read_set, both
+    stored and non-stored.
+
+    Blob values are stored into value.
+    As on read, errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_DELETE,
+  /*
+    VCOL_UPDATE_INDEXED
+
+    Used only by MyISAM index (re)build/repair (compute_vcols()). Complements
+    VCOL_UPDATE_FOR_READ and must run after it.
+
+    Compute non-stored vcols in the read_set that are part of a key
+    (PART_KEY_FLAG or PART_INDIRECT_KEY_FLAG) -- the indexed vcols that
+    VCOL_UPDATE_FOR_READ skips.
+
+    Blob values are stored into read_value.
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_INDEXED,
+  /*
+    VCOL_UPDATE_INDEXED_FOR_UPDATE
+
+    Used only by multi-table UPDATE, on the old row re-read via rnd_pos so
+    its indexed vcols match the stored index entries before the new values
+    overwrite them.
+
+    Same fields as VCOL_UPDATE_INDEXED.
+
+    Blob values are stored into read_value.
+    Being part of an update, errors are reported instead of downgraded.
+  */
   VCOL_UPDATE_INDEXED_FOR_UPDATE,
+  /*
+    VCOL_UPDATE_FOR_REPLACE
+
+    Used only by REPLACE (write_record()) on the conflicting row.
+
+    Compute non-stored, part-of-key vcols in the read_set; additionally, for
+    row-based binary logging with a non-minimal row image, compute all vcols.
+
+    Blob values are stored into read_value and old value preserved.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_REPLACE
 };
 
@@ -3524,6 +3596,14 @@ public:
     FIELD_COUNT
   };
 
+  enum index_id_t {
+    IDX_TRX_ID= 0,
+    IDX_COMMIT_ID,
+    IDX_BEGIN_TS,
+    IDX_COMMIT_TS,
+    IDX_count /* Number of indexes */
+  };
+
   enum enabled {NO, MAYBE, YES};
   static enum enabled use_transaction_registry;
 
@@ -3641,6 +3721,24 @@ public:
   bool operator!= (const TABLE_LIST &subj) const
   {
     return !(*this == subj);
+  }
+  bool is_idx_correct(uint idx, field_index_t fld) const
+  {
+    DBUG_ASSERT(table->s->keys == IDX_count);
+
+    if (table->s->keys <= idx)
+      return false;
+
+    handler *file= table->file;
+    const KEY *key= &table->key_info[idx];
+    if (HA_READ_ORDER == (file->index_flags(idx, 0, false) & (HA_READ_ORDER | HA_ONLY_WHOLE_INDEX)) &&
+        key->key_part->fieldnr - 1 == fld &&
+        !(key->key_part->key_part_flag & HA_REVERSE_SORT))
+    {
+      DBUG_ASSERT(key->key_part->fieldnr - 1 == fld);
+      return true;
+    }
+    return false;
   }
 };
 
