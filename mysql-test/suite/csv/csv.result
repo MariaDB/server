@@ -5668,3 +5668,105 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# CHECK TABLE under LOCK TABLES reads the rows inserted under the lock
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (4);
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+v
+1
+2
+3
+4
+UNLOCK TABLES;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# CHECK TABLE under LOCK TABLES READ LOCAL reads the rows that another
+# connection inserted after the lock
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+connect  con1,localhost,root,,;
+LOCK TABLES t1 READ LOCAL;
+connection default;
+INSERT INTO t1 VALUES (4);
+connection con1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# The lock still hides the row inserted after it
+SELECT * FROM t1;
+v
+1
+2
+3
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+SELECT * FROM t1;
+v
+1
+2
+3
+4
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# REPAIR TABLE under LOCK TABLES removes the bad rows that CHECK TABLE
+# reports
+#
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1,1),(2,2);
+LOCK TABLES t1 WRITE;
+# A row with one column, appended after the lock
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Corrupt
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+UNLOCK TABLES;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# The table is empty when it is locked
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=CSV;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (1,1),(2,2);
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Corrupt
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+UNLOCK TABLES;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

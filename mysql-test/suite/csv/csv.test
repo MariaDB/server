@@ -2047,3 +2047,76 @@ connection default;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # CHECK TABLE under LOCK TABLES reads the rows inserted under the lock
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (4);
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1;
+UNLOCK TABLES;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # CHECK TABLE under LOCK TABLES READ LOCAL reads the rows that another
+--echo # connection inserted after the lock
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+connect (con1,localhost,root,,);
+LOCK TABLES t1 READ LOCAL;
+connection default;
+INSERT INTO t1 VALUES (4);
+connection con1;
+CHECK TABLE t1;
+--echo # The lock still hides the row inserted after it
+--sorted_result
+SELECT * FROM t1;
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # REPAIR TABLE under LOCK TABLES removes the bad rows that CHECK TABLE
+--echo # reports
+--echo #
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1,1),(2,2);
+LOCK TABLES t1 WRITE;
+--echo # A row with one column, appended after the lock
+--append_file $MYSQLD_DATADIR/test/t1.CSV
+"3"
+EOF
+CHECK TABLE t1;
+REPAIR TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1;
+UNLOCK TABLES;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # The table is empty when it is locked
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=CSV;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (1,1),(2,2);
+--append_file $MYSQLD_DATADIR/test/t1.CSV
+"3"
+EOF
+CHECK TABLE t1;
+REPAIR TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1;
+UNLOCK TABLES;
+CHECK TABLE t1;
+DROP TABLE t1;
