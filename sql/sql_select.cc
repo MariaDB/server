@@ -2013,7 +2013,13 @@ int JOIN::optimize()
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+    bool first_optimization= select_lex->first_cond_optimization;
     res= optimize_inner();
+    if (unlikely(res) && first_optimization)
+    {
+      /* A failed first optimization may leave the statement half-done */
+      thd->lex->needs_reprepare= true;
+    }
   }
   if (!with_two_phase_optimization)
   {

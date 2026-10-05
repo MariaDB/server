@@ -3313,9 +3313,9 @@ public:
   Explain_query *explain;
 
   /*
-    If true, query optimizer has encountered an unrecoverable error when doing
+    If true, query optimizer has encountered an error when doing
     once-per-statement optimization and it is not safe to re-execute this
-    statement.
+    statement without re-preparing it.
   */
   bool needs_reprepare{false};
 
