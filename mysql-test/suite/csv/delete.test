@@ -15,14 +15,29 @@ drop table t1;
 --echo #
 --echo # MDEV-41216 ha_tina (CSV) deletes wrong records
 --echo #
---echo # A statement in which two aliases of a CSV table change rows is
---echo # refused before any row changes.
+--echo # A DELETE or UPDATE in which two aliases of a CSV table change
+--echo # rows is refused when it is prepared.
 create table t1 (v int not null) engine=csv;
 insert into t1 values (1),(2),(3),(4),(5);
 --error ER_NOT_SUPPORTED_YET
 delete a1, a3 from t1 as a1 join t1 as a3 where a1.v=2 and a3.v=1;
 --error ER_NOT_SUPPORTED_YET
 update t1 as a1 join t1 as a3 set a1.v=20, a3.v=10 where a1.v=2 and a3.v=1;
+--error ER_NOT_SUPPORTED_YET
+delete ignore a1, a3 from t1 as a1 join t1 as a3 where a1.v=2 and a3.v=1;
+--error ER_NOT_SUPPORTED_YET
+update ignore t1 as a1 join t1 as a3 set a1.v=20, a3.v=10
+  where a1.v=2 and a3.v=1;
+--echo # No row matches
+--error ER_NOT_SUPPORTED_YET
+delete a1, a3 from t1 as a1 join t1 as a3 where a1.v=20 and a3.v=10;
+--echo # A view of the table is another alias
+create view v1 as select * from t1;
+--error ER_NOT_SUPPORTED_YET
+delete v1, a3 from v1 join t1 as a3 where v1.v=2 and a3.v=1;
+--error ER_NOT_SUPPORTED_YET
+update v1 join t1 as a3 set v1.v=20, a3.v=10 where v1.v=2 and a3.v=1;
+drop view v1;
 select * from t1 order by v;
 check table t1;
 
@@ -74,5 +89,21 @@ drop function f2;
 drop function f3;
 drop function f4;
 drop table t1;
+
+--echo # The CHECK OPTION of a view reads an alias of the table that the
+--echo # UPDATE changes through another alias
+create table t1 (a int not null, b int not null) engine=csv;
+insert into t1 values (1,1),(2,2),(3,3),(4,4);
+create table t3 (c int not null) engine=myisam;
+insert into t3 values (1),(2);
+create view v1 as
+  select x.a, x.b from t1 as y join t1 as x on x.a=y.a where y.b>0
+  with check option;
+--error ER_NOT_SUPPORTED_YET
+update v1, t3 set v1.b=v1.b+100, t3.c=t3.c+1;
+select * from t1 order by a;
+select * from t3 order by c;
+drop view v1;
+drop table t1, t3;
 
 --echo # End of 11.4 tests
