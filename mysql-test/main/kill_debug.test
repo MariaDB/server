@@ -361,3 +361,65 @@ reap;
 DROP TABLE t1;
 disconnect con1;
 SET debug_sync='RESET';
+
+--echo #
+--echo # MDEV-31567 SIGSEGV in reinit_stmt_before_use | Prepared_statement::execute
+--echo #
+--echo # The first EXECUTE is killed by max_statement_time after the one-time
+--echo # semi-join rewrite, but before the nested selects save their WHERE.
+--echo # The statement must be re-prepared, not run half-rewritten.
+CREATE TABLE t (a INT);
+let $q= 1;
+let $d= 62;
+while ($d)
+{
+  let $q= SELECT a FROM t WHERE a IN ($q);
+  dec $d;
+}
+--echo PREPARE s FROM <62 nested IN subqueries>
+--disable_query_log
+eval PREPARE s FROM '$q';
+--enable_query_log
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+SET max_statement_time=0;
+SET debug_sync='RESET';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # The same with rows, the results must be correct
+INSERT INTO t VALUES (1),(2),(3);
+--echo PREPARE s FROM <62 nested IN subqueries>
+--disable_query_log
+eval PREPARE s FROM '$q';
+--enable_query_log
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+SET max_statement_time=0;
+SET debug_sync='RESET';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # The same in a stored procedure
+--echo CREATE PROCEDURE p() <62 nested IN subqueries>
+--disable_query_log
+eval CREATE PROCEDURE p() $q;
+--enable_query_log
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+--error ER_STATEMENT_TIMEOUT
+CALL p();
+SET max_statement_time=0;
+SET debug_sync='RESET';
+CALL p();
+CALL p();
+DROP PROCEDURE p;
+DROP TABLE t;
+
+--echo # End of 11.4 tests
