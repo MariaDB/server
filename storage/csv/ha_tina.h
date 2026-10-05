@@ -193,5 +193,6 @@ public:
   int encode_quote(const uchar *buf);
   int find_current_row(uchar *buf);
   int chain_append();
+  void undo_update_row(size_t chain_count, my_off_t last_end);
 };
 

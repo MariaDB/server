@@ -1114,6 +1114,43 @@ int ha_tina::open_update_temp_file_if_needed()
 }
 
 /*
+  Keep the old version of a row whose new version could not be written to
+  the temp file.  The old version is already a hole in the chain, so the
+  data file written at the end of the scan would hold neither version.
+  chain_count and last_end are the number of holes and the end of the last
+  hole before the row was added.  A failed write can also leave part of the
+  new version in the temp file after temp_file_length.  The next write to
+  the temp file starts at temp_file_length and replaces those bytes, and
+  the end of the scan cuts off the ones that the rest of the table does not
+  replace.
+*/
+void ha_tina::undo_update_row(size_t chain_count, my_off_t last_end)
+{
+  chain_ptr= chain + chain_count;
+  if (chain_count)
+    chain_ptr[-1].end= last_end;
+
+  if (!share->update_file_opened)
+    return;
+
+  if (chain_count &&
+      mysql_file_seek(update_temp_file, temp_file_length, MY_SEEK_SET,
+                      MYF(0)) != MY_FILEPOS_ERROR)
+    return;
+
+  /*
+    Either no row of this scan was updated, and the end of the scan
+    neither rewrites the data file nor closes the temp file, or the
+    position of the temp file could not be moved back to temp_file_length.
+    Drop the temp file and the holes.
+  */
+  chain_ptr= chain;
+  (void) mysql_file_close(update_temp_file, MYF(0));
+  share->update_file_opened= FALSE;
+}
+
+
+/*
   This is called for an update.
   Make sure you put in code to increment the auto increment.
   Currently auto increment is not being
@@ -1125,6 +1162,9 @@ int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
 {
   int size;
   int rc= -1;
+  /* Adding a hole can move the chain to new memory, so keep an index */
+  size_t chain_count= (size_t) (chain_ptr - chain);
+  my_off_t last_end= chain_count ? chain_ptr[-1].end : 0;
   DBUG_ENTER("ha_tina::update_row");
 
   size= encode_quote(new_data);
@@ -1139,12 +1179,13 @@ int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
   if (chain_append())
     goto err;
 
-  if (open_update_temp_file_if_needed())
-    goto err;
-
-  if (mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
+  if (open_update_temp_file_if_needed() ||
+      mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
                        MYF(MY_WME | MY_NABP)))
+  {
+    undo_update_row(chain_count, last_end);
     goto err;
+  }
   temp_file_length+= size;
   rc= 0;
 
@@ -1476,6 +1517,14 @@ int ha_tina::rnd_end()
         file_buffer_start= file_buff->read_next(); /* shift the buffer */
 
     }
+
+    /*
+      A failed write of a new row version can leave bytes after
+      temp_file_length that the rest of the table did not replace.
+    */
+    if (mysql_file_chsize(update_temp_file, temp_file_length, 0,
+                          MYF(MY_WME)))
+      goto error;
 
     if (mysql_file_sync(update_temp_file, MYF(MY_WME)) ||
         mysql_file_close(update_temp_file, MYF(0)))
