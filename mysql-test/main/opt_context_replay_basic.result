@@ -705,4 +705,97 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a_idx	a_idx	13	NULL	4	Using where; Using index
 set optimizer_replay_context='';
 drop table t1;
+#
+# MDEV-40553: unprintable gis ranges in trace and context
+#
+CREATE TABLE t1 (
+id INT,
+g GEOMETRY NOT NULL,
+KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# The ranges must match the recorded ones, so no warning is produced
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+set optimizer_replay_context='';
+drop table t1;
+# The same, replayed from the context read straight out of
+# INFORMATION_SCHEMA.OPTIMIZER_CONTEXT rather than from the script.
+# The literal in the script must read back as the JSON itself, so
+# both ways of getting at it produce the same ranges.
+CREATE TABLE t1 (
+id INT,
+g GEOMETRY NOT NULL,
+KEY k_prefix (g(6))
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_5;
+INSERT INTO t1 VALUES (6, LINESTRING(POINT(1,1), POINT(2,2)));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+SET @opt_context=(value from information_schema.optimizer_context)
+set optimizer_record_context=0;
+set optimizer_replay_context='opt_context';
+EXPLAIN SELECT id FROM t1 FORCE INDEX(k_prefix)
+WHERE g < POINT(1,1) OR g > LINESTRING(POINT(9,9), POINT(8,8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k_prefix	k_prefix	8	NULL	6	Using where
+set optimizer_replay_context='';
+drop table t1;
+#
+# The same, but recording and replaying a range over a SPATIAL index,
+# whose key stores an MBR (image_type itMBR) rather than the column
+# value or its prefix.
+#
+CREATE TABLE t1 (
+id INT,
+g GEOMETRY NOT NULL,
+SPATIAL KEY g_idx (g)
+) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_20;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	analyze	status	Engine-independent statistics collected
+db1.t1	analyze	status	OK
+set optimizer_record_context=1;
+EXPLAIN SELECT id FROM t1 FORCE INDEX(g_idx)
+WHERE MBRWITHIN(g, GEOMFROMTEXT('POLYGON((0 0,0 5,5 5,5 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	g_idx	g_idx	34	NULL	5	Using where
+select context into dumpfile "../../tmp/dump1.sql"
+from information_schema.optimizer_context;
+set optimizer_record_context=0;
+drop table t1;
+set optimizer_replay_context='opt_context';
+# The ranges must match the recorded ones, so no warning is produced
+EXPLAIN SELECT id FROM t1 FORCE INDEX(g_idx)
+WHERE MBRWITHIN(g, GEOMFROMTEXT('POLYGON((0 0,0 5,5 5,5 0,0 0))'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	g_idx	g_idx	34	NULL	5	Using where
+set optimizer_replay_context='';
+drop table t1;
+# End of 13.2 tests
 drop database db1;
