@@ -363,7 +363,10 @@ Geometry *Geometry::construct(Geometry_buffer *buffer,
   return result;
 }
 
-
+/*
+  @note
+    This must be in sync with Field_geom::print_key_part_value().
+*/
 uint Geometry::get_key_image_itMBR(LEX_CSTRING &src, uchar *buff, uint length)
 {
   const char *dummy;

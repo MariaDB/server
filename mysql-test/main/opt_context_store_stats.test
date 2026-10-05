@@ -485,3 +485,12 @@ set session character_set_results=@saved_character_set_results;
 set optimizer_record_context=OFF;
 
 --echo # End of 13.1 tests
+
+--echo #
+--echo # MDEV-40553: unprintable gis ranges in trace and context
+--echo #
+set optimizer_record_context=ON;
+--source include/opt_gis_range_print.inc
+set optimizer_record_context=OFF;
+
+--echo # End of 13.2 tests
