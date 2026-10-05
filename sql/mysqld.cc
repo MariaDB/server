@@ -1464,6 +1464,8 @@ public:
 
   void buffer(enum loglevel m_level, const char *msg);
   void print();
+  /** Print and release the buffered messages. Safe to call repeatedly. */
+  void flush();
 private:
   /**
     Memory root to use to store buffered logs.
@@ -1474,17 +1476,23 @@ private:
   MEM_ROOT m_root;
   /** List of buffered log messages. */
   List<Buffered_log> m_list;
+  /** True between init() and cleanup(), while m_root is usable. */
+  bool m_active= false;
 };
 
 void Buffered_logs::init()
 {
   init_alloc_root(PSI_NOT_INSTRUMENTED, &m_root, 1024, 0, MYF(0));
+  m_active= true;
 }
 
 void Buffered_logs::cleanup()
 {
+  if (!m_active)
+    return;
   m_list.delete_elements();
   free_root(&m_root, MYF(0));
+  m_active= false;
 }
 
 /**
@@ -1492,6 +1500,15 @@ void Buffered_logs::cleanup()
 */
 void Buffered_logs::buffer(enum loglevel level, const char *msg)
 {
+  if (!m_active)
+  {
+    /* Not active (before init() or after flush()): log directly. */
+    if (level == ERROR_LEVEL)
+      sql_print_error("%s", msg);
+    else if (level == WARNING_LEVEL)
+      sql_print_warning("%s", msg);
+    return;
+  }
   /*
     Do not let Sql_alloc::operator new(size_t) allocate memory,
     there is no memory root associated with the main() thread.
@@ -1514,10 +1531,30 @@ void Buffered_logs::print()
     log->print();
 }
 
+void Buffered_logs::flush()
+{
+  if (!m_active)
+    return;
+  print();
+  cleanup();
+}
+
 /** Logs reported before a logger is available. */
 static Buffered_logs buffered_logs;
 
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
+
+/**
+  Early mysys error hook: print to stderr, and count the message as a
+  warning for the --validate-config verdict (e.g. Index.xml parse errors).
+*/
+static void early_error_handler(uint error, const char *str, myf flags)
+{
+  if (!(flags & (ME_NOTE | ME_ERROR_LOG_ONLY)))
+    validate_config_has_warnings= 1;
+  my_message_stderr(error, str, flags);
+}
+
 
 #ifndef EMBEDDED_LIBRARY
 
@@ -1992,6 +2029,9 @@ static report_svc_status_t my_report_svc_status= dummy_svc_status;
 extern "C" void unireg_abort(int exit_code)
 {
   DBUG_ENTER("unireg_abort");
+
+  /* Do not lose (or leak) messages buffered while parsing early options. */
+  buffered_logs.flush();
 
   if (opt_help)
     usage();
@@ -4265,7 +4305,10 @@ static int init_common_variables()
 
   int opt_err;
   if ((opt_err= get_options(&remaining_argc, &remaining_argv)))
+  {
+    buffered_logs.flush();
     exit(opt_err);
+  }
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     set_server_version(server_version, sizeof(server_version));
 
@@ -4410,6 +4453,7 @@ static int init_common_variables()
   }
 
   unireg_init(opt_specialflag); /* Set up extern variables */
+  error_handler_hook= early_error_handler;
   if (!(my_default_lc_messages=
         my_locale_by_name(Lex_cstring_strlen(lc_messages))))
   {
@@ -4484,13 +4528,13 @@ static int init_common_variables()
     default_collation= get_charset_by_name(default_collation_name, MYF(utf8_flag));
     if (!default_collation)
     {
-      buffered_logs.print();
-      buffered_logs.cleanup();
+      buffered_logs.flush();
       sql_print_error(ER_DEFAULT(ER_UNKNOWN_COLLATION), default_collation_name);
       return 1;
     }
     if (!my_charset_same(default_charset_info, default_collation))
     {
+      buffered_logs.flush();
       sql_print_error(ER_DEFAULT(ER_COLLATION_CHARSET_MISMATCH),
 		      default_collation_name,
 		      default_charset_info->cs_name.str);
@@ -5251,8 +5295,7 @@ static int init_server_components()
     to the proper file when the --log--error option is used,
     print the buffered messages to the log.
   */
-  buffered_logs.print();
-  buffered_logs.cleanup();
+  buffered_logs.flush();
 
 #ifndef EMBEDDED_LIBRARY
   /*
@@ -6165,7 +6208,7 @@ int mysqld_main(int argc, char **argv)
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   my_timer_init(&sys_timer_info);
 
-  int ho_error __attribute__((unused))= handle_early_options();
+  int ho_error= handle_early_options();
 
   /* fix tdc_size */
   if (IS_SYSVAR_AUTOSIZE(&tdc_size))
@@ -6248,7 +6291,6 @@ int mysqld_main(int argc, char **argv)
   */
   logger.init_base();
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error)
   {
     /*
@@ -6260,15 +6302,13 @@ int mysqld_main(int argc, char **argv)
       - messages will be printed to stderr, which is not redirected yet,
       - messages will be printed in the NT event log, for windows.
     */
-    buffered_logs.print();
-    buffered_logs.cleanup();
+    buffered_logs.flush();
     /*
       Not enough initializations for unireg_abort()
       Using exit() for windows.
     */
     exit (ho_error);
   }
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
 #ifdef _CUSTOMSTARTUPCONFIG_
   if (_cust_check_startup())

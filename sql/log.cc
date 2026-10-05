@@ -11994,6 +11994,10 @@ int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
   size_t length;
   DBUG_ENTER("vprint_msg_to_log");
 
+  /*
+    Not conditional on opt_validate_config: --validate-config may be
+    parsed after options whose warnings are already printed.
+  */
   if (level == WARNING_LEVEL)
     validate_config_has_warnings= 1;
 
