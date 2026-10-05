@@ -69,9 +69,7 @@ bool using_global_priv_table= true;
   Set at the end of acl_reload()/grant_reload() (so recomputed on every
   server startup and every FLUSH PRIVILEGES) to reflect whether the
   on-disk grant tables' structure matches what this server binary
-  expects. Exposed read-only via SHOW STATUS (see acl_statistics /
-  status_vars in mysqld.cc) so a remote mariadb-upgrade can check it
-  without local filesystem access.
+  expects.
 */
 my_bool grant_tables_intact= FALSE;
 static Table_check_intact_log_error table_intact;
@@ -2986,18 +2984,22 @@ void acl_free(bool end)
 
 
 /*
-  Check that a grant table has the structure this server expects.
+Check that a grant table has the structure this server expects.
 
-  A table that wasn't opened is reported in the error log and treated as
-  not intact, the same as a table with a wrong structure.
-  Table_check_intact::check() must not be called with a NULL TABLE.
+  If the table doesn't exist (it wasn't opened), false is returned
+  without writing anything to the error log. If the table exists but has
+  the wrong structure, Table_check_intact::check() writes the details to
+  the error log and false is returned.
+
+  Table_check_intact::check() must not be called with a NULL TABLE, so the
+  existence check has to come first.
 
   @param table      Grant table, as returned by Grant_tables
-  @param name       Name of the table in the mysql schema, for the message
+  @param name       Name of the table in the mysql schema (currently unused)
   @param table_def  Expected structure (see grant_table_defs.cc)
 
-  @retval true   Table is intact
-  @retval false  Table is missing or its structure is wrong
+  @retval true   Table exists and its structure is as expected
+  @retval false  Table doesn't exist or its structure is wrong
 */
 
 static bool grant_table_is_intact(const Grant_table_base &table,
@@ -3006,7 +3008,6 @@ static bool grant_table_is_intact(const Grant_table_base &table,
 {
   if (!table.table_exists())
   {
-    sql_print_error("Table mysql.%s is missing", name);
     return false;
   }
   return !table_intact.check(table.table(), table_def);
@@ -3115,13 +3116,6 @@ bool acl_reload(THD *thd)
     /*
       Check every table, even if an earlier one isn't intact, so that all
       the problems are written to the error log.
-
-      The 'user' view is never opened here, it is only a client-facing
-      compatibility layer. Instead user_table() is mysql.global_priv, or the
-      old tabular mysql.user table on installations that haven't been
-      upgraded to global_priv yet (using_global_priv_table is false, set in
-      User_table_tabular::setup_sysvars()). Only global_priv has a
-      definition to compare with, so the legacy table is not checked.
     */
     bool db_intact=
       grant_table_is_intact(tables.db_table(), "db", &mysql_db_table_def);
@@ -8456,14 +8450,7 @@ bool grant_reload(THD *thd)
     my_hash_free(&old_package_body_priv_hash);
     free_root(&old_mem,MYF(0));
 
-    /*
-      acl_reload() always runs immediately before grant_reload(), both at
-      server startup and on FLUSH PRIVILEGES so it's safe to AND our tables'
-      results onto the value it just set rather than overwrite it.
-
-      Check every table, even if an earlier one isn't intact, so that all
-      the problems are written to the error log.
-    */
+    /* Check every table, even if an earlier one isn't intact. */
     bool tables_priv_intact=
       grant_table_is_intact(tables.tables_priv_table(), "tables_priv",
                             &mysql_tables_priv_table_def);

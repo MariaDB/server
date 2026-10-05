@@ -32,13 +32,6 @@ FLUSH PRIVILEGES;
 SHOW STATUS LIKE 'Grant_tables_intact';
 
 --echo #
---echo # mysql.roles_mapping, mysql.proxies_priv, mysql.tables_priv,
---echo # mysql.columns_priv, mysql.procs_priv and mysql.global_priv all
---echo # have min_columns pinned to their current column count (no
---echo # tolerance at all), so dropping a column would instead trip the
---echo # pre-existing ER_CANNOT_LOAD_FROM_TABLE_V2 check in
---echo # Grant_table_base::set_table() before Grant_tables_intact's own
---echo # logic ever runs (see grant_repair.test for that mechanism).
 --echo # A type change on Host, instead, leaves the column count and key
 --echo # structure untouched, so the table still loads and our check
 --echo # actually gets exercised.

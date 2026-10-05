@@ -11,8 +11,7 @@
 # On 10.4 the local root was additionally given an empty password,
 # to avoid using unix_socket.
 
-# Older dumps have genuinely narrower grant tables than this server expects
-# (e.g. 10.4's roles_mapping/proxies_priv columns are shorter than today's),
+# Older dumps have genuinely narrower grant tables than this server expects,
 # and dropping Delete_history_priv further below also shrinks mysql.db by
 # one column - FLUSH PRIVILEGES during the upgrade will correctly log both
 # message shapes for each, which Table_check_intact/Grant_tables_intact are
