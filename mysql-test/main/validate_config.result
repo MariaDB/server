@@ -1,100 +1,153 @@
 #
-# Test 1: --validate-config with valid configuration should succeed (exit 0)
+# MDEV-31527: Add --validate-config option to check configuration
+#             without starting the server
 #
-FOUND 1 /Configuration is valid\./ in mdev-31527-test1.log
 #
-# Test 2: --validate-config with unknown option should fail (exit 2)
+# 1. Valid configuration: only "Configuration is valid." is printed
 #
-FOUND 1 /unknown option '--nonexistentoption'/ in mdev-31527-test2.log
+Configuration is valid.
+# MTR bootstrap command: only "Configuration is valid."
+Configuration is valid.
+# --verbose, --silent-startup: only "Configuration is valid."
+Configuration is valid.
+Configuration is valid.
+# "Configuration is valid." goes to stdout, stderr is empty
+# stdout:
+Configuration is valid.
+# stderr:
+# valid value in a config file: only "Configuration is valid."
+Configuration is valid.
 #
-# Test 3: --validate-config should not start the server (no pid file created)
+# 2. Valid configuration with warnings: the warnings, then
+# "Configuration is valid, but warnings were reported; see above."
 #
-FOUND 1 /Configuration is valid\./ in mdev-31527-test3.log
+# values adjusted in a config file, [mysqld] and [server] groups:
+# two warnings, then "warnings were reported"
+[Warning] option 'sort_buffer_size': unsigned value 1 adjusted to 1024
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+Configuration is valid, but warnings were reported; see above.
+# value adjusted on the command line before --validate-config:
+# warning, then "warnings were reported"
+[Warning] option 'sort_buffer_size': unsigned value 1 adjusted to 1024
+Configuration is valid, but warnings were reported; see above.
+# plugin option value adjusted: warning, then "warnings were reported"
+[Warning] option 'aria-sort-buffer-size': unsigned value 1 adjusted to 16352
+Configuration is valid, but warnings were reported; see above.
+# unknown --loose- option: warning, then "warnings were reported"
+[Warning] mysqld: unknown variable 'loose-zzz-bogus=1'
+Configuration is valid, but warnings were reported; see above.
+# checks made after option parsing:
+# warning, then "warnings were reported"
+[Warning] TLSv1.0 and TLSv1.1 are insecure and should not be used for tls_version
+Configuration is valid, but warnings were reported; see above.
+[Warning] Although a general log file was specified, log tables are used. To enable logging to files use the --log-output option.
+Configuration is valid, but warnings were reported; see above.
+# malformed Index.xml, error printed outside the error log:
+# the error, then "warnings were reported"
+mysqld: Error while parsing 'Index.xml': at line 2 pos 1: END-OF-INPUT unexpected (ident or '/' wanted)
+Configuration is valid, but warnings were reported; see above.
 #
-# Test 4: --validate-config should not produce help output
+# 3. Invalid configuration: the error and the exit code,
+# no "Configuration is valid."
 #
-NOT FOUND /Starts the MariaDB database server/ in mdev-31527-test4.log
+# unknown option, exit code 2: error, no "Configuration is valid"
+[ERROR] mysqld: unknown option '--nonexistentoption'
+[ERROR] Aborting
+# unknown plugin variable, exit code 7:
+# error, no "Configuration is valid"
+[ERROR] mysqld: unknown variable 'aria-bogus=1'
+[ERROR] Aborting
+# unknown variable in a config file, exit code 7:
+# error, no "Configuration is valid"
+[ERROR] mysqld: unknown variable 'zzz_bogus_option=123'
+[ERROR] Aborting
+# unknown variable in a file pulled in by !include, exit code 7:
+# error, no "Configuration is valid"
+[ERROR] mysqld: unknown variable 'zzz_bogus_option=123'
+[ERROR] Aborting
+# max_connections=abc, exit code 9: error, no "Configuration is valid"
+[ERROR] Buffered error: Unknown suffix 'a' used for variable 'max_connections' (value 'abc'). Legal suffix characters are: K, M, G, T, P, E
+[ERROR] Buffered error: mysqld: Error while setting value 'abc' to 'max_connections'
+# max_connections=abc in a config file, exit code 9:
+# error, no "Configuration is valid"
+[ERROR] Buffered error: Unknown suffix 'a' used for variable 'max_connections' (value 'abc'). Legal suffix characters are: K, M, G, T, P, E
+[ERROR] Buffered error: mysqld: Error while setting value 'abc' to 'max_connections'
+# --thread-handling=bogus, exit code 13:
+# error, then max_connections warning, no "Configuration is valid"
+[ERROR] mysqld: Error while setting value 'bogus' to 'thread_handling'
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+# unknown character set, exit code 1:
+# error, then max_connections warning
+mysqld: Character set 'bogus' is not a compiled character set and is not specified in the 'Index.xml' file
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+[ERROR] Aborting
+# unknown collation, exit code 1: max_connections warning, then error
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+[ERROR] Unknown collation: 'bogus'
+[ERROR] Aborting
+# collation does not match the character set, exit code 1:
+# max_connections warning, then error
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+[ERROR] COLLATION 'utf8mb4_bin' is not valid for CHARACTER SET 'latin1'
+[ERROR] Aborting
+# invalid --ft-boolean-syntax, exit code 1:
+# error, then max_connections warning
+[ERROR] Invalid ft-boolean-syntax string: x
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+# extra argument, exit code 1: max_connections warning, then error
+[Warning] Buffered warning: option 'max_connections': unsigned value 0 adjusted to 10
+mysqld: Too many arguments (first extra is 'extra_argument').
+[ERROR] Aborting
+# --defaults-file does not exist, exit code 1: error
+Could not open required defaults file: MYSQLTEST_VARDIR/tmp/validate_config/missing.cnf
+Fatal error in defaults handling. Program aborted
+# --defaults-extra-file (without --defaults-file) names a missing file, exit code 1: error
+Could not open required defaults file: MYSQLTEST_VARDIR/tmp/validate_config/missing.cnf
+Fatal error in defaults handling. Program aborted
 #
-# Test 5: --validate-config with bad option in config file should fail
+# 4. --help and --version win over --validate-config:
+# "Configuration is valid." and option errors are not printed
 #
-FOUND 1 /unknown variable 'zzz_bogus_option=123'/ in mdev-31527-test5.log
+# --help: help text, no "Configuration is valid"
+FOUND 1 /Starts the MariaDB database server/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --help --verbose: help text, no "Configuration is valid"
+FOUND 1 /Starts the MariaDB database server/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --help with an unknown option: help text, no error
+FOUND 1 /Starts the MariaDB database server/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --help with an unknown variable in a config file: help text, no error
+FOUND 1 /Starts the MariaDB database server/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --version: version, no "Configuration is valid"
+FOUND 1 /Ver [0-9]/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --version --verbose: version, no "Configuration is valid"
+FOUND 1 /Ver [0-9]/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --version with an unknown option: version, no error
+FOUND 1 /Ver [0-9]/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --version with an unknown variable in a config file: version, no error
+FOUND 1 /Ver [0-9]/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --help --verbose lists --validate-config
+FOUND 1 /Validate the server configuration/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+# --max-connections=0 with --help, --help --verbose, --version:
+# the warning is printed
+FOUND 1 /option 'max_connections': unsigned value 0 adjusted to 10/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+FOUND 1 /option 'max_connections': unsigned value 0 adjusted to 10/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
+FOUND 1 /option 'max_connections': unsigned value 0 adjusted to 10/ in validate_config.log
+NOT FOUND /Configuration is valid|\[ERROR\]/ in validate_config.log
 #
-# Test 6: --validate-config with valid config file should succeed
+# 5. --validate-config creates no files and does not start the server
 #
-FOUND 1 /Configuration is valid\./ in mdev-31527-test6.log
-#
-# Test 7: --validate-config with --help (help takes precedence,
-#         'Configuration is valid' should NOT be printed)
-#
-FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test7.log
-NOT FOUND /Configuration is valid/ in mdev-31527-test7.log
-#
-# Test 8: --validate-config with --verbose should still succeed (exit 0)
-#
-FOUND 1 /Configuration is valid\./ in mdev-31527-test8.log
-#
-# Test 9: --validate-config with --version (version takes precedence,
-#         'Configuration is valid' should NOT be printed)
-#
-FOUND 1 /Ver [0-9]/ in mdev-31527-test9.log
-NOT FOUND /Configuration is valid/ in mdev-31527-test9.log
-#
-# Test 10: --help --validate-config --invalid-config should print help
-#          and exit cleanly (help takes precedence)
-#
-FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test10.log
-NOT FOUND /unknown option/ in mdev-31527-test10.log
-#
-# Test 11: --version --validate-config --invalid-config should print version
-#          and exit cleanly (version takes precedence)
-#
-FOUND 1 /Ver [0-9]/ in mdev-31527-test11.log
-NOT FOUND /unknown option/ in mdev-31527-test11.log
-#
-# Test 12: --validate-config --log-bin should not create binlog index file
-#
-FOUND 1 /Configuration is valid\./ in mdev-31527-test12.log
-#
-# Test 13: --validate-config with adjusted option value should warn and succeed
-#
-FOUND 1 /option 'table_open_cache': unsigned value 0 adjusted/ in mdev-31527-test13.log
-FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test13.log
-#
-# Test 14: --validate-config with a warning that is not related to
-#          option parsing (e.g. tls_version) should still report
-#          "warnings were reported"
-#
-FOUND 1 /TLSv1.0 and TLSv1.1 are insecure/ in mdev-31527-test14.log
-FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test14.log
-#
-# Test 15: --validate-config --help --verbose should not print
-#          'Configuration is valid' (help takes precedence)
-#
-FOUND 1 /Starts the MariaDB database server/ in mdev-31527-test15.log
-NOT FOUND /Configuration is valid/ in mdev-31527-test15.log
-#
-# Test 16: --validate-config --version --verbose should not print
-#          'Configuration is valid' (version takes precedence)
-#
-FOUND 1 /Ver [0-9]/ in mdev-31527-test16.log
-NOT FOUND /Configuration is valid/ in mdev-31527-test16.log
-#
-# Test 17: --validate-config --silent-startup must still print the verdict
-#
-FOUND 1 /Configuration is valid\./ in mdev-31527-test17.log
-#
-# Test 18: a warning printed via sql_print_warning() is counted
-#
-FOUND 1 /Although a general log file was specified, log tables are used/ in mdev-31527-test18.log
-FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test18.log
-#
-# Test 19: a warning for an early-parsed option is counted
-#
-FOUND 1 /option 'max_connections': unsigned value 99999999999 adjusted/ in mdev-31527-test19.log
-FOUND 1 /Configuration is valid, but warnings were reported/ in mdev-31527-test19.log
-#
-# Test 20: --validate-config prints no [Note] lines
-#          (e.g. "Plugin 'FEEDBACK' is disabled.")
-#
-NOT FOUND /\[Note\]/ in mdev-31527-test20.log
+Configuration is valid.
+# files in the test directory: only the datadir
+data
+# files in the datadir: none
 # End of 13.2 tests
