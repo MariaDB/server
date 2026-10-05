@@ -2724,5 +2724,19 @@ SELECT CONV(18446744073709551615, 10, 62);
 SELECT CONV(-9223372036854775808, -10, -62);
 
 --echo #
+--echo # MDEV-40184 Heap-use-after-free in stored procedure when LEFT(CONCAT(...)) result is reused by LOCATE()
+--echo #
+
+CREATE TABLE t0 (i DOUBLE);
+
+INSERT INTO t0 VALUES (1);
+
+SELECT LOCATE(a, 'xx1-tes', a) AS c FROM (SELECT LEFT(CONCAT(CAST(i AS CHAR), '-test'), 5) AS a FROM t0) dt;
+SELECT LEFT(a, a) AS c FROM (SELECT RIGHT(CONCAT('zz', CAST(i AS CHAR), '-test'), 6) AS a FROM t0) dt;
+SELECT LEFT(a, a) AS c FROM (SELECT SUBSTR(CONCAT(CAST(i AS CHAR), '-test'), 1, 5) AS a FROM t0) dt;
+
+DROP TABLE t0;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
