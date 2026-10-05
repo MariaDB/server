@@ -1,0 +1,349 @@
+--source include/long_test.inc
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_working_dns.inc
+-- source include/have_innodb.inc
+-- source include/have_partition.inc
+
+let majorminor=`select substring_index(version(), '.', 2)`;
+# for major upgrade test, see below
+let major=`select substring_index(version(), '.', 1) - (version() like '%.0.%')`;
+
+set sql_mode="";
+
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
+#
+# Basic test that we can run mysql_upgrde and that it finds the
+# expected binaries it uses.
+#
+--echo Run mysql_upgrade once
+--exec $MYSQL_UPGRADE --force 2>&1
+
+# There should be table mysql.mariadb_info and an entry in the table
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+select * from mysql.mariadb_info;
+
+--echo Run it again - should say already completed
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--exec $MYSQL_UPGRADE 2>&1
+
+--echo Force should run it regardless of whether it has been run before
+--exec $MYSQL_UPGRADE --force 2>&1
+
+#
+# Bug #25452 mysql_upgrade access denied.
+#
+
+# Password protect a root account and run mysql_upgrade
+
+CREATE USER mysqltest1@'%' IDENTIFIED by 'sakila';
+GRANT ALL ON *.* TO mysqltest1@'%';
+--echo Run mysql_upgrade with password protected account
+--exec $MYSQL_UPGRADE --force --user=mysqltest1 --password=sakila 2>&1
+
+DROP USER mysqltest1@'%';
+
+#
+# check that we get proper error messages if wrong user
+
+--error 1
+--exec $MYSQL_UPGRADE --force --user=mysqltest1 --password=sakila 2>&1
+
+#
+# Bug #26639 mysql_upgrade exits successfully even if external command failed
+#
+
+--echo Run mysql_upgrade with a non existing server socket
+--replace_result $MYSQLTEST_VARDIR var
+--replace_regex /.*mariadb-check.*: Got/mariadb-check: Got/ /\([0-9|-]*\)/(errno)/
+--error 1
+# NC: Added --skip-version-check, as the version check would fail when
+# mysql_upgrade tries to get the server version.
+--exec $MYSQL_UPGRADE --verbose --force --host=not_existing_host --skip-version-check 2>&1
+
+#
+# Bug #28401 mysql_upgrade Failed with STRICT_ALL_TABLES, ANSI_QUOTES and NO_ZERO_DATE
+#
+
+# The SQL commands used by mysql_upgrade are written to be run
+# with sql_mode set to '' - thus the scripts should change sql_mode
+# for the session to make sure the SQL is legal.
+
+# Test by setting sql_mode before running mysql_upgrade
+set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
+--exec $MYSQL_UPGRADE --force 2>&1
+eval set GLOBAL sql_mode=default;
+
+--echo #
+--echo # Bug #41569 mysql_upgrade (ver 5.1) add 3 fields to mysql.proc table
+--echo # but does not set values.
+--echo #
+
+# Create a stored procedure and set the fields in question to null.
+# When running mysql_upgrade, a warning should be written.
+
+CREATE PROCEDURE testproc() BEGIN END;
+UPDATE mysql.proc SET character_set_client = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET collation_connection = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET db_collation = NULL WHERE name LIKE 'testproc';
+--exec $MYSQL_UPGRADE --force 2> $MYSQLTEST_VARDIR/tmp/41569.txt
+CALL testproc();
+DROP PROCEDURE testproc;
+--cat_file $MYSQLTEST_VARDIR/tmp/41569.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/41569.txt
+
+--echo #
+--echo # Bug #53613: mysql_upgrade incorrectly revokes
+--echo #   TRIGGER privilege on given table
+--echo #
+
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+--echo Run mysql_upgrade with all privileges on a user
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW GRANTS FOR 'user3'@'%';
+
+DROP USER 'user3'@'%';
+
+--echo # End of 5.1 tests
+
+#
+# Test the --upgrade-system-tables option
+#
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force --upgrade-system-tables
+
+--echo #
+--echo # Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
+--echo #                     SKIP-WRITE-BINLOG
+--echo #
+
+--echo # Droping the previously created mariadb_info table
+drop table mysql.mariadb_info;
+
+--echo # Running mysql_upgrade with --skip-write-binlog..
+--exec $MYSQL_UPGRADE --skip-write-binlog
+
+# mysql_upgrade must have created mariadb_info table,
+# so the following command should never fail.
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+select * from mysql.mariadb_info;
+
+--echo #
+--echo # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
+--echo #
+
+--echo Run mysql_upgrade with unauthorized access
+--error 1
+--exec $MYSQL_UPGRADE --skip-verbose --user=root --password=wrong_password 2>&1
+--replace_regex /.*mariadb-check.*: Got/mariadb-check: Got/ /\([0-9|-]*\)/(errno)/
+--error 1
+--exec $MYSQL_UPGRADE --skip-verbose --skip-version-check --user=root --password=wrong_password 2>&1
+
+--echo #
+--echo # MDEV-4332 Increase username length from 16 characters
+--echo # MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
+--echo #
+--disable_service_connection
+connection default;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
+GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+--change_user even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length
+
+GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
+
+CREATE PROCEDURE test.pr() BEGIN END;
+
+--change_user root
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+
+SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
+SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
+DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
+DROP PROCEDURE test.pr;
+--enable_service_connection
+
+#
+# MDEV-13274 mysql_upgrade fails if dbname+tablename+partioname > 64 chars
+#
+use test;
+
+create table extralongname_extralongname_extralongname_extralongname_ext (
+  id int(10) unsigned not null,
+  created_date date not null,
+  created timestamp not null,
+  primary key (created,id,created_date)
+) engine=innodb stats_persistent=1 default charset=latin1
+  partition by range (year(created_date))
+  subpartition by hash (month(created_date))
+  subpartitions 2 (
+    partition p2007 values less than (2008),
+    partition p2008 values less than (2009)
+  );
+--exec $MYSQL_UPGRADE --skip-verbose --force 2>&1
+select length(table_name) from mysql.innodb_table_stats;
+drop table extralongname_extralongname_extralongname_extralongname_ext;
+
+--echo # End of 10.0 tests
+
+set sql_mode=default;
+
+#
+# Enforce storage engine option should not effect mysql_upgrade
+#
+--echo # Droping the previously created mysql_upgrade_info file..
+drop table mysql.mariadb_info;
+
+create table test.t1(a int) engine=MyISAM;
+--echo # Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Should return 3
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+SHOW CREATE TABLE test.t1;
+DROP TABLE test.t1;
+# mysql_upgrade must have created mariadb_info table,
+# so the following command should never fail.
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+select * from mysql.mariadb_info;
+SET GLOBAL enforce_storage_engine=NULL;
+
+--echo # End of 10.1 tests
+
+--echo #
+--echo # MDEV-23201 'Roles' are created incorrectly on an install that was previously MySQL 5.7
+--echo #
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--exec $MYSQL_DUMP --result-file $MYSQLTEST_VARDIR/tmp/user.sql mysql user
+DROP VIEW mysql.user;
+
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SHOW CREATE TABLE mysql.user;
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET ROLE `aRole`;
+
+FLUSH PRIVILEGES;
+
+SET ROLE `aRole`;
+SELECT `User`, `is_role` FROM `mysql`.`user`;
+
+DROP ROLE aRole;
+
+--echo #
+--echo # MDEV-24122 Fix previously MySQL-5.7 data directories that upgraded prior to MDEV-23201
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+
+# What prior to MDEV-23201 would of done:
+ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+FLUSH PRIVILEGES;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET DEFAULT ROLE aRole;
+SHOW GRANTS;
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+
+DROP ROLE `aRole`;
+--exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
+FLUSH PRIVILEGES;
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+--echo #
+
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+--echo #
+
+drop table mysql.mariadb_info;
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
+--echo #
+
+# take 3rd number of version and change to 0
+--exec $MYSQL_UPGRADE --force
+--eval UPDATE mysql.mariadb_info SET version = CONCAT('$majorminor', '.0-MariaDB')
+
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $majorminor X.Y
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $majorminor X.Y
+--exec $MYSQL_UPGRADE
+
+--eval UPDATE mysql.mariadb_info SET version = '$MYSQL_SERVER_VERSION'
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
+--echo #
+
+# take 2rd number of version and change to 0
+--exec $MYSQL_UPGRADE --force
+--eval UPDATE mysql.mariadb_info SET version = CONCAT('$major', '.0.99')
+
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --silent
+
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $major X
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB $major X
+--replace_regex /'mariadb.* as:[^\n]*/'mariadb' as: mariadb/
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed --verbose
+
+--eval UPDATE mysql.mariadb_info SET version = '$MYSQL_SERVER_VERSION'
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo # End of 10.2 tests
