@@ -56,9 +56,12 @@ SET SESSION optimizer_switch='derived_merge=off';
 --echo #
 --echo # non-indexed inner table (d3, full scan): fact STRAIGHT_JOIN d3
 --echo #
+SET @save_jcl= @@session.join_cache_level;
+SET SESSION join_cache_level= 0;
 --let $pq_query= SELECT STRAIGHT_JOIN f.id, d3.descr FROM fact f, d3 WHERE d3.x=f.dim2 AND f.id<=500
 --let $pq_cols= id,descr
 --source include/parallel_query_fingerprint.inc
+SET SESSION join_cache_level= @save_jcl;
 
 SET SESSION optimizer_switch= @save_os;
 
@@ -125,10 +128,6 @@ DROP TABLE p1, p2, p3;
 --echo #
 --echo # an inner table read through a join buffer
 --echo #
-# make_scan_filter() copies the conjuncts that need only this table into
-# cache_select->cond for the buffer to apply as it fills, and
-# remove_redundant_bnl_scan_conds() then removes them from select_cond. A worker
-# uses no buffer, so it has to evaluate both halves.
 CREATE TABLE b1 (id INT, k INT) ENGINE=InnoDB;
 INSERT INTO b1 SELECT seq, seq % 4 FROM seq_1_to_2000;
 CREATE TABLE b2 (x INT, v INT) ENGINE=InnoDB;
@@ -143,13 +142,13 @@ SET SESSION parallel_worker_threads= 0;
 --sorted_result
 SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
 
---echo # with workers: the same two rows, not every row the buffer would reject
+--echo # with workers available: the same two rows
 SET SESSION parallel_worker_threads= 4;
 FLUSH STATUS;
 --sorted_result
 SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
 
---echo # and it still ran in the workers rather than falling back (expect 1)
+--echo # a worker has no join buffer, so the plan ran serially (expect 0)
 --let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
 --disable_query_log
 --eval SELECT $pq > 0 AS ran_in_the_workers
