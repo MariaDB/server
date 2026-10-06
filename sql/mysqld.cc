@@ -9282,6 +9282,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                                            OLD_MODE_COMPAT_5_1_CHECKSUM);
   }
 
+  if (!global_system_variables.create_temporary_table_binlog_formats)
+  {
+    sql_print_error("--create-tmp-table-binlog-formats cannot be empty. "
+                    "Allowed values are STATEMENT or MIXED,STATEMENT");
+    return 1;
+  }
+
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {

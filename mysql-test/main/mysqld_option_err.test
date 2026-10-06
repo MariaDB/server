@@ -30,6 +30,15 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --log-bin --binlog-format=badformat >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
 
 
+--echo Test empty value for --create-tmp-table-binlog-formats is rejected.
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --create-tmp-table-binlog-formats= >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log
+
+--let SEARCH_PATTERN=create-tmp-table-binlog-formats cannot be empty
+--source include/search_pattern_in_file.inc
+
 --echo Test bad default storage engine.
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --default-storage-engine=nonexistentengine >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
@@ -49,8 +58,6 @@ mkdir $MYSQLTEST_VARDIR/tmp/mysqld_option_err;
 --echo Test that bad value for plugin enum option is rejected correctly.
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/mysqld_option_err --skip-grant-tables --plugin-maturity=experimental --plugin-load=example=ha_example --plugin-example=FORCE --plugin-example-enum-var=noexist >>$MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log 2>&1
-
---let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/mysqld_option_err/mysqltest.log
 
 --echo Test to see if multiple unknown options will be displayed in the error output
 --error 7
