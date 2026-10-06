@@ -75,6 +75,8 @@ private:
   ulong *m_map;
   ulong m_map_size;
   static constexpr ulong m_word_size= 8 * sizeof(ulong);
+  /* m_last_item value that no item index can take. */
+  static constexpr ulong NO_LAST_ITEM= ULONG_MAX;
   bool m_restore;
   bool m_initialized;
   ulong m_last_item;
