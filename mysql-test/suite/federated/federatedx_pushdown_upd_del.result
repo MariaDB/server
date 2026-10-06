@@ -857,6 +857,104 @@ a	b
 1	one
 3	three
 4	four
+#
+# MDEV-41293: save point assertion
+#
+# The timeout of reading from a connection to the remote server is fixed
+# when the connection is opened. Use a database of its own, on both servers
+# (a pushed down statement refers to the tables by their local names), so
+# that a new connection is opened for the table, with a short timeout.
+# The timeout is restored at the end, the connection is opened again after
+# each timeout.
+connection master;
+CREATE DATABASE federated_nrt;
+connection slave;
+CREATE DATABASE federated_nrt;
+create table federated_nrt.s1 (a int);
+connection master;
+DROP TABLE IF EXISTS federated_nrt.s1;
+Warnings:
+Note	1051	Unknown table 'federated_nrt.s1'
+set global net_read_timeout=2;
+CREATE TABLE federated_nrt.s1 (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated_nrt/s1';
+insert into federated_nrt.s1 select seq from seq_1_to_100;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection slave;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+set @old_federated_pushdown= @@global.federated_pushdown;
+affected rows: 0
+set global federated_pushdown=ON;
+affected rows: 0
+# The pushed down statement waits on the remote server for the table lock,
+# for much longer than the 2 seconds of net_read_timeout of its connection,
+# so reading its reply times out
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+ERROR 08S01: Got timeout reading communication packets
+# The remote server may still be running the abandoned statement, stop it
+connection slave;
+UNLOCK TABLES;
+# The connection to the remote server must be usable afterwards
+connection master;
+set global federated_pushdown=OFF;
+affected rows: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+# run the query again. No new errors should be seen.
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+# run the query again with pushdown. No new errors should be seen.
+set global federated_pushdown=ON;
+affected rows: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+set global federated_pushdown= @old_federated_pushdown;
+# Same inside a transaction. The remote transaction is lost with the
+# connection, so the local one must be rolled back and the statements
+# after the timeout must not be committed on the remote server one by one
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+set global federated_pushdown=ON;
+SET autocommit=0;
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+ERROR 08S01: Got timeout reading communication packets
+SELECT @@in_transaction;
+@@in_transaction
+0
+connection slave;
+UNLOCK TABLES;
+connection master;
+INSERT INTO federated_nrt.s1 VALUES (0);
+ROLLBACK;
+SET autocommit=1;
+set global federated_pushdown= @old_federated_pushdown;
+# The new connection to the remote server must have been switched to
+# SET AUTOCOMMIT=0 again, before the INSERT
+connection slave;
+SELECT argument FROM mysql.general_log
+WHERE argument IN ('SET AUTOCOMMIT=0', 'ROLLBACK') OR argument LIKE 'INSERT %'
+ORDER BY event_time;
+argument
+SET AUTOCOMMIT=0
+SET AUTOCOMMIT=0
+INSERT INTO `s1` (`a`)  VALUES  (0)
+ROLLBACK
+DELETE FROM federated_nrt.s1 WHERE a=0;
+connection master;
+set global net_read_timeout= 30;
+connection slave;
+DROP DATABASE federated_nrt;
+connection master;
+DROP DATABASE federated_nrt;
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;

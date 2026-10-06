@@ -34,10 +34,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <mysql.h>
 
 #include "ha_federatedx.h"
+#include "sql_common.h"                         // set_mysql_error()
 
 #include "m_string.h"
 #include "mysqld_error.h"
 #include "sql_servers.h"
+#include <errmsg.h>                           // CR_SERVER_LOST
 
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
@@ -66,6 +68,7 @@ class federatedx_io_mysql :public federatedx_io
 
   int actual_query(const char *buffer, size_t length);
   bool test_all_restrict() const;
+  bool close_on_net_timeout();
 public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql() override;
@@ -418,6 +421,47 @@ int federatedx_io_mysql::query(const char *buffer, size_t length)
 }
 
 
+/*
+  The client library compiled into the server returns from a timeout of
+  reading the remote reply (net_read_timeout) without closing the connection
+  and without setting a client error, so the error looks like one of the
+  remote server and the connection stays open with the reply to the query
+  still to arrive. Treat it like a lost connection: close it, so that the
+  next query does not read a stale reply, and report an error of the client
+  library. mysql_close() rather than end_server() is needed, because the next
+  query initializes the MYSQL structure from scratch (see actual_query()),
+  which would lose everything the closed connection has allocated.
+
+  @retval true   the connection was closed because of a timeout
+*/
+
+bool federatedx_io_mysql::close_on_net_timeout()
+{
+  if (!mysql.net.vio || mysql.net.last_errno != ER_NET_READ_INTERRUPTED)
+    return false;
+
+  void *thd= mysql.net.thd;
+  const bool in_transaction= !actual_autocommit;
+
+  mysql_close(&mysql);
+  set_mysql_error(&mysql, CR_SERVER_LOST, unknown_sqlstate);
+
+  /*
+    The remote session is gone together with its transaction, savepoints and
+    autocommit mode, and the next query opens a new session in autocommit
+    mode. Forget the state of the old one, or query() would not send
+    SET AUTOCOMMIT=0 to the new one and the rest of the transaction would be
+    committed on the remote server statement by statement. Roll the local
+    transaction back, as it cannot be completed any more.
+  */
+  reset();
+  actual_autocommit= TRUE;
+  if (in_transaction && thd)
+    ((THD *) thd)->mark_transaction_to_rollback(true);
+  return true;
+}
+
+
 int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
 {
   int error;
@@ -453,7 +497,10 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
   }
 
   error= mysql_real_query(&mysql, buffer, (ulong)length);
-  
+
+  if (error)
+    close_on_net_timeout();
+
   DBUG_RETURN(error);
 }
 
@@ -517,7 +564,8 @@ FEDERATEDX_IO_RESULT *federatedx_io_mysql::store_result()
   FEDERATEDX_IO_RESULT *result;
   DBUG_ENTER("federatedx_io_mysql::store_result");
 
-  result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql);
+  if (!(result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql)))
+    close_on_net_timeout();
 
   DBUG_RETURN(result);
 }

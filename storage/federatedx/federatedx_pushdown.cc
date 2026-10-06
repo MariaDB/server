@@ -15,8 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /* !!! For inclusion into ha_federatedx.cc */
-/* For CR_MIN_ERROR/CR_MAX_ERROR, the error code range of the client library */
-#include <errmsg.h>
 
 /*
   This is a quick a dirty implemention of the derived_handler and select_handler
@@ -479,10 +477,10 @@ int ha_federatedx_multi_upddel_handler::batch_update_delete(
       server error codes and are reported as a foreign data source failure.
     */
     const int remote_errno= (*iop)->error_code();
-    if (remote_errno < CR_MIN_ERROR || remote_errno > CR_MAX_ERROR)
-      my_message(remote_errno, (*iop)->error_str(), MYF(0));
-    else
+    if (is_client_library_errno(remote_errno))
       my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), (*iop)->error_str());
+    else
+      my_message(remote_errno, (*iop)->error_str(), MYF(0));
     rc= HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM;
   }
   else
