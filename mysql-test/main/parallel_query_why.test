@@ -90,6 +90,15 @@ SELECT t1.a FROM t1 WHERE t1.n > 3
 --source include/parallel_query_why.inc
 DROP TABLE t2;
 
+--echo # an inner table read through a join buffer
+CREATE TABLE t3 (k INT, v INT) ENGINE=InnoDB;
+INSERT INTO t3 SELECT seq%20, seq FROM seq_1_to_200;
+--disable_result_log
+SELECT STRAIGHT_JOIN t1.a, t3.v FROM t1, t3 WHERE t3.k=t1.n AND t3.v>15;
+--enable_result_log
+--source include/parallel_query_why.inc
+DROP TABLE t3;
+
 --echo #
 --echo # and nothing is said when the workers were never available: with
 --echo # parallel_worker_threads at 0 every query in the server declines
