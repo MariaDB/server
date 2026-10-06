@@ -10932,12 +10932,13 @@ bool Column_definition::check(THD *thd)
   char_length= (uint)length;
 
   /*
-    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field.
-    We need to do this check here and in mysql_create_prepare_table() as
+    Set NO_DEFAULT_VALUE_FLAG if this field is NOT NULL and has neither
+    a DEFAULT value nor a default function (AUTO_INCREMENT,
+    DEFAULT/ON UPDATE NOW()).
+    We need to do this check here and in mysql_prepare_create_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  if (!default_value && !has_default_function() && (flags & NOT_NULL_FLAG))
   {
     /*
       TIMESTAMP columns get implicit DEFAULT value when
