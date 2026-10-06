@@ -4586,6 +4586,7 @@ i_s_sys_tables_fill_table(
 func_exit:
 	ut_free(pcur.old_rec_buf);
 
+	fil_crypt_threads_signal();
 	DBUG_RETURN(err);
 }
 
@@ -4808,6 +4809,7 @@ i_s_sys_tables_fill_table_stats(
 	dict_sys.unlock();
 func_exit:
 	ut_free(pcur.old_rec_buf);
+	fil_crypt_threads_signal();
 	DBUG_RETURN(err);
 }
 
@@ -6200,9 +6202,9 @@ static int i_s_sys_tablespaces_fill_table(THD *thd, TABLE_LIST *tables, Item*)
   for (fil_space_t &space : fil_system.space_list)
   {
     if (!space.is_temporary() && !space.is_being_imported() &&
-        !space.is_stopping() &&
-        space.chain.start)
+        !space.is_stopping())
     {
+      ut_ad(space.chain.start);
       space.reacquire();
       mysql_mutex_unlock(&fil_system.mutex);
       space.s_lock();
