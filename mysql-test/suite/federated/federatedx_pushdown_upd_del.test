@@ -17,6 +17,7 @@
 --source have_federatedx.inc
 --source include/federated.inc
 --source include/no_valgrind_without_big.inc
+--source include/have_sequence.inc
 
 connection default;
 ALTER DATABASE federated CHARACTER SET latin1;
@@ -646,6 +647,128 @@ CALL fill_tables();
 DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
 --disable_info
 SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # MDEV-41293: save point assertion
+--echo #
+--echo # The timeout of reading from a connection to the remote server is fixed
+--echo # when the connection is opened. Use a database of its own, on both servers
+--echo # (a pushed down statement refers to the tables by their local names), so
+--echo # that a new connection is opened for the table, with a short timeout.
+--echo # The timeout is restored at the end, the connection is opened again after
+--echo # each timeout.
+connection master;
+CREATE DATABASE federated_nrt;
+connection slave;
+CREATE DATABASE federated_nrt;
+create table federated_nrt.s1 (a int);
+
+connection master;
+DROP TABLE IF EXISTS federated_nrt.s1;
+let $old_net_read_timeout= `SELECT @@global.net_read_timeout`;
+set global net_read_timeout=2;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated_nrt.s1 (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated_nrt/s1';
+
+insert into federated_nrt.s1 select seq from seq_1_to_100;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection slave;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+--enable_info
+set @old_federated_pushdown= @@global.federated_pushdown;
+set global federated_pushdown=ON;
+--echo # The pushed down statement waits on the remote server for the table lock,
+--echo # for much longer than the 2 seconds of net_read_timeout of its connection,
+--echo # so reading its reply times out
+--error ER_NET_READ_INTERRUPTED
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+--disable_info
+
+--echo # The remote server may still be running the abandoned statement, stop it
+connection slave;
+let $id= `SELECT id FROM information_schema.processlist
+          WHERE info LIKE 'update %' AND id != CONNECTION_ID()`;
+--disable_query_log
+if ($id)
+{
+  eval KILL $id;
+}
+--enable_query_log
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE info LIKE 'update %';
+--source include/wait_condition.inc
+UNLOCK TABLES;
+
+--echo # The connection to the remote server must be usable afterwards
+connection master;
+--enable_info
+set global federated_pushdown=OFF;
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+--echo # run the query again. No new errors should be seen.
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+--echo # run the query again with pushdown. No new errors should be seen.
+set global federated_pushdown=ON;
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+--disable_info
+set global federated_pushdown= @old_federated_pushdown;
+
+--echo # Same inside a transaction. The remote transaction is lost with the
+--echo # connection, so the local one must be rolled back and the statements
+--echo # after the timeout must not be committed on the remote server one by one
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+set global federated_pushdown=ON;
+SET autocommit=0;
+--error ER_NET_READ_INTERRUPTED
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+SELECT @@in_transaction;
+
+connection slave;
+let $id= `SELECT id FROM information_schema.processlist
+          WHERE info LIKE 'update %' AND id != CONNECTION_ID()`;
+--disable_query_log
+if ($id)
+{
+  eval KILL $id;
+}
+--enable_query_log
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE info LIKE 'update %';
+--source include/wait_condition.inc
+UNLOCK TABLES;
+
+connection master;
+INSERT INTO federated_nrt.s1 VALUES (0);
+ROLLBACK;
+SET autocommit=1;
+set global federated_pushdown= @old_federated_pushdown;
+
+--echo # The new connection to the remote server must have been switched to
+--echo # SET AUTOCOMMIT=0 again, before the INSERT
+connection slave;
+SELECT argument FROM mysql.general_log
+WHERE argument IN ('SET AUTOCOMMIT=0', 'ROLLBACK') OR argument LIKE 'INSERT %'
+ORDER BY event_time;
+DELETE FROM federated_nrt.s1 WHERE a=0;
+
+connection master;
+eval set global net_read_timeout= $old_net_read_timeout;
+connection slave;
+DROP DATABASE federated_nrt;
+connection master;
+DROP DATABASE federated_nrt;
 
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
