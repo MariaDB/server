@@ -178,3 +178,88 @@ drop table t;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+--echo #
+--echo # MDEV-36356 Server crash in Item::save_int_in_field and UBSAN null-pointer-use
+--echo #
+(select 1 from dual limit 5) order by row_number() over (partition by 1);
+(select 1 from dual limit 5) order by row_number() over ();
+(select 5 a from dual limit 1) order by avg(a) over (order by 1);
+(select cast('1973' as datetime) a from dual limit 1) order by first_value(a) over (order by 1);
+(select cast('1973' as char) a from dual limit 1) order by first_value(a) over (order by 1);
+set @save_sql_mode= @@sql_mode;
+set sql_mode='';
+(select cast('' as char) a limit 1) order by first_value(a) over (order by 1);
+set sql_mode= @save_sql_mode;
+((select 1) for update wait + 1) order by percentile_disc(count(*)) within group(order by 1) over();
+((select 1) for update wait + 1) order by percentile_disc(count(*)) within group(order by current_timestamp) over();
+
+create table t1 (a int);
+insert into t1 values (3),(1),(2);
+create table t2 (a int, b int);
+insert into t2 values (3,1),(1,2),(2,1);
+
+select * from ((select a from t1 union select 9 limit 5) order by row_number() over ()) x order by x.a;
+select * from ((select a from t1 limit 5) order by row_number() over (order by (select max(a) from t1))) x order by x.a;
+select * from ((select a from t1 limit 5) order by row_number() over () + (select max(a) from t1)) x order by x.a;
+
+--echo # this query used to crash, now it correctly fails with a bad field reference error
+--error ER_BAD_FIELD_ERROR
+(select a from t1 limit 5) order by (select a from t2 where t2.a = t1.a limit 1);
+select * from ((select a from t1 limit 5) order by row_number() over ()) x, ((select a from t1 limit 5) order by row_number() over (order by a)) y order by x.a, y.a;
+
+--echo # the value of the window function must be the one of the derived table form
+select * from ((select a from t1 limit 5) order by row_number() over (partition by a)) x order by x.a;
+select * from (select * from (select a from t1 limit 5) dt order by row_number() over (partition by a)) x order by x.a;
+
+--echo # a query expression nested in the order by must not hide the window
+--echo # function that precedes it: all of these must sort descending
+(select a from t1 limit 5) order by row_number() over (order by a) + (select 0 from t1 limit 1) desc;
+(select a from t1 limit 5) order by row_number() over (order by a) + (select 0 from t1 order by a limit 1) desc;
+(select a from t1 limit 5) order by row_number() over (order by a) + (select max(d.a)*0 from (select a from t1 order by a) d) desc;
+(select a from t1 limit 5) order by row_number() over (order by a) + (select 0 from t1 order by a limit 1) + rank() over (order by a) desc;
+
+--echo # a window function referring to a window defined inside the parentheses
+--echo # is not visible from the order by that follows them
+--error ER_WRONG_WINDOW_SPEC_NAME
+(select a from t1 window w as (order by a) limit 5) order by row_number() over w;
+
+--echo # a window function of a subquery of the order by stays in that subquery
+select * from ((select a from t1 limit 5) order by (select row_number() over () from t1 limit 1)) x order by x.a;
+
+--echo # correlated subqueries of the order by are re-registered in the wrapper
+select * from ((select a from t1 limit 5) order by exists (select 1 from t2 where t2.a=a and t2.b=a)) x order by x.a;
+select * from ((select a from t1 limit 5) order by a in (select b from t2 where t2.a=a)) x order by x.a;
+
+drop table t1, t2;
+
+create table t1 (c1 int, c2 text);
+insert into t1 (c1, c2) values (0, 'a');
+select * from
+{
+  ta1 t1 as ta2 natural right outer join
+  (
+    (
+      select * from
+      {
+        ta3 t1 as ta4 natural straight_join t1 as ta5
+      }
+      limit 1234567890 rows examined 1234567890 lock in share mode skip locked
+    )
+    order by false <=> + interval not false=false in
+    (
+      select false <=> false in (select 'string')
+    )
+    second_microsecond + true <=> true in (select 'string') << row_number () over
+    (
+      partition by not true <=> false in (select 'string') desc
+    )
+    in (select 'string')
+  )=ta6
+  natural join t1 as ta7
+};
+drop table t1;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
