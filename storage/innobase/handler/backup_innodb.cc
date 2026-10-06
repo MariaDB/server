@@ -20,6 +20,11 @@
 #include "log0crypt.h"
 #include "dict0load.h"
 #include "backup_innodb.h"
+#ifdef WITH_WSREP
+# include "trx0rseg.h"
+# include "mysql/service_wsrep.h"
+# include "wsrep_api.h"
+#endif
 #include <vector>
 #ifdef __linux__
 # include <fcntl.h>
@@ -1919,9 +1924,14 @@ private:
 public:
   /** Maximum length of the configuration string */
   static constexpr size_t CONFIG_SIZE=
-    sizeof "[server]\n# checkpoint=" +
-    sizeof "innodb_log_recovery_start=" +
-    sizeof "innodb_log_recovery_target=\n" + 45 * 3;
+#ifdef WITH_WSREP
+    sizeof "# wsrep_uuid=" + 40 +
+    sizeof "# wsrep_seqno=" + 20 +
+    sizeof "# wsrep_domain=" + 10 +
+#endif
+    sizeof "[server]\n# checkpoint=" + 20 +
+    sizeof "innodb_log_recovery_start=" + 20 +
+    sizeof "innodb_log_recovery_target=\n" + 20;
 
   /**
      Write the configuration parameters for restoring the backup
@@ -1933,6 +1943,32 @@ public:
     noexcept
   {
     ut_ad(ctx.last_lsn != LSN_MAX);
+#ifdef WITH_WSREP
+    /* this is based on xb_write_galera_info(), not tested yet */
+    XID xid;
+    if (trx_rseg_read_wsrep_checkpoint(xid))
+    {
+      wsrep_uuid_t uuid;
+      char uuid_str[40];
+      memcpy(uuid.data, wsrep_xid_uuid(&xid), sizeof(uuid.data));
+      if (wsrep_uuid_print(&uuid, uuid_str, sizeof uuid_str) >= 0)
+      {
+        return size_t(snprintf(config, CONFIG_SIZE,
+                               "[server]\n# checkpoint=" LSN_PF "\n"
+                               "innodb_log_recovery_start=" LSN_PF "\n"
+                               "innodb_log_recovery_target=" LSN_PF "\n"
+                               "# wsrep_uuid=%s\n"
+                               "# wsrep_seqno=%lld\n"
+                               "# wsrep_domain=%" PRIu32 "\n",
+                               ctx.checkpoint, ctx.checkpoint_end_lsn,
+                               ctx.last_lsn,
+                               uuid_str,
+                               wsrep_xid_seqno(&xid),
+                               wsrep_get_domain_id()));
+      }
+    }
+#endif
+
     return size_t(snprintf(config, CONFIG_SIZE,
                            "[server]\n# checkpoint=" LSN_PF "\n"
                            "innodb_log_recovery_start=" LSN_PF "\n"
@@ -1955,6 +1991,7 @@ public:
     char config[CONFIG_SIZE];
     const size_t size
       {write_config_buf(config, *static_cast<context*>(sink.ha_data))};
+    ut_ad(size <= CONFIG_SIZE);
     return sink.stream == sink.NO_STREAM
       ? backup_config_append(IF_WIN(target.path, target.fd), config, size)
       : backup_stream_config(sink.stream, config, size);
