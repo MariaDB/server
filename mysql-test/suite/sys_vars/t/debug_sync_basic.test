@@ -1,3 +1,4 @@
+# Note: This file is in Latin1 (Windows-1252) encoding per MTR convention.
 --source include/have_debug_sync.inc
 #
 # exists as session only
@@ -19,3 +20,7 @@ set @@session.debug_sync=1.1;
 --error ER_WRONG_TYPE_FOR_VAR
 set @@session.debug_sync=1e1;
 
+# MDEV-40270: string with a different character set (Latin1 here)
+set @@session.debug_sync='now SIGNAL ü';
+select @@session.debug_sync, charset(@@session.debug_sync);
+set @@session.debug_sync=reset;

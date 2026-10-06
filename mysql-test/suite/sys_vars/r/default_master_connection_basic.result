@@ -27,6 +27,11 @@ SET @@session.default_master_connection = '1234-5678';
 SELECT @@session.default_master_connection;
 @@session.default_master_connection
 1234-5678
+SET @@session.default_master_connection = 'maître';
+SELECT    @@session.default_master_connection ,
+CHARSET(@@session.default_master_connection);
+@@session.default_master_connection	CHARSET(@@session.default_master_connection)
+maître	utf8mb3
 SET @@session.default_master_connection = '@!*/"';
 SELECT @@session.default_master_connection;
 @@session.default_master_connection
