@@ -204,7 +204,10 @@ class Parallel_scan_worker
 public:
 	Parallel_scan_worker(ha_innobase *owner) : m_owner(owner) {}
 
-	~Parallel_scan_worker() { end(); }
+	/** Does not call end(): the only owner that deletes a worker without
+	ending it first is ha_innobase::parallel_scan_free(), from the handler's
+	destructor, after close() has freed the m_prebuilt end() would restore. */
+	~Parallel_scan_worker() = default;
 
 	/** Take the first chunk and get ready to read it.
 	@param wctx  this worker's context, from

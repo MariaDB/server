@@ -124,10 +124,32 @@ static bool pwt_item_reads_a_foreign_table(JOIN *join, Item *item)
 }
 
 
+/**
+  @brief
+    Whether 'item' holds a DEFAULT(col).
+
+  @description
+    Item_default_value is an Item_field whose field is a private copy built by
+    make_default_field(), reading the share's default_values, but with the
+    column's own table. Its copy shares that field, and the rebinder, seeing the
+    manager's table, repoints it at the worker's column. DEFAULT(col) then reads
+    the row the worker is on, and for an expression default calculate() goes
+    further and set_default() writes the default into that row.
+
+    Only reachable when the condition also names the column some other way:
+    alone, DEFAULT(col) depends on no table and is evaluated at optimize time.
+*/
+static bool pwt_item_has_default_value(Item *item)
+{
+  return item->walk(&Item::check_func_default_processor, nullptr, 0);
+}
+
+
 static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 {
   return pwt_item_is_clonable(join->thd, item) &&
-         !pwt_item_reads_a_foreign_table(join, item);
+         !pwt_item_reads_a_foreign_table(join, item) &&
+         !pwt_item_has_default_value(item);
 }
 
 
@@ -2310,6 +2332,14 @@ scan_exit:
   */
   if (err == HA_ERR_END_OF_FILE)
     err= 0;
+  /*
+    parallel_init_worker() can fail after the engine has set the scan up, and
+    "no chunk left" is one of its failures. End the scan here as well as after
+    the loop, while the handler is still open: a scan left for the handler's
+    destructor is ended after close() has freed what it would restore.
+    Ending it twice is harmless.
+  */
+  src->file->parallel_end_worker();
   src->file->ha_index_or_rnd_end();
   src->file->ha_external_lock(thd, F_UNLCK);
   DBUG_RETURN(err);
@@ -2464,6 +2494,9 @@ int pwt_worker::execute_and_handoff()
 exec_exit:
   if (err == HA_ERR_END_OF_FILE)
     err= 0;
+
+  /* As in the scan-only path: the scan is ended here too, see there. */
+  src->file->parallel_end_worker();
 
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
   for (i= 1; i < nt; i++)
