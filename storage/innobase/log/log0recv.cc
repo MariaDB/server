@@ -4652,7 +4652,7 @@ inline fil_space_t *fil_system_t::find(const char *path) const noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   for (fil_space_t &space : fil_system.space_list)
-    if (space.chain.start && !strcmp(space.chain.start->name, path))
+    if (!strcmp(space.chain.start->name, path))
       return &space;
   return nullptr;
 }
