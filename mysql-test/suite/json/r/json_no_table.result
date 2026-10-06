@@ -2748,7 +2748,7 @@ JSON_SEARCH
 'food'
   )
 )
-$.one potato
+$."one potato"
 select json_type(case (null is null) when 1 then
 json_compact('null') else
 json_compact('[1,2,3]') end);

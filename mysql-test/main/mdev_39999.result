@@ -1,0 +1,45 @@
+#
+# MDEV-39999: JSON_SEARCH must quote keys containing special characters
+#
+SELECT JSON_SEARCH('{"a.b":"x"}', 'one', 'x') AS path;
+path
+"$.\"a.b\""
+SELECT JSON_SEARCH('{"a[0]":"x"}', 'one', 'x') AS path;
+path
+"$.\"a[0]\""
+SELECT JSON_SEARCH('{"normal":"x"}', 'one', 'x') AS path;
+path
+"$.normal"
+SELECT JSON_SEARCH('{"hello world":"x"}', 'one', 'x') AS path;
+path
+"$.\"hello world\""
+SELECT JSON_SEARCH('{"a*b":"x"}', 'one', 'x') AS path;
+path
+"$.\"a*b\""
+SELECT JSON_SEARCH('{"a\\"b":"x"}', 'one', 'x') AS path;
+path
+"$.\"a\\\"b\""
+SELECT JSON_SEARCH('{"a\\\\b":"x"}', 'one', 'x') AS path;
+path
+"$.\"a\\\\b\""
+SELECT JSON_SEARCH('{"1abc":"x"}', 'one', 'x') AS path;
+path
+"$.1abc"
+SELECT JSON_SEARCH('{"":"x"}', 'one', 'x') AS path;
+path
+"$.\"\""
+SELECT JSON_VALUE('{"":"x"}', JSON_UNQUOTE(JSON_SEARCH('{"":"x"}', 'one', 'x'))) AS val;
+val
+x
+SELECT JSON_SEARCH('{"a.b":"x", "c":"x", "d[0]":"x"}', 'all', 'x') AS paths;
+paths
+["$.\"a.b\"", "$.c", "$.\"d[0]\""]
+SELECT JSON_VALUE('{"a.b":"found"}', JSON_UNQUOTE(JSON_SEARCH('{"a.b":"found"}', 'one', 'found'))) AS val;
+val
+found
+SELECT JSON_VALUE('{"a\\\\b":"found"}', JSON_UNQUOTE(JSON_SEARCH('{"a\\\\b":"found"}', 'one', 'found'))) AS val;
+val
+found
+SELECT JSON_SEARCH('{"a.b":{"c[d]":"x"}}', 'one', 'x') AS path;
+path
+"$.\"a.b\".\"c[d]\""
