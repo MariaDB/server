@@ -3239,8 +3239,7 @@ void parallel_join_check(JOIN *join)
     jointab_can_be_parallel_scanned() of the driving tab, which in turn asks
     can_parallel_scan_jointab_access(). Asking those here as well would answer them
     twice and report each refusal twice.
-  */
-  /*
+
     Besides the gate, the plan itself has to have been chosen for it: the
     join-order search costs the driving table's scan both ways
     (parallel_scan_cost()) and parallel_plan_chosen says the divided reading
