@@ -218,16 +218,16 @@ bool jointab_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
     altogether. Pushing a clone onto the worker's own handler would recover it,
     and wants the worker to hold a real JOIN_TAB to hang the key number off.
 
-    There is a second place a condition can go. When an inner table is read
-    through a BNL/BNLH join buffer, JOIN_TAB::make_scan_filter() copies the
-    conjuncts that need only this table into cache_select->cond, for the buffer
-    to apply as it fills, and JOIN_TAB::remove_redundant_bnl_scan_conds() then
-    *removes* those conjuncts from select_cond -- it can empty it altogether. A
-    worker uses no join buffer, so for a cached table select_cond is not the
-    whole condition and filtering by it alone lets through everything the buffer
-    would have rejected.
+    A table read through a BNL/BNLH join buffer would be a second: there
+    JOIN_TAB::remove_redundant_bnl_scan_conds() *removes* from select_cond the
+    conjuncts make_scan_filter() copied into cache_select->cond for the buffer
+    to apply. The gate refuses any plan that uses a join buffer, so that case
+    never reaches here. cache_select->cond can still be set on a tab with no
+    buffer -- make_join_select() builds the scan filter before
+    check_join_cache_usage() decides -- but then it is a copy of conjuncts that
+    select_cond still holds, and nothing is lost by ignoring it.
 
-    There is a third. A table the plan sorts has its condition taken away
+    There is another. A table the plan sorts has its condition taken away
     from it altogether: JOIN::add_sorting_to_table() hands tab->select to the
     Filesort it builds and then nulls both tab->select and tab->select_cond,
     because the sorted read the tab is left with is fed by a scan the filesort
@@ -243,20 +243,17 @@ bool jointab_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
     and taking the filesort's would apply the pushed half nowhere -- the same
     failure the pushdown case above exists to avoid, arriving by another route.
 
-    All three are reported together, and the gate and both clone sites go
-    through here, so the condition the gate approves is always the condition a
-    worker ends up evaluating.
+    The gate and the clone site both go through here, so the condition the gate
+    approves is always the condition a worker ends up evaluating.
 */
 
-static void pwt_table_conds(JOIN_TAB *tab, Item **cond, Item **cache_cond)
+static Item *pwt_table_cond(JOIN_TAB *tab)
 {
   if (tab->pre_idx_push_select_cond)
-    *cond= tab->pre_idx_push_select_cond;
-  else if (tab->filesort && tab->filesort->select)
-    *cond= tab->filesort->select->cond;
-  else
-    *cond= tab->select_cond;
-  *cache_cond= tab->cache_select ? tab->cache_select->cond : nullptr;
+    return tab->pre_idx_push_select_cond;
+  if (tab->filesort && tab->filesort->select)
+    return tab->filesort->select->cond;
+  return tab->select_cond;
 }
 
 
@@ -926,6 +923,20 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                                   "is read through a rowid filter"));
     }
     /*
+      A plan that reads a table through a join buffer (BNL, BNLH, BKA, BKAH)
+      was chosen for what the buffer saves: one scan of the inner table per
+      buffer-full of outer rows rather than one per outer row. A worker has no
+      join buffer and joins a row at a time, so it would run a different plan
+      from the one costed, and for a full-scan inner table that is a scan per
+      driving row. Leave these serial.
+    */
+    if (tab->cache || tab->use_join_cache)
+    {
+      DBUG_RETURN(pwt_decline_tab(join, trace, tab,
+                                  "is read through a join buffer, which a "
+                                  "worker does not have"));
+    }
+    /*
       The driving table may be read through a quick select -- checked above,
       where the whole access path is -- but the tables joined after it may not:
       a worker's tab keeps the record source make_join_readinfo() chose and
@@ -974,10 +985,8 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
           }
         }
     }
-    Item *tab_cond, *tab_cache_cond;
-    pwt_table_conds(tab, &tab_cond, &tab_cache_cond);
-    if ((tab_cond && !pwt_item_is_worker_safe(join, tab_cond)) ||
-        (tab_cache_cond && !pwt_item_is_worker_safe(join, tab_cache_cond)))
+    Item *tab_cond= pwt_table_cond(tab);
+    if (tab_cond && !pwt_item_is_worker_safe(join, tab_cond))
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
                    "is filtered by a condition a worker cannot evaluate"));
@@ -1087,7 +1096,7 @@ int pwt_manager::start_scan_only(THD *thd, JOIN *join, JOIN_TAB *scan_tab)
     in the manager handler's pushed_idx_cond. That handler no longer produces
     the rows, so the pushed half would be applied nowhere and this thread would
     see rows the serial plan rejects. Give the tab the whole condition back for
-    the length of the scan -- the same reason pwt_table_conds() prefers
+    the length of the scan -- the same reason pwt_table_cond() prefers
     pre_idx_push_select_cond in the full path, reached from the other side.
   */
   if (scan_tab->pre_idx_push_select_cond)
@@ -1270,52 +1279,6 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
     return nullptr;
 
   return clone;
-}
-
-
-/**
-  @brief
-    Clone both halves of one table's condition and rebind them to the worker's
-    tables, ANDed together when there are two.
-    *out is the clone, or NULL if the table has no condition at all.
-
-  @return
-    false     success
-    true      error
-*/
-
-static bool pwt_clone_table_conds(THD *thd, JOIN_TAB *tab,
-                                  TABLE **from, TABLE **to, uint n,
-                                  Item **out)
-{
-  Item *cond, *cache_cond, *c= nullptr, *cc= nullptr;
-  pwt_table_conds(tab, &cond, &cache_cond);
-  *out= nullptr;
-
-  if (cond && !(c= pwt_clone_rebind(thd, cond, from, to, n)))
-    return true;
-  if (cache_cond && !(cc= pwt_clone_rebind(thd, cache_cond, from, to, n)))
-    return true;
-  if (!c || !cc)
-  {
-    *out= c ? c : cc;
-    return false;
-  }
-
-  /*
-    Both clones are already fixed, so the conjunction needs no more than
-    quick_fix_field() -- which is what remove_redundant_bnl_scan_conds() itself
-    does when it rebuilds a condition out of fixed conjuncts. The worker only
-    ever evaluates this item, so the fix-time caches Item_cond::fix_fields()
-    would rebuild (used_tables, not_null_tables) are not read.
-  */
-  Item_cond_and *both= new (thd->mem_root) Item_cond_and(thd, c, cc);
-  if (!both)
-    return true;
-  both->quick_fix_field();
-  *out= both;
-
-  return false;
 }
 
 
@@ -1604,6 +1567,10 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
   */
   DBUG_ASSERT(is_driving || tab->use_quick != 2);
 
+  /* Join buffers: the gate refuses a plan that reads a table through one. */
+  DBUG_ASSERT(!tab->cache);
+  DBUG_ASSERT(!tab->use_join_cache);
+
   /*
     A sort is only ever the driving table's -- pwt_manager_sort_order() takes
     that plan shape, and the manager runs the sort -- and no sort has run yet.
@@ -1770,14 +1737,20 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
     wtab->table= worker->exec.tables[k];
 
     /*
-      Both halves of the condition, ANDed, so select_cond alone is the whole of
-      what this table is filtered by. The places the optimizer had moved parts
-      of it to are then cleared: they name items belonging to the manager, and a
-      worker that read them would be evaluating another thread's Items.
+      The whole condition, so select_cond alone is what this table is filtered
+      by. The places the optimizer had moved parts of it to are then cleared:
+      they name items belonging to the manager, and a worker that read them
+      would be evaluating another thread's Items.
     */
-    if (pwt_clone_table_conds(thd, mtab, exec.tables, worker->exec.tables,
-                              exec.n_tables, &wtab->select_cond))
-      return true;
+    if (Item *cond= pwt_table_cond(mtab))
+    {
+      if (!(wtab->select_cond= pwt_clone_rebind(thd, cond, exec.tables,
+                                                worker->exec.tables,
+                                                exec.n_tables)))
+        return true;
+    }
+    else
+      wtab->select_cond= nullptr;
     wtab->pre_idx_push_select_cond= nullptr;
     wtab->cache_select= nullptr;
     wtab->select= nullptr;
@@ -1791,11 +1764,6 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
     */
     wtab->filesort= nullptr;
     wtab->filesort_result= nullptr;
-
-    /* No join buffer in a worker: it joins a row at a time. */
-    wtab->cache= nullptr;
-    wtab->use_join_cache= FALSE;
-    wtab->jbuf_tracker= nullptr;
 
     /* ANALYZE reads these back off the manager, see quiesce_workers(). */
     wtab->tracker= &worker->exec.tab_stats[k];
@@ -2958,7 +2926,7 @@ bool can_parallel_scan_jointab_access(JOIN_TAB *join_tab, bool trace)
 
     Kept apart from the checks above because it is the one of them that a
     manager-side sort stage would lift, and because the trace should say which
-    of the two reasons applied. pwt_table_conds() already knows where a sorted
+    of the two reasons applied. pwt_table_cond() already knows where a sorted
     tab keeps its condition, so the worker half is in place.
   */
   if (join_tab->filesort && !pwt_manager_sort_order(join_tab->join))
