@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_mariabackup_combination.inc
 
 CREATE TABLE t(i INT) ENGINE INNODB;
 INSERT INTO t VALUES(1);
