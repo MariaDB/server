@@ -5956,6 +5956,9 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   Master_info *mi;
   Rpl_filter *rpl_filter;
 
+  if (!base_name->str)
+    base_name= &thd->variables.default_master_connection;
+
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mi= get_master_info(base_name, !base_name->length ?
                       Sql_condition::WARN_LEVEL_ERROR :

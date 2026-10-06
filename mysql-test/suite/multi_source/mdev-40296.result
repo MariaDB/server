@@ -1,0 +1,16 @@
+CHANGE MASTER 'name' TO master_host='127.0.0.1', master_user='root';
+SET @@GLOBAL.replicate_do_db= 'unnamed';
+SET @@SESSION.default_master_connection= 'name';
+SET @@GLOBAL.replicate_do_db= 'named';
+SELECT @@GLOBAL.name.replicate_do_db;
+@@GLOBAL.name.replicate_do_db
+named
+SELECT @@GLOBAL.replicate_do_db;
+@@GLOBAL.replicate_do_db
+named
+SELECT @@GLOBAL.``.replicate_do_db;
+@@GLOBAL.``.replicate_do_db
+unnamed
+RESET SLAVE ALL;
+SET @@SESSION.default_master_connection= '';
+SET @@GLOBAL.replicate_do_db= DEFAULT;
