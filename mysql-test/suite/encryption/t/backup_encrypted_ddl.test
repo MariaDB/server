@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+SET @save_threads= @@GLOBAL.innodb_encryption_threads;
+SET @save_key_age= @@GLOBAL.innodb_encryption_rotate_key_age;
+SET GLOBAL innodb_encryption_threads= 16;
+
+DELIMITER |;
+CREATE PROCEDURE ddl()
+BEGIN
+  WHILE TRUE DO
+    CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB ENCRYPTED=NO;
+  END WHILE;
+END|
+CREATE PROCEDURE rotate()
+BEGIN
+  WHILE TRUE DO
+    SET GLOBAL innodb_encryption_rotate_key_age= 2;
+    SET GLOBAL innodb_encryption_rotate_key_age= 1;
+  END WHILE;
+END|
+DELIMITER ;|
+
+--connect (con1,localhost,root,,)
+--let $con1= `SELECT CONNECTION_ID()`
+--send CALL ddl()
+--connect (con2,localhost,root,,)
+--let $con2= `SELECT CONNECTION_ID()`
+--send CALL rotate()
+
+--connection default
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.innodb_sys_tables WHERE name='test/t1'
+--source include/wait_condition.inc
+
+--let $target_directory= $MYSQLTEST_VARDIR/tmp/backup_create_concurrent
+--error 0,1
+--rmdir $target_directory
+--let $attempts= 200
+--disable_query_log
+while ($attempts)
+{
+  --error 0,ER_LOCK_DEADLOCK
+  --eval BACKUP SERVER TO '$target_directory'
+  --rmdir $target_directory
+  dec $attempts;
+}
+--enable_query_log
+
+# Work around MDEV-38741 by explicitly killing the procedures
+evalp KILL CONNECTION $con1;
+evalp KILL CONNECTION $con2;
+
+--disconnect con1
+--disconnect con2
+--source include/wait_until_count_sessions.inc
+
+SET GLOBAL innodb_encryption_rotate_key_age= @save_key_age;
+SET GLOBAL innodb_encryption_threads= @save_threads;
+DROP PROCEDURE ddl;
+DROP PROCEDURE rotate;
+DROP TABLE t1;
