@@ -318,6 +318,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_show.h"                           // append_identifier()
 #include "tztime.h"                             // my_tz_find()
 #include "sql_select.h"
+#include <errmsg.h>                           // CR_MIN_ERROR, CR_MAX_ERROR
+
+/*
+  Only a server error code can be sent to the client as is. The errors of the
+  client library (e.g. CR_SERVER_GONE_ERROR) are in the range reserved for
+  the client side, and a libmariadb based client reports such a code in an
+  error packet as CR_MALFORMED_PACKET. They are to be reported as a failure
+  of the foreign data source instead.
+*/
+static inline bool is_client_library_errno(int err)
+{
+  return err >= CR_MIN_ERROR && err <= CR_MAX_ERROR;
+}
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -3146,13 +3159,21 @@ int ha_federatedx::info(uint flag)
 error:
   if (iop && *iop)
   {
-    my_printf_error((*iop)->error_code(), "Received error: %d : %s", MYF(0),
-                    (*iop)->error_code(), (*iop)->error_str());
+    const int remote_errno= (*iop)->error_code();
+    if (is_client_library_errno(remote_errno))
+      my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0),
+               (*iop)->error_str());
+    else
+      my_printf_error(remote_errno, "Received error: %d : %s", MYF(0),
+                      remote_errno, (*iop)->error_str());
   }
   else if (remote_error_number != -1 /* error already reported */)
   {
     error_code= remote_error_number;
-    my_error(error_code, MYF(0), ER_THD(thd, error_code));
+    if (is_client_library_errno(error_code))
+      my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), remote_error_buf);
+    else
+      my_error(error_code, MYF(0), ER_THD(thd, error_code));
   }
 fail:
   tmp_txn->release(&tmp_io);

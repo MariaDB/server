@@ -1050,6 +1050,98 @@ a	c
 DROP VIEW v4, v3, v2, v1;
 connection master;
 set global federated_pushdown=0;
+#
+# MDEV-41293: FederatedX: connection state after a net_read_timeout
+#
+# Separate database on both servers, so that a new connection is opened
+connection master;
+CREATE DATABASE federated_nrt;
+connection slave;
+CREATE DATABASE federated_nrt;
+create table federated_nrt.s1 (a int);
+connection master;
+DROP TABLE IF EXISTS federated_nrt.s1;
+Warnings:
+Note	1051	Unknown table 'federated_nrt.s1'
+# Short read timeout for the new connection to the remote server
+set global net_read_timeout=2;
+CREATE TABLE federated_nrt.s1 (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated_nrt/s1';
+# Fill the table
+insert into federated_nrt.s1 select seq from seq_1_to_100;
+# Log the statements received by the remote server
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+# Hold the table lock on the remote server, so the pushed down UPDATE times out
+connection slave;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+set @old_federated_pushdown= @@global.federated_pushdown;
+affected rows: 0
+set global federated_pushdown=ON;
+affected rows: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+ERROR 08S01: Got timeout reading communication packets
+# Kill the abandoned UPDATE on the remote server and release the lock
+connection slave;
+UNLOCK TABLES;
+# Run the same UPDATE without and with pushdown after the timeout
+connection master;
+set global federated_pushdown=OFF;
+affected rows: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+set global federated_pushdown=ON;
+affected rows: 0
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+set global federated_pushdown= @old_federated_pushdown;
+# Repeat the timeout inside a transaction
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+set global federated_pushdown=ON;
+SET autocommit=0;
+UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+ERROR 08S01: Got timeout reading communication packets
+SELECT @@in_transaction;
+@@in_transaction
+0
+# Kill the abandoned UPDATE and release the lock
+connection slave;
+UNLOCK TABLES;
+# Statements after the timeout, then end the transaction
+connection master;
+INSERT INTO federated_nrt.s1 VALUES (0);
+ROLLBACK;
+SET autocommit=1;
+set global federated_pushdown= @old_federated_pushdown;
+# Statements the remote server received for the new connection
+connection slave;
+SELECT argument FROM mysql.general_log
+WHERE argument IN ('SET AUTOCOMMIT=0', 'ROLLBACK') OR argument LIKE 'INSERT %'
+ORDER BY event_time;
+argument
+SET AUTOCOMMIT=0
+SET AUTOCOMMIT=0
+INSERT INTO `s1` (`a`)  VALUES  (0)
+ROLLBACK
+DELETE FROM federated_nrt.s1 WHERE a=0;
+# Cleanup
+connection master;
+set global net_read_timeout= 30;
+connection slave;
+DROP DATABASE federated_nrt;
+connection master;
+DROP DATABASE federated_nrt;
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 connection slave;
