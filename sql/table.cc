@@ -3467,7 +3467,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->last_null_bit_pos= null_bit_pos;
   share->null_bytes_for_compare= null_bits_are_used ? share->null_bytes : 0;
   share->can_cmp_whole_record= (share->blob_fields == 0 &&
-                                share->varchar_fields == 0);
+                                share->varchar_fields == 0 &&
+                                !null_bits_are_used);
 
   data_start= share->default_values;
   data_end= data_start + share->reclength;
