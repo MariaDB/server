@@ -1,0 +1,97 @@
+#
+# MDEV-38632: ALTER EVENT doesn't run a one-time (AT) event after its first
+# execution when ON COMPLETION PRESERVE is used.
+#
+# After an AT event with ON COMPLETION PRESERVE executes, the scheduler sets
+# status=DISABLED and last_executed in mysql.event. A subsequent ALTER EVENT
+# with explicit ENABLE and a new schedule should allow the event to fire again.
+#
+# The fix clears last_executed when execute_at changes, and only disables
+# in compute_next_execution_time() if last_executed >= execute_at.
+#
+
+--source include/not_embedded.inc
+
+SET GLOBAL event_scheduler = ON;
+--source include/running_event_scheduler.inc
+
+CREATE TABLE test.event_log (id INT AUTO_INCREMENT PRIMARY KEY, ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
+--echo # Step 1: Create a one-time AT event with ON COMPLETION PRESERVE
+CREATE EVENT test.mdev38632
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 SECOND
+  ON COMPLETION PRESERVE ENABLE
+  DO INSERT INTO test.event_log(id) VALUES (NULL);
+
+--echo # Wait for the event to execute
+let $wait_condition = SELECT COUNT(*) = 1 FROM test.event_log;
+--source include/wait_condition.inc
+
+--echo # Verify: event executed, status is now DISABLED (preserved but done)
+SELECT status, on_completion, last_executed IS NOT NULL AS has_last_exec
+  FROM mysql.event WHERE db = 'test' AND name = 'mdev38632';
+
+--echo # Step 2: ALTER EVENT to reschedule with explicit ENABLE
+--echo # This is the customer's scenario from the JIRA report.
+ALTER EVENT test.mdev38632
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 SECOND
+  ON COMPLETION PRESERVE ENABLE;
+
+--echo # After ALTER with ENABLE and a new schedule, last_executed should be cleared.
+SELECT status, last_executed IS NOT NULL AS has_last_exec
+  FROM mysql.event WHERE db = 'test' AND name = 'mdev38632';
+
+--echo # The event should fire again after being rescheduled.
+let $wait_condition = SELECT COUNT(*) = 2 FROM test.event_log;
+--source include/wait_condition.inc
+
+--echo # Step 3: Verify event fires after server restart (the customer scenario).
+ALTER EVENT test.mdev38632
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 3 SECOND
+  ON COMPLETION PRESERVE ENABLE;
+
+--echo # last_executed should be cleared when schedule changes.
+SELECT status, last_executed IS NOT NULL AS has_last_exec
+  FROM mysql.event WHERE db = 'test' AND name = 'mdev38632';
+
+--echo # Restart the server to trigger full reload from mysql.event.
+--source include/restart_mysqld.inc
+SET GLOBAL event_scheduler = ON;
+--source include/running_event_scheduler.inc
+
+--echo # The event should fire after server restart.
+--let $wait_timeout = 10
+let $wait_condition = SELECT COUNT(*) = 3 FROM test.event_log;
+--source include/wait_condition.inc
+
+--echo # Step 4: User-disabled event stays DISABLED after reschedule without ENABLE
+ALTER EVENT test.mdev38632 DISABLE;
+
+ALTER EVENT test.mdev38632
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 2 HOUR;
+
+--echo # Status remains DISABLED — explicit ENABLE is required to reschedule.
+SELECT status FROM mysql.event WHERE db = 'test' AND name = 'mdev38632';
+
+--echo # Step 5: ALTER that doesn't change schedule should not clear last_executed
+DROP EVENT test.mdev38632;
+CREATE EVENT test.mdev38632
+  ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 SECOND
+  ON COMPLETION PRESERVE ENABLE
+  DO INSERT INTO test.event_log(id) VALUES (NULL);
+
+let $wait_condition = SELECT COUNT(*) = 4 FROM test.event_log;
+--source include/wait_condition.inc
+
+--echo # Event executed and is DISABLED. ALTER body only (no schedule change).
+ALTER EVENT test.mdev38632
+  DO INSERT INTO test.event_log(id) VALUES (NULL);
+
+--echo # Status should remain DISABLED (no schedule change)
+SELECT status FROM mysql.event WHERE db = 'test' AND name = 'mdev38632';
+
+--echo # Cleanup
+DROP EVENT test.mdev38632;
+DROP TABLE test.event_log;
+SET GLOBAL event_scheduler = OFF;
+--source include/check_events_off.inc
