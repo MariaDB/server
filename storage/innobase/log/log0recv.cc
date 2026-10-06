@@ -5639,13 +5639,13 @@ ATTRIBUTE_COLD bool log_t::archive_rename() noexcept
 inline bool recv_sys_t::validate_checkpoint() const noexcept
 {
   const lsn_t last_checkpoint_lsn{log_sys.last_checkpoint_lsn};
-  if (lsn >= file_checkpoint && lsn >= last_checkpoint_lsn)
+  if (scanned_lsn >= file_checkpoint && scanned_lsn >= last_checkpoint_lsn)
     return false;
   sql_print_error("InnoDB: The log was only scanned up to "
                   LSN_PF ", while the current LSN at the "
                   "time of the latest checkpoint " LSN_PF
                   " was " LSN_PF "!",
-                  lsn, last_checkpoint_lsn, file_checkpoint);
+                  scanned_lsn, last_checkpoint_lsn, file_checkpoint);
   return true;
 }
 
@@ -5877,14 +5877,14 @@ func_exit:
 		parser[true] = get_parse_mmap<recv_sys_t::store::YES>();
 		recv_scan_log(false, parser);
 		if (recv_needed_recovery) {
+			recv_sys.rpo = recv_sys.scanned_lsn;
 read_only_recovery:
 			sql_print_warning("InnoDB: innodb_read_only"
-					  " prevents crash recovery between " LSN_PF
-					  " and " LSN_PF,
+					  " prevents crash recovery"
+					  " between " LSN_PF " and " LSN_PF,
 					  log_sys.last_checkpoint_lsn.load(),
 					  recv_sys.lsn);
 			err = DB_READ_ONLY;
-			recv_sys.rpo = recv_sys.scanned_lsn;
 			goto func_exit;
 		}
 		if (recv_sys.is_corrupt_log()) {
@@ -5908,6 +5908,7 @@ corrupt_log:
 				goto corrupt_log;
 			}
 		}
+
 		rescan = recv_scan_log(false, parser);
 
 		if (srv_read_only_mode) {
@@ -5924,6 +5925,9 @@ corrupt_log:
 			goto err_exit;
 		}
 	}
+
+	ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
+	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn || rescan);
 
 	if (recv_sys_invalid_rpo(recv_sys_rpo_exceeded)) {
 		high_level_read_only = true;
@@ -5992,11 +5996,8 @@ corrupt_log:
 		ut_ad(recv_sys.pages.empty());
 	}
 
-	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn || rescan);
 	if (recv_sys_rpo_exceeded) {
-err_exit:
-		err = DB_ERROR;
-		goto func_exit;
+		goto err_exit;
 	}
 
 	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
@@ -6016,7 +6017,9 @@ err_exit:
 		recv_scan_log(true, parser);
 		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
 		    || recv_sys.is_corrupt_fs()) {
-			goto err_exit;
+	        err_exit:
+			err = DB_ERROR;
+			goto func_exit;
 		}
 
 		/* In case of multi-batch recovery, redo log
@@ -6025,9 +6028,6 @@ err_exit:
 	}
 
 	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn);
-	if (recv_sys.validate_checkpoint()) {
-		goto err_exit;
-	}
 	recv_sys.apply_log_recs = true;
 
 	if (log_sys.is_recoverable() && !srv_read_only_mode) {
