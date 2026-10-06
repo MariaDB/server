@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES
 # EXPLAIN should pick the array index for a MEMBER OF lookup
 EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t1	range	arr_idx	arr_idx	19	NULL	2	Using where
 SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
 id
 1
@@ -84,7 +84,7 @@ INSERT INTO t2 VALUES
 (3, '["black"]');
 EXPLAIN SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t2	range	arr_idx	arr_idx	19	NULL	2	Using where
 SELECT id FROM t2 WHERE 'green' MEMBER OF (tags);
 id
 1
@@ -148,7 +148,7 @@ INSERT INTO t4 VALUES
 (3, '[3, 6, 9]');
 EXPLAIN SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	range	plain_idx,arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t4	range	plain_idx,arr_idx	arr_idx	19	NULL	2	Using where
 SELECT id FROM t4 WHERE 3 MEMBER OF (tags);
 id
 1
@@ -178,7 +178,7 @@ INSERT INTO t5 VALUES
 (3, '[3, 6, 9]');
 EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t5	range	arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t5	range	arr_idx	arr_idx	19	NULL	2	Using where
 EXPLAIN SELECT id FROM t5 WHERE 3 MEMBER OF (JSON_COMPACT(tags));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	3	Using where
@@ -259,7 +259,7 @@ INSERT INTO t8 VALUES
 # changed), so there is nothing to interleave with the read scan
 EXPLAIN UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t8	range	arr_idx	arr_idx	258	NULL	4	Using where
+1	SIMPLE	t8	range	arr_idx	arr_idx	19	NULL	4	Using where
 UPDATE t8 SET other = 9 WHERE 5 MEMBER OF (tags);
 # all four rows with a "5" must be updated, not just the first match
 SELECT id, other FROM t8;
@@ -302,7 +302,7 @@ INSERT INTO t8b VALUES
 (5, '[1]');
 EXPLAIN UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t8b	range	arr_idx	arr_idx	258	NULL	4	Using where; Using buffer
+1	SIMPLE	t8b	range	arr_idx	arr_idx	19	NULL	4	Using where; Using buffer
 UPDATE t8b SET tags = JSON_ARRAY(99) WHERE 5 MEMBER OF (tags);
 # all four rows with a "5" must be updated, not just the first match
 SELECT id FROM t8b WHERE 99 MEMBER OF (tags);
@@ -392,7 +392,7 @@ INSERT INTO t10 VALUES
 (3, '[3, 6, 9]');
 EXPLAIN SELECT id FROM t10 WHERE 3 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t10	range	arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t10	range	arr_idx	arr_idx	19	NULL	2	Using where
 SELECT id FROM t10 WHERE 3 MEMBER OF (tags);
 id
 1
@@ -431,7 +431,7 @@ Warning	1366	Incorrect json value: '' for column `test`.`t11`.`tags` at row 1
 # index either
 EXPLAIN SELECT id FROM t11 WHERE 5 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t11	range	arr_idx	arr_idx	258	NULL	1	Using where
+1	SIMPLE	t11	range	arr_idx	arr_idx	19	NULL	1	Using where
 SELECT id FROM t11 WHERE 5 MEMBER OF (tags);
 id
 1
@@ -474,7 +474,7 @@ id	tags
 3	NULL
 EXPLAIN SELECT id FROM t11b WHERE 3 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t11b	range	arr_idx	arr_idx	258	NULL	2	Using where
+1	SIMPLE	t11b	range	arr_idx	arr_idx	19	NULL	2	Using where
 SELECT id FROM t11b WHERE 3 MEMBER OF (tags);
 id
 1
@@ -635,7 +635,7 @@ INSERT INTO t15 VALUES
 (5, '[1, 2]', 5);
 EXPLAIN SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND 7 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t15	range	arr_idx	arr_idx	258	NULL	3	Using where
+1	SIMPLE	t15	range	arr_idx	arr_idx	19	NULL	3	Using where
 SELECT id FROM t15 WHERE 5 MEMBER OF (tags) AND 7 MEMBER OF (tags);
 id
 3
@@ -684,7 +684,7 @@ test.t16	analyze	Warning	Engine-independent statistics are not collected for col
 test.t16	analyze	status	OK
 EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t16	index_merge	arr_idx	arr_idx,arr_idx	258,258	NULL	#	Using sort_union(arr_idx,arr_idx); Using where
+1	SIMPLE	t16	index_merge	arr_idx	arr_idx,arr_idx	19,19	NULL	#	Using sort_union(arr_idx,arr_idx); Using where
 SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags) ORDER BY id;
 id
 5
@@ -700,7 +700,7 @@ total_rows	distinct_ids
 # to degrade to ALL before get_claimed_key_part())
 EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t16	index_merge	cidx,arr_idx	arr_idx,cidx,arr_idx	258,5,258	NULL	#	Using sort_union(arr_idx,cidx,arr_idx); Using where
+1	SIMPLE	t16	index_merge	cidx,arr_idx	arr_idx,cidx,arr_idx	19,5,19	NULL	#	Using sort_union(arr_idx,cidx,arr_idx); Using where
 SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags) ORDER BY id;
 id
 5
@@ -772,11 +772,79 @@ SET optimizer_switch='index_merge=on,index_merge_sort_union=on,index_merge_sort_
 EXPLAIN SELECT id FROM t18 FORCE INDEX(arr_idx,cidx)
 WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t18	index_merge	cidx,arr_idx	arr_idx,cidx	258,5	NULL	#	Using sort_intersect(arr_idx,cidx); Using where
+1	SIMPLE	t18	index_merge	cidx,arr_idx	arr_idx,cidx	19,5	NULL	#	Using sort_intersect(arr_idx,cidx); Using where
 SELECT COUNT(*) FROM t18 FORCE INDEX(arr_idx,cidx)
 WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
 COUNT(*)
 1
 SET optimizer_switch=DEFAULT;
 DROP TABLE t18;
+#
+# 19. A string value longer than JSON_INDEX_VALUE_MAX_LEN (16 bytes) is
+# stored as its own first 8 bytes followed by an XXH3_64bits() hash of
+# the whole value, instead of stored raw (json_index_encode_token() in
+# sql/index/json.cc, tag JSON_VALUE_XXH3): keeping a real prefix means
+# two long values that happen to start alike still only have to be
+# told apart by the hash, same as two that happen to collide outright;
+# Item_func_member_of::val_bool() re-checks the actual array element
+# against the actual lookup value for every candidate row, so either
+# kind of collision can only cost a wasted row fetch, never a wrong
+# result
+#
+CREATE TABLE t19 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS CHAR(40) ARRAY))
+);
+INSERT INTO t19 VALUES
+(1, '["short", "this-is-a-long-string-value"]'),
+(2, '["this-is-another-long-string"]'),
+(3, '["completely-different-prefix"]'),
+(4, '["exactly16-bytes!"]'),
+(5, '["exactly17-bytes!!"]');
+EXPLAIN SELECT id FROM t19 WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t19	range	arr_idx	arr_idx	19	NULL	1	Using where
+# same 8-byte prefix ("this-is-"), must still be told apart by the hash
+SELECT id FROM t19 WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+id
+1
+SELECT id FROM t19 WHERE 'this-is-another-long-string' MEMBER OF (tags);
+id
+2
+# different prefix, also long: must not get confused with the above
+SELECT id FROM t19 WHERE 'completely-different-prefix' MEMBER OF (tags);
+id
+3
+# a long string that is not in any array: must not match just because
+# some other long string happens to be indexed
+SELECT id FROM t19 WHERE 'this-is-a-long-string-that-is-not-there' MEMBER OF (tags);
+id
+# exactly 16 bytes (stored raw) vs. 17 bytes (prefix+hash): the
+# boundary must not blur the two apart
+SELECT id FROM t19 WHERE 'exactly16-bytes!' MEMBER OF (tags);
+id
+4
+SELECT id FROM t19 WHERE 'exactly17-bytes!!' MEMBER OF (tags);
+id
+5
+# cross-check: IGNORE INDEX must give identical results
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+id
+1
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-another-long-string' MEMBER OF (tags);
+id
+2
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'completely-different-prefix' MEMBER OF (tags);
+id
+3
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-a-long-string-that-is-not-there' MEMBER OF (tags);
+id
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly16-bytes!' MEMBER OF (tags);
+id
+4
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (tags);
+id
+5
+DROP TABLE t19;
 # End of 13.3 tests

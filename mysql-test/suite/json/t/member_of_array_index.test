@@ -696,4 +696,64 @@ SELECT COUNT(*) FROM t18 FORCE INDEX(arr_idx,cidx)
 SET optimizer_switch=DEFAULT;
 DROP TABLE t18;
 
+--echo #
+--echo # 19. A string value longer than JSON_INDEX_VALUE_MAX_LEN (16 bytes) is
+--echo # stored as its own first 8 bytes followed by an XXH3_64bits() hash of
+--echo # the whole value, instead of stored raw (json_index_encode_token() in
+--echo # sql/index/json.cc, tag JSON_VALUE_XXH3): keeping a real prefix means
+--echo # two long values that happen to start alike still only have to be
+--echo # told apart by the hash, same as two that happen to collide outright;
+--echo # Item_func_member_of::val_bool() re-checks the actual array element
+--echo # against the actual lookup value for every candidate row, so either
+--echo # kind of collision can only cost a wasted row fetch, never a wrong
+--echo # result
+--echo #
+CREATE TABLE t19 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS CHAR(40) ARRAY))
+);
+INSERT INTO t19 VALUES
+  (1, '["short", "this-is-a-long-string-value"]'),
+  (2, '["this-is-another-long-string"]'),
+  (3, '["completely-different-prefix"]'),
+  (4, '["exactly16-bytes!"]'),
+  (5, '["exactly17-bytes!!"]');
+
+EXPLAIN SELECT id FROM t19 WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+--echo # same 8-byte prefix ("this-is-"), must still be told apart by the hash
+--sorted_result
+SELECT id FROM t19 WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 WHERE 'this-is-another-long-string' MEMBER OF (tags);
+--echo # different prefix, also long: must not get confused with the above
+--sorted_result
+SELECT id FROM t19 WHERE 'completely-different-prefix' MEMBER OF (tags);
+--echo # a long string that is not in any array: must not match just because
+--echo # some other long string happens to be indexed
+--sorted_result
+SELECT id FROM t19 WHERE 'this-is-a-long-string-that-is-not-there' MEMBER OF (tags);
+--echo # exactly 16 bytes (stored raw) vs. 17 bytes (prefix+hash): the
+--echo # boundary must not blur the two apart
+--sorted_result
+SELECT id FROM t19 WHERE 'exactly16-bytes!' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 WHERE 'exactly17-bytes!!' MEMBER OF (tags);
+
+--echo # cross-check: IGNORE INDEX must give identical results
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-a-long-string-value' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-another-long-string' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'completely-different-prefix' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'this-is-a-long-string-that-is-not-there' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly16-bytes!' MEMBER OF (tags);
+--sorted_result
+SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (tags);
+
+DROP TABLE t19;
+
 --echo # End of 13.3 tests

@@ -25,7 +25,7 @@ INSERT INTO t1 VALUES
 (5, '[1]');
 EXPLAIN UPDATE t1 SET id = id + 100 WHERE 5 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	4	Using where; Using buffer
+1	SIMPLE	t1	range	arr_idx	arr_idx	19	NULL	4	Using where; Using buffer
 UPDATE t1 SET id = id + 100 WHERE 5 MEMBER OF (tags);
 # all four rows must have moved, exactly once each
 SELECT id FROM t1;
