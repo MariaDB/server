@@ -6552,7 +6552,15 @@ bool setup_degenerate_jtbm_semi_joins(JOIN *join,
     {
       JOIN *subq_join= subq_pred->unit->first_select()->join;
 
-      if (!subq_join->tables_list || !subq_join->table_count)
+      /*
+        The degenerate path requires SINGLE_SELECT_ENGINE.
+        Other engine types (UNION_ENGINE for UNION/EXCEPT/INTERSECT/
+        recursive CTEs, etc.) must go through normal JTBM
+        materialization instead.
+      */
+      if ((!subq_join->tables_list || !subq_join->table_count) &&
+          subq_pred->engine->engine_type() ==
+          subselect_engine::SINGLE_SELECT_ENGINE)
       {
         if (execute_degenerate_jtbm_semi_join(thd,
                                               table,
@@ -6645,7 +6653,15 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
       subq_pred->jtbm_record_count=rows;
       JOIN *subq_join= subq_pred->unit->first_select()->join;
 
-      if (!subq_join->tables_list || !subq_join->table_count)
+      /*
+        The degenerate path requires SINGLE_SELECT_ENGINE.
+        Other engine types (UNION_ENGINE for UNION/EXCEPT/INTERSECT/
+        recursive CTEs, etc.) must go through normal JTBM
+        materialization instead.
+      */
+      if ((!subq_join->tables_list || !subq_join->table_count) &&
+          subq_pred->engine->engine_type() ==
+          subselect_engine::SINGLE_SELECT_ENGINE)
       {
         if (!join->is_orig_degenerated &&
             execute_degenerate_jtbm_semi_join(thd, table, subq_pred,
