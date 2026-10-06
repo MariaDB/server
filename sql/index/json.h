@@ -18,10 +18,15 @@
 #include "my_base.h"            /* HA_KEY_BLOB_LENGTH */
 extern st_plugin_int *json_index_plugin;;
 
+
 /* Size of the hlindex (high-level index) table's `value` column (see
    json_index_table_def) -- the JSON scalar's payload, not counting its
-   type tag, which is the table's separate `typ` column */
-#define JSON_INDEX_VALUE_MAX_LEN 255
+   type tag, which is the table's separate `typ` column. 16 bytes fits a
+   JSON_VALUE_NUMBER double (with room to spare) and an 8-byte prefix plus
+   an 8-byte XXH3_64bits() hash exactly; a JSON_VALUE_STRING longer than
+   that is reduced to that prefix+hash pair (see json_index_encode_token()
+   in json.cc) rather than stored raw. */
+#define JSON_INDEX_VALUE_MAX_LEN 16
 /*
   Size of a fully key_copy()-encoded lookup key for the (typ,value) keypart
   prefix of the hlindex table's PRIMARY KEY: `typ`'s own single byte (a

@@ -24,6 +24,10 @@
 #include <json_lib.h>
 #include "key.h"
 #include <math.h>
+#include "../../mysys/xxhash.h"
+
+/* our own JSON_VALUE tag used below */
+#define JSON_VALUE_XXH3 128
 
 ha_create_table_option json_index_options[]=
 {
@@ -87,13 +91,9 @@ int json_index::parse_array_first(TABLE *tbl, const uchar *rec,
 }
 
 /*
-  Encode the JSON value "je" is currently positioned on (a scalar: bool,
-  null, number or string) as a type tag ("*tag_out", one of the
-  JSON_VALUE_* constants) plus a type-specific payload written to "buf"
-  (empty for bool/null, which the tag alone already fully describes).
-  Shared by parse_array_next() (encoding one array element read off a
-  json_engine_t) and json_index_encode_value() (encoding a lookup value
-  straight from an Item, via a one-token json_engine_t scan).
+  Encode the JSON value "je" is currently positioned on (a scalar: bool, null,
+  number or string) as a 1-byte type tag (JSON_VALUE_* constant) plus a
+  type-specific payload written to "buf"
 */
 static int json_index_encode_token(json_engine_t *je, uchar *tag_out,
                                    uchar *buf, size_t buf_size, int *len_out)
@@ -125,13 +125,44 @@ static int json_index_encode_token(json_engine_t *je, uchar *tag_out,
       break;
 
     case JSON_VALUE_STRING:
+    {
+      /*
+        Unescaping never grows the length (same charset in and out), so
+        je->value_len (the escaped source length) always bounds the
+        decoded one -- use it as the destination size whenever buf itself
+        might be too small, so json_unescape() never truncates.
+      */
+      uchar *dst= buf;
+      size_t dst_size= buf_size;
+      uchar *big_buf= NULL;
+      size_t value_len= (size_t) je->value_len;
+      if (value_len > buf_size)
+      {
+        if (!(big_buf= (uchar*) my_safe_alloca(value_len)))
+          return HA_ERR_OUT_OF_MEM;
+        dst= big_buf;
+        dst_size= value_len;
+      }
       len= json_unescape(je->s.cs, je->value, je->value + je->value_len,
-                         je->s.cs, buf, buf + buf_size);
-      if (len == JSON_ERROR_OUT_OF_SPACE)
-        len= (int) buf_size;
-      else if (len < 0)
+                         je->s.cs, dst, dst + dst_size);
+      if (len < 0)
+      {
+        my_safe_afree(big_buf, value_len);
         return HA_ERR_BAD_FIELD_VALUE;
+      }
+      if ((size_t) len > buf_size) // long string? use a hash instead
+      {
+        size_t prefix_len= buf_size - 8;
+        memcpy(buf, dst, prefix_len);
+        int8store(buf + prefix_len, XXH3_64bits(dst, len));
+        len= (int) buf_size;
+        *tag_out= JSON_VALUE_XXH3;
+      }
+      else if (big_buf)
+        memcpy(buf, dst, len);
+      my_safe_afree(big_buf, value_len);
       break;
+    }
   }
   *len_out= len;
   return 0;
