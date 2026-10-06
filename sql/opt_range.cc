@@ -4019,7 +4019,7 @@ void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
 struct st_part_prune_param;
 struct st_part_opt_info;
 
-typedef void (*mark_full_part_func)(partition_info*, uint32);
+typedef void (*mark_full_part_func)(struct st_part_prune_param*, uint32);
 
 /*
   Partition pruning operation context
@@ -4080,6 +4080,12 @@ typedef struct st_part_prune_param
   /* Iterator to be used to obtain the "current" set of used partitions */
   PARTITION_ITERATOR part_iter;
 
+  /*
+    Initialized bitmap of read_partitions size.
+    find_used_partitions() will save the set of used partitions here.
+  */
+  MY_BITMAP parts_bitmap;
+
   /* Initialized bitmap of num_subparts size */
   MY_BITMAP subparts_bitmap;
 
@@ -4095,7 +4101,6 @@ static int find_used_partitions_imerge(PART_PRUNE_PARAM *ppar,
                                        SEL_IMERGE *imerge);
 static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
                                             List<SEL_IMERGE> &merges);
-static void mark_all_partitions_as_used(partition_info *part_info);
 
 #ifndef DBUG_OFF
 static void print_partitioning_index(KEY_PART *parts, KEY_PART *parts_end);
@@ -4112,13 +4117,30 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num);
   @param      table          Table to perform partition pruning for
   @param      pprune_cond    Condition to use for partition pruning
   
+  @param[in]  part_info->read_partitions
+              Candidate partitions to scan; normally all partitions (or the
+              PARTITION() set)
+
+  @param[out] part_info->read_partitions
+              Narrowed to the partitions that may hold records matching the
+              condition. For a versioned table with history partitions
+              accessed without FOR SYSTEM_TIME, PARTITION() and
+              @@system_versioning_asof, also narrowed to the now-partition,
+              with or without a condition. Never widened.
+
   @note This function assumes that lock_partitions are setup when it
   is invoked. The function analyzes the condition, finds partitions that
   need to be used to retrieve the records that match the condition, and 
-  marks them as used by setting appropriate bit in part_info->read_partitions
-  In the worst case all partitions are marked as used. If the table is not
-  yet locked, it will also unset bits in part_info->lock_partitions that is
-  not set in read_partitions.
+  narrows part_info->read_partitions to them.
+  If the table is not yet locked, it will also unset bits in
+  part_info->lock_partitions that is not set in read_partitions.
+
+  The matching set is computed independently of the incoming
+  read_partitions/lock_partitions: the analysis walks the whole partition
+  list (or only the value interval derived from the condition for
+  range-capable partitioning), and the result is then intersected into
+  read_partitions. A restriction already present in read_partitions
+  therefore narrows the outcome but does not reduce the pruning work.
 
   This function returns promptly if called for non-partitioned table.
 
@@ -4136,11 +4158,40 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   if (!part_info)
     DBUG_RETURN(FALSE); /* not a partitioned table */
   
-  if (!pprune_cond)
+  /*
+    Read only now_part, as vers_setup_conds() did not add the row_end condition.
+    Done here as prune_partitions() runs on each execution, also for merged
+    derived tables and views, for which vers_setup_conds() is not called
+    again.
+  */
+  if (TABLE_LIST *tl= table->pos_in_table_list)
   {
-    mark_all_partitions_as_used(part_info);
-    DBUG_RETURN(FALSE);
+    if (part_info->vers_info && !tl->partition_names &&
+        !tl->vers_conditions.was_set() && !tl->vers_conditions.from_sysvar)
+    {
+      DBUG_ASSERT(part_info->vers_info->initialized());
+      uint32 end;
+      const uint32 start=
+        part_info->vers_info->now_part->bitmap_range(part_info->num_subparts,
+                                                     end);
+      for (uint32 i= 0; i < part_info->read_partitions.n_bits; i++)
+        if (i < start || i >= end)
+          bitmap_clear_bit(&part_info->read_partitions, i);
+    }
   }
+
+  /*
+    Must be a subset of the locked partitions.
+    lock_partitions contains the partitions marked by explicit partition
+    selection (... t PARTITION (pX) ...) and we must only use partitions
+    within that set. read_partitions may be wider on entry: e.g.
+    check_insert_or_replace_autoincrement() sets all bits for
+    INSERT/REPLACE ... SELECT. Done before the early returns below.
+  */
+  bitmap_intersect(&part_info->read_partitions, &part_info->lock_partitions);
+
+  if (!pprune_cond)
+    DBUG_RETURN(FALSE);
   
   PART_PRUNE_PARAM prune_param;
   MEM_ROOT alloc;
@@ -4156,7 +4207,6 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
   if (create_partition_index_description(&prune_param))
   {
-    mark_all_partitions_as_used(part_info);
     free_root(&alloc,MYF(0));		// Return memory & allocator
     DBUG_RETURN(FALSE);
   }
@@ -4181,7 +4231,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   thd->no_errors=1;				// Don't warn about NULL
   thd->mem_root=&alloc;
 
-  bitmap_clear_all(&part_info->read_partitions);
+  bitmap_clear_all(&prune_param.parts_bitmap);
 
   prune_param.key= prune_param.range_param.key_parts;
   SEL_TREE *tree;
@@ -4258,20 +4308,15 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
 all_used:
   retval= FALSE; // some partitions are used
-  mark_all_partitions_as_used(prune_param.part_info);
+  goto all_used_end;
 end:
+  bitmap_intersect(&prune_param.part_info->read_partitions,
+                   &prune_param.parts_bitmap);
+all_used_end:
   dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
-  /*
-    Must be a subset of the locked partitions.
-    lock_partitions contains the partitions marked by explicit partition
-    selection (... t PARTITION (pX) ...) and we must only use partitions
-    within that set.
-  */
-  bitmap_intersect(&prune_param.part_info->read_partitions,
-                   &prune_param.part_info->lock_partitions);
   /*
     If not yet locked, also prune partitions to lock if not UPDATEing
     partition key fields. This will also prune lock_partitions if we are under
@@ -4337,20 +4382,21 @@ static void store_selargs_to_rec(PART_PRUNE_PARAM *ppar, SEL_ARG **start,
 
 
 /* Mark a partition as used in the case when there are no subpartitions */
-static void mark_full_partition_used_no_parts(partition_info* part_info,
+static void mark_full_partition_used_no_parts(PART_PRUNE_PARAM *ppar,
                                               uint32 part_id)
 {
   DBUG_ENTER("mark_full_partition_used_no_parts");
   DBUG_PRINT("enter", ("Mark partition %u as used", part_id));
-  bitmap_set_bit(&part_info->read_partitions, part_id);
+  bitmap_set_bit(&ppar->parts_bitmap, part_id);
   DBUG_VOID_RETURN;
 }
 
 
 /* Mark a partition as used in the case when there are subpartitions */
-static void mark_full_partition_used_with_parts(partition_info *part_info,
+static void mark_full_partition_used_with_parts(PART_PRUNE_PARAM *ppar,
                                                 uint32 part_id)
 {
+  partition_info *part_info= ppar->part_info;
   uint32 start= part_id * part_info->num_subparts;
   uint32 end=   start + part_info->num_subparts; 
   DBUG_ENTER("mark_full_partition_used_with_parts");
@@ -4358,7 +4404,7 @@ static void mark_full_partition_used_with_parts(partition_info *part_info,
   for (; start != end; start++)
   {
     DBUG_PRINT("info", ("1:Mark subpartition %u as used", start));
-    bitmap_set_bit(&part_info->read_partitions, start);
+    bitmap_set_bit(&ppar->parts_bitmap, start);
   }
   DBUG_VOID_RETURN;
 }
@@ -4386,7 +4432,7 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
   MY_BITMAP all_merges;
   uint bitmap_bytes;
   my_bitmap_map *bitmap_buf;
-  uint n_bits= ppar->part_info->read_partitions.n_bits;
+  uint n_bits= ppar->parts_bitmap.n_bits;
   bitmap_bytes= bitmap_buffer_size(n_bits);
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(ppar->range_param.mem_root,
                                                 bitmap_bytes)))
@@ -4412,15 +4458,15 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
     }
 
     if (res != -1)
-      bitmap_intersect(&all_merges, &ppar->part_info->read_partitions);
+      bitmap_intersect(&all_merges, &ppar->parts_bitmap);
 
 
     if (bitmap_is_clear_all(&all_merges))
       return 0;
 
-    bitmap_clear_all(&ppar->part_info->read_partitions);
+    bitmap_clear_all(&ppar->parts_bitmap);
   }
-  memcpy(ppar->part_info->read_partitions.bitmap, all_merges.bitmap,
+  memcpy(ppar->parts_bitmap.bitmap, all_merges.bitmap,
          bitmap_bytes);
   return 1;
 }
@@ -4573,6 +4619,8 @@ int find_used_partitions_imerge(PART_PRUNE_PARAM *ppar, SEL_IMERGE *imerge)
    -1   Couldn't infer any partition pruning "intervals" from the passed 
         SEL_ARG* tree (which means that all partitions should be marked as
         used) Marking partitions as used is the responsibility of the caller.
+
+    The set of used partitions is saved in PART_PRUNE_PARAM::parts_bitmap.
 */
 
 static 
@@ -4791,7 +4839,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
       {
         for (uint i= 0; i < ppar->part_info->num_subparts; i++)
           if (bitmap_is_set(&ppar->subparts_bitmap, i))
-            bitmap_set_bit(&ppar->part_info->read_partitions,
+            bitmap_set_bit(&ppar->parts_bitmap,
                            part_id * ppar->part_info->num_subparts + i);
       }
       goto pop_and_go_right;
@@ -4853,7 +4901,7 @@ int find_used_partitions(PART_PRUNE_PARAM *ppar, SEL_ARG *key_tree)
         while ((part_id= ppar->part_iter.get_next(&ppar->part_iter)) !=
                 NOT_A_PARTITION_ID)
         {
-          bitmap_set_bit(&part_info->read_partitions,
+          bitmap_set_bit(&ppar->parts_bitmap,
                          part_id * part_info->num_subparts + subpart_id);
         }
         res= 1; /* Some partitions were marked as used */
@@ -4908,7 +4956,7 @@ process_next_key_part:
       while ((part_id= ppar->part_iter.get_next(&ppar->part_iter)) !=
              NOT_A_PARTITION_ID)
       {
-        ppar->mark_full_partition_used(ppar->part_info, part_id);
+        ppar->mark_full_partition_used(ppar, part_id);
         found= TRUE;
       }
       res= MY_TEST(found);
@@ -4936,13 +4984,6 @@ pop_and_go_right:
   return (left_res || right_res || res);
 }
  
-
-static void mark_all_partitions_as_used(partition_info *part_info)
-{
-  bitmap_copy(&(part_info->read_partitions),
-              &(part_info->lock_partitions));
-}
-
 
 /*
   Check if field types allow to construct partitioning index description
@@ -5048,6 +5089,15 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
       !(ppar->is_subpart_keypart= (my_bool*)alloc_root(alloc, sizeof(my_bool)*
                                                            total_parts)))
     return TRUE;
+
+  {
+    my_bitmap_map *buf;
+    uint32 bufsize= bitmap_buffer_size(part_info->read_partitions.n_bits);
+    if (!(buf= (my_bitmap_map*) alloc_root(alloc, bufsize)))
+      return TRUE;
+    my_bitmap_init(&ppar->parts_bitmap, buf,
+                   part_info->read_partitions.n_bits);
+  }
  
   if (ppar->subpart_fields)
   {
