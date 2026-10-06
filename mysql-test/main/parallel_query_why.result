@@ -36,6 +36,9 @@ why
 # a refusal about one table of the join names that table
 why
 ["the select has a HAVING clause", "<subquery2> is a temporary table, which a worker cannot re-open from its share"]
+# an inner table read through a join buffer
+why
+["t3 is read through a join buffer, which a worker does not have"]
 #
 # and nothing is said when the workers were never available: with
 # parallel_worker_threads at 0 every query in the server declines
