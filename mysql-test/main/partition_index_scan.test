@@ -610,5 +610,145 @@ SELECT * FROM t1 FORCE INDEX(b) WHERE b=1;
 SELECT * FROM t1 FORCE INDEX(b) WHERE b=1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-41366 Wrong result with Case 2 of non-merging partition index scan
+--echo #
+
+--echo # prefix-only PREFIX_LAST_OR_PREV qualifies Case 2
+--echo # key comparison failure converted to EOF => scan the next partition
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b,c)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+let $q=
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=1 AND c<=15 ORDER BY c DESC;
+eval $q;
+let $out=`analyze format=json $q`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+DROP TABLE t1;
+
+--echo # same but with desc key
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY(b desc,c desc)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,0,12);
+let $q=
+SELECT c FROM t1 FORCE INDEX(b) WHERE b=0 AND c>=2 ORDER BY c;
+eval $q;
+let $out=`analyze format=json $q`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+
+DROP TABLE t1;
+
+--echo # prefix-only KEY_OR_NEXT / PREFIX_LAST_OR_PREV (opt_sum)
+--echo # key comparison failure converted to EOF => scan the next partition
+CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, PRIMARY KEY(a,c), KEY k(b,c))
+  ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20),
+                       PARTITION p2 VALUES LESS THAN (30));
+--echo # no b=1 in p0 or p2
+INSERT INTO t1 VALUES (1,2,5),(2,1,15),(3,0,22);
+
+EXPLAIN
+SELECT MIN(c) FROM t1 WHERE b=1;
+SELECT MIN(c) FROM t1 WHERE b=1;
+
+EXPLAIN
+SELECT MAX(c) FROM t1 WHERE b=1;
+SELECT MAX(c) FROM t1 WHERE b=1;
+DROP TABLE t1;
+
+--echo # index_first with prefix does not qualify Case 2
+--echo # neither does index_read_map with prefix-only AFTER_KEY
+CREATE TABLE t1 (a INT, b INT, KEY(a,b)) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS(b) (PARTITION p1 VALUES LESS THAN (100),
+                               PARTITION p2 VALUES LESS THAN (200),
+                               PARTITION p3 VALUES LESS THAN MAXVALUE);
+INSERT INTO t1 SELECT seq % 3 + 1, seq FROM seq_1_to_300;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+let $q=
+SELECT a, MIN(b) FROM t1 GROUP BY a;
+eval EXPLAIN $q;
+eval $q;
+let $out=`analyze format=json $q`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+DROP TABLE t1;
+
+--echo # index_first with prefix does not qualify Case 2
+--echo # neither does index_read_map with prefix-only AFTER_KEY
+CREATE TABLE t1 (a INT, c INT, KEY(a,c)) ENGINE=InnoDB
+PARTITION BY RANGE COLUMNS(c) (PARTITION p1 VALUES LESS THAN (100),
+                               PARTITION p2 VALUES LESS THAN (200),
+                               PARTITION p3 VALUES LESS THAN MAXVALUE);
+INSERT INTO t1 SELECT 1, seq FROM seq_1_to_99;
+INSERT INTO t1 SELECT 2, seq FROM seq_100_to_199;
+INSERT INTO t1 SELECT 3, seq FROM seq_1_to_99;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+let $q=
+SELECT a, MIN(c) FROM t1 GROUP BY a;
+eval EXPLAIN $q;
+eval $q;
+let $out=`analyze format=json $q`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+DROP TABLE t1;
+
+--echo # AFTER_KEY / BEFORE_KEY prefix + partition column qualifies
+--echo # Case 2.
+--echo # key comparison failures converted to EOF => scan the next partition
+CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, PRIMARY KEY(a,c), KEY k(b,c))
+  ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20),
+                       PARTITION p2 VALUES LESS THAN (30));
+INSERT INTO t1 VALUES
+  (1,1,5),(2,2,7),(3,2,10),(4,1,15),(5,2,18),(6,0,22),(7,1,25);
+
+EXPLAIN
+SELECT MIN(c) FROM t1 WHERE b=1 AND c>5;
+FLUSH STATUS;
+SELECT MIN(c) FROM t1 WHERE b=1 AND c>5;
+--echo # 2 (unordered: p0, p1)
+SHOW STATUS LIKE 'Handler_read_key';
+
+EXPLAIN
+SELECT MAX(c) FROM t1 WHERE b=1 AND c<25;
+FLUSH STATUS;
+SELECT MAX(c) FROM t1 WHERE b=1 AND c<25;
+--echo # 2 (unordered: p2, p1)
+SHOW STATUS LIKE 'Handler_read_key';
+DROP TABLE t1;
+
+--echo # KEY_OR_PREV needs a reverse partition scan.
+--echo # Ordered scan (HASH)
+CREATE TABLE t1 (a INT, KEY k(a)) ENGINE=InnoDB
+PARTITION BY HASH(a) PARTITIONS 3;
+INSERT INTO t1 SELECT seq FROM seq_1_to_9;
+HANDLER t1 OPEN;
+HANDLER t1 READ k <= (5);
+HANDLER t1 READ k PREV;
+HANDLER t1 READ k PREV;
+HANDLER t1 READ k <= (0);
+HANDLER t1 CLOSE;
+DROP TABLE t1;
+
+--echo # KEY_OR_PREV Unordered scan (Case 2).
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY k(b,c))
+ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,2,7),(3,1,15);
+HANDLER t1 OPEN;
+HANDLER t1 READ k <= (1,17);
+--echo # TODO: READ k PREV from here crosses into p0 with a stale key,
+--echo # to be fixed in MDEV-41364
+HANDLER t1 CLOSE;
+DROP TABLE t1;
+
 --enable_cursor_protocol
 --enable_ps2_protocol
