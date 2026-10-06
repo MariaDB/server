@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
+--source include/not_embedded.inc
 
 SET @save_threads= @@GLOBAL.innodb_encryption_threads;
 SET @save_key_age= @@GLOBAL.innodb_encryption_rotate_key_age;
