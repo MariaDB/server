@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS ps_is_instrument_default_enabled;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_instrument_default_enabled (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_instrument_default_enabled (
         in_instrument VARCHAR(128)
     ) 
     RETURNS ENUM('YES', 'NO')
