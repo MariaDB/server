@@ -1498,20 +1498,20 @@ public:
   they should obey C calling conventions.
 */
 
-static const uchar *my_tz_names_get_key(const void *entry_, size_t *length,
-                                            my_bool)
+static const void *my_tz_names_get_key(const void *entry_, size_t *length,
+                                           my_bool)
 {
   auto entry= static_cast<const Tz_names_entry *>(entry_);
   *length= entry->name.length();
-  return reinterpret_cast<const uchar *>(entry->name.ptr());
+  return entry->name.ptr();
 }
 
-static const uchar *my_offset_tzs_get_key(const void *entry_,
-                                             size_t *length, my_bool)
+static const void *my_offset_tzs_get_key(const void *entry_,
+                                            size_t *length, my_bool)
 {
   auto entry= static_cast<const Time_zone_offset *>(entry_);
   *length= sizeof(long);
-  return reinterpret_cast<const uchar *>(&entry->offset);
+  return &entry->offset;
 }
 
 
