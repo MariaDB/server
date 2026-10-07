@@ -880,6 +880,47 @@ SET optimizer_switch=default;
 
 DROP TABLE t0,t1;
 
+--echo #
+--echo # MDEV-41251: Comparison copied into a split materialized table
+--echo #
+
+CREATE TABLE t1 (b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(1),(2),(5);
+CREATE TABLE t2 (a int, c int, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT MOD(seq,100), seq FROM seq_1_to_1000;
+INSERT INTO t2 VALUES (NULL,7),(NULL,8);
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+
+let $q=
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> (t1.b = 1);
+
+eval EXPLAIN $q;
+--sorted_result
+eval $q;
+
+SET optimizer_switch='split_materialized=off';
+--sorted_result
+eval $q;
+SET optimizer_switch=default;
+
+let $q=
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> ((t1.b, t1.b) = (1, 1));
+
+eval EXPLAIN $q;
+--sorted_result
+eval $q;
+
+SET optimizer_switch='split_materialized=off';
+--sorted_result
+eval $q;
+SET optimizer_switch=default;
+
+DROP TABLE t1,t2;
+
 --echo # End of 13.2 tests
 
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

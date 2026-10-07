@@ -1450,5 +1450,70 @@ a	b
 2	2
 SET optimizer_switch=default;
 DROP TABLE t0,t1;
+#
+# MDEV-41251: Comparison copied into a split materialized table
+#
+CREATE TABLE t1 (b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(1),(2),(5);
+CREATE TABLE t2 (a int, c int, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 SELECT MOD(seq,100), seq FROM seq_1_to_1000;
+INSERT INTO t2 VALUES (NULL,7),(NULL,8);
+ANALYZE TABLE t1, t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+EXPLAIN SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> (t1.b = 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	ref	key0	key0	5	func	1	Using where
+2	LATERAL DERIVED	t2	ref	a	a	5	func	10	Using index condition
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> (t1.b = 1);
+b	a	s
+1	1	4510
+2	0	5500
+5	0	5500
+NULL	NULL	15
+SET optimizer_switch='split_materialized=off';
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> (t1.b = 1);
+b	a	s
+1	1	4510
+2	0	5500
+5	0	5500
+NULL	NULL	15
+SET optimizer_switch=default;
+EXPLAIN SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> ((t1.b, t1.b) = (1, 1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	ref	key0	key0	5	func	1	Using where
+2	LATERAL DERIVED	t2	ref	a	a	5	func	10	Using index condition
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> ((t1.b, t1.b) = (1, 1));
+b	a	s
+1	1	4510
+2	0	5500
+5	0	5500
+NULL	NULL	15
+SET optimizer_switch='split_materialized=off';
+SELECT t1.b, dt.a, dt.s
+FROM t1, (SELECT a, SUM(c) s FROM t2 GROUP BY a) dt
+WHERE dt.a <=> ((t1.b, t1.b) = (1, 1));
+b	a	s
+1	1	4510
+2	0	5500
+5	0	5500
+NULL	NULL	15
+SET optimizer_switch=default;
+DROP TABLE t1,t2;
 # End of 13.2 tests
 SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;
