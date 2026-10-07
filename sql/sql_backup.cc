@@ -219,7 +219,19 @@ int copy_entire_file(int src, int dst) noexcept
 }
 #endif
 
-#if defined __linux__ || defined __FreeBSD__
+/*
+  The system call copy_file_range(2) was introduced in Linux 4.5
+  (which reached its end of life before 2023) and FreeBSD 13 (EoL on
+  2026-04-30).
+
+  The system call sendfile(2) was introduced in Linux 2.2.
+
+  Because the system calls are available on all supported versions of
+  FreeBSD or Linux, there is no need to check for availability. They
+  are not documented to exist on other operating systems that we are
+  aware of.
+*/
+#if defined __FreeBSD__ || defined __linux__
 using copying_step= ssize_t(int,int,size_t,off_t*);
 template<copying_step step,bool nonblocking>
 static ssize_t stepwise(int in_fd, int out_fd, off_t offset, off_t end)
@@ -262,7 +274,7 @@ namespace backup {
 int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 {
   assert(end >= start);
-#ifdef __FreeBSD__
+#if defined __FreeBSD__
   /* On FreeBSD, copy_file_range() without flags just works */
   return int(cfr(src, dst, off_t(start), off_t(end)));
 #else
@@ -474,7 +486,7 @@ int backup_stream_zeropad(backup_fd stream, size_t written) noexcept
   return written ? backup_stream_write(stream, zerobuf, 512 - written) : 0;
 }
 
-#ifdef __linux__
+#ifdef copy_file_shortcut
 /**
    Try to copy a portion of a file via copy_file_range(2).
    @param src   source file descriptor

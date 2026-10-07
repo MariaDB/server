@@ -660,6 +660,9 @@ extern int (*mysys_test_invalid_symlink)(const char *filename);
 	/* Prototypes for mysys and my_func functions */
 
 extern int my_copy(const char *from,const char *to,myf MyFlags);
+extern int my_copy_file(File from, File to, myf MyFlags);
+extern int my_copy_file_range(File from, File to, my_off_t start,
+                              my_off_t end, myf MyFlags);
 extern int my_delete(const char *name,myf MyFlags);
 extern int my_rmtree(const char *name, myf Myflags);
 extern int my_getwd(char * buf,size_t size,myf MyFlags);
@@ -736,6 +739,31 @@ extern my_bool is_filename_allowed(const char *name, size_t length,
 extern HANDLE   my_get_osfhandle(File fd);
 extern File     my_win_handle2File(HANDLE hFile);
 extern void     my_osmaperr(unsigned long last_error);
+#endif
+
+/*
+  The native file handle of the operating system, for the few places
+  that have to give a file opened by my_open() or my_create() to a
+  function that is not part of mysys.
+*/
+
+typedef IF_WIN(HANDLE, File) my_native_file;
+
+#ifdef _WIN32
+#define my_native_file_handle(fd) my_get_osfhandle(fd)
+/*
+  Give a file handle from the operating system a mysys file
+  descriptor. my_detach_file() frees the descriptor without closing
+  the handle, which is what one has to use for a handle that mysys
+  does not own. On Posix a file handle is already a file descriptor,
+  so nothing has to be done.
+*/
+extern File my_convert_handle_to_file(my_native_file handle, int oflag);
+extern void my_detach_file(File fd);
+#else
+#define my_native_file_handle(fd) (fd)
+#define my_convert_handle_to_file(handle, oflag) (handle)
+#define my_detach_file(fd) do { } while (0)
 #endif
 
 extern void init_glob_errs(void);

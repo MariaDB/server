@@ -169,8 +169,12 @@ int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end) noexcept;
 
 # ifdef __linux__
 /**
-   Try to copy a portion of a file via copy_file_range(2).
-   @param src   source file descriptor
+   Try to copy a portion of a file via copy_file_range(2),
+   which was introduced in Linux 4.5 and therefore available
+   on all currently supported kernel versions.
+   Unlike the FreeBSD system call, the Linux one may fail with
+   EOPNOTSUPP, requiring a fallback.
+   @param src   source file descriptor_
    @param dst   target to append src to
    @param start first offset to copy
    @param end   last offset to copy (exclusive)

@@ -53,38 +53,120 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 extern "C" {
 
-/* Associates a file descriptor with an existing operating-system file handle.*/
-File my_open_osfhandle(HANDLE handle, int oflag)
-{
-  int offset= -1;
-  uint i;
-  DBUG_ENTER("my_open_osfhandle");
+/*
+  Entries in my_file_info are taken from a free list, as a scan of the
+  whole array for every opened file is expensive; on Windows the array
+  has MY_NFILE (16K) entries.
 
-  mysql_mutex_lock(&THR_LOCK_open);
-  for(i= MY_FILE_MIN; i < my_file_limit;i++)
+  A free entry has fhandle == 0 and oflag set to the next free entry,
+  or -1 if it is the last one. fhandle is not used for the list as
+  my_win_handle2File() searches the array for a handle value.
+
+  Both variables are protected by THR_LOCK_open.
+*/
+
+static uint win_file_next_free= MY_FILE_MIN;    /* First never used entry */
+static int win_file_link_free= -1;              /* List of freed entries */
+
+
+/*
+  Get an unused entry in my_file_info.
+
+  Should be called with THR_LOCK_open locked.
+
+  @return index in my_file_info
+  @retval -1 if there are no free entries
+*/
+
+static File alloc_file_info(void)
+{
+  File fd= win_file_link_free;
+
+  if (fd >= 0)
   {
-    if(my_file_info[i].fhandle == 0)
+    if (likely((uint) fd < my_file_limit))
     {
-      struct st_my_file_info *finfo= &(my_file_info[i]);
-      finfo->type=    FILE_BY_OPEN;
-      finfo->fhandle= handle;
-      finfo->oflag=   oflag;
-      offset= i;
-      break;
+      /* Take the first entry from the list of freed entries */
+      win_file_link_free= my_file_info[fd].oflag;
+      return fd;
     }
+    /* my_file_info was made smaller; the list is not usable anymore */
+    win_file_link_free= -1;
   }
-  mysql_mutex_unlock(&THR_LOCK_open);
-  if(offset == -1)
-    errno= EMFILE; /* to many file handles open */
-  DBUG_RETURN(offset);
+  if (win_file_next_free < my_file_limit)
+    return (File) win_file_next_free++;
+  return -1;                                    /* Too many open files */
 }
 
+
+/*
+  Associate a file descriptor with an existing operating-system file
+  handle.
+
+  If the handle is owned by someone else, like the C runtime or a
+  storage engine, my_detach_file() should be used to free the
+  descriptor; my_close() would also close the handle.
+
+  @return file descriptor
+  @retval -1 if there are no free entries in my_file_info
+*/
+
+File my_convert_handle_to_file(my_native_file handle, int oflag)
+{
+  File fd;
+  DBUG_ENTER("my_convert_handle_to_file");
+
+  mysql_mutex_lock(&THR_LOCK_open);
+  fd= alloc_file_info();
+  mysql_mutex_unlock(&THR_LOCK_open);
+  if (fd > 0)
+  {
+    struct st_my_file_info *finfo= &my_file_info[fd];
+    finfo->type=    FILE_BY_OPEN;
+    finfo->fhandle= handle;
+    finfo->oflag=   oflag;
+  }
+  else if (fd < 0)
+    errno= EMFILE;                  /* Too many file handles open */
+  DBUG_RETURN(fd);
+}
+
+
+/* Free the my_file_info entry and put it on the list of free entries */
 
 static void invalidate_fd(File fd)
 {
   DBUG_ENTER("invalidate_fd");
-  DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int)my_file_limit);
+  DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int) my_file_limit);
+
+  mysql_mutex_lock(&THR_LOCK_open);
   my_file_info[fd].fhandle= 0;
+  my_file_info[fd].oflag=   win_file_link_free;
+  win_file_link_free=       fd;
+  mysql_mutex_unlock(&THR_LOCK_open);
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Free a file descriptor from my_convert_handle_to_file() without
+  closing the file handle.
+
+  This is used for handles that are owned by someone else, like a pipe
+  from my_popen() that my_pclose() closes, or a file that a storage
+  engine has opened itself.
+*/
+
+void my_detach_file(File fd)
+{
+  DBUG_ENTER("my_detach_file");
+  DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int) my_file_limit);
+  DBUG_ASSERT(my_file_info[fd].fhandle != 0);
+
+  my_free(my_file_info[fd].name);
+  my_file_info[fd].name= 0;
+  my_file_info[fd].type= UNOPEN;
+  invalidate_fd(fd);
   DBUG_VOID_RETURN;
 }
 
@@ -299,7 +381,8 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     fileattrib|= FILE_FLAG_RANDOM_ACCESS;
 
   /* try to open/create the file  */
-  if ((osfh= my_create_file_with_retries(path, fileaccess, fileshare,my_win_file_secattr(),
+  if ((osfh= my_create_file_with_retries(path, fileaccess,
+                                         fileshare,my_win_file_secattr(),
     filecreate, fileattrib, NULL)) == INVALID_HANDLE_VALUE)
   {
     DWORD last_error= GetLastError();
@@ -310,11 +393,10 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     DBUG_RETURN(-1);
   }
 
-  if ((fh= my_open_osfhandle(osfh, 
-    oflag & (_O_APPEND | _O_RDONLY | _O_TEXT))) == -1)
-  {
+  if ((fh= my_convert_handle_to_file(osfh,
+                                     oflag & (_O_APPEND | _O_RDONLY |
+                                              _O_TEXT))) == -1)
     CloseHandle(osfh);
-  }
 
   DBUG_RETURN(fh);                   /* return handle */
 }
@@ -331,7 +413,7 @@ File my_win_open(const char *path, int flags)
 int my_win_close(File fd)
 {
   DBUG_ENTER("my_win_close");
-  if(CloseHandle(my_get_osfhandle(fd)))
+  if (CloseHandle(my_get_osfhandle(fd)))
   {
     invalidate_fd(fd);
     DBUG_RETURN(0);
@@ -533,7 +615,7 @@ static File my_get_stdfile_descriptor(FILE *stream)
 
   hFile= GetStdHandle(nStdHandle);
   if(hFile != INVALID_HANDLE_VALUE)
-    DBUG_RETURN(my_open_osfhandle(hFile, 0));
+    DBUG_RETURN(my_convert_handle_to_file(hFile, 0));
   DBUG_RETURN(-1);
 }
 
@@ -595,7 +677,7 @@ FILE *my_win_fopen(const char *filename, const char *type)
      Register file handle in my_table_info.
      Necessary for my_fileno()
    */
-  if(my_open_osfhandle((HANDLE)_get_osfhandle(fileno(file)), flags) < 0)
+  if(my_convert_handle_to_file((HANDLE)_get_osfhandle(fileno(file)), flags) < 0)
   {
     fclose(file);
     DBUG_RETURN(NULL);
@@ -736,7 +818,7 @@ int my_win_dup(File fd)
   if (DuplicateHandle(GetCurrentProcess(), my_get_osfhandle(fd),
        GetCurrentProcess(), &hDup, 0, FALSE, DUPLICATE_SAME_ACCESS))
   {
-     DBUG_RETURN(my_open_osfhandle(hDup, my_get_open_flags(fd)));
+     DBUG_RETURN(my_convert_handle_to_file(hDup, my_get_open_flags(fd)));
   }
   my_osmaperr(GetLastError());
   DBUG_RETURN(-1);
