@@ -1,0 +1,98 @@
+#
+# MGL-301: local commit is rejected by the backlog gate in replicate()
+#
+# STEPS:
+# 1. Hold node_2 appliers right before they enter the apply monitor, so
+#    certification of incoming writesets stalls as soon as the single
+#    applier thread is busy with the first one
+# 2. Queue 70000 writesets from node_1: node_2's local backlog (as seen by
+#    the gate, i.e. gcs' next local seqno vs. the local monitor's drain
+#    point) grows far past half of the monitor's window before any local
+#    statement is attempted
+# 3. Attempt a local commit on node_2: unlike MGL-301-abort.test, this time
+#    the backlog already exists when replicate() runs its gate check, so
+#    the trx is rejected right away (WSREP_CONN_FAIL, same as the node not
+#    being in S_JOINED) instead of being assigned a seqno it can't be
+#    addressed at - the node must not abort
+# 4. Release the appliers, let the backlog drain and check that node_2
+#    stays in the cluster and resumes normal operation
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+--source include/galera_have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: certification interval");
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+--delimiter |
+CREATE PROCEDURE fill(n INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < n DO
+    INSERT INTO t2 (v) VALUES (i);
+    SET i = i + 1;
+  END WHILE;
+END|
+--delimiter ;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1000000';
+SET GLOBAL wsrep_provider_options='dbug=d,apply_monitor_slave_enter_sync';
+
+--connection node_1
+CALL fill(70000);
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE >= 40000 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+# The backlog is already in place: the gate in replicate() must catch this
+# trx on its very first check and reject it, instead of letting it obtain a
+# seqno it would not be addressable at.
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (1, 0);
+
+# Node must still be a fully functional member of the cluster.
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+
+# Let the backlog drain. The rejection above is already proven, so there is
+# no more need for a single applier thread; raise wsrep_slave_threads so the
+# (independent, non-conflicting) backlog of 70000 writesets is applied in
+# parallel instead of one at a time, which would otherwise be too slow for
+# a debug build to clear within a typical testcase timeout.
+SET GLOBAL wsrep_slave_threads = 16;
+SET GLOBAL wsrep_provider_options='dbug=';
+SET GLOBAL wsrep_provider_options='signal=apply_monitor_slave_enter_sync';
+
+SET SESSION wsrep_on=OFF;
+--let $wait_timeout = 120
+--let $wait_condition = SELECT COUNT(*) = 70000 FROM t2
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+SET GLOBAL wsrep_slave_threads = 1;
+
+# Once the backlog has drained, the same statement must succeed.
+INSERT INTO t1 VALUES (1, 0);
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+DROP PROCEDURE fill;
+DROP TABLE t1, t2;
+
+--source include/auto_increment_offset_restore.inc
