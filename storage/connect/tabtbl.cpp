@@ -287,12 +287,20 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   return FALSE;
   } // end of InitTableList
 
+#define OP_SIZE 7
+#define TN_SIZE 192
+#if TN_SIZE != NAME_LEN
+#error "TN_SIZE must equal NAME_LEN"
+#endif
+#define _OP STRINGIFY_ARG(OP_SIZE)
+#define _TN STRINGIFY_ARG(TN_SIZE)
+
 /***********************************************************************/
 /*  Test the tablename against the pseudo "local" filter.              */
 /***********************************************************************/
 bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
   {
-  char *body, *fil, op[8], tn[NAME_LEN];
+  char *body, *fil, op[OP_SIZE+1], tn[TN_SIZE+1];
   bool  neg;
 
   if (!filp)
@@ -305,7 +313,7 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
   else
     fil = body + (*body == '(' ? 1 : 0);
 
-  if (sscanf(fil, "TABID %s", op) != 1)
+  if (sscanf(fil, "TABID %" _OP "s", op) != 1)
     return TRUE;               // ignore invalid filter
 
   if ((neg = !strcmp(op, "NOT")))
@@ -313,7 +321,7 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
 
   if (!strcmp(op, "=")) {
     // Temporarily, filter must be "TABID = 'value'" only
-    if (sscanf(fil, "TABID = '%[^']'", tn) != 1)
+    if (sscanf(fil, "TABID = '%" _TN "[^']'", tn) != 1)
       return TRUE;             // ignore invalid filter
 
     return !stricmp(tn, tabp->GetName());
@@ -333,7 +341,7 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
       if ((p = strchr(tnl, ',')))
         *p++ = 0;
 
-      if (sscanf(tnl, "'%[^']'", tn) != 1)
+      if (sscanf(tnl, "'%" _TN "[^']'", tn) != 1)
         return TRUE;           // ignore invalid filter
       else if (!stricmp(tn, tabp->GetName()))
         return !neg;           // Found

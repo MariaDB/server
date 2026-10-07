@@ -165,9 +165,13 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 /*
   Called after each row operation.
 
+  If skip_streaming is true, the streaming replication step is not run for
+  this row. The row is still validated here and accounted for by the caller;
+  it will be replicated with the following fragment, or at commit.
+
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_after_row_internal(THD* thd)
+static inline int wsrep_after_row_internal(THD* thd, bool skip_streaming= false)
 {
   if (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
       wsrep_thd_is_local(thd))
@@ -176,7 +180,7 @@ static inline int wsrep_after_row_internal(THD* thd)
     {
       return 1;
     }
-    else if (wsrep_streaming_enabled(thd))
+    else if (!skip_streaming && wsrep_streaming_enabled(thd))
     {
       return thd->wsrep_cs().after_row();
     }

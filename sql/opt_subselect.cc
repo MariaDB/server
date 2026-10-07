@@ -734,7 +734,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
-        13. Subquery does not have ROWNUM
+        13. Subquery does not set UNCACHEABLE_RAND.  RAND() and ROWNUM
+            set it.
 
       There are also other requirements which cannot be checked at this phase,
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
@@ -754,7 +755,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
         select_lex->first_cond_optimization &&                        // 11
-        !select_lex->with_rownum)                                     // 13
+        !(select_lex->uncacheable & UNCACHEABLE_RAND))                // 13
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -3604,7 +3605,7 @@ bool Firstmatch_picker::check_qep(JOIN *join,
 
 /*
   Duplicate_weedout strategy is described at
-  https://mariadb.com/kb/en/duplicateweedout-strategy/
+  https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/optimization-strategies/duplicateweedout-strategy
 
   The idea is that if one has a subquery of type:
 

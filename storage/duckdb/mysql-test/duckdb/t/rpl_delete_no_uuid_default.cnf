@@ -1,0 +1,15 @@
+!include suite/rpl/my.cnf
+
+[mysqld]
+plugin-maturity=experimental
+plugin-load-add=ha_duckdb.so
+duckdb_dml_in_batch=ON
+character-set-server=utf8mb4
+
+[mysqld.1]
+binlog-format=mixed
+innodb
+
+[mysqld.2]
+binlog-format=mixed
+innodb

@@ -7272,6 +7272,25 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_RETURN(0);
   }
 
+  /*
+    A routine records its database in mysql.proc in lower case whenever
+    lower_case_table_names is set, see sp_name::sp_name().  The lookup value
+    is the name as the query spelled it, and get_lookup_field_values folds it
+    to lower case only for lower_case_table_names 1.  Fold it here for the
+    remaining setting so that the index read below, and the comparison in
+    check_proc_record, both see the form that was stored.  mysql.proc.db is
+    utf8mb3_bin, so neither of them can absorb the difference in case.
+    The value is a buffer allocated by get_lookup_field_values, so it can be
+    changed in place.
+  */
+  char db_buf[NAME_LEN + 1];
+  if (lower_case_table_names && lookup.db_value.length)
+  {
+    lookup.db_value.length= files_charset_info->casedn_z(lookup.db_value.str,
+                               lookup.db_value.length, db_buf, sizeof(db_buf));
+    lookup.db_value.str= db_buf;
+  }
+
   start_new_trans new_trans(thd);
 
   if (!(proc_table= open_proc_table_for_read(thd)))

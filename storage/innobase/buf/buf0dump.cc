@@ -331,6 +331,7 @@ buf_dump(
 	     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 		const auto status = bpage->state();
 		if (status < buf_page_t::UNFIXED) {
+			// @infer-ignore PULSE_RESOURCE_LEAK
 			ut_a(status >= buf_page_t::FREED);
 			continue;
 		}

@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_setup_show_enabled;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_show_enabled (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_show_enabled (
         IN in_show_instruments BOOLEAN,
         IN in_show_threads BOOLEAN
     )

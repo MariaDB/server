@@ -1688,6 +1688,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
 	fseg_inode_t*	inode;
 	ib_id_t		seg_id;
 	uint32_t	n_reserved = 0;
+	bool		reserved = false;
 
 	DBUG_ENTER("fseg_create");
 
@@ -1710,20 +1711,29 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
 
 inode_alloc:
 	inode = fsp_alloc_seg_inode(space, header, &iblock, mtr, err);
-
+	DBUG_EXECUTE_IF("inode_page_decryption_failed",
+		*err = DB_DECRYPTION_FAILED;
+		inode = nullptr;
+	);
+	if (*err == DB_DECRYPTION_FAILED) {
+		block = nullptr;
+		goto funct_exit;
+	}
 	if (!inode) {
 		block = nullptr;
 reserve_extent:
-		if (!has_done_reservation && !n_reserved) {
+		if (!has_done_reservation && !reserved) {
 			*err = fsp_reserve_free_extents(&n_reserved, space, 2,
 							FSP_NORMAL, mtr);
 			if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 				DBUG_RETURN(nullptr);
 			}
 
-			ut_ad(n_reserved > 0);
-			/* Extents reserved successfully. So
-			try allocating the page or inode */
+			/* Extents (or pages for small table)
+			reserved successfully.
+			See fsp_reserve_free_extents()
+			So try allocating the page or inode */
+			reserved = true;
 			if (inode) {
 				goto page_alloc;
 			}

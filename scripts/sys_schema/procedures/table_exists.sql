@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS table_exists;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
         IN in_db VARCHAR(64), IN in_table VARCHAR(64),
         OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY', 'SEQUENCE', 'SYSTEM VIEW', 'TEMPORARY SEQUENCE')
     )

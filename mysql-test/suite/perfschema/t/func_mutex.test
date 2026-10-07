@@ -90,11 +90,38 @@ TRUNCATE TABLE performance_schema.events_waits_current;
 
 show variables like "%not_found%";
 
+# The wait timer can have a granularity coarser than the time an
+# uncontended read lock is held, so the recorded duration of one lock can
+# be zero, which reads back as NULL.  Take the lock repeatedly at each
+# measurement point so that at least one duration is greater than zero.
+# The extra statements are silent to leave the recorded result unchanged.
+--disable_query_log
+--disable_result_log
+let $i= 20;
+while ($i)
+{
+  show variables like "%not_found%";
+  dec $i;
+}
+--enable_result_log
+--enable_query_log
+
 SET @before_count = (SELECT SUM(TIMER_WAIT)
                      FROM performance_schema.events_waits_history_long
                      WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_system_variables_hash'));
 
 show variables like "%not_found%";
+
+--disable_query_log
+--disable_result_log
+let $i= 20;
+while ($i)
+{
+  show variables like "%not_found%";
+  dec $i;
+}
+--enable_result_log
+--enable_query_log
 
 SET @after_count = (SELECT SUM(TIMER_WAIT)
                     FROM performance_schema.events_waits_history_long
