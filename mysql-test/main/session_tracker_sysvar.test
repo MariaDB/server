@@ -29,3 +29,53 @@ use mysql;
 set session_track_system_variables=default;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-41424 Session tracker must be enabled by SET session_track_system_variables
+--echo # when the session started with an empty list
+--echo #
+SET @save_global_track= @@global.session_track_system_variables;
+SET GLOBAL session_track_system_variables= '';
+
+--connect (con1,localhost,root,,)
+SELECT @@session.session_track_system_variables;
+SET SESSION session_track_system_variables= 'character_set_client';
+--echo # Expect character_set_client to be reported
+--enable_session_track_info
+SET NAMES latin1;
+--disable_session_track_info
+
+SET SESSION session_track_system_variables= '*';
+--echo # Expect all three character_set_* variables to be reported
+--enable_session_track_info
+SET NAMES utf8mb3;
+--disable_session_track_info
+
+SET SESSION session_track_system_variables= '';
+--echo # Expect nothing to be reported after the list was emptied again
+--enable_session_track_info
+SET NAMES latin1;
+--disable_session_track_info
+
+SET SESSION session_track_system_variables= 'character_set_client';
+--echo # Expect character_set_client to be reported again
+--enable_session_track_info
+SET NAMES utf8mb3;
+--disable_session_track_info
+--disconnect con1
+
+--echo # Control: the session started with a non-empty list
+--connection default
+SET GLOBAL session_track_system_variables= 'autocommit';
+--connect (con2,localhost,root,,)
+SELECT @@session.session_track_system_variables;
+SET SESSION session_track_system_variables= 'character_set_client';
+--enable_session_track_info
+SET NAMES latin1;
+--disable_session_track_info
+--disconnect con2
+
+--connection default
+SET GLOBAL session_track_system_variables= @save_global_track;
+
+--echo # End of 10.11 tests
