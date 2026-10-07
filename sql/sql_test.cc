@@ -746,4 +746,18 @@ const char *dbug_which_mem_root(THD *thd, void *ptr)
   return "Unknown";
 }
 
+
+/* Return how much memory was malloc'ed for this mem_root */
+size_t dbug_get_mem_root_alloc_size(const MEM_ROOT *mem_root)
+{
+  size_t total=0;
+  const USED_MEM *ptrs[]= {mem_root->free, mem_root->used, NULL};
+  for (const USED_MEM **p= ptrs; *p; p++)
+  {
+    for (const USED_MEM *block= *p; block; block= block->next)
+      total += block->size;
+  }
+  return total;
+}
+
 #endif
