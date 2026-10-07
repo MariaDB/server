@@ -23,11 +23,12 @@ struct backup_target
 #ifdef _WIN32
   /** Target directory path name, or nullptr if streaming */
   const char *path;
-  bool operator==(const backup_target &o) const { return path == o.path; }
+  bool operator==(const backup_target &o) const noexcept
+  { return path == o.path; }
 #else
   /** Target directory descriptor, or -1 if streaming */
   int fd;
-  bool operator==(const backup_target &o) const { return fd == o.fd; }
+  bool operator==(const backup_target &o) const noexcept { return fd == o.fd; }
 #endif
 };
 
@@ -62,32 +63,6 @@ struct backup_chunk
 
 /** File descriptor */
 typedef IF_WIN(HANDLE, int) backup_fd;
-
-#ifdef _WIN32
-/* Use CopyFileEx() to copy entire files */
-#elif defined __APPLE__
-/* You should invoke fclonefileat(2) manually before attempting
-copy_entire_file() or backup::copy() */
-# include <sys/attr.h>
-# include <sys/clonefile.h>
-# include <copyfile.h>
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (negative)
-@retval 0   on success */
-inline int copy_entire_file(int src, int dst) noexcept
-{
-  return fcopyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE);
-}
-#else
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-int copy_entire_file(int src, int dst) noexcept;
-#endif
 
 #ifdef _WIN32
 struct native_file_handle;

@@ -177,48 +177,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
   return ret;
 }
 
-#ifdef __APPLE__
-/* The inline copy_entire_file() invokes fcopyfile() */
-#elif defined _WIN32
-/* CopyFileEx() should be used */
-#else
-/** Copy a file (whole content).
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-int copy_entire_file(int src, int dst) noexcept
-{
-  uint64_t end(lseek(src, 0, SEEK_END));
-#ifdef POSIX_FADV_SEQUENTIAL
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif
-  int ret;
-# ifdef copy_file_shortcut
-  ret= int(copy_file_shortcut(src, dst, 0, end));
-  if (ret == 1)
-# endif
-  {
-# ifdef copy_file_mmap
-    void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
-    if (p != MAP_FAILED)
-    {
-      ret= int(copy_file_mmap(p, dst, 0, end));
-      munmap(p, size_t{end});
-    }
-    else
-# endif
-    {
-      ret= backup::copy(src, dst, 0, end);
-    }
-  }
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
-#endif
-  return ret;
-}
-#endif
-
 /*
   The system call copy_file_range(2) was introduced in Linux 4.5
   (which reached its end of life before 2023) and FreeBSD 13 (EoL on
@@ -310,7 +268,7 @@ int copy_or_stream(const backup_target &target, const backup_sink &sink,
       my_error(ER_CANT_CREATE_FILE, MYF(0), path, errno);
     else
     {
-      ret= copy_entire_file(src, dst) | close(dst);
+      ret= my_copy_file(src, dst, MYF(MY_WME)) | close(dst);
       if (ret)
       write_error:
         my_error(ER_ERROR_ON_WRITE, MYF(0), path, errno);
@@ -1352,8 +1310,10 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     goto err_exit;
   else
   {
-#ifndef _WIN32
-    const int dir{open(target, O_DIRECTORY)};
+#ifdef _WIN32
+    const int dir= -1;                  /* The path is used on Windows */
+#else
+    const int dir= open(target, O_DIRECTORY);
     if (dir < 0)
     {
       my_error(EE_CANT_MKDIR, MYF(ME_BELL), target, errno);

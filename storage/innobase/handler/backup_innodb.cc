@@ -30,6 +30,10 @@
 # include <fcntl.h>
 # include <linux/falloc.h>
 #endif
+#ifdef __APPLE__
+# include <sys/attr.h>
+# include <sys/clonefile.h>
+#endif
 
 /** Associate a transaction with the current session
 @param thd   session
@@ -2220,7 +2224,7 @@ public:
 # endif
       if (dst != sink.stream)
       {
-        err= copy_entire_file(src, dst);
+        err= my_copy_file_range(src, dst, 0, chunk->offset, MYF(MY_WME));
         goto close_dst;
       }
 #endif
