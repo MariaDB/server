@@ -20,6 +20,9 @@
 #include <my_dir.h>
 #include <m_string.h>
 #include "tap.h"
+#ifdef _WIN32
+# include <direct.h> /* rmdir() */
+#endif
 
 /* Files and directories that the test creates in the test directory */
 
