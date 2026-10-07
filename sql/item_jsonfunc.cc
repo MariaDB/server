@@ -6858,7 +6858,6 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
       jq->const_item() correctly returns false BEFORE jc->fix_length_and_dec
       reads it.  The same call must also follow for jc itself for symmetry.
     */
-    jq->update_used_tables();
     json_quote_item= jq;
     if (contains_args.push_back(json_quote_item, thd->mem_root))
       return true;
@@ -6870,7 +6869,6 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
   if (jc->fix_length_and_dec(thd))
     return true;
   /* Propagate used-tables/const state from the freshly fixed arguments. */
-  jc->update_used_tables();
   json_contains_item= jc;
 
   return false;
