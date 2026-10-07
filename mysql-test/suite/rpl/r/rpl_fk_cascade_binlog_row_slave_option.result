@@ -39,8 +39,8 @@ COUNT(*)
 0
 FLUSH BINARY LOGS;
 FOUND 1 /### DELETE FROM `test`.`p`/ in fk_cascade_slave_option.sql
-NOT FOUND /### DELETE FROM `test`.`c`/ in fk_cascade_slave_option.sql
-NOT FOUND /### UPDATE `test`.`c`/ in fk_cascade_slave_option.sql
+FOUND 1 /### DELETE FROM `test`.`c`/ in fk_cascade_slave_option.sql
+FOUND 1 /### UPDATE `test`.`c`/ in fk_cascade_slave_option.sql
 connection slave;
 include/stop_slave.inc
 SET GLOBAL rpl_use_binlog_events_for_fk_cascade=0;

@@ -8298,7 +8298,10 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
       pending->get_table_id() != table->s->table_map_id ||
       pending->get_general_type_code() != event_factory.type_code ||
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
-      pending->read_write_bitmaps_cmp(table) == FALSE)
+      pending->read_write_bitmaps_cmp(table) == FALSE ||
+      /* Cascade-derived rows and the statement's own go to separate events */
+      (pending->get_flags(Rows_log_event::FK_CASCADE_DERIVED_F) != 0) !=
+        thd->binlog_fk_cascade_derived)
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const

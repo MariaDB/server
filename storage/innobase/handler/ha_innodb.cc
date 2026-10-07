@@ -8715,7 +8715,11 @@ statement being executed and describes a different set of columns.
 int
 ha_innobase::fk_cascade_fetch_row(uchar* buf)
 {
-	if (m_prebuilt == NULL || m_prebuilt->mysql_template == NULL
+	/* No check of m_prebuilt->mysql_template: the template is rebuilt
+	below, allocated if needed. A handler that has not read anything yet
+	has none, e.g. the one opened for a self-referencing foreign key, whose
+	child is the table the statement itself changes. */
+	if (m_prebuilt == NULL
 	    || m_fk_cascade_rec == NULL || m_fk_cascade_index == NULL) {
 		return HA_ERR_GENERIC;
 	}

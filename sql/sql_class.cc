@@ -237,12 +237,22 @@ void THD::discard_pending_cascade_binlog()
   See include/mysql/service_thd_fk_cascade.h for the contract.
 */
 
+/* Close the innermost cascade action's frame, freeing its images. */
+void THD::fk_cascade_pop_images()
+{
+  if (!fk_cascade_image_stack.elements())
+    return;
+  Fk_cascade_images &top= fk_cascade_image_stack.pop();
+  my_free(top.before);
+  my_free(top.after);
+}
+
+
+/* Close every frame; a backstop for actions the engine never reported. */
 void THD::fk_cascade_free_images()
 {
-  my_free(fk_cascade_before_image);
-  my_free(fk_cascade_after_image);
-  fk_cascade_before_image= NULL;
-  fk_cascade_after_image= NULL;
+  while (fk_cascade_image_stack.elements())
+    fk_cascade_pop_images();
 }
 
 
@@ -425,12 +435,28 @@ int thd_fk_cascade_capture(THD *thd, TABLE *table, int which)
   if (!thd || !table)
     return 1;
 
-  const size_t len= table->s->reclength;
-  uchar **slot= (which == FK_CASCADE_IMAGE_BEFORE ?
-                 &thd->fk_cascade_before_image : &thd->fk_cascade_after_image);
+  /*
+    A before-image starts a new cascade action. It gets a frame of its own,
+    even if an outer action is still in flight: performing the outer cascade
+    is what reaches this nested one. The frame is closed by
+    thd_fk_cascade_row() or thd_fk_cascade_abort(), also when this capture
+    fails.
+  */
+  if (which == FK_CASCADE_IMAGE_BEFORE)
+  {
+    THD::Fk_cascade_images frame= {NULL, NULL};
+    if (thd->fk_cascade_image_stack.append(frame))
+      return 1;
+  }
+  else if (!thd->fk_cascade_image_stack.elements())
+    return 1;
 
-  if (!*slot && !(*slot= (uchar *) my_malloc(PSI_INSTRUMENT_ME, len,
-                                             MYF(MY_WME))))
+  THD::Fk_cascade_images &top= *thd->fk_cascade_image_stack.back();
+  uchar **slot= (which == FK_CASCADE_IMAGE_BEFORE ? &top.before : &top.after);
+
+  my_free(*slot);
+  if (!(*slot= (uchar *) my_malloc(PSI_INSTRUMENT_ME, table->s->reclength,
+                                   MYF(MY_WME))))
     return 1;
 
   MY_BITMAP *saved_read, *saved_write, *saved_rpl_write;
@@ -454,19 +480,23 @@ int thd_fk_cascade_capture(THD *thd, TABLE *table, int which)
 extern "C"
 void thd_fk_cascade_row(THD *thd, TABLE *table, int action)
 {
-  if (!thd || !table || !thd->fk_cascade_before_image)
+  if (!thd)
+    return;
+
+  if (!table || !thd->fk_cascade_image_stack.elements() ||
+      !thd->fk_cascade_image_stack.back()->before)
   {
-    if (thd)
-      thd->fk_cascade_free_images();
+    thd->fk_cascade_pop_images();
     return;
   }
 
+  const THD::Fk_cascade_images &images= *thd->fk_cascade_image_stack.back();
   const bool is_delete= (action == FK_CASCADE_ACTION_DELETE);
 
-  if (!is_delete && !thd->fk_cascade_after_image)
+  if (!is_delete && !images.after)
   {
     /* An update we could not capture the result of: report nothing. */
-    thd->fk_cascade_free_images();
+    thd->fk_cascade_pop_images();
     return;
   }
 
@@ -482,8 +512,7 @@ void thd_fk_cascade_row(THD *thd, TABLE *table, int action)
   if (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
       WSREP_EMULATE_BINLOG(thd))
     thd->binlog_report_cascade_row(table, is_delete,
-                                   thd->fk_cascade_before_image,
-                                   thd->fk_cascade_after_image);
+                                   images.before, images.after);
 
   /*
     Consumer 2: triggers (not wired up). Would queue TRG_EVENT_DELETE /
@@ -496,7 +525,7 @@ void thd_fk_cascade_row(THD *thd, TABLE *table, int action)
     table->verify_constraints().
   */
 
-  thd->fk_cascade_free_images();
+  thd->fk_cascade_pop_images();
 }
 
 
@@ -504,7 +533,7 @@ extern "C"
 void thd_fk_cascade_abort(THD *thd)
 {
   if (thd)
-    thd->fk_cascade_free_images();
+    thd->fk_cascade_pop_images();
 }
 
 

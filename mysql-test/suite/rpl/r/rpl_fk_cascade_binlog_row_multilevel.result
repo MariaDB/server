@@ -1,0 +1,399 @@
+include/master-slave.inc
+[connection master]
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+#
+# Case 1: ON DELETE CASCADE through 4 levels, growing row width
+#
+CREATE TABLE l0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE l1 (id INT PRIMARY KEY, pid INT, pad CHAR(100) DEFAULT 'l1', KEY(pid),
+FOREIGN KEY (pid) REFERENCES l0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE l2 (id INT PRIMARY KEY, pid INT, pad CHAR(200) DEFAULT 'l2', KEY(pid),
+FOREIGN KEY (pid) REFERENCES l1(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE l3 (id INT PRIMARY KEY, pid INT, pad CHAR(255) DEFAULT 'l3',
+pad2 CHAR(255) DEFAULT 'l3', KEY(pid),
+FOREIGN KEY (pid) REFERENCES l2(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO l0 VALUES (1),(2);
+INSERT INTO l1 (id,pid) VALUES (10,1),(11,1),(20,2);
+INSERT INTO l2 (id,pid) VALUES (100,10),(101,10),(110,11),(200,20);
+INSERT INTO l3 (id,pid) VALUES (1000,100),(1001,101),(1100,110),(2000,200);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM l0 WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid FROM l1 ORDER BY id;
+id	pid
+20	2
+SELECT id, pid FROM l2 ORDER BY id;
+id	pid
+200	20
+SELECT id, pid FROM l3 ORDER BY id;
+id	pid
+2000	200
+include/diff_tables.inc [master:l1, slave:l1]
+include/diff_tables.inc [master:l2, slave:l2]
+include/diff_tables.inc [master:l3, slave:l3]
+connection master;
+FLUSH BINARY LOGS;
+FOUND 2 /### DELETE FROM `test`.`l1`/ in fk_cascade_multilevel.sql
+FOUND 3 /### DELETE FROM `test`.`l2`/ in fk_cascade_multilevel.sql
+FOUND 3 /### DELETE FROM `test`.`l3`/ in fk_cascade_multilevel.sql
+DROP TABLE l3, l2, l1, l0;
+connection slave;
+#
+# Case 2: ON UPDATE CASCADE through 3 levels
+#
+connection master;
+CREATE TABLE u0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u1 (id INT PRIMARY KEY, pid INT, pad CHAR(100) DEFAULT 'u1', KEY(pid),
+FOREIGN KEY (pid) REFERENCES u0(id) ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE u2 (id INT PRIMARY KEY, ppid INT, pad CHAR(255) DEFAULT 'u2', KEY(ppid),
+FOREIGN KEY (ppid) REFERENCES u1(pid) ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO u0 VALUES (1),(2);
+INSERT INTO u1 (id,pid) VALUES (10,1),(20,2);
+INSERT INTO u2 (id,ppid) VALUES (100,1),(101,1),(200,2);
+connection slave;
+connection master;
+UPDATE u0 SET id=5 WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid FROM u1 ORDER BY id;
+id	pid
+10	5
+20	2
+SELECT id, ppid FROM u2 ORDER BY id;
+id	ppid
+100	5
+101	5
+200	2
+include/diff_tables.inc [master:u1, slave:u1]
+include/diff_tables.inc [master:u2, slave:u2]
+connection master;
+DROP TABLE u2, u1, u0;
+connection slave;
+#
+# Case 3: CASCADE into SET NULL, and a diamond
+#
+connection master;
+CREATE TABLE d0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE da (id INT PRIMARY KEY, pid INT, KEY(pid),
+FOREIGN KEY (pid) REFERENCES d0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE db (id INT PRIMARY KEY, pid INT, KEY(pid),
+FOREIGN KEY (pid) REFERENCES d0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE dc (id INT PRIMARY KEY, a_id INT, b_id INT, pad CHAR(255) DEFAULT 'dc',
+KEY(a_id), KEY(b_id),
+FOREIGN KEY (a_id) REFERENCES da(id) ON DELETE CASCADE,
+FOREIGN KEY (b_id) REFERENCES db(id) ON DELETE SET NULL) ENGINE=InnoDB;
+INSERT INTO d0 VALUES (1),(2);
+INSERT INTO da VALUES (10,1),(20,2);
+INSERT INTO db VALUES (10,1),(20,2);
+INSERT INTO dc (id,a_id,b_id) VALUES (1,10,10),(2,20,10),(3,10,20),(4,20,20);
+connection slave;
+connection master;
+DELETE FROM d0 WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT * FROM da ORDER BY id;
+id	pid
+20	2
+SELECT * FROM db ORDER BY id;
+id	pid
+20	2
+SELECT id, a_id, b_id FROM dc ORDER BY id;
+id	a_id	b_id
+2	20	NULL
+4	20	20
+include/diff_tables.inc [master:da, slave:da]
+include/diff_tables.inc [master:db, slave:db]
+include/diff_tables.inc [master:dc, slave:dc]
+connection master;
+DROP TABLE dc, da, db, d0;
+connection slave;
+#
+# Case 4: multi-level cascades in a transaction with a savepoint rollback
+#
+connection master;
+CREATE TABLE t0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (id INT PRIMARY KEY, pid INT, KEY(pid),
+FOREIGN KEY (pid) REFERENCES t0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, pid INT, pad CHAR(255) DEFAULT 't2', KEY(pid),
+FOREIGN KEY (pid) REFERENCES t1(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO t0 VALUES (1),(2),(3);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3);
+INSERT INTO t2 (id,pid) VALUES (100,10),(200,20),(300,30);
+connection slave;
+connection master;
+BEGIN;
+DELETE FROM t0 WHERE id=1;
+SAVEPOINT s1;
+DELETE FROM t0 WHERE id=2;
+ROLLBACK TO SAVEPOINT s1;
+DELETE FROM t0 WHERE id=3;
+COMMIT;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT * FROM t1 ORDER BY id;
+id	pid
+20	2
+SELECT id, pid FROM t2 ORDER BY id;
+id	pid
+200	20
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+connection master;
+DROP TABLE t2, t1, t0;
+#
+# Case 5: the deepest chain InnoDB allows, 14 cascade levels below the
+# parent (FK_MAX_CASCADE_DEL is 15, counting the parent)
+#
+connection master;
+CREATE TABLE c0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO c0 VALUES (1),(2);
+CREATE TABLE c1 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c1', KEY(pid), FOREIGN KEY (pid) REFERENCES c0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c1 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c2 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c2', KEY(pid), FOREIGN KEY (pid) REFERENCES c1(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c2 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c3 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c3', KEY(pid), FOREIGN KEY (pid) REFERENCES c2(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c3 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c4 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c4', KEY(pid), FOREIGN KEY (pid) REFERENCES c3(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c4 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c5 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c5', KEY(pid), FOREIGN KEY (pid) REFERENCES c4(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c5 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c6 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c6', KEY(pid), FOREIGN KEY (pid) REFERENCES c5(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c6 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c7 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c7', KEY(pid), FOREIGN KEY (pid) REFERENCES c6(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c7 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c8 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c8', KEY(pid), FOREIGN KEY (pid) REFERENCES c7(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c8 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c9 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c9', KEY(pid), FOREIGN KEY (pid) REFERENCES c8(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c9 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c10 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c10', KEY(pid), FOREIGN KEY (pid) REFERENCES c9(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c10 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c11 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c11', KEY(pid), FOREIGN KEY (pid) REFERENCES c10(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c11 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c12 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c12', KEY(pid), FOREIGN KEY (pid) REFERENCES c11(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c12 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c13 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c13', KEY(pid), FOREIGN KEY (pid) REFERENCES c12(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c13 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE c14 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'c14', KEY(pid), FOREIGN KEY (pid) REFERENCES c13(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO c14 (id,pid) VALUES (1,1),(2,2);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM c0 WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid FROM c14 ORDER BY id;
+id	pid
+2	2
+include/diff_tables.inc [master:c1, slave:c1]
+include/diff_tables.inc [master:c2, slave:c2]
+include/diff_tables.inc [master:c3, slave:c3]
+include/diff_tables.inc [master:c4, slave:c4]
+include/diff_tables.inc [master:c5, slave:c5]
+include/diff_tables.inc [master:c6, slave:c6]
+include/diff_tables.inc [master:c7, slave:c7]
+include/diff_tables.inc [master:c8, slave:c8]
+include/diff_tables.inc [master:c9, slave:c9]
+include/diff_tables.inc [master:c10, slave:c10]
+include/diff_tables.inc [master:c11, slave:c11]
+include/diff_tables.inc [master:c12, slave:c12]
+include/diff_tables.inc [master:c13, slave:c13]
+include/diff_tables.inc [master:c14, slave:c14]
+connection master;
+FLUSH BINARY LOGS;
+FOUND 15 /### DELETE FROM `test`.`c[0-9]+`/ in fk_cascade_multilevel.sql
+DROP TABLE c14;
+DROP TABLE c13;
+DROP TABLE c12;
+DROP TABLE c11;
+DROP TABLE c10;
+DROP TABLE c9;
+DROP TABLE c8;
+DROP TABLE c7;
+DROP TABLE c6;
+DROP TABLE c5;
+DROP TABLE c4;
+DROP TABLE c3;
+DROP TABLE c2;
+DROP TABLE c1;
+DROP TABLE c0;
+connection slave;
+#
+# Case 6: one level too deep. The statement fails inside the nested
+# cascades; nothing may be logged or changed, and the session must go
+# on capturing cascades correctly afterwards.
+#
+connection master;
+call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15");
+CREATE TABLE e0 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO e0 VALUES (1),(2);
+CREATE TABLE e1 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e1', KEY(pid), FOREIGN KEY (pid) REFERENCES e0(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e1 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e2 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e2', KEY(pid), FOREIGN KEY (pid) REFERENCES e1(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e2 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e3 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e3', KEY(pid), FOREIGN KEY (pid) REFERENCES e2(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e3 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e4 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e4', KEY(pid), FOREIGN KEY (pid) REFERENCES e3(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e4 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e5 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e5', KEY(pid), FOREIGN KEY (pid) REFERENCES e4(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e5 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e6 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e6', KEY(pid), FOREIGN KEY (pid) REFERENCES e5(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e6 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e7 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e7', KEY(pid), FOREIGN KEY (pid) REFERENCES e6(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e7 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e8 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e8', KEY(pid), FOREIGN KEY (pid) REFERENCES e7(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e8 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e9 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e9', KEY(pid), FOREIGN KEY (pid) REFERENCES e8(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e9 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e10 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e10', KEY(pid), FOREIGN KEY (pid) REFERENCES e9(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e10 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e11 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e11', KEY(pid), FOREIGN KEY (pid) REFERENCES e10(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e11 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e12 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e12', KEY(pid), FOREIGN KEY (pid) REFERENCES e11(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e12 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e13 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e13', KEY(pid), FOREIGN KEY (pid) REFERENCES e12(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e13 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e14 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e14', KEY(pid), FOREIGN KEY (pid) REFERENCES e13(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e14 (id,pid) VALUES (1,1),(2,2);
+CREATE TABLE e15 (id INT PRIMARY KEY, pid INT, pad CHAR(20) DEFAULT 'e15', KEY(pid), FOREIGN KEY (pid) REFERENCES e14(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO e15 (id,pid) VALUES (1,1),(2,2);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM e0 WHERE id=1;
+ERROR HY000: Got error 193 '`test`.`e15`, CONSTRAINT `e15_ibfk_1` FOREIGN KEY (`pid`) REFERENCES `e14` (`id`) ON DELETE CASCADE' from InnoDB
+SELECT COUNT(*) FROM e15;
+COUNT(*)
+2
+DELETE FROM e4 WHERE id=2;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid FROM e15 ORDER BY id;
+id	pid
+1	1
+include/diff_tables.inc [master:e0, slave:e0]
+include/diff_tables.inc [master:e1, slave:e1]
+include/diff_tables.inc [master:e2, slave:e2]
+include/diff_tables.inc [master:e3, slave:e3]
+include/diff_tables.inc [master:e4, slave:e4]
+include/diff_tables.inc [master:e5, slave:e5]
+include/diff_tables.inc [master:e6, slave:e6]
+include/diff_tables.inc [master:e7, slave:e7]
+include/diff_tables.inc [master:e8, slave:e8]
+include/diff_tables.inc [master:e9, slave:e9]
+include/diff_tables.inc [master:e10, slave:e10]
+include/diff_tables.inc [master:e11, slave:e11]
+include/diff_tables.inc [master:e12, slave:e12]
+include/diff_tables.inc [master:e13, slave:e13]
+include/diff_tables.inc [master:e14, slave:e14]
+include/diff_tables.inc [master:e15, slave:e15]
+connection master;
+FLUSH BINARY LOGS;
+FOUND 12 /### DELETE FROM `test`.`e[0-9]+`/ in fk_cascade_multilevel.sql
+NOT FOUND /### DELETE FROM `test`.`e[0-3]`/ in fk_cascade_multilevel.sql
+DROP TABLE e15;
+DROP TABLE e14;
+DROP TABLE e13;
+DROP TABLE e12;
+DROP TABLE e11;
+DROP TABLE e10;
+DROP TABLE e9;
+DROP TABLE e8;
+DROP TABLE e7;
+DROP TABLE e6;
+DROP TABLE e5;
+DROP TABLE e4;
+DROP TABLE e3;
+DROP TABLE e2;
+DROP TABLE e1;
+DROP TABLE e0;
+connection slave;
+#
+# Case 7: a self-referencing foreign key. The child is the table the
+# statement itself changes, through its own instance opened for the
+# foreign key.
+#
+connection master;
+CREATE TABLE s (id INT PRIMARY KEY, parent_id INT, pad CHAR(100) DEFAULT 's',
+KEY(parent_id),
+FOREIGN KEY (parent_id) REFERENCES s(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO s (id, parent_id) VALUES (1,NULL),(2,1),(3,2),(4,2),(5,NULL),(6,5);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM s WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, parent_id FROM s ORDER BY id;
+id	parent_id
+5	NULL
+6	5
+include/diff_tables.inc [master:s, slave:s]
+connection master;
+FLUSH BINARY LOGS;
+FOUND 4 /### DELETE FROM `test`.`s`/ in fk_cascade_multilevel.sql
+DROP TABLE s;
+connection slave;
+#
+# Case 8: a self-referencing table with another child. The cascade into
+# the other child flags the statement, so the replica does not re-run
+# any cascade of it: the self-referencing rows must be logged too.
+#
+connection master;
+CREATE TABLE s (id INT PRIMARY KEY, parent_id INT, KEY(parent_id),
+FOREIGN KEY (parent_id) REFERENCES s(id) ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE o (id INT PRIMARY KEY, s_id INT, KEY(s_id),
+FOREIGN KEY (s_id) REFERENCES s(id) ON DELETE CASCADE) ENGINE=InnoDB;
+INSERT INTO s VALUES (1,NULL),(2,1),(3,2),(4,NULL);
+INSERT INTO o VALUES (10,1),(20,2),(30,3),(40,4);
+connection slave;
+connection master;
+DELETE FROM s WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, parent_id FROM s ORDER BY id;
+id	parent_id
+4	NULL
+SELECT id, s_id FROM o ORDER BY id;
+id	s_id
+40	4
+include/diff_tables.inc [master:s, slave:s]
+include/diff_tables.inc [master:o, slave:o]
+connection master;
+DROP TABLE o, s;
+connection slave;
+#
+# Case 9: a cascade changes a row the statement changes after it. The
+# cascaded rows must precede the row whose change ran the cascade, or
+# the replica updates a row it has already deleted.
+#
+connection master;
+CREATE TABLE s (id INT PRIMARY KEY, parent_id INT, KEY(parent_id),
+FOREIGN KEY (parent_id) REFERENCES s(id) ON DELETE SET NULL) ENGINE=InnoDB;
+INSERT INTO s VALUES (1,NULL),(2,1),(3,1),(4,NULL);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM s WHERE id IN (1,2);
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, parent_id FROM s ORDER BY id;
+id	parent_id
+3	NULL
+4	NULL
+include/diff_tables.inc [master:s, slave:s]
+# The row events in the order of execution
+connection master;
+FLUSH BINARY LOGS;
+UPDATE s id=2
+UPDATE s id=3
+DELETE FROM s id=1
+DELETE FROM s id=2
+DROP TABLE s;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+include/rpl_end.inc

@@ -8079,8 +8079,19 @@ int handler::binlog_log_row(const uchar *before_record,
 
   int error = 0;
   if (row_logging)
+  {
+    THD *thd= ha_thd();
+    /*
+      The FK cascades this row change ran happened before it: log the rows
+      they changed first, so that the binary log has the order of execution.
+      Not while those rows are being logged, which comes through here too.
+    */
+    if (unlikely(thd->pending_cascade_binlog_row_events.elements()) &&
+        !thd->binlog_fk_cascade_derived)
+      thd->flush_pending_cascade_binlog();
     error= binlog_log_row_to_binlog(table, before_record, after_record,
                                     log_func, row_logging_has_trans);
+  }
 
 #ifdef HAVE_REPLICATION
   if (unlikely(!error && table->s->online_alter_binlog && is_root_handler()))

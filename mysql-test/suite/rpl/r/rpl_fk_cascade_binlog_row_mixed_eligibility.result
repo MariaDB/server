@@ -1,0 +1,138 @@
+include/master-slave.inc
+[connection master]
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+#
+# Case 1: eligible and ineligible siblings of the same parent
+#
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE ce (
+id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE ci (
+id INT, pid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+KEY(pid), KEY(vc),
+CONSTRAINT fk_ci FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE cn (
+id INT, pid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+KEY(pid), KEY(vc),
+CONSTRAINT fk_cn FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE SET NULL ON UPDATE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO p  VALUES (1,10),(2,20),(3,30),(4,40);
+INSERT INTO ce (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+INSERT INTO ci (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+INSERT INTO cn (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+UPDATE p SET id=11 WHERE id=1;
+DELETE FROM p WHERE id=2;
+BEGIN;
+UPDATE p SET id=33 WHERE id=3;
+DELETE FROM p WHERE id=4;
+COMMIT;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid, v FROM ce ORDER BY id;
+id	pid	v
+100	11	1
+300	33	3
+SELECT id, pid, v, vc FROM ci ORDER BY id;
+id	pid	v	vc
+100	11	1	2
+300	33	3	4
+SELECT id, pid, v, vc FROM cn ORDER BY id;
+id	pid	v	vc
+100	NULL	1	2
+200	NULL	2	3
+300	NULL	3	4
+400	NULL	4	5
+include/diff_tables.inc [master:p, slave:p]
+include/diff_tables.inc [master:ce, slave:ce]
+include/diff_tables.inc [master:ci, slave:ci]
+include/diff_tables.inc [master:cn, slave:cn]
+connection master;
+FLUSH BINARY LOGS;
+NOT FOUND /### (UPDATE|DELETE FROM) `test`.`ce`/ in fk_cascade_mixed_eligibility.sql
+NOT FOUND /### (UPDATE|DELETE FROM) `test`.`ci`/ in fk_cascade_mixed_eligibility.sql
+NOT FOUND /### (UPDATE|DELETE FROM) `test`.`cn`/ in fk_cascade_mixed_eligibility.sql
+DROP TABLE ce, ci, cn, p;
+connection slave;
+#
+# Case 2: ineligible table reachable only transitively (grandchild)
+#
+connection master;
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE ce (
+id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE gi (
+id INT, cid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+KEY(cid), KEY(vc),
+CONSTRAINT fk_gi FOREIGN KEY (cid) REFERENCES ce(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1,10),(2,20);
+INSERT INTO ce (id,pid,v) VALUES (100,1,1),(101,1,2),(200,2,3);
+INSERT INTO gi (id,cid,v) VALUES (1,100,1),(2,101,2),(3,200,3);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM p WHERE id=1;
+connection slave;
+# Last_SQL_Errno = 0 (expected 0)
+SELECT id, pid, v FROM ce ORDER BY id;
+id	pid	v
+200	2	3
+SELECT id, cid, v, vc FROM gi ORDER BY id;
+id	cid	v	vc
+3	200	3	4
+include/diff_tables.inc [master:ce, slave:ce]
+include/diff_tables.inc [master:gi, slave:gi]
+connection master;
+FLUSH BINARY LOGS;
+NOT FOUND /### (UPDATE|DELETE FROM) `test`.`ce`/ in fk_cascade_mixed_eligibility.sql
+NOT FOUND /### (UPDATE|DELETE FROM) `test`.`gi`/ in fk_cascade_mixed_eligibility.sql
+DROP TABLE gi, ce, p;
+connection slave;
+#
+# Case 3 (control): all children eligible, cascade rows are logged
+#
+connection master;
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE ce (
+id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE ce2 (
+id INT, pid INT, v INT, KEY(pid),
+CONSTRAINT fk_ce2 FOREIGN KEY (pid) REFERENCES p(id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO p VALUES (1,10),(2,20);
+INSERT INTO ce  VALUES (100,1,1),(200,2,2);
+INSERT INTO ce2 VALUES (100,1,1),(200,2,2);
+connection slave;
+connection master;
+FLUSH BINARY LOGS;
+DELETE FROM p WHERE id=1;
+connection slave;
+include/diff_tables.inc [master:ce, slave:ce]
+include/diff_tables.inc [master:ce2, slave:ce2]
+connection master;
+FLUSH BINARY LOGS;
+FOUND 1 /### DELETE FROM `test`.`ce`[^2]/ in fk_cascade_mixed_eligibility.sql
+FOUND 1 /### DELETE FROM `test`.`ce2`/ in fk_cascade_mixed_eligibility.sql
+DROP TABLE ce, ce2, p;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+include/rpl_end.inc

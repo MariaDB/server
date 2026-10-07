@@ -1054,6 +1054,7 @@ row_ins_foreign_check_on_constraint(
 
 	TABLE*		child_mysql_table = NULL;
 	bool		need_cascade_binlog = false;
+	bool		cascade_capture_started = false;
 	bool		can_cascade_binlog = false;
 	bool		have_after_image = false;
 
@@ -1413,6 +1414,13 @@ row_ins_foreign_check_on_constraint(
 		    == btr_pcur_t::SAME_ALL) {
 			ib->fk_cascade_set_cursor(
 				btr_pcur_get_rec(cascade->pcur), clust_index);
+			/* Opens a frame for this action on the server side,
+			closed below by thd_fk_cascade_row() or
+			thd_fk_cascade_abort() even if the capture fails.
+			row_update_cascade_for_mysql() may recurse into the
+			next level of the FK chain, which reports its own rows
+			in frames nested inside this one. */
+			cascade_capture_started = true;
 			need_cascade_binlog = !thd_fk_cascade_capture(
 				trx->mysql_thd, child_mysql_table,
 				FK_CASCADE_IMAGE_BEFORE);
@@ -1456,7 +1464,7 @@ row_ins_foreign_check_on_constraint(
 
 	mtr_commit(mtr);
 
-	if (need_cascade_binlog) {
+	if (cascade_capture_started) {
 		if (can_cascade_binlog
 		    && (cascade->is_delete == PLAIN_DELETE
 			|| have_after_image)) {
@@ -1472,7 +1480,7 @@ row_ins_foreign_check_on_constraint(
 				? FK_CASCADE_ACTION_DELETE
 				: FK_CASCADE_ACTION_UPDATE);
 		} else {
-			/* Captured a before-image we are not going to use. */
+			/* Close the frame of an action we are not going to report. */
 			thd_fk_cascade_abort(trx->mysql_thd);
 		}
 	}

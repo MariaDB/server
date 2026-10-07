@@ -3955,15 +3955,25 @@ public:
   void discard_pending_cascade_binlog();
 
   /*
-    Row images of the FK-cascade action currently being reported by a storage
+    Row images of the FK-cascade actions currently being reported by a storage
     engine, materialised by thd_fk_cascade_capture() and consumed by
-    thd_fk_cascade_row(). At most one cascade action is in flight at a time:
-    the engine captures the before-image, performs the cascade, captures the
-    after-image, and reports, all within one call to its cascade routine.
+    thd_fk_cascade_row(). The engine captures the before-image, performs the
+    cascade, captures the after-image, and reports, all within one call to its
+    cascade routine. Performing the cascade may recurse into the next level of
+    the FK chain, which captures and reports its own rows while the outer
+    action is still in flight, so the images form a stack: capturing a
+    before-image opens a frame, thd_fk_cascade_row() / thd_fk_cascade_abort()
+    close it. Each frame's buffers are sized for its own table.
     See include/mysql/service_thd_fk_cascade.h.
   */
-  uchar *fk_cascade_before_image= NULL;
-  uchar *fk_cascade_after_image= NULL;
+  struct Fk_cascade_images
+  {
+    uchar *before;
+    uchar *after;
+  };
+  Dynamic_array<Fk_cascade_images>
+    fk_cascade_image_stack{PSI_INSTRUMENT_MEM};
+  void fk_cascade_pop_images();
   void fk_cascade_free_images();
 
   /*

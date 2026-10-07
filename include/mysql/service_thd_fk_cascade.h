@@ -86,6 +86,12 @@ int thd_fk_cascade_wanted(MYSQL_THD thd, struct TABLE *table);
   latch the engine needs to read it. Returns 0 on success; non-zero means the
   image could not be produced, in which case the engine should abandon
   reporting this row via thd_fk_cascade_abort().
+
+  Capturing FK_CASCADE_IMAGE_BEFORE starts a cascade action, and every such
+  call, successful or not, must be matched by exactly one thd_fk_cascade_row()
+  or thd_fk_cascade_abort(). Actions may nest: while one is in flight, the
+  cascade it performs may start, capture and report actions on the next level
+  of the FK chain, which must all be finished before the outer one is.
 */
 int thd_fk_cascade_capture(MYSQL_THD thd, struct TABLE *table, int which);
 

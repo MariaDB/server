@@ -249,8 +249,8 @@ classic replica-side cascade handles all of it — slower, but correct. The
 answer is cached on the `THD` and keyed on `query_id`, so it cannot outlive the
 statement it was computed for and needs no reset hook.
 
-`thd_fk_cascade_capture()` allocates the image slot
-(`THD::fk_cascade_before_image` / `fk_cascade_after_image`, `reclength` bytes),
+`thd_fk_cascade_capture()` allocates the image slot in the innermost frame of
+`THD::fk_cascade_image_stack` (`reclength` bytes of the table being captured),
 switches the table to the full row image via
 `fk_cascade_begin_full_row_image()` — `tmp_set` set to all columns minus the
 virtual ones, installed as read/write set, and as `rpl_write_set` if that was
@@ -259,13 +259,18 @@ bitmaps with `fk_cascade_end_full_row_image()`. This bitmap policy is *server*
 policy, which is why it lives here and not in the engine. On failure the slot is
 freed and non-zero returned.
 
-`thd_fk_cascade_row()` consumes the images and dispatches. At most one cascade
-action is in flight per THD at a time, which is what lets the images live as two
-plain `THD` members: the engine captures before, cascades, captures after, and
-reports, all within one call to its cascade routine. An update whose
-after-image could not be captured is dropped rather than reported. The images
-are freed on the way out (`THD::fk_cascade_free_images()`), and `~THD()` frees
-them as a backstop for an in-flight capture the engine never reported.
+`thd_fk_cascade_row()` consumes the images and dispatches. The engine captures
+before, cascades, captures after, and reports, all within one call to its
+cascade routine. Performing the cascade may recurse into the next level of the
+FK chain (InnoDB tracks this as `thr->fk_cascade_depth`), which captures and
+reports its own rows while the outer action is still in flight. The images
+therefore form a stack: capturing a before-image opens a frame, and
+`thd_fk_cascade_row()` or `thd_fk_cascade_abort()` closes it, also when the
+capture failed. An update whose after-image could not be captured is dropped
+rather than reported. A frame's images are freed when it is closed
+(`THD::fk_cascade_pop_images()`), and `~THD()` frees any left over
+(`THD::fk_cascade_free_images()`) as a backstop for an in-flight capture the
+engine never reported.
 
 ### 6.4 Consumers
 
@@ -528,6 +533,19 @@ order*. Emitting deletes inline would place every cascade delete ahead of every
 deferred update within a statement, reordering events that touch the same row
 and potentially making the replica apply an update to an already-deleted row.
 
+The queue is emitted before each row change of the statement itself is logged,
+in `handler::binlog_log_row()`: the cascades that change ran happened inside
+it, before the change was logged. So the cascaded rows precede the row whose
+change ran them, and the binlog keeps the order of execution also relative to
+the statement's own rows. That matters when a cascade changes a row the
+statement changes after it, as with a self-referencing foreign key: for
+`DELETE FROM s WHERE id IN (1,2)` with `s.parent_id -> s.id ON DELETE SET
+NULL`, the cascade sets the parent of row 2 to NULL before row 2 is deleted,
+and a replica applying the delete first would not find the row to update.
+Cascade-derived rows and the statement's own go to separate row events
+(`Event_log::prepare_pending_rows_event()`), so that `FK_CASCADE_DERIVED_F`
+still marks exactly the derived ones.
+
 ## 7. Lifecycle — flush and discard
 
 The queue is `THD::pending_cascade_binlog_row_events`, a
@@ -543,8 +561,11 @@ already-pending row event gets flagged too (§8).
 `table->s->all_set`, choosing `Delete_rows_log_event` vs.
 `Update_rows_log_event` from `is_delete`, and frees the record copies as it
 goes. Temporary tables and entries whose `TABLE`/handler is gone are skipped
-(their buffers freed). It is driven from two choke points:
+(their buffers freed). It is driven from three choke points:
 
+- `handler::binlog_log_row()` in `sql/handler.cc`, before each row of the
+  statement itself is logged (§6.5), unless the queued rows themselves are
+  being logged;
 - `binlog_flush_pending_rows_event()` in `sql/log.cc` at **statement end**
   (`stmt_end`), guarded by `thd->binlog_fk_cascade_events` and the feature
   test; the pending event is re-read afterwards, since flushing the cascade
@@ -671,13 +692,13 @@ collide).
 
 ## 11. Known limitations and edge cases
 
-- **Applier capture is a no-op (by design/limitation).** The capture requires
-  the child table to be open via FK prelocking (`PRELOCK_FK`). A row-based
-  applier opens only the tables named in the events, not prelocked FK children,
-  so `find_fk_open_table()` returns NULL on an applier. Therefore, with the
-  feature enabled **only on a replica** (origin OFF), the replica re-cascades
-  the classic way and its own binary log contains only parent events — the
-  option is effectively inert on the applier path. This is pinned by
+- **An applier captures the cascades it runs.** With the feature enabled
+  **only on a replica** (origin OFF), the parent events carry no
+  `FK_CASCADE_EVENTS_F`, so the replica re-cascades the classic way; the child
+  it cascades into is open via FK prelocking there too, and the cascade is
+  captured as in any other session. Its own binary log then contains the
+  parent events and the cascaded child rows, and a replica of it need not
+  re-run the cascade. This is pinned by
   `rpl_fk_cascade_binlog_row_slave_option`.
 - **Row format only.** Statement-based logging is unaffected.
 - **Eligibility is all-or-nothing per statement.** A single ineligible child
@@ -725,7 +746,7 @@ compatibility/fallback knob, not a routine mode.
 | Service implementation, consumer dispatch | `sql/sql_class.cc` | `fk_cascade_table_eligible()`, `fk_cascade_stmt_capturable()`, `fk_cascade_begin_full_row_image()`, `fk_cascade_end_full_row_image()`, the four `thd_fk_cascade_*()` |
 | Statement-level eligibility cache | `sql/sql_class.h` | `THD::fk_cascade_stmt_query_id`, `THD::fk_cascade_stmt_ok` |
 | FK prelocking set | `sql/sql_base.{h,cc}` | `prepare_fk_prelocking_list()` (child `trg_event_map` derived from the cascade action, §6.4.3), `table_already_fk_prelocked()` (returns the existing entry so events can be merged) |
-| In-flight images | `sql/sql_class.h`, `sql/sql_class.cc` | `THD::fk_cascade_before_image`, `fk_cascade_after_image`, `fk_cascade_free_images()` |
+| In-flight images | `sql/sql_class.h`, `sql/sql_class.cc` | `THD::fk_cascade_image_stack`, `fk_cascade_pop_images()`, `fk_cascade_free_images()` |
 | Handler hook | `sql/handler.h` | `handler::fk_cascade_fetch_row()` (default `HA_ERR_WRONG_COMMAND`) |
 | THD queue, flush / discard, marking | `sql/sql_class.{h,cc}` | `Cascade_binlog_row_event`, `pending_cascade_binlog_row_events`, `binlog_report_cascade_row()`, `flush_pending_cascade_binlog()`, `discard_pending_cascade_binlog()`, `binlog_fk_cascade_events`, `binlog_fk_cascade_derived`, `binlog_mark_fk_cascade_events()`, `binlog_begin/end_fk_cascade_derived()` |
 | Engine capture driver | `storage/innobase/row/row0ins.cc` | `row_ins_foreign_check_on_constraint()`, `row_ins_find_open_table_for_cascade()` |
@@ -746,8 +767,8 @@ compatibility/fallback knob, not a routine mode.
   rollback / rollback-to-savepoint; nothing spurious is logged.
 - **`rpl_fk_set_null_binlog_row`** — `SET NULL` cascade capture.
 - **`rpl_fk_cascade_binlog_row_slave_option`** — origin OFF / replica ON:
-  replication stays correct and the replica's binlog contains only parent
-  events (pins the applier no-op of §11).
+  replication stays correct and the replica's binlog contains the parent
+  events and the cascaded child rows it captured (§11).
 - **`rpl_fk_cascade_binlog_row_mixed_eligibility`** — a parent with one
   eligible and one ineligible child: asserts that no derived events are
   written and the replica keeps no orphan (pins the statement-level decision
