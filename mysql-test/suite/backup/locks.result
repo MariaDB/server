@@ -6,7 +6,7 @@ connect  backup,localhost,root;
 FLUSH TABLES WITH READ LOCK;
 FLUSH TABLES t FOR EXPORT;
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
-ERROR HY000: Incorrect arguments to BACKUP SERVER TO
+ERROR HY000: Can't execute the query because you have a conflicting read lock
 connection default;
 BACKUP STAGE END;
 connection backup;
