@@ -1,0 +1,130 @@
+#
+# MGL-301: local trx that does not fit into the local monitor's process
+#          array is rolled back gracefully when BF aborted
+#
+# STEPS:
+# 1. Hold node_2 appliers and disable flow control on it
+# 2. Open a local trx on node_2 that locks a row, stop it before replication
+# 3. Queue 70000 writesets from node_1 behind a conflicting one
+# 4. Let the local trx replicate: its seqno lands far outside of the local
+#    monitor's process array, so it has to wait outside of the array
+# 5. Release appliers: the conflicting writeset BF aborts the local trx
+#    while it is still waiting outside of the array
+# 6. Check that the local trx is rolled back with a deadlock error, that
+#    node_2 stays in the cluster and that the data is consistent
+#
+
+--let $galera_version=26.4.30
+source ../wsrep/include/check_galera_version.inc;
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+--source include/galera_have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: certification interval");
+--connection node_2
+call mtr.add_suppression("WSREP: certification interval");
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+--delimiter |
+CREATE PROCEDURE fill(n INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < n DO
+    INSERT INTO t2 (v) VALUES (i);
+    SET i = i + 1;
+  END WHILE;
+END|
+--delimiter ;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1000000';
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
+BEGIN;
+UPDATE t1 SET v = 100 WHERE id = 1;
+
+--connection node_2
+SET GLOBAL wsrep_provider_options='dbug=d,apply_monitor_slave_enter_sync,before_replicate_sync';
+
+--connection node_2a
+--send COMMIT
+
+# The conflicting writeset gets ordered before the local trx
+--connection node_1
+UPDATE t1 SET v = 1 WHERE id = 1;
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE LIKE '%apply_monitor_slave_enter_sync%' AND VARIABLE_VALUE LIKE '%before_replicate_sync%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+--connection node_1
+CALL fill(70000);
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE >= 40000 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+# Let the local trx replicate, it gets a seqno far ahead of the monitor's
+# process array
+SET GLOBAL wsrep_provider_options='signal=before_replicate_sync';
+--sleep 10
+
+# Release the appliers: the first one BF aborts the local trx. The backlog
+# is independent, so use many appliers to let it drain (the local trx has
+# to wait behind it in the local monitor) within a typical testcase timeout
+# on a debug build.
+SET GLOBAL wsrep_slave_threads = 16;
+SET GLOBAL wsrep_provider_options='dbug=';
+SET GLOBAL wsrep_provider_options='signal=apply_monitor_slave_enter_sync';
+
+--connection node_2a
+--error ER_LOCK_DEADLOCK
+--reap
+
+# The node must stay in the cluster and keep applying
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+
+SET SESSION wsrep_on=OFF;
+--let $wait_timeout = 120
+--let $wait_condition = SELECT COUNT(*) = 70000 FROM t2
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+SET GLOBAL wsrep_slave_threads = 1;
+
+# The local trx was rolled back, the replicated update survives on both nodes
+SELECT * FROM t1;
+--connection node_1
+SELECT * FROM t1;
+
+# The node is fully operational again
+--connection node_2
+UPDATE t1 SET v = 2 WHERE id = 1;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=16';
+--connection node_1
+--let $wait_condition = SELECT v = 2 FROM t1 WHERE id = 1
+--source include/wait_condition.inc
+
+DROP PROCEDURE fill;
+DROP TABLE t1, t2;
+
+--source include/auto_increment_offset_restore.inc
