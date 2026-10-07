@@ -6899,9 +6899,9 @@ bool Item_func_member_of::walk(Item_processor processor, void *arg, item_walk_fl
 Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-  if (transform_args(thd, transformer, arg))
-    return 0;
-
+  /* Do NOT call transform_args() here — Item_bool_func::transform() does
+     it internally. Calling it twice corrupts already-transformed fields
+     during condition pushdown into derived tables (MDEV-41402). */
   if (json_contains_item)
   {
     Item *new_item= json_contains_item->transform(thd, transformer, arg);
@@ -6910,19 +6910,7 @@ Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uch
     if (json_contains_item != new_item)
       thd->change_item_tree((Item**)&json_contains_item, new_item);
   }
-
-  /*
-    Item 3 note: The reviewer requested calling Item_func_opt_neg::transform
-    explicitly here, but Item_func_opt_neg does not override transform().
-    Calling Item_func_opt_neg::transform(thd, transformer, arg) would resolve
-    to Item_func::transform() which calls transform_args() AGAIN (double
-    transform) then the transformer.  Since transform_args() was already called
-    above, we keep the direct invocation of the transformer function pointer to
-    avoid transforming outer args[] twice.  This correctly applies the
-    transformer to 'this' as the parent's transform() would do after its own
-    transform_args() run.
-  */
-  return (this->*transformer)(thd, arg);
+  return Item_bool_func::transform(thd, transformer, arg);
 }
 
 
