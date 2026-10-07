@@ -66,10 +66,13 @@ class ha_tina final : public handler
   my_off_t local_saved_data_file_length; /* save position for reads */
   /*
     The data file length used by this handler.  It points to
-    local_saved_data_file_length, except while one thr_multi_lock() call
-    holds this table more than once.  Then it points to the length of the
-    first handler of the table in that call, so that every handler of the
-    table reads and changes the same length.
+    local_saved_data_file_length, except in two cases.  From
+    external_lock() until thr_lock grants the lock, it points to the length
+    in the share, and it stays there for a lock that thr_lock does not
+    grant.  While one thr_multi_lock() call holds this table more than
+    once, it points to the length of the first handler of the table in
+    that call, so that every handler of the table reads and changes the
+    same length.
   */
   my_off_t *saved_length;
   my_off_t temp_file_length;

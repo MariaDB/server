@@ -2022,3 +2022,28 @@ UNLOCK TABLES;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # An UPDATE whose lock wait fails keeps the data file length of the
+--echo # table
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+--echo # The UPDATE opens a new handler, whose length was never set
+FLUSH TABLES t1;
+connect (con1,localhost,root,,);
+LOCK TABLES t1 READ LOCAL;
+connection default;
+SET @save_lock_wait_timeout= @@lock_wait_timeout;
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET v=v+10;
+SET lock_wait_timeout= @save_lock_wait_timeout;
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;

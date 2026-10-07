@@ -5639,3 +5639,32 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# An UPDATE whose lock wait fails keeps the data file length of the
+# table
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+# The UPDATE opens a new handler, whose length was never set
+FLUSH TABLES t1;
+connect  con1,localhost,root,,;
+LOCK TABLES t1 READ LOCAL;
+connection default;
+SET @save_lock_wait_timeout= @@lock_wait_timeout;
+SET lock_wait_timeout= 1;
+UPDATE t1 SET v=v+10;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET lock_wait_timeout= @save_lock_wait_timeout;
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+SELECT * FROM t1;
+v
+1
+2
+3
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

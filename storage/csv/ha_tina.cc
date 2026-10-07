@@ -973,7 +973,9 @@ void ha_tina::update_status()
     unlock after that handler is closed, so only a handler that uses its
     own length stores it.  The first handler holds the strongest lock of
     the table, so it holds a write lock whenever another handler of the
-    table does, and releasing that lock stores the length.
+    table does, and releasing that lock stores the length.  A handler
+    whose lock thr_lock did not grant uses the length in the share, which
+    then keeps its value.
   */
   if (saved_length == &local_saved_data_file_length)
     share->saved_data_file_length= *saved_length;
@@ -1715,9 +1717,17 @@ int ha_tina::external_lock(THD *thd __attribute__((unused)), int lock_type)
 {
   if (lock_type==F_UNLCK && curr_lock_type == F_WRLCK)
     update_status();
-  /* The handler whose length this one uses can be closed after unlock */
+  /*
+    The handler whose length this one uses can be closed after unlock.
+    For a lock, get_status() or copy_status() chooses the length when
+    thr_lock grants the lock.  A lock wait that fails unlocks without that
+    grant, and update_status() must not store a length that was never
+    loaded.
+  */
   if (lock_type == F_UNLCK)
     saved_length= &local_saved_data_file_length;
+  else
+    saved_length= &share->saved_data_file_length;
   curr_lock_type= lock_type;
   return 0;
 }
