@@ -2784,3 +2784,32 @@ ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
 DROP TABLE mysql.proc;
 RENAME TABLE proc_backup TO mysql.proc;
 # End of 10.11 tests
+#
+# MDEV-39399 ASAN heap-use-after-free in sql/protocol.h, SIGSEGV in
+# Protocol::valid_handler
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW SHOW PROFILES;
+ERROR 0A000: Not allowed to return a result set from a trigger
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW SHOW PROFILE;
+ERROR 0A000: Not allowed to return a result set from a trigger
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+XA RECOVER;
+RETURN 1;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+SHOW TRIGGERS;
+RETURN 1;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+SHOW PLUGINS;
+RETURN 1;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+DROP TABLE t1;
+# End of 11.4 tests
