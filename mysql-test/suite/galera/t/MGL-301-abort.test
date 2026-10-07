@@ -1,0 +1,103 @@
+#
+# MGL-301: node leaves the group and aborts if BF abort victim is out of
+#          monitor window
+#
+# STEPS:
+# 1. Hold node_2 appliers and disable flow control on it
+# 2. Open a local trx on node_2 that locks a row, stop it before replication
+# 3. Queue 70000 writesets from node_1 behind a conflicting one
+# 4. Let the local trx replicate, it lands out of the local monitor window
+# 5. Release appliers: BF abort of the local trx must abort node_2
+# 6. Check node_1 sees node_2 leaving and node_2 rejoins after restart
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+--source include/galera_have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: certification interval");
+call mtr.add_suppression("WSREP: Cannot interrupt seqno");
+--connection node_2
+call mtr.add_suppression("WSREP: Cannot interrupt seqno");
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+--delimiter |
+CREATE PROCEDURE fill(n INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < n DO
+    INSERT INTO t2 (v) VALUES (i);
+    SET i = i + 1;
+  END WHILE;
+END|
+--delimiter ;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1000000';
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
+BEGIN;
+UPDATE t1 SET v = 100 WHERE id = 1;
+
+--connection node_2
+SET GLOBAL wsrep_provider_options='dbug=d,apply_monitor_slave_enter_sync,before_replicate_sync';
+
+--connection node_2a
+--send COMMIT
+
+--connection node_1
+UPDATE t1 SET v = 1 WHERE id = 1;
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE LIKE '%apply_monitor_slave_enter_sync%' AND VARIABLE_VALUE LIKE '%before_replicate_sync%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+--connection node_1
+CALL fill(70000);
+
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE >= 40000 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+# Let the local trx replicate, it gets a seqno far ahead of the monitor
+SET GLOBAL wsrep_provider_options='signal=before_replicate_sync';
+--sleep 10
+
+# Node is expected to abort
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
+--write_line wait $_expect_file_name
+
+SET GLOBAL wsrep_provider_options='dbug=';
+SET GLOBAL wsrep_provider_options='signal=apply_monitor_slave_enter_sync';
+
+--source include/wait_until_disconnected.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+
+--connection node_1
+DROP PROCEDURE fill;
+DROP TABLE t1, t2;
+
+--source include/auto_increment_offset_restore.inc
