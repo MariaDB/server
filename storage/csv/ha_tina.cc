@@ -1069,9 +1069,30 @@ static size_t short_write(File file, const uchar *buf, size_t count)
 
 
 /*
-  This is an INSERT. At the moment this handler just seeks to the end
-  of the file and appends the data. In an error case it really should
-  just truncate to the original position (this is not done yet).
+  Append a row of size bytes from buf to the data file.  A failed write
+  can leave part of the row at the end of the file, where the next row
+  would be appended to it, so cut the file back to its length before the
+  write.  If that fails too, mark the table crashed.
+*/
+static int append_row(TINA_SHARE *share, const uchar *buf, size_t size)
+{
+  File file= share->tina_write_filedes;
+  my_off_t end= mysql_file_seek(file, 0, MY_SEEK_END, MYF(MY_WME));
+
+  if (end == MY_FILEPOS_ERROR)
+    return -1;
+  if (!(DBUG_IF("tina_write_row_short_write") ?
+        short_write(file, buf, 1) :
+        mysql_file_write(file, buf, size, MYF(MY_WME | MY_NABP))))
+    return 0;
+  if (mysql_file_chsize(file, end, 0, MYF(0)))
+    share->crashed= TRUE;
+  return -1;
+}
+
+
+/*
+  This is an INSERT.  The row is appended to the end of the data file.
 */
 int ha_tina::write_row(const uchar * buf)
 {
@@ -1087,9 +1108,7 @@ int ha_tina::write_row(const uchar * buf)
     if (init_tina_writer())
       DBUG_RETURN(-1);
 
-   /* use pwrite, as concurrent reader could have changed the position */
-  if (mysql_file_write(share->tina_write_filedes, (uchar*)buffer.ptr(), size,
-                       MYF(MY_WME | MY_NABP)))
+  if (append_row(share, (uchar*) buffer.ptr(), size))
     DBUG_RETURN(-1);
 
   /* update local copy of the max position to see our own changes */
