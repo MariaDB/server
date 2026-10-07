@@ -648,20 +648,43 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     condition of the select that specifies this table.
   */
   THD *thd= in_use;
-  Item *left_item= spl_field->producing_item->deep_copy_with_checks(thd);
-  Item *right_item= key_field->val->deep_copy_with_checks(thd);
-  DBUG_EXECUTE_IF("split_materialized_clones",
-                  if (left_item)
-                    spl_field->producing_item->check_deep_copy(thd, left_item,
-                                                          "producing_item");
-                  if (right_item)
-                    key_field->val->check_deep_copy(thd, right_item,
-                                                    "key_field->val"););
+  /*
+    The equality is pushed into the select that specifies this table and is
+    evaluated each time the table is filled.
+  */
+  Pushdown_copy_context pushdown;
+  const Copy_context *purpose= &pushdown;
+#ifndef DBUG_OFF
+  /*
+    The debug flag makes the copies as for another thread, so that every
+    item in them is copied.
+  */
+  Parallel_copy_context parallel;
+  DBUG_EXECUTE_IF("split_materialized_clones", purpose= &parallel;);
+#endif
+  Item *left_item= spl_field->producing_item->copy_for(thd, *purpose);
+  Item *right_item= key_field->val->copy_for(thd, *purpose);
+#ifndef DBUG_OFF
+  if (DBUG_IF("split_materialized_clones") || DBUG_IF("check_copy"))
+  {
+    if (left_item)
+      spl_field->producing_item->check_copy(thd, left_item, *purpose,
+                                            "producing_item");
+    if (right_item)
+      key_field->val->check_copy(thd, right_item, *purpose,
+                                 "key_field->val");
+  }
+#endif
   Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
+    /*
+      A cache in right_item is the original cache of key_field->val.  Its
+      example is an item of the select of the cache owner, such as the left
+      operand of an IN predicate, which this walk must not mark as dependent.
+    */
     right_item->walk(&Item::set_fields_as_dependent_processor,
-                     join->select_lex, 0);
+                     join->select_lex, WALK_NO_CACHE_PROCESS);
     right_item->update_used_tables();
     /*
       We've just pushed right_item down into the child select. It may only
@@ -696,7 +719,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   */
   DBUG_EXECUTE_IF("split_materialized_clones",
                   {
-                    Item *val_clone= key_field->val->deep_copy_with_checks(thd);
+                    Item *val_clone= key_field->val->copy_for(thd, *purpose);
                     if (val_clone)
                       added_key_field->val= val_clone;
                   });

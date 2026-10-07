@@ -126,7 +126,8 @@ public:
 
 protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 
@@ -170,7 +171,8 @@ public:
 
 protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 /* The procedure class definitions */

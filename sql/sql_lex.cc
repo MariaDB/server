@@ -10290,7 +10290,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (no_top_clones)
       return cond;
     cond->clear_extraction_flag();
-    return cond->deep_copy_with_checks(thd);
+    return cond->copy_for(thd, Pushdown_copy_context());
   }
   if (cond->type() == Item::COND_ITEM)
   {

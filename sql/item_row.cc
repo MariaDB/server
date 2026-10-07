@@ -171,7 +171,7 @@ void Item_row::bring_value()
 }
 
 
-Item* Item_row::deep_copy(THD *thd) const
+Item* Item_row::do_copy_for(THD *thd, const Copy_context &ctx) const
 {
   Item **copy_args= static_cast<Item**>
     (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
@@ -179,7 +179,7 @@ Item* Item_row::deep_copy(THD *thd) const
     return 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
+    Item *arg_clone= args[i]->copy_for(thd, ctx);
     if (!arg_clone)
       return 0;
     copy_args[i]= arg_clone;

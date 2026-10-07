@@ -29,6 +29,7 @@
 
 #include "cset_narrowing.h"
 #include "sql_basic_types.h"
+#include "item_copy.h"
 
 
 C_MODE_START
@@ -1924,7 +1925,7 @@ public:
 
   /*
     Create a shallow copy of the item (usually invoking copy constructor).
-    For deep copying see deep_copy_with_checks().
+    For copying a tree see copy_for().
 
     Return value:
     - pointer to a copy of the Item
@@ -1942,43 +1943,44 @@ public:
   }
 
   /*
-    Creates a clone of the item by deep copying.
+    Create a copy of the item tree for the purpose that ctx implements.
 
     Return value:
-    - pointer to a clone of the Item
-    - nullptr if the item is not clonable
+    - pointer to the copy
+    - nullptr if the tree cannot be copied for this purpose
   */
-  Item* deep_copy_with_checks(THD *thd) const
+  Item *copy_for(THD *thd, const Copy_context &ctx) const
   {
-    Item *clone= deep_copy(thd);
-    if (clone)
-    {
-      // Make sure the clone is of same type as this item
-      DBUG_ASSERT(typeid(*clone) == typeid(*this));
-    }
-    return clone;
+    Item *copy= do_copy_for(thd, ctx);
+    /*
+      The copy is of the class of this item, unless ctx puts an item of
+      another class in its place.
+    */
+    DBUG_ASSERT(!copy || typeid(*copy) == typeid(*this) ||
+                ctx.substitutes(this));
+    return copy;
   }
 
 #ifndef DBUG_OFF
   /*
-    Debug-only validation of a clone produced by deep_copy_with_checks().
+    Validate a copy produced by copy_for(thd, ctx) in a debug build.
 
-    A proper deep clone must
-    - have exactly the same tree shape, with the same Item class at every
-      node, as the original, and
-    - not share a single Item object with the original: every node of the
-      clone must be a separate object, so that the clone can be used (and
-      re-evaluated) independently of the original.
+    The copy must
+    - have the same tree shape as the original, with the same Item class at
+      every node, except where ctx substitutes an item, and
+    - hold no Item object of the original, except where ctx may share an
+      item.  The items under a shared item are shared with it.
 
     Both properties are reported as notes, so that a test can see which
-    Item class is not deeply clonable. Returns true if 'clone' is not a
-    proper deep clone of this item.
+    Item class is not copied the way ctx requires.  Returns true if 'copy'
+    violates either property.
 
-    'what' names the cloned expression in the notes.
+    'what' names the copied expression in the notes.
   */
-  bool check_deep_copy(THD *thd, Item *clone, const char *what);
-  /* walk() processor used by check_deep_copy() */
-  bool deep_copy_check_processor(void *arg);
+  bool check_copy(THD *thd, Item *copy, const Copy_context &ctx,
+                  const char *what);
+  /* walk() processor used by check_copy() */
+  bool copy_check_processor(void *arg);
 #endif
 
   /*
@@ -1990,8 +1992,7 @@ public:
 
     Note: the clone may have item type different from this
     (i.e., instance of another basic constant class may be returned).
-    For real clones look at deep_copy_with_checks()/shallow_copy_with_checks()
-    methods
+    For real copies look at copy_for() and shallow_copy_with_checks()
   */
   virtual Item *clone_constant(THD *thd) const { return nullptr; }
 
@@ -2904,11 +2905,11 @@ protected:
   virtual Item *shallow_copy(THD *thd) const = 0;
 
   /*
-    Service function for public method deep_copy_with_checks(). See comments
-    for deep_copy_with_checks() above. Override this method in derived classes
-    to create deep copies (clones) of the item where possible
+    Service function for public method copy_for().  See comments for
+    copy_for() above.  Override this method in derived classes to copy
+    the item and its arguments, passing ctx to copy_for() of each argument.
   */
-  virtual Item *deep_copy(THD *thd) const = 0;
+  virtual Item *do_copy_for(THD *thd, const Copy_context &ctx) const = 0;
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -3462,7 +3463,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_splocal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -3485,7 +3486,8 @@ public:
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 
@@ -3521,7 +3523,8 @@ public:
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 
@@ -3545,7 +3548,8 @@ public:
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 
@@ -3595,7 +3599,8 @@ private:
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 /*****************************************************************************
@@ -3680,7 +3685,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_name_const>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -4134,7 +4139,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_field>(thd, this); }
-  Item* deep_copy(THD *thd) const override
+  Item* do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -4317,7 +4322,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_null>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -4887,7 +4892,8 @@ private:
 
 protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 
@@ -4951,7 +4957,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_int>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -4986,7 +4992,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_bool>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5104,7 +5110,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_decimal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5156,7 +5162,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_float>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5324,7 +5330,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_string>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5561,7 +5567,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_hex_hybrid>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5609,7 +5615,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_hex_string>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5697,7 +5703,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_timestamp_literal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5796,7 +5802,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_date_literal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5851,7 +5857,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_time_literal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5930,7 +5936,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_datetime_literal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -5978,7 +5984,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_date_literal_for_invalid_dates>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -6006,7 +6012,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_datetime_literal_for_invalid_dates>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -6238,7 +6244,7 @@ public:
   virtual bool fix_length_and_dec(THD *thd)= 0;
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
-  Item* deep_copy(THD *thd) const override;
+  Item* do_copy_for(THD *thd, const Copy_context &ctx) const override;
   Sql_mode_dependency value_depends_on_sql_mode() const override
   {
     return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
@@ -6549,7 +6555,7 @@ public:
   { return (*ref)->field_transformer_for_having_pushdown(thd, arg); }
 
 protected:
-  Item *deep_copy(THD *thd) const override;
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override;
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_ref>(thd, this); }
 };
@@ -6770,7 +6776,8 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_wrapper>(thd, this); }
-  Item *deep_copy(THD *) const override { return nullptr; }
+  Item *do_copy_for(THD *, const Copy_context &) const override
+  { return nullptr; }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
     if (orig_item->maybe_null())
@@ -7075,7 +7082,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_outer_ref>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7145,7 +7152,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_int_with_ref>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7296,7 +7303,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_copy_string>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7341,7 +7348,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_copy_float>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7354,7 +7361,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_copy_double>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7440,7 +7447,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_copy_timestamp>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7655,11 +7662,11 @@ protected:
     new_item->m_share_field= 1;
     return new_item;
   }
-  Item* deep_copy(THD *thd) const override
+  Item* do_copy_for(THD *thd, const Copy_context &ctx) const override
   {
     Item_default_value *copy=
       (Item_default_value *) shallow_copy_with_checks(thd);
-    if (!copy || (arg && !(copy->arg= arg->deep_copy_with_checks(thd))))
+    if (!copy || (arg && !(copy->arg= arg->copy_for(thd, ctx))))
       return NULL;
     return copy;
   }
@@ -7756,7 +7763,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_default_specification>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7797,7 +7804,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_ignore_specification>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -7935,7 +7942,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_trigger_field>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 
 private:
@@ -8175,14 +8182,9 @@ public:
   }
 
 protected:
-  /*
-    A clone of a cache has to be able to compute its value on its own, so a
-    deep copy starts with an empty cache. Without this the clone would keep
-    returning the value that happened to be cached at the time of cloning:
-    nobody calls store() for the clone, only for the original cache.
-  */
-  Item *deep_copy_cache(THD *thd) const;
-  Item *deep_copy(THD *thd) const override { return deep_copy_cache(thd); }
+  /* The copy of a cache depends on the purpose of the copy, see Copy_context */
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return ctx.copy_cache(thd, this); }
 public:
   Item *get_example() const { return example; }
 
@@ -8642,12 +8644,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_row>(thd, this); }
-  /*
-    A copy sharing the values[] array of element caches with the original is
-    not a deep copy, so a row cache is not clonable until cloning the element
-    caches is implemented.
-  */
-  Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -8727,7 +8723,8 @@ public:
   }
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *) const override { return nullptr; }
+  Item *do_copy_for(THD *, const Copy_context &) const override
+  { return nullptr; }
 };
 
 
@@ -8962,9 +8959,9 @@ public:
     m_item= item;
     ref= &m_item;
   }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   {
-    Item *clone_item= m_item->deep_copy_with_checks(thd);
+    Item *clone_item= m_item->copy_for(thd, ctx);
     if (clone_item)
     {
       Item_direct_ref_to_item *copy=

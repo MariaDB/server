@@ -827,7 +827,8 @@ public:
                                       usable_tables, sargables, false);
   }
   bool need_parentheses_in_default() override { return false; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 };
 
 

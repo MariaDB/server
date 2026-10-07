@@ -419,7 +419,7 @@ public:
 
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_assoc_array>(thd, this); }
-  Item *deep_copy(THD *thd) const override;
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override;
 };
 
 
@@ -465,7 +465,8 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
   Item *shallow_copy(THD *) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 
   Item_composite_base *get_composite_variable(sp_rcontext *ctx) const;
 };

@@ -1649,7 +1649,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_double>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -1683,7 +1683,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_decimal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -1709,7 +1709,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_variance_field>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -1726,7 +1726,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_std_field>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 

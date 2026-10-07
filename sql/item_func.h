@@ -3866,7 +3866,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_user_var_as_out_param>(thd, this); }
-  Item *deep_copy(THD *thd) const override
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
   { return shallow_copy_with_checks(thd); }
 };
 
@@ -3996,7 +3996,8 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_match>(thd, this); }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override
+  { return nullptr; }
 private:
   /**
      Check whether storage engine for given table, 

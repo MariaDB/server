@@ -139,7 +139,7 @@ protected:
   }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_row>(thd, this); }
-  Item *deep_copy(THD *thd) const override;
+  Item *do_copy_for(THD *thd, const Copy_context &ctx) const override;
 };
 
 #endif /* ITEM_ROW_INCLUDED */

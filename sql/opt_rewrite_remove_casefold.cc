@@ -143,7 +143,7 @@ Item* Item_func_in::varchar_upper_cmp_transformer(THD *thd, uchar *arg)
     Item *tmp;
     if ((tmp= is_upper_key_col(arg0)))
     {
-      Item_func_in *cl= (Item_func_in*)deep_copy_with_checks(thd);
+      Item_func_in *cl= (Item_func_in*)copy_for(thd, Rewrite_copy_context());
       if (!cl)
         return this;
       Item *res;

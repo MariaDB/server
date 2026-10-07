@@ -156,6 +156,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_split.cc
            ../sql/rowid_filter.cc ../sql/rowid_filter.h
            ../sql/item_vers.cc
+           ../sql/item_copy.cc
            ../sql/opt_trace.cc
            ../sql/xa.cc
            ../sql/json_table.cc

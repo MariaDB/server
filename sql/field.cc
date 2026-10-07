@@ -11940,7 +11940,7 @@ Virtual_column_info* Virtual_column_info::clone(THD *thd)
     return NULL;
   if (expr)
   {
-    dst->expr= expr->deep_copy_with_checks(thd);
+    dst->expr= expr->copy_for(thd, Persistent_copy_context());
     if (!dst->expr)
       return NULL;
   }
