@@ -1049,5 +1049,145 @@ connection default;
 drop procedure mysql.p1;
 drop user u@localhost;
 
+--echo #
+--echo # MDEV-41099 HANDLER READ missing column privilege check
+--echo #
+create database db;
+create table db.t (id int primary key, a varchar(64), b int);
+insert into db.t values (1,'tok1',100), (2,'tok2',200);
+create user u@localhost;
+grant select (id) on db.t to u@localhost;
+connect con1, localhost, u, , db;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+--error ER_UNKNOWN_TABLE
+handler t read first;
+connection default;
+grant select (a, b) on db.t to u@localhost;
+connection con1;
+handler t open;
+handler t read first;
+let $ddl= flush tables db.t;
+--source grant2_handler_reopen.inc
+handler t read next;
+
+--echo # reopen after a column without privilege was added
+let $ddl= alter table db.t add column c int default 42;
+--source grant2_handler_reopen.inc
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t read first;
+handler t close;
+
+--echo # reopen after privileges changed
+connection default;
+grant select (c) on db.t to u@localhost;
+connection con1;
+handler t open;
+handler t read first;
+connection default;
+revoke select (id, a, b, c) on db.t from u@localhost;
+grant select on db.t to u@localhost;
+connection con1;
+let $ddl= flush tables db.t;
+--source grant2_handler_reopen.inc
+handler t read next;
+connection default;
+revoke select on db.t from u@localhost;
+connection con1;
+let $ddl= flush tables db.t;
+--source grant2_handler_reopen.inc
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t read next;
+connection default;
+grant select (id, a, b, c) on db.t to u@localhost;
+connection con1;
+handler t read next;
+handler t close;
+connection default;
+revoke select (id, a, b, c) on db.t from u@localhost;
+connection con1;
+
+--echo # column grants through a role
+connection default;
+create role r;
+grant select (id) on db.t to r;
+grant r to u@localhost;
+connection con1;
+set role r;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+connection default;
+grant select (a, b, c) on db.t to r;
+connection con1;
+handler t open;
+handler t read first;
+handler t close;
+set role none;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+
+--echo # column grants to PUBLIC
+connection default;
+grant select (id) on db.t to public;
+connection con1;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+connection default;
+grant select (a, b, c) on db.t to public;
+connection con1;
+handler t open;
+handler t read first;
+handler t close;
+
+--echo # column grants split between PUBLIC and a role
+connection default;
+revoke select (a, b, c) on db.t from public;
+revoke select (id) on db.t from r;
+connection con1;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+set role r;
+handler t open;
+handler t read first;
+handler t close;
+disconnect con1;
+connection default;
+revoke select (id) on db.t from public;
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+drop role r;
+drop user u@localhost;
+drop database db;
+
+--echo # Invisible columns: INVISIBLE_USER (a) needs a grant,
+--echo # INVISIBLE_SYSTEM (row_start, row_end) and INVISIBLE_FULL
+--echo # (DB_ROW_HASH_1) need none, as for SELECT
+create database db;
+create table db.t (id int primary key, a int invisible, b blob, unique(b))
+  with system versioning;
+set time_zone= '+00:00';
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert into db.t (id, a, b) values (1, 10, 'x');
+set timestamp= default;
+set time_zone= default;
+create user u@localhost;
+grant select (id, b) on db.t to u@localhost;
+connect con1, localhost, u, , db;
+--error ER_TABLEACCESS_DENIED_ERROR
+handler t open;
+connection default;
+grant select (a) on db.t to u@localhost;
+connection con1;
+set time_zone= '+00:00';
+select row_start, row_end from t;
+handler t open;
+--replace_column 6 #
+handler t read first;
+handler t close;
+disconnect con1;
+connection default;
+drop user u@localhost;
+drop database db;
+
 --echo # End of 10.11 tests
 --source include/wait_until_count_sessions.inc

@@ -5808,6 +5808,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       There is no need to check for table permissions here, because
       if a user has no permissions to read a table, he won't be
       able to open it (with SQLCOM_HA_OPEN) in the first place.
+      On implicit reopen mysql_ha_open() checks privileges again.
     */
     unit->set_limit(select_lex);
 
