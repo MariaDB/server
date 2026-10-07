@@ -667,12 +667,14 @@ public:
      Process a file that was collected at init().
      This may be invoked from multiple concurrent threads.
      @param target  backup target
-     @param phase   backup phase
      @param sink    backup worker context
      @return number of files remaining, or negative on error
      @retval 0 on completion
   */
-  int step(const backup_target &target, backup_phase phase,
+  int step(const backup_target &target,
+#ifndef NDEBUG
+           backup_stages stage, /*!< backup stage */
+#endif
            const backup_sink &sink) noexcept
   {
     ut_ad(&ctx == sink.ha_data);
@@ -682,7 +684,7 @@ public:
       return log_track();
     uint64_t id_limit{0};
     mutex.wr_lock();
-    ut_ad(ctx.last_lsn != LSN_MAX || phase == BACKUP_PHASE_START);
+    assert(ctx.last_lsn != LSN_MAX || stage == BACKUP_START);
     size_t size{queue.size()};
     const size_t non_log_files{non_log};
     ut_ad(size >= non_log_files);
@@ -723,7 +725,7 @@ public:
     }
     else
     {
-      ut_ad(phase == BACKUP_PHASE_START);
+      assert(stage == BACKUP_START);
       mysql_mutex_lock(&fil_system.mutex);
       if (fil_space_t *space{fil_space_get_by_id(uint32_t(id_limit))})
       {
@@ -2382,10 +2384,11 @@ void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
 }
 
 void *innodb_backup_start(THD *thd, const backup_target *target,
-                          backup_phase phase, const backup_sink *sink) noexcept
+                          backup_stages stage, const backup_sink *sink)
+  noexcept
 {
-  switch (phase) {
-  case BACKUP_PHASE_PREPARE_START:
+  switch (stage) {
+  case BACKUP_PREPARE:
     if (UNIV_UNLIKELY(recv_sys.rpo != 0))
     {
       my_error(ER_INNODB_READ_ONLY, MYF(0));
@@ -2404,41 +2407,45 @@ void *innodb_backup_start(THD *thd, const backup_target *target,
       ut_ad(fil_system.have_all_spaces);
     }
     return 0;
-  case BACKUP_PHASE_START:
+  case BACKUP_START:
     return innodb_backup.init(thd, *target, *sink);
-  case BACKUP_PHASE_NO_COMMIT:
+  case BACKUP_LOCK_COMMIT:
     if (innodb_backup.commit())
       return reinterpret_cast<void*>(-1);
     /* fall through */
   default:
     return sink->ha_data;
-  case BACKUP_PHASE_FINISH:
+  case BACKUP_FINISHED:
     return innodb_backup.finish_start(thd, *sink);
   }
 }
 
-int innodb_backup_step(THD *, const backup_target *target,
-                       backup_phase phase, const backup_sink *sink) noexcept
+int innodb_backup_step(THD *thd, const backup_target *target,
+                       backup_stages stage, const backup_sink *sink) noexcept
 {
-  switch (phase) {
-  case BACKUP_PHASE_START:
-  case BACKUP_PHASE_NO_COMMIT:
-  case BACKUP_PHASE_FINISH:
-    return innodb_backup.step(*target, phase, *sink);
+  switch (stage) {
+  case BACKUP_START:
+  case BACKUP_LOCK_COMMIT:
+  case BACKUP_FINISHED:
+    return innodb_backup.step(*target,
+#ifndef NDEBUG
+                              stage,
+#endif
+                              *sink);
   default:
     return 0;
   }
 }
 
 int innodb_backup_end(THD *thd, const backup_target *target,
-                      backup_phase phase, const backup_sink *sink) noexcept
+                      backup_stages stage, const backup_sink *sink) noexcept
 {
-  switch (phase) {
+  switch (stage) {
   default:
     return 0;
-  case BACKUP_PHASE_FINISH:
+  case BACKUP_FINISHED:
     return innodb_backup.finish_end(*target, *sink);
-  case BACKUP_PHASE_ABORT:
+  case BACKUP_ABORTED:
     return innodb_backup.abort(thd, *sink);
   }
 }

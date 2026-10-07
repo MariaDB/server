@@ -30,7 +30,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10
 --let SEARCH_PATTERN= GRANT USAGE ON
 --source include/search_pattern_in_file.inc
 # backup succeeds with RELOAD privilege
-GRANT RELOAD, PROCESS on *.* to backup@localhost;
+GRANT RELOAD, SELECT, PROCESS on *.* to backup@localhost;
 --disable_result_log
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --user=backup --password=xyz --target-dir=$targetdir > $MYSQLTEST_VARDIR/tmp/backup.log 2>&1;
 --enable_result_log

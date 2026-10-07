@@ -1901,48 +1901,48 @@ struct handlerton : public transaction_participant
   void (*end_backup)(void);
 
   /**
-     Start of a BACKUP SERVER phase,
+     Start of a BACKUP SERVER stage,
      when no backup_step() or backup_end() is pending.
      @param thd     current session
      @param target  backup target
-     @param phase   BACKUP_PHASE_PREPARE_START, ... (not BACKUP_PHASE_ABORT)
+     @param stage   BACKUP_PREPARE, ... (not BACKUP_ABORTED)
      @param sink    worker context
      @return backup context object to be attached to sink, or nullptr
      @retval -1     on failure
   */
   void *(*backup_start)(THD *thd, const backup_target *target,
-                        backup_phase phase, const backup_sink *sink);
+                        backup_stages stage, const backup_sink *sink);
   /**
      Process a file that was collected in backup_start().
      @param thd     current session
      @param target  backup target
-     @param phase   last phase on which backup_start() was successfully invoked
+     @param stage   last stage on which backup_start() was successfully invoked
      @param sink    worker context
      @return number of files remaining, or negative on error
      @retval 0 on completion
   */
   int (*backup_step)(THD *thd, const backup_target *target,
-                     backup_phase phase, const backup_sink *sink);
+                     backup_stages stage, const backup_sink *sink);
   /**
-     Finish a phase, once all calls for the current phase are completed.
+     Finish a stage, once all calls for the current stage are completed.
      @param thd     current sesssion
      @param target  backup target
-     @param phase   last phase on which backup_start() was successfully
-     invoked, or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+     @param stage   last stage on which backup_start() was successfully
+     invoked, or BACKUP_ABORTED or BACKUP_FINISHED
      @param sink    worker context
      @return error code
      @retval 0 on success
   */
-  int (*backup_end)(THD *thd, const backup_target *target, backup_phase phase,
-                    const backup_sink *sink);
+  int (*backup_end)(THD *thd, const backup_target *target,
+                    backup_stages stage, const backup_sink *sink);
 
   /**
      Determine if a file should be backed up.
-     @param phase   last phase on which backup_start() was successfully invoked
+     @param stage   last stage on which backup_start() was successfully invoked
      @param name    file name
      @return whether the file should be backed up
   */
-  bool (*backup_file)(backup_phase phase, const LEX_CSTRING name);
+  bool (*backup_file)(backup_stages stage, const LEX_CSTRING name);
 
   /**********************************************************************
    WSREP specific

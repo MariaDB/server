@@ -14,6 +14,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #pragma once
+#include "backup_stages.h"
 #include <stdint.h>
 
 /** BACKUP SERVER target */
@@ -48,31 +49,6 @@ struct backup_sink
 #endif
   /** storage engine context returned by handlerton::backup_start() */
   void *ha_data;
-};
-
-/** BACKUP SERVER execution phase; @see Sql_cmd_backup::execute() */
-enum backup_phase
-{
-  /** finish backup, possibly after BACKUP_PHASE_ABORT */
-  BACKUP_PHASE_FINISH= -2,
-  /** abort any operation */
-  BACKUP_PHASE_ABORT= -1,
-  /** preparatory phase executed while holding no locks */
-  BACKUP_PHASE_PREPARE_START= 0,
-  /** initial actual work phase; @see MDL_BACKUP_START */
-  BACKUP_PHASE_START,
-  /** copy while new writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_FLUSH */
-  BACKUP_PHASE_NO_BEGIN_NON_TRANS,
-  /** copy while any writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_WAIT_FLUSH */
-  BACKUP_PHASE_NO_DML_NON_TRANS,
-  /** copy files while DDL is blocked; @see MDL_BACKUP_WAIT_DDL */
-  BACKUP_PHASE_NO_DDL,
-  /** determine the logical time of the backup and copy any
-  remaining files while MDL_BACKUP_WAIT_COMMIT is active;
-  this is followed by BACKUP_PHASE_FINISH */
-  BACKUP_PHASE_NO_COMMIT
 };
 
 /** A payload chunk in a sparse file that is being streamed */

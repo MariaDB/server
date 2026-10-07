@@ -167,7 +167,7 @@ SET (SQL_SOURCE
                grant.cc
                sql_explain.cc
                sql_analyze_stmt.cc
-               sql_backup.cc
+               sql_backup.cc sql_backup_interface.h
                sql_join_cache.cc
                create_options.cc multi_range_read.cc
                opt_histogram_json.cc
@@ -198,7 +198,7 @@ SET (SQL_SOURCE
                opt_context_store_replay.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc
-               proxy_protocol.cc backup.cc xa.cc
+               proxy_protocol.cc backup.cc backup.h xa.cc
                socketpair.c socketpair.h
                opt_vcol_substitution.h
                opt_vcol_substitution.cc

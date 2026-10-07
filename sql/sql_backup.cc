@@ -38,24 +38,24 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
    BACKUP SERVER TO '/path/to/directory' [ 1 CONCURRENT ];
    BACKUP SERVER WITH [ 1 CONCURRENT ] 'command';
 
-   The operation is divided into multiple phases; @see backup_phase
+   The operation is divided into multiple stages; @see backup_stages
 
-   Each phase is divided into "start" and "end", which are invoked
+   Each stage is divided into "start" and "end", which are invoked
    by this thread, and a number of "step" in between that may be
    invoked by multiple CONCURRENT threads.
    @see handlerton::backup_start
    @see handlerton::backup_step
    @see handlerton::backup_end
 
-   Most phases are tied with BACKUP STAGE locks; the actual first work phase:
-   @see BACKUP_PHASE_START
+   Most stages are tied with BACKUP STAGE locks; the actual first work stage:
+   @see BACKUP_START
    @see MDL_BACKUP_START
 
    The snapshot for transactional storage engines is determined in:
-   @see BACKUP_PHASE_NO_COMMIT
+   @see BACKUP_LOCK_COMMIT
    @see MDL_BACKUP_WAIT_COMMIT
 
-   Some backup_phase for preparation and clean-up are executed while
+   BACKUP_PREPARE, BACKUP_ABORTED, BACKUP_FINISHED are executed while
    not holding any MDL.
 
    @param thd   client connection
@@ -574,7 +574,7 @@ int backup_config_append(IF_WIN(const char*, int) target,
    Invoke handlerton::backup_file() on a storage engine in a thread
    that may or may not be associated with a BACKUP SERVER connection,
    between handlerton::backup_start() and handlerton::backup_end()
-   of the same backup_phase.
+   of the same backup stage.
    @param thd     the BACKUP SERVER session
    @param plugin  storage engine
    @param arg     the name to check
@@ -585,13 +585,16 @@ static my_bool backup_name_filtered(THD *thd, plugin_ref plugin, void *arg)
 {
   const handlerton *hton= plugin_hton(plugin);
   LEX_CSTRING &name{*static_cast<LEX_CSTRING*>(arg)};
-  return hton->backup_file && !hton->backup_file(BACKUP_PHASE_NO_COMMIT, name);
+  return hton->backup_file && !hton->backup_file(BACKUP_LOCK_COMMIT, name);
 }
 
 /** process-wide backup context */
 struct backup_context
 {
-  /** engine-specific context */
+  /** Engine-specific context, shared by all threads.  Only
+  modified by the calling thread while no backup_step() is pending;
+  backup_step() must use find(), never operator[], because
+  operator[] is not safe for concurrent use. */
   std::unordered_map<const handlerton*,void*> ha_data;
 #ifndef _WIN32
   /** directory stream */
@@ -776,7 +779,7 @@ struct backup_context
 
   /**
      Consume a data file name and copy the file if needed.
-     @param tp         BACKUP SERVER target and phase
+     @param target     BACKUP SERVER target
      @param sink       per-thread context (possibly, a stream to write to)
      @retval 1 on success if some work remains
      @retval 0 on successful completion
@@ -980,12 +983,12 @@ struct backup_context
 };
 
 /** per-thread backup context */
-struct backup_target_phase
+struct backup_target_stage
 {
   /** target directory or stream */
   backup_target target;
-  /** current phase of backup */
-  backup_phase phase;
+  /** current backup stage */
+  backup_stages stage;
   /** backup worker state (output stream) */
   backup_sink sink;
   /** stream object for streaming backup */
@@ -1001,7 +1004,7 @@ struct backup_target_phase
   */
   int step() const noexcept
   {
-    if (phase == BACKUP_PHASE_NO_COMMIT)
+    if (stage == BACKUP_LOCK_COMMIT)
       return context.step(target, sink);
     return 0;
   }
@@ -1009,7 +1012,7 @@ struct backup_target_phase
 
 /**
    Inform a storage engine of an upcoming backup by invoking
-   handlerton::backup_start(BACKUP_PHASE_PREPARE_START) before
+   handlerton::backup_start(BACKUP_PREPARE) before
    acquiring any locks.
    @param thd     current session
    @param plugin  storage engine
@@ -1018,7 +1021,7 @@ struct backup_target_phase
 static my_bool backup_preparation(THD *thd, plugin_ref plugin, void*) noexcept
 {
   const auto bs= plugin_hton(plugin)->backup_start;
-  return bs && bs(thd, nullptr, BACKUP_PHASE_PREPARE_START, nullptr);
+  return bs && bs(thd, nullptr, BACKUP_PREPARE, nullptr);
 }
 
 /**
@@ -1026,18 +1029,18 @@ static my_bool backup_preparation(THD *thd, plugin_ref plugin, void*) noexcept
    when there are no pending handlerton::backup_step() in any thread.
    @param thd     current session
    @param plugin  storage engine
-   @param arg     the backup_target_phase context
+   @param arg     the backup_target_stage context
    @return whether the operation failed
 */
 static my_bool backup_start(THD *thd, plugin_ref plugin, void *arg) noexcept
 {
   const handlerton *hton= plugin_hton(plugin);
-  backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
-  assert(int{t.phase} >= 0 || t.phase == BACKUP_PHASE_FINISH);
+  backup_target_stage &t{*static_cast<backup_target_stage*>(arg)};
+  assert(int{t.stage} >= 0);
   if (hton->backup_start)
   {
     t.sink.ha_data= t.context.ha_data[hton];
-    void *data= hton->backup_start(thd, &t.target, t.phase, &t.sink);
+    void *data= hton->backup_start(thd, &t.target, t.stage, &t.sink);
     if (data == reinterpret_cast<void*>(-1))
       return true;
     assert(!t.context.ha_data[hton] || t.context.ha_data[hton] == data);
@@ -1051,17 +1054,17 @@ static my_bool backup_start(THD *thd, plugin_ref plugin, void *arg) noexcept
    when there are no pending handlerton::backup_step() in any thread.
    @param thd     current session
    @param plugin  storage engine
-   @param arg     the backup_target_phase context
+   @param arg     the backup_target_stage context
    @return whether the operation failed
 */
 static my_bool backup_end(THD *thd, plugin_ref plugin, void *arg) noexcept
 {
   const handlerton *hton= plugin_hton(plugin);
-  backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
+  backup_target_stage &t{*static_cast<backup_target_stage*>(arg)};
   if (hton->backup_end)
   {
     t.sink.ha_data= t.context.ha_data[hton];
-    return hton->backup_end(thd, &t.target, t.phase, &t.sink);
+    return hton->backup_end(thd, &t.target, t.stage, &t.sink);
   }
   return false;
 }
@@ -1070,7 +1073,7 @@ static my_bool backup_end(THD *thd, plugin_ref plugin, void *arg) noexcept
    Invoke handlerton::backup_step() on a storage engine in a thread
    that may or may not be associated with a BACKUP SERVER connection,
    between handlerton::backup_start() and handlerton::backup_end()
-   of the same backup_phase.
+   of the same stage.
    @param thd     the BACKUP SERVER session
    @param plugin  storage engine
    @param arg     the backup_target_phase context
@@ -1079,39 +1082,70 @@ static my_bool backup_end(THD *thd, plugin_ref plugin, void *arg) noexcept
 static my_bool backup_step(THD *thd, plugin_ref plugin, void *arg) noexcept
 {
   const handlerton *hton= plugin_hton(plugin);
-  backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
-  assert(int{t.phase} >= 0 || t.phase == BACKUP_PHASE_FINISH);
+  backup_target_stage &t{*static_cast<backup_target_stage*>(arg)};
+  assert(int{t.stage} >= 0);
   if (hton->backup_step)
   {
-    t.sink.ha_data= t.context.ha_data[hton];
-    while (int res= hton->backup_step(thd, &t.target, t.phase, &t.sink))
+    const auto it= t.context.ha_data.find(hton);
+    t.sink.ha_data= it == t.context.ha_data.end() ? nullptr : it->second;
+    while (int res= hton->backup_step(thd, &t.target, t.stage, &t.sink))
       if (res < 0)
         return true;
   }
   return false;
 }
 
+
 /**
    Execute all handlerton::backup_step() until completion or failure.
    @param thd           current connection
-   @param target_phase  backup target and phase
+   @param target_stage  backup target and stage
    @return whether the operation failed
 */
-static bool backup_step_one(THD *thd, backup_target_phase *target_phase)
+static bool backup_step_one(THD *thd, backup_target_stage *target_stage)
 {
-  while (int ret= target_phase->step())
+  while (int ret= target_stage->step())
     if (ret < 0)
       return ret;
   return plugin_foreach_with_mask(thd, backup_step,
                                   MYSQL_STORAGE_ENGINE_PLUGIN,
                                   PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                  target_phase);
+                                  target_stage);
 }
+
+
+/**
+   Initialize a thread that was created by the thread pool.
+
+   Any thread that uses mysys functions must call my_thread_init()
+   before it does so; my_errno and other mysys variables are stored in
+   a thread local variable that my_thread_init() allocates.
+*/
+static void backup_thread_init() noexcept
+{
+  my_thread_init();
+  my_thread_set_name("backup_worker");
+  /* Make the thread visible in performance_schema.threads */
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_thread *psi{PSI_CALL_new_thread(key_thread_backup_worker, NULL, 0)};
+  PSI_CALL_set_thread_os_id(psi);
+  PSI_CALL_set_thread(psi);
+#endif
+}
+
+
+/** Clean up a thread that was initialized by backup_thread_init() */
+static void backup_thread_end() noexcept
+{
+  PSI_CALL_delete_current_thread();
+  my_thread_end();
+}
+
 
 /** Invoke backup_step() in a background task */
 static void backup_step_callback(void *arg) noexcept
 {
-  backup_target_phase &t{*static_cast<backup_target_phase*>(arg)};
+  backup_target_stage &t{*static_cast<backup_target_stage*>(arg)};
   assert(!t.ret);
   while (int ret= t.step())
     if (ret < 0)
@@ -1133,29 +1167,29 @@ static void backup_step_callback(void *arg) noexcept
 /**
    Execute all handlerton::backup_step() until completion or failure.
    @param thd           current connection
-   @param target_phase  backup target and phase
+   @param target_stage  backup target and stage
    @param threads       number of execution threads
    @param tp            thread pool
 */
-static bool backup_steps(THD *thd, backup_target_phase *target_phase,
+static bool backup_steps(THD *thd, backup_target_stage *target_stage,
                          int threads, tpool::thread_pool *tp)
 {
-  auto &pending{target_phase->context.pending};
+  auto &pending{target_stage->context.pending};
   assert(!pending);
   if (threads == 1)
-    return backup_step_one(thd, target_phase);
+    return backup_step_one(thd, target_stage);
   tpool::task *const tasks=
     static_cast<tpool::task*>(alloca(threads * sizeof *tasks));
   pending= threads - 1;
-  assert(target_phase[0].sink.id == threads - 1);
+  assert(target_stage[0].sink.id == threads - 1);
   for (int n{threads}; --n; )
   {
-    assert(target_phase[n].sink.id == (threads - 1) - n);
-    target_phase[n].phase= target_phase->phase;
+    assert(target_stage[n].sink.id == (threads - 1) - n);
+    target_stage[n].stage= target_stage->stage;
     tp->submit_task(new (&tasks[n]) tpool::task{backup_step_callback,
-                                                &target_phase[n]});
+                                                &target_stage[n]});
   }
-  bool fail= backup_step_one(thd, target_phase);
+  bool fail= backup_step_one(thd, target_stage);
   while (pending)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -1163,7 +1197,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
     return fail;
 
   for (int n{threads}; --n; )
-    if (target_phase[n].ret)
+    if (target_stage[n].ret)
     {
       my_error(ER_UNKNOWN_ERROR, MYF(0));
       return true;
@@ -1171,6 +1205,7 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
 
   return false;
 }
+
 
 /**
    BACKUP SERVER driver
@@ -1186,10 +1221,6 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 {
   assert(!!target == !command);
   assert(threads > 0);
-
-  if (check_global_access(thd, RELOAD_ACL) ||
-      check_global_access(thd, SELECT_ACL))
-    return true;
 
   if (!target)
   {
@@ -1212,29 +1243,17 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   else if (error_if_data_home_dir(target, "BACKUP SERVER TO"))
     return true;
 
-  if (thd->current_backup_stage != BACKUP_FINISHED)
-  {
-    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
-    return true;
-  }
-
-  bool fail{plugin_foreach_with_mask(thd, backup_preparation,
-                                     MYSQL_STORAGE_ENGINE_PLUGIN,
-                                     PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                     nullptr)};
+  bool fail= plugin_foreach_with_mask(thd, backup_preparation,
+                                      MYSQL_STORAGE_ENGINE_PLUGIN,
+                                      PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                                      nullptr);
   if (fail)
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return true;
   }
 
-  /* Block concurrent BACKUP SERVER and BACKUP STAGE */
-  MDL_request mdl_request;
-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
-                   MDL_EXPLICIT);
-
-  if (thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
+  if (run_backup_stage(thd, BACKUP_START))
     return true;
 
   tpool::thread_pool *tp= nullptr;
@@ -1243,7 +1262,7 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   {
     context.dir_error(mysql_data_home);
   release_and_exit:
-    thd->mdl_context.release_lock(mdl_request.ticket);
+    run_backup_stage(thd, BACKUP_END);
     return true;
   }
 #ifndef NDEBUG
@@ -1251,11 +1270,12 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 #else
 # define calloca(n) alloca(n)
 #endif
-  backup_target_phase *target_phase= static_cast<backup_target_phase*>
-    (calloca(threads * sizeof *target_phase));
+  backup_target_stage *target_stage= static_cast<backup_target_stage*>
+    (calloca(threads * sizeof *target_stage));
 #undef calloca
 
-  if (threads > 1 && !(tp= tpool::create_thread_pool_generic()))
+  if (threads <= 1);
+  else if (!(tp= tpool::create_thread_pool_generic()))
   {
   oor:
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1263,10 +1283,12 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     delete tp;
 #ifndef NDEBUG
     for (int t{threads}; t--; )
-      assert(!target_phase[t].stream);
+      assert(!target_stage[t].stream);
 #endif
     goto release_and_exit;
   }
+  else
+    tp->set_thread_callbacks(backup_thread_init, backup_thread_end);
 
   if (command)
   {
@@ -1293,9 +1315,9 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       {
         while (t++ < threads)
         {
-          my_pclose(target_phase[threads - t].stream);
+          my_pclose(target_stage[threads - t].stream);
 #ifndef NDEBUG
-          target_phase[threads - t].stream= nullptr;
+          target_stage[threads - t].stream= nullptr;
 #endif
         }
         goto oor;
@@ -1309,10 +1331,9 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       fcntl(sink, F_SETPIPE_SZ, 1 << 20/* 1 MiB */);
 # endif
 #endif
-      new (&target_phase[threads - t])
-        backup_target_phase{backup_target{IF_WIN(nullptr, -1)},
-          BACKUP_PHASE_START, backup_sink{t - 1, sink, nullptr},
-          f, 0, context};
+      new (&target_stage[threads - t])
+        backup_target_stage{backup_target{IF_WIN(nullptr, -1)},
+          BACKUP_START, backup_sink{t - 1, sink, nullptr}, f, 0, context};
     }
   }
   else if (my_mkdir(target, 0755, MYF(MY_WME)))
@@ -1329,88 +1350,77 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
 #endif
     for (int t{threads}; t--; )
     {
-      new (&target_phase[threads - 1 - t])
-        backup_target_phase{backup_target{IF_WIN(target, dir)},
-          BACKUP_PHASE_START,
-          backup_sink{t, backup_sink::NO_STREAM, nullptr},
+      new (&target_stage[threads - 1 - t])
+        backup_target_stage{backup_target{IF_WIN(target, dir)},
+          BACKUP_START, backup_sink{t, backup_sink::NO_STREAM, nullptr},
           nullptr, 0, context};
     }
   }
 
-  static_assert(int{MDL_BACKUP_START} + 1 == int{MDL_BACKUP_FLUSH}, "");
-  static_assert(int{MDL_BACKUP_START} + 2 == int{MDL_BACKUP_WAIT_FLUSH}, "");
-  static_assert(int{MDL_BACKUP_START} + 3 == int{MDL_BACKUP_WAIT_DDL}, "");
-  static_assert(int{MDL_BACKUP_START} + 4 == int{MDL_BACKUP_WAIT_COMMIT}, "");
-  static_assert(int{BACKUP_PHASE_START} + 1 ==
-                int{BACKUP_PHASE_NO_BEGIN_NON_TRANS}, "");
-  static_assert(int{BACKUP_PHASE_START} + 2 ==
-                int{BACKUP_PHASE_NO_DML_NON_TRANS}, "");
-  static_assert(int{BACKUP_PHASE_START} + 3 == int{BACKUP_PHASE_NO_DDL}, "");
-  static_assert(int{BACKUP_PHASE_START} + 4 ==
-                int{BACKUP_PHASE_NO_COMMIT}, "");
-  int phase= int{BACKUP_PHASE_START};
-  goto backup_phase_start;
+  int stage{BACKUP_START};
+  goto backup_start;
 
-  for (; phase <= int{BACKUP_PHASE_NO_COMMIT}; phase++)
+  for (; stage <= int{BACKUP_LOCK_COMMIT}; stage++)
   {
-    assert(!fail);
-    {
-      const enum_mdl_type mdl=
-        enum_mdl_type(phase - int{BACKUP_PHASE_START} + int{MDL_BACKUP_START});
-      fail=
-        thd->mdl_context.upgrade_shared_lock(mdl_request.ticket, mdl,
-                                             thd->variables.lock_wait_timeout);
-      if (fail)
-        break;
-    }
+    fail= run_backup_stage(thd, backup_stages(stage));
 
-    if ((phase == BACKUP_PHASE_NO_DDL || phase == BACKUP_PHASE_NO_COMMIT) &&
-         /* Invoke handler::extra(HA_EXTRA_FLUSH) */
-         (fail= flush_tables(thd, phase == BACKUP_PHASE_NO_DDL
-                             ? FLUSH_NON_TRANS_TABLES
-                             : FLUSH_SYS_TABLES)))
+    if (fail)
       break;
 
-  backup_phase_start:
-    target_phase->phase= backup_phase(phase);
+  backup_start:
+    target_stage->stage= backup_stages(stage);
     fail= plugin_foreach_with_mask(thd, backup_start,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
                                    PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                   target_phase);
+                                   target_stage);
     if (fail)
       break;
-    fail= backup_steps(thd, target_phase, threads, tp) ||
+    fail= backup_steps(thd, target_stage, threads, tp) ||
       plugin_foreach_with_mask(thd, backup_end, MYSQL_STORAGE_ENGINE_PLUGIN,
                                PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                               target_phase);
+                               target_stage);
     if (fail)
       break;
   }
 
-  /* The final part must not interfere with the use of the server datadir.
-  Release the locks. */
-  thd->mdl_context.release_lock(mdl_request.ticket);
+#ifdef FIXME_ARIA_LOG_LSN
+  /*
+    TODO: Rotate the Aria log when determining the commit LSN so that
+    we can safely copy the last complete log file.
+  */
+  fail= run_backup_stage(thd, BACKUP_END) || fail;
+#endif
+
   if (!fail)
   {
-    target_phase->phase= BACKUP_PHASE_FINISH;
+    target_stage->stage= BACKUP_FINISHED;
     fail= plugin_foreach_with_mask(thd, backup_start,
                                    MYSQL_STORAGE_ENGINE_PLUGIN,
                                    PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                   target_phase) ||
-      backup_steps(thd, target_phase, threads, tp);
+                                   target_stage) ||
+      backup_steps(thd, target_stage, threads, tp);
   }
   else
   {
-    target_phase->phase= BACKUP_PHASE_ABORT;
+    target_stage->stage= BACKUP_ABORTED;
     plugin_foreach_with_mask(thd, backup_end, MYSQL_STORAGE_ENGINE_PLUGIN,
-                             PLUGIN_IS_DELETED|PLUGIN_IS_READY, target_phase);
-    target_phase->phase= BACKUP_PHASE_FINISH;
+                             PLUGIN_IS_DELETED|PLUGIN_IS_READY, target_stage);
+    target_stage->stage= BACKUP_FINISHED;
   }
 
   fail=
     plugin_foreach_with_mask(thd, backup_end, MYSQL_STORAGE_ENGINE_PLUGIN,
                              PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                             target_phase) || fail;
+                             target_stage) || fail;
+
+#ifndef FIXME_ARIA_LOG_LSN
+  /*
+    We cannot call BACKUP_END earlier as the Aria logs must be copied under
+    BLOCK_COMMIT.  If we relase the commit lock, the redo log will be filled
+    with data that we do not want.
+  */
+  fail= run_backup_stage(thd, BACKUP_END) || fail;
+#endif
   delete tp;
 
   if (command)
@@ -1418,16 +1428,16 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
     if (fail)
       /* Ensure that each stream is an invalid tar stream. */
       for (int t= threads; t--; )
-        std::ignore= putc('\0', target_phase[t].stream);
+        std::ignore= putc('\0', target_stage[t].stream);
     int pfail{0};
     for (int t= threads; t--; )
-      pfail|= my_pclose(target_phase[t].stream);
+      pfail|= my_pclose(target_stage[t].stream);
     if (!fail && (fail= !!pfail))
       my_error(ER_NET_ERROR_ON_WRITE, MYF(0));
   }
 #ifndef _WIN32
   else
-    std::ignore= close(target_phase->target.fd);
+    std::ignore= close(target_stage->target.fd);
 #endif
 
   if (!fail)
