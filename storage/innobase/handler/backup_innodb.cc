@@ -548,7 +548,7 @@ public:
     }
 
     const lsn_t first_lsn{log_sys.get_first_lsn()};
-    lsn_t lsn_max{LSN_MAX}, start_end;
+    lsn_t last_track_lsn{LSN_MAX}, start_end;
     const lsn_t start=
 #if 1 /* TODO: for incremental backup, allow the start to be specified */
       log_sys.get_latest_checkpoint(start_end);
@@ -566,11 +566,6 @@ public:
       /* log_track() cannot work in single-threaded mode */;
     else if (sink.stream != sink.NO_STREAM)
       /* log_track() is not applicable to streaming backup */;
-    else if (!log_sys.log_buffered)
-      /*
-        log_track() will read the log in arbitrary-size chunks,
-        which is incompatible with innodb_log_file_buffering=OFF
-      */;
     else
     {
       do
@@ -594,7 +589,10 @@ public:
         return reinterpret_cast<void*>(-1);
       }
       while (false);
-      lsn_max= start;
+      last_track_lsn= start;
+      if (!log_sys.is_mmap())
+        /* Round down to the start of a log block. */
+        last_track_lsn-= (start - first_lsn) & (log_sys.write_size - 1);
     }
 
     mutex.wr_lock();
@@ -606,7 +604,7 @@ public:
     {
       new (&ctx) context{
         first_lsn, LSN_MAX, LSN_MAX, start, start_end,
-        log_sys.file_size, old_size, 0, lsn_max, PROCESSING,
+        log_sys.file_size, old_size, 0, last_track_lsn, PROCESSING,
         log_dst, log_dst, tracked, &target
       };
 
@@ -767,6 +765,7 @@ public:
     ut_ad(ctx.is_log_tracking());
     for (;;)
     {
+      int err{-1};
       lsn_t write_lsn;
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
@@ -781,12 +780,14 @@ public:
         write_lsn= log_sys.write_lsn;
         mutex.wr_lock();
         log_sys.latch.rd_unlock();
+        if (ctx.last_lsn == LSN_MAX)
+          /* Round down to the start of a block. */
+          write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) &
+            (log_sys.write_size - 1);
       }
 
       ut_ad(!ctx.last_hardlink.load(std::memory_order_relaxed));
       const tracked_log &tracked{*ctx.tracked};
-      int err{-1};
-
       const lsn_t last{ctx.last_lsn};
       if (UNIV_UNLIKELY(!last))
       {
@@ -812,6 +813,7 @@ public:
       else
 #endif
       {
+        ut_ad(last < LSN_MAX || !(uint(begin) & (log_sys.write_size - 1)));
 #ifdef POSIX_FADV_SEQUENTIAL
         std::ignore= posix_fadvise(tracked.file, begin, end - begin,
                                    POSIX_FADV_SEQUENTIAL);
