@@ -8069,7 +8069,19 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
     */
     if (stmt_end)
     {
-      pending->set_flags(Rows_log_event::STMT_END_F);
+      if (thd->binlog_fk_cascade_events &&
+          (thd->variables.rpl_use_binlog_events_for_fk_cascade ||
+           WSREP_EMULATE_BINLOG(thd)))
+        thd->flush_pending_cascade_binlog();
+
+      /*
+        Flushing cascaded row events may have created a new pending event or
+        replaced the current one. Ensure we mark the final pending event as
+        statement end.
+      */
+      pending= cache_data->pending();
+      if (pending)
+        pending->set_flags(Rows_log_event::STMT_END_F);
       thd->reset_binlog_for_next_statement();
     }
 
@@ -8286,7 +8298,10 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
       pending->get_table_id() != table->s->table_map_id ||
       pending->get_general_type_code() != event_factory.type_code ||
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
-      pending->read_write_bitmaps_cmp(table) == FALSE)
+      pending->read_write_bitmaps_cmp(table) == FALSE ||
+      /* Cascade-derived rows and the statement's own go to separate events */
+      (pending->get_flags(Rows_log_event::FK_CASCADE_DERIVED_F) != 0) !=
+        thd->binlog_fk_cascade_derived)
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const
@@ -8295,6 +8310,12 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
     ev->server_id= serv_id; // I don't like this, it's too easy to forget.
+
+    if (thd->binlog_fk_cascade_events)
+      ev->set_flags(Rows_log_event::FK_CASCADE_EVENTS_F |
+                    Rows_log_event::NO_FOREIGN_KEY_CHECKS_F);
+    if (thd->binlog_fk_cascade_derived)
+      ev->set_flags(Rows_log_event::FK_CASCADE_DERIVED_F);
     /*
       flush the pending event and replace it with the newly created
       event...
