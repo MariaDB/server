@@ -47,6 +47,7 @@ Commands:
   configure     Configure the CMake build directory
   build         Configure and compile MariaDB
   install       Build and install MariaDB
+  devel         Build and install only the Development component (plugin SDK)
   init          Initialize the data directory if it does not exist
   start         Start MariaDB
   stop          Stop MariaDB
@@ -70,7 +71,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        deps|configure|build|install|init|start|stop|restart|dev|clean|reset-data|help)
+        deps|configure|build|install|devel|init|start|stop|restart|dev|clean|reset-data|help)
             [[ -z "$COMMAND" ]] || fail "Only one command can be specified"
             COMMAND="$1"
             ;;
@@ -296,6 +297,13 @@ install_build() {
     success "Install complete"
 }
 
+install_devel() {
+    separator
+    info "Installing Development component to ${_CLR_YELLOW}$INSTALL_PREFIX"
+    cmake --install "$BUILD_PATH" --component Development || fail "DEVEL INSTALL FAILED"
+    success "Development install complete"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 cmd_deps() {
     install_deps
@@ -314,6 +322,11 @@ cmd_install() {
     cmd_build
     stop_mdb
     install_build
+}
+
+cmd_devel() {
+    cmd_build
+    install_devel
 }
 
 cmd_init() {
@@ -380,6 +393,7 @@ case "$COMMAND" in
     configure)  cmd_configure ;;
     build)      cmd_build ;;
     install)    cmd_install ;;
+    devel)      cmd_devel ;;
     init)       cmd_init ;;
     start)      cmd_start ;;
     stop)       cmd_stop ;;
