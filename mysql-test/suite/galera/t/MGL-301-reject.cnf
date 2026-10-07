@@ -1,0 +1,4 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.2]
+wsrep_provider_options='gcs.fc_limit=1000000;base_port=@mysqld.2.#galera_port;'
