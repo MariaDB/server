@@ -971,4 +971,188 @@ disconnect con1;
 connection default;
 drop procedure mysql.p1;
 drop user u@localhost;
+#
+# MDEV-41099 HANDLER READ missing column privilege check
+#
+create database db;
+create table db.t (id int primary key, a varchar(64), b int);
+insert into db.t values (1,'tok1',100), (2,'tok2',200);
+create user u@localhost;
+grant select (id) on db.t to u@localhost;
+connect con1, localhost, u, , db;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+handler t read first;
+ERROR 42S02: Unknown table 't' in HANDLER
+connection default;
+grant select (a, b) on db.t to u@localhost;
+connection con1;
+handler t open;
+handler t read first;
+id	a	b
+1	tok1	100
+connect con2, localhost, root;
+flush tables db.t;
+connection default;
+connection con1;
+select 1 from information_schema.character_sets limit 1;
+1
+1
+connection con2;
+disconnect con2;
+connection con1;
+handler t read next;
+id	a	b
+1	tok1	100
+# reopen after a column without privilege was added
+connect con2, localhost, root;
+alter table db.t add column c int default 42;
+connection default;
+connection con1;
+select 1 from information_schema.character_sets limit 1;
+1
+1
+connection con2;
+disconnect con2;
+connection con1;
+handler t read first;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+handler t close;
+# reopen after privileges changed
+connection default;
+grant select (c) on db.t to u@localhost;
+connection con1;
+handler t open;
+handler t read first;
+id	a	b	c
+1	tok1	100	42
+connection default;
+revoke select (id, a, b, c) on db.t from u@localhost;
+grant select on db.t to u@localhost;
+connection con1;
+connect con2, localhost, root;
+flush tables db.t;
+connection default;
+connection con1;
+select 1 from information_schema.character_sets limit 1;
+1
+1
+connection con2;
+disconnect con2;
+connection con1;
+handler t read next;
+id	a	b	c
+1	tok1	100	42
+connection default;
+revoke select on db.t from u@localhost;
+connection con1;
+connect con2, localhost, root;
+flush tables db.t;
+connection default;
+connection con1;
+select 1 from information_schema.character_sets limit 1;
+1
+1
+connection con2;
+disconnect con2;
+connection con1;
+handler t read next;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+connection default;
+grant select (id, a, b, c) on db.t to u@localhost;
+connection con1;
+handler t read next;
+id	a	b	c
+1	tok1	100	42
+handler t close;
+connection default;
+revoke select (id, a, b, c) on db.t from u@localhost;
+connection con1;
+# column grants through a role
+connection default;
+create role r;
+grant select (id) on db.t to r;
+grant r to u@localhost;
+connection con1;
+set role r;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+connection default;
+grant select (a, b, c) on db.t to r;
+connection con1;
+handler t open;
+handler t read first;
+id	a	b	c
+1	tok1	100	42
+handler t close;
+set role none;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+# column grants to PUBLIC
+connection default;
+grant select (id) on db.t to public;
+connection con1;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+connection default;
+grant select (a, b, c) on db.t to public;
+connection con1;
+handler t open;
+handler t read first;
+id	a	b	c
+1	tok1	100	42
+handler t close;
+# column grants split between PUBLIC and a role
+connection default;
+revoke select (a, b, c) on db.t from public;
+revoke select (id) on db.t from r;
+connection con1;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+set role r;
+handler t open;
+handler t read first;
+id	a	b	c
+1	tok1	100	42
+handler t close;
+disconnect con1;
+connection default;
+revoke select (id) on db.t from public;
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+drop role r;
+drop user u@localhost;
+drop database db;
+# Invisible columns: INVISIBLE_USER (a) needs a grant,
+# INVISIBLE_SYSTEM (row_start, row_end) and INVISIBLE_FULL
+# (DB_ROW_HASH_1) need none, as for SELECT
+create database db;
+create table db.t (id int primary key, a int invisible, b blob, unique(b))
+with system versioning;
+set time_zone= '+00:00';
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert into db.t (id, a, b) values (1, 10, 'x');
+set timestamp= default;
+set time_zone= default;
+create user u@localhost;
+grant select (id, b) on db.t to u@localhost;
+connect con1, localhost, u, , db;
+handler t open;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `db`.`t`
+connection default;
+grant select (a) on db.t to u@localhost;
+connection con1;
+set time_zone= '+00:00';
+select row_start, row_end from t;
+row_start	row_end
+2001-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+handler t open;
+handler t read first;
+id	a	b	row_start	row_end	DB_ROW_HASH_1
+1	10	x	2001-01-01 00:00:00.000000	2038-01-19 03:14:07.999999	#
+handler t close;
+disconnect con1;
+connection default;
+drop user u@localhost;
+drop database db;
 # End of 10.11 tests
