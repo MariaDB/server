@@ -7373,7 +7373,8 @@ int ha_connect::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
-                                                uint *flags, ha_rows limit,
+                                                uint *flags, page_range* pr, 
+                                                ha_rows limit,
                                                 Cost_estimate *cost)
 {
   /*
@@ -7388,7 +7389,7 @@ ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
   ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-                                        bufsz, flags, limit, cost);
+                                        bufsz, flags, pr, limit, cost);
   xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
   return rows;
 } // end of multi_range_read_info_const

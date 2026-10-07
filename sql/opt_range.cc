@@ -346,7 +346,8 @@ static ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                                   bool index_only,
                                   SEL_ARG *tree, bool update_tbl_stats, 
                                   uint *mrr_flags, uint *bufsize,
-                                  Cost_estimate *cost, bool *is_ror_scan);
+                                  Cost_estimate *cost, page_range *pr,
+                                  bool *is_ror_scan);
 
 QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
                                      SEL_ARG *key_tree, uint mrr_flags, 
@@ -2302,6 +2303,7 @@ public:
   uint     key_idx; /* key number in PARAM::key */
   uint     mrr_flags; 
   uint     mrr_buf_size;
+  page_range pgrange= unused_page_range;
 
   TRP_RANGE(SEL_ARG *key_arg, uint idx_arg, uint mrr_flags_arg)
    : key(key_arg), key_idx(idx_arg), mrr_flags(mrr_flags_arg)
@@ -2318,6 +2320,7 @@ public:
     {
       quick->records= records;
       quick->read_time= read_cost;
+      quick->mrr_pages_range= pgrange;
     }
     DBUG_RETURN(quick);
   }
@@ -7943,6 +7946,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
   ha_rows UNINIT_VAR(best_records);              /* protected by key_to_read */
   uint    UNINIT_VAR(best_mrr_flags),            /* protected by key_to_read */
           UNINIT_VAR(best_buf_size);             /* protected by key_to_read */
+  page_range best_page_range= unused_page_range;
   TRP_RANGE* read_plan= NULL;
   DBUG_ENTER("get_key_scans_params");
   THD *thd= param->thd;
@@ -7991,9 +7995,11 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
     Json_writer_object trace_idx(thd);
     trace_idx.add("index", param->table->key_info[keynr].name);
 
+    page_range pr= unused_page_range;
+
     found_records= check_quick_select(param, idx, limit, read_index_only,
                                       key, for_range_access, &mrr_flags,
-                                      &buf_size, &cost, &is_ror_scan);
+                                      &buf_size, &cost, &pr, &is_ror_scan);
 
     const index_merge_behavior ihb= index_merge_hint(param->table,  // do this before check_quick_select?
                                                      keynr,
@@ -8063,6 +8069,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       best_idx= idx;
       best_mrr_flags= mrr_flags;
       best_buf_size=  buf_size;
+      best_page_range= pr;
       using_table_scan= 0;
       trace_idx.add("chosen", true);
     }
@@ -8093,6 +8100,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       read_plan->is_ror= tree->ror_scans_map.is_set(best_idx);
       read_plan->read_cost= read_time;
       read_plan->mrr_buf_size= best_buf_size;
+      read_plan->pgrange= best_page_range;
       DBUG_PRINT("info",
                  ("Returning range plan for key %s, cost %g, records %lu",
                   param->table->key_info[param->real_keynr[best_idx]].name.str,
@@ -12432,6 +12440,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
                            bool index_only,
                            SEL_ARG *tree, bool update_tbl_stats, 
                            uint *mrr_flags, uint *bufsize, Cost_estimate *cost,
+                           page_range *pr,
                            bool *is_ror_scan)
 {
   SEL_ARG_RANGE_SEQ seq;
@@ -12491,7 +12500,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   */
   if (!param->table->pos_in_table_list->is_materialized_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
-                                            bufsize, mrr_flags, limit, cost);
+                                            bufsize, mrr_flags, pr, limit,
+                                            cost);
   param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
@@ -13637,6 +13647,9 @@ int QUICK_RANGE_SELECT::reset()
   if (!mrr_buf_desc)
     empty_buf.buffer= empty_buf.buffer_end= empty_buf.end_of_used_area= NULL;
 
+  /* Hand the optimizer-estimated leaf-page extent of this scan to the
+  engine so it can drive read-ahead (see ha_innobase::advise_page_range). */
+  file->advise_page_range(&mrr_pages_range);
   error= file->multi_range_read_init(&seq_funcs, (void*)this,
                                      (uint)ranges.elements, mrr_flags,
                                      mrr_buf_desc? mrr_buf_desc: &empty_buf);

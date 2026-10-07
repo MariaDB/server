@@ -6641,7 +6641,8 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
                                                   RANGE_SEQ_IF *seq,
                                                   void *seq_init_param,
                                                   uint n_ranges, uint *bufsz,
-                                                  uint *mrr_mode, ha_rows limit,
+                                                  uint *mrr_mode, page_range *pr,
+                                                  ha_rows limit,
                                                   Cost_estimate *cost)
 {
   int error;
@@ -6702,7 +6703,9 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
                                     &m_partition_part_key_multi_range_hld[i],
                                     m_part_mrr_range_length[i],
                                     &m_mrr_buffer_size[i],
-                                    &tmp_mrr_mode, limit, &part_cost);
+                                    &tmp_mrr_mode, pr, limit, &part_cost);
+      if (pr)
+        *pr= {0, 0};
       if (tmp_rows == HA_POS_ERROR)
       {
         m_part_spec= save_part_spec;

@@ -4469,17 +4469,27 @@ public:
     too?
   */
   virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                              void *seq_init_param, 
+                                              void *seq_init_param,
                                               uint n_ranges, uint *bufsz,
-                                              uint *mrr_mode, ha_rows limit,
+                                              uint *mrr_mode, page_range *pr,
+                                              ha_rows limit,
                                               Cost_estimate *cost);
   virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                        uint key_parts, uint *bufsz, 
+                                        uint key_parts, uint *bufsz,
                                         uint *mrr_mode, Cost_estimate *cost);
   virtual int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                                    uint n_ranges, uint mrr_mode, 
+                                    uint n_ranges, uint mrr_mode,
                                     HANDLER_BUFFER *buf);
   virtual int multi_range_read_next(range_id_t *range_info);
+
+  /**
+    Advise the engine of the leaf-page extent that an upcoming range scan
+    is estimated to touch, so it can prefetch accordingly. Called just
+    before multi_range_read_init(). The range is a hint only; @c
+    scan_range->first_page / last_page are the first and last leaf pages
+    reported by records_in_range() (UNUSED_PAGE_NO if unknown).
+  */
+  virtual void advise_page_range(const page_range *scan_range) {}
 private:
   inline void calculate_costs(Cost_estimate *cost, uint keyno,
                               uint ranges, uint multi_row_ranges, uint flags,

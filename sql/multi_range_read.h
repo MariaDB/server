@@ -571,11 +571,13 @@ public:
   ha_rows dsmrr_info(uint keyno, uint n_ranges, uint keys, uint key_parts, 
                      uint *bufsz, uint *flags, Cost_estimate *cost);
 
-  ha_rows dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq, 
+  ha_rows dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
                             void *seq_init_param, uint n_ranges, uint *bufsz,
-                           uint *flags, ha_rows limit, Cost_estimate *cost);
+                           uint *flags, page_range *pr, ha_rows limit,
+                           Cost_estimate *cost);
 
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
+
 private:
   /* Buffer to store (key, range_id) pairs */
   Lifo_buffer *key_buffer= nullptr;
@@ -635,7 +637,7 @@ private:
     is_mrr_assoc==FALSE
   */
   Forward_lifo_buffer rowid_buffer;
-  
+
   bool choose_mrr_impl(uint keyno, ha_rows rows, uint *flags, uint *bufsz, 
                        Cost_estimate *cost);
   bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
