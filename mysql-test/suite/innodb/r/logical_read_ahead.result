@@ -1,0 +1,133 @@
+#
+# MDEV-32067 InnoDB linear read-ahead had better be logical
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+sk INT,
+filler CHAR(255),
+KEY(sk)
+) ENGINE=InnoDB CHARACTER SET latin1;
+SET unique_checks=0, foreign_key_checks=0;
+#
+# Phase 1: t1 loaded in key order, so that the physical
+#   order of the leaf pages is the logical order
+#
+BEGIN;
+INSERT INTO t1 SELECT seq, seq % 1000, REPEAT('x',255) FROM seq_1_to_50000;
+COMMIT;
+ANALYZE TABLE t1;
+# Sequential layout (control).
+# A full scan of the primary key of a
+# table loaded in key order must still be mostly prefetched.
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS sequential_read_ahead_fired;
+sequential_read_ahead_fired
+1
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS sequential_mostly_prefetched;
+sequential_mostly_prefetched
+1
+#
+# Phase 2: the same table reloaded in random key order.
+#     Leaf pages are now scattered.
+#
+TRUNCATE TABLE t1;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq % 1000, REPEAT('x',255)
+FROM seq_1_to_50000 ORDER BY RAND(12345);
+COMMIT;
+ANALYZE TABLE t1;
+# Full scan of the primary key on the fragmented table.
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS full_scan_read_ahead_fired;
+full_scan_read_ahead_fired
+1
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS full_scan_mostly_prefetched;
+full_scan_mostly_prefetched
+1
+SELECT @pages_prefetch <= @pages_accessed AS full_scan_bounded;
+full_scan_bounded
+1
+# Range scan over about a fifth of the table.
+# Read-ahead must stop at the last leaf of the range
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS range_read_ahead_fired;
+range_read_ahead_fired
+1
+SELECT @pages_prefetch <= @pages_accessed AS range_read_ahead_bounded;
+range_read_ahead_bounded
+1
+# Descending scan
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS desc_read_ahead_fired;
+desc_read_ahead_fired
+1
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS desc_mostly_prefetched;
+desc_mostly_prefetched
+1
+# Covering scan of the secondary index.
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS secondary_read_ahead_fired;
+secondary_read_ahead_fired
+1
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS secondary_mostly_prefetched;
+secondary_mostly_prefetched
+1
+# Full table scan without an index
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE LENGTH(filler) > 1000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	50000	Using where
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+SELECT @pages_prefetch > 0 AS table_scan_read_ahead_fired;
+table_scan_read_ahead_fired
+1
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS table_scan_mostly_prefetched;
+table_scan_mostly_prefetched
+1
+#
+# Cases that must red ahead little or nothing
+#
+SET GLOBAL innodb_fast_shutdown=0;
+# restart
+# Range that fits (almost) one leaf
+SELECT @pages_prefetch <= 4 AS one_leaf_range_no_read_ahead;
+one_leaf_range_no_read_ahead
+1
+# Point lookup: no read-ahead window is armed at all.
+SELECT @pages_prefetch = 0 AS point_lookup_no_read_ahead;
+point_lookup_no_read_ahead
+1
+# MIN()/MAX() probe the first/last leaf only
+SET @ra0= (SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='Innodb_buffer_pool_read_ahead');
+SELECT MIN(id), MAX(id) FROM t1;
+MIN(id)	MAX(id)
+1	50000
+SET @ra_delta= (SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='Innodb_buffer_pool_read_ahead') - @ra0;
+SELECT @ra_delta <= 8 AS min_max_probe_bounded;
+min_max_probe_bounded
+1
+# LIMIT 1 and 2 read at most the initial batch,
+# LIMIT 1000 stays well below the full window.
+SELECT @pages_prefetch <= 4 AS limit1_bounded;
+limit1_bounded
+1
+SELECT @pages_prefetch <= 4 AS limit2_bounded;
+limit2_bounded
+1
+SELECT @pages_prefetch < 64 AS limit1000_bounded;
+limit1000_bounded
+1
+# Multi-range read: ten single-key ranges
+SET optimizer_switch='mrr=on,mrr_cost_based=off';
+SELECT @pages_prefetch <= 10 AS mrr_unique_lookups_no_batch;
+mrr_unique_lookups_no_batch
+1
+SET optimizer_switch=DEFAULT;
+DROP TABLE t1;

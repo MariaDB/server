@@ -297,6 +297,7 @@ public:
     uint n_ranges,
     uint *bufsz,
     uint *flags,
+    page_range *pr,
     ha_rows limit,
     Cost_estimate *cost
   ) override;

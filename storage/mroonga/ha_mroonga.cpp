@@ -12340,6 +12340,7 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
                                                         uint n_ranges,
                                                         uint *bufsz,
                                                         uint *flags,
+                                                        page_range *pr,
                                                         ha_rows limit,
                                                         Cost_estimate *cost)
 {
@@ -12348,8 +12349,8 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
   KEY *key_info = &(table->key_info[keyno]);
   if (mrn_is_geo_key(key_info)) {
     rows = handler::multi_range_read_info_const(keyno, seq, seq_init_param,
-                                                n_ranges, bufsz, flags, limit,
-                                                cost);
+                                                n_ranges, bufsz, flags, pr,
+                                                limit, cost);
     DBUG_RETURN(rows);
   }
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
@@ -12358,7 +12359,7 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
     set_pk_bitmap();
   rows = wrap_handler->multi_range_read_info_const(keyno, seq, seq_init_param,
                                                    n_ranges, bufsz, flags,
-                                                   limit, cost);
+                                                   pr, limit, cost);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
   DBUG_RETURN(rows);
@@ -12370,6 +12371,7 @@ ha_rows ha_mroonga::storage_multi_range_read_info_const(uint keyno,
                                                         uint n_ranges,
                                                         uint *bufsz,
                                                         uint *flags,
+                                                        page_range *pr,
                                                         ha_rows limit,
                                                         Cost_estimate *cost)
 {
@@ -12377,14 +12379,15 @@ ha_rows ha_mroonga::storage_multi_range_read_info_const(uint keyno,
   ha_rows rows = handler::multi_range_read_info_const(keyno, seq,
                                                       seq_init_param,
                                                       n_ranges, bufsz, flags,
-                                                      limit, cost);
+                                                      pr, limit, cost);
   DBUG_RETURN(rows);
 }
 
 ha_rows ha_mroonga::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                 void *seq_init_param,
                                                 uint n_ranges, uint *bufsz,
-                                                uint *flags, ha_rows limit,
+                                                uint *flags, page_range *pr,
+                                                ha_rows limit,
                                                 Cost_estimate *cost)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -12393,11 +12396,11 @@ ha_rows ha_mroonga::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   {
     rows = wrapper_multi_range_read_info_const(keyno, seq, seq_init_param,
                                                n_ranges, bufsz,
-                                               flags, limit, cost);
+                                               flags, pr, limit, cost);
   } else {
     rows = storage_multi_range_read_info_const(keyno, seq, seq_init_param,
                                                n_ranges, bufsz,
-                                               flags, limit, cost);
+                                               flags, pr, limit, cost);
   }
   DBUG_RETURN(rows);
 }

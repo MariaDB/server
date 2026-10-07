@@ -1,0 +1,137 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-32067 InnoDB linear read-ahead had better be logical
+--echo #
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  sk INT,
+  filler CHAR(255),
+  KEY(sk)
+) ENGINE=InnoDB CHARACTER SET latin1;
+
+SET unique_checks=0, foreign_key_checks=0;
+
+--echo #
+--echo # Phase 1: t1 loaded in key order, so that the physical
+--echo #   order of the leaf pages is the logical order
+--echo #
+BEGIN;
+INSERT INTO t1 SELECT seq, seq % 1000, REPEAT('x',255) FROM seq_1_to_50000;
+COMMIT;
+--disable_result_log
+ANALYZE TABLE t1;
+--enable_result_log
+
+--echo # Sequential layout (control).
+--echo # A full scan of the primary key of a
+--echo # table loaded in key order must still be mostly prefetched.
+
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT COUNT(*), SUM(LENGTH(filler)) FROM t1 FORCE INDEX(PRIMARY)
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS sequential_read_ahead_fired;
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS sequential_mostly_prefetched;
+
+--echo #
+--echo # Phase 2: the same table reloaded in random key order.
+--echo #     Leaf pages are now scattered.
+--echo #
+TRUNCATE TABLE t1;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq % 1000, REPEAT('x',255)
+FROM seq_1_to_50000 ORDER BY RAND(12345);
+COMMIT;
+--disable_result_log
+ANALYZE TABLE t1;
+--enable_result_log
+
+--echo # Full scan of the primary key on the fragmented table.
+
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT COUNT(*), SUM(LENGTH(filler)) FROM t1 FORCE INDEX(PRIMARY)
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS full_scan_read_ahead_fired;
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS full_scan_mostly_prefetched;
+SELECT @pages_prefetch <= @pages_accessed AS full_scan_bounded;
+
+--echo # Range scan over about a fifth of the table.
+--echo # Read-ahead must stop at the last leaf of the range
+
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY) WHERE id BETWEEN 10000 AND 20000
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS range_read_ahead_fired;
+SELECT @pages_prefetch <= @pages_accessed AS range_read_ahead_bounded;
+
+--echo # Descending scan
+
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT id, filler FROM t1 ORDER BY id DESC
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS desc_read_ahead_fired;
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS desc_mostly_prefetched;
+
+--echo # Covering scan of the secondary index.
+
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT COUNT(sk) FROM t1 FORCE INDEX(sk)
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS secondary_read_ahead_fired;
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS secondary_mostly_prefetched;
+
+--echo # Full table scan without an index
+
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE LENGTH(filler) > 1000;
+--source suite/innodb/include/ra_cold.inc
+--let $ra_query= SELECT COUNT(*) FROM t1 WHERE LENGTH(filler) > 1000
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch > 0 AS table_scan_read_ahead_fired;
+SELECT @pages_prefetch * 100 / @pages_accessed >= 50 AS table_scan_mostly_prefetched;
+
+--echo #
+--echo # Cases that must red ahead little or nothing
+--echo #
+--source suite/innodb/include/ra_cold.inc
+
+--echo # Range that fits (almost) one leaf
+--let $ra_query= SELECT * FROM t1 WHERE id BETWEEN 25000 AND 25003
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch <= 4 AS one_leaf_range_no_read_ahead;
+
+--echo # Point lookup: no read-ahead window is armed at all.
+--let $ra_query= SELECT * FROM t1 WHERE id = 12345
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch = 0 AS point_lookup_no_read_ahead;
+
+--echo # MIN()/MAX() probe the first/last leaf only
+SET @ra0= (SELECT variable_value FROM information_schema.global_status
+           WHERE variable_name='Innodb_buffer_pool_read_ahead');
+SELECT MIN(id), MAX(id) FROM t1;
+SET @ra_delta= (SELECT variable_value FROM information_schema.global_status
+                WHERE variable_name='Innodb_buffer_pool_read_ahead') - @ra0;
+SELECT @ra_delta <= 8 AS min_max_probe_bounded;
+
+--echo # LIMIT 1 and 2 read at most the initial batch,
+--echo # LIMIT 1000 stays well below the full window.
+
+--let $ra_query= SELECT * FROM t1 ORDER BY id LIMIT 1
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch <= 4 AS limit1_bounded;
+--let $ra_query= SELECT * FROM t1 ORDER BY id LIMIT 2
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch <= 4 AS limit2_bounded;
+--let $ra_query= SELECT * FROM t1 ORDER BY id LIMIT 1000
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch < 64 AS limit1000_bounded;
+
+--echo # Multi-range read: ten single-key ranges
+SET optimizer_switch='mrr=on,mrr_cost_based=off';
+--let $ra_query= SELECT COUNT(*) FROM t1 WHERE id IN (1000,3000,5000,7000,9000,11000,13000,15000,17000,19000)
+--source suite/innodb/include/ra_stats.inc
+SELECT @pages_prefetch <= 10 AS mrr_unique_lookups_no_batch;
+SET optimizer_switch=DEFAULT;
+
+DROP TABLE t1;

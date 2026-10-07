@@ -26,6 +26,7 @@ Created 2/17/1996 Heikki Tuuri
 
 #pragma once
 
+#include "span.h"
 #include "page0types.h"
 #include "rem0types.h"
 
@@ -104,4 +105,24 @@ enum btr_latch_mode {
 	BTR_RTREE_UNDO_INS = 128,
 	/** Try to delete mark a spatial index record */
 	BTR_RTREE_DELETE_MARK = 256
+};
+
+/** Collector of B-tree leaf child page numbers gathered
+during a root-to-leaf descent (at PAGE_LEVEL=1), used to drive
+logical read-ahead. */
+struct btr_ra_batch
+{
+  /** Buffer receiving child page numbers; its size is the capacity */
+  const st_::span<uint32_t> pages;
+  /** number of entries filled in pages */
+  uint32_t n= 0;
+  /** PAGE_LEVEL=1 page the child numbers were collected from, or
+  FIL_NULL if none. Used it with l1_child to resume the read ahead
+  operation */
+  uint32_t l1_page= 0xFFFFFFFF;
+  /** child page number of the last node pointer collected from
+  l1_page. */
+  uint32_t l1_child= 0xFFFFFFFF;
+
+  explicit btr_ra_batch(st_::span<uint32_t> buf) : pages(buf) {}
 };
