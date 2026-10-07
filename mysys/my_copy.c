@@ -430,7 +430,7 @@ int my_copy(const char *from, const char *to, myf MyFlags)
   }
 #endif
 
-  if ((from_file >= 0 && my_close(from_file, MyFlags)) |
+  if ((from_file >= 0 && my_close(from_file, MyFlags)) ||
       (to_file   >= 0 && my_close(to_file, MyFlags)))
     DBUG_RETURN(-1);                        /* Error on close */
   from_file= to_file= -1;                   /* Files are closed */
