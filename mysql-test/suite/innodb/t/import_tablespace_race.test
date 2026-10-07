@@ -26,7 +26,7 @@ $
 
 --connection default
 --error 0,ER_LOCK_WAIT_TIMEOUT
-ALTER TABLE t NOWAIT ADD INDEX (c);
+ALTER TABLE t NOWAIT ADD INDEX (c(20));
 
 --connection con1
 --reap

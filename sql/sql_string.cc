@@ -253,9 +253,7 @@ bool Binary_string::copy(const Binary_string &str)
 {
   if (alloc(str.str_length+1))
     return TRUE;
-  if ((str_length=str.str_length))
-    bmove(Ptr,str.Ptr,str_length);		// May be overlapping
-  Ptr[str_length]=0;
+  bmove_from(str.Ptr, str.str_length);          // May be overlapping
   return FALSE;
 }
 
@@ -473,6 +471,49 @@ bool String::copy(const char *str, size_t arg_length,
                               str, arg_length, from_cs, errors);
   set_charset(to_cs);
   return FALSE;
+}
+
+
+/**
+   Copies the value of "str" into this String, where "str" is allowed to
+   point into the buffer of this String.
+
+   This happens when an Item::val_str() implementation returns a String that
+   reuses the buffer it was given instead of copying. For ex:
+    - Item_char_typecast::reuse() returns the whole buffer and
+    - Item_func_right::val_str() returns a fragment of the buffer.
+   copy() alone cannot be used when "str" is the entire buffer: it asks
+   alloc() for one byte more, for the terminating '\0', and alloc() frees
+   the buffer, and thus the source data, when the data does not fit. When
+   "str" is a fragment, no allocation is needed at all, just a move to the
+   beginning of the buffer.
+
+   @param  str    The string to copy, possibly a substring of this String.
+
+   @retval false  Success
+   @retval true   Memory allocation failed
+*/
+bool String::copy_maybe_substring(const String &str)
+{
+  if (str.uses_buffer_owned_by(this))
+  {
+    DBUG_ASSERT(!str.is_alloced());
+    DBUG_ASSERT(str.end() <= ptr() + alloced_length());
+    set_charset(str.charset());
+    if (str.ptr() == ptr())
+    {
+      /*
+        "str" starts at the beginning of our buffer, so the data is already
+        where it belongs. Only the length and the character set can differ.
+      */
+      length(str.length());
+      return FALSE;
+    }
+    // "str" starts at a non-zero offset in our buffer, so just move the data
+    bmove_from(str.ptr(), str.length());
+    return FALSE;
+  }
+  return copy(str);
 }
 
 

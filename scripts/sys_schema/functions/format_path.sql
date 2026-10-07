@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS format_path;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_path (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION format_path (
         in_path VARCHAR(512)
     )
     RETURNS VARCHAR(512) CHARSET UTF8

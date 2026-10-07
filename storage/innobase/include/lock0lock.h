@@ -90,7 +90,7 @@ lock_move_reorganize_page(
 /*======================*/
 	const buf_block_t*	block,	/*!< in: old index page, now
 					reorganized */
-	const buf_block_t*	oblock);/*!< in: copy of the old, not
+	const page_t*		opage);	/*!< in: copy of the old, not
 					reorganized page */
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record

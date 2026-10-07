@@ -120,4 +120,4 @@ show status like "binlog_disk_use";
 Variable_name	Value
 Binlog_disk_use	1228
 DROP TABLE IF EXISTS t1;
-set @@global.slave_connections_needed_for_purge= default;
+set @@global.slave_connections_needed_for_purge= 1;

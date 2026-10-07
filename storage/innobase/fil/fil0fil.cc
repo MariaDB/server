@@ -1254,6 +1254,8 @@ void fil_system_t::create(ulint hash_size)
 				continue;
 			}
 			l = read(f, b, sizeof b);
+			// f was reassigned by open() after first close()
+			// @infer-ignore USE_AFTER_FREE
 			::close(f);
 			if (l <= 0 || b[l - 1] != '\n') {
 				continue;

@@ -1,0 +1,15 @@
+CREATE TABLE invoice (
+id UUID DEFAULT UUID() PRIMARY KEY,
+product VARCHAR(64)
+) ENGINE=DuckDB;
+CREATE TABLE invoice_audit (n INT) ENGINE=InnoDB;
+CREATE TRIGGER invoice_ad AFTER DELETE ON invoice
+FOR EACH ROW INSERT INTO invoice_audit VALUES (1);
+INSERT INTO invoice (product) VALUES ('one'), ('two'), ('three'), ('four');
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+0
+SELECT COUNT(*) FROM invoice_audit;
+COUNT(*)
+4

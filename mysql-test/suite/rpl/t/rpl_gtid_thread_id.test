@@ -42,6 +42,7 @@ optimize table t1;
 --let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
 set @@pseudo_thread_id=99999;
 insert into t1 values(2);
+--source include/save_master_gtid.inc
 --echo # MYSQL_BINLOG master_local_binlog > master_outfile
 --exec $MYSQL_BINLOG $master_local_binlog > $master_outfile
 
@@ -58,6 +59,7 @@ insert into t1 values(2);
 --echo #
 --echo # Test the serial slave
 --connection slave
+--source include/sync_with_master_gtid.inc
 --let slave_thread_id=`select connection_id()`
 --let datadir= `select @@datadir`
 --let filename= query_get_value(SHOW MASTER STATUS, File, 1)

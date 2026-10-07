@@ -32,10 +32,19 @@
     },
     "authors": [
       {
-        "email": "info@mariadb.com",
-        "name": "MariaDB"
+        "email": "@SBOM_AUTHOR_EMAIL@",
+        "name": "@CPACK_PACKAGE_VENDOR@"
       }
     ],
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "generate_sbom.cmake",
+          "version": "@CPACK_PACKAGE_VERSION@"
+        }
+      ]
+    },
     "properties": [
       {
         "name": "package_name",

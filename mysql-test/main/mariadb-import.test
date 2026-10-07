@@ -156,7 +156,7 @@ drop database db2;
 create database db2;
 use db2;
 
-# Test with triggers (using https://mariadb.com/kb/en/trigger-overview/ example)
+# Test with triggers (using https://mariadb.com/docs/server/server-usage/triggers-events/triggers/trigger-overview example)
 CREATE TABLE animals (id mediumint(9)
 NOT NULL AUTO_INCREMENT,
 name char(30) NOT NULL,

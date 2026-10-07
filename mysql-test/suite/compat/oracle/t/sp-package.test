@@ -3111,8 +3111,45 @@ DROP FUNCTION f2_not_deterministic;
 DROP PACKAGE pkg1;
 
 --echo #
---echo # Start of 11.7 tests
+--echo # MDEV-38861 heap-use-after-free in Prepared_statement::execute()
 --echo #
+
+SET sql_mode=ORACLE;
+
+--echo # DROP PACKAGE BODY of the running package
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  PROCEDURE p1;
+END$$
+CREATE PACKAGE BODY pkg AS
+  PROCEDURE p1 AS
+  BEGIN
+    EXECUTE IMMEDIATE 'DROP PACKAGE BODY pkg';
+    SELECT 'body survived' AS state;
+  END;
+END$$
+DELIMITER ;$$
+CALL pkg.p1();
+--error ER_SP_DOES_NOT_EXIST
+CALL pkg.p1();
+DROP PACKAGE pkg;
+
+--echo # CREATE OR REPLACE PACKAGE BODY of the running package
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  PROCEDURE p1;
+END$$
+CREATE PACKAGE BODY pkg AS
+  PROCEDURE p1 AS
+  BEGIN
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PACKAGE BODY pkg AS PROCEDURE p1 AS BEGIN SELECT ''replaced'' AS state; END; END';
+    SELECT 'body survived' AS state;
+  END;
+END$$
+DELIMITER ;$$
+CALL pkg.p1();
+CALL pkg.p1();
+DROP PACKAGE pkg;
 
 --echo #
 --echo # MDEV-12252 ROW data type for stored function return values
@@ -3190,6 +3227,4 @@ CALL pkg.p2;
 DROP PACKAGE pkg;
 DROP TABLE t1;
 
---echo #
 --echo # End of 11.7 tests
---echo #

@@ -616,6 +616,7 @@ int ha_finalize_handlerton(void *plugin_)
     /* Make sure we are not unplugging another plugin */
     DBUG_ASSERT(hton2plugin[hton->slot] == plugin);
     DBUG_ASSERT(hton->slot < MAX_HA);
+    DEBUG_SYNC(current_thd, "ha_finalize_handlerton_before_slot_clear");
     hton2plugin[hton->slot]= NULL;
   }
 
@@ -880,6 +881,17 @@ int ha_end()
 */
 typedef bool (tp_foreach_func)(THD *thd, transaction_participant *tp, void *arg);
 
+/*
+  Call func for each READY transaction participant.
+
+  LOCK_plugin is not held while func runs. func calls into the engine, and
+  the engine can take plugin locks itself or wait for its own threads, which
+  can deadlock with a thread that holds LOCK_plugin. reap_plugins() and
+  plugin_deinitialize() also run without LOCK_plugin for the same reason.
+  Instead, each plugin gets a reference count under LOCK_plugin, which keeps
+  it from being deinitialized or freed while func runs. The state check and
+  the reference count happen in one step, in plugin_lock_ready().
+*/
 static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
 {
   int j=0, err= 0;
@@ -888,7 +900,25 @@ static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
   {
     if (st_plugin_int *pi= hton2plugin[i])
     {
-      locks[j]= plugin_lock(NULL, plugin_int_to_ref(pi));
+      /*
+        Only PLUGIN_IS_READY engines are visited, as plugin_foreach() does.
+        The slot stays set in hton2plugin[] until the end of
+        ha_finalize_handlerton(), so an engine that reap_plugins() is
+        deinitializing (PLUGIN_IS_DYING) is still found here. The lock then
+        fails and the engine is skipped, as is an engine that is not yet
+        READY. A lock failure for a READY engine is out of memory (debug
+        builds only). It must not skip a live participant, so it is an error.
+      */
+      bool failed;
+      if (!(locks[j]= plugin_lock_ready(NULL, plugin_int_to_ref(pi), &failed)))
+      {
+        if (failed)
+        {
+          err= 1;
+          break;
+        }
+        continue;
+      }
       if ((err= func(thd, plugin_hton(locks[j++]), arg)))
         break;
     }
@@ -8164,7 +8194,11 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-static int wsrep_after_row(THD *thd)
+/*
+  If skip_streaming is true, the row is counted against wsrep_max_ws_rows
+  and validated as usual, but no streaming fragment is replicated for it.
+*/
+static int wsrep_after_row(THD *thd, bool skip_streaming= false)
 {
   DBUG_ENTER("wsrep_after_row");
 #ifdef WITH_WSREP
@@ -8187,7 +8221,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row_internal(thd))
+  else if (wsrep_after_row_internal(thd, skip_streaming))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -8619,9 +8653,20 @@ int handler::ha_write_row(const uchar *buf)
   error= binlog_log_row(0, buf,
                         Write_rows_log_event::binlog_row_logging_function);
 
+  /*
+    Sequence tables are written with SEQUENCE::mutex held (see
+    SEQUENCE::next_value() and ha_sequence::write_row()). For a streaming
+    transaction the streaming step would replicate a fragment and block
+    waiting for certification and commit order, while an applier may be
+    waiting for the same mutex in SEQUENCE::set_value(). That deadlocks
+    the node, so skip only that step here. The row has already been
+    appended to the write set and will be replicated with the following
+    fragment, or at commit. Everything else wsrep_after_row() does, in
+    particular counting the row against wsrep_max_ws_rows, still applies.
+  */
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
       ht->flags & HTON_WSREP_REPLICATION && !error)
-    error= wsrep_after_row(ha_thd());
+    error= wsrep_after_row(ha_thd(), table_share->sequence != NULL);
 
 err:
   DEBUG_SYNC_C("ha_write_row_end");

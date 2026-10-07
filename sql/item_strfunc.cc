@@ -478,8 +478,11 @@ bool Item_func_kdf::fix_length_and_dec(THD *thd)
 {
   if (arg_count > 4 && args[4]->const_item())
   {
-    if (((key_length= (uint)args[4]->val_int()) % 8) || key_length > 65536)
+    longlong width= args[4]->val_int();
+    if (width <= 0 || width > UINT_MAX16 + 1 || width % 8)
       key_length= 0;
+    else
+      key_length= uint(width);
   }
   else if (arg_count <= 4)
     key_length= block_encryption_mode_to_key_length(thd->variables.block_encryption_mode);
@@ -509,6 +512,7 @@ String *Item_func_kdf::val_str(String *buf)
   bool use_hkdf= false;
   size_t klen= key_length;
   bool ok= false;
+  longlong iter= 0;
 
   if (!key || !salt)
     goto ret_null;
@@ -517,9 +521,9 @@ String *Item_func_kdf::val_str(String *buf)
   {
     if (String *s= args[3]->val_str(buf))
     {
-      if (strcasecmp(s->c_ptr(), "hkdf") == 0)
+      if (strcasecmp(s->c_ptr_safe(), "hkdf") == 0)
         use_hkdf= true;
-      else if (strcasecmp(s->c_ptr(), "pbkdf2_hmac") != 0)
+      else if (strcasecmp(s->c_ptr_safe(), "pbkdf2_hmac") != 0)
       {
         invalid_argument_error(func_name(), ErrConvStringQ(s).ptr());
         goto ret_null;
@@ -530,16 +534,28 @@ String *Item_func_kdf::val_str(String *buf)
   }
   if (!klen)
   {
-    klen= args[4]->val_int();
-    if (!klen || klen % 8 || klen > 65536)
+    longlong width= args[4]->val_int();
+    if (width <= 0 || width > UINT_MAX16 + 1 || width % 8)
     {
       if (!args[4]->null_value)
         invalid_argument_error(func_name(),
-          ErrConvInteger({(ssize_t)klen, args[4]->unsigned_flag}).ptr());
+          ErrConvInteger({width, args[4]->unsigned_flag}).ptr());
       goto ret_null;
     }
-    klen/= 8;
+    klen= size_t(width) / 8;
   }
+  if (!use_hkdf)
+  {
+    iter= arg_count > 2 ? args[2]->val_int() : 1000;
+    if (iter <= 0 || iter > INT_MAX32)
+    {
+      if (!args[2]->null_value)
+        invalid_argument_error(func_name(),
+          ErrConvInteger({iter, args[2]->unsigned_flag}).ptr());
+      goto ret_null;
+    }
+  }
+
   buf->reserve(klen);
   buf->length(klen);
 
@@ -566,19 +582,9 @@ String *Item_func_kdf::val_str(String *buf)
 #endif
   }
   else
-  {
-    longlong iter= arg_count > 2 ? args[2]->val_int() : 1000;
-    if (iter <= 0)
-    {
-      if (!args[2]->null_value)
-        invalid_argument_error(func_name(),
-          ErrConvInteger({iter, args[2]->unsigned_flag}).ptr());
-    }
-    else
-      ok= PKCS5_PBKDF2_HMAC(key->ptr(), key->length(),
-                      (const uchar*)salt->ptr(), salt->length(), (int)iter,
-                      EVP_sha512(), (int)klen, (uchar*)buf->ptr());
-  }
+    ok= PKCS5_PBKDF2_HMAC(key->ptr(), key->length(),
+                    (const uchar*)salt->ptr(), salt->length(), (int)iter,
+                    EVP_sha512(), (int)klen, (uchar*)buf->ptr());
 
   if (ok)
   {

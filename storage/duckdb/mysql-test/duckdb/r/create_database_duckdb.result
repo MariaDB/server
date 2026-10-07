@@ -1,0 +1,12 @@
+CREATE DATABASE IF NOT EXISTS duckdb CHARACTER SET utf8mb4;
+USE duckdb;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+name VARCHAR(32)
+) engine=duckdb;
+INSERT INTO t1 VALUES (1, 'one');
+SELECT * FROM t1;
+id	name
+1	one
+DROP TABLE t1;
+DROP DATABASE duckdb;
