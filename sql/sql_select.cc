@@ -14510,6 +14510,26 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
 }
 
 
+/*
+  Find the last top level table in the join order that is neither
+  const nor a materialized semijoin nest.  Return its index in
+  join->join_tab, or a value below join->const_tables when no such
+  table exists.
+*/
+
+static uint
+get_last_top_base_tab_idx(const JOIN *join)
+{
+  uint i;
+  for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
+  {
+    if (!join->join_tab[i].bush_children)
+      break;
+  }
+  return i;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -14523,6 +14543,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           "attached_conditions_computation");
     add_not_null_conds(join);
     table_map used_tables;
+
+    /* Step #1 and Step #2 both decide from this index. */
+    const uint last_top_base_tab_idx= get_last_top_base_tab_idx(join);
+
     /*
       Step #1: Extract constant condition
        - Extract and check the constant part of the WHERE 
@@ -14600,12 +14624,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             execution.  rand() takes a new value on each call, and a
             conjunct that calls it is checked for each row of the last top
             level table that is neither const nor a materialized semijoin
-            nest.  A join of only const tables has no such table and
-            returns at most one row, and its rand() conjuncts are collected
-            here.
+            nest.  When no such table exists, the join returns at most one
+            row, and its rand() conjuncts are collected here.
           */
           table_map pseudo_bits= OUTER_REF_TABLE_BIT;
-          if (join->only_const_tables())
+          if (last_top_base_tab_idx < join->const_tables)
             pseudo_bits= PSEUDO_TABLE_BITS;
           COND *pseudo_cond= make_cond_for_table(thd, cond,
                                                  join->const_table_map |
@@ -14631,13 +14654,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     */
 
     uint i;
-    for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
-    {
-      if (!join->join_tab[i].bush_children)
-        break;
-    }
-    uint last_top_base_tab_idx= i;
-
     table_map save_used_tables= 0;
     used_tables=((select->const_tables=join->const_table_map) |
 		 OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);

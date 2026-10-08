@@ -1,0 +1,214 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-41146: rand() in WHERE is not checked when every base table
+--echo # is const and a materialized semi-join terminates the join order
+--echo #
+--echo # A WHERE conjunct that calls rand() and names no field is checked on
+--echo # the last top level base table that is not const.  When every base
+--echo # table is const, the conjunct is checked once in outer_ref_condition.
+--echo #
+
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (b int primary key);
+insert into t2 values (1),(2),(3),(4);
+create table t3 (c int, d int);
+insert into t3 values (1,1),(2,2),(3,3),(4,4),(5,5),
+(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into t3 select c+10, d+10 from t3;
+insert into t3 select c+20, d+20 from t3;
+insert into t3 select c+40, d+40 from t3;
+create table t4 (e int, f int);
+insert into t4 select c, d from t3;
+create table t5 (g int);
+insert into t5 select c+1000 from t3;
+
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_optimizer_where_cost= @@optimizer_where_cost;
+set optimizer_switch='firstmatch=off,loosescan=off';
+set optimizer_where_cost=0;
+
+--echo # One const table.  rand() < 0 is never true, so the result is empty.
+explain
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() < 0;
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() < 0;
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() >= 0;
+
+--echo # The IN-equality is still checked.  t5 holds no value below 1001.
+select t1.a from t1 where t1.a=1 and t1.a in (select g from t5) and rand() >= 0;
+select t1.a from t1 where t1.a=1 and t1.a in (select g from t5) and rand() < 0;
+
+--echo # Two rand() conjuncts.  outer_ref_condition shows both.
+--source include/explain-no-costs.inc
+explain format=json
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() < 0 and rand() < 2;
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() < 0 and rand() < 2;
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() >= 0 and rand() < 2;
+
+--echo # Two const tables joined, as in the original report.
+explain
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() < 0;
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() < 0;
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() >= 0;
+
+--echo # Two materialized nests terminate the join order.
+explain
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+      and rand() < 0;
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+      and rand() < 0;
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+      and rand() >= 0;
+
+--echo # The const table column is bigint and the subquery column is int.
+create table t6 (a bigint primary key);
+insert into t6 values (1),(2),(3);
+explain
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() < 0;
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() < 0;
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() >= 0;
+
+--echo # An outer table that is not const precedes the nest.  The conjunct
+--echo # is checked on that table.
+create table t7 (a int);
+insert into t7 values (1),(2),(3),(100);
+explain
+select t7.a from t7 where t7.a in (select c from t3) and rand() < 0;
+select t7.a from t7 where t7.a in (select c from t3) and rand() < 0;
+--sorted_result
+select t7.a from t7 where t7.a in (select c from t3) and rand() >= 0;
+
+--echo # The conjunct also reads a column of the enclosing query.  It is true
+--echo # when t7.a is 4 or more, which holds only for the row where t7.a is
+--echo # 100.
+explain
+select t7.a,
+       (select t1.a from t1
+        where t1.a=1 and t1.a in (select c from t3) and rand() < t7.a - 3) x
+from t7;
+--sorted_result
+select t7.a,
+       (select t1.a from t1
+        where t1.a=1 and t1.a in (select c from t3) and rand() < t7.a - 3) x
+from t7;
+
+--echo # rand(7) continues one sequence across the executions of the
+--echo # subquery.  The conjunct takes one value for each row of t8,
+--echo # including the rows where t8.a is 100 and the lookup finds no match.
+--echo # A plan where t1 is not const checks the conjunct on t1 before the
+--echo # lookup and returns the same rows.
+create table t8 (id int, a int);
+insert into t8 values (1,1),(2,100),(3,2),(4,100),(5,3),(6,100),(7,4),
+(8,100),(9,5),(10,100),(11,6),(12,7),(13,8),(14,9);
+explain
+select t8.id,
+       (select t1.a from t1
+        where t1.a=1 and t8.a in (select c from t3) and rand(7) < 0.5) x
+from t8;
+select t8.id,
+       (select t1.a from t1
+        where t1.a=1 and t8.a in (select c from t3) and rand(7) < 0.5) x
+from t8 order by t8.id;
+
+--echo # rand() in the WHERE of the subquery instead of the outer query.
+--echo # Every row of t9 has c=1.  The first four values of rand(1) are not
+--echo # below 0.09 and the fifth is, so checking the condition on each row
+--echo # of t9 matches t1.a=1.  A subquery that calls rand() is not converted
+--echo # to a semi-join, so the condition is not moved to the outer query and
+--echo # checked once there.  Adding 0*t9.d makes the condition read a column
+--echo # of t9, which gives the same result in any plan.
+create table t9 (c int, d int);
+insert into t9 select 1, 1 from seq_1_to_80;
+explain
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09);
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09);
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09 + 0*t9.d);
+
+--echo # The conjunct is checked once, in outer_ref_condition, only when
+--echo # the join returns at most one row.  f1() counts its calls.  With
+--echo # the const t1 and a lookup nest, f1() is called once.  Adding t10,
+--echo # which holds two rows, makes the join return two rows, and f1() is
+--echo # called once for each.
+create table t10 (b int);
+insert into t10 values (1),(2);
+delimiter |;
+create function f1() returns int not deterministic
+begin
+  set @calls= @calls + 1;
+  return 1;
+end|
+delimiter ;|
+explain
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+set @calls= 0;
+# A second execution under --ps-protocol would double @calls.
+--disable_ps2_protocol
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+--enable_ps2_protocol
+select @calls;
+explain
+select t1.a, t10.b from t1, t10
+where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+set @calls= 0;
+# A second execution under --ps-protocol would double @calls.
+--disable_ps2_protocol
+--sorted_result
+select t1.a, t10.b from t1, t10
+where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+--enable_ps2_protocol
+select @calls;
+drop function f1;
+
+--echo # A materialized nest read by a scan precedes t11, which is not
+--echo # const, so the conjunct is checked on t11.  The optimizer chooses
+--echo # the scan only with the statistics from ANALYZE, which give 200
+--echo # rows of t11 for each value of a.
+create table t11 (a int, key(a));
+insert into t11 select seq mod 10 from seq_1_to_2000;
+create table t12 (b int);
+insert into t12 select seq mod 10 from seq_1_to_20;
+analyze table t11, t12 persistent for all;
+--source include/explain-no-costs.inc
+explain format=json
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() < 0;
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() < 0;
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() >= 0;
+
+--echo # A prepared statement executed twice, with the bound for rand()
+--echo # passed as a parameter.  The first execution returns no row and
+--echo # the second returns t1.a=1.
+prepare stmt from "select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < ?";
+execute stmt using 0;
+execute stmt using 2;
+deallocate prepare stmt;
+
+--echo # The same query in a stored procedure called twice.
+create procedure p1(x int)
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < x;
+call p1(0);
+call p1(2);
+drop procedure p1;
+
+set optimizer_switch= @save_optimizer_switch;
+set optimizer_where_cost= @save_optimizer_where_cost;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12;
+
+--echo # End of 11.4 tests

@@ -911,9 +911,10 @@ DROP TABLE t1;
 #
 create table t1 (a int primary key);
 insert into t1 values (1),(2),(3);
-# rand() < 0 is never true, so the result is empty.
+# rand() < 0 is never true, so only the ROLLUP total row is returned.
 select distinct a from t1 where a=1 and rand() < 0 group by a with rollup;
 a
+NULL
 select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
 a
 1
