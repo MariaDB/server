@@ -35,6 +35,10 @@ STRING(TOLOWER "${CMAKE_C_COMPILER_ARCHITECTURE_ID}" WIX_ARCH)
 # to force legacy.
 OPTION(WITH_WIX3 "Build MSI with legacy WiX v3 toolset" OFF)
 
+# WiX 7 and later need the Open Source Maintenance Fee EULA to be accepted,
+# see https://wixtoolset.org/osmf/ . It is never accepted implicitly.
+OPTION(WIX_ACCEPT_EULA "Accept the WiX EULA (needed for WiX 7 and later)" OFF)
+
 IF(WITH_WIX3)
   UNSET(WIX_EXECUTABLE CACHE)
 ELSE()
@@ -55,6 +59,13 @@ ELSE()
     IF(WIX_VERSION_RESULT OR NOT WIX_VERSION)
       MESSAGE(WARNING "Can't determine version of ${WIX_EXECUTABLE}, ignoring it")
       UNSET(WIX_EXECUTABLE CACHE)
+    ENDIF()
+  ENDIF()
+  IF(WIX_EXECUTABLE AND WIX_VERSION VERSION_GREATER_EQUAL 7 AND NOT WIX_ACCEPT_EULA)
+    STRING(REGEX MATCH "^[0-9]+" WIX_MAJOR_VERSION "${WIX_VERSION}")
+    IF(NOT EXISTS "$ENV{USERPROFILE}/.wix/wix${WIX_MAJOR_VERSION}-osmf-eula.txt")
+      MESSAGE(WARNING "WiX ${WIX_VERSION} needs its EULA accepted "
+        "(https://wixtoolset.org/osmf/), use -DWIX_ACCEPT_EULA=ON for that")
     ENDIF()
   ENDIF()
 ENDIF()
@@ -173,6 +184,7 @@ ADD_CUSTOM_TARGET(
   COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
     -DWIX_EXECUTABLE="${WIX_EXECUTABLE}"
     -DWIX_VERSION="${WIX_VERSION}"
+    -DWIX_ACCEPT_EULA="${WIX_ACCEPT_EULA}"
     -DCANDLE_EXECUTABLE="${CANDLE_EXECUTABLE}"
     -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
     -DCMAKE_FULL_VER="${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PATCH_VERSION}"

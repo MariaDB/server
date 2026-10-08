@@ -377,6 +377,14 @@ ENDMACRO()
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
 
 IF(WIX_EXECUTABLE)
+  # WiX 7 and later refuse to run before the EULA is accepted. Older
+  # versions do not know the switch, so pass it only where it is needed.
+  SET(WIX_EULA_ARGS)
+  IF(WIX_ACCEPT_EULA AND WIX_VERSION VERSION_GREATER_EQUAL 7)
+    STRING(REGEX MATCH "^[0-9]+" WIX_MAJOR_VERSION "${WIX_VERSION}")
+    SET(WIX_EULA_ARGS -acceptEula wix${WIX_MAJOR_VERSION})
+  ENDIF()
+
   # Modern WiX. Convert wxs sources from v3 to the current XML schema first.
   # Conversion messages are noisy, only show them if conversion fails.
   SET(WIX_CONVERT_FILES mysql_server.wxs extra.wxs)
@@ -388,7 +396,7 @@ IF(WIX_EXECUTABLE)
   # harmless advisory about removed TARGETDIR DirectoryRef (standard
   # directories referenced from it are just promoted to top level).
   EXECUTE_PROCESS(
-    COMMAND ${WIX_EXECUTABLE} convert ${WIX_CONVERT_FILES}
+    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} convert ${WIX_CONVERT_FILES}
     OUTPUT_VARIABLE convert_output ERROR_VARIABLE convert_output
     RESULT_VARIABLE res)
   STRING(REGEX REPLACE "[^\n]*WIX0070[^\n]*" "" convert_errors "${convert_output}")
@@ -404,13 +412,13 @@ IF(WIX_EXECUTABLE)
     WixToolset.Util.wixext
     WixToolset.Firewall.wixext)
   EXECUTE_PROCESS(
-    COMMAND ${WIX_EXECUTABLE} extension list --global
+    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension list --global
     OUTPUT_VARIABLE WIX_EXTENSION_LIST)
   SET(WIX_EXTENSION_ARGS)
   FOREACH(ext ${WIX_EXTENSIONS})
     IF(NOT WIX_EXTENSION_LIST MATCHES "${ext}[/ ]+${WIX_VERSION}")
       EXECUTE_PROCESS(
-        COMMAND ${WIX_EXECUTABLE} extension add --global ${ext}/${WIX_VERSION}
+        COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension add --global ${ext}/${WIX_VERSION}
         RESULT_VARIABLE res)
       CHECK_WIX_RESULT(${res})
     ENDIF()
@@ -426,7 +434,7 @@ IF(WIX_EXECUTABLE)
 
   SET(EXTRA_WIX_BUILD_ARGS "$ENV{EXTRA_WIX_BUILD_ARGS}")
   EXECUTE_PROCESS(
-    COMMAND ${WIX_EXECUTABLE} build
+    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} build
     -arch ${Platform}
     ${WIX_DEFINE_ARGS}
     ${WIX_EXTENSION_ARGS}
