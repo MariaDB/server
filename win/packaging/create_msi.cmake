@@ -377,12 +377,23 @@ ENDMACRO()
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
 
 IF(WIX_EXECUTABLE)
-  # WiX 7 and later refuse to run before the EULA is accepted. Older
-  # versions do not know the switch, so pass it only where it is needed.
+  # WiX with the EULA check (7 and later) fails every command with WIX7015
+  # until the EULA is accepted. Accept it only if asked to (WIX_ACCEPT_EULA)
+  # and only if WiX complains, "extension list" is the first command to try.
   SET(WIX_EULA_ARGS)
-  IF(WIX_ACCEPT_EULA AND WIX_VERSION VERSION_GREATER_EQUAL 7)
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} extension list --global
+    OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST)
+  IF(WIX_EXTENSION_LIST MATCHES "WIX7015")
+    IF(NOT WIX_ACCEPT_EULA)
+      MESSAGE(FATAL_ERROR "${WIX_EXECUTABLE} requires its EULA to be accepted, "
+        "see https://wixtoolset.org/osmf/ . Use -DWIX_ACCEPT_EULA=ON to accept it")
+    ENDIF()
     STRING(REGEX MATCH "^[0-9]+" WIX_MAJOR_VERSION "${WIX_VERSION}")
     SET(WIX_EULA_ARGS -acceptEula wix${WIX_MAJOR_VERSION})
+    EXECUTE_PROCESS(
+      COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension list --global
+      OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST)
   ENDIF()
 
   # Modern WiX. Convert wxs sources from v3 to the current XML schema first.
@@ -411,9 +422,6 @@ IF(WIX_EXECUTABLE)
     WixToolset.UI.wixext
     WixToolset.Util.wixext
     WixToolset.Firewall.wixext)
-  EXECUTE_PROCESS(
-    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension list --global
-    OUTPUT_VARIABLE WIX_EXTENSION_LIST)
   SET(WIX_EXTENSION_ARGS)
   FOREACH(ext ${WIX_EXTENSIONS})
     IF(NOT WIX_EXTENSION_LIST MATCHES "${ext}[/ ]+${WIX_VERSION}")
