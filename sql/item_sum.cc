@@ -2714,7 +2714,7 @@ void Item_sum_xor::set_bits_from_counters()
   ulonglong value= 0;
   for (int i= 0; i < NUM_BIT_COUNTERS; i++)
   {
-    value|= (bit_counters[i] % 2) ? (1 << i) : 0;
+    value|= (bit_counters[i] % 2) ? (1ULL << i) : 0ULL;
   }
   bits= value ^ reset_bits;
 }
