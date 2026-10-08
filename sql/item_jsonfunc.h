@@ -364,10 +364,11 @@ protected:
   String tmp_val, *val;
   json_engine_t je, ve;
   int loc_js_stack_buffer[JSON_DEPTH_LIMIT];
+  bool member_of;
 
 public:
-  Item_func_json_contains(THD *thd, List<Item> &list):
-    Item_bool_func(thd, list)
+  Item_func_json_contains(THD *thd, List<Item> &list, bool arg_member_of= false):
+    Item_bool_func(thd, list), member_of(arg_member_of)
     {}
   LEX_CSTRING func_name_cstring() const override
   {

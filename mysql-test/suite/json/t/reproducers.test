@@ -1,0 +1,30 @@
+--echo # MDEV-41402
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+SELECT * FROM (SELECT * FROM t UNION SELECT * FROM t) dt WHERE dt.a MEMBER OF (dt.j);
+DROP TABLE t;
+
+--echo # MDEV-41404
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
+SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t) dt;
+DROP TABLE t;
+
+--echo # Cross-join const-caching check
+CREATE TABLE t1 (id INT, val JSON);
+INSERT INTO t1 VALUES (1, '[1,2,3]'), (2, '[4,5,6]'), (3, NULL);
+CREATE TABLE t2 (candidate INT);
+INSERT INTO t2 VALUES (2), (4), (NULL);
+SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
+DROP TABLE t1, t2;
+
+--echo # Malformed JSON warnings check
+SELECT 1 MEMBER OF ('[1,2');
+SHOW WARNINGS;
+SET check_constraint_checks=0;
+CREATE TABLE t_json (j JSON);
+INSERT INTO t_json VALUES ('[1,2');
+SELECT j MEMBER OF ('[1]') FROM t_json;
+SHOW WARNINGS;
+DROP TABLE t_json;
+SET check_constraint_checks=1;
