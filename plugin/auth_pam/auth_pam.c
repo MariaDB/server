@@ -42,13 +42,22 @@ static const int tool_name_len= 31;
 /*
   sleep_limit is now 5 meaning up to 1 second sleep.
   each step means 10 times longer sleep, so 6 would mean 10 seconds.
+  As the sleep_limit is reached we send the SIGKILL to the auth_pam_tool.
 */
 static const unsigned int sleep_limit= 5;
+
+/*
+  if the auth_pam_tool refuses to end even after the SIGKILL, we have to break
+  the waiting loop once. So this marks the point where we do so.
+  Value of 10 means we stop waiting after 10 more seconds
+    (about 11 seconds in total).
+*/
+static const unsigned int sleep_hopeless= sleep_limit + 10;
 
 static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   int p_to_c[2], c_to_p[2]; /* Parent-to-child and child-to-parent pipes. */
-  pid_t proc_id;
+  pid_t proc_id, wres;
   int result= CR_ERROR, pkt_len= 0;
   unsigned char field, *pkt;
   unsigned int n_sleep= 0;
@@ -187,8 +196,17 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 error_ret:
   close(p_to_c[1]);
   close(c_to_p[0]);
-  while (waitpid(proc_id, NULL, WNOHANG) != (int) proc_id)
+
+  while (!res /* auth_pam_tool was actually spawned. */ &&
+         (wres= waitpid(proc_id, NULL, WNOHANG)) != proc_id)
   {
+    if ((int) wres == -1 && errno != EINTR)
+    {
+      /*
+        This means the auth_pam_tool already reaped elsewhere.
+      */
+      break;
+    }
     if (n_sleep++ == sleep_limit)
     {
       /*
@@ -196,14 +214,32 @@ error_ret:
         Means something wrong happened there like pam_xxx.so hanged.
       */
       kill(proc_id, SIGKILL);
-      sleep_time= 1000000; /* 1 second wait should be enough. */
+      sleep_time= 100000;
       PAM_DEBUG((stderr, "PAM: auth_pam_tool doesn't terminate,"
                          " have to kill it.\n"));
+      /*
+        The SIGKILL was sent to the process will die eventually,
+        still it can be stuck for a while in an uninterruptible sleep.
+        So don't break the loop here.
+        Keep polling, otherwise the process is never waitpid()-ed for and
+        is leaked as a zombie once it does terminate.
+      */
     }
-    else if (n_sleep > sleep_limit)
+    else if (n_sleep > sleep_hopeless)
+    {
+      /*
+        Break the process if it hangs too long.
+        Shouldn't normally happen as it can leave the zombie auth_pam_tool,
+        but better than hang forever.
+      */
+      my_printf_error(ENOEXEC,
+         "pam: auth_pam_tool (pid: %d) probably remains as zombie.",
+         ME_ERROR_LOG_ONLY, (int) proc_id);
       break;
+    }
     usleep(sleep_time);
-    sleep_time*= 10;
+    if (n_sleep <= sleep_limit)
+      sleep_time*= 10;
   }
 
   PAM_DEBUG((stderr, "PAM: auth result %d.\n", result));

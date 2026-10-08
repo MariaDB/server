@@ -71,8 +71,16 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
   int res;
   char a_buf[MYSQL_USERNAME_LENGTH + 1 + 1024];
 
+#ifdef HAVE_SETRESUID
+  uid_t caller_uid= getuid();
+  /* The saved caller_uid allows mariadbd to kill auth_pam_tool. */
+  if ((res= setresuid(0, 0, caller_uid)))
+    fprintf(stderr, "Got error %d from setresuid()\n", (int) errno);
+#else
+  /* mariadbd can't kill the auth_pam_tool if not started as root. */
   if ((res= setreuid(0, 0)))
     fprintf(stderr, "Got error %d from setreuid()\n", (int) errno);
+#endif
 
   if (read(0, &field, 1) < 1)
     return -1;
