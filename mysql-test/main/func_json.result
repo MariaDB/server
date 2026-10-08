@@ -5776,4 +5776,14 @@ JSON_SCHEMA_VALID(@schema, @value)
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 r
 0
+# MDEV-39972 Reuse constant JSON paths across rows
+CREATE TABLE t1 (id INT PRIMARY KEY,j JSON);
+INSERT INTO t1 VALUES (1,'["x"]'),(2,'[0,"x"]');
+SELECT id,JSON_EXTRACT(j,'$[last]') AS extracted,
+JSON_SEARCH(j,'one','x',NULL,'$[last]') AS searched
+FROM t1 ORDER BY id;
+id	extracted	searched
+1	"x"	"$[0]"
+2	"x"	"$[1]"
+DROP TABLE t1;
 # End of 11.4 tests
