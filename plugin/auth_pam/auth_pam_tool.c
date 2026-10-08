@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 #include <mysql/plugin_auth_common.h>
 
 struct param {
@@ -26,11 +27,39 @@ struct param {
 
 #include "auth_pam_tool.h"
 
+/*
+  Hard limit for the PAM stall, including the round trips
+  to the client (password/OTP prompts). It should exceed the server's
+  login timeout (connect_timeout, 10 seconds by default), so it never
+  cuts off a login the server would still accept.
+*/
+#define AUTH_PAM_TOOL_TIMEOUT 100
+
+static void set_alarm()
+{
+  /*
+    Unblock the SIGALRM.
+    The server blocks SIGALRM in its threads and the mask is inherited
+    through posix_spawn(), so unblock it or the alarm never gets delivered.
+  */
+  sigset_t alarm_set;
+  sigemptyset(&alarm_set);
+  sigaddset(&alarm_set, SIGALRM);
+  sigprocmask(SIG_UNBLOCK, &alarm_set, NULL);
+  /*
+    A PAM module could have ignored SIGALRM or installed its own handler,
+    restore the default action, which terminates the process.
+  */
+  signal(SIGALRM, SIG_DFL);
+  alarm(AUTH_PAM_TOOL_TIMEOUT);
+}
+
 
 static int roundtrip(struct param *param, const unsigned char *buf,
                      int buf_len, unsigned char **pkt)
 {
   unsigned char b=  AP_CONV;
+  set_alarm();
   if (write(1, &b, 1) < 1 || write_string(1, buf, buf_len))
     return -1;
   *pkt= (unsigned char *) param->buf;
@@ -71,6 +100,12 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
   int res;
   char a_buf[MYSQL_USERNAME_LENGTH + 1 + 1024];
 
+  /*
+    The pam_auth_base() call can hang in the PAM module.
+    Terminate the program after AUTH_PAM_TOOL_TIMEOUT seconds.
+  */
+  set_alarm();
+
   if ((res= setreuid(0, 0)))
     fprintf(stderr, "Got error %d from setreuid()\n", (int) errno);
 
@@ -99,6 +134,9 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
     PAM_DEBUG((stderr, "PAM: auth failed, sandbox closed.\n"));
     return -1;
   }
+
+  /* Set the alarm again as the PAM module could reset it. */
+  set_alarm();
 
   if (info.authenticated_as[0])
   {
