@@ -5583,12 +5583,17 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
   int res;
   const char *reason;
 
-  if (is_active(log_file_name_arg) ||
-      (!is_relay_log && waiting_for_slave_to_change_binlog &&
-       purge_sending_new_binlog_file == sending_new_binlog_file &&
-       !strcmp(log_file_name_arg, purge_binlog_name)))
+  if (is_active(log_file_name_arg))
   {
     reason= "it is the current active binlog";
+    goto error;
+  }
+  if (!interactive && !is_relay_log && waiting_for_slave_to_change_binlog &&
+      purge_sending_new_binlog_file == sending_new_binlog_file &&
+      !strcmp(log_file_name_arg, purge_binlog_name))
+  {
+    reason= "it is in use by a slave thread or less than "
+      "'slave_connections_needed_for_purge' slaves have processed it";
     goto error;
   }
 

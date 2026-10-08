@@ -1,0 +1,90 @@
+# MDEV-41214 PURGE BINARY LOGS does not delete non-active binlog files
+#
+# PURGE BINARY LOGS could end with a warning instead of deleting files, as
+# this test shows when run on the base of the fix. The warning names a wrong
+# reason. It follows an automatic purge that was refused by the slave guard,
+# slave_connections_needed_for_purge: the automatic purge does not delete a
+# binlog while it might still be needed by a slave, not necessarily a
+# connected one, that is while fewer than the variable's number of slaves
+# are connected.
+#
+# Part 1 is a control: the same statement shape, with nothing cached, succeeds.
+#
+# The test sets slave_connections_needed_for_purge=1,
+# binlog_expire_logs_seconds=0 and max_binlog_total_size=0, and restores the
+# old values at the end. With slave_connections_needed_for_purge=0 the guard
+# is off and the bug does not show.
+#
+--source include/have_log_bin.inc
+
+--let $save_slave_connections_needed_for_purge= `SELECT @@global.slave_connections_needed_for_purge`
+--let $save_binlog_expire_logs_seconds= `SELECT @@global.binlog_expire_logs_seconds`
+--let $save_max_binlog_total_size= `SELECT @@global.max_binlog_total_size`
+SET @@global.binlog_expire_logs_seconds= 0;
+SET @@global.max_binlog_total_size= 0;
+SET @@global.slave_connections_needed_for_purge= 1;
+SELECT @@global.slave_connections_needed_for_purge;
+SELECT @@global.binlog_expire_logs_seconds, @@global.max_binlog_total_size;
+--echo # No replica has ever connected:
+SELECT COUNT(*) AS dump_threads FROM information_schema.PROCESSLIST
+  WHERE COMMAND = 'Binlog Dump';
+
+RESET MASTER;
+--echo #
+--echo # Part 1 (control). Nothing has attempted a purge yet, so no refusal is
+--echo # cached, and the interactive purge correctly ignores the slave's guard.
+--echo #
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+--source include/show_binary_logs.inc
+PURGE BINARY LOGS TO 'master-bin.000003';
+SHOW WARNINGS;
+--source include/show_binary_logs.inc
+
+--let $first= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+if ($first != master-bin.000003)
+{
+  --echo # Control failed: expected master-bin.000003 first, got $first
+  --die Interactive purge did not work even with no cached refusal
+}
+
+--echo #
+--echo # Part 2. Let one automatic purge be refused, then try PURGE that must
+--echo # be effective on the fixed server.
+--echo #
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+--source include/show_binary_logs.inc
+
+--echo # Let the files age past binlog_expire_logs_seconds: purge_logs_before_date
+--echo # skips can_purge_log() for any file whose mtime is not older than that.
+--real_sleep 2
+SET @@global.binlog_expire_logs_seconds= 1;
+--echo # Rotating attempts an automatic purge, which the guard refuses. That
+--echo # refusal is what populates the cache.
+FLUSH BINARY LOGS;
+
+--let $first= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+if ($first != master-bin.000003)
+{
+  --echo # Setup failed: expected the automatic purge to delete nothing.
+  --die The automatic purge was not refused, so nothing was cached
+}
+--echo # The automatic refusal states the correct reason in the error log:
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= Binary log .master-bin.000003. is not purged because less than .slave_connections_needed_for_purge. slaves have processed it
+--source include/search_pattern_in_file.inc
+
+--echo # Now the interactive purge. It should behave exactly as in part 1.
+PURGE BINARY LOGS TO 'master-bin.000006';
+--echo # On affected versions this reports master-bin.000003 as the current active
+--echo # binlog, while master-bin.000008 is active:
+SHOW WARNINGS;
+--source include/show_binary_logs.inc
+
+--evalp SET @@global.binlog_expire_logs_seconds = $save_binlog_expire_logs_seconds
+--evalp SET @@global.max_binlog_total_size= $save_max_binlog_total_size
+--evalp SET @@global.slave_connections_needed_for_purge= $save_slave_connections_needed_for_purge
+RESET MASTER;
