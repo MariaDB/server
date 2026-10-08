@@ -775,12 +775,16 @@ public:
     {
       int err{-1};
       lsn_t write_lsn;
+      lsn_t last;
       const uint bs_1{log_sys.write_size - 1};
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
       {
         write_lsn= log_get_lsn();
         mutex.wr_lock();
+        last= ctx.last_lsn;
+        if (!last)
+          goto err_exit;
       }
       else
 #endif
@@ -791,7 +795,8 @@ public:
         log_sys.latch.rd_unlock();
         /* Round down to the start of a block. */
         write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) & bs_1;
-        switch (ctx.last_lsn) {
+        last= ctx.last_lsn;
+        switch (last) {
         case 0:
         err_exit:
           mutex.wr_unlock();
@@ -800,15 +805,14 @@ public:
         case LSN_MAX:
           break;
         default:
-          ut_ad(write_lsn <= ctx.last_lsn);
-          if (write_lsn != ctx.last_lsn)
+          ut_ad(write_lsn <= last);
+          if (write_lsn != last)
             write_lsn+= bs_1 + 1;
         }
       }
 
       ut_ad(!ctx.last_hardlink.load(std::memory_order_relaxed));
       const tracked_log &tracked{*ctx.tracked};
-      const lsn_t last{ctx.last_lsn};
       const lsn_t lsn=
         std::min(std::min(last, write_lsn),
                  tracked.first_lsn + tracked.file_size - log_sys.START_OFFSET);
