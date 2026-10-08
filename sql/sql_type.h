@@ -35,6 +35,7 @@ C_MODE_START
 C_MODE_END
 
 class Field;
+class Timestamp;
 class Qualified_ident;
 class Column_definition;
 class Column_definition_attributes;
@@ -1391,6 +1392,7 @@ public:
     else
       make_from_decimal(thd, warn, nr, mode);
   }
+  Temporal_hybrid(THD *thd, const Timestamp &time);
   // End of constructors
 
   bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
@@ -1420,8 +1422,9 @@ public:
     if (!is_valid_temporal())
       return NULL;
     str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_TIME_to_str(this, const_cast<char*>(str->ptr()), dec));
+    if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      return NULL;
+    str->length(my_TIME_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   const MYSQL_TIME *get_mysql_time() const
@@ -1621,10 +1624,11 @@ public:
     if (!is_valid_interval_DDhhmmssff())
       return NULL;
     str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_interval_DDhhmmssff_to_str(this,
-                                                const_cast<char*>(str->ptr()),
-                                                dec));
+    if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      return NULL;
+    str->length(my_interval_DDhhmmssff_to_str(this,
+                                              const_cast<char*>(str->ptr()),
+                                              dec));
     return str;
   }
 };
@@ -2059,8 +2063,9 @@ public:
     if (!is_valid_time())
       return NULL;
     str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
+    if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      return NULL;
+    str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   my_decimal *to_decimal(my_decimal *to) const
@@ -2747,8 +2752,9 @@ public:
     if (!is_valid_datetime())
       return NULL;
     str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
+    if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      return NULL;
+    str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   my_decimal *to_decimal(my_decimal *to) const

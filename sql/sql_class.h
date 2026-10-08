@@ -4859,6 +4859,11 @@ public:
   const Type_handler *type_handler_for_datetime() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, date_mode_t fuzzydate);
+  bool timestamp_to_string(String *str, uint dec, Timestamp ts);
+  bool timestamp_to_string(String *str, uint dec, my_time_t ts)
+  {
+    return timestamp_to_string(str, dec, Timestamp(ts, 0));
+  }
   inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { used|= QUERY_START_SEC_PART_USED; return start_time_sec_part; }
@@ -8805,6 +8810,47 @@ public:
   }
 };
 
+
+class Timestamp_string : public String
+{
+  THD *thd;
+  Timestamp ts;
+  uint dec;
+
+public:
+  /**
+    Construct a lazily formatted timestamp from a high-precision value.
+
+    @param thd  Current thread.
+    @param ts   Timestamp value (seconds + microseconds) to format on demand.
+  */
+  Timestamp_string(THD *thd, Timestamp ts) : thd{thd}, ts{ts}, dec{6} {}
+  /**
+    Construct a lazily formatted timestamp from a whole-seconds value.
+
+    @param thd  Current thread.
+    @param sec  Timestamp in seconds since epoch.
+  */
+  Timestamp_string(THD *thd, my_time_t sec) : thd{thd}, ts{sec, 0}, dec{0} {}
+
+  /**
+    Return the timestamp formatted as a null-terminated C string.
+
+    Formats the stored timestamp into this String object on demand, using the
+    precision implied by the constructor (6 fractional digits for a
+    high-precision value, 0 for a whole-seconds one).
+
+    On failure the string is left empty; the underlying out-of-memory error is
+    already reported as ER_OUTOFMEMORY in the diagnostics area.
+
+    @return  Pointer to the formatted string (empty on failure).
+  */
+  const char *cstr()
+  {
+    (void) thd->timestamp_to_string(this, dec, ts);
+    return c_ptr_safe();
+  }
+};
 
 /**
   Make a new string allocated on THD's mem-root.

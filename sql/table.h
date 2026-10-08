@@ -2030,6 +2030,9 @@ public:
                              Open_table_context *ot_ctx);
   bool range_interval_check_partition(THD *thd, TABLE_LIST *table_list,
                                       Open_table_context *ot_ctx);
+  KEY *vers_end_best_idx(uint &best_idx) const;
+  bool vers_get_history_range(THD *thd, Timestamp &min_ts,
+                              Timestamp &max_ts);
 #endif
   bool vers_implicit() const;
 

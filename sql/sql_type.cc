@@ -396,6 +396,24 @@ Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item, date_mode_t fuzzydate)
 }
 
 
+/**
+  Construct a temporal value from a high-precision timestamp.
+
+  Converts @p time.tv_sec to broken-down local time in the current session
+  time zone and stores @p time.tv_usec as the sub-second part.
+
+  @param thd   Current thread.
+  @param time  Timestamp value (seconds + microseconds) to convert.
+*/
+Temporal_hybrid::Temporal_hybrid(THD *thd, const Timestamp &time)
+{
+  thd->variables.time_zone->gmt_sec_to_TIME(this, time.tv_sec);
+  thd->used|= THD::TIME_ZONE_USED;
+  DBUG_ASSERT(time.tv_usec < 1000000);
+  second_part= time.tv_usec;
+}
+
+
 uint Timestamp::binary_length_to_precision(uint length)
 {
   switch (length) {
