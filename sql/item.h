@@ -1968,7 +1968,9 @@ public:
       node, as the original, and
     - not share a single Item object with the original: every node of the
       clone must be a separate object, so that the clone can be used (and
-      re-evaluated) independently of the original.
+      re-evaluated) independently of the original.  The exception is an
+      Item_cache, which a clone holds itself, see Item_cache::deep_copy(),
+      together with the items under it.
 
     Both properties are reported as notes, so that a test can see which
     Item class is not deeply clonable. Returns true if 'clone' is not a
@@ -8176,13 +8178,14 @@ public:
 
 protected:
   /*
-    A clone of a cache has to be able to compute its value on its own, so a
-    deep copy starts with an empty cache. Without this the clone would keep
-    returning the value that happened to be cached at the time of cloning:
-    nobody calls store() for the clone, only for the original cache.
+    A copy of a tree holds the original cache.  The item that owns the cache,
+    e.g., Item_in_optimizer, stores a new value into it for each row, and
+    nothing stores into a second cache.  A copy evaluated in another select,
+    as a condition pushed into a derived table is, reads the value stored for
+    the current row.
   */
-  Item *deep_copy_cache(THD *thd) const;
-  Item *deep_copy(THD *thd) const override { return deep_copy_cache(thd); }
+  Item *deep_copy(THD *thd) const override
+  { return const_cast<Item_cache *>(this); }
 public:
   Item *get_example() const { return example; }
 
@@ -8642,12 +8645,6 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_cache_row>(thd, this); }
-  /*
-    A copy sharing the values[] array of element caches with the original is
-    not a deep copy, so a row cache is not clonable until cloning the element
-    caches is implemented.
-  */
-  Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
 

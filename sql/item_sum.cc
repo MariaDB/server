@@ -4966,14 +4966,16 @@ bool Item_func_collect::fix_fields_impl(THD *thd,Item **)
 Item_cache* Item::get_cache(THD *thd) const
 {
   Item_cache *cache= type_handler()->Item_get_cache(thd, this);
+  /*
+    A deep copy of a cache is the cache itself, so the debug flag replaces
+    every new cache with a shallow copy, which asserts that the copy is of the
+    class of the cache.
+  */
   DBUG_EXECUTE_IF(
     "item_cache_clones",
-    Item_cache *copy= (Item_cache*)cache->deep_copy_with_checks(thd);
+    Item_cache *copy= (Item_cache*) cache->shallow_copy_with_checks(thd);
     if (copy)
-    {
-      cache->check_deep_copy(thd, copy, "Item::get_cache");
       return copy;
-    }
   );
   return cache;
 }

@@ -660,8 +660,13 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
+    /*
+      A cache in right_item is the original cache of key_field->val.  Its
+      example is an item of the select of the cache owner, such as the left
+      operand of an IN predicate, which this walk must not mark as dependent.
+    */
     right_item->walk(&Item::set_fields_as_dependent_processor,
-                     join->select_lex, 0);
+                     join->select_lex, WALK_NO_CACHE_PROCESS);
     right_item->update_used_tables();
     /*
       We've just pushed right_item down into the child select. It may only

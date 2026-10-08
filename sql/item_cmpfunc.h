@@ -673,10 +673,18 @@ public:
   {
     Item_bool_rowready_func2 *clone=
       (Item_bool_rowready_func2 *) Item_func::deep_copy(thd);
-    if (clone)
-    {
-      clone->cmp.comparators= 0;
-    }
+    if (!clone)
+      return nullptr;
+    clone->cmp.comparators= 0;
+    /*
+      The member copy of cmp reads the arguments of the original and sets
+      null_value of the original.  Set it up over the arguments of the copy,
+      with the comparison type of the original.
+    */
+    if (fixed() &&
+        clone->cmp.set_cmp_func(thd, clone, cmp.compare_type_handler(),
+                                &clone->args[0], &clone->args[1], true))
+      return nullptr;
     return clone;
   }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
@@ -1616,6 +1624,16 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nullif>(thd, this); }
+  Item *deep_copy(THD *thd) const override
+  {
+    Item_func_nullif *clone= (Item_func_nullif *) Item_func::deep_copy(thd);
+    /* See Item_bool_rowready_func2::deep_copy() */
+    if (clone && fixed() &&
+        clone->cmp.set_cmp_func(thd, clone, cmp.compare_type_handler(),
+                                &clone->args[0], &clone->args[1], true))
+      return nullptr;
+    return clone;
+  }
 };
 
 
