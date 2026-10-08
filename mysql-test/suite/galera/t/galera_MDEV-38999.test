@@ -1,0 +1,198 @@
+#
+# MDEV-38999: Galera - stale reads
+#
+# wsrep_sync_wait is a bitmask (1=READ/BEGIN, 2=UPDATE/DELETE,
+# 4=INSERT/REPLACE, 8=SHOW) that is supposed to force a causal wait before
+# executing a statement of the matching type. wsrep_must_sync_wait() used to
+# unconditionally skip the wait whenever thd->in_active_multi_stmt_transaction()
+# was true, regardless of the configured bitmask - so once a transaction was
+# open (explicit or, via autocommit=0, implicit), every later statement in
+# it was exempt from its own causal wait, even if its bit was configured.
+#
+# Fix: wsrep_must_sync_wait() now skips the wait only once this transaction
+# has generated its first write (wsrep_has_changes(thd)), since only then
+# might it already hold row locks that a wait could self-deadlock against
+# (the local applier blocked needing one of those same locks, with nothing
+# to resolve it but a timeout). Every statement up to and including the
+# transaction's first write is still safe to wait for - nothing of its own
+# is locked yet when the pre-statement check runs - which is exactly what
+# was missing before.
+#
+# A second, independent defect surfaced once in-transaction waits could
+# time out at all: wsrep::client_state::after_command_after_result() only
+# clears a pending wsrep error once the transaction is no longer active -
+# correct for a genuinely doomed BF-aborted transaction, but it meant a
+# single recoverable causal-wait timeout poisoned every later statement in
+# the same transaction, ROLLBACK included, with the same stale error.
+# wsrep_sync_wait() now resets the error immediately after reporting it for
+# the one statement that actually hit it.
+#
+# This test proves both fixes, and exercises the two transaction-start
+# paths (explicit BEGIN and implicit autocommit=0) plus two bitmask values:
+#
+# 1. wsrep_sync_wait=2 (UPDATE/DELETE only): a standalone autocommit UPDATE
+#    correctly blocks on the causal wait and times out while the applier on
+#    node_2 is paused (control case). The same UPDATE, issued inside an
+#    explicit BEGIN, must now time out the same way - before the fix it ran
+#    immediately against a stale view instead - and the following ROLLBACK
+#    must succeed cleanly, not inherit the same error.
+# 2. The same UPDATE-after-BEGIN scenario again, but with the transaction
+#    started implicitly via autocommit=0 instead of BEGIN.
+# 3. wsrep_sync_wait=1 (READ only): two SELECTs in a row inside one explicit
+#    transaction, with the applier paused in between. Since neither read
+#    writes anything, both must independently wait and the second one must
+#    time out too - nothing should be considered "already satisfied" just
+#    because an earlier read in the same transaction already waited.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100);
+
+--connection node_2
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
+# wsrep_sync_wait is SESSION-scoped: the galera suite's default .cnf already
+# sets it (non-zero) for connections opened before this point, and SET GLOBAL
+# would only affect *new* connections, not this one - so set it with SESSION
+# directly on the connection that will run the statements below.
+SET SESSION wsrep_sync_wait = 2;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+# Control connection used to synchronize with the paused applier.
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--echo #
+--echo # Control case: standalone (autocommit) UPDATE correctly waits.
+--echo #
+--connection node_2
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+INSERT INTO t1 VALUES (2, 200);
+
+--connection node_2a
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET f1 = f1 + 1 WHERE id = 1;
+
+--connection node_2a
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+--echo #
+--echo # Fixed case: the SAME UPDATE, issued inside an explicit BEGIN, must
+--echo # still wait - bit 2 (UPDATE/DELETE) hasn't been satisfied yet in this
+--echo # transaction (BEGIN only ever checks bit 1).
+--echo #
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+INSERT INTO t1 VALUES (3, 300);
+
+--connection node_2a
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_2
+BEGIN;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET f1 = f1 + 1 WHERE id = 1;
+# The failed UPDATE never touched anything (it failed at the pre-check,
+# before taking any lock), so this ROLLBACK must succeed cleanly - it must
+# NOT inherit the UPDATE's now-stale error.
+ROLLBACK;
+
+--connection node_2a
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+
+--echo #
+--echo # Same scenario again, but via an implicit (autocommit=0) transaction
+--echo # instead of an explicit BEGIN.
+--echo #
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+INSERT INTO t1 VALUES (4, 400);
+
+--connection node_2a
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_2
+SET SESSION autocommit = 0;
+SELECT COUNT(*) FROM t1 WHERE id = 1;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET f1 = f1 + 1 WHERE id = 1;
+ROLLBACK;
+SET SESSION autocommit = 1;
+
+--connection node_2a
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+
+--echo #
+--echo # wsrep_sync_wait=1 (READ only): two reads in a row inside one explicit
+--echo # transaction must each independently wait - the second one is not
+--echo # exempted just because the first already waited.
+--echo #
+SET SESSION wsrep_sync_wait = 1;
+
+--connection node_2
+BEGIN;
+SELECT COUNT(*) FROM t1;
+
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+INSERT INTO t1 VALUES (5, 500);
+
+--connection node_2a
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT COUNT(*) FROM t1;
+ROLLBACK;
+
+--connection node_2a
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = "$wsrep_provider_options_orig"
+SET SESSION wsrep_sync_wait = 0;
+--enable_query_log
+
+--connection node_1
+DROP TABLE t1;
+
+--disconnect node_2a

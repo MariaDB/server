@@ -1624,12 +1624,25 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
   if (thd->variables.wsrep_on)
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
+    /*
+      Once this transaction has generated its first write (appended
+      certification keys / written to the binlog cache), it may already be
+      holding row locks. Waiting on the causal wait at that point risks a
+      self-deadlock: the local applier thread can be blocked trying to take
+      one of those same locks to apply a write-set this wait is waiting for,
+      and nothing resolves that except the wait eventually timing out. So,
+      per the transaction's lifetime, only wait before the first write -
+      every statement up to and including that first write is still safe
+      (nothing of ours is locked yet when the check runs, since it runs
+      before the statement executes), but nothing after it re-waits,
+      matching the original behaviour for the remainder of the transaction.
+    */
     ret= (thd->variables.wsrep_sync_wait & mask) &&
       thd->wsrep_client_thread &&
       WSREP_ON &&
       !(thd->variables.wsrep_dirty_reads &&
         !is_update_query(thd->lex->sql_command)) &&
-      !thd->in_active_multi_stmt_transaction() &&
+      !wsrep_has_changes(thd) &&
       thd->wsrep_trx().state() !=
       wsrep::transaction::s_replaying &&
       thd->wsrep_cs().sync_wait_gtid().is_undefined();
@@ -1646,14 +1659,22 @@ bool wsrep_sync_wait (THD* thd, uint mask)
                 "mask= %u, thd->variables.wsrep_on= %d",
                 thd->variables.wsrep_sync_wait, mask,
                 thd->variables.wsrep_on);
-    /*
-      This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
-      TODO: modify to check if thd has locked any rows.
-    */
     if (thd->wsrep_cs().sync_wait(-1))
     {
       wsrep_override_error(thd, thd->wsrep_cs().current_error(),
                            thd->wsrep_cs().current_error_status());
+      /*
+        Unlike a BF-abort/deadlock, a causal-wait timeout here is a
+        pre-check failure: nothing of this transaction's has executed or
+        been touched by it. wsrep::client_state::after_command_after_result()
+        only clears current_error() once the transaction is no longer
+        active, which is the right policy for a genuinely doomed (BF-aborted)
+        transaction, but would otherwise leave every later statement in this
+        still-perfectly-usable transaction - including ROLLBACK - failing
+        with this same stale error. Clear it immediately: it has already
+        been reported to the caller of this one statement above.
+      */
+      thd->wsrep_cs().reset_error();
       return true;
     }
   }
