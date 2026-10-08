@@ -959,6 +959,7 @@ extern char server_uid[SERVER_UID_SIZE+1];
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+extern my_bool validate_config_has_warnings;
 
 extern int mysqld_main(int argc, char **argv);
 
