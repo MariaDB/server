@@ -37,10 +37,9 @@ jobs:
       - name: Install prerequisites
         run: |
           # bison to compile, modern WiX for the MSI.
-          # WiX is pinned to v6 - v7 refuses to run without accepting
-          # the Open Source Maintenance Fee EULA.
+          # 5.0.2 is the last WiX release under MS-RL, 6.x+ ships with the OSMF EULA.
           choco install winflexbison3 --no-progress
-          dotnet tool install --global wix --version "6.0.*"
+          dotnet tool install --global wix --version 5.0.2
 
       - name: Build
         shell: cmd
