@@ -396,3 +396,31 @@ eval EXPLAIN $query;
 eval $query;
 
 drop table t20;
+
+--echo #
+--echo # MDEV-40762: MIN/MAX with ascending and descending index candidates
+--echo #
+--echo # Ascending index chosen first
+CREATE TABLE t1 (g CHAR(4) NOT NULL, v INT NOT NULL,
+  KEY idx_asc (g,v),
+  KEY idx_desc (g,v DESC)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('A',1),('A',2),('A',3);
+--replace_column 9 #
+EXPLAIN SELECT g, MIN(v) FROM t1 GROUP BY g;
+SELECT g, MIN(v) FROM t1 GROUP BY g;
+--replace_column 9 #
+EXPLAIN SELECT g, MAX(v) FROM t1 GROUP BY g;
+SELECT g, MAX(v) FROM t1 GROUP BY g;
+DROP TABLE t1;
+--echo # Descending index chosen first
+CREATE TABLE t1 (g CHAR(4) NOT NULL, v INT NOT NULL,
+  KEY idx_desc (g,v DESC),
+  KEY idx_asc (g,v)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('A',1),('A',2),('A',3);
+--replace_column 9 #
+EXPLAIN SELECT g, MIN(v) FROM t1 GROUP BY g;
+SELECT g, MIN(v) FROM t1 GROUP BY g;
+--replace_column 9 #
+EXPLAIN SELECT g, MAX(v) FROM t1 GROUP BY g;
+SELECT g, MAX(v) FROM t1 GROUP BY g;
+DROP TABLE t1;
