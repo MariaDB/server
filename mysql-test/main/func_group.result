@@ -2589,3 +2589,10 @@ def					AVG(1)	253	7	7	Y	0	39	8
 1	1	1.00000
 one	max	avg
 # End of 10.11 tests
+# MDEV-40779 Evaluate HAVING using completed groups
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0);
+SELECT DISTINCT a,CAST(AVG(a) AS SIGNED) FROM t1 GROUP BY a,c HAVING AVG(b)<=a;
+a	CAST(AVG(a) AS SIGNED)
+2	2
+DROP TABLE t1;

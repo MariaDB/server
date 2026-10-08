@@ -4135,6 +4135,17 @@ bool JOIN::make_aggr_tables_info()
     {
       if (having)
       {
+        if (exec_tmp_table->group && curr_tab->table != exec_tmp_table)
+        {
+          /* The first table has completed grouping. Evaluate HAVING using
+             its stored group values while writing the DISTINCT table. */
+          having= having->transform(thd,
+                                    &Item::tmp_group_having_transformer,
+                                    NULL);
+          if (!having)
+            DBUG_RETURN(true);
+          curr_tab->having_on_input_tmp_group= true;
+        }
         curr_tab->having= having;
         having->update_used_tables();
       }
@@ -4224,6 +4235,7 @@ bool JOIN::make_aggr_tables_info()
     THD_STAGE_INFO(thd, stage_sorting_result);
     /* If we have already done the group, add HAVING to sorted table */
     if (tmp_having && !is_having_added_as_table_cond &&
+        !curr_tab->having_on_input_tmp_group &&
         !group_list && !sort_and_group)
     {
       if (add_having_as_table_cond(curr_tab))
@@ -28269,6 +28281,7 @@ JOIN_TAB::remove_duplicates()
   List<Item> *fields= (this-1)->fields;
   Item *item;
   THD *thd= join->thd;
+  Item *scan_having= having_on_input_tmp_group ? NULL : having;
   SORT_FIELD *sortorder, *sorder;
   DBUG_ENTER("remove_duplicates");
 
@@ -28310,7 +28323,7 @@ JOIN_TAB::remove_duplicates()
   }
   sorder->item= 0;                                 // End marker
 
-  if ((field_count + item_count == 0) && ! having &&
+  if ((field_count + item_count == 0) && !scan_having &&
       !(join->select_options & OPTION_FOUND_ROWS))
   {
     // only const items with no OPTION_FOUND_ROWS
@@ -28349,10 +28362,11 @@ JOIN_TAB::remove_duplicates()
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
                                       first_field, sortorder,
-                                      keylength + sort_field_keylength, having);
+                                      keylength + sort_field_keylength,
+                                      scan_having);
   else
     error=remove_dup_with_compare(join->thd, table, first_field, sortorder,
-                                  sort_field_keylength, having);
+                                  sort_field_keylength, scan_having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
     thd->lex->set_limit_rows_examined();
