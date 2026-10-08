@@ -37,7 +37,7 @@ SELECT 1 MEMBER OF ('[1,2');
 1 MEMBER OF ('[1,2')
 NULL
 Warnings:
-Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
 # 6. Nested array and object checks using JSON_COMPACT() vs uncast strings
 SELECT JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]');
 JSON_COMPACT('[1,2]') MEMBER OF ('[[1,2],[3,4]]')
@@ -159,7 +159,7 @@ SELECT 1 NOT MEMBER OF ('not_json');
 1 NOT MEMBER OF ('not_json')
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_contains' at position 1
+Warning	4038	Syntax error in JSON text in argument 2 to function 'member of' at position 1
 # 13.7 EXPLAIN EXTENDED round-trip print check
 EXPLAIN EXTENDED SELECT 1 NOT MEMBER OF ('[1,2,3]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

@@ -1944,9 +1944,21 @@ bool Item_func_json_contains::val_bool()
 
 error:
   if (je.s.error)
-    report_json_error(js, &je, 0);
+  {
+    if (member_of)
+      report_json_error_ex(js->ptr(), &je, "member of", 1,
+          Sql_condition::WARN_LEVEL_WARN);
+    else
+      report_json_error(js, &je, 0);
+  }
   if (ve.s.error)
-    report_json_error(val, &ve, 1);
+  {
+    if (member_of)
+      report_json_error_ex(val->ptr(), &ve, "member of", 0,
+          Sql_condition::WARN_LEVEL_WARN);
+    else
+      report_json_error(val, &ve, 1);
+  }
 return_null:
   null_value= 1;
   return 0;
@@ -6853,22 +6865,26 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
       producing wrong results for every subsequent row (NULL candidate
       appearing as 1, non-member values appearing as 1, etc.).
 
-      Calling jq->update_used_tables() here propagates used_tables_cache and
-      const_item_cache from args[0] (the candidate column) so that
-      jq->const_item() correctly returns false BEFORE jc->fix_length_and_dec
-      reads it.  The same call must also follow for jc itself for symmetry.
+      Initialize jq's cache and join args[0] flags without calling
+      args[0]->update_used_tables() (which is unsafe for window function items
+      at this point in the lifecycle).
     */
+    jq->used_tables_and_const_cache_init();
+    jq->used_tables_and_const_cache_join(args[0]);
     json_quote_item= jq;
     if (contains_args.push_back(json_quote_item, thd->mem_root))
       return true;
   }
 
-  Item_func_json_contains *jc= new (thd->mem_root) Item_func_json_contains(thd, contains_args);
+  Item_func_json_contains *jc= new (thd->mem_root) Item_func_json_contains(thd, contains_args, true);
   if (!jc)
     return true;
   if (jc->fix_length_and_dec(thd))
     return true;
   /* Propagate used-tables/const state from the freshly fixed arguments. */
+  jc->used_tables_and_const_cache_init();
+  jc->used_tables_and_const_cache_join(args[1]);
+  jc->used_tables_and_const_cache_join(json_quote_item ? json_quote_item : args[0]);
   json_contains_item= jc;
 
   return false;
@@ -6897,18 +6913,18 @@ bool Item_func_member_of::walk(Item_processor processor, void *arg, item_walk_fl
 Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-  /* Do NOT call transform_args() here — Item_bool_func::transform() does
-     it internally. Calling it twice corrupts already-transformed fields
-     during condition pushdown into derived tables (MDEV-41402). */
-  if (json_contains_item)
+  Item *res= Item_bool_func::transform(thd, transformer, arg);
+  if (res && res == this)
   {
-    Item *new_item= json_contains_item->transform(thd, transformer, arg);
-    if (!new_item)
-      return 0;
-    if (json_contains_item != new_item)
-      thd->change_item_tree((Item**)&json_contains_item, new_item);
+    if (json_quote_item && json_quote_item->type() == Item::FUNC_ITEM)
+      static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
+    if (json_contains_item && json_contains_item->type() == Item::FUNC_ITEM)
+    {
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item ? json_quote_item : args[0];
+    }
   }
-  return Item_bool_func::transform(thd, transformer, arg);
+  return res;
 }
 
 
