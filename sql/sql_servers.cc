@@ -421,14 +421,20 @@ static bool parse_server_options_json(FOREIGN_SERVER *server, char *ptr)
     if (option->value.length)
     {
       LEX_CSTRING *optval= &option->value;
-      char *unescaped= (char *) alloca(optval->length);
+      char *unescaped= (char *) my_safe_alloca(optval->length);
+      if (!unescaped)
+        DBUG_RETURN(TRUE);
       int len= json_unescape_json(optval->str, optval->str + optval->length,
                                   unescaped, unescaped + optval->length);
       if (len < 0)
+      {
+        my_safe_afree(unescaped, optval->length);
         DBUG_RETURN(TRUE);
+      }
       DBUG_ASSERT(len <= (int) optval->length);
       if (len < (int) optval->length)
         strncpy((char *) optval->str, unescaped, len);
+      my_safe_afree(unescaped, optval->length);
       optval->length= len;
     }
   }
