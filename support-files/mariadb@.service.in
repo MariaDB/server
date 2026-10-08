@@ -232,7 +232,7 @@ UMask=007
 # Useful options not previously available in [mysqld_safe]
 
 # Kernels like killing mariadbd when out of memory because its big.
-# Lets temper that preference a little.
+# Let's temper that preference a little.
 # OOMScoreAdjust=-600
 
 # Explicitly start with high IO priority
@@ -249,7 +249,7 @@ PrivateTmp=false
 TimeoutStartSec=900
 TimeoutStopSec=900
 
-# Set the maximium number of tasks (threads) to 99% of what the system can
+# Set the maximum number of tasks (threads) to 99% of what the system can
 # handle as set by the kernel, reserve the 1% for a remote ssh connection,
 # some monitoring, or that backup cron job. Without the directive this would
 # be 15% (see DefaultTasksMax in systemd man pages).
@@ -275,7 +275,7 @@ Group=mysql
 # Number of files limit. previously [mysqld_safe] open-files-limit
 LimitNOFILE=32768
 @SYSTEMD_LIMIT@
-# Maximium core size. previously [mysqld_safe] core-file-size
+# Maximum core size. previously [mysqld_safe] core-file-size
 # LimitCore=
 
 # Nice priority. previously [mysqld_safe] nice
@@ -292,8 +292,8 @@ LimitNOFILE=32768
 # ExecStartPre=sync
 # ExecStartPre=sysctl -q -w vm.drop_caches=3
 
-# numa-interleave=1 equalivant
+# numa-interleave=1 equivalent
 # Change ExecStart=numactl --interleave=all @sbindir@/mariadbd......
 
-# crash-script equalivent
+# crash-script equivalent
 # FailureAction=
