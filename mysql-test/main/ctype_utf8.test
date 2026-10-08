@@ -1043,6 +1043,7 @@ INSERT INTO t1(id, a, b) VALUES
 
 SELECT id, a, b FROM t1;
 
+--sorted_result
 SELECT id, a, b FROM t1 WHERE a BETWEEN 'aaaa' AND 'bbbbbb';
 
 SELECT id, a FROM t1 WHERE a='bbbbbb';
