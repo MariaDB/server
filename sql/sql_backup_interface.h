@@ -14,6 +14,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #pragma once
+#include "backup_stages.h"
 #include <stdint.h>
 
 /** BACKUP SERVER target */
@@ -22,11 +23,12 @@ struct backup_target
 #ifdef _WIN32
   /** Target directory path name, or nullptr if streaming */
   const char *path;
-  bool operator==(const backup_target &o) const { return path == o.path; }
+  bool operator==(const backup_target &o) const noexcept
+  { return path == o.path; }
 #else
   /** Target directory descriptor, or -1 if streaming */
   int fd;
-  bool operator==(const backup_target &o) const { return fd == o.fd; }
+  bool operator==(const backup_target &o) const noexcept { return fd == o.fd; }
 #endif
 };
 
@@ -50,31 +52,6 @@ struct backup_sink
   void *ha_data;
 };
 
-/** BACKUP SERVER execution phase; @see Sql_cmd_backup::execute() */
-enum backup_phase
-{
-  /** finish backup, possibly after BACKUP_PHASE_ABORT */
-  BACKUP_PHASE_FINISH= -2,
-  /** abort any operation */
-  BACKUP_PHASE_ABORT= -1,
-  /** preparatory phase executed while holding no locks */
-  BACKUP_PHASE_PREPARE_START= 0,
-  /** initial actual work phase; @see MDL_BACKUP_START */
-  BACKUP_PHASE_START,
-  /** copy while new writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_FLUSH */
-  BACKUP_PHASE_NO_BEGIN_NON_TRANS,
-  /** copy while any writes to non-transactional tables are blocked;
-  @see MDL_BACKUP_WAIT_FLUSH */
-  BACKUP_PHASE_NO_DML_NON_TRANS,
-  /** copy files while DDL is blocked; @see MDL_BACKUP_WAIT_DDL */
-  BACKUP_PHASE_NO_DDL,
-  /** determine the logical time of the backup and copy any
-  remaining files while MDL_BACKUP_WAIT_COMMIT is active;
-  this is followed by BACKUP_PHASE_FINISH */
-  BACKUP_PHASE_NO_COMMIT
-};
-
 /** A payload chunk in a sparse file that is being streamed */
 struct backup_chunk
 {
@@ -86,32 +63,6 @@ struct backup_chunk
 
 /** File descriptor */
 typedef IF_WIN(HANDLE, int) backup_fd;
-
-#ifdef _WIN32
-/* Use CopyFileEx() to copy entire files */
-#elif defined __APPLE__
-/* You should invoke fclonefileat(2) manually before attempting
-copy_entire_file() or backup::copy() */
-# include <sys/attr.h>
-# include <sys/clonefile.h>
-# include <copyfile.h>
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (negative)
-@retval 0   on success */
-inline int copy_entire_file(int src, int dst) noexcept
-{
-  return fcopyfile(src, dst, NULL, COPYFILE_ALL | COPYFILE_CLONE);
-}
-#else
-/** Copy an entire file.
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-int copy_entire_file(int src, int dst) noexcept;
-#endif
 
 #ifdef _WIN32
 struct native_file_handle;
@@ -193,8 +144,12 @@ int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end) noexcept;
 
 # ifdef __linux__
 /**
-   Try to copy a portion of a file via copy_file_range(2).
-   @param src   source file descriptor
+   Try to copy a portion of a file via copy_file_range(2),
+   which was introduced in Linux 4.5 and therefore available
+   on all currently supported kernel versions.
+   Unlike the FreeBSD system call, the Linux one may fail with
+   EOPNOTSUPP, requiring a fallback.
+   @param src   source file descriptor_
    @param dst   target to append src to
    @param start first offset to copy
    @param end   last offset to copy (exclusive)

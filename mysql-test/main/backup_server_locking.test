@@ -14,7 +14,7 @@ BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
 
 --connection default
 
---error ER_BACKUP_LOCK_IS_ACTIVE
+--error ER_BACKUP_WRONG_STAGE
 evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
 
 BACKUP STAGE END;

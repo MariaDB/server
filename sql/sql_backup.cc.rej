@@ -1,0 +1,93 @@
+--- sql/sql_backup.cc
++++ sql/sql_backup.cc
+@@ -464,7 +464,12 @@ struct backup_target_phase
+   FILE *stream;
+   /** handlerton::backup_step return value in multi-threaded operation */
+   int ret;
+-  /** engine-specific backup context */
++  /*
++    Engine-specific backup context, shared by all threads.  Only
++    modified by the calling thread while no backup_step() is pending;
++    backup_step() must use find(), never operator[], because
++    operator[] is not safe for concurrent use.
++  */
+   std::unordered_map<const handlerton*,void*> &ha_data;
+ };
+ 
+@@ -547,7 +554,8 @@ static my_bool backup_step(THD *thd, plugin_ref plugin, void *arg) noexcept
+   int res= 0;
+   if (hton->backup_step)
+   {
+-    t.sink.ha_data= t.ha_data[hton];
++    const auto it= t.ha_data.find(hton);
++    t.sink.ha_data= it == t.ha_data.end() ? nullptr : it->second;
+     while ((res= hton->backup_step(thd, &t.target, t.phase, &t.sink)))
+       if (res < 0)
+         break;
+@@ -590,9 +598,9 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
+                                     PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+                                     target_phase);
+   tpool::task *const tasks=
+-    static_cast<tpool::task*>(alloca(threads * sizeof *tasks));
++    static_cast<tpool::task*>(alloca(threads * sizeof(*tasks)));
+   backup_step_callback_pending= threads - 1;
+-  for (int n{threads}; --n; )
++  for (int n= threads; --n; )
+   {
+     target_phase[n].phase= target_phase->phase;
+     tp->submit_task(new (&tasks[n]) tpool::task{backup_step_callback,
+@@ -674,44 +698,27 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
+   else if (error_if_data_home_dir(target, "BACKUP SERVER TO"))
+     return true;
+ 
+-  if (thd->current_backup_stage != BACKUP_FINISHED)
+-  {
+-    my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
++  /* Initials backup and calls plugin_prepare_for_backup() for all engines */
++  if (run_backup_stage(thd, BACKUP_START))
+     return true;
+-  }
+ 
+-  bool fail{plugin_foreach_with_mask(thd, backup_preparation,
+-                                     MYSQL_STORAGE_ENGINE_PLUGIN,
+-                                     PLUGIN_IS_DELETED|PLUGIN_IS_READY,
+-                                     nullptr)};
++#ifdef OLD_CODE
++  fail= plugin_foreach_with_mask(thd, backup_preparation,
++                                 MYSQL_STORAGE_ENGINE_PLUGIN,
++                                 PLUGIN_IS_DELETED|PLUGIN_IS_READY,
++                                 nullptr);
+   if (fail)
+   {
+     my_error(ER_OUT_OF_RESOURCES, MYF(0));
+-    return true;
++    goto err_exit;
+   }
++#endif
+ 
+-  /* Block concurrent BACKUP SERVER and BACKUP STAGE */
+-  MDL_request mdl_request;
+-  MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_START,
+-                   MDL_EXPLICIT);
+-
+-  if (thd->mdl_context.acquire_lock(&mdl_request,
+-                                    thd->variables.lock_wait_timeout))
+-    return true;
+-
+-  tpool::thread_pool *tp= nullptr;
+   std::unordered_map<const handlerton*,void*> ha_data{};
+   backup_target_phase *target_phase= static_cast<backup_target_phase*>
+     (alloca(threads * sizeof *target_phase));
+   if (threads > 1 && !(tp= tpool::create_thread_pool_generic()))
+-  {
+-  oor:
+-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+-  err_exit:
+-    thd->mdl_context.release_lock(mdl_request.ticket);
+-    delete tp;
+-    return true;
+-  }
++    goto oor;
+ 
+   if (command)
+   {

@@ -1,13 +1,13 @@
 --source include/not_embedded.inc
 CREATE USER user1@localhost IDENTIFIED BY '';
 --connect con1,localhost,user1
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--error ER_WRONG_ARGUMENTS
 BACKUP SERVER TO 'some_directory';
 --disconnect con1
 --connection default
 GRANT SELECT ON test.* TO user1@localhost;
 --connect con1,localhost,user1
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--error ER_WRONG_ARGUMENTS
 BACKUP SERVER TO 'some_directory';
 --disconnect con1
 --connection default
@@ -15,7 +15,7 @@ BACKUP SERVER TO 'some_directory';
 GRANT RELOAD ON test.* TO user1@localhost;
 GRANT RELOAD ON *.* TO user1@localhost;
 --connect con1,localhost,user1
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--error ER_WRONG_ARGUMENTS
 BACKUP SERVER TO 'some_directory';
 --disconnect con1
 --connection default

@@ -7,7 +7,7 @@ BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
 ERROR 70100: Query was interrupted: execution time limit 0.1 sec exceeded
 connection default;
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/some_directory';
-ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+ERROR HY000: Backup stage 'START' is same or before current backup stage 'START'
 BACKUP STAGE END;
 connection backup;
 SET STATEMENT max_statement_time=0.1 FOR
