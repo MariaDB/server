@@ -590,7 +590,9 @@ public:
       }
       while (false);
       last_track_lsn= start;
+#ifdef HAVE_PMEM
       if (!log_sys.is_mmap())
+#endif
         /* Round down to the start of a log block. */
         last_track_lsn-= (start - first_lsn) & (log_sys.write_size - 1);
     }
@@ -767,6 +769,7 @@ public:
     {
       int err{-1};
       lsn_t write_lsn;
+      const uint bs_1{log_sys.write_size - 1};
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
       {
@@ -780,22 +783,26 @@ public:
         write_lsn= log_sys.write_lsn;
         mutex.wr_lock();
         log_sys.latch.rd_unlock();
-        if (ctx.last_lsn == LSN_MAX)
-          /* Round down to the start of a block. */
-          write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) &
-            (log_sys.write_size - 1);
+        /* Round down to the start of a block. */
+        write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) & bs_1;
+        switch (ctx.last_lsn) {
+        case 0:
+        err_exit:
+          mutex.wr_unlock();
+          my_error(ER_UNKNOWN_ERROR, MYF(0));
+          return err;
+        case LSN_MAX:
+          break;
+        default:
+          ut_ad(write_lsn <= ctx.last_lsn);
+          if (write_lsn != ctx.last_lsn)
+            write_lsn+= bs_1 + 1;
+        }
       }
 
       ut_ad(!ctx.last_hardlink.load(std::memory_order_relaxed));
       const tracked_log &tracked{*ctx.tracked};
       const lsn_t last{ctx.last_lsn};
-      if (UNIV_UNLIKELY(!last))
-      {
-      err_exit:
-        mutex.wr_unlock();
-        my_error(ER_UNKNOWN_ERROR, MYF(0));
-        return err;
-      }
       const lsn_t lsn=
         std::min(std::min(last, write_lsn),
                  tracked.first_lsn + tracked.file_size - log_sys.START_OFFSET);
@@ -876,12 +883,32 @@ public:
 
       if (lsn == last)
       {
-        /* The log copying finishes at the commit() LSN. */
-        if (!extend_log(ctx.log_dst, end))
+        err= 0;
+        /* The log copying finishes at or after the commit() LSN. */
+#ifdef HAVE_PMEM
+        if (!log_sys.is_mmap())
+#endif
+        {
+#ifdef _WIN32
+          using tpool::pwrite;
+#endif
+          /* Zero out the garbage part of the last log block. */
+          const uint64_t offset{ctx.last_lsn - ctx.first_lsn +
+                                log_sys.START_OFFSET};
+          const size_t o{size_t(offset) & bs_1}, s{bs_1 + 1 - o};
+          if (o &&
+              ssize_t(s) != pwrite(ctx.log_dst, field_ref_zero, s, offset))
+            err= -1;
+        }
+
+        if (!err)
+          err= extend_log(ctx.log_dst, end);
+
         {
           const os_file_t first_log_dst{ctx.first_log_dst};
-          err= ctx.log_dst == first_log_dst
-            ? 0 : IF_WIN(!CloseHandle,close)(ctx.log_dst);
+          if (ctx.log_dst != first_log_dst &&
+              IF_WIN(!CloseHandle,close)(ctx.log_dst))
+            err= -1;
           ctx.log_dst= OS_FILE_CLOSED;
           if (!err)
           {
@@ -889,20 +916,14 @@ public:
             write_checkpoint_buf(cp_buf,
                                  ctx.checkpoint_end_lsn - ctx.first_lsn +
                                  log_sys.START_OFFSET);
-            if (!write_checkpoint(first_log_dst, cp_buf))
-            {
-              err= IF_WIN(!CloseHandle,close)(first_log_dst);
-              ctx.first_log_dst= OS_FILE_CLOSED;
-              if (!err)
-                /* We successfully copied all log. */
-                return 0;
-            }
+            err= write_checkpoint(first_log_dst, cp_buf);
           }
+          if (IF_WIN(!CloseHandle,close)(first_log_dst))
+            err= -1;
+          ctx.first_log_dst= OS_FILE_CLOSED;
         }
-        IF_WIN(my_osmaperr(GetLastError()),);
-        my_error(ER_IO_WRITE_ERROR, MYF(ME_ERROR_LOG),
-                 errno, strerror(errno), "BACKUP SERVER");
-        return -1;
+
+        return err;
       }
 
       lsn_t wait_lsn= last;
