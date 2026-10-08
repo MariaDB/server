@@ -8239,11 +8239,13 @@ protected:
 
 
 /*
-  Item_type_holder used to store type. name, length of Item for UNIONS &
-  derived tables.
+  Item_type_holder stores the type, name and length of a column of a
+  UNION result, a derived table or a table value constructor.
 
-  Item_type_holder do not need cleanup() because its time of live limited by
-  single SP/PS execution.
+  A holder for a UNION result is built each time its unit is prepared,
+  outside the statement arena, so it needs no cleanup().  The holders in
+  the SELECT list of a table value constructor are built once, on the
+  statement arena, and refresh() replaces their type on every execution.
 */
 class Item_type_holder: public Item, public Type_handler_hybrid_field_type
 {
@@ -8252,14 +8254,23 @@ protected:
 public:
   Item_type_holder(THD *thd, Item *item, const Type_handler *handler,
                    const Type_all_attributes *attr, bool maybe_null_arg)
-   :Item(thd), Type_handler_hybrid_field_type(handler),
-    enum_set_typelib(attr->get_typelib())
+   :Item(thd), Type_handler_hybrid_field_type(),
+    enum_set_typelib(nullptr)
   {
     name= item->name;
-    Type_std_attributes::set(*attr);
-    set_maybe_null(maybe_null_arg);
+    refresh(handler, attr, maybe_null_arg);
     copy_flags(item, item_base_t::IS_EXPLICIT_NAME |
                      item_base_t::IS_IN_WITH_CYCLE);
+  }
+
+  void refresh(const Type_handler *type_handler,
+               const Type_all_attributes *attr,
+               bool maybe_null_arg)
+  {
+    set_handler(type_handler);
+    Type_std_attributes::set(attr);
+    set_maybe_null(maybe_null_arg);
+    enum_set_typelib= attr->get_typelib();
   }
 
   const Type_handler *type_handler() const override
