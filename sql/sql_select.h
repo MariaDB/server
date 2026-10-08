@@ -1653,8 +1653,8 @@ public:
     non-const tables. (Do not confuse this with exec_const_cond which is
     constant across all executions).  Normally, this is condition that refers
     to outer tables only.
-    For degenerate joins that only have constant tables, this includes
-    conditions with RAND_TABLE_BIT.
+    For degenerate joins that only have constant tables and semi-join nests,
+    this includes conditions with RAND_TABLE_BIT.
   */
   Item *outer_ref_cond;
   TABLE_LIST *tables_list;           ///<hold 'tables' parameter of mysql_select
