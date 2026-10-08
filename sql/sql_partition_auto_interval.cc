@@ -402,6 +402,11 @@ bool partition_info::set_range_interval(THD* thd, Item* ival,
                                         interval_type type,
                                         const char *table_name)
 {
+  if (ival->walk(&Item::check_partition_func_processor, 0, 0))
+  {
+    my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "INTERVAL");
+    return true;
+  }
   if (ival->fix_fields_if_needed_for_scalar(thd, &ival))
     return true;
   bool error= get_interval_value(thd, ival, type, &interval) ||
