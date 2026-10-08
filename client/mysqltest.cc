@@ -12769,7 +12769,7 @@ void init_re(void)
   */
   const char *ps2_re_str =
     "^("
-    "[[:space:]]*SELECT[[:space:]])";
+    "[[:space:]]*(\\([[:space:]]*)*SELECT[[:space:]])";
 
   /*
     Filter for queries that can be run as views
