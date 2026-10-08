@@ -25,10 +25,12 @@ ERROR HY000: IO Write error: (...) BACKUP SERVER
 BEGIN;
 DELETE FROM t;
 connect backup,localhost,root;
-BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
-connection default;
 connect rename,localhost,root;
 RENAME TABLE rt TO rtt;
+connection backup;
+BACKUP SERVER TO 'target_directory' 4 CONCURRENT;
+connection default;
+connection rename;
 CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE dt;
 disconnect rename;

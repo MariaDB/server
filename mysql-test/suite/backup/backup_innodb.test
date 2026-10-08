@@ -72,6 +72,11 @@ dec $attempts;
 if ($have_debug) {
 SET DEBUG_SYNC='innodb_backup_start SIGNAL start WAIT_FOR resume';
 }
+--connect rename,localhost,root
+if (!$have_debug) {
+RENAME TABLE rt TO rtt;
+}
+--connection backup
 --replace_result $target_directory target_directory
 send_eval BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
 --connection default
@@ -81,8 +86,10 @@ SET DEBUG_SYNC='now WAIT_FOR start';
 if ($attempts) {
 --move_file $target_directory.empty_file $target_directory/mysql
 }
---connect rename,localhost,root
+--connection rename
+if ($have_debug) {
 RENAME TABLE rt TO rtt;
+}
 CREATE TABLE rt(a INT PRIMARY KEY) ENGINE=InnoDB;
 DROP TABLE dt;
 --disconnect rename
