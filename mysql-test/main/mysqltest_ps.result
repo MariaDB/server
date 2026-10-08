@@ -32,3 +32,16 @@ a	a
 Warnings:
 Warning	1052	Column 'a' in GROUP BY is ambiguous
 drop table t;
+#
+# MDEV-41408 MTR prepared statement protocol skipping statements starting with '('
+#
+SELECT 1;
+1
+1
+( ( SELECT 1));
+1
+1
+SELECT $e2 - $e1 = $e1 - $e0 AS parens_same;
+parens_same
+1
+# End of 11.4 tests
