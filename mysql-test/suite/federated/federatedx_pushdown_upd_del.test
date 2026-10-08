@@ -777,6 +777,434 @@ DROP VIEW v4, v3, v2, v1;
 connection master;
 set global federated_pushdown=0;
 
+--echo #
+--echo # MDEV-41243, MDEV-41273: Assertion during execution of update and
+--echo # delete prepared statements with federatedx_pushdown
+--echo #
+connection master;
+CALL fill_tables();
+
+--let $q= UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1
+SET global federated_pushdown=1;
+--enable_info
+eval PREPARE pstmt FROM "$q";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED UPDATE)
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt itself sends it to the remote server as one statement
+--let $log_pattern= update %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+--echo # Reset the data so the second, non-pushed-down EXECUTE actually
+--echo # changes a row instead of silently matching but not changing one
+CALL fill_tables();
+--echo # This statement text is no longer eligible for pushdown
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt now runs it row by row against the remote server
+--let $log_pattern= update %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+DEALLOCATE PREPARE pstmt;
+SELECT * FROM t1 ORDER BY a;
+
+--let $q= DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2
+SET global federated_pushdown=1;
+--enable_info
+eval PREPARE pstmt FROM "$q";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED DELETE)
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt itself sends it to the remote server as one statement
+--let $log_pattern= delete %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+--echo # Reset the data so the second, non-pushed-down EXECUTE actually
+--echo # deletes a row instead of silently matching none
+CALL fill_tables();
+--echo # This statement text is no longer eligible for pushdown
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt now runs it row by row against the remote server
+--let $log_pattern= delete %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+DEALLOCATE PREPARE pstmt;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # The once-per-statement optimization guarded by
+--echo # first_cond_optimization is skipped by the same JOIN::optimize()
+--echo # branch for a pushed down plain SELECT, not only UPDATE/DELETE, so a
+--echo # prepared SELECT toggling pushdown needs the same protection
+--echo #
+--let $q= SELECT * FROM t1 WHERE a < 3
+CALL fill_tables();
+SET global federated_pushdown=1;
+--enable_info
+eval PREPARE pstmt FROM "$q";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED SELECT)
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt itself sends it to the remote server as one statement
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+--echo # This statement text is no longer eligible for pushdown
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt now scans the remote table locally instead
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+DEALLOCATE PREPARE pstmt;
+
+--echo #
+--echo # Whole-unit pushdown: a UNION pushed down as a single statement
+--echo #
+# This takes a completely different code path from single-SELECT/UPDATE/
+# DELETE pushdown: st_select_lex_unit::exec() returns
+# pushdown_unit->execute() directly, without ever calling
+# optimize()/exec_inner(), so JOIN::optimize() never runs for any member
+# SELECT either. The pushdown_handler constructor sets
+# LEX::dont_freeze_mem_root on the statement's LEX.
+--let $q= SELECT a, b FROM t1 UNION SELECT a, c FROM t2
+CALL fill_tables();
+SET global federated_pushdown=1;
+--enable_info
+eval PREPARE pstmt FROM "$q";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED UNION)
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt itself sends it to the remote server as one statement
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+--echo # This statement text is no longer eligible for pushdown
+eval EXPLAIN $q;
+
+--let $exec_msg= ... and EXECUTE pstmt now runs it locally instead
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+DEALLOCATE PREPARE pstmt;
+
+--echo #
+--echo # A prepared EXPLAIN of a pushed-down UNION, executed with pushdown
+--echo # on and then off
+--echo #
+--let $q= EXPLAIN SELECT a, b FROM t1 UNION SELECT a, c FROM t2
+CALL fill_tables();
+SET global federated_pushdown=1;
+--enable_info
+eval PREPARE pstmt FROM "$q";
+--disable_info
+EXECUTE pstmt;
+
+SET global federated_pushdown=0;
+EXECUTE pstmt;
+
+DEALLOCATE PREPARE pstmt;
+
+--echo #
+--echo # A UNION used as a derived table is optimized differently from a
+--echo # top-level pushed unit: its member SELECTs are optimized directly,
+--echo # but the pushed down derived table skips the step that would
+--echo # otherwise optimize the DISTINCT/ORDER BY/LIMIT wrapper of the UNION
+--echo #
+CALL fill_tables();
+CREATE TABLE tl (a int) ENGINE=MyISAM;
+INSERT INTO tl VALUES (1),(2),(3),(4);
+
+SET global federated_pushdown=1;
+--enable_info
+PREPARE pstmt FROM "SELECT dt.a FROM (SELECT a FROM t1 UNION SELECT a FROM t2) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED DERIVED)
+EXPLAIN SELECT dt.a FROM (SELECT a FROM t1 UNION SELECT a FROM t2) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a;
+--let $exec_msg= ... and EXECUTE pstmt itself sends the derived table to the remote server
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+CALL fill_tables();
+EXECUTE pstmt;
+
+DEALLOCATE PREPARE pstmt;
+
+--echo #
+--echo # A UNION nested inside a subquery inside a pushed derived table: the
+--echo # derived table dt is itself a single (non-union) SELECT
+--echo #
+# dt itself is fully optimized, so what is skipped when it is pushed down
+# is the exec_inner()/fake_select_lex optimization of the IN-subquery's
+# UNION, as that subquery is never run locally.
+CALL fill_tables();
+SET global federated_pushdown=1;
+--enable_info
+PREPARE pstmt FROM "SELECT dt.a FROM (SELECT DISTINCT a FROM t1 WHERE a IN (SELECT a FROM t2 UNION SELECT a FROM t2)) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a";
+--disable_info
+--echo # This statement text is eligible for pushdown (PUSHED DERIVED)
+EXPLAIN SELECT dt.a FROM (SELECT DISTINCT a FROM t1 WHERE a IN (SELECT a FROM t2 UNION SELECT a FROM t2)) dt JOIN tl ON dt.a= tl.a ORDER BY dt.a;
+--let $exec_msg= ... and EXECUTE pstmt itself sends the derived table to the remote server
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_ps_exec_log.inc
+
+SET global federated_pushdown=0;
+CALL fill_tables();
+EXECUTE pstmt;
+
+DEALLOCATE PREPARE pstmt;
+DROP TABLE tl;
+
+--echo #
+--echo # MDEV-41243, MDEV-41273: same assertion, but for a stored routine's own
+--echo # pushed down UPDATE/DELETE, and for one it runs via dynamic SQL
+--echo #
+--echo # A pushed down UPDATE/DELETE that is one of a routine's own
+--echo # instructions, CALLed with pushdown on and then off
+CALL fill_tables();
+delimiter |;
+CREATE PROCEDURE p_upd_del()
+BEGIN
+  UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+  DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+--echo # The routine's statements are sent to the remote server pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_upd_del();
+--let $log_pattern= update %
+--let $log_pattern2= delete %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+SET global federated_pushdown=0;
+--echo # Reset the data so this second, non-pushed-down CALL actually
+--echo # changes/deletes a row instead of silently matching none
+CALL fill_tables();
+--echo # Not pushed down: the remote server sees different statements
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_upd_del();
+--let $log_pattern= update %
+--let $log_pattern2= delete %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # A pushed down statement in a routine that is CALLed from another
+--echo # routine: the nested routine must not be frozen either
+--echo #
+CALL fill_tables();
+delimiter |;
+CREATE PROCEDURE p_outer()
+BEGIN
+  CALL p_upd_del();
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+--echo # Nested routine: statements still pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_outer();
+--let $log_pattern= update %
+--let $log_pattern2= delete %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+
+SET global federated_pushdown=0;
+CALL fill_tables();
+CALL p_outer();
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # EXECUTE of a prepared statement inside a routine exercises the
+--echo # interaction between sp_head::execute() and
+--echo # Prepared_statement::execute_loop(), each of which decides on its own
+--echo # whether to freeze its mem_root. The PREPARE stays
+--echo # outside the routine so the SAME prepared statement, not a fresh one,
+--echo # is EXECUTEd by both CALLs below
+--echo #
+CALL fill_tables();
+PREPARE stmt FROM "UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1";
+delimiter |;
+CREATE PROCEDURE p_execute()
+BEGIN
+  EXECUTE stmt;
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+--echo # EXECUTE in routine: statement pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_execute();
+--let $log_pattern= update %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+
+SET global federated_pushdown=0;
+CALL fill_tables();
+CALL p_execute();
+DEALLOCATE PREPARE stmt;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # A static cursor's OPEN has no LEX of its own: it runs the cursor's
+--echo # SELECT using the corresponding DECLARE (cpush) instruction's LEX
+--echo # instead (see sp_instr_copen::execute())
+--echo #
+CALL fill_tables();
+delimiter |;
+CREATE PROCEDURE p_cursor()
+BEGIN
+  DECLARE v_a INT;
+  DECLARE v_b VARCHAR(16);
+  DECLARE cur CURSOR FOR SELECT a, b FROM t1 WHERE a < 3;
+  OPEN cur;
+  FETCH cur INTO v_a, v_b;
+  CLOSE cur;
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+--echo # Cursor SELECT pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_cursor();
+--let $log_pattern= select %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+
+SET global federated_pushdown=0;
+CALL fill_tables();
+CALL p_cursor();
+DROP PROCEDURE p_cursor;
+
+--echo #
+--echo # Pushdown off first (the statement is executed without pushdown),
+--echo # then on, then off again, for a prepared statement and a routine
+--echo #
+SET global federated_pushdown=0;
+CALL fill_tables();
+--let $q= UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1
+eval PREPARE pstmt FROM "$q";
+CREATE PROCEDURE p_off_on()
+  UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+EXECUTE pstmt;
+CALL p_off_on();
+SET global federated_pushdown=1;
+CALL fill_tables();
+EXECUTE pstmt;
+CALL p_off_on();
+SET global federated_pushdown=0;
+CALL fill_tables();
+EXECUTE pstmt;
+CALL p_off_on();
+SELECT a, b FROM t1 ORDER BY a;
+DEALLOCATE PREPARE pstmt;
+DROP PROCEDURE p_off_on;
+
+--echo #
+--echo # A pushed down UPDATE/DELETE inside a stored function and inside a
+--echo # trigger, executed with pushdown on, then off, then on again
+--echo #
+CALL fill_tables();
+CREATE TABLE tl_trg (a int);
+delimiter |;
+CREATE FUNCTION f_upd_del() RETURNS int
+BEGIN
+  UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+  DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 2;
+  RETURN 1;
+END|
+CREATE TRIGGER trg_upd_del AFTER INSERT ON tl_trg FOR EACH ROW
+BEGIN
+  UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 3;
+  DELETE FROM x USING t1 AS x JOIN t2 AS y ON x.a= y.a WHERE y.a= 3;
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+--echo # Function: statements pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+SELECT f_upd_del();
+--let $log_pattern= update %
+--let $log_pattern2= delete %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+--echo # Trigger: statements pushed down
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+INSERT INTO tl_trg VALUES (1);
+--let $log_pattern= update %
+--let $log_pattern2= delete %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+
+SELECT * FROM t1 ORDER BY a;
+SET global federated_pushdown=0;
+CALL fill_tables();
+SELECT f_upd_del();
+INSERT INTO tl_trg VALUES (2);
+SELECT * FROM t1 ORDER BY a;
+SET global federated_pushdown=1;
+CALL fill_tables();
+SELECT f_upd_del();
+INSERT INTO tl_trg VALUES (3);
+SELECT * FROM t1 ORDER BY a;
+
+DROP TRIGGER trg_upd_del;
+DROP FUNCTION f_upd_del;
+DROP TABLE tl_trg;
+SET global federated_pushdown=0;
+
+--echo #
+--echo # A metadata-invalidation reparse of the routine's own instruction,
+--echo # when the first post-reparse execution of that instruction happens
+--echo # to be pushed down, must not hit the mem_root assertion
+--echo #
+CALL fill_tables();
+delimiter |;
+CREATE PROCEDURE p_reparse()
+BEGIN
+  UPDATE t1 AS x JOIN t2 AS y ON x.a= y.a SET x.b= y.c WHERE y.a= 1;
+END|
+delimiter ;|
+
+SET global federated_pushdown=1;
+CALL p_reparse();
+
+--echo # Force a metadata-invalidation reparse of p_reparse()'s instruction
+--echo # on its next CALL. FederatedX doesn't support ALTER TABLE, so drop
+--echo # and recreate t2 identically -- that still bumps its table version.
+DROP TABLE t2;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t2 (a int, c varchar(16))
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+CALL fill_tables();
+
+--echo # The first post-reparse execution runs with pushdown on
+--source suite/federated/include/federatedx_pushdown_log_start.inc
+CALL p_reparse();
+--let $log_pattern= update %
+--source suite/federated/include/federatedx_pushdown_log_show.inc
+
+SET global federated_pushdown=0;
+--echo # Reset the data so this non-pushed-down CALL actually changes a row
+CALL fill_tables();
+--echo # A later, non-pushed-down execution must work too
+CALL p_reparse();
+SELECT a, b FROM t1 ORDER BY a;
+
+DROP PROCEDURE p_reparse;
+
+DROP PROCEDURE p_upd_del;
+DROP PROCEDURE p_outer;
+DROP PROCEDURE p_execute;
+
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 

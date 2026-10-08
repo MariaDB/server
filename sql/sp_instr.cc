@@ -420,6 +420,19 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     res= instr->exec_core(thd, nextp);
     DBUG_PRINT("info",("exec_core returned: %d", res));
   }
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    sp_head::execute() freezes the main_mem_root of the whole routine, so
+    one instruction that skipped its once-per-statement optimization
+    (because of pushdown) disables the protection for the entire routine.
+  */
+  if (m_lex->dont_freeze_mem_root)
+  {
+    DBUG_ASSERT(thd->spcont && thd->spcont->m_sp);
+    DBUG_PRINT("info", ("mem_root protection of the routine is disabled"));
+    thd->spcont->m_sp->set_dont_freeze_mem_root();
+  }
+#endif
 
   /*
     Call after unit->cleanup() to close open table
@@ -609,10 +622,12 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
        sp_lex_instr is re-parsed after the metadata change, which sets up a new
        mem_root for reparsing. Once the sp_lex_instr is reparsed and re-executed
        (via reset_lex_and_exec_core) it should be marked as read-only to enforce
-       sp memory root protection.
+       sp memory root protection, unless the statement was pushed down to an
+       engine (see LEX::dont_freeze_mem_root).
        */
 #ifdef PROTECT_STATEMENT_MEMROOT
-      if (rerun_the_same_instr && instr->mem_root)
+      if (rerun_the_same_instr && instr->mem_root &&
+          !m_lex->dont_freeze_mem_root)
         instr->mem_root->flags |= ROOT_FLAG_READ_ONLY;
 #endif
       break;

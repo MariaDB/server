@@ -148,6 +148,18 @@ protected:
   */
   ulong executed_counter;
 #endif
+#ifdef PROTECT_STATEMENT_MEMROOT
+  /*
+    Set when any instruction's LEX has LEX::dont_freeze_mem_root set, which
+    happens when the instruction's statement constructed a pushdown_handler or
+    a derived_handler. From then on, for the life of this cached sp_head,
+    the routine's main_mem_root is not frozen, for all of the routine's
+    statements, not only the pushed down one. A main_mem_root that is
+    already frozen is not unfrozen: that is safe, as a pushed down execution
+    does not allocate on the statement arena.
+  */
+  bool dont_freeze_mem_root= false;
+#endif
 public:
   /** Possible values of m_flags */
   enum {
@@ -946,6 +958,7 @@ public:
 #ifdef PROTECT_STATEMENT_MEMROOT
   int has_all_instrs_executed();
   void reset_instrs_executed_counter();
+  void set_dont_freeze_mem_root() { dont_freeze_mem_root= true; }
 #endif
 
   /* Add tables used by routine to the table list. */
