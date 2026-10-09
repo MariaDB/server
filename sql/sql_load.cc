@@ -571,8 +571,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     if (thd->rgi_slave)
     {
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-      if (strncmp(thd->rgi_slave->rli->slave_patternload_file, name,
-                  thd->rgi_slave->rli->slave_patternload_file_size))
+      if (strncmp(thd->rgi_slave->q->rli->slave_patternload_file, name,
+                  thd->rgi_slave->q->rli->slave_patternload_file_size))
       {
         /*
           LOAD DATA INFILE in the slave SQL Thread can only read from 

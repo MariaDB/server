@@ -1364,7 +1364,7 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
   DBUG_ENTER("Relay_log_info::stmt_done");
 
   DBUG_ASSERT(!belongs_to_client());
-  DBUG_ASSERT(rgi->rli == this);
+  DBUG_ASSERT(rgi->q->rli == this);
   /*
     If in a transaction, and if the slave supports transactions, just
     inc_event_relay_log_pos(). We only have to check for OPTION_BEGIN
@@ -2074,15 +2074,13 @@ end:
 
 
 void
-rpl_group_info::reinit(Relay_log_info *rli)
+rpl_group_info::reinit()
 {
-  this->rli= rli;
+  q= NULL;
   tables_to_lock= NULL;
   tables_to_lock_count= 0;
   trans_retries= 0;
   last_event_start_time= 0;
-  gtid_sub_id= 0;
-  commit_id= 0;
   gtid_pending= false;
   worker_error= 0;
   row_stmt_start_timestamp= 0;
@@ -2092,26 +2090,24 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ev_flags_extra= 0;
   gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
-  orig_exec_time= 0;
+  killed_for_retry= RETRY_KILL_NONE;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
-  speculation= SPECULATE_NO;
-  rpt= NULL;
+  finish_event_group_called= false;
   start_alter_ev= NULL;
+  sa_info= NULL;
   direct_commit_alter= false;
-  commit_orderer.reinit();
+  free_annotate_event();
 }
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli)
-  : thd(0), wait_commit_sub_id(0),
-    wait_commit_group_info(0), parallel_entry(0),
+rpl_group_info::rpl_group_info()
+  : thd(0),
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
     gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
-    reserved_start_alter_thread(0), finish_event_group_called(0), rpt(NULL),
-    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL),
+    rpt(NULL),
+    start_alter_ev(NULL), direct_commit_alter(false),
     is_new_trans(false), assembler(NULL)
 {
-  reinit(rli);
-  bzero(&current_gtid, sizeof(current_gtid));
+  reinit();
   mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
                    MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL);
@@ -2123,13 +2119,36 @@ rpl_group_info::~rpl_group_info()
 
   free_annotate_event();
   delete deferred_events;
+  delete q;
   mysql_mutex_destroy(&sleep_lock);
   mysql_cond_destroy(&sleep_cond);
 }
 
 
+rgi_queued_part::rgi_queued_part()
+{
+  /* All by default member initializations in the struct definition. */
+}
+
+rgi_queued_part::rgi_queued_part(Relay_log_info *rli_)
+  : rli(rli_)
+{
+}
+
+
+void
+rpl_group_info::install_queued_part(rgi_queued_part *rgi_q)
+{
+  q= rgi_q;
+  gtid_pending= true;
+  retry_event_count= 0;
+  if (unlikely(rgi_q->deferred_events_collecting) && !deferred_events)
+    deferred_events= new Deferred_log_events(rgi_q->rli);
+}
+
+
 int
-event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
+event_group_new_gtid(rgi_queued_part *rgi_q, Gtid_log_event *gev)
 {
   uint64 sub_id= rpl_global_gtid_slave_state->next_sub_id(gev->domain_id);
   if (!sub_id)
@@ -2137,13 +2156,12 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
     /* Out of memory caused hash insertion to fail. */
     return 1;
   }
-  rgi->gtid_sub_id= sub_id;
-  rgi->current_gtid.domain_id= gev->domain_id;
-  rgi->current_gtid.server_id= gev->server_id;
-  rgi->current_gtid.seq_no= gev->seq_no;
-  rgi->commit_id= gev->commit_id;
-  rgi->gtid_pending= true;
-  rgi->sa_info= NULL;
+  rgi_q->gtid_sub_id= sub_id;
+  rgi_q->current_gtid.domain_id= gev->domain_id;
+  rgi_q->current_gtid.server_id= gev->server_id;
+  rgi_q->current_gtid.seq_no= gev->seq_no;
+  rgi_q->commit_id= gev->commit_id;
+  rgi_q->orig_exec_time= 0;
   return 0;
 }
 
@@ -2250,14 +2268,14 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
 
     thd->release_transactional_locks();
 
-    if (thd == rli->sql_driver_thd)
+    if (thd == q->rli->sql_driver_thd)
     {
       /*
         Reset flags. This is needed to handle incident events and errors in
         the relay log noticed by the sql driver thread.
       */
-      rli->clear_flag(Relay_log_info::IN_STMT);
-      rli->clear_flag(Relay_log_info::IN_TRANSACTION);
+      q->rli->clear_flag(Relay_log_info::IN_STMT);
+      q->rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
 
     /*
@@ -2284,7 +2302,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owne
   unset_long_find_row_note_printed();
 
   DBUG_EXECUTE_IF("inject_sleep_gtid_100_x_x", {
-      if (current_gtid.domain_id == 100)
+      if (q->current_gtid.domain_id == 100)
         my_sleep(50000);
     };);
 
@@ -2414,7 +2432,7 @@ rpl_group_info::mark_start_commit_no_lock()
   if (did_mark_start_commit)
     return;
   did_mark_start_commit= true;
-  mark_start_commit_inner(parallel_entry, gco, this);
+  mark_start_commit_inner(q->parallel_entry, q->gco, this);
 }
 
 
@@ -2427,9 +2445,9 @@ rpl_group_info::mark_start_commit()
     return;
   did_mark_start_commit= true;
 
-  e= this->parallel_entry;
+  e= this->q->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
-  mark_start_commit_inner(e, gco, this);
+  mark_start_commit_inner(e, q->gco, this);
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
 }
 
@@ -2445,11 +2463,11 @@ rpl_group_info::mark_start_commit()
 char *
 rpl_group_info::gtid_info() const
 {
-  if (!gtid_sub_id || !current_gtid.seq_no)
+  if (!q->gtid_sub_id || !q->current_gtid.seq_no)
     return NULL;
   my_snprintf(gtid_info_buf, sizeof(gtid_info_buf), "Gtid %u-%u-%llu",
-              current_gtid.domain_id, current_gtid.server_id,
-              current_gtid.seq_no);
+              q->current_gtid.domain_id, q->current_gtid.server_id,
+              q->current_gtid.seq_no);
   return gtid_info_buf;
 }
 
@@ -2475,7 +2493,7 @@ rpl_group_info::unmark_start_commit()
     return;
   did_mark_start_commit= false;
 
-  e= this->parallel_entry;
+  e= this->q->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   /*
     Assert that we have not already wrongly completed this GCO and signalled
@@ -2490,8 +2508,8 @@ rpl_group_info::unmark_start_commit()
   bool allow_unmark_after_complete= false;
   DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
                   allow_unmark_after_complete= true;);
-  DBUG_ASSERT(!gco->next_gco ||
-              gco->next_gco->wait_count > e->count_committing_event_groups ||
+  DBUG_ASSERT(!q->gco->next_gco ||
+              q->gco->next_gco->wait_count > e->count_committing_event_groups ||
               allow_unmark_after_complete);
 #endif
   --e->count_committing_event_groups;

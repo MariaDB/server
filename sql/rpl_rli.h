@@ -751,33 +751,63 @@ struct Rpl_table_data
   each running sql thread, each having their own thd.
 
   All rpl_group_info will share the same Relay_log_info.
+
+  Part of the rpl_group_info is setup by the SQL driver thread in parallel
+  replication and queued per-event-group for the worker threads. This part is
+  split out in rgi_queued_part to reduce memory requirement for the queue.
 */
 
-struct rpl_group_info
-{
-  rpl_group_info *next;             /* For free list in rpl_parallel_thread */
-  Relay_log_info *rli;
-  THD *thd;
+enum enum_speculation {
   /*
-    Current GTID being processed.
-    The sub_id gives the binlog order within one domain_id. A zero sub_id
-    means that there is no active GTID.
+    This transaction was group-committed together on the master with the
+    other transactions with which it is replicated in parallel.
   */
-  uint64 gtid_sub_id;
-  rpl_gtid current_gtid;
-  /* Currently applied event or NULL */
-  Log_event *current_event;
-  uint64 commit_id;
+  SPECULATE_NO,
+  /*
+    We will optimistically try to run this transaction in parallel with
+    other transactions, even though it is not known to be conflict free.
+    If we get a conflict, we will detect it as a deadlock, roll back and
+    retry.
+  */
+  SPECULATE_OPTIMISTIC,
+  /*
+    This transaction got a conflict during speculative parallel apply, or
+    it was marked on the master as likely to cause a conflict or unsafe to
+    speculate. So it will wait for the prior transaction to commit before
+    starting to replicate.
+  */
+  SPECULATE_WAIT
+};
+
+struct rgi_queued_part {
   /*
     This is used to keep transaction commit order.
     We will signal this when we commit, and can register it to wait for the
     commit_orderer of the previous commit to signal us.
   */
   wait_for_commit commit_orderer;
+
+  rgi_queued_part *next= nullptr;   /* For free list in rpl_parallel_thread */
+  Relay_log_info *rli= nullptr;
   /*
-    If non-zero, the sub_id of a prior event group whose commit we have to wait
-    for before committing ourselves. Then wait_commit_group_info points to the
-    event group to wait for.
+    Current GTID being processed.
+    The sub_id gives the binlog order within one domain_id. A zero sub_id
+    means that there is no active GTID.
+  */
+  uint64 gtid_sub_id= 0;
+  rpl_gtid current_gtid{0, 0, 0};
+  uint64 commit_id= 0;
+  struct rpl_parallel_entry *parallel_entry= nullptr;
+  /*
+    Information to be able to re-try an event group in case of a deadlock or
+    other temporary error.
+  */
+  inuse_relaylog *relay_log= nullptr;
+  uint64 retry_start_offset= 0;
+  /*
+    If non-zero, the sub_id of a prior event group whose commit we have to
+    wait for before committing ourselves. Then wait_commit_rgi_q points
+    to the event group to wait for.
 
     Before using this, rpl_parallel_entry::last_committed_sub_id should be
     compared against wait_commit_sub_id. Only if last_committed_sub_id is
@@ -785,8 +815,8 @@ struct rpl_group_info
     waited-for transaction is already committed, so we would otherwise wait
     for the wrong commit).
   */
-  uint64 wait_commit_sub_id;
-  rpl_group_info *wait_commit_group_info;
+  uint64 wait_commit_sub_id= 0;
+  rgi_queued_part *wait_commit_rgi_q= nullptr;
   /*
     This holds a pointer to a struct that keeps track of the need to wait
     for the previous batch of event groups to reach the commit stage, before
@@ -800,9 +830,42 @@ struct rpl_group_info
     gtid_sub_id < parallel_entry->last_committed_sub_id. After that, it can
     be freed by another thread.
   */
-  group_commit_orderer *gco;
+  group_commit_orderer *gco= nullptr;
 
-  struct rpl_parallel_entry *parallel_entry;
+  /*
+    The exec_time of the transaction from the master's binlog. It is used with
+    log_slave_updates to preserve execution time value from the master when
+    re-binlogging on the slave.
+  */
+  my_time_t orig_exec_time= 0;
+
+  enum enum_speculation speculation= SPECULATE_NO;
+
+  /*
+    State of the container: true stands for IRU events gathering,
+    false does for execution, either deferred or direct.
+  */
+  bool deferred_events_collecting= false;
+  bool reserved_start_alter_thread= false;
+
+  rgi_queued_part();
+  rgi_queued_part(Relay_log_info *rli_);
+};
+
+struct rpl_group_info
+{
+  /*
+    This is the part of the rgi that is filled in by the SQL driver thread
+    (in parallel replication), and which is queued for processing by worker
+    threads. Keep this separate to reduce memory usage; this part needs to
+    be allocated per-queued event group, while the rest is only needed once
+    per worker thread.
+  */
+  struct rgi_queued_part *q;
+
+  THD *thd;
+  /* Currently applied event or NULL */
+  Log_event *current_event;
 
   /*
     A container to hold on Intvar-, Rand-, Uservar- log-events in case
@@ -811,12 +874,6 @@ struct rpl_group_info
     determined for execution as well.
   */
   Deferred_log_events *deferred_events;
-
-  /*
-    State of the container: true stands for IRU events gathering, 
-    false does for execution, either deferred or direct.
-  */
-  bool deferred_events_collecting;
 
   Annotate_rows_log_event *m_annotate_event;
 
@@ -893,19 +950,6 @@ struct rpl_group_info
   */
   my_time_t last_master_timestamp;
 
-  /*
-    The exec_time of the transaction from the master's binlog. It is used with
-    log_slave_updates to preserve execution time value from the master when
-    re-binlogging on the slave.
-  */
-  my_time_t orig_exec_time;
-
-  /*
-    Information to be able to re-try an event group in case of a deadlock or
-    other temporary error.
-  */
-  inuse_relaylog *relay_log;
-  uint64 retry_start_offset;
   uint64 retry_event_count;
   /*
     If `speculation' is != SPECULATE_NO, then we are optimistically running
@@ -916,34 +960,12 @@ struct rpl_group_info
     duplicate key for example). So in case of _any_ error, we need to roll
     back and retry the event group.
   */
-  enum enum_speculation {
-    /*
-      This transaction was group-committed together on the master with the
-      other transactions with which it is replicated in parallel.
-    */
-    SPECULATE_NO,
-    /*
-      We will optimistically try to run this transaction in parallel with
-      other transactions, even though it is not known to be conflict free.
-      If we get a conflict, we will detect it as a deadlock, roll back and
-      retry.
-    */
-    SPECULATE_OPTIMISTIC,
-    /*
-      This transaction got a conflict during speculative parallel apply, or
-      it was marked on the master as likely to cause a conflict or unsafe to
-      speculate. So it will wait for the prior transaction to commit before
-      starting to replicate.
-    */
-    SPECULATE_WAIT
-  } speculation;
   enum enum_retry_killed {
     RETRY_KILL_NONE = 0,
     RETRY_KILL_PENDING,
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
-  bool reserved_start_alter_thread;
   bool finish_event_group_called;
   /*
     Used for two phase alter table
@@ -963,9 +985,10 @@ struct rpl_group_info
   */
   Rows_log_event_assembler *assembler;
 
-  rpl_group_info(Relay_log_info *rli_);
+  rpl_group_info();
   ~rpl_group_info();
-  void reinit(Relay_log_info *rli);
+  void reinit();
+  void install_queued_part(rgi_queued_part *rgi_q);
 
   /* 
      Returns true if the argument event resides in the container;
@@ -973,7 +996,7 @@ struct rpl_group_info
   */
   bool is_deferred_event(Log_event * ev)
   {
-    return deferred_events_collecting ? deferred_events->is_last(ev) : false;
+    return q->deferred_events_collecting ? deferred_events->is_last(ev) : false;
   };
   /* The general cleanup that slave applier may need at the end of query. */
   inline void cleanup_after_query()
@@ -1079,7 +1102,7 @@ struct rpl_group_info
   inline void inc_event_relay_log_pos()
   {
     if (!is_parallel_exec)
-      rli->event_relay_log_pos= future_event_relay_log_pos;
+      q->rli->event_relay_log_pos= future_event_relay_log_pos;
   }
 
   void finish_start_alter_event_group();
@@ -1150,7 +1173,7 @@ extern gtid_waiting rpl_global_gtid_waiting;
 
 int rpl_load_gtid_slave_state(THD *thd);
 int find_gtid_slave_pos_tables(THD *thd);
-int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
+int event_group_new_gtid(rgi_queued_part *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                      Log_event_type typ, Log_event *ev);
 

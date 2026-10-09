@@ -445,7 +445,7 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
       bool unpack_result= st.unpack_field(tabledef, field, master_idx);
       if (!unpack_result)
       {
-        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+        rgi->q->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                     rgi->gtid_info(),
                     "Could not read field '%s' of table '%s.%s'",
                     field->field_name.str, table->s->db.str,

@@ -966,10 +966,10 @@ bool THD::has_temporary_tables()
   */
   if (not_new_trans(rgi_slave))
   {
-    mysql_mutex_lock(&rgi_slave->rli->data_lock);
-    result= rgi_slave->rli->save_temporary_tables &&
-      !rgi_slave->rli->save_temporary_tables->is_empty();
-    mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+    mysql_mutex_lock(&rgi_slave->q->rli->data_lock);
+    result= rgi_slave->q->rli->save_temporary_tables &&
+      !rgi_slave->q->rli->save_temporary_tables->is_empty();
+    mysql_mutex_unlock(&rgi_slave->q->rli->data_lock);
   }
   else
 #endif
@@ -1683,8 +1683,8 @@ bool THD::lock_temporary_tables()
 #ifdef HAVE_REPLICATION
   if (not_new_trans(rgi_slave)) /* see has_temporary_tables comments */
   {
-    mysql_mutex_lock(&rgi_slave->rli->data_lock);
-    temporary_tables= rgi_slave->rli->save_temporary_tables;
+    mysql_mutex_lock(&rgi_slave->q->rli->data_lock);
+    temporary_tables= rgi_slave->q->rli->save_temporary_tables;
     m_tmp_tables_locked= true;
   }
 #endif
@@ -1711,9 +1711,9 @@ void THD::unlock_temporary_tables()
 #ifdef HAVE_REPLICATION
   if (not_new_trans(rgi_slave))                /* ditto lock */
   {
-    rgi_slave->rli->save_temporary_tables= temporary_tables;
+    rgi_slave->q->rli->save_temporary_tables= temporary_tables;
     temporary_tables= NULL;                     /* Safety */
-    mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+    mysql_mutex_unlock(&rgi_slave->q->rli->data_lock);
     m_tmp_tables_locked= false;
   }
 #endif

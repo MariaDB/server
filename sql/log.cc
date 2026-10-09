@@ -739,7 +739,7 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                           STRING_WITH_LEN("now wait_for alter_cont"));
       });
 
-    Master_info *mi= thd->rgi_slave->rli->mi;
+    Master_info *mi= thd->rgi_slave->q->rli->mi;
     start_alter_info *info= thd->rgi_slave->sa_info;
     bool is_shutdown= false;
 
@@ -751,7 +751,7 @@ bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
     mi->start_alter_list.push_back(info, &mi->mem_root);
     mysql_mutex_unlock(&mi->start_alter_list_lock);
     info->state= start_alter_state::REGISTERED;
-    thd->rgi_slave->commit_orderer.wait_for_prior_commit(thd);
+    thd->rgi_slave->q->commit_orderer.wait_for_prior_commit(thd);
     thd->rgi_slave->start_alter_ev->update_pos(thd->rgi_slave);
     if (mysql_bin_log.is_open())
     {
@@ -8688,8 +8688,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 
   DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_write", {
       if (thd->rgi_slave &&
-          thd->rgi_slave->current_gtid.domain_id==0 &&
-          thd->rgi_slave->current_gtid.seq_no == 100)
+          thd->rgi_slave->q->current_gtid.domain_id==0 &&
+          thd->rgi_slave->q->current_gtid.seq_no == 100)
         my_sleep(10000);
     });
   /*
@@ -8968,8 +8968,8 @@ err:
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("pause_before_write_gtid_0_x_100", {
             if (thd->rgi_slave &&
-                thd->rgi_slave->current_gtid.domain_id == 0 &&
-                thd->rgi_slave->current_gtid.seq_no == 100) {
+                thd->rgi_slave->q->current_gtid.domain_id == 0 &&
+                thd->rgi_slave->q->current_gtid.seq_no == 100) {
                   debug_sync_set_action(thd,
                 STRING_WITH_LEN("now SIGNAL before_write_gtid_event "
                                 "WAIT_FOR cont"));

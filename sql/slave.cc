@@ -1467,7 +1467,7 @@ static bool io_slave_killed(Master_info* mi)
 static bool sql_slave_killed(rpl_group_info *rgi)
 {
   bool ret= FALSE;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   THD *thd= rgi->thd;
   DBUG_ENTER("sql_slave_killed");
 
@@ -3493,7 +3493,7 @@ has_temporary_error(THD *thd)
 int
 sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
 {
-  Relay_log_info* rli= rgi->rli;
+  Relay_log_info* rli= rgi->q->rli;
   long sql_delay= rli->get_sql_delay();
 
   DBUG_ENTER("sql_delay_event");
@@ -3620,7 +3620,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
                                  int reason)
 {
   int exec_res= 0;
-  Relay_log_info* rli= rgi->rli;
+  Relay_log_info* rli= rgi->q->rli;
 
   DBUG_ENTER("apply_event_and_update_pos_apply");
 #ifdef ENABLED_DEBUG_SYNC
@@ -3643,7 +3643,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       my_snprintf(expect_buf, sizeof(expect_buf), "fragment %u / %u",
                   rgi->assembler->last_fragment_seen + 1,
                   rgi->assembler->total_fragments);
-      rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+      rgi->q->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
                        rgi->gtid_info(),
                        ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
                        found_buf, expect_buf);
@@ -3814,7 +3814,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
 int
 apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info *rgi)
 {
-  Relay_log_info* rli= rgi->rli;
+  Relay_log_info* rli= rgi->q->rli;
   mysql_mutex_assert_owner(&rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   if (reason == Log_event::EVENT_SKIP_COUNT)
@@ -3850,7 +3850,7 @@ apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
   bool  is_sa= rgi->gtid_ev_flags_extra == Gtid_log_event::FL_START_ALTER_E1;
   bool  is_sa_temp_err= false;
 
-  mysql_mutex_assert_not_owner(&rgi->rli->data_lock);
+  mysql_mutex_assert_not_owner(&rgi->q->rli->data_lock);
   int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
   /*
     In parallel replication, sql_slave_skip_counter is handled in the SQL
@@ -3874,7 +3874,7 @@ apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
 
   if (is_sa_temp_err)
   {
-    Master_info *mi= rgi->rli->mi;
+    Master_info *mi= rgi->q->rli->mi;
     mysql_mutex_lock(&mi->start_alter_lock);
 
     DBUG_ASSERT(!rgi->sa_info->direct_commit_alter);
@@ -3888,7 +3888,7 @@ apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
     mysql_mutex_unlock(&mi->start_alter_lock);
     if (global_system_variables.log_warnings > 2)
     {
-      rpl_gtid *gtid= &rgi->current_gtid;
+      rpl_gtid *gtid= &rgi->q->current_gtid;
       sql_print_information("Start Alter Query '%s' "
                             "GTID %u-%u-%llu having a temporary error %d code "
                             "has been unsuccessfully retried %lu times; its "
@@ -4065,7 +4065,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
     int exec_res;
     Log_event_type typ= ev->get_type_code();
-    serial_rgi->orig_exec_time= ev->exec_time;
+    serial_rgi->q->orig_exec_time= ev->exec_time;
 
     DBUG_EXECUTE_IF(
         "pause_sql_thread_on_next_event",
@@ -4264,7 +4264,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         For GTID, allocate a new sub_id for the given domain_id.
         The sub_id must be allocated in increasing order of binlog order.
       */
-      if (event_group_new_gtid(serial_rgi, gev))
+      if (event_group_new_gtid(serial_rgi->q, gev))
       {
         sql_print_error("Error reading relay log event: %s", "slave SQL thread "
                         "aborted because of out-of-memory error");
@@ -4275,14 +4275,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
+      /* ToDo: Could we put this somewhere in some common code? */
+      serial_rgi->sa_info= NULL;
+      serial_rgi->gtid_pending= true;
 
-      rli->last_seen_gtid= serial_rgi->current_gtid;
+      rli->last_seen_gtid= serial_rgi->q->current_gtid;
       rli->last_trans_retry_count= serial_rgi->trans_retries;
       if (opt_gtid_ignore_duplicates &&
           rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
         int res= rpl_global_gtid_slave_state->check_duplicate_gtid
-          (&serial_rgi->current_gtid, serial_rgi);
+          (&serial_rgi->q->current_gtid, serial_rgi);
         if (res < 0)
         {
           sql_print_error("Error processing GTID event: %s", "slave SQL "
@@ -5108,7 +5111,7 @@ slave_output_error_info(rpl_group_info *rgi, THD *thd)
     codes and warnings and print this to the error log as to
     allow the user to locate the error
   */
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   uint32 const last_errno= rli->last_error().number;
 
   if (unlikely(thd->is_error()))
@@ -5222,7 +5225,8 @@ pthread_handler_t handle_slave_sql(void *arg)
  wsrep_restart_point:
 #endif
 
-  serial_rgi= new rpl_group_info(rli);
+  serial_rgi= new rpl_group_info();
+  serial_rgi->q= new rgi_queued_part(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
   thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
@@ -5289,7 +5293,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   thd->init_for_queries();
   thd->rgi_slave= serial_rgi;
-  if ((serial_rgi->deferred_events_collecting= mi->rpl_filter->is_on()))
+  if ((serial_rgi->q->deferred_events_collecting= mi->rpl_filter->is_on()))
   {
     serial_rgi->deferred_events= new Deferred_log_events(rli);
   }
@@ -5340,9 +5344,9 @@ pthread_handler_t handle_slave_sql(void *arg)
   //tell the I/O thread to take relay_log_space_limit into account from now on
   rli->ignore_log_space_limit= 0;
 
-  serial_rgi->gtid_sub_id= 0;
+  serial_rgi->q->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
-  rli->last_seen_gtid= serial_rgi->current_gtid;
+  rli->last_seen_gtid= serial_rgi->q->current_gtid;
   if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel() &&
       rli->restart_gtid_pos.count() > 0)
   {
@@ -7309,7 +7313,7 @@ static IO_CACHE *reopen_relay_log(Relay_log_info *rli, const char **errmsg)
 static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 {
   Log_event* ev;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   IO_CACHE* cur_log = rli->cur_log;
   mysql_mutex_t *log_lock = rli->relay_log.get_log_lock();
   const char* errmsg=0;
@@ -7982,7 +7986,7 @@ bool rpl_master_erroneous_autoinc(THD *thd)
   if (thd->rgi_slave)
   {
     DBUG_EXECUTE_IF("simulate_bug33029", return TRUE;);
-    return rpl_master_has_bug(thd->rgi_slave->rli, 33029, FALSE, NULL, NULL);
+    return rpl_master_has_bug(thd->rgi_slave->q->rli, 33029, FALSE, NULL, NULL);
   }
   return FALSE;
 }

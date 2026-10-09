@@ -9888,8 +9888,8 @@ void TABLE::vers_fix_old_timestamp(rpl_group_info *rgi)
     - Data sent from mariadb-binlog
     - online_alter_read_from_binlog (in this case no transformation is needed)
   */
-  if (rgi->rli->mi &&
-      file->check_versioned_compatibility(rgi->rli->mi->mysql_version))
+  if (rgi->q->rli->mi &&
+      file->check_versioned_compatibility(rgi->q->rli->mi->mysql_version))
   {
     Field *end_field= vers_end_field();
 

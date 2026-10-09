@@ -2847,7 +2847,7 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
 {
   rpl_group_info *rgi_slave= ctx->get_thd()->rgi_slave;
 
-  if (!rgi_slave->gtid_sub_id)
+  if (!rgi_slave->q->gtid_sub_id)
     return 0;
 
   for (const auto &conflicting_ticket : m_granted)
@@ -2865,10 +2865,10 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
         seriously wrong.
       */
       if (conflicting_rgi_slave &&
-          conflicting_rgi_slave->gtid_sub_id &&
-          conflicting_rgi_slave->rli == rgi_slave->rli &&
-          conflicting_rgi_slave->current_gtid.domain_id ==
-          rgi_slave->current_gtid.domain_id &&
+          conflicting_rgi_slave->q->gtid_sub_id &&
+          conflicting_rgi_slave->q->rli == rgi_slave->q->rli &&
+          conflicting_rgi_slave->q->current_gtid.domain_id ==
+          rgi_slave->q->current_gtid.domain_id &&
           !((conflicting_rgi_slave->did_mark_start_commit ||
              conflicting_rgi_slave->worker_error)           ||
             conflicting_rgi_slave->finish_event_group_called))

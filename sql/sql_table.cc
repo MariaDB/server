@@ -8004,7 +8004,7 @@ write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
   if (start_alter_id)
   {
     start_alter_info *info= thd->rgi_slave->sa_info;
-    Master_info *mi= thd->rgi_slave->rli->mi;
+    Master_info *mi= thd->rgi_slave->q->rli->mi;
 
     if (info->sa_seq_no == 0)
     {
@@ -10443,7 +10443,7 @@ static bool wait_for_master(THD *thd)
 {
 #ifdef HAVE_REPLICATION
   start_alter_info* info= thd->rgi_slave->sa_info;
-  Master_info *mi= thd->rgi_slave->rli->mi;
+  Master_info *mi= thd->rgi_slave->q->rli->mi;
 
   DBUG_ASSERT(info);
   DBUG_ASSERT(info->state != start_alter_state::INVALID);
@@ -10550,7 +10550,7 @@ static int process_master_state(THD *thd, int alter_result,
   if ((info->state == start_alter_state::ROLLBACK_ALTER && alter_result >= 0)
       || (info->state == start_alter_state::COMMIT_ALTER && !alter_result))
   {
-    alter_committed(thd, info, thd->rgi_slave->rli->mi);
+    alter_committed(thd, info, thd->rgi_slave->q->rli->mi);
     return 0;
   }
   else
@@ -12556,7 +12556,8 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
   thd->push_internal_handler(&hdeh);
   do
   {
-    const auto *descr_event= rgi->rli->relay_log.description_event_for_sql_thread;
+    const auto *descr_event=
+      rgi->q->rli->relay_log.description_event_for_sql_thread;
     auto *ev= Log_event::read_log_event(log_file, &error, descr_event, 0, 1, ~0UL);
     error= log_file->error;
     if (unlikely(!ev))
@@ -12574,7 +12575,7 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
     if(likely(!error))
       ev->online_alter_update_row_count(found_rows);
 
-    if (ev != rgi->rli->relay_log.description_event_for_sql_thread)
+    if (ev != rgi->q->rli->relay_log.description_event_for_sql_thread)
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
     DEBUG_SYNC(thd, "alter_table_online_progress");
@@ -13144,7 +13145,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
                                     from->file->has_transactions());
 
     Relay_log_info *rli= new(rli_buff) Relay_log_info(false);
-    rpl_group_info rgi(rli);
+    rpl_group_info rgi;
+    rgi.q= new rgi_queued_part(rli);
     RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, &table_event, copy, copy_end);
     DBUG_ASSERT(to->pos_in_table_list == NULL);
     to->pos_in_table_list= &rpl_table;

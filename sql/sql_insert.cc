@@ -955,7 +955,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (thd->rgi_slave &&
       (info.handle_duplicates == DUP_UPDATE) &&
       (table->next_number_field != NULL) &&
-      rpl_master_has_bug(thd->rgi_slave->rli, 24432, TRUE, NULL, NULL))
+      rpl_master_has_bug(thd->rgi_slave->q->rli, 24432, TRUE, NULL, NULL))
     goto abort;
 #endif
 
@@ -2388,7 +2388,7 @@ int Write_record::single_insert(ha_rows *inserted)
 {
   DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
   {
-    uint64 seq= thd->rgi_slave ? thd->rgi_slave->current_gtid.seq_no : 0;
+    uint64 seq= thd->rgi_slave ? thd->rgi_slave->q->current_gtid.seq_no : 0;
     if (seq == 100 || seq == 200)
       my_sleep(20000);
   });
@@ -4419,7 +4419,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   if (thd->rgi_slave &&
       (info.handle_duplicates == DUP_UPDATE) &&
       (table->next_number_field != NULL) &&
-      rpl_master_has_bug(thd->rgi_slave->rli, 24432, TRUE, NULL, NULL))
+      rpl_master_has_bug(thd->rgi_slave->q->rli, 24432, TRUE, NULL, NULL))
     DBUG_RETURN(1);
 #endif
 
