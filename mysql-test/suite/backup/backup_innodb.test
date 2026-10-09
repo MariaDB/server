@@ -154,10 +154,12 @@ if (!$MARIADB_UPGRADE_EXE) {
 --source include/restart_mysqld.inc
 --list_files $target_directory/test dt*.ibd
 
-SELECT * FROM rt;
 SELECT * FROM rtt;
+if ($have_debug) {
+SELECT * FROM rt;
 --error ER_NO_SUCH_TABLE
 SELECT * FROM dt;
+}
 SELECT * FROM t;
 # A nonzero innodb_log_recovery_target makes InnoDB read-only.
 --error ER_OPEN_AS_READONLY

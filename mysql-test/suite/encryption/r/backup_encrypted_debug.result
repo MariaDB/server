@@ -83,9 +83,9 @@ SELECT * FROM dt;
 ERROR 42S02: Table 'test.dt' doesn't exist
 DROP TABLE at0, at1;
 # restart: --defaults-file=MYSQLTEST_VARDIR/some_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_directory
-SELECT * FROM rt;
-a
 SELECT * FROM rtt;
+a
+SELECT * FROM rt;
 a
 SELECT * FROM dt;
 ERROR 42S02: Table 'test.dt' doesn't exist

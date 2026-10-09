@@ -49,3 +49,14 @@
  connection backup;
  disconnect backup;
  connection default;
+@@ -54,6 +85,10 @@
+ # restart: --defaults-file=MYSQLTEST_VARDIR/some_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_directory
+ SELECT * FROM rtt;
+ a
++SELECT * FROM rt;
++a
++SELECT * FROM dt;
++ERROR 42S02: Table 'test.dt' doesn't exist
+ SELECT * FROM t;
+ a	b
+ 1	
