@@ -44,6 +44,19 @@ Created 3/26/1996 Heikki Tuuri
 struct mtr_t;
 struct rw_trx_hash_element_t;
 
+#ifndef DBUG_OFF
+/** @return the background connection that owns the
+metadata locks of the recovered transactions
+@retval nullptr if no recovered transaction holds metadata locks */
+THD *trx_recovery_thd() noexcept;
+#endif /* !DBUG_OFF */
+
+/** Destroy trx_sys.recovery, releasing any metadata locks
+that recovered transactions may still hold. Does nothing if it
+was destroyed already, which normally happens as soon as the
+last recovered transaction was freed. */
+void trx_recovery_shutdown() noexcept;
+
 /******************************************************************//**
 Set detailed error message for the transaction. */
 void
