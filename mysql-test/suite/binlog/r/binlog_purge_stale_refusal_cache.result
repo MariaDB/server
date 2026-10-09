@@ -1,0 +1,72 @@
+SET @@global.binlog_expire_logs_seconds= 0;
+SET @@global.max_binlog_total_size= 0;
+SET @@global.slave_connections_needed_for_purge= 1;
+SELECT @@global.slave_connections_needed_for_purge;
+@@global.slave_connections_needed_for_purge
+1
+SELECT @@global.binlog_expire_logs_seconds, @@global.max_binlog_total_size;
+@@global.binlog_expire_logs_seconds	@@global.max_binlog_total_size
+0	0
+# No replica has ever connected:
+SELECT COUNT(*) AS dump_threads FROM information_schema.PROCESSLIST
+WHERE COMMAND = 'Binlog Dump';
+dump_threads
+0
+RESET MASTER;
+#
+# Part 1 (control). Nothing has attempted a purge yet, so no refusal is
+# cached, and the interactive purge correctly ignores the slave's guard.
+#
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+PURGE BINARY LOGS TO 'master-bin.000003';
+SHOW WARNINGS;
+Level	Code	Message
+show binary logs;
+Log_name	File_size
+master-bin.000003	#
+master-bin.000004	#
+#
+# Part 2. Let one automatic purge be refused, then try PURGE that must
+# be effective on the fixed server.
+#
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+master-bin.000007	#
+# Let the files age past binlog_expire_logs_seconds: purge_logs_before_date
+# skips can_purge_log() for any file whose mtime is not older than that.
+SET @@global.binlog_expire_logs_seconds= 1;
+# Rotating attempts an automatic purge, which the guard refuses. That
+# refusal is what populates the cache.
+FLUSH BINARY LOGS;
+# The automatic refusal states the correct reason in the error log:
+FOUND 1 /Binary log .master-bin.000003. is not purged because less than .slave_connections_needed_for_purge. slaves have processed it/ in mysqld.1.err
+# Now the interactive purge. It should behave exactly as in part 1.
+PURGE BINARY LOGS TO 'master-bin.000006';
+# On affected versions this reports master-bin.000003 as the current active
+# binlog, while master-bin.000008 is active:
+SHOW WARNINGS;
+Level	Code	Message
+show binary logs;
+Log_name	File_size
+master-bin.000006	#
+master-bin.000007	#
+master-bin.000008	#
+SET @@global.binlog_expire_logs_seconds = $save_binlog_expire_logs_seconds;
+SET @@global.max_binlog_total_size= $save_max_binlog_total_size;
+SET @@global.slave_connections_needed_for_purge= $save_slave_connections_needed_for_purge;
+RESET MASTER;
