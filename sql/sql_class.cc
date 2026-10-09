@@ -5916,16 +5916,16 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     return 0;
   if (!rgi->is_parallel_exec)
     return 0;
-  if (rgi->rli == other_rgi->rli &&
-      rgi->current_gtid.domain_id == other_rgi->current_gtid.domain_id)
+  if (rgi->q->rli == other_rgi->q->rli &&
+      rgi->q->current_gtid.domain_id == other_rgi->q->current_gtid.domain_id)
   {
     /*
       Within the same master connection and domain, we can compare transaction
       order on the GTID sub_id, and rollback the later transaction to allow the
       earlier transaction to commit first.
     */
-    if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id ||
-        rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    if (!rgi->q->gtid_sub_id || !other_rgi->q->gtid_sub_id ||
+        rgi->q->gtid_sub_id > other_rgi->q->gtid_sub_id)
       return 0;
   }
   else
@@ -5945,7 +5945,7 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
       deadlock and hang due to a transaction doing wait_for_prior_commit while
       holding locks that block something in another master connection.
     */
-    if (other_rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC)
+    if (other_rgi->q->speculation != SPECULATE_OPTIMISTIC)
       return 0;
   }
   if (rgi->finish_event_group_called || other_rgi->finish_event_group_called)
@@ -6037,11 +6037,11 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
     return 1;
   if (!rgi->is_parallel_exec)
     return 1;
-  if (rgi->rli != other_rgi->rli)
+  if (rgi->q->rli != other_rgi->q->rli)
     return 1;
-  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+  if (rgi->q->current_gtid.domain_id != other_rgi->q->current_gtid.domain_id)
     return 1;
-  if (!rgi->commit_id || rgi->commit_id != other_rgi->commit_id)
+  if (!rgi->q->commit_id || rgi->q->commit_id != other_rgi->q->commit_id)
     return 1;
   DBUG_EXECUTE_IF("thd_need_ordering_with_force", return 1;);
   /*
@@ -6087,9 +6087,9 @@ thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
   rgi2= thd2->rgi_slave;
   if (rgi1 && rgi2 &&
       rgi1->is_parallel_exec &&
-      rgi1->rli == rgi2->rli &&
-      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
-    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+      rgi1->q->rli == rgi2->q->rli &&
+      rgi1->q->current_gtid.domain_id == rgi2->q->current_gtid.domain_id)
+    return rgi1->q->gtid_sub_id < rgi2->q->gtid_sub_id ? 1 : -1;
 
   /* No preferences, let the storage engine decide. */
   return 0;

@@ -74,15 +74,15 @@ rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
   */
   if (rgi->gtid_pending)
   {
-    uint64 sub_id= rgi->gtid_sub_id;
+    uint64 sub_id= rgi->q->gtid_sub_id;
     void *hton= NULL;
 
     rgi->gtid_pending= false;
     if (rgi->gtid_ignore_duplicate_state!=rpl_group_info::GTID_DUPLICATE_IGNORE)
     {
-      if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false, &hton))
+      if (record_gtid(thd, &rgi->q->current_gtid, sub_id, false, false, &hton))
         DBUG_RETURN(1);
-      update_state_hash(sub_id, &rgi->current_gtid, hton, rgi);
+      update_state_hash(sub_id, &rgi->q->current_gtid, hton, rgi);
     }
     rgi->gtid_ignore_duplicate_state= rpl_group_info::GTID_DUPLICATE_NULL;
   }
@@ -126,7 +126,7 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
   THD *UNINIT_VAR(thd);
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
 
   mysql_mutex_lock(&LOCK_slave_state);
   if (!(elem= get_element(domain_id)))
@@ -202,7 +202,7 @@ rpl_slave_state::release_domain_owner(rpl_group_info *rgi)
   element *elem= NULL;
 
   mysql_mutex_lock(&LOCK_slave_state);
-  if (!(elem= get_element(rgi->current_gtid.domain_id)))
+  if (!(elem= get_element(rgi->q->current_gtid.domain_id)))
   {
     /*
       We cannot really deal with error here, as we are already called in an
@@ -220,7 +220,7 @@ rpl_slave_state::release_domain_owner(rpl_group_info *rgi)
   {
     uint32 count= elem->owner_count;
     DBUG_ASSERT(count > 0);
-    DBUG_ASSERT(elem->owner_rli == rgi->rli);
+    DBUG_ASSERT(elem->owner_rli == rgi->q->rli);
     --count;
     elem->owner_count= count;
     if (count == 0)
@@ -332,7 +332,7 @@ rpl_slave_state::update_nolock(uint32 domain_id, uint32 server_id, uint64 sub_id
     if (rgi->gtid_ignore_duplicate_state==rpl_group_info::GTID_DUPLICATE_OWNER)
     {
 #ifdef DBUG_ASSERT_EXISTS
-      Relay_log_info *rli= rgi->rli;
+      Relay_log_info *rli= rgi->q->rli;
 #endif
       uint32 count= elem->owner_count;
       DBUG_ASSERT(count > 0);

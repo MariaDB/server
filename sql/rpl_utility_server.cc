@@ -929,7 +929,7 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
   /*
     We only check the initial columns for the tables.
   */
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   TABLE *table= table_list->table, *tmp_table= NULL;
   uint master_cols= size(), conv_table_idx= 0;
 
@@ -1066,7 +1066,7 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
                     "Column '%s' missing from table '%s.%s'",
                     m_tabledef.master_column_name[col], table->s->db.str,
                     table->s->table_name.str);
-        rgi->rli->report(
+        rgi->q->rli->report(
             error_level, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
             ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);
       }
@@ -1084,7 +1084,7 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
                        "Column %s missing from table '%s.%s'",
                        llstr(col+1, number),
                        table->s->db.str, table->s->table_name.str);
-        rgi->rli->report(
+        rgi->q->rli->report(
             error_level, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
             ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);
     }
@@ -1098,7 +1098,7 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
                 "for column Name: %s.%s.%s",
                 m_tabledef.binlog_type(col), field->table->s->db.str,
                 field->table->s->table_name.str, field->field_name.str);
-    rgi->rli->report(
+    rgi->q->rli->report(
         ERROR_LEVEL, ER_SLAVE_INCOMPATIBLE_TABLE_DEF, rgi->gtid_info(),
         ER_THD(rgi->thd, ER_SLAVE_INCOMPATIBLE_TABLE_DEF), error_msg);
     break;
@@ -1124,7 +1124,7 @@ bool RPL_TABLE_LIST::give_compatibility_error(rpl_group_info *rgi, uint col)
     DBUG_ASSERT(target_type.length() > 0);
     if (error_level == ERROR_LEVEL || table->in_use->variables.log_warnings >= 1)
     {
-      rgi->rli->report(
+      rgi->q->rli->report(
           error_level, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
           ER_THD(thd, ER_SLAVE_CONVERSION_FAILED), col, db_name, tbl_name,
           source_type.c_ptr_safe(), target_type.c_ptr_safe());
@@ -1195,7 +1195,7 @@ TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
                                           RPL_TABLE_LIST *table_list) const
 {
   Virtual_conversion_table *conv_table;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   TABLE *target_table= table_list->table;
   uint const cols_to_create= MY_MIN(size(), target_table->s->fields);
   DBUG_ENTER("table_def::create_conversion_table");
@@ -1284,16 +1284,16 @@ bool Deferred_log_events::execute(rpl_group_info *rgi)
 {
   bool res= false;
   DBUG_ENTER("Deferred_log_events::execute");
-  DBUG_ASSERT(rgi->deferred_events_collecting);
+  DBUG_ASSERT(rgi->q->deferred_events_collecting);
 
-  rgi->deferred_events_collecting= false;
+  rgi->q->deferred_events_collecting= false;
   for (uint i=  0; !res && i < array.elements; i++)
   {
     Log_event *ev= (* (Log_event **)
                     dynamic_array_ptr(&array, i));
     res= ev->apply_event(rgi);
   }
-  rgi->deferred_events_collecting= true;
+  rgi->q->deferred_events_collecting= true;
   DBUG_RETURN(res);
 }
 

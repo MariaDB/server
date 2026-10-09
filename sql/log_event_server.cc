@@ -148,7 +148,7 @@ is_parallel_retry_error(rpl_group_info *rgi, int err)
 {
   if (!rgi->is_parallel_exec)
     return false;
-  if (rgi->speculation == rpl_group_info::SPECULATE_OPTIMISTIC)
+  if (rgi->q->speculation == SPECULATE_OPTIMISTIC)
     return true;
   if (rgi->killed_for_retry &&
       (err == ER_QUERY_INTERRUPTED || err == ER_CONNECTION_KILLED))
@@ -201,7 +201,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 {
   const char *handler_error= (ha_error ? HA_ERR(ha_error) : NULL);
   char buff[MAX_SLAVE_ERRMSG];
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   buff[0]= 0;
   int errcode= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
 
@@ -604,7 +604,7 @@ Log_event::Log_event()
 
 int Log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_ENTER("Log_event::do_update_pos");
 
   DBUG_ASSERT(rli);
@@ -625,7 +625,7 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
 Log_event::enum_skip_reason
 Log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
                       " rli->slave_skip_counter: %llu",
@@ -937,7 +937,7 @@ bool Log_event::write_header(Log_event_writer *writer, size_t event_data_length)
 inline Log_event::enum_skip_reason
 Log_event::continue_group(rpl_group_info *rgi)
 {
-  if (rgi->rli->slave_skip_counter == 1)
+  if (rgi->q->rli->slave_skip_counter == 1)
     return Log_event::EVENT_SKIP_IGNORE;
   return Log_event::do_shall_skip(rgi);
 }
@@ -1392,7 +1392,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     For slave threads, remember the original master exec time.
     This is needed to be able to calculate the master commit time.
   */
-  exec_time= ((thd->rgi_slave) ? thd->rgi_slave->orig_exec_time
+  exec_time= ((thd->rgi_slave) ? thd->rgi_slave->q->orig_exec_time
                                : (my_time(0) - thd_arg->start_time));
 
   /**
@@ -1626,14 +1626,14 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
   if (gtid_flags_extra & Gtid_log_event::FL_START_ALTER_E1)
   {
     //No Slave, Normal Slave, Start Alter under Worker 1 will simple binlog and exit
-    if(!rgi->rpt || rgi->reserved_start_alter_thread || WSREP(thd))
+    if(!rgi->rpt || rgi->q->reserved_start_alter_thread || WSREP(thd))
     {
       rc= 1;
       /*
        We will just write the binlog and move to next event , because COMMIT
        Alter will take care of actual work
       */
-      rgi->reserved_start_alter_thread= false;
+      rgi->q->reserved_start_alter_thread= false;
       thd->lex->sql_command= SQLCOM_ALTER_TABLE;
       Write_log_with_flags wlwf(thd, Gtid_log_event::FL_START_ALTER_E1,
                                 true /* wsrep to isolation end */);
@@ -1654,10 +1654,10 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
     else
     {
       /* Not send Start-Alter into query execution when it's to rollback */
-      mysql_mutex_lock(&rgi->rli->mi->start_alter_lock);
+      mysql_mutex_lock(&rgi->q->rli->mi->start_alter_lock);
       if (rgi->sa_info->state == start_alter_state::ROLLBACK_ALTER)
         mysql_cond_broadcast(&rgi->sa_info->start_alter_cond);
-      mysql_mutex_unlock(&rgi->rli->mi->start_alter_lock);
+      mysql_mutex_unlock(&rgi->q->rli->mi->start_alter_lock);
     }
 
     return rc;
@@ -1679,14 +1679,14 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
   rgi->gtid_ev_sa_seq_no= sa_seq_no;
   // is set for both the direct execution and the write to binlog
   thd->set_binlog_start_alter_seq_no(sa_seq_no);
-  mi= rgi->rli->mi;
+  mi= rgi->q->rli->mi;
   mysql_mutex_lock(&mi->start_alter_list_lock);
   {
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))
     {
       if(info->sa_seq_no == rgi->gtid_ev_sa_seq_no &&
-         info->domain_id == rgi->current_gtid.domain_id)
+         info->domain_id == rgi->q->current_gtid.domain_id)
       {
         info_iterator.remove();
         break;
@@ -1827,7 +1827,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   uint64 sub_id= 0;
   void *hton= NULL;
   rpl_gtid gtid;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   bool current_stmt_is_commit;
   bool skip_error_check= false;
@@ -2054,10 +2054,10 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
         if (rgi->gtid_pending)
         {
-          sub_id= rgi->gtid_sub_id;
+          sub_id= rgi->q->gtid_sub_id;
           rgi->gtid_pending= false;
 
-          gtid= rgi->current_gtid;
+          gtid= rgi->q->current_gtid;
           if (unlikely(rpl_global_gtid_slave_state->record_gtid(thd, &gtid,
                                                                 sub_id,
                                                                 true, false,
@@ -2368,7 +2368,7 @@ end:
 Log_event::enum_skip_reason
 Query_log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_ENTER("Query_log_event::do_shall_skip");
   DBUG_PRINT("debug", ("query: '%s'  q_len: %d", query, q_len));
   DBUG_ASSERT(query && q_len > 0);
@@ -2578,7 +2578,7 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
 int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
 {
   int ret= 0;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_ENTER("Format_description_log_event::do_apply_event");
 
   /*
@@ -2693,7 +2693,8 @@ Format_description_log_event::do_shall_skip(rpl_group_info *rgi)
 #if defined(HAVE_REPLICATION)
 int Start_encryption_log_event::do_apply_event(rpl_group_info* rgi)
 {
-  return rgi->rli->relay_log.description_event_for_sql_thread->start_decryption(this);
+  return rgi->q->rli->relay_log.description_event_for_sql_thread->
+    start_decryption(this);
 }
 
 int Start_encryption_log_event::do_update_pos(rpl_group_info *rgi)
@@ -2778,7 +2779,7 @@ bool Rotate_log_event::write(Log_event_writer *writer)
 int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
 {
   int error= 0;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_ENTER("Rotate_log_event::do_update_pos");
 
   DBUG_PRINT("info", ("server_id=%lu; ::server_id=%lu",
@@ -3269,7 +3270,7 @@ static char gtid_begin_string[] = "BEGIN";
 int
 Gtid_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   ulonglong bits= thd->variables.option_bits;
 
   if (unlikely(thd->transaction->all.ha_list || (bits & OPTION_GTID_BEGIN)))
@@ -3379,7 +3380,7 @@ Gtid_log_event::do_update_pos(rpl_group_info *rgi)
 Log_event::enum_skip_reason
 Gtid_log_event::do_shall_skip(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   /*
     An event skipped due to @@skip_replication must not be counted towards the
     number of events to be skipped due to @@sql_slave_skip_counter.
@@ -3393,7 +3394,7 @@ Gtid_log_event::do_shall_skip(rpl_group_info *rgi)
     if (!(flags2 & FL_STANDALONE))
     {
       thd->variables.option_bits|= OPTION_BEGIN;
-      DBUG_ASSERT(rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
+      DBUG_ASSERT(rgi->q->rli->get_flag(Relay_log_info::IN_TRANSACTION));
     }
     return Log_event::continue_group(rgi);
   }
@@ -3509,7 +3510,7 @@ Gtid_list_log_event::write(Log_event_writer *writer)
 int
 Gtid_list_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= const_cast<Relay_log_info*>(rgi->rli);
+  Relay_log_info *rli= const_cast<Relay_log_info*>(rgi->q->rli);
   int ret;
   if (gl_flags & FLAG_IGN_GTIDS)
   {
@@ -3616,7 +3617,7 @@ bool Intvar_log_event::write(Log_event_writer *writer)
 int Intvar_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ENTER("Intvar_log_event::do_apply_event");
-  if (rgi->deferred_events_collecting)
+  if (rgi->q->deferred_events_collecting)
   {
     DBUG_PRINT("info",("deferring event"));
     DBUG_RETURN(rgi->deferred_events->add(this));
@@ -3689,7 +3690,7 @@ bool Rand_log_event::write(Log_event_writer *writer)
 #if defined(HAVE_REPLICATION)
 int Rand_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  if (rgi->deferred_events_collecting)
+  if (rgi->q->deferred_events_collecting)
     return rgi->deferred_events->add(this);
 
   thd->rand.seed1= (ulong) seed1;
@@ -3731,9 +3732,10 @@ bool slave_execute_deferred_events(THD *thd)
   bool res= false;
   rpl_group_info *rgi= thd->rgi_slave;
 
-  DBUG_ASSERT(rgi && (!rgi->deferred_events_collecting || rgi->deferred_events));
+  DBUG_ASSERT(rgi &&
+              (!rgi->q->deferred_events_collecting || rgi->deferred_events));
 
-  if (!rgi->deferred_events_collecting || rgi->deferred_events->is_empty())
+  if (!rgi->q->deferred_events_collecting || rgi->deferred_events->is_empty())
     return res;
 
   res= rgi->deferred_events->execute(rgi);
@@ -3756,11 +3758,11 @@ int Xid_apply_log_event::do_record_gtid(THD *thd, rpl_group_info *rgi,
                                         bool force_err)
 {
   int err= 0;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
 
   rgi->gtid_pending= false;
-  err= rpl_global_gtid_slave_state->record_gtid(thd, &rgi->current_gtid,
-                                                rgi->gtid_sub_id,
+  err= rpl_global_gtid_slave_state->record_gtid(thd, &rgi->q->current_gtid,
+                                                rgi->q->gtid_sub_id,
                                                 in_trans, false, out_hton);
 
   if (unlikely(err))
@@ -3839,8 +3841,8 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   if (rgi->gtid_pending)
   {
-    sub_id= rgi->gtid_sub_id;
-    gtid= rgi->current_gtid;
+    sub_id= rgi->q->gtid_sub_id;
+    gtid= rgi->q->current_gtid;
 
     if (!thd->transaction->xid_state.is_explicit_XA())
     {
@@ -3913,9 +3915,9 @@ Log_event::enum_skip_reason
 Xid_apply_log_event::do_shall_skip(rpl_group_info *rgi)
 {
   DBUG_ENTER("Xid_apply_log_event::do_shall_skip");
-  if (rgi->rli->slave_skip_counter > 0)
+  if (rgi->q->rli->slave_skip_counter > 0)
   {
-    DBUG_ASSERT(!rgi->rli->get_flag(Relay_log_info::IN_TRANSACTION));
+    DBUG_ASSERT(!rgi->q->rli->get_flag(Relay_log_info::IN_TRANSACTION));
     thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
     DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
   }
@@ -4266,7 +4268,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ENTER("User_var_log_event::do_apply_event");
   query_id_t sav_query_id= 0; /* memorize orig id when deferred applying */
 
-  if (rgi->deferred_events_collecting)
+  if (rgi->q->deferred_events_collecting)
   {
     set_deferred(current_thd->query_id);
     DBUG_RETURN(rgi->deferred_events->add(this));
@@ -4279,7 +4281,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (!(charset= get_charset(m_charset_number, MYF(MY_WME))))
   {
-    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+    rgi->q->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                 ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                 "Invalid character set for User var event");
     DBUG_RETURN(1);
@@ -4300,7 +4302,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     case REAL_RESULT:
       if (val_len != 8)
       {
-        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+        rgi->q->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
         DBUG_RETURN(1);
@@ -4313,7 +4315,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
     case INT_RESULT:
       if (val_len != 8)
       {
-        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+        rgi->q->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
         DBUG_RETURN(1);
@@ -4330,7 +4332,7 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       if (precision == 0 || scale > precision ||
           val_len < decimal_bin_size(precision, scale) + 2)
       {
-        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+        rgi->q->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
                     ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                     "Invalid variable length at User var event");
         DBUG_RETURN(1);
@@ -4420,7 +4422,7 @@ User_var_log_event::do_shall_skip(rpl_group_info *rgi)
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
 {
   int error= 0;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   DBUG_ENTER("Stop_log_event::do_update_pos");
   /*
     We do not want to update master_log pos because we get a rotate event
@@ -4498,7 +4500,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
   char fname[FN_REFLEN];
   int fd;
   int error = 1;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   DBUG_ENTER("Append_block_log_event::do_apply_event");
 
   THD_STAGE_INFO(thd, stage_making_temp_file_append_before_load_data);
@@ -4594,7 +4596,7 @@ void Delete_file_log_event::pack_info(Protocol *protocol)
 int Delete_file_log_event::do_apply_event(rpl_group_info *rgi)
 {
   char fname[FN_REFLEN+10];
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   char *ext= slave_load_file_stem(fname, file_id, server_id, ".data",
                                   &rli->mi->cmp_connection_name);
   mysql_file_delete(key_file_log_event_data, fname, MYF(MY_WME));
@@ -4699,7 +4701,7 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
   char *fname;
   char *fname_end;
   int error;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
 
   buf= (char*) my_malloc(PSI_INSTRUMENT_ME, q_len + 1 -
      (fn_pos_end - fn_pos_start) + (FN_REFLEN + 10) + 10 + 8 + 5, MYF(MY_WME));
@@ -4983,7 +4985,7 @@ static void update_write_set_for_auto_filled_fields(TABLE *table,
 int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 {
   DBUG_ASSERT(rgi);
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   TABLE* table;
   int error= 0;
   LEX *lex= thd->lex;
@@ -5659,7 +5661,7 @@ Rows_log_event::do_shall_skip(rpl_group_info *rgi)
     statement, then we should not start executing on the next event.
     Otherwise, we defer the decision to the normal skipping logic.
   */
-  if (rgi->rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
+  if (rgi->q->rli->slave_skip_counter == 1 && !get_flags(STMT_END_F))
     return Log_event::EVENT_SKIP_IGNORE;
   else
     return Log_event::do_shall_skip(rgi);
@@ -5765,7 +5767,7 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
 int
 Rows_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
   int error= 0;
   DBUG_ENTER("Rows_log_event::do_update_pos");
 
@@ -5918,7 +5920,7 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
         PSI_INSTRUMENT_ME, sizeof(Rows_log_event_assembler), MYF(MY_WME));
     if (!rgi->assembler)
     {
-      rgi->rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
+      rgi->q->rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                        "Could not allocate Rows_log_event_assembler");
       res= ER_OUTOFMEMORY;
       goto end;
@@ -5940,14 +5942,14 @@ int Partial_rows_log_event::do_apply_event(rpl_group_info *rgi)
   {
     THD_STAGE_INFO(rgi->thd, stage_constructing_rows_ev);
     Log_event *ev= assembler->create_rows_event(
-        rgi->rli->relay_log.description_event_for_sql_thread);
+        rgi->q->rli->relay_log.description_event_for_sql_thread);
     rgi->assembler->~Rows_log_event_assembler();
     my_free(rgi->assembler);
     rgi->assembler= NULL;
 
     if (!ev)
     {
-      rgi->rli->report(
+      rgi->q->rli->report(
           ERROR_LEVEL, ER_SLAVE_RELAY_LOG_READ_FAILURE, NULL,
           ER_THD(thd, ER_SLAVE_RELAY_LOG_READ_FAILURE),
           "Could not parse Rows_log_event re-assembled from "
@@ -6292,7 +6294,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
                 partial_ev->seq_no, partial_ev->total_fragments);
     my_snprintf(expect_buf, sizeof(expect_buf), "fragment %u / %u",
                 this->last_fragment_seen + 1, this->total_fragments);
-    rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+    rgi->q->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
                      rgi->gtid_info(),
                      ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
                      found_buf, expect_buf);
@@ -6316,7 +6318,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
         practical enough to justify a new error code; so just re-use
         ER_OUTOFMEMORY with a clear error message.
       */
-      rgi->rli->report(ERROR_LEVEL, ER_OUTOFMEMORY, rgi->gtid_info(),
+      rgi->q->rli->report(ERROR_LEVEL, ER_OUTOFMEMORY, rgi->gtid_info(),
                        "Can't reconstruct original row event size of %" PRIu64
                        " on 32-bit system",
                        partial_ev->original_event_size);
@@ -6335,7 +6337,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
   if (unlikely(!rows_ev_buf_builder_ptr))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), total_fragments*partial_ev->get_rows_size());
-    rgi->rli->report(
+    rgi->q->rli->report(
         ERROR_LEVEL, rgi->thd->get_stmt_da()->get_sql_errno(),
         rgi->gtid_info(),
         "Could not append Partial_rows_log_event %u / %u to internal "
@@ -6355,7 +6357,7 @@ int Rows_log_event_assembler::append(Partial_rows_log_event *partial_ev)
                 this->ev_len + partial_ev->get_rows_size());
     my_snprintf(expect_buf, sizeof(expect_buf), "row data size %" PRIu64,
                 this->rows_ev_buf_len);
-    rgi->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
+    rgi->q->rli->report(ERROR_LEVEL, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM,
                      rgi->gtid_info(),
                      ER_THD(rgi->thd, ER_PARTIAL_ROWS_LOG_EVENT_BAD_STREAM),
                      found_buf, expect_buf);
@@ -6733,7 +6735,7 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
 {
   DBUG_ENTER("check_table_map");
   enum_tbl_map_status res= OK_TO_PROCESS;
-  Relay_log_info *rli= rgi->rli;
+  Relay_log_info *rli= rgi->q->rli;
 
   if (rgi->thd->slave_thread /* filtering is for slave only */ &&
       (!rli->mi->rpl_filter->db_ok(table_list->db.str) ||
@@ -6778,7 +6780,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   const size_t tname_mem_alloced= NAME_LEN + 1;
   void *memory;
   Rpl_filter *filter;
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   DBUG_ENTER("Table_map_log_event::do_apply_event(Relay_log_info*)");
 
   /* Step the query id to mark what columns that are actually used. */
@@ -7853,7 +7855,7 @@ int Rows_log_event::update_sequence()
       (table_rgi &&
        !(table_rgi->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
-         rpl_master_has_bug(thd_rgi->rli,
+         rpl_master_has_bug(thd_rgi->q->rli,
                             29621, FALSE, FALSE, FALSE, TRUE))))
   {
     /* This event come from a setval function executed on the master.
@@ -7869,15 +7871,15 @@ int Rows_log_event::update_sequence()
   }
   if (old_master && !WSREP(thd) && thd->rgi_slave->is_parallel_exec)
   {
-    DBUG_ASSERT(thd->rgi_slave->parallel_entry);
+    DBUG_ASSERT(thd->rgi_slave->q->parallel_entry);
     /*
       With parallel replication enabled, we can't execute alongside any other
       transaction in which we may depend, so we force retry to release
       the server layer table lock for possible prior in binlog order
       same table transactions.
     */
-    if (thd->rgi_slave->parallel_entry->last_committed_sub_id <
-        thd->rgi_slave->wait_commit_sub_id)
+    if (thd->rgi_slave->q->parallel_entry->last_committed_sub_id <
+        thd->rgi_slave->q->wait_commit_sub_id)
     {
       err= ER_LOCK_DEADLOCK;
       my_error(err, MYF(0));
@@ -8282,7 +8284,7 @@ void issue_long_find_row_warning(Log_event_type type,
 */
 static int row_not_found_error(rpl_group_info *rgi)
 {
-  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+  return rgi->q->speculation != SPECULATE_OPTIMISTIC
          ? HA_ERR_KEY_NOT_FOUND : HA_ERR_RECORD_CHANGED;
 }
 
@@ -8296,7 +8298,7 @@ bool Rows_log_event::use_pk_position() const
 
 static int end_of_file_error(rpl_group_info *rgi)
 {
-  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+  return rgi->q->speculation != SPECULATE_OPTIMISTIC
          ? HA_ERR_END_OF_FILE : HA_ERR_RECORD_CHANGED;
 }
 
@@ -8974,7 +8976,7 @@ err:
 #if defined(HAVE_REPLICATION)
 int Incident_log_event::do_apply_event(rpl_group_info *rgi)
 {
-  Relay_log_info const *rli= rgi->rli;
+  Relay_log_info const *rli= rgi->q->rli;
   DBUG_ENTER("Incident_log_event::do_apply_event");
 
   if (ignored_error_code(ER_SLAVE_INCIDENT))
