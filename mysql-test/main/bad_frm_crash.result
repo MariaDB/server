@@ -1,0 +1,44 @@
+#
+# MDEV-5029 Crash in MariaDB 5.5.33 with .frm from older MariaDB release
+#
+show create table t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+call mtr.add_suppression("t1.frm is inconsistent: engine typecode 43, engine name Aria");
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+drop table t1;
+#
+# MDEV-7333 "'show table status like 'table_name'" on tokudb table lead to MariaDB crash
+#
+call mtr.add_suppression("bad_row_type.frm: invalid value 11 for the field row_format");
+select * from bad_row_type;
+category_id	category_name
+show create table bad_row_type;
+Table	Create Table
+bad_row_type	CREATE TABLE `bad_row_type` (
+  `category_id` int(11) NOT NULL AUTO_INCREMENT,
+  `category_name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`category_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci /* `compression`='tokudb_zlib' */
+show table status like 'bad_row_type';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+bad_row_type	MyISAM	10	Dynamic	0	0	0	281474976710655	1024	0	1	x	x	NULL	utf8mb3_general_ci	NULL	`compression`='tokudb_zlib'		x	N
+drop table bad_row_type;
+#
+# MDEV-6224 Incorrect information in file when *.frm is > 256K
+#
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1024*1024*10;
+connect con1,localhost,root;
+ERROR HY000: The definition for table `t1` is too big
+connection default;
+disconnect con1;
+set global max_allowed_packet=@save_max_allowed_packet;
+# End of 10.11 tests
