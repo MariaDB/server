@@ -157,6 +157,9 @@ namespace
 /** Backup state and context; mostly protected by log_sys.latch */
 class InnoDB_backup
 {
+#ifdef _WIN32
+  using tpool::pwrite;
+#endif
 public:
   InnoDB_backup() { mutex.init(); }
   ~InnoDB_backup() { mutex.destroy(); }
@@ -777,8 +780,14 @@ public:
         write_lsn= log_get_lsn();
         mutex.wr_lock();
         last= ctx.last_lsn;
-        if (!last)
+        switch (last) {
+        case 0:
           goto err_exit;
+        case LSN_MAX:
+          break;
+        default:
+          write_lsn= last;
+        }
       }
       else
 #endif
@@ -787,8 +796,6 @@ public:
         write_lsn= log_sys.write_lsn;
         mutex.wr_lock();
         log_sys.latch.rd_unlock();
-        /* Round down to the start of a block. */
-        write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) & bs_1;
         last= ctx.last_lsn;
         switch (last) {
         case 0:
@@ -796,19 +803,26 @@ public:
           mutex.wr_unlock();
           my_error(ER_UNKNOWN_ERROR, MYF(0));
           return err;
-        case LSN_MAX:
-          break;
         default:
-          ut_ad(write_lsn <= last);
-          if (write_lsn != last)
-            write_lsn+= bs_1 + 1;
+          if (write_lsn >= last)
+          {
+            write_lsn= last;
+            if (uint adjust= uint(last - ctx.tracked->first_lsn) & bs_1)
+              write_lsn+= bs_1 + 1 - adjust;
+            break;
+          }
+          /* fall through */
+        case LSN_MAX:
+          /* Round down to the start of a block. */
+          write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) & bs_1;
+          break;
         }
       }
 
       ut_ad(!ctx.last_hardlink.load(std::memory_order_relaxed));
       const tracked_log &tracked{*ctx.tracked};
       const lsn_t lsn=
-        std::min(std::min(last, write_lsn),
+        std::min(write_lsn,
                  tracked.first_lsn + tracked.file_size - log_sys.START_OFFSET);
       const lsn_t prev{ctx.last_track_lsn};
       ut_ad(prev >= tracked.first_lsn);
@@ -824,7 +838,8 @@ public:
       else
 #endif
       {
-        ut_ad(last < LSN_MAX || !(uint(begin) & (log_sys.write_size - 1)));
+        ut_ad(!(uint(begin) & bs_1));
+        ut_ad(!(uint(end) & bs_1));
 #ifdef POSIX_FADV_SEQUENTIAL
         std::ignore= posix_fadvise(tracked.file, begin, end - begin,
                                    POSIX_FADV_SEQUENTIAL);
@@ -885,7 +900,7 @@ public:
 
       mutex.wr_unlock();
 
-      if (lsn == last)
+      if (lsn >= last)
       {
         err= 0;
         /* The log copying finishes at or after the commit() LSN. */
@@ -893,12 +908,8 @@ public:
         if (!log_sys.is_mmap())
 #endif
         {
-#ifdef _WIN32
-          using tpool::pwrite;
-#endif
           /* Zero out the garbage part of the last log block. */
-          const uint64_t offset{ctx.last_lsn - ctx.first_lsn +
-                                log_sys.START_OFFSET};
+          const uint64_t offset{last - ctx.first_lsn + log_sys.START_OFFSET};
           const size_t o{size_t(offset) & bs_1}, s{bs_1 + 1 - o};
           if (o &&
               ssize_t(s) != pwrite(ctx.log_dst, field_ref_zero, s, offset))
@@ -1933,9 +1944,6 @@ private:
   @retval 0 on success */
   static int write_checkpoint(backup_fd dst, const void *buf) noexcept
   {
-#ifdef _WIN32
-    using tpool::pwrite;
-#endif
     for (ssize_t o= 0, count= 64; count;)
     {
       ssize_t ret=
