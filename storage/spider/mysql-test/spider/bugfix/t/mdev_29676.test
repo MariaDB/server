@@ -14,7 +14,7 @@ eval CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYS
 --echo
 --echo # length-0 self-reference
 --echo
-CREATE TABLE t (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t"';
+CREATE TABLE t (c INT) ENGINE=Spider WRAPPER=mysql, remote_server=srv, remote_table=t;
 CREATE OR REPLACE TABLE t (c INT);
 SHOW CREATE TABLE t;
 DROP TABLE t;
@@ -23,9 +23,9 @@ DROP TABLE t;
 --echo # length-2 self-reference
 --echo
 CREATE TABLE t2 (c int);
-CREATE TABLE t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
-CREATE TABLE t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
-ALTER TABLE t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t0"';
+CREATE TABLE t1 (c int) ENGINE=Spider WRAPPER=mysql, remote_server="srv",remote_table="t2";
+CREATE TABLE t0 (c int) ENGINE=Spider WRAPPER=mysql, remote_server=srv,remote_table="t1";
+ALTER TABLE t2 ENGINE=Spider WRAPPER=mysql, remote_server=srv,remote_table="t0";
 # warnings
 CREATE OR REPLACE TABLE t0 (c int);
 SHOW CREATE TABLE t0;
