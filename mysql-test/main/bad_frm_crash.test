@@ -1,0 +1,62 @@
+--echo #
+--echo # MDEV-5029 Crash in MariaDB 5.5.33 with .frm from older MariaDB release
+--echo #
+# a.k.a. fail to open an frm with indexes:
+
+# normal innodb table (but innodb is disabled here)
+copy_file std_data/mdev5029_1.frm $MARIADB_DATADIR/test/t1.frm;
+--error ER_UNKNOWN_STORAGE_ENGINE
+show create table t1;
+remove_file $MARIADB_DATADIR/test/t1.frm;
+
+# Aria table, incorrect typecode
+call mtr.add_suppression("t1.frm is inconsistent: engine typecode 43, engine name Aria");
+copy_file std_data/mdev5029_2.frm $MARIADB_DATADIR/test/t1.frm;
+copy_file std_data/mdev5029_2.MAI $MARIADB_DATADIR/test/t1.MAI;
+copy_file std_data/mdev5029_2.MAD $MARIADB_DATADIR/test/t1.MAD;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-7333 "'show table status like 'table_name'" on tokudb table lead to MariaDB crash
+--echo #
+call mtr.add_suppression("bad_row_type.frm: invalid value 11 for the field row_format");
+copy_file std_data/bad_row_type.MYD $MARIADB_DATADIR/test/bad_row_type.MYD;
+copy_file std_data/bad_row_type.MYI $MARIADB_DATADIR/test/bad_row_type.MYI;
+copy_file std_data/bad_row_type.frm $MARIADB_DATADIR/test/bad_row_type.frm;
+
+select * from bad_row_type;
+show create table bad_row_type;
+replace_column 12 x 13 x 19 x;
+show table status like 'bad_row_type';
+drop table bad_row_type;
+
+--echo #
+--echo # MDEV-6224 Incorrect information in file when *.frm is > 256K
+--echo #
+# verify that huge frms are rejected during creation, not on opening
+#
+--source include/have_partition.inc
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1024*1024*10;
+connect con1,localhost,root;
+
+let $n=8164;
+let $a=create table t1 (a int) engine=myisam partition by hash(a) partitions $n (;
+dec $n;
+while ($n)
+{
+  let $a=$a partition p01234567890123456789012345678901234567890123456789012345678$n COMMENT 'partition p01234567890123456789012345678901234567890123456789012345678$n',;
+  dec $n;
+}
+
+--disable_query_log
+--error ER_TABLE_DEFINITION_TOO_BIG
+eval $a partition foo);
+--enable_query_log
+
+connection default;
+disconnect con1;
+set global max_allowed_packet=@save_max_allowed_packet;
+
+--echo # End of 10.11 tests
