@@ -41,7 +41,7 @@ File my_create(const char *FileName, mode_t CreateFlags, int access_flags,
   DBUG_PRINT("my",("Name: '%s' CreateFlags: %u  AccessFlags: %d  MyFlags: %lu",
 		   FileName, CreateFlags, access_flags, MyFlags));
 #if defined(_WIN32)
-  fd= my_win_open(FileName, access_flags | O_CREAT);
+  fd= my_win_open(FileName, access_flags | O_CREAT, MyFlags);
 #else
   fd= open((char *) FileName, access_flags | O_CREAT | O_CLOEXEC,
 	    CreateFlags ? CreateFlags : my_umask);
