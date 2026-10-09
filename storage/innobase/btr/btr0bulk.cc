@@ -834,9 +834,6 @@ PageBulk::release()
 	/* We fix the block because we will re-pin it soon. */
 	m_block->page.fix();
 
-	/* No other threads can modify this block. */
-	m_modify_clock = m_block->modify_clock();
-
 	m_mtr.commit();
 }
 

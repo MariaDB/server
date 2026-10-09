@@ -3847,6 +3847,12 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 	mtr->zmemcpy(*block, page_zip->m_end,
 		     data - page_zip->data - page_zip->m_end);
 	page_zip->m_end = uint16_t(data - page_zip->data);
+	/* If the flag is already set, avoid the atomic read-modify-write.
+	On x86, it is a full barrier: it waits until all earlier stores,
+	such as the m_end store above, are in the cache. It also needs
+	exclusive ownership of the cache line of the flag, which other
+	threads can concurrently access, for example in buf_page_t::fix().
+	The load in is_nonempty() needs neither. */
 	if (!page_zip->is_nonempty()) {
 		page_zip->set_nonempty();
 	}

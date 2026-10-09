@@ -2342,11 +2342,11 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
 #ifdef UNIV_LRU_DEBUG
     /* buf_pool.LRU_old must be the first item in the LRU list
     whose "old" flag is set. */
-    ut_a(buf_pool.LRU_old->zip.old());
+    ut_a(buf_pool.LRU_old->old());
     ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old) ||
-         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->zip.old());
+         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old());
     ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old) ||
-         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->zip.old());
+         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old());
   }
   else
   {
@@ -3237,18 +3237,6 @@ bool buf_page_t::touch() noexcept
   touch_no_stamp();
   return not_first;
 }
-
-uint16_t buf_pool_t::now() noexcept
-{
-  const uint16_t t= uint16_t(my_interval_timer() / 1000000000ULL);
-  /* buf_page_t::access_time == 0 means that the block has not been
-  accessed, so a value used to stamp access_time must never be 0.
-  This is t ? t : 1 computed without a branch: (uint32_t{t} - 1) >> 31 is 1
-  only when t == 0, so it lifts just that value to 1 and leaves every other
-  reading exact. */
-  return uint16_t(t | ((uint32_t{t} - 1) >> 31));
-}
-
 
 void buf_pool_t::set_old_threshold_ms(uint32_t ms) noexcept
 {

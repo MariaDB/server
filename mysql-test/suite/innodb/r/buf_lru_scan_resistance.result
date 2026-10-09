@@ -8,44 +8,55 @@
 # holds for pages that are in the "new" sublist only because the
 # buffer pool was not yet full when they were read.
 #
-CREATE TABLE t0(a INT PRIMARY KEY, c CHAR(200) NOT NULL)
+# Each record fills half a page, to have many pages with few rows.
+CREATE TABLE t0(a INT PRIMARY KEY, c VARCHAR(7000) NOT NULL)
 ENGINE=InnoDB STATS_PERSISTENT=0;
 CREATE TABLE t1 LIKE t0;
 CREATE TABLE t2 LIKE t0;
 CREATE TABLE t3 LIKE t0;
-INSERT INTO t0 SELECT seq, 'x' FROM seq_1_to_300000;
-INSERT INTO t1 SELECT seq, 'x' FROM seq_1_to_10000;
-INSERT INTO t2 SELECT seq, 'x' FROM seq_1_to_300000;
-INSERT INTO t3 SELECT seq, 'x' FROM seq_1_to_2000;
-# Warm-up: scan tables that are larger than the buffer pool,
-# starting from an empty buffer pool.
+INSERT INTO t0 SELECT seq, REPEAT('x',7000) FROM seq_1_to_4000;
+INSERT INTO t1 SELECT seq, REPEAT('x',7000) FROM seq_1_to_600;
+INSERT INTO t2 SELECT seq, REPEAT('x',7000) FROM seq_1_to_4000;
+INSERT INTO t3 SELECT seq, REPEAT('x',7000) FROM seq_1_to_60;
+# Warm-up: starting from an empty buffer pool, scan t0, which is
+# larger than the buffer pool.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # restart
 SET @y0=(SELECT variable_value FROM information_schema.global_status
 WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG');
 SELECT SUM(LENGTH(c)) FROM t0;
-SELECT SUM(LENGTH(c)) FROM t2;
-# Pages that t0 accessed during the warm-up must not be promoted
-# later (without this protection, about 1000 pages would be).
-SELECT (SELECT variable_value FROM information_schema.global_status
-WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG') - @y0 < 200 AS few_made_young;
-few_made_young
-1
+SUM(LENGTH(c))
+28000000
 # The buffer pool is full. t1 is accessed in one burst; t3 is
 # accessed, and accessed again after innodb_old_blocks_time.
 SELECT SUM(LENGTH(c)) FROM t1;
-SELECT SUM(LENGTH(c)) FROM t3;
-SELECT SUM(LENGTH(c)) FROM t3;
+SUM(LENGTH(c))
+4200000
 SET @t1_pages=(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
-WHERE TABLE_NAME= '`test`.`t1`'), @t3_pages=(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
+WHERE TABLE_NAME= '`test`.`t1`');
+SELECT SUM(LENGTH(c)) FROM t3;
+SUM(LENGTH(c))
+420000
+SELECT SUM(LENGTH(c)) FROM t3;
+SUM(LENGTH(c))
+420000
+SET @t3_pages=(SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
 WHERE TABLE_NAME= '`test`.`t3`');
-SELECT SUM(LENGTH(c)) FROM t0;
-# t1 was loaded, and the scan of t0 evicted all of it;
-# t3 was promoted, and it remains in the buffer pool.
-SELECT @t1_pages > 0 AS t1_loaded,
+# An LRU sweep during the scan of t2 reaches the pages of t0 and t1
+# more than innodb_old_blocks_time after their accesses.
+SELECT SUM(LENGTH(c)) FROM t2;
+SUM(LENGTH(c))
+28000000
+# Only few pages were promoted (without this protection, more than
+# 600 pages would be); t1 was loaded, and the scan of t2 evicted most
+# of it; t3 remains in the buffer pool.
+SELECT (SELECT variable_value FROM information_schema.global_status
+WHERE variable_name='INNODB_BUFFER_POOL_PAGES_MADE_YOUNG') - @y0 < 200 AS few_made_young,
+@t1_pages > 0 AS t1_loaded,
 (SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
-WHERE TABLE_NAME= '`test`.`t1`') AS t1_pages,
+WHERE TABLE_NAME= '`test`.`t1`') < @t1_pages / 2 AS t1_evicted,
 (SELECT COUNT(*) FROM information_schema.INNODB_BUFFER_PAGE
 WHERE TABLE_NAME= '`test`.`t3`') = @t3_pages AS t3_resident;
-t1_loaded	t1_pages	t3_resident
-1	0	1
+few_made_young	t1_loaded	t1_evicted	t3_resident
+1	1	1	1
 DROP TABLE t0, t1, t2, t3;

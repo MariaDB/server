@@ -460,11 +460,11 @@ static void buf_LRU_old_adjust_len()
 #ifdef UNIV_LRU_DEBUG
 	/* buf_pool.LRU_old must be the first item in the LRU list
 	whose "old" flag is set. */
-	ut_a(buf_pool.LRU_old->zip.old());
+	ut_a(buf_pool.LRU_old->old());
 	ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)
-	     || !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->zip.old());
+	     || !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old());
 	ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)
-	     || UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->zip.old());
+	     || UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old());
 #endif /* UNIV_LRU_DEBUG */
 
 	old_len = buf_pool.LRU_old_len;
@@ -480,7 +480,7 @@ static void buf_LRU_old_adjust_len()
 		ut_a(LRU_old);
 		ut_ad(LRU_old->in_LRU_list);
 #ifdef UNIV_LRU_DEBUG
-		ut_a(LRU_old->zip.old());
+		ut_a(LRU_old->old());
 #endif /* UNIV_LRU_DEBUG */
 
 		/* Update the LRU_old pointer if necessary */
@@ -490,7 +490,7 @@ static void buf_LRU_old_adjust_len()
 			buf_pool.LRU_old = LRU_old = UT_LIST_GET_PREV(
 				LRU, LRU_old);
 #ifdef UNIV_LRU_DEBUG
-			ut_a(!LRU_old->zip.old());
+			ut_a(!LRU_old->old());
 #endif /* UNIV_LRU_DEBUG */
 			old_len = ++buf_pool.LRU_old_len;
 			LRU_old->set_old<true>();
@@ -571,7 +571,7 @@ static inline void buf_LRU_remove_block(buf_page_t* bpage)
 		list length. */
 		ut_a(prev_bpage);
 #ifdef UNIV_LRU_DEBUG
-		ut_a(!prev_bpage->zip.old());
+		ut_a(!prev_bpage->old());
 #endif /* UNIV_LRU_DEBUG */
 		buf_pool.LRU_old = prev_bpage;
 		prev_bpage->set_old<true>();
@@ -607,7 +607,7 @@ static inline void buf_LRU_remove_block(buf_page_t* bpage)
 	ut_ad(buf_pool.LRU_old);
 
 	/* Update the LRU_old_len field if necessary */
-	if (bpage->zip.old()) {
+	if (bpage->old()) {
 		buf_pool.LRU_old_len--;
 	}
 
@@ -657,11 +657,11 @@ buf_LRU_add_block(
 #ifdef UNIV_LRU_DEBUG
 		/* buf_pool.LRU_old must be the first item in the LRU list
 		whose "old" flag is set. */
-		ut_a(buf_pool.LRU_old->zip.old());
+		ut_a(buf_pool.LRU_old->old());
 		ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)
-		     || !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->zip.old());
+		     || !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old());
 		ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)
-		     || UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->zip.old());
+		     || UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old());
 #endif /* UNIV_LRU_DEBUG */
 		UT_LIST_INSERT_AFTER(buf_pool.LRU, buf_pool.LRU_old,
 			bpage);
@@ -886,7 +886,7 @@ func_exit:
 #endif /* UNIV_LRU_DEBUG */
 		} else {
 			ut_d(b->in_LRU_list = FALSE);
-			buf_LRU_add_block(b, b->zip.old());
+			buf_LRU_add_block(b, b->old());
 		}
 
 		buf_flush_relocate_on_flush_list(bpage, b);

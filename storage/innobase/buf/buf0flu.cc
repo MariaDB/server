@@ -2643,7 +2643,6 @@ static void buf_flush_page_cleaner() noexcept
 
       if (!buf_pool.need_LRU_eviction())
         continue;
-      set_timespec(abstime, 1);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       oldest_lsn= buf_pool.get_oldest_modification(0);
     }

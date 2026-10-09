@@ -621,6 +621,7 @@ public:
   @param b  the descriptor that is being relocated to this block */
   void relocate_from(const buf_page_t &b) noexcept
   {
+    ut_ad(b.frame || (!b.modify_clock_low && !b.modify_clock_high));
     byte *const f= frame;
     const uint32_t low= modify_clock_low;
     const uint16_t high= modify_clock_high;
@@ -853,6 +854,9 @@ public:
   /** @return whether the block can be relocated in memory.
   The block can be dirty, but it must not be I/O-fixed or bufferfixed. */
   inline bool can_relocate() const noexcept;
+  /** @return whether the block has been flagged old in buf_pool.LRU,
+  without the debug checks of is_old() */
+  bool old() const noexcept { return zip.old(); }
   /** @return whether the block has been flagged old in buf_pool.LRU */
   inline bool is_old() const noexcept;
   /** Set whether a block is old in buf_pool.LRU */
@@ -1714,11 +1718,11 @@ public:
   uint32_t LRU_old_time_threshold;
 
   /** @return uint16_t(my_interval_timer() / 1e9), for refresh_clock() */
-  static uint16_t now() noexcept;
+  static inline uint16_t now() noexcept;
 
-  /** Refresh access_clock; invoked by srv_master_callback(), or by a
-  fallback timer while that callback is not running */
-  void refresh_clock() noexcept { access_clock= now(); }
+  /** Refresh access_clock; invoked by srv_master_callback(), or by
+  buf_pool_clock_callback() while that callback is not running */
+  void refresh_clock() noexcept;
 
   /** Set LRU_old_time_threshold and recompute the LRU_old_threshold
   cache from it.
@@ -2068,7 +2072,7 @@ inline bool buf_page_t::is_old() const noexcept
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
-  return zip.old();
+  return old();
 }
 
 /** Set whether a block is old in buf_pool.LRU */
@@ -2086,8 +2090,8 @@ template<bool old> inline void buf_page_t::set_old() noexcept
   {
     const buf_page_t *prev= UT_LIST_GET_PREV(LRU, this);
     const buf_page_t *next = UT_LIST_GET_NEXT(LRU, this);
-    const bool prev_is_old{prev->zip.old()};
-    if (prev_is_old == next->zip.old())
+    const bool prev_is_old{prev->old()};
+    if (prev_is_old == next->old())
       ut_a(prev_is_old == old);
     else
     {
@@ -2196,7 +2200,7 @@ inline buf_page_t *LRUItr::start() noexcept
 {
   mysql_mutex_assert_owner(m_mutex);
 
-  if (!m_hp || m_hp->zip.old())
+  if (!m_hp || m_hp->old())
     m_hp= UT_LIST_GET_LAST(buf_pool.LRU);
 
   return m_hp;

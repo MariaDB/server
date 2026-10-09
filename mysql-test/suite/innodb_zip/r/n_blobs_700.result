@@ -15,6 +15,25 @@ SET @save_strict = @@global.innodb_strict_mode;
 SET @save_ro_zip = @@global.innodb_read_only_compressed;
 SET @@global.innodb_strict_mode         = OFF;
 SET @@global.innodb_read_only_compressed = OFF;
+BEGIN NOT ATOMIC
+DECLARE c TEXT
+DEFAULT(SELECT CONCAT(
+'CREATE TABLE big_blobs (id INT PRIMARY KEY, b',
+GROUP_CONCAT(seq SEPARATOR ' LONGBLOB, b'),
+' LONGBLOB) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16')
+FROM seq_1_to_350);
+EXECUTE IMMEDIATE c;
+END;
+$$
+SET GLOBAL innodb_monitor_enable = index_page_splits;
+SET GLOBAL innodb_monitor_reset = index_page_splits;
+BEGIN NOT ATOMIC
+DECLARE c TEXT
+DEFAULT(SELECT CONCAT('INSERT INTO big_blobs SELECT seq,
+  @r:=repeat(''x'',800)', REPEAT(',@r',349), ' FROM seq_1_to_2'));
+EXECUTE IMMEDIATE c;
+END;
+$$
 SELECT COUNT(*) FROM big_blobs;
 COUNT(*)
 2

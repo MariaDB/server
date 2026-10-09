@@ -1298,6 +1298,21 @@ static void srv_master_do_idle_tasks(ulonglong counter_time)
 	}
 }
 
+inline uint16_t buf_pool_t::now() noexcept
+{
+  const uint16_t t= uint16_t(my_interval_timer() / 1000000000ULL);
+  /* buf_page_t::access_time == 0 means that the block has not been
+  accessed, so a value used to stamp access_time must never be 0.
+  This is t ? t : 1 computed without a branch: (uint32_t{t} - 1) >> 31 is 1
+  only when t == 0, so it lifts just that value to 1 and leaves every other
+  reading exact. */
+  return uint16_t(t | ((uint32_t{t} - 1) >> 31));
+}
+
+void buf_pool_t::refresh_clock() noexcept { access_clock= now(); }
+
+void buf_pool_clock_callback(void*) { buf_pool.refresh_clock(); }
+
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*)
 {

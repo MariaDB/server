@@ -1,4 +1,5 @@
---innodb-buffer-pool-size=32M
+--innodb-buffer-pool-size=16M
 --innodb-buffer-pool-load-at-startup=0
 --innodb-buffer-pool-dump-at-shutdown=0
 --innodb-old-blocks-time=1000
+--innodb-lru-scan-depth=100

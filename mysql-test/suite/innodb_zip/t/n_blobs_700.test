@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 
 --echo #
 --echo # MDEV-33966: page_zip_des_t::state packs ssize, the
@@ -28,17 +29,18 @@ SET @@global.innodb_read_only_compressed = OFF;
 # row to ~360 columns before ER_TOO_BIG_ROWSIZE. Two rows packed on one
 # 16 KiB compressed leaf multiply the count to 700.
 
---disable_query_log
-let $cols = 350;
-let $rows = 2;
-let $col_defs = ;
-let $i = 1;
-while ($i <= $cols) {
-  let $col_defs = $col_defs , `b$i` LONGBLOB;
-  inc $i;
-}
-eval CREATE TABLE big_blobs (id INT PRIMARY KEY $col_defs)
-  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT
+  DEFAULT(SELECT CONCAT(
+    'CREATE TABLE big_blobs (id INT PRIMARY KEY, b',
+    GROUP_CONCAT(seq SEPARATOR ' LONGBLOB, b'),
+    ' LONGBLOB) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16')
+    FROM seq_1_to_350);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
 
 # index_page_splits counts every B-tree page split. It is reset only now,
 # because CREATE TABLE splits pages of the data dictionary tables. If it
@@ -46,25 +48,16 @@ eval CREATE TABLE big_blobs (id INT PRIMARY KEY $col_defs)
 # alone.
 SET GLOBAL innodb_monitor_enable = index_page_splits;
 SET GLOBAL innodb_monitor_reset = index_page_splits;
---enable_query_log
 
-# Insert $rows rows; each row's $cols LONGBLOBs all spill off-page.
-# Expected aggregate on the holding leaf: $cols * $rows = 700 pointers,
-# comfortably within the 10-bit n_blobs field's 1023 capacity.
-
---disable_query_log
-let $vals = ;
-let $j = 1;
-while ($j <= $cols) {
-  let $vals = $vals, REPEAT('x', 800);
-  inc $j;
-}
-let $r = 1;
-while ($r <= $rows) {
-  eval INSERT INTO big_blobs VALUES ($r $vals);
-  inc $r;
-}
---enable_query_log
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT
+  DEFAULT(SELECT CONCAT('INSERT INTO big_blobs SELECT seq,
+  @r:=repeat(''x'',800)', REPEAT(',@r',349), ' FROM seq_1_to_2'));
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
 
 SELECT COUNT(*) FROM big_blobs;
 CHECKSUM TABLE big_blobs;

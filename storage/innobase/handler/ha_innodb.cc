@@ -17744,13 +17744,8 @@ innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	innobase_old_blocks_pct = ratio;
 }
 
-/****************************************************************//**
-Update the system variable innodb_old_blocks_time using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_old_blocks_time_update(THD*, st_mysql_sys_var*, void*,
-			      const void* save)
+static void innodb_old_blocks_time_update(THD *, st_mysql_sys_var *, void *,
+                                          const void *save) noexcept
 {
 	buf_pool.set_old_threshold_ms(*static_cast<const uint*>(save));
 }

@@ -132,9 +132,6 @@ std::unique_ptr<tpool::timer> srv_master_timer;
 /** Refreshes buf_pool.access_clock while srv_master_timer is not running */
 static std::unique_ptr<tpool::timer> buf_pool_clock_timer;
 
-/** The periodic task of buf_pool_clock_timer */
-static void buf_pool_clock_callback(void*) { buf_pool.refresh_clock(); }
-
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
@@ -1949,7 +1946,8 @@ skip_monitors:
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 			buf_pool_clock_timer.reset();
-			srv_start_periodic_timer(srv_master_timer, srv_master_callback, 1000);
+			srv_start_periodic_timer(srv_master_timer,
+						 srv_master_callback, 1000);
 		}
 	}
 
