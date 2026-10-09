@@ -20,6 +20,7 @@
 #include "set_var.h"
 #include "sql_class.h"
 #include "opt_context_store_replay.h"
+#include "index/hlindex.h"     // hlindex (TABLE::hli)
 #include "sql_show.h"
 #include "my_json_writer.h"
 #include "hash.h"
@@ -165,6 +166,23 @@ public:
 };
 
 /*
+   A record to hold one hlindex records_in_range() call (ARRAY keys):
+*/
+class hl_records_in_range_call_record : public Sql_alloc
+{
+public:
+  uint keynr;
+  char *key;
+  ha_rows records;
+  Cost_estimate cost;
+
+  static
+  hl_records_in_range_call_record* parse(MEM_ROOT *mem_root,
+                                         json_engine_t *je,
+                                         String *err_buf);
+};
+
+/*
    structure to store all the index range records,
    and the cost for reading indexes, pertaining to a table
 */
@@ -177,6 +195,7 @@ public:
   List<Multi_range_read_const_call_record> mrr_list;
   List<cost_index_read_call_record> irc_list;
   List<records_in_range_call_record> rir_list;
+  List<hl_records_in_range_call_record> hl_rir_list;
   List<char> const_tbl_ins_stmt_list;
 };
 
@@ -243,6 +262,22 @@ static bool is_base_table(const TABLE_LIST *tbl)
           tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
 
+static void dump_cost_estimate(const Cost_estimate *cost,
+                               Json_writer *ctx_writer)
+{
+  Json_writer_object obj(ctx_writer, "cost");
+  obj.add("avg_io_cost", cost->avg_io_cost);
+  obj.add("cpu_cost", cost->cpu_cost);
+  obj.add("comp_cost", cost->comp_cost);
+  obj.add("copy_cost", cost->copy_cost);
+  obj.add("limit_cost", cost->limit_cost);
+  obj.add("setup_cost", cost->setup_cost);
+  obj.add("index_cost_io", cost->index_cost.io);
+  obj.add("index_cost_cpu", cost->index_cost.cpu);
+  obj.add("row_cost_io", cost->row_cost.io);
+  obj.add("row_cost_cpu", cost->row_cost.cpu);
+}
+
 static
 void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
                          Json_writer *ctx_writer)
@@ -263,19 +298,7 @@ void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
     }
 
     irc_wrapper.add("num_rows", irc->rows);
-    {
-      Json_writer_object obj(ctx_writer, "cost");
-      obj.add("avg_io_cost", irc->cost.avg_io_cost);
-      obj.add("cpu_cost", irc->cost.cpu_cost);
-      obj.add("comp_cost", irc->cost.comp_cost);
-      obj.add("copy_cost", irc->cost.copy_cost);
-      obj.add("limit_cost", irc->cost.limit_cost);
-      obj.add("setup_cost", irc->cost.setup_cost);
-      obj.add("index_cost_io", irc->cost.index_cost.io);
-      obj.add("index_cost_cpu", irc->cost.index_cost.cpu);
-      obj.add("row_cost_io", irc->cost.row_cost.io);
-      obj.add("row_cost_cpu", irc->cost.row_cost.cpu);
-    }
+    dump_cost_estimate(&irc->cost, ctx_writer);
     irc_wrapper.add("mrr_mode", irc->mrr_mode);
 
     irc_wrapper.add("max_index_blocks", irc->max_index_blocks);
@@ -325,6 +348,23 @@ void dump_records_in_range_calls(List<records_in_range_call_record> *rir_list,
   }
 }
 
+static
+void dump_hl_records_in_range_calls(
+    List<hl_records_in_range_call_record> *list, Json_writer *ctx_writer)
+{
+  Json_writer_array wrapper(ctx_writer, "hl_records_in_range_calls");
+  List_iterator li(*list);
+
+  while (hl_records_in_range_call_record *rec= li++)
+  {
+    Json_writer_object obj(ctx_writer);
+    obj.add("key_number", rec->keynr);
+    obj.add("key", rec->key);
+    obj.add("num_records", rec->records);
+    dump_cost_estimate(&rec->cost, ctx_writer);
+  }
+}
+
 void Optimizer_context_recorder::dump_recorded_table_calls(
     table_context_for_store *tbl,
     Json_writer *writer)
@@ -332,6 +372,7 @@ void Optimizer_context_recorder::dump_recorded_table_calls(
   dump_mrr_info_calls(&tbl->mrr_list, writer);
   dump_index_read_calls(&tbl->irc_list, writer);
   dump_records_in_range_calls(&tbl->rir_list, writer);
+  dump_hl_records_in_range_calls(&tbl->hl_rir_list, writer);
 }
 
 /*
@@ -1155,6 +1196,30 @@ void Optimizer_context_recorder::record_records_in_range(
   table_ctx->rir_list.push_back(rec_in_range_ctx, mem_root);
 }
 
+void Optimizer_context_recorder::record_hl_records_in_range(
+    const TABLE *tbl, uint keynr, const uchar *value, size_t value_len,
+    ha_rows records, const Cost_estimate *cost)
+{
+  auto *rec= new (mem_root) hl_records_in_range_call_record;
+  if (unlikely(!rec))
+    return; // OOM
+
+  rec->keynr= keynr;
+  StringBuffer<128> key(system_charset_info);
+  tbl->hli->print_key(&key, value, value_len);
+  if (!(rec->key= strdup_root(mem_root, &key)))
+    return; // OOM
+
+  rec->records= records;
+  rec->cost= *cost;
+
+  table_context_for_store *table_ctx= get_table_context(tbl);
+  if (unlikely(!table_ctx))
+    return; // OOM
+
+  table_ctx->hl_rir_list.push_back(rec, mem_root);
+}
+
 void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 {
   StringBuffer<512> output(&my_charset_utf8mb4_bin);
@@ -1267,6 +1332,7 @@ public:
   List<Multi_range_read_const_call_record> ranges_list;
   List<cost_index_read_call_record> irc_list;
   List<records_in_range_call_record> rir_list;
+  List<hl_records_in_range_call_record> hl_rir_list;
 
   static
   table_context_for_replay *parse(MEM_ROOT *mem_root, json_engine_t *je,
@@ -1409,6 +1475,11 @@ table_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
     {"records_in_range_calls",
      Read_object_array<records_in_range_call_record>(
          mem_root, &table_ctx->rir_list, records_in_range_call_record::parse),
+     true},
+    {"hl_records_in_range_calls",
+     Read_object_array<hl_records_in_range_call_record>(
+         mem_root, &table_ctx->hl_rir_list,
+         hl_records_in_range_call_record::parse),
      true},
     {NULL, Read_double(NULL), true}
   };
@@ -1613,6 +1684,29 @@ records_in_range_call_record::parse(MEM_ROOT *mem_root,
     {"max_key", Read_string(mem_root, &out->max_key), false},
     {"num_records",
      Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {NULL, Read_double(NULL), true}
+  };
+  if (json_read_object(je, members, err_buf))
+    return NULL;
+  return out;
+}
+
+hl_records_in_range_call_record*
+hl_records_in_range_call_record::parse(MEM_ROOT *mem_root,
+                                       json_engine_t *je,
+                                       String *err_buf)
+{
+  auto out= new (mem_root) hl_records_in_range_call_record;
+  if (!out)
+    return NULL;
+
+  Read_named_member members[]=
+  {
+    {"key_number", Read_non_neg_integer<uint, UINT_MAX>(&out->keynr), false},
+    {"key", Read_string(mem_root, &out->key), false},
+    {"num_records",
+     Read_non_neg_integer<ha_rows, ULONGLONG_MAX>(&out->records), false},
+    {"cost", Read_range_cost_estimate(mem_root, &out->cost), false},
     {NULL, Read_double(NULL), true}
   };
   if (json_read_object(je, members, err_buf))
@@ -2004,6 +2098,47 @@ bool Optimizer_context_replay::infuse_records_in_range(
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
       warn_msg.c_ptr_safe(), "records_in_range_calls");
+  return true;
+}
+
+bool Optimizer_context_replay::infuse_hl_records_in_range(
+    const TABLE *tbl, uint keynr, const uchar *value, size_t value_len,
+    ha_rows *records, Cost_estimate *cost)
+{
+  if (!has_records() || !is_base_table(tbl->pos_in_table_list))
+    return true;
+
+  StringBuffer<128> key(system_charset_info);
+  String tbl_name;
+  tbl->hli->print_key(&key, value, value_len);
+  append_base_table_name(tbl, &tbl_name);
+
+  if (table_context_for_replay *tbl_ctx=
+          find_table_context(tbl_name.c_ptr_safe()))
+  {
+    List_iterator<hl_records_in_range_call_record> iter(tbl_ctx->hl_rir_list);
+    while (hl_records_in_range_call_record *rec= iter++)
+    {
+      if (rec->keynr == keynr && !strcmp(rec->key, key.c_ptr_safe()))
+      {
+        *records= rec->records;
+        *cost= rec->cost;
+        return false;
+      }
+    }
+  }
+
+  String warn_msg(256);
+  warn_msg.append(tbl_name);
+  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
+  warn_msg.append_ulonglong(keynr);
+  warn_msg.append(STRING_WITH_LEN(" with key:"));
+  warn_msg.append(key);
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN,
+      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
+      warn_msg.c_ptr_safe(), "hl_records_in_range_calls");
   return true;
 }
 

@@ -1,0 +1,45 @@
+#
+# Optimizer context record/replay of the ARRAY (hlindex) records_in_range call
+#
+set @opt_context_var_name= 'opt_context';
+create database db1;
+use db1;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t1 VALUES (1,'[1,2,3]'),(2,'[4,5,6]'),(3,'[3,6,9]'),(4,'[]'),(5,'[7]');
+set optimizer_record_context=ON;
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	2	Using where
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @saved_ctx= @opt_context;
+set optimizer_record_context=OFF;
+# The call was recorded, with its cost:
+select json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].key_number') as key_number,
+json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].key') as k,
+json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].num_records') as num_records,
+json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].cost') is not null as has_cost;
+key_number	k	num_records	has_cost
+1	"3"	2	1
+# Replay with a different row count: EXPLAIN uses it
+set optimizer_replay_context=@opt_context_var_name;
+set @opt_context= json_replace(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].num_records', 4);
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	4	Using where
+# Replay with an unrecorded value: match-failed warning
+set @opt_context= @saved_ctx;
+EXPLAIN SELECT id FROM t1 WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	arr_idx	arr_idx	258	NULL	1	Using where
+Warnings:
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 with key_number:1 with key:5 doesn't exist in hl_records_in_range_calls
+set optimizer_replay_context='';
+drop database db1;

@@ -197,6 +197,106 @@ let $opt_context_schema=
                 "copy_cost"
               ]
             }
+          },
+          "records_in_range_calls": {
+            "type": "array",
+            "uniqueItems": false,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key_number": {
+                  "type": "number"
+                },
+                "min_key": {
+                  "type": "string"
+                },
+                "max_key": {
+                  "type": "string"
+                },
+                "num_records": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "key_number",
+                "min_key",
+                "max_key",
+                "num_records"
+              ]
+            }
+          },
+          "hl_records_in_range_calls": {
+            "type": "array",
+            "uniqueItems": false,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "key_number": {
+                  "type": "number"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "num_records": {
+                  "type": "number"
+                },
+                "cost": {
+                  "type": "object",
+                  "properties": {
+                    "avg_io_cost": {
+                      "type": "number"
+                    },
+                    "cpu_cost": {
+                      "type": "number"
+                    },
+                    "comp_cost": {
+                      "type": "number"
+                    },
+                    "copy_cost": {
+                      "type": "number"
+                    },
+                    "limit_cost": {
+                      "type": "number"
+                    },
+                    "setup_cost": {
+                      "type": "number"
+                    },
+                    "index_cost_io": {
+                      "type": "number"
+                    },
+                    "index_cost_cpu": {
+                      "type": "number"
+                    },
+                    "row_cost_io": {
+                      "type": "number"
+                    },
+                    "row_cost_cpu": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "avg_io_cost",
+                    "cpu_cost",
+                    "comp_cost",
+                    "copy_cost",
+                    "limit_cost",
+                    "setup_cost",
+                    "index_cost_io",
+                    "index_cost_cpu",
+                    "row_cost_io",
+                    "row_cost_cpu"
+                  ]
+                }
+              },
+              "required": [
+                "key_number",
+                "key",
+                "num_records",
+                "cost"
+              ]
+            }
           }
           "subquery_runs": {
             "type": "array",
