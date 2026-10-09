@@ -78,6 +78,9 @@ public:
                                const KEY_PART_INFO *key_part, uint keynr,
                                const key_range *min_range,
                                const key_range *max_range, ha_rows records);
+  void record_hl_records_in_range(const TABLE *tbl, uint keynr,
+                                  const uchar *value, size_t value_len,
+                                  ha_rows records, const Cost_estimate *cost);
   void record_current_table_row(TABLE *tbl)
   {
     /* use table->record[0] */
@@ -212,6 +215,9 @@ public:
   bool infuse_records_in_range(const TABLE *tbl, const KEY_PART_INFO *key_part,
                                uint keynr, const key_range *min_range,
                                const key_range *max_range, ha_rows *records);
+  bool infuse_hl_records_in_range(const TABLE *tbl, uint keynr,
+                                  const uchar *value, size_t value_len,
+                                  ha_rows *records, Cost_estimate *cost);
 
 private:
   THD *thd;

@@ -489,6 +489,9 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
                                      const key_range *min_range,
                                      const key_range *max_range,
                                      page_range *pages);
+static ha_rows hook_hl_records_in_range(THD *thd, TABLE *table, uint keynr,
+                                        const uchar *value, size_t value_len,
+                                        Cost_estimate *cost);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -12654,10 +12657,9 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
   if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
     return HA_POS_ERROR;
 
-  rows= param->table->hli->records_in_range(param->table,
-                                            param->table->key_info + keynr,
-                                            tree->min_value,
-                                            JSON_INDEX_KEY_MAX_LEN, cost);
+  rows= hook_hl_records_in_range(param->thd, param->table, keynr,
+                                 tree->min_value, JSON_INDEX_KEY_MAX_LEN,
+                                 cost);
   param->quick_rows[keynr]= rows;
   if (rows == HA_POS_ERROR)
     return HA_POS_ERROR;
@@ -18155,5 +18157,32 @@ static ha_rows hook_records_in_range(MEM_ROOT *mem_root, THD *thd,
     recorder->record_records_in_range(table, key_part, keynr,
                                       min_range, max_range, records);
   }
+  return records;
+}
+
+
+/*
+  @brief
+    Call hli->records_in_range(). If necessary,
+    - Replace its return value and cost from Optimizer Context, and/or
+    - Save them in the Optimizer Context we're recording.
+
+  @detail
+    This is the hlindex counterpart of hook_records_in_range().
+*/
+static ha_rows hook_hl_records_in_range(THD *thd, TABLE *table, uint keynr,
+                                        const uchar *value, size_t value_len,
+                                        Cost_estimate *cost)
+{
+  ha_rows records= table->hli->records_in_range(table, table->key_info + keynr,
+                                                value, value_len, cost);
+
+  if (Optimizer_context_replay *repl= thd->opt_ctx_replay)
+    repl->infuse_hl_records_in_range(table, keynr, value, value_len, &records,
+                                     cost);
+
+  if (Optimizer_context_recorder *recorder= thd->opt_ctx_recorder)
+    recorder->record_hl_records_in_range(table, keynr, value, value_len,
+                                         records, cost);
   return records;
 }
