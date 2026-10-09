@@ -584,7 +584,12 @@ public:
   void init(uint32_t state, page_id_t id) noexcept
   {
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
-    ut_ad(!lock.is_locked_or_waiting());
+    /* A latch would mean that some thread is still using the block under
+    its previous identity. The exception is rtr_init_match(): the MEMORY
+    block that it re-initializes is private to the current thread, which
+    is holding page.lock on it so that lock_rec_lock() can be invoked on
+    the records that were copied into it. */
+    ut_ad(!lock.is_locked_or_waiting() || (state == MEMORY && lock.have_x()));
     id_= id;
     zip.fix.store(state, std::memory_order_release);
     oldest_modification_= 0;
