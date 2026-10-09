@@ -1122,6 +1122,26 @@ const uchar *Optimizer_context_recorder::get_tbl_ctx_key(const void *entry_,
   return reinterpret_cast<const uchar *>(entry->name);
 }
 
+/*
+  @brief
+    Print the min/max keys of a records_in_range() call the way they are
+    recorded in / replayed from the optimizer context.
+*/
+static void print_records_in_range_keys(const TABLE *tbl,
+                                        const KEY_PART_INFO *key_part,
+                                        uint keynr, const key_range *min_range,
+                                        const key_range *max_range,
+                                        String *min_key, String *max_key)
+{
+  DBUG_ASSERT(min_range && max_range);
+  Field::imagetype image_type=
+      Field::image_type(tbl->key_info[keynr].algorithm);
+  print_key_value(min_key, key_part, min_range->key, min_range->length,
+                  image_type);
+  print_key_value(max_key, key_part, max_range->key, max_range->length,
+                  image_type);
+}
+
 void Optimizer_context_recorder::record_records_in_range(
     const TABLE *tbl, const KEY_PART_INFO *key_part,
     uint keynr, const key_range *min_range, const key_range *max_range,
@@ -1136,8 +1156,8 @@ void Optimizer_context_recorder::record_records_in_range(
   rec_in_range_ctx->keynr= keynr;
   String min_key;
   String max_key;
-  print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+  print_records_in_range_keys(tbl, key_part, keynr, min_range, max_range,
+                              &min_key, &max_key);
 
   if (!(rec_in_range_ctx->min_key= strdup_root(mem_root, &min_key)))
     return; // OOM
@@ -1754,6 +1774,11 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
   const char *idx_name= keyinfo->name.str;
   const KEY_PART_INFO *key_part= keyinfo->key_part;
   uint n_key_parts= table->actual_n_key_parts(keyinfo);
+  /*
+    SEL_ARG_RANGE_SEQ (whose key_parts already holds this value) is only
+    forward-declared here, so recompute it instead of reaching into *seq.
+  */
+  Field::imagetype image_type= Field::image_type(keyinfo->algorithm);
   KEY_MULTI_RANGE multi_range;
   range_seq_t seq_it;
   List<Multi_range_read_const_call_record> mrr_const_calls;
@@ -1766,7 +1791,7 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
   while (!seq_if->next(seq_it, &multi_range))
   {
     StringBuffer<128> range_info(system_charset_info);
-    print_range(&range_info, key_part, &multi_range, n_key_parts);
+    print_range(&range_info, key_part, &multi_range, n_key_parts, image_type);
     char *r1= range_info.c_ptr_safe();
     text_ranges.push_back(strdup_root(thd->mem_root, &range_info));
     act_ranges.append(r1, strlen(r1));
@@ -1971,8 +1996,8 @@ bool Optimizer_context_replay::infuse_records_in_range(
   String min_key;
   String max_key;
   String tbl_name;
-  print_key_value(&min_key, key_part, min_range->key, min_range->length);
-  print_key_value(&max_key, key_part, max_range->key, max_range->length);
+  print_records_in_range_keys(tbl, key_part, keynr, min_range, max_range,
+                              &min_key, &max_key);
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=

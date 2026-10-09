@@ -26,11 +26,13 @@ select *from json_table(
 --echo # === Range accesses
 set @list_ranges=
     (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
+# num_rows is bigint unsigned because MBRDISJOINT records HA_POS_ERROR
+# (18446744073709551615) there.
 select *from json_table(
     @list_ranges,
     '$[*][*]' columns(index_name text path '$.index_name',
                       ranges json path '$.ranges',
-                      num_rows int path '$.num_rows',
+                      num_rows bigint unsigned path '$.num_rows',
                       max_index_blocks int path '$.max_index_blocks',
                       max_row_blocks int path '$.max_row_blocks'
     )) as jt;

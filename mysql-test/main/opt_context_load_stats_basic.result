@@ -50,11 +50,7 @@ select * from t1 where a < 3 and b > 6;
 a	b
 0	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 1
@@ -68,11 +64,7 @@ select * from t1 where a < 3 and b > 6;
 a	b
 0	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 1
@@ -89,11 +81,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 0
@@ -130,11 +118,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 1
@@ -149,14 +133,10 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select @opt_context;
 @opt_context
-NULL
+
 #
 # Now, after re-enabling optimizer_record_context,
 # Loaded stats should be picked by the planner instead of the analyzed table stats,
@@ -169,11 +149,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 1
@@ -189,11 +165,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 0
@@ -219,11 +191,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 set @list_ranges= (select JSON_DETAILED(JSON_EXTRACT(@opt_context, '$**.multi_range_read_info_const_calls')));
 select JSON_EQUALS(@saved_list_ranges_2, @list_ranges);
 JSON_EQUALS(@saved_list_ranges_2, @list_ranges)
@@ -241,11 +209,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_1, @opt_context);
 JSON_EQUALS(@saved_opt_context_1, @opt_context)
 1
@@ -261,11 +225,7 @@ a	b
 0	7
 2	7
 2	7
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 select JSON_EQUALS(@saved_opt_context_2, @opt_context);
 JSON_EQUALS(@saved_opt_context_2, @opt_context)
 1
@@ -365,11 +325,7 @@ explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	tt1	index	t1_idx_a,t1_idx_ab	t1_idx_a	5	NULL	40	Using where; Using index
 1	SIMPLE	tt2	ref	t1_idx_a,t1_idx_ab	t1_idx_ab	5	db1.tt1.a	8	Using index
-set @opt_context=
-(select REGEXP_SUBSTR(
-context,
-'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
-from information_schema.optimizer_context);
+SET @opt_context=(value from information_schema.optimizer_context)
 set @saved_opt_context_1= @opt_context;
 set optimizer_replay_context=@opt_context_var_name;
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].index_name');
