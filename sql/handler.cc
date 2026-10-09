@@ -2006,7 +2006,18 @@ int ha_commit_trans(THD *thd, bool all)
       continue;
     /* We do not need to 2pc the binlog with the engine that implements it. */
     if (ht == opt_binlog_engine_hton)
+    {
+#ifdef WITH_WSREP
+      /*
+        with binlog-in-engine, innodb prepare is skipped, but wsrep prepare should be
+        done, we will do it here
+      */
+      if (run_wsrep_hooks && ht->flags & HTON_WSREP_REPLICATION &&
+          (wsrep_before_prepare(thd, all) || wsrep_after_prepare(thd, all)))
+        goto err;
+#endif /* WITH_WSREP */
       continue;
+    }
     /*
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.

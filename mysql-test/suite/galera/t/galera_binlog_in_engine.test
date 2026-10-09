@@ -1,0 +1,140 @@
+#
+# Galera with the binlog implemented in InnoDB (--binlog-storage-engine=innodb).
+#
+# Both nodes write the binlog into InnoDB, the applier on node_2 binlogs the
+# replicated transactions through --log-slave-updates. Node_2 joins the
+# cluster through rsync SST, which must transfer the InnoDB binlog files.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb_binlog.inc
+
+--connection node_1
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+call mtr.add_suppression("WSREP: Transaction data was spilled to the binlog storage engine before it was replicated");
+SELECT @@binlog_storage_engine;
+--connection node_2
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+SELECT @@binlog_storage_engine;
+
+--echo #
+--echo # Autocommit DML and DDL
+--echo #
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, b VARCHAR(1000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'a');
+UPDATE t1 SET b = 'b' WHERE id = 1;
+INSERT INTO t1 VALUES (2, 'c');
+DELETE FROM t1 WHERE id = 2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE b = 'b'
+--source include/wait_condition.inc
+SELECT * FROM t1;
+
+--echo #
+--echo # Multi-statement transaction with a savepoint rollback
+--echo #
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (10, 'x');
+SAVEPOINT s1;
+INSERT INTO t1 VALUES (11, 'rolled back');
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES (12, 'y');
+COMMIT;
+
+--echo # Statement rollback inside a transaction
+START TRANSACTION;
+INSERT INTO t1 VALUES (20, 'z');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (21, 'rolled back'), (20, 'dup');
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY id;
+
+--echo #
+--echo # Writes on node_2 replicate to node_1
+--echo #
+--connection node_2
+INSERT INTO t1 VALUES (30, 'from node_2');
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE id = 30
+--source include/wait_condition.inc
+SELECT * FROM t1 WHERE id = 30;
+
+--echo #
+--echo # A transaction smaller than the binlog cache but with several
+--echo # events replicates.
+--echo #
+--connection node_1
+START TRANSACTION;
+--disable_query_log
+--let $i = 100
+while ($i < 120)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('s', 1000))
+  --inc $i
+}
+--enable_query_log
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 20 FROM t1 WHERE id BETWEEN 100 AND 119
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1 WHERE id BETWEEN 100 AND 119;
+
+--echo #
+--echo # A transaction larger than the binlog cache is spilled to the
+--echo # engine binlog before it is replicated. This is not yet supported,
+--echo # the transaction is rolled back and nothing is replicated.
+--echo #
+--connection node_1
+START TRANSACTION;
+--disable_query_log
+--let $i = 200
+while ($i < 260)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('l', 1000))
+  --inc $i
+}
+--enable_query_log
+--error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
+COMMIT;
+SELECT COUNT(*) FROM t1 WHERE id BETWEEN 200 AND 259;
+
+--echo # The cluster is still consistent and operational
+INSERT INTO t1 VALUES (300, 'after large');
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE id = 300
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1 WHERE id BETWEEN 200 AND 259;
+SELECT COUNT(*) FROM t1;
+--connection node_1
+SELECT COUNT(*) FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+--echo #
+--echo # Both nodes have binlogged the same replicated transactions with the
+--echo # same GTIDs (wsrep_gtid_domain_id=1) in the engine binlog
+--echo #
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.tables WHERE table_name = 't1'
+--source include/wait_condition.inc
+--let $gtid_2 = `SELECT REGEXP_SUBSTR(@@gtid_binlog_pos, '(^|,)1-[0-9]+-[0-9]+')`
+--connection node_1
+--let $gtid_1 = `SELECT REGEXP_SUBSTR(@@gtid_binlog_pos, '(^|,)1-[0-9]+-[0-9]+')`
+if (!$gtid_1)
+{
+  --die No replicated transactions in gtid_binlog_pos of node_1
+}
+if ($gtid_1 != $gtid_2)
+{
+  --die gtid_binlog_pos domain 1 differs between the nodes: $gtid_1 vs $gtid_2
+}
+--echo # gtid_binlog_pos domain 1 matches on both nodes

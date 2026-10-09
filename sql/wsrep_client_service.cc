@@ -168,6 +168,26 @@ int Wsrep_client_service::prepare_fragment_for_replication(
   }
 
   const my_off_t saved_pos(my_b_tell(cache));
+
+  if (opt_binlog_engine_hton)
+  {
+    const uchar *data;
+    size_t length;
+    if (wsrep_engine_cache_data(cache, thd->wsrep_sr().log_position(),
+                                &data, &length))
+      DBUG_RETURN(1);
+    if (length > wsrep_max_ws_size)
+    {
+      WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
+                 wsrep_max_ws_size, length);
+      DBUG_RETURN(1);
+    }
+    buffer.push_back(reinterpret_cast<const char*>(data),
+                     reinterpret_cast<const char*>(data + length));
+    log_position= saved_pos;
+    DBUG_RETURN(0);
+  }
+
   if (reinit_io_cache(cache, READ_CACHE, thd->wsrep_sr().log_position(), 0, 0))
   {
     DBUG_RETURN(1);

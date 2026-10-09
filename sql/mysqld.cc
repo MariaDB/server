@@ -5423,11 +5423,9 @@ static int init_server_components()
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
     if (binlog_engine_used)
-    {
-      sql_print_error("Galera cannot be used with the "
-                      "--binlog-storage-engine option");
-      unireg_abort(1);
-    }
+      sql_print_warning("Galera support for --binlog-storage-engine is "
+                        "experimental: replicating a transaction larger "
+                        "than the binlog cache is not yet supported");
     if (opt_bootstrap) // bootstrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);

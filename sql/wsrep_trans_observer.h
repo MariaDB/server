@@ -262,6 +262,10 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   WSREP_DEBUG("wsrep_before_prepare: %d", wsrep_is_real(thd, all));
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (wsrep_engine_binlog_spilled(thd))
+  {
+    DBUG_RETURN(1);
+  }
   if ((ret= thd->wsrep_parallel_slave_wait_for_prior_commit()))
   {
     DBUG_RETURN(ret);
@@ -320,6 +324,10 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   THD_STAGE_INFO(thd, stage_waiting_certification);
   int ret= 0;
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (wsrep_engine_binlog_spilled(thd))
+  {
+    DBUG_RETURN(1);
+  }
 
   wsrep::provider::seq_cb_t seq_cb{
       thd, wsrep_parallel_slave_wakeup_subsequent_commits};
