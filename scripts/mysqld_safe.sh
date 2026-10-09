@@ -231,7 +231,6 @@ wsrep_pick_url() {
 wsrep_start_position_opt=""
 wsrep_recover_position() {
   local mysqld_cmd="$@"
-  local euid=$(id -u)
   local ret=0
 
   local wr_logfile=$(mktemp /tmp/wsrep_recovery.XXXXXX)
@@ -286,10 +285,9 @@ wsrep_recover_position() {
   else
     local wr_logfile_permanent="$DATADIR/wsrep_recovery.fail"
   fi
-  touch $wr_logfile_permanent
-  [ "$euid" = "0" ] && chown $user $wr_logfile_permanent
-  chmod 600 $wr_logfile_permanent
-  cat "$wr_logfile" >> $wr_logfile_permanent
+  if [ "$helper_exist" -eq "0" ]; then
+    (umask 077; "$helper" "$user" log "$wr_logfile_permanent" < "$wr_logfile")
+  fi
   rm -f "$wr_logfile"
 
   return $ret
