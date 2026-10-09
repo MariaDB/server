@@ -254,9 +254,8 @@ fi
 # The "set +e" is necessary as e.g. a ".journal" of a ext3 partition is
 # not chgrp'able (#318435).
 set +e
-find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
-find $mysql_datadir -follow -not -group mysql -print0 2>/dev/null \
-  | xargs -0 --no-run-if-empty chgrp mysql
+find $mysql_datadir/ ! -uid "$(id -u mysql)" -execdir chown -h mysql {} +
+find $mysql_datadir/ -not -group mysql -execdir chgrp -h mysql {} + 2>/dev/null
 set -e
 
 db_stop
