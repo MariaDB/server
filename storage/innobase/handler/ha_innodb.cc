@@ -3865,6 +3865,7 @@ static int innodb_init_params()
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
+#ifdef BTR_CUR_HASH_ADAPT
   if (btr_search.n_cells <=
       MYSQL_SYSVAR_NAME(adaptive_hash_index_cells).min_val)
   {
@@ -3877,6 +3878,7 @@ static int innodb_init_params()
     btr_search.n_cells=
       std::max(MYSQL_SYSVAR_NAME(adaptive_hash_index_cells).min_val, uint(n));
   }
+#endif /* BTR_CUR_HASH_ADAPT */
 
   if (compression_algorithm_is_not_loaded(innodb_compression_algorithm,
                                           ME_ERROR_LOG))
@@ -16042,6 +16044,13 @@ ha_innobase::reset()
 
 	/* This is a statement level counter. */
 	m_prebuilt->autoinc_last_value = 0;
+
+	/* The clustered leaf hints are scoped to one statement. The slots
+	keep their key buffers, which are already sized for this table, and
+	their contents, which the next statement overwrites before reading:
+	a slot is only read once an insertion has counted it. */
+	m_prebuilt->clust_leaf_hint_n = 0;
+	m_prebuilt->clust_leaf_hint_miss = 0;
 
 	m_prebuilt->skip_locked = false;
 	return(0);

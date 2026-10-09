@@ -1303,7 +1303,9 @@ void buf_LRU_truncate_temp(uint32_t threshold)
         bpage->lock.u_unlock();
       }
     #endif /* UNIV_DEBUG */
+#ifdef BTR_CUR_HASH_ADAPT
       ut_ad(!reinterpret_cast<buf_block_t*>(bpage)->index);
+#endif
       buf_LRU_free_page(bpage, true);
     }
     bpage= next;
