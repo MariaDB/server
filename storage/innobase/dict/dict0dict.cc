@@ -597,7 +597,7 @@ dict_table_t *dict_sys_t::acquire_temporary_table(table_id_t id) const noexcept
     });
 }
 
-dict_table_t *dict_sys_t::find_table(table_id_t id) const noexcept
+dict_table_t *dict_sys_t::find_table_any(table_id_t id) const noexcept
 {
   ut_ad(frozen());
   return table_id_hash.cell_get(ut_fold_ull(id))->
@@ -609,7 +609,24 @@ dict_table_t *dict_sys_t::find_table(table_id_t id) const noexcept
     });
 }
 
-dict_table_t *dict_sys_t::find_table(const span<const char> &name)
+dict_table_t *dict_sys_t::find_table(table_id_t id, bool excl) noexcept
+{
+  for (;;)
+  {
+    dict_table_t *t= find_table_any(id);
+    if (!t || !t->loading())
+      return t;
+    /* Another thread is loading the table definition. Wait for it to
+    finish; on success t is valid to return directly, but if it
+    failed, retry from the top (the stub may have been freed, or a
+    fresh load of the same id may now be in progress). */
+    ut_ad(!t->is_loader());
+    if (wait_for_load(t, excl))
+      return t;
+  }
+}
+
+dict_table_t *dict_sys_t::find_table_any(const span<const char> &name)
   const noexcept
 {
   ut_ad(frozen());
@@ -619,6 +636,41 @@ dict_table_t *dict_sys_t::find_table(const span<const char> &name)
       return strlen(t->name.m_name) == name.size() &&
         !memcmp(t->name.m_name, name.data(), name.size());
     });
+}
+
+dict_table_t *dict_sys_t::find_table(const span<const char> &name, bool excl)
+  noexcept
+{
+  for (;;)
+  {
+    dict_table_t *t= find_table_any(name);
+    if (!t || !t->loading())
+      return t;
+    /* Another thread is loading the table definition. Wait for it to
+    finish; on success t is valid to return directly, but if it
+    failed, retry from the top (the stub may have been freed, or a
+    fresh load of the same name may now be in progress). */
+    ut_ad(!t->is_loader());
+    if (wait_for_load(t, excl))
+      return t;
+  }
+}
+
+dict_table_t *dict_sys_t::find_table_fk(const span<const char> &name)
+  const noexcept
+{
+  ut_ad(locked());
+  dict_table_t *t= find_table_any(name);
+  /* A table whose definition is still being loaded (LOADING_DEF) is
+  concurrently modified by its loader without any latch; it must be
+  treated as if it were not cached. A table that is only waiting for
+  its FOREIGN KEY related tables to be loaded (LOADING_FK) has a
+  complete definition, and its foreign_set/referenced_set are only
+  modified under the exclusive latch, which we are holding; linking
+  a constraint into it is safe, and necessary so that two concurrent
+  dict_sys_t::load_table() invocations whose tables reference each
+  other will resolve the constraints between them. */
+  return t && t->loading() == dict_table_t::LOADING_DEF ? nullptr : t;
 }
 
 /** Acquire MDL shared for the table name.
@@ -689,7 +741,7 @@ retry:
   size_t db1_len, tbl1_len;
 lookup:
   dict_sys.freeze(SRW_LOCK_CALL);
-  table= dict_sys.find_table(table_id);
+  table= dict_sys.find_table(table_id, false);
   if (table)
   {
     if (!table->is_accessible())
@@ -825,7 +877,7 @@ retry:
   if (!dict_locked)
     dict_sys.freeze(SRW_LOCK_CALL);
 
-  dict_table_t *table= dict_sys.find_table(table_id);
+  dict_table_t *table= dict_sys.find_table(table_id, dict_locked);
 
   if (table)
   {
@@ -978,6 +1030,29 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexc
   latch.wr_lock(SRW_LOCK_ARGS(file, line));
 }
 
+bool dict_sys_t::wait_for_load(dict_table_t *table, bool excl) noexcept
+{
+  ut_ad(excl ? locked() : frozen_not_locked());
+  ut_ad(!table->is_loader());
+  if (!table->try_pin_for_wait())
+    /* The load already failed; nothing to wait for. */
+    return false;
+  /* Pin the table so it survives releasing dict_sys.latch: blocking
+  on lock_latch while still holding dict_sys.latch could deadlock
+  against a loader that needs dict_sys.latch to link FOREIGN KEY
+  constraints. */
+  if (excl) unlock(); else unfreeze();
+  table->lock_shared_lock();
+  table->lock_shared_unlock();
+  if (excl) lock(SRW_LOCK_CALL); else freeze(SRW_LOCK_CALL);
+  /* The loader released lock_latch only after settling into
+  NOT_LOADING or LOAD_FAILED; check while our pin still guarantees
+  table is valid, then release it (dict_sys.latch takes over). */
+  const bool ready= !table->loading();
+  table->release();
+  return ready;
+}
+
 #ifdef UNIV_PFS_RWLOCK
 ATTRIBUTE_NOINLINE void dict_sys_t::unlock() noexcept
 {
@@ -1031,7 +1106,7 @@ dict_table_open_on_name(
   if (!dict_locked)
   {
     dict_sys.freeze(SRW_LOCK_CALL);
-    table= dict_sys.find_table(name);
+    table= dict_sys.find_table(name, false);
     if (table)
     {
       ut_ad(table->cached);
@@ -1144,7 +1219,10 @@ dict_table_add_system_columns(
 {
 	ut_ad(table->n_def == table->n_cols - DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(!table->cached);
+	/* A table that is being loaded by dict_load_table_one() was
+	published in the cache as an incomplete stub before its columns
+	were loaded. */
+	ut_ad(!table->cached || table->is_loader());
 
 	/* NOTE: the system columns MUST be added in the following order
 	(so that they can be indexed by the numerical value of DATA_ROW_ID,
@@ -1187,12 +1265,17 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
   table->row_id= 0;
   table->autoinc_mutex.init();
   table->lock_mutex_init();
+  if (table->loading())
+    /* Take lock_latch before the stub is reachable via find_table_any(). */
+    table->lock_mutex_lock();
   const char *name= table->name.m_name;
   dict_table_t **prev= table_hash.cell_get(my_crc32c(0, name, strlen(name)))->
     search(&dict_table_t::name_hash, [name](const dict_table_t *t)
     {
       if (!t) return true;
-      ut_ad(t->cached);
+      /* t may be a stub that another thread is loading; check the
+      atomic flag before the bit-field to avoid a torn read. */
+      ut_ad(t->loading() || t->cached);
       ut_a(strcmp(t->name.m_name, name));
       return false;
     });
@@ -1202,7 +1285,7 @@ inline void dict_sys_t::add(dict_table_t *table) noexcept
     search(&dict_table_t::id_hash, [table](const dict_table_t *t)
     {
       if (!t) return true;
-      ut_ad(t->cached);
+      ut_ad(t->loading() || t->cached);
       ut_a(t->id != table->id);
       return false;
     });
@@ -1221,6 +1304,11 @@ static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_ad(dict_sys.locked());
 	ut_a(table->can_be_evicted);
+
+	if (table->loading()) {
+		return false;
+	}
+
 	ut_a(table->foreign_set.empty());
 	ut_a(table->referenced_set.empty());
 
@@ -1986,7 +2074,7 @@ dict_index_add_to_cache(
 	ulint		n_ord;
 	ulint		i;
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || index->table->is_loader());
 	ut_ad(index->n_def == index->n_fields);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(!dict_index_is_online_ddl(index));
@@ -2190,7 +2278,7 @@ dict_index_find_cols(
 
 	const dict_table_t* table = index->table;
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	for (ulint i = 0; i < index->n_fields; i++) {
 		ulint		j;
@@ -2452,7 +2540,7 @@ dict_index_build_internal_clust(
 	ut_ad(index->is_primary());
 	ut_ad(!index->has_virtual());
 
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	/* Create a new index object with certainly enough fields */
 	new_index = dict_mem_index_create(index->table, index->name,
@@ -2605,7 +2693,7 @@ dict_index_build_internal_non_clust(
 	ibool*		indexed;
 
 	ut_ad(!index->is_primary());
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || table->is_loader());
 
 	/* The clustered index should be the first in the list of indexes */
 	clust_index = UT_LIST_GET_FIRST(table->indexes);
@@ -2693,7 +2781,7 @@ dict_index_build_internal_fts(
 	dict_index_t*	new_index;
 
 	ut_ad(index->type & DICT_FTS);
-	ut_ad(dict_sys.locked());
+	ut_ad(dict_sys.locked() || index->table->is_loader());
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(index->table, index->name,
@@ -2912,11 +3000,11 @@ dict_foreign_add_to_cache(
 
 	ut_ad(dict_sys.locked());
 
-	for_table = dict_sys.find_table(
+	for_table = dict_sys.find_table_fk(
 		{foreign->foreign_table_name_lookup,
 		 strlen(foreign->foreign_table_name_lookup)});
 
-	ref_table = dict_sys.find_table(
+	ref_table = dict_sys.find_table_fk(
 		{foreign->referenced_table_name_lookup,
 		 strlen(foreign->referenced_table_name_lookup)});
 	ut_a(for_table || ref_table);
@@ -4352,7 +4440,7 @@ dict_fs2utf8(
 @param id_hash dict_sys.table_id_hash or dict_sys.temp_id_hash */
 static void hash_insert(dict_table_t *table, hash_table_t& id_hash) noexcept
 {
-  ut_ad(table->cached);
+  ut_ad(table->loading() || table->cached);
   dict_sys.table_hash.cell_get(my_crc32c(0, table->name.m_name,
                                          strlen(table->name.m_name)))->
     append(*table, &dict_table_t::name_hash);

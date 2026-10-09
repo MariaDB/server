@@ -117,7 +117,7 @@ row_purge_remove_clust_if_poss_low(
 	if (table_id) {
 retry:
 		dict_sys.lock(SRW_LOCK_CALL);
-		table = dict_sys.find_table(table_id);
+		table = dict_sys.find_table(table_id, true);
 		if (!table) {
 			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
