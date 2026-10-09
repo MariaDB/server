@@ -4107,6 +4107,7 @@ assignment_source_expr:
 for_loop_bound_expr:
           assignment_source_lex
           {
+            DBUG_ASSERT(thd->free_list == NULL);
             Lex->sphead->reset_lex(thd, $1);
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
@@ -4116,7 +4117,7 @@ for_loop_bound_expr:
           {
             DBUG_ASSERT($1 == thd->lex);
             $$= $1;
-            $$->set_item_and_free_list($4, nullptr);
+            $$->set_item_and_free_list($4, thd->free_list);
 
             if (Lex->is_metadata_used())
             {
@@ -4127,6 +4128,7 @@ for_loop_bound_expr:
               $$->set_expr_str(expr_str);
             }
 
+            thd->free_list= NULL;
             Lex->pop_select(); //main select
             if (unlikely($$->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
