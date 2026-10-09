@@ -26,6 +26,13 @@
 /**
   @file mysql/psi/mysql_mdl.h
   Instrumentation helpers for metadata locks.
+
+  @defgroup Metadata_instrumentation Metadata Instrumentation
+  @ingroup Instrumentation_interface
+
+  Instrumentation helpers for metadata locks.
+
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -48,12 +55,6 @@
 #define PSI_CALL_set_metadata_lock_status(A,B) do {} while(0)
 #define PSI_CALL_destroy_metadata_lock(A) do {} while(0)
 #endif
-
-/**
-  @defgroup Metadata_instrumentation Metadata Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def mysql_mdl_create(K, M, A)

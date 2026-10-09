@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_BASE64_INCLUDED
 /* Copyright (c) 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -14,11 +13,24 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_SERVICE_BASE64_INCLUDED
+#define MYSQL_SERVICE_BASE64_INCLUDED
+
 /**
   @file
   my base64 service
 
   Functions for base64 en- and decoding
+*/
+
+/**
+  @defgroup plugin_api_service_base64 Base64 service
+  @ingroup plugin_api_services
+
+  Base64 service
+
+  Functions for base64 en- and decoding.
+  @{
 */
 
 #ifdef __cplusplus
@@ -78,5 +90,5 @@ int my_base64_decode(const char *src, size_t src_len,
 }
 #endif
 
-#define MYSQL_SERVICE_BASE64_INCLUDED
+/** @} */
 #endif
