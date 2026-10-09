@@ -280,14 +280,98 @@ static inline int32 int4net(const void *p)
 }
 
 /*
-  Some macros for reading doubles and floats (clean, do not assume alignment)
-  These are defined in big_endian.h and  little_endian.h
+  Macros for reading and storing floating point numbers, and 16-bit and 32-bit
+  integers in the native byte order. They have no alignment requirement.
+
+  The float4*() and float8*() macros use the little-endian byte order on any
+  host. The mi_float*() macros in myisampack.h use the big-endian byte order.
 */
+
+/* Copy 4 or 8 bytes in the reverse order */
+#define MY_SWAPCPY4(DST,SRC)                                            \
+  do {                                                                  \
+    uint32 tmp_;                                                        \
+    memcpy(&tmp_, (SRC), sizeof(tmp_));                                 \
+    tmp_= MY_BSWAP32(tmp_);                                             \
+    memcpy((DST), &tmp_, sizeof(tmp_));                                 \
+  } while(0)
+
+#define MY_SWAPCPY8(DST,SRC)                                            \
+  do {                                                                  \
+    uint64 tmp_;                                                        \
+    memcpy(&tmp_, (SRC), sizeof(tmp_));                                 \
+    tmp_= MY_BSWAP64(tmp_);                                             \
+    memcpy((DST), &tmp_, sizeof(tmp_));                                 \
+  } while(0)
+
+/* Copy 4 or 8 bytes between the host order and the little/big-endian order */
 #ifdef WORDS_BIGENDIAN
-#include "big_endian.h"
+#define MY_COPY_LE4(DST,SRC) MY_SWAPCPY4(DST, SRC)
+#define MY_COPY_LE8(DST,SRC) MY_SWAPCPY8(DST, SRC)
+#define MY_COPY_BE4(DST,SRC) memcpy((DST), (SRC), 4)
+#define MY_COPY_BE8(DST,SRC) memcpy((DST), (SRC), 8)
 #else
-#include "little_endian.h"
+#define MY_COPY_LE4(DST,SRC) memcpy((DST), (SRC), 4)
+#define MY_COPY_LE8(DST,SRC) memcpy((DST), (SRC), 8)
+#define MY_COPY_BE4(DST,SRC) MY_SWAPCPY4(DST, SRC)
+#define MY_COPY_BE8(DST,SRC) MY_SWAPCPY8(DST, SRC)
 #endif
 
+/* The "const void*" casts allow storing from volatile objects */
+#define float4store(T,A)    MY_COPY_LE4((T), (const void*) &(A))
+#define float8store(T,V)    MY_COPY_LE8((T), (const void*) &(V))
+
+#define float4get(V,M)                                                  \
+  do {                                                                  \
+    compile_time_assert(sizeof(V) == sizeof(float));                    \
+    MY_COPY_LE4(&(V), (M));                                             \
+  } while(0)
+
+#define float8get(V,M)                                                  \
+  do {                                                                  \
+    compile_time_assert(sizeof(V) == sizeof(double));                   \
+    MY_COPY_LE8(&(V), (M));                                             \
+  } while(0)
+
+/* The following use the native byte order. */
+#define ushortget(V,M)                                                  \
+  do {                                                                  \
+    uint16 tmp_;                                                        \
+    memcpy(&tmp_, (M), sizeof(tmp_));                                   \
+    (V)= tmp_;                                                          \
+  } while(0)
+
+#define shortget(V,M)                                                   \
+  do {                                                                  \
+    int16 tmp_;                                                         \
+    memcpy(&tmp_, (M), sizeof(tmp_));                                   \
+    (V)= tmp_;                                                          \
+  } while(0)
+
+#define longget(V,M)                                                    \
+  do {                                                                  \
+    int32 tmp_;                                                         \
+    memcpy(&tmp_, (M), sizeof(tmp_));                                   \
+    (V)= tmp_;                                                          \
+  } while(0)
+
+#define shortstore(T,A)                                                 \
+  do {                                                                  \
+    uint16 tmp_= (uint16) (A);                                          \
+    memcpy((T), &tmp_, sizeof(tmp_));                                   \
+  } while(0)
+
+#define longstore(T,A)                                                  \
+  do {                                                                  \
+    uint32 tmp_= (uint32) (A);                                          \
+    memcpy((T), &tmp_, sizeof(tmp_));                                   \
+  } while(0)
+
+#define floatget(V,M)      memcpy(&(V), (M), sizeof(float))
+#define doubleget(V,M)     memcpy(&(V), (M), sizeof(double))
+#define longlongget(V,M)   memcpy(&(V), (M), sizeof(ulonglong))
+#define longlongstore(T,V) memcpy((T), (const void*) &(V), sizeof(ulonglong))
+#define floatstore(T,V)    memcpy((T), (const void*) &(V), sizeof(float))
+#define doublestore(T,V)   memcpy((T), (const void*) &(V), sizeof(double))
 
 #endif /* MY_BYTEORDER_INCLUDED */
