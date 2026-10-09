@@ -32,3 +32,16 @@ select 1 + "2 a";
 create table t (a int primary key, b blob default '');
 select a, (2*a) AS a from t group by a;
 drop table t;
+
+--echo #
+--echo # MDEV-41408 MTR prepared statement protocol skipping statements starting with '('
+--echo #
+
+let $e0= query_get_value(SHOW SESSION STATUS LIKE 'Com_stmt_execute', Value, 1);
+SELECT 1;
+let $e1= query_get_value(SHOW SESSION STATUS LIKE 'Com_stmt_execute', Value, 1);
+( ( SELECT 1));
+let $e2= query_get_value(SHOW SESSION STATUS LIKE 'Com_stmt_execute', Value, 1);
+evalp SELECT $e2 - $e1 = $e1 - $e0 AS parens_same;
+
+--echo # End of 11.4 tests
