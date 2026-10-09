@@ -704,6 +704,8 @@ struct row_prebuilt_t {
 	of acquiring row-level locks. */
 	bool		full_table_scan;
 
+	bool		full_scan_covering_read;
+
 	/** Get template by dict_table_t::cols[] number */
 	const mysql_row_templ_t* get_template_by_col(ulint col) const
 	{

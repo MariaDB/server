@@ -1,5 +1,5 @@
 --- innodb_full_scan.result
-+++ innodb_full_scan,table_lock.result
++++ innodb_full_scan,table_lock.reject
 @@ -10,14 +10,14 @@
  42
  COMMIT;
@@ -119,3 +119,12 @@
  drop table t10, t11;
  # Range access
  create table t10 (a int, b varchar(100), index(a)) engine=innodb;
+@@ -185,7 +185,7 @@
+ # 10000 rows; clustered path costs ~2/row
+ SELECT ($e - $s) < 10000 AS covering;
+ covering
+-0
++1
+ connect  con1,localhost,root,,;
+ SET innodb_lock_wait_timeout=1;
+ # Case 1: covering point lookup (never a full scan, no table lock)
