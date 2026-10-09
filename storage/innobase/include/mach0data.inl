@@ -554,19 +554,7 @@ mach_double_read(
 	const byte*	b)	/*!< in: pointer to memory from where to read */
 {
 	double	d;
-	ulint	i;
-	byte*	ptr;
-
-	ptr = (byte*) &d;
-
-	for (i = 0; i < sizeof(double); i++) {
-#ifdef WORDS_BIGENDIAN
-		ptr[sizeof(double) - i - 1] = b[i];
-#else
-		ptr[i] = b[i];
-#endif
-	}
-
+	float8get(d, b);
 	return(d);
 }
 
@@ -579,18 +567,7 @@ mach_double_write(
 	byte*	b,	/*!< in: pointer to memory where to write */
 	double	d)	/*!< in: double */
 {
-	ulint	i;
-	byte*	ptr;
-
-	ptr = (byte*) &d;
-
-	for (i = 0; i < sizeof(double); i++) {
-#ifdef WORDS_BIGENDIAN
-		b[i] = ptr[sizeof(double) - i - 1];
-#else
-		b[i] = ptr[i];
-#endif
-	}
+	float8store(b, d);
 }
 
 /*********************************************************//**
@@ -603,19 +580,7 @@ mach_float_read(
 	const byte*	b)	/*!< in: pointer to memory from where to read */
 {
 	float	d;
-	ulint	i;
-	byte*	ptr;
-
-	ptr = (byte*) &d;
-
-	for (i = 0; i < sizeof(float); i++) {
-#ifdef WORDS_BIGENDIAN
-		ptr[sizeof(float) - i - 1] = b[i];
-#else
-		ptr[i] = b[i];
-#endif
-	}
-
+	float4get(d, b);
 	return(d);
 }
 
@@ -628,18 +593,7 @@ mach_float_write(
 	byte*	b,	/*!< in: pointer to memory where to write */
 	float	d)	/*!< in: float */
 {
-	ulint	i;
-	byte*	ptr;
-
-	ptr = (byte*) &d;
-
-	for (i = 0; i < sizeof(float); i++) {
-#ifdef WORDS_BIGENDIAN
-		b[i] = ptr[sizeof(float) - i - 1];
-#else
-		b[i] = ptr[i];
-#endif
-	}
+	float4store(b, d);
 }
 
 /*********************************************************//**

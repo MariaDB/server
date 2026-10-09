@@ -549,8 +549,7 @@ typedef uint64 ULLong;
 
 typedef union { double d; ULong L[2]; } U;
 
-#if defined(WORDS_BIGENDIAN) || (defined(__FLOAT_WORD_ORDER) &&        \
-                                 (__FLOAT_WORD_ORDER == __BIG_ENDIAN))
+#ifdef WORDS_BIGENDIAN
 #define word0(x) (x)->L[0]
 #define word1(x) (x)->L[1]
 #else
