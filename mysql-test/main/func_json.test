@@ -1908,6 +1908,28 @@ SELECT JSON_OVERLAPS(@json2, @json1);
 SELECT JSON_OVERLAPS(@json1, @json2);
 
 --echo #
+--echo # MDEV-41067: Empty and nonempty nested JSON arrays
+--echo #
+SELECT JSON_OVERLAPS('[[1]]', '[[]]') AS forward,
+       JSON_OVERLAPS('[[]]', '[[1]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1],[2]]', '[[],[2]]') AS forward,
+       JSON_OVERLAPS('[[],[2]]', '[[1],[2]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1]]', '[[1,2]]') AS forward,
+       JSON_OVERLAPS('[[1,2]]', '[[1]]') AS reverse;
+SELECT JSON_OVERLAPS('[[]]', '[[]]') AS r;
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],2]]') AS r;
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],3]]') AS forward,
+       JSON_OVERLAPS('[[[1],3]]', '[[[1],2]]') AS reverse;
+SELECT JSON_OVERLAPS('[[[],1],[4]]', '[[{},1],[4]]') AS forward,
+       JSON_OVERLAPS('[[{},1],[4]]', '[[[],1],[4]]') AS reverse;
+SELECT JSON_OVERLAPS('[[true]]', '[[1]]') AS forward,
+       JSON_OVERLAPS('[[1]]', '[[true]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1,2]]', '[[2,1]]') AS forward,
+       JSON_OVERLAPS('[[2,1]]', '[[1,2]]') AS reverse;
+SELECT JSON_OVERLAPS('{"a":[1],"b":2}', '{"a":[],"b":2}') AS forward,
+       JSON_OVERLAPS('{"a":[],"b":2}', '{"a":[1],"b":2}') AS reverse;
+
+--echo #
 --echo # MDEV-30304: Json Range only affects first row of the result set
 --echo #
 
