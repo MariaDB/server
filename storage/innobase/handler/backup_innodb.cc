@@ -157,9 +157,6 @@ namespace
 /** Backup state and context; mostly protected by log_sys.latch */
 class InnoDB_backup
 {
-#ifdef _WIN32
-  using tpool::pwrite;
-#endif
 public:
   InnoDB_backup() { mutex.init(); }
   ~InnoDB_backup() { mutex.destroy(); }
@@ -908,6 +905,9 @@ public:
         if (!log_sys.is_mmap())
 #endif
         {
+#ifdef _WIN32
+          using tpool::pwrite;
+#endif
           /* Zero out the garbage part of the last log block. */
           const uint64_t offset{last - ctx.first_lsn + log_sys.START_OFFSET};
           const size_t o{size_t(offset) & bs_1}, s{bs_1 + 1 - o};
@@ -1944,6 +1944,9 @@ private:
   @retval 0 on success */
   static int write_checkpoint(backup_fd dst, const void *buf) noexcept
   {
+#ifdef _WIN32
+    using tpool::pwrite;
+#endif
     for (ssize_t o= 0, count= 64; count;)
     {
       ssize_t ret=
