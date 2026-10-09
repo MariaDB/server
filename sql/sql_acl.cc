@@ -7324,6 +7324,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                          ignored_tables_list_t(NULL), NULL,
                                          TRUE, FALSE, &unused_field_idx, FALSE,
                                          &dummy);
+        /* view fields are fixed when the view is opened */
+        DBUG_ASSERT(f != field_fix_error);
         if (unlikely(f == (Field*)0))
         {
           my_error(ER_BAD_FIELD_ERROR, MYF(0),

@@ -6246,7 +6246,8 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
 
 /* Special Field pointers as return values of find_field_in_XXX functions. */
 Field *not_found_field= (Field*) 0x1;
-Field *view_ref_found= (Field*) 0x2; 
+Field *view_ref_found= (Field*) 0x2;
+Field *field_fix_error= (Field*) 0x3;
 
 #define WRONG_GRANT (Field*) -1
 
@@ -6302,6 +6303,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
   RETURN
     0			field is not found
     view_ref_found	found value in VIEW (real result is in *ref)
+    field_fix_error	the found VIEW field could not be fixed
     #			pointer to field - only for schema table fields
 */
 
@@ -6334,9 +6336,12 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
       Item *item= field_it.create_item(thd);
       if (arena)
         thd->restore_active_arena(arena, &backup);
-      
+
       if (!item)
-        DBUG_RETURN(0);
+      {
+        DBUG_ASSERT(thd->is_error());
+        DBUG_RETURN(field_fix_error);
+      }
       if (!ref)
         DBUG_RETURN((Field*) view_ref_found);
       /*
@@ -6389,6 +6394,7 @@ find_field_in_view(THD *thd, TABLE_LIST *table_list,
   RETURN
     NULL        if the field was not found
     WRONG_GRANT if no access rights to the found field
+    field_fix_error the found field could not be fixed
     #           Pointer to the found Field
 */
 
@@ -6434,7 +6440,12 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
     */
     item= nj_col->create_item(thd);
     if (!item)
-      DBUG_RETURN(NULL);
+    {
+      if (register_tree_change && arena)
+        thd->restore_active_arena(arena, &backup);
+      DBUG_ASSERT(thd->is_error());
+      DBUG_RETURN(field_fix_error);
+    }
 
     /*
      *ref != NULL means that *ref contains the item that we need to
@@ -6446,8 +6457,6 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
     if (register_tree_change && arena)
       thd->restore_active_arena(arena, &backup);
 
-    if (!item)
-      DBUG_RETURN(NULL);
     DBUG_ASSERT(nj_col->table_field == NULL);
     if (nj_col->table_ref->schema_table_reformed)
     {
@@ -6479,7 +6488,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
     {
       DBUG_PRINT("info", ("column '%s' was dropped by the concurrent connection",
                           nj_col->table_field->name.str));
-      DBUG_RETURN(NULL);
+      DBUG_RETURN(field_fix_error);
     }
     DBUG_ASSERT(ref == 0);                      // Should not have changed
     DBUG_ASSERT(nj_col->table_ref->table == nj_col->table_field->field->table);
@@ -6610,6 +6619,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   RETURN
     0			field is not found
     view_ref_found	found value in VIEW (real result is in *ref)
+    field_fix_error	the found field could not be fixed
     #			pointer to field
 */
 
@@ -6682,7 +6692,8 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
   {
     /* 'table_list' is a view or an information schema table. */
     if ((fld= find_field_in_view(thd, table_list, name, length, item_name, ref,
-                                 register_tree_change)))
+                                 register_tree_change)) &&
+        fld != field_fix_error)
       *actual_table= table_list;
   }
   else if (!table_list->nested_join)
@@ -6733,6 +6744,9 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list, const char *name,
     fld= find_field_in_natural_join(thd, table_list, name, length, ref,
                                     register_tree_change, actual_table);
   }
+
+  if (fld == field_fix_error)
+    DBUG_RETURN(fld);
 
   if (fld)
   {
@@ -6859,7 +6873,8 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
   RETURN VALUES
     0			If error: the found field is not unique, or there are
                         no sufficient access priviliges for the found field,
-                        or the field is qualified with non-existing table.
+                        or the field is qualified with non-existing table,
+                        or the found field could not be fixed.
     not_found_field	The function was called with report_error ==
                         (IGNORE_ERRORS || IGNORE_EXCEPT_NON_UNIQUE) and a
 			field was not found.
@@ -6932,7 +6947,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                      register_tree_change, &actual_table);
     if (found)
     {
-      if (found == WRONG_GRANT)
+      if (found == WRONG_GRANT || found == field_fix_error)
 	return (Field*) 0;
 
       /*
@@ -7018,6 +7033,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                               &actual_table);
     if (cur_field)
     {
+      if (cur_field == field_fix_error)
+        return (Field*) 0;
       if (cur_field == WRONG_GRANT)
       {
         if (thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
