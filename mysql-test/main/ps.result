@@ -6058,4 +6058,36 @@ ALTER TABLE t FORCE;
 EXECUTE stmt USING DEFAULT;
 ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t;
+#
+# MDEV-40303 SIGSEGV in Item_field::type_handler() on PS re-execution
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+PREPARE s FROM 'SELECT subq.c FROM (SELECT (CAST(? AS CHAR) < (SELECT CAST(? AS CHAR) AS a UNION ALL SELECT CAST(? AS CHAR) AS a LIMIT 1)) AS c FROM t1) subq';
+EXECUTE s USING 'a','a','a';
+c
+0
+0
+EXECUTE s USING 'a','a',POINT(1,1);
+ERROR HY000: Illegal parameter data type point for operation 'cast_as_char'
+EXECUTE s USING 'a','a','a';
+c
+0
+0
+DEALLOCATE PREPARE s;
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3);
+PREPARE s FROM 'SELECT c FROM (SELECT (CAST(? AS CHAR) < (SELECT CAST(? AS CHAR) AS a UNION ALL SELECT CAST(? AS CHAR) AS a LIMIT 1)) AS c FROM t1) subq NATURAL JOIN t2';
+EXECUTE s USING 'a','a','a';
+c
+0
+0
+EXECUTE s USING 'a','a',POINT(1,1);
+ERROR HY000: Illegal parameter data type point for operation 'cast_as_char'
+EXECUTE s USING 'a','a','a';
+c
+0
+0
+DEALLOCATE PREPARE s;
+DROP TABLE t1, t2;
 # End of 10.11 test

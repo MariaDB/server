@@ -1372,6 +1372,12 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     
   if (prepared)
   {
+    /* Preparation failed earlier in this execution (see err:) */
+    if (unlikely(cleaned))
+    {
+      DBUG_ASSERT(thd->is_error());
+      DBUG_RETURN(TRUE);
+    }
     if (describe)
     {
       /* fast reinit for EXPLAIN */
