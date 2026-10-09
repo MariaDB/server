@@ -909,7 +909,8 @@ public:
           using tpool::pwrite;
 #endif
           /* Zero out the garbage part of the last log block. */
-          const uint64_t offset{last - ctx.first_lsn + log_sys.START_OFFSET};
+          const uint64_t offset{last - tracked.first_lsn +
+                                log_sys.START_OFFSET};
           const size_t o{size_t(offset) & bs_1}, s{bs_1 + 1 - o};
           if (o &&
               ssize_t(s) != pwrite(ctx.log_dst, field_ref_zero, s, offset))
