@@ -1,0 +1,13 @@
+--echo #
+--echo # MDEV-40545: --force-read must not loop on a truncated event header
+--echo #
+
+--echo # The event header is truncated
+--error 1
+--exec $MYSQL_BINLOG --short-form --force-read $MYSQL_TEST_DIR/std_data/mdev-40545-binlog.000001 2>&1 > /dev/null
+
+--echo # The event body is truncated
+--error 1
+--exec $MYSQL_BINLOG --short-form --force-read $MYSQL_TEST_DIR/std_data/mdev-40545-binlog.000002 2>&1 > /dev/null
+
+--echo # End of 11.4 tests

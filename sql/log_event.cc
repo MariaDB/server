@@ -935,6 +935,10 @@ Log_event* Log_event::read_log_event(IO_CACHE* file, int *out_error,
       error= "Event too big";
       goto err;
     case LOG_READ_DECRYPT:
+#ifdef MYSQL_CLIENT
+      if (force_opt)
+        DBUG_RETURN(new Unknown_log_event());
+#endif
       error= "Event decryption failure";
       goto err;
     case LOG_READ_CHECKSUM_FAILURE:
@@ -956,11 +960,6 @@ err:
   if (unlikely(error))
   {
     DBUG_ASSERT(!res);
-#ifdef MYSQL_CLIENT
-    if (force_opt)
-      DBUG_RETURN(new Unknown_log_event());
-#endif
-
     /*
       The SQL slave thread will check *out_error to know
       if there was an I/O error. Even if there is no "low-level" I/O errors

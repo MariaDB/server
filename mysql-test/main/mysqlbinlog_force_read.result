@@ -1,0 +1,10 @@
+#
+# MDEV-40545: --force-read must not loop on a truncated event header
+#
+# The event header is truncated
+ERROR: Error in Log_event::read_log_event(): 'Event truncated'
+ERROR: Could not read entry at offset 4: Error in log format or read error.
+# The event body is truncated
+ERROR: Error in Log_event::read_log_event(): 'Event truncated', data_len: 94, event_type: 15
+ERROR: Could not read entry at offset 4: Error in log format or read error.
+# End of 11.4 tests
