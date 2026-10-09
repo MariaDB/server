@@ -41,4 +41,10 @@ ERROR HY000: The definition for table `t1` is too big
 connection default;
 disconnect con1;
 set global max_allowed_packet=@save_max_allowed_packet;
+#
+# MDEV-41449 ASAN server crash on corrupted frm
+#
+select * from t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+drop table t1;
 # End of 10.11 tests
