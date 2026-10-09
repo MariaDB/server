@@ -4266,7 +4266,9 @@ bool row_search_with_covering_prefix(
 	/* In ha_innobase::build_template() we choose to access the
 	whole row when using exclusive row locks or In case of fts
 	query, we need to read from clustered index */
-	if (prebuilt->select_lock_type == LOCK_X || prebuilt->in_fts_query
+	if ((prebuilt->select_lock_type == LOCK_X
+	     && !prebuilt->full_scan_covering_read)
+	    || prebuilt->in_fts_query
 	    || !index->is_btree()) {
 		return false;
 	}

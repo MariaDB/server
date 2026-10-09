@@ -174,3 +174,50 @@ insert into t11 select a from t10 where a > 30;
 # lock_rec_created
 11
 drop table t10, t11;
+#
+# MDEV-41351 Redundant clustered lookups in covering scans when holding a table X-lock
+#
+# default, covering
+CREATE TABLE t1 (id INT PRIMARY KEY, sec INT, pad CHAR(100), KEY i1(sec))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_10000;
+SELECT sec,id FROM t1 FOR UPDATE;
+# 10000 rows; clustered path costs ~2/row
+SELECT ($e - $s) < 10000 AS covering;
+covering
+0
+connect  con1,localhost,root,,;
+SET innodb_lock_wait_timeout=1;
+# Case 1: covering point lookup (never a full scan, no table lock)
+connection default;
+EXPLAIN SELECT sec,id FROM t1 WHERE sec=5 FOR UPDATE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	i1	i1	5	const	#	Using index
+BEGIN;
+SELECT sec,id FROM t1 WHERE sec=5 FOR UPDATE;
+sec	id
+5	5
+connection con1;
+# PK path, non-indexed column: must wait for A's clustered X lock
+UPDATE t1 SET pad='y' WHERE id=5;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+# Case 2: covering full scan
+connection default;
+BEGIN;
+SELECT sec,id FROM t1 FOR UPDATE;
+connection con1;
+UPDATE t1 SET pad='y' WHERE id=5;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+# locks released: the UPDATE now succeeds
+connection con1;
+UPDATE t1 SET pad='y' WHERE id=5;
+SELECT pad FROM t1 WHERE id=5;
+pad
+y
+disconnect con1;
+connection default;
+DROP TABLE t1;
