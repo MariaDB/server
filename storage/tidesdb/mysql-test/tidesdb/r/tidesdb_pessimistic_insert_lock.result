@@ -1,0 +1,181 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+#
+# Setup
+#
+CREATE TABLE t (
+i INT,
+PRIMARY KEY (i)
+) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+connect  conA, localhost, root,,;
+connect  conB, localhost, root,,;
+#
+# TEST 1: SELECT FOR UPDATE on non-existing row blocks DELETE
+#   Connection A locks i=15 (does not exist).
+#   Connection B deletes i=2 (succeeds immediately),
+#   then tries to delete i=15 (must block).
+#
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 15 FOR UPDATE;
+i
+connection conB;
+DELETE FROM t WHERE i = 2;
+DELETE FROM t WHERE i = 15;
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# i=2 and i=15 both deleted (i=15 was no-op but lock was respected)
+SELECT * FROM t ORDER BY i;
+i
+1
+3
+4
+5
+#
+# TEST 2: DELETE acquires a lock that blocks another DELETE
+#   Connection A deletes i=3 inside a transaction.
+#   Connection B deletes i=4 (succeeds immediately),
+#   then tries to delete i=3 (must block until A commits).
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+connection conA;
+BEGIN;
+DELETE FROM t WHERE i = 3;
+connection conB;
+DELETE FROM t WHERE i = 4;
+DELETE FROM t WHERE i = 3;
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# i=3 and i=4 both deleted
+SELECT * FROM t ORDER BY i;
+i
+1
+2
+5
+#
+# TEST 3: UPDATE acquires a lock that blocks another UPDATE
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, v INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);
+connection conA;
+BEGIN;
+UPDATE t SET v = 99 WHERE i = 3;
+connection conB;
+UPDATE t SET v = 88 WHERE i = 2;
+UPDATE t SET v = 77 WHERE i = 3;
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# conA set v=99, then conB overwrote with v=77
+SELECT * FROM t ORDER BY i;
+i	v
+1	10
+2	88
+3	77
+#
+# TEST 4: INSERT blocked by SELECT FOR UPDATE on non-existing key
+#   This is the critical fix -- previously INSERT bypassed the lock.
+#   Connection A does SELECT FOR UPDATE on i=15 (non-existing).
+#   Connection B tries INSERT i=15 (must block until A commits).
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 15 FOR UPDATE;
+i
+connection conB;
+INSERT INTO t VALUES (15);
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# i=15 now exists (inserted by conB after conA released the lock)
+SELECT * FROM t WHERE i >= 10 ORDER BY i;
+i
+15
+#
+# TEST 5: INSERT blocked by DELETE on existing row
+#   Connection A deletes i=3 inside a transaction.
+#   Connection B tries to INSERT i=3 (must block).
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+connection conA;
+BEGIN;
+DELETE FROM t WHERE i = 3;
+connection conB;
+INSERT INTO t VALUES (3);
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# i=3 was deleted by conA, then re-inserted by conB
+SELECT * FROM t ORDER BY i;
+i
+1
+2
+3
+4
+5
+#
+# TEST 6: Concurrent INSERTs on different keys do not block
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+connection conA;
+BEGIN;
+INSERT INTO t VALUES (100);
+connection conB;
+INSERT INTO t VALUES (200);
+connection conA;
+COMMIT;
+connection default;
+# Both inserts succeeded without blocking
+SELECT * FROM t ORDER BY i;
+i
+100
+200
+#
+# TEST 7: Autocommit UPDATE blocked by SELECT FOR UPDATE
+#
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 3 FOR UPDATE;
+i
+3
+connection conB;
+UPDATE t SET i = 33 WHERE i = 3;
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# conA released lock, then conB's autocommit UPDATE renamed i=3 to i=33
+SELECT * FROM t ORDER BY i;
+i
+1
+2
+4
+5
+33
+#
+# Cleanup
+#
+disconnect conA;
+disconnect conB;
+connection default;
+DROP TABLE t;
+# Done.

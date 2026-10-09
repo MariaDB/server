@@ -23,6 +23,7 @@ extern "C" {
 
 #define LZ4_compressBound(...)    provider_service_lz4->LZ4_compressBound_ptr       (__VA_ARGS__)
 #define LZ4_compress_default(...) provider_service_lz4->LZ4_compress_default_ptr       (__VA_ARGS__)
+#define LZ4_compress_fast(...)    provider_service_lz4->LZ4_compress_fast_ptr        (__VA_ARGS__)
 #define LZ4_decompress_safe(...)  provider_service_lz4->LZ4_decompress_safe_ptr        (__VA_ARGS__)
 #endif
 
@@ -44,11 +45,20 @@ extern "C" {
     int dstCapacity                             \
 )
 
+#define DEFINE_LZ4_compress_fast(NAME) NAME(    \
+    const char *src,                            \
+    char *dst,                                  \
+    int srcSize,                                \
+    int dstCapacity,                            \
+    int acceleration                            \
+)
+
 struct provider_service_lz4_st
 {
   int DEFINE_LZ4_compressBound((*LZ4_compressBound_ptr));
   int DEFINE_LZ4_compress_default((*LZ4_compress_default_ptr));
   int DEFINE_LZ4_decompress_safe((*LZ4_decompress_safe_ptr));
+  int DEFINE_LZ4_compress_fast((*LZ4_compress_fast_ptr));
 
   bool is_loaded;
 };

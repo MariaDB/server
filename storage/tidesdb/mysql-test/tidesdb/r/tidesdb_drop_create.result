@@ -1,0 +1,79 @@
+#
+# Issue #57: Data survives DROP + CREATE
+#
+# ---- TEST 1: DROP TABLE must destroy data ----
+CREATE TABLE t_drop57 (i INT NOT NULL PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+INSERT INTO t_drop57 VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc');
+SELECT * FROM t_drop57 ORDER BY i;
+i	v
+1	aaa
+2	bbb
+3	ccc
+DROP TABLE t_drop57;
+CREATE TABLE t_drop57 (i INT NOT NULL PRIMARY KEY, v VARCHAR(50)) ENGINE=TidesDB;
+# Must be empty after DROP + CREATE
+SELECT COUNT(*) FROM t_drop57;
+COUNT(*)
+0
+SELECT * FROM t_drop57 ORDER BY i;
+i	v
+DROP TABLE t_drop57;
+# ---- TEST 2: CREATE OR REPLACE must destroy data ----
+CREATE TABLE t_cor57 (i INT) ENGINE=TidesDB;
+INSERT INTO t_cor57 VALUES (10), (20), (30);
+SELECT * FROM t_cor57 ORDER BY i;
+i
+10
+20
+30
+CREATE OR REPLACE TABLE t_cor57 (i INT) ENGINE=TidesDB;
+# Must be empty after CREATE OR REPLACE
+SELECT COUNT(*) FROM t_cor57;
+COUNT(*)
+0
+SELECT * FROM t_cor57 ORDER BY i;
+i
+DROP TABLE t_cor57;
+# ---- TEST 3: Secondary indexes must also be cleaned ----
+CREATE TABLE t_idx57 (
+id INT NOT NULL PRIMARY KEY,
+val INT NOT NULL,
+KEY idx_val (val)
+) ENGINE=TidesDB;
+INSERT INTO t_idx57 VALUES (1, 100), (2, 200), (3, 300);
+SELECT * FROM t_idx57 ORDER BY id;
+id	val
+1	100
+2	200
+3	300
+SELECT val FROM t_idx57 WHERE val = 200;
+val
+200
+DROP TABLE t_idx57;
+CREATE TABLE t_idx57 (
+id INT NOT NULL PRIMARY KEY,
+val INT NOT NULL,
+KEY idx_val (val)
+) ENGINE=TidesDB;
+# Must be empty after DROP + CREATE (including index)
+SELECT COUNT(*) FROM t_idx57;
+COUNT(*)
+0
+SELECT * FROM t_idx57 ORDER BY id;
+id	val
+SELECT val FROM t_idx57 WHERE val = 200;
+val
+DROP TABLE t_idx57;
+# ---- TEST 4: TRUNCATE TABLE still works ----
+CREATE TABLE t_trunc57 (i INT NOT NULL PRIMARY KEY) ENGINE=TidesDB;
+INSERT INTO t_trunc57 VALUES (1), (2), (3);
+SELECT COUNT(*) FROM t_trunc57;
+COUNT(*)
+3
+TRUNCATE TABLE t_trunc57;
+SELECT COUNT(*) FROM t_trunc57;
+COUNT(*)
+0
+DROP TABLE t_trunc57;
+#
+# Done.

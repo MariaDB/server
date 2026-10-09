@@ -1,0 +1,442 @@
+--source include/have_tidesdb.inc
+#
+# TidesDB write-pressure stress test
+#
+# Reproduces the oltp_write_only OOM pattern observed at >=16 sysbench threads:
+#   - Sysbench-like schema with secondary index on k
+#   - SYNC_MODE='NONE' (no fsync, maximum write throughput)
+#   - Multiple connections doing concurrent write-only transactions
+#   - Each txn: 4 UPDATEs + 1 DELETE + 1 INSERT (matches sysbench oltp_write_only)
+#   - Conflicts expected (ERROR 1180 from optimistic CC) -- exercises retry path
+#
+# Under ASAN, any per-operation memory leak will be caught by LeakSanitizer
+# at server shutdown.  Under Valgrind, use --tool=massif for heap profiling.
+#
+
+# Suppress expected conflict warnings from concurrent writes
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_LOCKED");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_MEMORY_LIMIT");
+call mtr.add_suppression("\\[TIDESDB\\].*unexpected TidesDB error");
+
+--echo #
+--echo # === Setup: sysbench-like schema with SYNC_MODE=NONE ===
+--echo #
+
+CREATE TABLE sbtest1 (
+  id  INT NOT NULL AUTO_INCREMENT,
+  k   INT NOT NULL DEFAULT 0,
+  c   CHAR(120) NOT NULL DEFAULT '',
+  pad CHAR(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+
+CREATE TABLE sbtest2 (
+  id  INT NOT NULL AUTO_INCREMENT,
+  k   INT NOT NULL DEFAULT 0,
+  c   CHAR(120) NOT NULL DEFAULT '',
+  pad CHAR(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+
+--echo #
+--echo # === Populate: 5000 rows per table ===
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+let $i= 1;
+while ($i <= 5000)
+{
+  eval INSERT INTO sbtest1 (k, c, pad) VALUES (
+    FLOOR(RAND() * 100000),
+    REPEAT('a', 120),
+    REPEAT('b', 60)
+  );
+  eval INSERT INTO sbtest2 (k, c, pad) VALUES (
+    FLOOR(RAND() * 100000),
+    REPEAT('a', 120),
+    REPEAT('b', 60)
+  );
+  inc $i;
+}
+
+--enable_result_log
+--enable_query_log
+
+SELECT COUNT(*) AS sbtest1_rows FROM sbtest1;
+SELECT COUNT(*) AS sbtest2_rows FROM sbtest2;
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: Single-connection write-only storm
+--echo #   1000 write-only transactions on one connection.
+--echo #   Exercises rapid txn_begin/commit/free cycling.
+--echo # ============================================
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+let $txn= 1;
+while ($txn <= 1000)
+{
+  BEGIN;
+  # 4 UPDATEs (2 on indexed col k, 2 on non-indexed col c)
+  eval UPDATE sbtest1 SET k = k + 1 WHERE id = 1 + ($txn % 5000);
+  eval UPDATE sbtest1 SET c = REPEAT(CHAR(65 + ($txn % 26)), 120) WHERE id = 1 + (($txn + 1000) % 5000);
+  eval UPDATE sbtest1 SET k = k + 1 WHERE id = 1 + (($txn + 2000) % 5000);
+  eval UPDATE sbtest1 SET c = REPEAT(CHAR(65 + ($txn % 26)), 120) WHERE id = 1 + (($txn + 3000) % 5000);
+  # 1 DELETE + 1 INSERT (net zero row count change)
+  eval DELETE FROM sbtest1 WHERE id = 1 + (($txn + 4000) % 5000);
+  eval INSERT INTO sbtest1 (k, c, pad) VALUES (FLOOR(RAND() * 100000), REPEAT('x', 120), REPEAT('y', 60));
+  COMMIT;
+  inc $txn;
+}
+
+--enable_result_log
+--enable_query_log
+
+SELECT COUNT(*) AS after_single FROM sbtest1;
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: Concurrent write-only storm (4 connections)
+--echo #   Each connection runs 500 write-only transactions
+--echo #   hitting both tables. Conflicts are expected.
+--echo # ============================================
+--echo #
+
+connect (wr1, localhost, root,,);
+connect (wr2, localhost, root,,);
+connect (wr3, localhost, root,,);
+connect (wr4, localhost, root,,);
+
+--disable_query_log
+--disable_result_log
+
+# ---- Connection wr1: writes to sbtest1 ----
+connection wr1;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = k + 1 WHERE id = 1 + (@i % 5000);
+      UPDATE sbtest1 SET c = REPEAT('A', 120) WHERE id = 1 + ((@i + 500) % 5000);
+      UPDATE sbtest1 SET k = k - 1 WHERE id = 1 + ((@i + 1000) % 5000);
+      UPDATE sbtest1 SET c = REPEAT('B', 120) WHERE id = 1 + ((@i + 1500) % 5000);
+      DELETE FROM sbtest1 WHERE id = 1 + ((@i + 2000) % 5000);
+      INSERT INTO sbtest1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('w',120), REPEAT('z',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection wr2: writes to sbtest1 (overlapping with wr1 -> conflicts) ----
+connection wr2;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = k + 1 WHERE id = 1 + ((@i + 250) % 5000);
+      UPDATE sbtest1 SET c = REPEAT('C', 120) WHERE id = 1 + ((@i + 750) % 5000);
+      UPDATE sbtest1 SET k = k - 1 WHERE id = 1 + ((@i + 1250) % 5000);
+      UPDATE sbtest1 SET c = REPEAT('D', 120) WHERE id = 1 + ((@i + 1750) % 5000);
+      DELETE FROM sbtest1 WHERE id = 1 + ((@i + 2250) % 5000);
+      INSERT INTO sbtest1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('w',120), REPEAT('z',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection wr3: writes to sbtest2 ----
+connection wr3;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest2 SET k = k + 1 WHERE id = 1 + (@i % 5000);
+      UPDATE sbtest2 SET c = REPEAT('E', 120) WHERE id = 1 + ((@i + 500) % 5000);
+      UPDATE sbtest2 SET k = k - 1 WHERE id = 1 + ((@i + 1000) % 5000);
+      UPDATE sbtest2 SET c = REPEAT('F', 120) WHERE id = 1 + ((@i + 1500) % 5000);
+      DELETE FROM sbtest2 WHERE id = 1 + ((@i + 2000) % 5000);
+      INSERT INTO sbtest2 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('w',120), REPEAT('z',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection wr4: writes to sbtest2 (overlapping with wr3 -> conflicts) ----
+connection wr4;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest2 SET k = k + 1 WHERE id = 1 + ((@i + 250) % 5000);
+      UPDATE sbtest2 SET c = REPEAT('G', 120) WHERE id = 1 + ((@i + 750) % 5000);
+      UPDATE sbtest2 SET k = k - 1 WHERE id = 1 + ((@i + 1250) % 5000);
+      UPDATE sbtest2 SET c = REPEAT('H', 120) WHERE id = 1 + ((@i + 1750) % 5000);
+      DELETE FROM sbtest2 WHERE id = 1 + ((@i + 2250) % 5000);
+      INSERT INTO sbtest2 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('w',120), REPEAT('z',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Reap all ----
+connection wr1;
+reap;
+
+connection wr2;
+reap;
+
+connection wr3;
+reap;
+
+connection wr4;
+reap;
+
+--enable_result_log
+--enable_query_log
+
+connection default;
+
+--echo #
+--echo # === Verify data integrity after concurrent writes ===
+--echo #
+
+# Row counts are non-deterministic due to conflicts; just verify
+# PK scan == index scan (data/index consistency) and no crash.
+let $pk1 = `SELECT COUNT(*) FROM sbtest1`;
+let $pk2 = `SELECT COUNT(*) FROM sbtest2`;
+let $idx1 = `SELECT COUNT(*) FROM sbtest1 WHERE k >= 0 OR k < 0`;
+let $idx2 = `SELECT COUNT(*) FROM sbtest2 WHERE k >= 0 OR k < 0`;
+
+--disable_query_log
+if ($pk1 != $idx1)
+{
+  --echo FAIL: sbtest1 PK count ($pk1) != index count ($idx1)
+}
+if ($pk2 != $idx2)
+{
+  --echo FAIL: sbtest2 PK count ($pk2) != index count ($idx2)
+}
+--enable_query_log
+--echo PK/index consistency: OK
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: Rapid txn churn (commit + immediate new txn)
+--echo #   1000 tiny autocommit writes per connection x 4 connections
+--echo #   Tests rapid txn_begin/txn_free cycling without BEGIN/COMMIT
+--echo # ============================================
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+connection wr1;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 1000 DO
+    UPDATE sbtest1 SET k = k + 1 WHERE id = 1 + (@i % 5000);
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr2;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 1000 DO
+    UPDATE sbtest1 SET k = k - 1 WHERE id = 1 + ((@i + 500) % 5000);
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr3;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 1000 DO
+    INSERT INTO sbtest1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('q',120), REPEAT('r',60));
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr4;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 1000 DO
+    INSERT INTO sbtest2 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('q',120), REPEAT('r',60));
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr1;
+reap;
+connection wr2;
+reap;
+connection wr3;
+reap;
+connection wr4;
+reap;
+
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: Conflict storm -- all 4 connections hit same rows
+--echo #   Maximizes TDB_ERR_CONFLICT / ERROR 1180 rate.
+--echo #   Exercises the failed-commit -> txn_free -> new txn_begin path.
+--echo # ============================================
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+connection wr1;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = @i WHERE id = 1;
+      UPDATE sbtest1 SET k = @i WHERE id = 2;
+      UPDATE sbtest1 SET k = @i WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr2;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = @i + 10000 WHERE id = 1;
+      UPDATE sbtest1 SET k = @i + 10000 WHERE id = 2;
+      UPDATE sbtest1 SET k = @i + 10000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr3;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = @i + 20000 WHERE id = 1;
+      UPDATE sbtest1 SET k = @i + 20000 WHERE id = 2;
+      UPDATE sbtest1 SET k = @i + 20000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr4;
+delimiter |;
+send
+  SET @i = 1;
+  WHILE @i <= 500 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      START TRANSACTION;
+      UPDATE sbtest1 SET k = @i + 30000 WHERE id = 1;
+      UPDATE sbtest1 SET k = @i + 30000 WHERE id = 2;
+      UPDATE sbtest1 SET k = @i + 30000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection wr1;
+reap;
+connection wr2;
+reap;
+connection wr3;
+reap;
+connection wr4;
+reap;
+
+--enable_result_log
+--enable_query_log
+
+connection default;
+
+# Rows 1-3 may have been deleted by concurrent DELETEs in earlier tests;
+# just verify we can query without error (no crash/corruption).
+--disable_result_log
+SELECT COUNT(*) FROM sbtest1 WHERE id IN (1, 2, 3);
+--enable_result_log
+--echo Conflict storm: OK
+
+--echo #
+--echo # === Cleanup ===
+--echo #
+
+disconnect wr1;
+disconnect wr2;
+disconnect wr3;
+disconnect wr4;
+
+DROP TABLE sbtest1;
+DROP TABLE sbtest2;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

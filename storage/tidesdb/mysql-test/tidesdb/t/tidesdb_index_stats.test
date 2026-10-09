@@ -1,0 +1,128 @@
+--source include/have_tidesdb.inc
+#
+# Tests for issue #78 (index_type reporting) and issue #74 (wrong statistics).
+#
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: Index type reporting (issue #78)
+--echo #   LSM tables should show LSM, not BTREE
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_lsm (
+  i INT NOT NULL PRIMARY KEY,
+  y INT,
+  KEY idx_y (y)
+) ENGINE=TIDESDB USE_BTREE=0;
+
+SHOW KEYS FROM t_lsm;
+
+DROP TABLE t_lsm;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: BTREE tables should show BTREE
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_btree (
+  i INT NOT NULL PRIMARY KEY,
+  y INT,
+  KEY idx_y (y)
+) ENGINE=TIDESDB USE_BTREE=1;
+
+SHOW KEYS FROM t_btree;
+
+DROP TABLE t_btree;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 3: Default (USE_BTREE=0) shows LSM
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_default (
+  i INT NOT NULL PRIMARY KEY,
+  y INT,
+  KEY idx_y (y)
+) ENGINE=TIDESDB;
+
+SHOW KEYS FROM t_default;
+
+DROP TABLE t_default;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 4: ANALYZE TABLE updates rec_per_key
+--echo #   for non-unique secondary indexes (issue #74)
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_stats (
+  id  INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  k   INT NOT NULL,
+  val VARCHAR(50),
+  KEY k_idx (k)
+) ENGINE=TIDESDB;
+
+--echo # Insert 200 rows with only 2 distinct values for k
+--disable_query_log
+let $i = 1;
+while ($i <= 200)
+{
+  eval INSERT INTO t_stats (k, val) VALUES ($i % 2, REPEAT('x', 20));
+  inc $i;
+}
+--enable_query_log
+
+SELECT COUNT(*) AS total_rows FROM t_stats;
+
+--echo # Before ANALYZE, optimizer may not estimate well
+EXPLAIN SELECT * FROM t_stats WHERE k = 0;
+
+--replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/ /user=[0-9]+/user=N/ /wal=[0-9]+/wal=N/ /flush=[0-9]+ \([0-9]+ ssts\)/flush=N (N ssts)/ /compact_write=[0-9]+ \([0-9]+ ssts\)/compact_write=N (N ssts)/ /compact_read=[0-9]+/compact_read=N/ /ratio=[0-9.]+x/ratio=Nx/
+ANALYZE TABLE t_stats;
+
+--echo # After ANALYZE, the optimizer should estimate ~100 rows for k=0
+EXPLAIN SELECT * FROM t_stats WHERE k = 0;
+
+DROP TABLE t_stats;
+
+
+--echo #
+--echo # ============================================
+--echo # TEST 5: ANALYZE with highly selective index
+--echo # ============================================
+--echo #
+
+CREATE TABLE t_stats2 (
+  id   INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code INT NOT NULL,
+  KEY code_idx (code)
+) ENGINE=TIDESDB;
+
+--disable_query_log
+let $i = 1;
+while ($i <= 100)
+{
+  eval INSERT INTO t_stats2 (code) VALUES ($i);
+  inc $i;
+}
+--enable_query_log
+
+--replace_regex /total_keys=[0-9]+/total_keys=N/ /data_size=[0-9]+/data_size=N/ /memtable=[0-9]+/memtable=N/ /read_amp=[0-9.]+/read_amp=N/ /cache_hit=[0-9.]+/cache_hit=N/ /avg_key=[0-9.]+/avg_key=N/ /avg_value=[0-9.]+/avg_value=N/ /sstables=[0-9]+/sstables=N/ /size=[0-9]+/size=N/ /keys=[0-9]+/keys=N/ /sampled=[0-9]+/sampled=N/ /distinct=[0-9]+/distinct=N/ /rec_per_key=[0-9]+/rec_per_key=N/ /user=[0-9]+/user=N/ /wal=[0-9]+/wal=N/ /flush=[0-9]+ \([0-9]+ ssts\)/flush=N (N ssts)/ /compact_write=[0-9]+ \([0-9]+ ssts\)/compact_write=N (N ssts)/ /compact_read=[0-9]+/compact_read=N/ /ratio=[0-9.]+x/ratio=Nx/
+ANALYZE TABLE t_stats2;
+
+--echo # With 100 distinct values in 100 rows, rec_per_key should be ~1
+EXPLAIN SELECT * FROM t_stats2 WHERE code = 50;
+
+DROP TABLE t_stats2;
+
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

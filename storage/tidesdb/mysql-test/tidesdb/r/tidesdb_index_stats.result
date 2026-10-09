@@ -1,0 +1,108 @@
+#
+# ============================================
+# TEST 1: Index type reporting (issue #78)
+#   LSM tables should show LSM, not BTREE
+# ============================================
+#
+CREATE TABLE t_lsm (
+i INT NOT NULL PRIMARY KEY,
+y INT,
+KEY idx_y (y)
+) ENGINE=TIDESDB USE_BTREE=0;
+SHOW KEYS FROM t_lsm;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_lsm	0	PRIMARY	1	i	A	2	NULL	NULL		LSM			NO
+t_lsm	1	idx_y	1	y	A	2	NULL	NULL	YES	LSM			NO
+DROP TABLE t_lsm;
+#
+# ============================================
+# TEST 2: BTREE tables should show BTREE
+# ============================================
+#
+CREATE TABLE t_btree (
+i INT NOT NULL PRIMARY KEY,
+y INT,
+KEY idx_y (y)
+) ENGINE=TIDESDB USE_BTREE=1;
+SHOW KEYS FROM t_btree;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_btree	0	PRIMARY	1	i	A	2	NULL	NULL		BTREE			NO
+t_btree	1	idx_y	1	y	A	2	NULL	NULL	YES	BTREE			NO
+DROP TABLE t_btree;
+#
+# ============================================
+# TEST 3: Default (USE_BTREE=0) shows LSM
+# ============================================
+#
+CREATE TABLE t_default (
+i INT NOT NULL PRIMARY KEY,
+y INT,
+KEY idx_y (y)
+) ENGINE=TIDESDB;
+SHOW KEYS FROM t_default;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t_default	0	PRIMARY	1	i	A	2	NULL	NULL		LSM			NO
+t_default	1	idx_y	1	y	A	2	NULL	NULL	YES	LSM			NO
+DROP TABLE t_default;
+#
+# ============================================
+# TEST 4: ANALYZE TABLE updates rec_per_key
+#   for non-unique secondary indexes (issue #74)
+# ============================================
+#
+CREATE TABLE t_stats (
+id  INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+k   INT NOT NULL,
+val VARCHAR(50),
+KEY k_idx (k)
+) ENGINE=TIDESDB;
+# Insert 200 rows with only 2 distinct values for k
+SELECT COUNT(*) AS total_rows FROM t_stats;
+total_rows
+200
+# Before ANALYZE, optimizer may not estimate well
+EXPLAIN SELECT * FROM t_stats WHERE k = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_stats	ref	k_idx	k_idx	4	const	1	
+ANALYZE TABLE t_stats;
+Table	Op	Msg_type	Msg_text
+test.t_stats	analyze	status	Engine-independent statistics collected
+test.t_stats	analyze	Note	[TIDESDB] CF 'test__t_stats'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
+test.t_stats	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
+test.t_stats	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t_stats	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
+test.t_stats	analyze	Note	[TIDESDB] idx CF 'test__t_stats__idx_k_idx'  keys=N  data_size=N bytes  levels=1
+test.t_stats	analyze	Note	[TIDESDB] idx 'k_idx' sampled=N distinct=N rec_per_key=N
+test.t_stats	analyze	status	OK
+# After ANALYZE, the optimizer should estimate ~100 rows for k=0
+EXPLAIN SELECT * FROM t_stats WHERE k = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_stats	ref	k_idx	k_idx	4	const	2	
+DROP TABLE t_stats;
+#
+# ============================================
+# TEST 5: ANALYZE with highly selective index
+# ============================================
+#
+CREATE TABLE t_stats2 (
+id   INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+code INT NOT NULL,
+KEY code_idx (code)
+) ENGINE=TIDESDB;
+ANALYZE TABLE t_stats2;
+Table	Op	Msg_type	Msg_text
+test.t_stats2	analyze	status	Engine-independent statistics collected
+test.t_stats2	analyze	Note	[TIDESDB] CF 'test__t_stats2'  total_keys=N  data_size=N bytes  memtable=N bytes  levels=1  read_amp=N  cache_hit=N%
+test.t_stats2	analyze	Note	[TIDESDB] avg_key=N bytes  avg_value=N bytes
+test.t_stats2	analyze	Note	[TIDESDB] level 1  sstables=N  size=N bytes  keys=N
+test.t_stats2	analyze	Note	[TIDESDB] WA  user=N  wal=N  flush=N (N ssts)  compact_write=N (N ssts)  compact_read=N  ratio=Nx
+test.t_stats2	analyze	Note	[TIDESDB] idx CF 'test__t_stats2__idx_code_idx'  keys=N  data_size=N bytes  levels=1
+test.t_stats2	analyze	Note	[TIDESDB] idx 'code_idx' sampled=N distinct=N rec_per_key=N
+test.t_stats2	analyze	status	OK
+# With 100 distinct values in 100 rows, rec_per_key should be ~1
+EXPLAIN SELECT * FROM t_stats2 WHERE code = 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t_stats2	ref	code_idx	code_idx	4	const	1	Using index
+DROP TABLE t_stats2;
+#
+# Done.

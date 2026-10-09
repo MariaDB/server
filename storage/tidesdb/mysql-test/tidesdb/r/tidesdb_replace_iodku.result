@@ -1,0 +1,200 @@
+#
+# ============================================
+# TEST 1: REPLACE INTO - PK only table
+# ============================================
+#
+CREATE TABLE t_rep (
+id  INT NOT NULL PRIMARY KEY,
+val VARCHAR(50)
+) ENGINE=TIDESDB;
+INSERT INTO t_rep VALUES (1, 'one'), (2, 'two'), (3, 'three');
+SELECT * FROM t_rep ORDER BY id;
+id	val
+1	one
+2	two
+3	three
+# REPLACE existing row (id=2)
+REPLACE INTO t_rep VALUES (2, 'TWO-replaced');
+SELECT * FROM t_rep ORDER BY id;
+id	val
+1	one
+2	TWO-replaced
+3	three
+# REPLACE non-existing row (id=4)
+REPLACE INTO t_rep VALUES (4, 'four-new');
+SELECT * FROM t_rep ORDER BY id;
+id	val
+1	one
+2	TWO-replaced
+3	three
+4	four-new
+# REPLACE multiple rows at once
+REPLACE INTO t_rep VALUES (1, 'ONE-replaced'), (3, 'THREE-replaced'), (5, 'five-new');
+SELECT * FROM t_rep ORDER BY id;
+id	val
+1	ONE-replaced
+2	TWO-replaced
+3	THREE-replaced
+4	four-new
+5	five-new
+DROP TABLE t_rep;
+#
+# ============================================
+# TEST 2: REPLACE INTO - PK + secondary index
+#   (verifies old secondary index entries are
+#   properly cleaned up)
+# ============================================
+#
+CREATE TABLE t_rep_idx (
+id   INT NOT NULL PRIMARY KEY,
+k    INT NOT NULL,
+val  VARCHAR(50),
+KEY k_idx (k)
+) ENGINE=TIDESDB;
+INSERT INTO t_rep_idx VALUES (1, 100, 'a'), (2, 200, 'b'), (3, 100, 'c');
+# Before REPLACE: k=100 has 2 rows
+SELECT * FROM t_rep_idx WHERE k = 100 ORDER BY id;
+id	k	val
+1	100	a
+3	100	c
+# REPLACE id=1, changing k from 100 to 999
+REPLACE INTO t_rep_idx VALUES (1, 999, 'a-replaced');
+SELECT * FROM t_rep_idx ORDER BY id;
+id	k	val
+1	999	a-replaced
+2	200	b
+3	100	c
+# After REPLACE: k=100 should have only 1 row (id=3)
+SELECT * FROM t_rep_idx WHERE k = 100 ORDER BY id;
+id	k	val
+3	100	c
+# k=999 should have 1 row (id=1)
+SELECT * FROM t_rep_idx WHERE k = 999;
+id	k	val
+1	999	a-replaced
+# REPLACE id=3, keeping k=100
+REPLACE INTO t_rep_idx VALUES (3, 100, 'c-replaced');
+SELECT * FROM t_rep_idx WHERE k = 100 ORDER BY id;
+id	k	val
+3	100	c-replaced
+DROP TABLE t_rep_idx;
+#
+# ============================================
+# TEST 3: INSERT ON DUPLICATE KEY UPDATE - PK
+# ============================================
+#
+CREATE TABLE t_iodku (
+id  INT NOT NULL PRIMARY KEY,
+val INT NOT NULL DEFAULT 0
+) ENGINE=TIDESDB;
+INSERT INTO t_iodku VALUES (1, 100), (2, 200), (3, 300);
+SELECT * FROM t_iodku ORDER BY id;
+id	val
+1	100
+2	200
+3	300
+# IODKU: duplicate on id=2 => update val
+INSERT INTO t_iodku VALUES (2, 0) ON DUPLICATE KEY UPDATE val = val + 1;
+SELECT * FROM t_iodku ORDER BY id;
+id	val
+1	100
+2	201
+3	300
+# IODKU: no duplicate on id=4 => insert
+INSERT INTO t_iodku VALUES (4, 400) ON DUPLICATE KEY UPDATE val = val + 1;
+SELECT * FROM t_iodku ORDER BY id;
+id	val
+1	100
+2	201
+3	300
+4	400
+# IODKU: multiple rows (some dups, some new)
+INSERT INTO t_iodku VALUES (1, 0), (5, 500), (3, 0)
+ON DUPLICATE KEY UPDATE val = val + 10;
+SELECT * FROM t_iodku ORDER BY id;
+id	val
+1	110
+2	201
+3	310
+4	400
+5	500
+DROP TABLE t_iodku;
+#
+# ============================================
+# TEST 4: IODKU with secondary index
+# ============================================
+#
+CREATE TABLE t_iodku_idx (
+id   INT NOT NULL PRIMARY KEY,
+k    INT NOT NULL,
+val  VARCHAR(50),
+KEY k_idx (k)
+) ENGINE=TIDESDB;
+INSERT INTO t_iodku_idx VALUES (1, 10, 'orig-1'), (2, 20, 'orig-2');
+# IODKU duplicate on PK, changes indexed column k
+INSERT INTO t_iodku_idx VALUES (1, 99, 'new-1')
+ON DUPLICATE KEY UPDATE k = VALUES(k), val = VALUES(val);
+SELECT * FROM t_iodku_idx ORDER BY id;
+id	k	val
+1	99	new-1
+2	20	orig-2
+# Old k=10 should be gone, k=99 should have id=1
+SELECT * FROM t_iodku_idx WHERE k = 10;
+id	k	val
+SELECT * FROM t_iodku_idx WHERE k = 99;
+id	k	val
+1	99	new-1
+DROP TABLE t_iodku_idx;
+#
+# ============================================
+# TEST 5: IODKU with unique secondary index
+# ============================================
+#
+CREATE TABLE t_iodku_uniq (
+id    INT NOT NULL PRIMARY KEY,
+email VARCHAR(100) NOT NULL,
+cnt   INT NOT NULL DEFAULT 0,
+UNIQUE KEY uk_email (email)
+) ENGINE=TIDESDB;
+INSERT INTO t_iodku_uniq VALUES (1, 'alice@test.com', 1);
+INSERT INTO t_iodku_uniq VALUES (2, 'bob@test.com', 1);
+# IODKU conflict on unique secondary index (email)
+INSERT INTO t_iodku_uniq VALUES (3, 'alice@test.com', 1)
+ON DUPLICATE KEY UPDATE cnt = cnt + 1;
+SELECT * FROM t_iodku_uniq ORDER BY id;
+id	email	cnt
+1	alice@test.com	2
+2	bob@test.com	1
+DROP TABLE t_iodku_uniq;
+#
+# ============================================
+# TEST 6: REPLACE with AUTO_INCREMENT
+# ============================================
+#
+CREATE TABLE t_rep_auto (
+id  INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+val VARCHAR(50)
+) ENGINE=TIDESDB;
+INSERT INTO t_rep_auto (val) VALUES ('first'), ('second'), ('third');
+SELECT * FROM t_rep_auto ORDER BY id;
+id	val
+1	first
+2	second
+3	third
+REPLACE INTO t_rep_auto VALUES (2, 'second-replaced');
+SELECT * FROM t_rep_auto ORDER BY id;
+id	val
+1	first
+2	second-replaced
+3	third
+# Next auto_inc should be > 3
+INSERT INTO t_rep_auto (val) VALUES ('fourth');
+SELECT * FROM t_rep_auto ORDER BY id;
+id	val
+1	first
+2	second-replaced
+3	third
+4	fourth
+DROP TABLE t_rep_auto;
+#
+# Done.

@@ -1,0 +1,813 @@
+#
+# ============================================
+# SETUP: Create and populate test tables
+# ============================================
+#
+CREATE TABLE departments (
+dept_id   INT PRIMARY KEY,
+dept_name VARCHAR(50) NOT NULL
+) ENGINE=TIDESDB;
+CREATE TABLE employees (
+emp_id    INT PRIMARY KEY,
+name      VARCHAR(100) NOT NULL,
+dept_id   INT NOT NULL,
+salary    DECIMAL(10,2) NOT NULL,
+hire_date DATE NOT NULL,
+KEY idx_dept (dept_id),
+KEY idx_salary (salary)
+) ENGINE=TIDESDB;
+CREATE TABLE projects (
+proj_id   INT PRIMARY KEY,
+proj_name VARCHAR(100) NOT NULL,
+dept_id   INT NOT NULL,
+budget    DECIMAL(12,2) NOT NULL,
+KEY idx_proj_dept (dept_id)
+) ENGINE=TIDESDB;
+CREATE TABLE emp_projects (
+emp_id  INT NOT NULL,
+proj_id INT NOT NULL,
+hours   INT NOT NULL,
+PRIMARY KEY (emp_id, proj_id)
+) ENGINE=TIDESDB;
+INSERT INTO departments VALUES
+(1, 'Engineering'),
+(2, 'Marketing'),
+(3, 'Finance'),
+(4, 'HR');
+INSERT INTO employees VALUES
+(1,  'Alice',   1, 95000.00,  '2020-01-15'),
+(2,  'Bob',     1, 88000.00,  '2019-06-01'),
+(3,  'Carol',   2, 72000.00,  '2021-03-10'),
+(4,  'Dave',    2, 68000.00,  '2022-07-20'),
+(5,  'Eve',     3, 105000.00, '2018-11-05'),
+(6,  'Frank',   3, 92000.00,  '2020-09-12'),
+(7,  'Grace',   1, 78000.00,  '2023-01-08'),
+(8,  'Hank',    4, 65000.00,  '2021-05-25'),
+(9,  'Ivy',     2, 71000.00,  '2020-12-01'),
+(10, 'Jack',    3, 85000.00,  '2022-02-14');
+INSERT INTO projects VALUES
+(100, 'Project Alpha',  1, 500000.00),
+(101, 'Project Beta',   1, 300000.00),
+(102, 'Campaign X',     2, 150000.00),
+(103, 'Audit 2024',     3, 200000.00),
+(104, 'Onboarding',     4, 50000.00);
+INSERT INTO emp_projects VALUES
+(1, 100, 40), (1, 101, 20),
+(2, 100, 35), (2, 101, 25),
+(3, 102, 45),
+(4, 102, 30),
+(5, 103, 50),
+(6, 103, 25),
+(7, 100, 15), (7, 101, 30),
+(8, 104, 40),
+(9, 102, 20),
+(10, 103, 35);
+#
+# ============================================
+# TEST 1: Basic aggregate functions
+# ============================================
+#
+SELECT COUNT(*) AS total_employees FROM employees;
+total_employees
+10
+SELECT SUM(salary) AS total_salary FROM employees;
+total_salary
+819000.00
+SELECT AVG(salary) AS avg_salary FROM employees;
+avg_salary
+81900.000000
+SELECT MIN(salary) AS min_salary, MAX(salary) AS max_salary FROM employees;
+min_salary	max_salary
+65000.00	105000.00
+SELECT MIN(hire_date) AS earliest_hire, MAX(hire_date) AS latest_hire FROM employees;
+earliest_hire	latest_hire
+2018-11-05	2023-01-08
+#
+# ============================================
+# TEST 2: GROUP BY
+# ============================================
+#
+SELECT dept_id, COUNT(*) AS cnt, SUM(salary) AS total_sal
+FROM employees
+GROUP BY dept_id
+ORDER BY dept_id;
+dept_id	cnt	total_sal
+1	3	261000.00
+2	3	211000.00
+3	3	282000.00
+4	1	65000.00
+SELECT dept_id, AVG(salary) AS avg_sal, MIN(salary) AS min_sal, MAX(salary) AS max_sal
+FROM employees
+GROUP BY dept_id
+ORDER BY dept_id;
+dept_id	avg_sal	min_sal	max_sal
+1	87000.000000	78000.00	95000.00
+2	70333.333333	68000.00	72000.00
+3	94000.000000	85000.00	105000.00
+4	65000.000000	65000.00	65000.00
+#
+# ============================================
+# TEST 3: GROUP BY with HAVING
+# ============================================
+#
+SELECT dept_id, COUNT(*) AS cnt
+FROM employees
+GROUP BY dept_id
+HAVING cnt >= 3
+ORDER BY dept_id;
+dept_id	cnt
+1	3
+2	3
+3	3
+SELECT dept_id, AVG(salary) AS avg_sal
+FROM employees
+GROUP BY dept_id
+HAVING avg_sal > 80000
+ORDER BY dept_id;
+dept_id	avg_sal
+1	87000.000000
+3	94000.000000
+#
+# ============================================
+# TEST 4: INNER JOIN
+# ============================================
+#
+SELECT e.name, d.dept_name, e.salary
+FROM employees e
+INNER JOIN departments d ON e.dept_id = d.dept_id
+ORDER BY e.emp_id;
+name	dept_name	salary
+Alice	Engineering	95000.00
+Bob	Engineering	88000.00
+Carol	Marketing	72000.00
+Dave	Marketing	68000.00
+Eve	Finance	105000.00
+Frank	Finance	92000.00
+Grace	Engineering	78000.00
+Hank	HR	65000.00
+Ivy	Marketing	71000.00
+Jack	Finance	85000.00
+#
+# ============================================
+# TEST 5: LEFT JOIN
+# ============================================
+#
+SELECT d.dept_name, e.name
+FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id AND e.salary > 90000
+ORDER BY d.dept_id, e.emp_id;
+dept_name	name
+Engineering	Alice
+Marketing	NULL
+Finance	Eve
+Finance	Frank
+HR	NULL
+#
+# ============================================
+# TEST 6: RIGHT JOIN
+# ============================================
+#
+SELECT e.name, d.dept_name
+FROM departments d
+RIGHT JOIN employees e ON d.dept_id = e.dept_id
+ORDER BY e.emp_id;
+name	dept_name
+Alice	Engineering
+Bob	Engineering
+Carol	Marketing
+Dave	Marketing
+Eve	Finance
+Frank	Finance
+Grace	Engineering
+Hank	HR
+Ivy	Marketing
+Jack	Finance
+#
+# ============================================
+# TEST 7: CROSS JOIN
+# ============================================
+#
+SELECT d.dept_name, p.proj_name
+FROM departments d
+CROSS JOIN projects p
+WHERE d.dept_id = p.dept_id
+ORDER BY d.dept_id, p.proj_id;
+dept_name	proj_name
+Engineering	Project Alpha
+Engineering	Project Beta
+Marketing	Campaign X
+Finance	Audit 2024
+HR	Onboarding
+#
+# ============================================
+# TEST 8: Multi-table JOIN (3 tables)
+# ============================================
+#
+SELECT e.name, d.dept_name, p.proj_name, ep.hours
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN emp_projects ep ON e.emp_id = ep.emp_id
+JOIN projects p ON ep.proj_id = p.proj_id
+ORDER BY e.emp_id, p.proj_id;
+name	dept_name	proj_name	hours
+Alice	Engineering	Project Alpha	40
+Alice	Engineering	Project Beta	20
+Bob	Engineering	Project Alpha	35
+Bob	Engineering	Project Beta	25
+Carol	Marketing	Campaign X	45
+Dave	Marketing	Campaign X	30
+Eve	Finance	Audit 2024	50
+Frank	Finance	Audit 2024	25
+Grace	Engineering	Project Alpha	15
+Grace	Engineering	Project Beta	30
+Hank	HR	Onboarding	40
+Ivy	Marketing	Campaign X	20
+Jack	Finance	Audit 2024	35
+#
+# ============================================
+# TEST 9: JOIN with aggregation
+# ============================================
+#
+SELECT d.dept_name, COUNT(e.emp_id) AS headcount, SUM(e.salary) AS total_sal
+FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id
+GROUP BY d.dept_id, d.dept_name
+ORDER BY d.dept_id;
+dept_name	headcount	total_sal
+Engineering	3	261000.00
+Marketing	3	211000.00
+Finance	3	282000.00
+HR	1	65000.00
+#
+# ============================================
+# TEST 10: Scalar subquery
+# ============================================
+#
+SELECT name, salary,
+salary - (SELECT AVG(salary) FROM employees) AS diff_from_avg
+FROM employees
+ORDER BY emp_id;
+name	salary	diff_from_avg
+Alice	95000.00	13100.000000
+Bob	88000.00	6100.000000
+Carol	72000.00	-9900.000000
+Dave	68000.00	-13900.000000
+Eve	105000.00	23100.000000
+Frank	92000.00	10100.000000
+Grace	78000.00	-3900.000000
+Hank	65000.00	-16900.000000
+Ivy	71000.00	-10900.000000
+Jack	85000.00	3100.000000
+#
+# ============================================
+# TEST 11: IN subquery
+# ============================================
+#
+SELECT name, salary
+FROM employees
+WHERE dept_id IN (SELECT dept_id FROM departments WHERE dept_name IN ('Engineering', 'Finance'))
+ORDER BY emp_id;
+name	salary
+Alice	95000.00
+Bob	88000.00
+Eve	105000.00
+Frank	92000.00
+Grace	78000.00
+Jack	85000.00
+#
+# ============================================
+# TEST 12: EXISTS subquery
+# ============================================
+#
+SELECT d.dept_name
+FROM departments d
+WHERE EXISTS (SELECT 1 FROM employees e WHERE e.dept_id = d.dept_id AND e.salary > 90000)
+ORDER BY d.dept_id;
+dept_name
+Engineering
+Finance
+#
+# ============================================
+# TEST 13: NOT EXISTS subquery
+# ============================================
+#
+SELECT d.dept_name
+FROM departments d
+WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE p.dept_id = d.dept_id AND p.budget > 400000)
+ORDER BY d.dept_id;
+dept_name
+Marketing
+Finance
+HR
+#
+# ============================================
+# TEST 14: Correlated subquery
+# ============================================
+#
+SELECT e.name, e.salary, e.dept_id
+FROM employees e
+WHERE e.salary = (SELECT MAX(e2.salary) FROM employees e2 WHERE e2.dept_id = e.dept_id)
+ORDER BY e.dept_id;
+name	salary	dept_id
+Alice	95000.00	1
+Carol	72000.00	2
+Eve	105000.00	3
+Hank	65000.00	4
+#
+# ============================================
+# TEST 15: Derived table (subquery in FROM)
+# ============================================
+#
+SELECT dept_id, avg_sal
+FROM (
+SELECT dept_id, AVG(salary) AS avg_sal
+FROM employees
+GROUP BY dept_id
+) AS dept_avg
+WHERE avg_sal > 80000
+ORDER BY dept_id;
+dept_id	avg_sal
+1	87000.000000
+3	94000.000000
+#
+# ============================================
+# TEST 16: UNION / UNION ALL
+# ============================================
+#
+SELECT name, 'high' AS tier FROM employees WHERE salary >= 90000
+UNION ALL
+SELECT name, 'low' AS tier FROM employees WHERE salary < 70000
+ORDER BY name;
+name	tier
+Alice	high
+Dave	low
+Eve	high
+Frank	high
+Hank	low
+SELECT dept_id FROM employees
+UNION
+SELECT dept_id FROM projects
+ORDER BY dept_id;
+dept_id
+1
+2
+3
+4
+#
+# ============================================
+# TEST 17: DISTINCT
+# ============================================
+#
+SELECT DISTINCT dept_id FROM employees ORDER BY dept_id;
+dept_id
+1
+2
+3
+4
+SELECT COUNT(DISTINCT dept_id) AS unique_depts FROM employees;
+unique_depts
+4
+#
+# ============================================
+# TEST 18: ORDER BY with LIMIT / OFFSET
+# ============================================
+#
+SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 3;
+name	salary
+Eve	105000.00
+Alice	95000.00
+Frank	92000.00
+SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 3 OFFSET 3;
+name	salary
+Bob	88000.00
+Jack	85000.00
+Grace	78000.00
+#
+# ============================================
+# TEST 19: CASE expression
+# ============================================
+#
+SELECT name, salary,
+CASE
+WHEN salary >= 100000 THEN 'Senior'
+    WHEN salary >= 80000  THEN 'Mid'
+    ELSE 'Junior'
+  END AS level
+FROM employees
+ORDER BY emp_id;
+name	salary	level
+Alice	95000.00	Mid
+Bob	88000.00	Mid
+Carol	72000.00	Junior
+Dave	68000.00	Junior
+Eve	105000.00	Senior
+Frank	92000.00	Mid
+Grace	78000.00	Junior
+Hank	65000.00	Junior
+Ivy	71000.00	Junior
+Jack	85000.00	Mid
+#
+# ============================================
+# TEST 20: INSERT ... SELECT
+# ============================================
+#
+CREATE TABLE high_earners (
+emp_id INT PRIMARY KEY,
+name   VARCHAR(100),
+salary DECIMAL(10,2)
+) ENGINE=TIDESDB;
+INSERT INTO high_earners
+SELECT emp_id, name, salary FROM employees WHERE salary >= 90000;
+SELECT * FROM high_earners ORDER BY emp_id;
+emp_id	name	salary
+1	Alice	95000.00
+5	Eve	105000.00
+6	Frank	92000.00
+DROP TABLE high_earners;
+#
+# ============================================
+# TEST 21: UPDATE with subquery
+# ============================================
+#
+CREATE TABLE emp_copy AS SELECT * FROM employees;
+ALTER TABLE emp_copy ENGINE=TIDESDB;
+UPDATE emp_copy SET salary = salary * 1.10
+WHERE dept_id = (SELECT dept_id FROM departments WHERE dept_name = 'Marketing');
+SELECT emp_id, name, salary FROM emp_copy WHERE dept_id = 2 ORDER BY emp_id;
+emp_id	name	salary
+3	Carol	79200.00
+4	Dave	74800.00
+9	Ivy	78100.00
+DROP TABLE emp_copy;
+#
+# ============================================
+# TEST 22: DELETE with subquery
+# ============================================
+#
+CREATE TABLE emp_copy2 AS SELECT * FROM employees;
+ALTER TABLE emp_copy2 ENGINE=TIDESDB;
+DELETE FROM emp_copy2
+WHERE dept_id NOT IN (SELECT dept_id FROM departments WHERE dept_name IN ('Engineering', 'Finance'));
+SELECT emp_id, name FROM emp_copy2 ORDER BY emp_id;
+emp_id	name
+1	Alice
+2	Bob
+5	Eve
+6	Frank
+7	Grace
+10	Jack
+DROP TABLE emp_copy2;
+#
+# ============================================
+# TEST 23: REPLACE INTO
+# ============================================
+#
+CREATE TABLE kv_store (
+k VARCHAR(50) PRIMARY KEY,
+v VARCHAR(200)
+) ENGINE=TIDESDB;
+INSERT INTO kv_store VALUES ('key1', 'original');
+REPLACE INTO kv_store VALUES ('key1', 'replaced');
+REPLACE INTO kv_store VALUES ('key2', 'new');
+SELECT * FROM kv_store ORDER BY k;
+k	v
+key1	replaced
+key2	new
+DROP TABLE kv_store;
+#
+# ============================================
+# TEST 24: Multi-column ORDER BY
+# ============================================
+#
+SELECT dept_id, name, salary
+FROM employees
+ORDER BY dept_id ASC, salary DESC;
+dept_id	name	salary
+1	Alice	95000.00
+1	Bob	88000.00
+1	Grace	78000.00
+2	Carol	72000.00
+2	Ivy	71000.00
+2	Dave	68000.00
+3	Eve	105000.00
+3	Frank	92000.00
+3	Jack	85000.00
+4	Hank	65000.00
+#
+# ============================================
+# TEST 25: GROUP_CONCAT
+# ============================================
+#
+SELECT dept_id, GROUP_CONCAT(name ORDER BY name SEPARATOR ', ') AS members
+FROM employees
+GROUP BY dept_id
+ORDER BY dept_id;
+dept_id	members
+1	Alice, Bob, Grace
+2	Carol, Dave, Ivy
+3	Eve, Frank, Jack
+4	Hank
+#
+# ============================================
+# TEST 26: BETWEEN / IN / LIKE
+# ============================================
+#
+SELECT name, salary FROM employees WHERE salary BETWEEN 70000 AND 90000 ORDER BY emp_id;
+name	salary
+Bob	88000.00
+Carol	72000.00
+Grace	78000.00
+Ivy	71000.00
+Jack	85000.00
+SELECT name FROM employees WHERE name LIKE '%a%' ORDER BY emp_id;
+name
+Alice
+Carol
+Dave
+Frank
+Grace
+Hank
+Jack
+SELECT name FROM employees WHERE emp_id IN (1, 3, 5, 7, 9) ORDER BY emp_id;
+name
+Alice
+Carol
+Eve
+Grace
+Ivy
+#
+# ============================================
+# TEST 27: NULL handling
+# ============================================
+#
+CREATE TABLE nullable_test (
+id INT PRIMARY KEY,
+val VARCHAR(50),
+num INT
+) ENGINE=TIDESDB;
+INSERT INTO nullable_test VALUES (1, 'hello', 10), (2, NULL, 20), (3, 'world', NULL), (4, NULL, NULL);
+SELECT * FROM nullable_test ORDER BY id;
+id	val	num
+1	hello	10
+2	NULL	20
+3	world	NULL
+4	NULL	NULL
+SELECT * FROM nullable_test WHERE val IS NULL ORDER BY id;
+id	val	num
+2	NULL	20
+4	NULL	NULL
+SELECT * FROM nullable_test WHERE num IS NOT NULL ORDER BY id;
+id	val	num
+1	hello	10
+2	NULL	20
+SELECT COUNT(*) AS total, COUNT(val) AS non_null_val, COUNT(num) AS non_null_num FROM nullable_test;
+total	non_null_val	non_null_num
+4	2	2
+SELECT COALESCE(val, 'N/A') AS val_or_na, COALESCE(num, 0) AS num_or_zero FROM nullable_test ORDER BY id;
+val_or_na	num_or_zero
+hello	10
+N/A	20
+world	0
+N/A	0
+DROP TABLE nullable_test;
+#
+# ============================================
+# TEST 28: Self-join
+# ============================================
+#
+SELECT e1.name AS employee, e2.name AS colleague
+FROM employees e1
+JOIN employees e2 ON e1.dept_id = e2.dept_id AND e1.emp_id < e2.emp_id
+WHERE e1.dept_id = 1
+ORDER BY e1.emp_id, e2.emp_id;
+employee	colleague
+Alice	Bob
+Alice	Grace
+Bob	Grace
+#
+# ============================================
+# TEST 29: Aggregate with JOIN and GROUP BY
+# ============================================
+#
+SELECT p.proj_name, COUNT(ep.emp_id) AS team_size, SUM(ep.hours) AS total_hours
+FROM projects p
+LEFT JOIN emp_projects ep ON p.proj_id = ep.proj_id
+GROUP BY p.proj_id, p.proj_name
+ORDER BY p.proj_id;
+proj_name	team_size	total_hours
+Project Alpha	3	90
+Project Beta	3	75
+Campaign X	3	95
+Audit 2024	3	110
+Onboarding	1	40
+#
+# ============================================
+# TEST 30: Nested aggregation (max of avg)
+# ============================================
+#
+SELECT dept_id, avg_sal FROM (
+SELECT dept_id, AVG(salary) AS avg_sal
+FROM employees
+GROUP BY dept_id
+) t
+WHERE avg_sal = (
+SELECT MAX(avg_sal) FROM (
+SELECT AVG(salary) AS avg_sal FROM employees GROUP BY dept_id
+) t2
+);
+dept_id	avg_sal
+3	94000.000000
+#
+# ============================================
+# TEST 31: UNION with ORDER BY and LIMIT
+# ============================================
+#
+(SELECT name, salary FROM employees WHERE dept_id = 1 ORDER BY salary DESC LIMIT 2)
+UNION ALL
+(SELECT name, salary FROM employees WHERE dept_id = 3 ORDER BY salary DESC LIMIT 2)
+ORDER BY salary DESC;
+name	salary
+Eve	105000.00
+Alice	95000.00
+Frank	92000.00
+Bob	88000.00
+#
+# ============================================
+# TEST 32: Multi-statement transaction
+# ============================================
+#
+BEGIN;
+INSERT INTO employees VALUES (11, 'Kim', 1, 99000.00, '2024-01-01');
+UPDATE employees SET salary = salary + 1000 WHERE emp_id = 11;
+SELECT emp_id, name, salary FROM employees WHERE emp_id = 11;
+emp_id	name	salary
+11	Kim	100000.00
+COMMIT;
+SELECT emp_id, name, salary FROM employees WHERE emp_id = 11;
+emp_id	name	salary
+11	Kim	100000.00
+DELETE FROM employees WHERE emp_id = 11;
+#
+# ============================================
+# TEST 33: Transaction ROLLBACK
+# ============================================
+#
+BEGIN;
+INSERT INTO employees VALUES (12, 'Leo', 2, 77000.00, '2024-02-01');
+SELECT COUNT(*) AS cnt_with_leo FROM employees WHERE emp_id = 12;
+cnt_with_leo
+1
+ROLLBACK;
+SELECT COUNT(*) AS cnt_after_rollback FROM employees WHERE emp_id = 12;
+cnt_after_rollback
+0
+#
+# ============================================
+# TEST 34: IF / IFNULL / NULLIF functions
+# ============================================
+#
+SELECT name,
+IF(salary > 90000, 'Y', 'N') AS high_earner,
+NULLIF(dept_id, 4) AS dept_or_null
+FROM employees
+ORDER BY emp_id;
+name	high_earner	dept_or_null
+Alice	Y	1
+Bob	N	1
+Carol	N	2
+Dave	N	2
+Eve	Y	3
+Frank	Y	3
+Grace	N	1
+Hank	N	NULL
+Ivy	N	2
+Jack	N	3
+#
+# ============================================
+# TEST 35: String functions
+# ============================================
+#
+SELECT name,
+UPPER(name) AS upper_name,
+LENGTH(name) AS name_len,
+CONCAT(name, ' (', dept_id, ')') AS name_dept
+FROM employees
+ORDER BY emp_id
+LIMIT 5;
+name	upper_name	name_len	name_dept
+Alice	ALICE	5	Alice (1)
+Bob	BOB	3	Bob (1)
+Carol	CAROL	5	Carol (2)
+Dave	DAVE	4	Dave (2)
+Eve	EVE	3	Eve (3)
+#
+# ============================================
+# TEST 36: Date functions
+# ============================================
+#
+SELECT name, hire_date,
+YEAR(hire_date) AS hire_year,
+MONTH(hire_date) AS hire_month
+FROM employees
+ORDER BY emp_id
+LIMIT 5;
+name	hire_date	hire_year	hire_month
+Alice	2020-01-15	2020	1
+Bob	2019-06-01	2019	6
+Carol	2021-03-10	2021	3
+Dave	2022-07-20	2022	7
+Eve	2018-11-05	2018	11
+SELECT YEAR(hire_date) AS yr, COUNT(*) AS hired
+FROM employees
+GROUP BY yr
+ORDER BY yr;
+yr	hired
+2018	1
+2019	1
+2020	3
+2021	2
+2022	2
+2023	1
+#
+# ============================================
+# TEST 37: Arithmetic expressions
+# ============================================
+#
+SELECT name, salary,
+salary * 12 AS annual,
+ROUND(salary / 160, 2) AS hourly_rate
+FROM employees
+ORDER BY emp_id
+LIMIT 5;
+name	salary	annual	hourly_rate
+Alice	95000.00	1140000.00	593.75
+Bob	88000.00	1056000.00	550.00
+Carol	72000.00	864000.00	450.00
+Dave	68000.00	816000.00	425.00
+Eve	105000.00	1260000.00	656.25
+#
+# ============================================
+# TEST 38: HAVING with complex condition
+# ============================================
+#
+SELECT d.dept_name, COUNT(*) AS cnt, AVG(e.salary) AS avg_sal
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+GROUP BY d.dept_id, d.dept_name
+HAVING cnt >= 2 AND avg_sal > 75000
+ORDER BY d.dept_id;
+dept_name	cnt	avg_sal
+Engineering	3	87000.000000
+Finance	3	94000.000000
+#
+# ============================================
+# TEST 39: ALL / ANY subquery
+# ============================================
+#
+SELECT name, salary
+FROM employees
+WHERE salary > ALL (SELECT salary FROM employees WHERE dept_id = 2)
+ORDER BY emp_id;
+name	salary
+Alice	95000.00
+Bob	88000.00
+Eve	105000.00
+Frank	92000.00
+Grace	78000.00
+Jack	85000.00
+SELECT name, salary
+FROM employees
+WHERE salary > ANY (SELECT salary FROM employees WHERE dept_id = 1)
+ORDER BY emp_id;
+name	salary
+Alice	95000.00
+Bob	88000.00
+Eve	105000.00
+Frank	92000.00
+Jack	85000.00
+#
+# ============================================
+# TEST 40: CREATE TABLE ... AS SELECT
+# ============================================
+#
+CREATE TABLE dept_summary ENGINE=TIDESDB AS
+SELECT d.dept_id, d.dept_name, COUNT(e.emp_id) AS headcount, SUM(e.salary) AS total_sal
+FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id
+GROUP BY d.dept_id, d.dept_name;
+SELECT * FROM dept_summary ORDER BY dept_id;
+dept_id	dept_name	headcount	total_sal
+1	Engineering	3	261000.00
+2	Marketing	3	211000.00
+3	Finance	3	282000.00
+4	HR	1	65000.00
+DROP TABLE dept_summary;
+#
+# ============================================
+# CLEANUP
+# ============================================
+#
+DROP TABLE emp_projects;
+DROP TABLE projects;
+DROP TABLE employees;
+DROP TABLE departments;

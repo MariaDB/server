@@ -1,0 +1,84 @@
+#
+# TidesDB FTS blend_chars support for Romance language elision
+#
+SET GLOBAL tidesdb_fts_blend_chars = "'";
+CREATE TABLE docs (
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+body TEXT,
+FULLTEXT KEY ft_body (body)
+) ENGINE=TidesDB;
+INSERT INTO docs (body) VALUES
+("L'aria fresca della montagna"),
+("Dell'aria pura si respira bene"),
+("Un'aria di festa pervadeva la piazza"),
+("O'Malley went to the store"),
+("The cat sat on the mat");
+# Sub-part search: aria matches Italian elision docs
+SELECT id FROM docs WHERE MATCH(body) AGAINST('aria') ORDER BY id;
+id
+1
+2
+3
+# Blended form: l'aria ranks doc 1 highest
+SELECT id FROM docs WHERE MATCH(body) AGAINST("l'aria") ORDER BY id;
+id
+1
+2
+3
+# Sub-part: malley finds O'Malley
+SELECT id FROM docs WHERE MATCH(body) AGAINST('malley') ORDER BY id;
+id
+4
+# Blended form: o'malley
+SELECT id FROM docs WHERE MATCH(body) AGAINST("o'malley") ORDER BY id;
+id
+4
+# Blended form: dell'aria
+SELECT id FROM docs WHERE MATCH(body) AGAINST("dell'aria") ORDER BY id;
+id
+1
+2
+3
+# Non-blend word: cat (should still work)
+SELECT id FROM docs WHERE MATCH(body) AGAINST('cat') ORDER BY id;
+id
+5
+# Stop word through blend: the (still filtered)
+SELECT COUNT(*) FROM docs WHERE MATCH(body) AGAINST('the');
+COUNT(*)
+0
+# Boolean mode with blend chars
+SELECT id FROM docs WHERE MATCH(body) AGAINST("+aria -malley" IN BOOLEAN MODE) ORDER BY id;
+id
+1
+2
+3
+# Update with blended content
+UPDATE docs SET body = "L'orchestra dell'opera suona bene" WHERE id = 5;
+SELECT id FROM docs WHERE MATCH(body) AGAINST('orchestra') ORDER BY id;
+id
+5
+SELECT id FROM docs WHERE MATCH(body) AGAINST("dell'opera") ORDER BY id;
+id
+2
+5
+# Insert more elision forms
+INSERT INTO docs (body) VALUES
+("Nell'acqua limpida del lago"),
+("All'interno del castello medievale");
+SELECT id FROM docs WHERE MATCH(body) AGAINST('acqua') ORDER BY id;
+id
+6
+SELECT id FROM docs WHERE MATCH(body) AGAINST("nell'acqua") ORDER BY id;
+id
+6
+SELECT id FROM docs WHERE MATCH(body) AGAINST('interno') ORDER BY id;
+id
+7
+# Verify sysvar
+SHOW GLOBAL VARIABLES LIKE 'tidesdb_fts_blend_chars';
+Variable_name	Value
+tidesdb_fts_blend_chars	
+# Reset blend chars
+SET GLOBAL tidesdb_fts_blend_chars = NULL;
+DROP TABLE docs;

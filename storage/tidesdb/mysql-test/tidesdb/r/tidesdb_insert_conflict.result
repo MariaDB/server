@@ -1,0 +1,36 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+#
+# Issue #83: INSERT vs INSERT conflict detection
+#
+CREATE TABLE t (
+a INT NOT NULL PRIMARY KEY,
+b INT
+) ENGINE=TidesDB;
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+# ---- TEST: Two INSERTs with same PK ----
+connection con1;
+START TRANSACTION;
+INSERT INTO t VALUES (1, 10);
+connection con2;
+START TRANSACTION;
+INSERT INTO t VALUES (1, 500);
+COMMIT;
+connection con1;
+# con1 should get conflict error -- con2 committed first
+COMMIT;
+Got one of the listed errors
+connection default;
+# con2 wins: b should be 500
+SELECT * FROM t;
+a	b
+1	500
+# Cleanup
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+DROP TABLE t;
+#
+# Done.

@@ -1,0 +1,130 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE acct (
+id  INT PRIMARY KEY,
+bal INT NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO acct VALUES (1, 100);
+connect  s1, localhost, root,,;
+connect  s2, localhost, root,,;
+connect  s3, localhost, root,,;
+#
+# TEST 1: S / S compatible under REPEATABLE-READ
+#         Both s1 and s2 acquire S on the same row, neither blocks.
+#
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+100
+connection s2;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+100
+# Both holders of S read successfully -- no deadlock, no block.
+connection default;
+SELECT bal FROM acct WHERE id = 1;
+bal
+100
+connection s1;
+COMMIT;
+connection s2;
+COMMIT;
+#
+# TEST 2: X waits for S readers, then proceeds
+#         s1 + s2 hold S; s3 fires UPDATE that must wait until
+#         both readers release.
+#
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+100
+connection s2;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+100
+connection s3;
+BEGIN;
+UPDATE acct SET bal = bal + 50 WHERE id = 1;
+connection s1;
+COMMIT;
+connection s2;
+COMMIT;
+connection s3;
+COMMIT;
+connection default;
+# 100 + 50 = 150
+SELECT bal FROM acct WHERE id = 1;
+bal
+150
+#
+# TEST 3: writer fairness -- new S blocks behind a waiting X
+#         s1 holds S; s2 fires UPDATE (X-waiting); s3 fires a
+#         SELECT under REPEATABLE-READ that wants S.  s3 must
+#         NOT jump ahead of s2's queued X.
+#
+UPDATE acct SET bal = 200 WHERE id = 1;
+connection s1;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+200
+connection default;
+connection s2;
+BEGIN;
+UPDATE acct SET bal = bal + 1 WHERE id = 1;
+connection default;
+connection s3;
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+connection s1;
+COMMIT;
+connection s2;
+COMMIT;
+connection s3;
+COMMIT;
+connection default;
+# s2 incremented 200 -> 201; s3 then read either 200 or 201 (both valid)
+SELECT bal FROM acct WHERE id = 1;
+bal
+201
+#
+# TEST 4: READ-COMMITTED reads take no lock
+#         s1 holds an uncommitted X via UPDATE; s2 under RC reads
+#         the latest committed value without blocking.
+#
+UPDATE acct SET bal = 300 WHERE id = 1;
+connection s1;
+BEGIN;
+UPDATE acct SET bal = bal + 100 WHERE id = 1;
+connection s2;
+SET SESSION transaction_isolation = 'READ-COMMITTED';
+BEGIN;
+SELECT bal FROM acct WHERE id = 1;
+bal
+300
+COMMIT;
+connection s1;
+COMMIT;
+connection default;
+# 300 + 100 = 400
+SELECT bal FROM acct WHERE id = 1;
+bal
+400
+#
+# Cleanup
+#
+disconnect s1;
+disconnect s2;
+disconnect s3;
+connection default;
+DROP TABLE acct;
+# Done.
