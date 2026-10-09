@@ -712,6 +712,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   }
 
   frmlen= uint4korr(head+10);
+  if (frmlen < sizeof(head))
+  {
+    share->error = OPEN_FRM_CORRUPTED;
+    goto err;
+  }
   set_if_smaller(frmlen, FRM_MAX_SIZE); // safety
 
   if (!(buf= (uchar*)my_malloc(PSI_INSTRUMENT_ME, frmlen,
