@@ -153,7 +153,7 @@ EOF
     find $mysql_statedir ! -uid 0 -print0 -or ! -gid 0 -print0 | xargs -0 -r sudo chown 0:0
     find $mysql_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
     chown mysql:adm $mysql_logdir
-    find "$mysql_logdir" -print0 | xargs -0 -r chown mysql:adm
+    find "$mysql_logdir/" -maxdepth 1 -print0 | xargs -0 -r chown -h mysql:adm
     chmod 2750 $mysql_logdir
     set -e
 
