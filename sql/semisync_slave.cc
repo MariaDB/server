@@ -120,9 +120,6 @@ void Repl_semi_sync_slave::slave_start(Master_info *mi)
 			const_cast<char *>(mi->user), mi->host, mi->port,
 			const_cast<char *>(mi->master_log_name),
                         (unsigned long)(mi->master_log_pos));
-
-  /*clear the counter*/
-  rpl_semi_sync_slave_send_ack= 0;
 }
 
 void Repl_semi_sync_slave::slave_stop(Master_info *mi)
