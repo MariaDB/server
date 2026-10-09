@@ -252,4 +252,85 @@ drop function f;
 select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
 busy_time>1e5	cpu_time>1e5
 0	0
+#
+# MDEV-33527 Stale data remains in userstat upon renaming table
+#
+set @userstat.save= @@global.userstat;
+set global userstat= 1;
+flush table_statistics;
+flush index_statistics;
+create table t (a int, key(a)) engine=MyISAM;
+insert into t values (1),(2);
+select * from t;
+a
+1
+2
+select * from t where a=1;
+a
+1
+select table_name, rows_read, rows_changed
+from information_schema.table_statistics where table_name='t';
+table_name	rows_read	rows_changed
+t	3	2
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name='t';
+table_name	index_name	rows_read
+t	a	3
+# The old name has no statistics left, neither for its indexes
+rename table t to t2;
+select table_name from information_schema.table_statistics
+where table_name in ('t','t2');
+table_name
+select table_name, index_name from information_schema.index_statistics
+where table_name in ('t','t2');
+table_name	index_name
+# A new table with the old name starts from scratch
+create table t (b varchar(8), key(b)) engine=MyISAM;
+insert into t values ('foo'),('bar'),('baz');
+select * from t where b='foo';
+b
+foo
+select table_name, rows_read, rows_changed
+from information_schema.table_statistics where table_name='t';
+table_name	rows_read	rows_changed
+t	1	3
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name='t';
+table_name	index_name	rows_read
+t	b	1
+# ALTER TABLE ... RENAME and RENAME to another database
+select * from t2;
+a
+1
+2
+select table_name from information_schema.table_statistics
+where table_name='t2';
+table_name
+t2
+alter table t2 rename to t3;
+select table_name from information_schema.table_statistics
+where table_name in ('t2','t3');
+table_name
+select * from t3;
+a
+1
+2
+create database db_mdev33527;
+rename table t3 to db_mdev33527.t4;
+select table_schema, table_name from information_schema.table_statistics
+where table_name in ('t3','t4');
+table_schema	table_name
+select * from db_mdev33527.t4;
+a
+1
+2
+select table_schema, table_name from information_schema.table_statistics
+where table_name in ('t3','t4');
+table_schema	table_name
+db_mdev33527	t4
+drop table t, db_mdev33527.t4;
+drop database db_mdev33527;
+flush table_statistics;
+flush index_statistics;
+set global userstat= @userstat.save;
 # End of 10.11 tests
