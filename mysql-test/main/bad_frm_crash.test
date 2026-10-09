@@ -59,4 +59,11 @@ connection default;
 disconnect con1;
 set global max_allowed_packet=@save_max_allowed_packet;
 
+--echo #
+--echo # MDEV-41449 ASAN server crash on corrupted frm
+--echo #
+copy_file std_data/mdev41449.frm $MARIADB_DATADIR/test/t1.frm;
+--error ER_NOT_FORM_FILE
+select * from t1;
+drop table t1;
 --echo # End of 10.11 tests
