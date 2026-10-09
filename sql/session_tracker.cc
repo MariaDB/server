@@ -413,6 +413,8 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   orig_list.copy(&tool_list, thd);
   orig_list.construct_var_list(thd->variables.session_track_system_variables,
                                length);
+
+  m_enabled= *thd->variables.session_track_system_variables != '\0';
   return false;
 }
 

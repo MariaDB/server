@@ -37,3 +37,53 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 use mysql;
 set session_track_system_variables=default;
 # End of 10.5 tests
+#
+# MDEV-41424 Session tracker must be enabled by SET session_track_system_variables
+# when the session started with an empty list
+#
+SET @save_global_track= @@global.session_track_system_variables;
+SET GLOBAL session_track_system_variables= '';
+connect  con1,localhost,root,,;
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+
+SET SESSION session_track_system_variables= 'character_set_client';
+# Expect character_set_client to be reported
+SET NAMES latin1;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: latin1
+
+SET SESSION session_track_system_variables= '*';
+# Expect all three character_set_* variables to be reported
+SET NAMES utf8mb3;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: utf8mb3
+-- character_set_connection: utf8mb3
+-- character_set_results: utf8mb3
+
+SET SESSION session_track_system_variables= '';
+# Expect nothing to be reported after the list was emptied again
+SET NAMES latin1;
+SET SESSION session_track_system_variables= 'character_set_client';
+# Expect character_set_client to be reported again
+SET NAMES utf8mb3;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: utf8mb3
+
+disconnect con1;
+# Control: the session started with a non-empty list
+connection default;
+SET GLOBAL session_track_system_variables= 'autocommit';
+connect  con2,localhost,root,,;
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit
+SET SESSION session_track_system_variables= 'character_set_client';
+SET NAMES latin1;
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client: latin1
+
+disconnect con2;
+connection default;
+SET GLOBAL session_track_system_variables= @save_global_track;
+# End of 10.11 tests
