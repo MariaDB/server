@@ -640,3 +640,8 @@ struct charset_info_st my_charset_bin =
 
 struct charset_info_st my_collation_contextually_typed_binary= {0};
 struct charset_info_st my_collation_contextually_typed_default= {0};
+/*
+  Copy the character set and collation of a formal parameter
+  from its actual parameter at run time
+*/
+struct charset_info_st my_collation_contextually_typed_any_cs= {.mbmaxlen= 1};
