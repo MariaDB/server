@@ -211,3 +211,17 @@ SELECT JSON_QUOTE(f1_row());
 SELECT f1_row() MEMBER OF ('[42]');
 
 DROP FUNCTION f1_row;
+
+--echo #
+--echo # 25. MDEV-41419: Nested containment type-strict check
+--echo # Plain string should NOT match nested JSON array (type-strict)
+SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
+SELECT CAST('[1,2]' AS CHAR) MEMBER OF ('[[1,2],[3,4]]');
+--echo # JSON-typed expression SHOULD match nested JSON array
+SELECT JSON_ARRAY(1,2) MEMBER OF ('[[1,2],[3,4]]');
+
+--echo #
+--echo # 26. MDEV-41420: MEMBER usable as column alias
+SELECT 1 AS MEMBER;
+SELECT 1 AS `member`;
+

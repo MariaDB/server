@@ -305,3 +305,24 @@ ERROR 21000: Operand should contain 1 column(s)
 SELECT f1_row() MEMBER OF ('[42]');
 ERROR 21000: Operand should contain 1 column(s)
 DROP FUNCTION f1_row;
+#
+# 25. MDEV-41419: Nested containment type-strict check
+# Plain string should NOT match nested JSON array (type-strict)
+SELECT '[1,2]' MEMBER OF ('[[1,2],[3,4]]');
+'[1,2]' MEMBER OF ('[[1,2],[3,4]]')
+0
+SELECT CAST('[1,2]' AS CHAR) MEMBER OF ('[[1,2],[3,4]]');
+CAST('[1,2]' AS CHAR) MEMBER OF ('[[1,2],[3,4]]')
+0
+# JSON-typed expression SHOULD match nested JSON array
+SELECT JSON_ARRAY(1,2) MEMBER OF ('[[1,2],[3,4]]');
+JSON_ARRAY(1,2) MEMBER OF ('[[1,2],[3,4]]')
+1
+#
+# 26. MDEV-41420: MEMBER usable as column alias
+SELECT 1 AS MEMBER;
+MEMBER
+1
+SELECT 1 AS `member`;
+member
+1
