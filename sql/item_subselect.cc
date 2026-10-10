@@ -1250,6 +1250,28 @@ void Item_singlerow_subselect::reset()
 }
 
 
+static bool scalar_subq_limit_is_safe(st_select_lex *select_lex)
+{
+  Lex_select_limit *lim= &select_lex->limit_params;
+
+  if (lim->select_limit)
+  {
+    if (!lim->select_limit->basic_const_item())
+      return false;
+    if (lim->select_limit->val_uint() == 0)
+      return false;
+  }
+  if (lim->offset_limit)
+  {
+    if (!lim->offset_limit->basic_const_item())
+      return false;
+    if (lim->offset_limit->val_uint() != 0)
+      return false;
+  }
+  return true;
+}
+
+
 /**
   @todo
   - We can't change name of Item_field or Item_ref, because it will
@@ -1303,6 +1325,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
+      scalar_subq_limit_is_safe(select_lex) &&
       !join->conds && !join->having &&
       need_to_pull_out_item(
         join->select_lex->outer_select()->context_analysis_place,
