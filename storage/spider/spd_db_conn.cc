@@ -1389,8 +1389,8 @@ int spider_db_append_key_columns(
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
 
   if (!start_key_part_map)
     DBUG_RETURN(0);
@@ -1536,9 +1536,9 @@ int spider_db_append_key_where_internal(
   }
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u", key_info ?
     spider_user_defined_key_parts(key_info) : 0));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
-  DBUG_PRINT("info", ("spider end_key_part_map=%lu", end_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
+  DBUG_PRINT("info", ("spider end_key_part_map=%u", end_key_part_map));
 
 #ifndef DBUG_OFF
   MY_BITMAP *tmp_map = dbug_tmp_use_all_columns(table, &table->read_set);
@@ -1562,7 +1562,7 @@ int spider_db_append_key_where_internal(
     another_key = start_key;
     tgt_key_part_map = end_key_part_map;
   }
-  DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
+  DBUG_PRINT("info", ("spider tgt_key_part_map=%u", tgt_key_part_map));
   if (start_key_part_map == end_key_part_map)
     result_list->use_both_key = TRUE;
 
@@ -1584,7 +1584,7 @@ int spider_db_append_key_where_internal(
     key_part++,
     key_count++
   ) {
-    DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
+    DBUG_PRINT("info", ("spider tgt_key_part_map=%u", tgt_key_part_map));
     bool rev = key_part->key_part_flag & HA_REVERSE_SORT;
     store_length = key_part->store_length;
     field = key_part->field;
