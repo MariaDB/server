@@ -5777,7 +5777,10 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
     case DECIMAL_RESULT:
       collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
-      decimals= DECIMAL_MAX_SCALE;
+      decimals= m_var_entry->value && const_item() ?
+                MY_MIN(((my_decimal *) m_var_entry->value)->frac,
+                       DECIMAL_MAX_SCALE) :
+                DECIMAL_MAX_SCALE;
       set_handler(&type_handler_newdecimal);
       break;
     case ROW_RESULT:                            // Keep compiler happy
