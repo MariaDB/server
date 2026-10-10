@@ -30,3 +30,27 @@ PRIMARY KEY  (`a`)
 ) ENGINE=BLACKHOLE;
 DROP TABLE `t`;
 End of 10.1 tests
+#
+# MDEV-30886 Assertion `0' in Protocol::end_statement upon fulltext
+# search in blackhole table
+#
+CREATE TABLE t (f CHAR(255), FULLTEXT KEY (f)) ENGINE=BLACKHOLE;
+INSERT INTO t VALUES ('wear'), ('shoes');
+SELECT * FROM t WHERE MATCH (f) AGAINST ('wear');
+f
+SELECT * FROM t WHERE MATCH (f) AGAINST ('wear' WITH QUERY EXPANSION);
+f
+SELECT * FROM t WHERE MATCH (f) AGAINST ('+wear' IN BOOLEAN MODE);
+f
+SELECT f, MATCH (f) AGAINST ('wear') FROM t;
+f	MATCH (f) AGAINST ('wear')
+SELECT COUNT(*) FROM t WHERE MATCH (f) AGAINST ('wear');
+COUNT(*)
+0
+UPDATE t SET f= 'x' WHERE MATCH (f) AGAINST ('wear');
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Warnings: 0
+DELETE FROM t WHERE MATCH (f) AGAINST ('wear');
+affected rows: 0
+DROP TABLE t;
+# End of 10.11 tests
