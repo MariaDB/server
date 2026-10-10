@@ -4459,6 +4459,7 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   iterations= FALSE;
+  bool params_are_set= false;
 
   /*
     - In mysql_sql_stmt_execute() we hide all "external" Items
@@ -4467,6 +4468,16 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    goto start_with_reprepare;
+  }
+
   /* Check if we got an error when sending long data */
   if (unlikely(state == Query_arena::STMT_ERROR))
   {
@@ -4474,8 +4485,10 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 
-  if (set_parameters(expanded_query, packet, packet_end))
+reexecute:
+  if (!params_are_set && set_parameters(expanded_query, packet, packet_end))
     return TRUE;
+  params_are_set= true;
 #ifdef WITH_WSREP
   if (thd->wsrep_delayed_BF_abort)
   {
@@ -4483,7 +4496,7 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 #endif /* WITH_WSREP */
-reexecute:
+
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);
 
@@ -4514,6 +4527,7 @@ reexecute:
     DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
     thd->clear_error();
 
+start_with_reprepare:
     error= reprepare();
 
     if (likely(!error))                         /* Success */
@@ -4627,6 +4641,19 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     my_error(ER_UNSUPPORTED_PS, MYF(0));
     goto err;
   }
+
+  if (lex->needs_reprepare)
+  {
+    /*
+      Something has happened on previous execution that requires us to
+      re-prepare before we try to execute.
+    */
+    lex->needs_reprepare= false;
+    error= reprepare();
+    if (error)
+      goto err;
+  }
+
   /*
      Here second buffer for not optimized commands,
      optimized commands do it inside thier internal loop.

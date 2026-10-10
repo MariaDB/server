@@ -265,3 +265,55 @@ ERROR 70100: Query execution was interrupted
 DROP TABLE t1;
 disconnect con1;
 SET debug_sync='RESET';
+#
+# MDEV-31567 SIGSEGV in reinit_stmt_before_use | Prepared_statement::execute
+#
+# The first EXECUTE is killed by max_statement_time after the one-time
+# semi-join rewrite, but before the nested selects save their WHERE.
+# The statement must be re-prepared, not run half-rewritten.
+CREATE TABLE t (a INT);
+PREPARE s FROM <62 nested IN subqueries>
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+EXECUTE s;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+SET max_statement_time=0;
+SET debug_sync='RESET';
+EXECUTE s;
+a
+EXECUTE s;
+a
+DEALLOCATE PREPARE s;
+# The same with rows, the results must be correct
+INSERT INTO t VALUES (1),(2),(3);
+PREPARE s FROM <62 nested IN subqueries>
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+EXECUTE s;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+SET max_statement_time=0;
+SET debug_sync='RESET';
+EXECUTE s;
+a
+1
+EXECUTE s;
+a
+1
+DEALLOCATE PREPARE s;
+# The same in a stored procedure
+CREATE PROCEDURE p() <62 nested IN subqueries>
+SET max_statement_time=0.1;
+SET debug_sync='before_join_optimize WAIT_FOR go TIMEOUT 1 EXECUTE 1';
+CALL p();
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+SET max_statement_time=0;
+SET debug_sync='RESET';
+CALL p();
+a
+1
+CALL p();
+a
+1
+DROP PROCEDURE p;
+DROP TABLE t;
+# End of 11.4 tests
