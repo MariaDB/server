@@ -5,10 +5,6 @@
 # Spatial objects
 #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 select 1, ST_Intersects(GeomFromText('POLYGON((0 0,20 0,20 20,0 20,0 0))'), GeomFromText('POLYGON((10 10,30 10,30 30,10 30,10 10))')) as result;
 select 0, ST_Intersects(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POLYGON((10 40, 40 50, 20 70, 10 40))')) as result;
 select 1, ST_Intersects(GeomFromText('POLYGON((0 0,20 10,10 30, 0 0))'), GeomFromText('POINT(10 10)')) as result;
@@ -539,4 +535,16 @@ SELECT ST_Crosses(ST_GeomFromText('LINESTRING(0 0, 2 2)'),
 
 set @geom=ST_BUFFER(ST_BUFFER(ST_POLYGONFROMTEXT('POLYGON((0 0, 5 5, 6 6, 0 0))'),1),2);
 select round(area(@geom), 5);
+
+--echo #
+--echo # MDEV-41458 Assertion `n > 0 && n < SINUSES_CALCULATED*2+1' failed in get_n_sincos()
+--echo #
+SELECT ST_AsText(
+    ST_Buffer(
+        ST_GeomFromText('LINESTRING(0 0, 1e-200 1e-200)'),
+        1
+    )
+);
+
+--echo # End of 10.11 tests
 
