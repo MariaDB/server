@@ -367,7 +367,7 @@ json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]'
 intcol int path '$.a' default '1234' on empty default '5678' on error)
 ) as tt;
 id	intcol
-1	0
+1	5678
 2	123
 3	5678
 4	5678
@@ -601,7 +601,7 @@ Warnings:
 Warning	1265	Data truncated for column 'f' at row 1
 SELECT * FROM t1;
 f
-0000-00-00
+NULL
 DROP TABLE t1;
 #
 # MDEV-25254: JSON_TABLE: Inconsistent name resolution with right joins
@@ -925,7 +925,7 @@ columns ( id for ordinality,
 intcol int path '$.a' default '1234' on empty default '5678' on error)
 ) as tt;
 id	intcol
-1	0
+1	5678
 2	123
 3	5678
 4	5678
@@ -936,27 +936,27 @@ Warning	1366	Incorrect integer value: 'asd' for column `*any*`.`json_table`.`int
 #
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt;
 converted	original
-0	foo
+NULL	foo
 1	1
-127	1000
+NULL	1000
 Warnings:
 Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
 Warning	1264	Out of range value for column 'converted' at row 3
-select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted, original;
 converted	original
-0	foo
+NULL	1000
+NULL	foo
 1	1
-127	1000
 Warnings:
 Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
 Warning	1264	Out of range value for column 'converted' at row 1
-Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 1
-Warning	1264	Out of range value for column 'converted' at row 3
+Warning	1264	Out of range value for column 'converted' at row 1
+Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 2
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
 converted	original
 1	1
-127	1000
-0	foo
+NULL	1000
+NULL	foo
 Warnings:
 Warning	1264	Out of range value for column 'converted' at row 2
 Warning	1366	Incorrect integer value: 'foo' for column `*any*`.`json_table`.`converted` at row 3
