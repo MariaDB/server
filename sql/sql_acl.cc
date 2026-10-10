@@ -4815,15 +4815,30 @@ static bool test_if_create_new_users(THD *thd)
 ****************************************************************************/
 static USER_AUTH auth_no_password;
 
+static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table= false);
+
 static int replace_user_table(THD *thd, const User_table &user_table,
                               LEX_USER * const combo, privilege_t rights,
                               const bool revoke_grant,
                               const bool can_create_user,
-                              const bool no_auto_create)
+                              const bool no_auto_create,
+                              bool or_replace= false,
+                              Grant_tables *grant_tables= nullptr);
+
+static int replace_user_table(THD *thd, const User_table &user_table,
+                              LEX_USER * const combo, privilege_t rights,
+                              const bool revoke_grant,
+                              const bool can_create_user,
+                              const bool no_auto_create,
+                              bool or_replace,
+                              Grant_tables *grant_tables)
 {
   int error = -1;
   uint nauth= 0;
   bool old_row_exists=0;
+  bool old_is_role= false;
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
@@ -4887,6 +4902,23 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
+    old_is_role= user_table.get_is_role();
+    if (or_replace)
+    {
+      /*
+        CREATE OR REPLACE is DROP IF EXISTS + CREATE, so the account must end
+        up exactly like a newly created one. Start from the default row (as
+        for a new account) rather than from the existing one, otherwise
+        everything the statement doesn't mention (password, resource limits,
+        SSL options, lock status, ...) would silently survive. record[1]
+        keeps the old row for the update.
+      */
+      restore_record(table, s->default_values);
+      user_table.set_host(combo->host.str, combo->host.length);
+      user_table.set_user(combo->user.str, combo->user.length);
+      if (!combo->auth)
+        combo->auth= &auth_no_password;
+    }
   }
 
   for (USER_AUTH *auth= combo->auth; auth; auth= auth->next)
@@ -4910,7 +4942,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   if (handle_as_role)
   {
-    if (old_row_exists && !user_table.get_is_role())
+    if (old_row_exists && !old_is_role)
     {
       goto end;
     }
@@ -4931,8 +4963,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
-    new_acl_user= old_row_exists ? *old_acl_user :
+    new_acl_user= (old_row_exists && !or_replace) ? *old_acl_user :
                   ACL_USER(thd, *combo, lex->account_options, rights);
+    if (old_acl_user && or_replace)
+    {
+      /*
+        The fresh ACL_USER replaces *old_acl_user in place, so it must keep
+        the old role_grants array (rebuilt by rebuild_role_grants() later)
+        instead of leaking it.
+      */
+      delete_dynamic(&new_acl_user.role_grants);
+      new_acl_user.role_grants= old_acl_user->role_grants;
+    }
     if (acl_user_update(thd, &new_acl_user, nauth,
                         *combo, lex->account_options, rights))
       goto end;
@@ -4994,12 +5036,29 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     if (lex->account_options.account_locked != ACCOUNTLOCK_UNSPECIFIED)
       user_table.set_account_locked(new_acl_user.account_locked);
 
-    if (nauth)
+    if (nauth || (or_replace && old_row_exists))
+      /*
+        Even when OR REPLACE doesn't specify new auth (nauth == 0), the
+        on-disk row is being freshly rewritten from the in-memory
+        new_acl_user (which carries over the old password_last_changed).
+        Persist it explicitly so it isn't lost or read back as the
+        "manually expired" sentinel (0) if it's absent from the row we
+        just read off disk -- see MDEV-37214 follow-up.
+      */
       user_table.set_password_last_changed(new_acl_user.password_last_changed);
     if (lex->account_options.password_expire != PASSWORD_EXPIRE_UNSPECIFIED)
     {
       user_table.set_password_lifetime(new_acl_user.password_lifetime);
       user_table.set_password_expired(new_acl_user.password_expired);
+    }
+  }
+
+  if (or_replace && grant_tables)
+  {
+    if (handle_grant_data(thd, *grant_tables, true, combo, NULL, true) < 0)
+    {
+      error= -1;
+      goto end;
     }
   }
 
@@ -10955,7 +11014,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 */
 
 static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
-                             LEX_USER *user_from, LEX_USER *user_to)
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table)
 {
   int result= 0;
   int found;
@@ -11124,20 +11184,23 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
       goto end;
   }
 
-  /* Handle user table. */
-  if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
-                                 drop, user_from, user_to)) < 0)
+  if (!skip_user_table)
   {
-    /* Handle of table failed, don't touch the in-memory array. */
-    result= -1;
-  }
-  else
-  {
-    enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
-    if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+    /* Handle user table. */
+    if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
+                                   drop, user_from, user_to)) < 0)
     {
-      result= 1; /* At least one record/element found. */
-      DBUG_ASSERT(! search_only);
+      /* Handle of table failed, don't touch the in-memory array. */
+      result= -1;
+    }
+    else
+    {
+      enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
+      if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+      {
+        result= 1; /* At least one record/element found. */
+        DBUG_ASSERT(! search_only);
+      }
     }
   }
 
@@ -11167,6 +11230,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
   bool some_users_dropped= false;
+  uint first_errno= 0;
+  char first_errmsg[MYSQL_ERRMSG_SIZE];
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -11186,6 +11251,20 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((user_name= user_list++))
   {
+    /*
+      An error from a previous account must not make the following accounts fail.
+      Remember the first one, so that it is still what the client sees at the end.
+    */
+    if (thd->is_error())
+    {
+      if (!first_errno)
+      {
+        first_errno= thd->get_stmt_da()->sql_errno();
+        strmake_buf(first_errmsg, thd->get_stmt_da()->message());
+      }
+      thd->clear_error();
+    }
+
     if (user_name->user.str == current_user.str)
     {
       append_str(&wrong_users, STRING_WITH_LEN("CURRENT_USER"));
@@ -11219,17 +11298,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     {
       if (thd->lex->create_info.or_replace())
       {
-        // Drop the existing user
-        if (handle_grant_data(thd, tables, 1, user_name, NULL) <= 0)
-        {
-          // DROP failed
-          append_user(thd, &wrong_users, user_name);
-          result= true;
-          continue;
-        }
-        else
-          some_users_dropped= true;
-        // Proceed with the creation
+        some_users_dropped= true;
       }
       else if (thd->lex->create_info.if_not_exists())
       {
@@ -11256,7 +11325,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
 
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0))
+                           NO_ACL, 0, 1, 0,
+                           thd->lex->create_info.or_replace(), &tables))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -11298,14 +11368,27 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
-  if (result && some_users_dropped && !handle_as_role)
+  if (some_users_dropped)
   {
-    /* Rebuild in-memory structs, since 'acl_users' has been modified */
-    rebuild_check_host();
+    /*
+      The delayed drop in replace_user_table() only removes the old mapping
+      entries from roles_mappings_hash, not from the ACL_ROLE/ACL_USER_BASE
+      cross-reference arrays. Rebuild those arrays so no stale/duplicate
+      entries survive to crash a later DROP ROLE / DROP USER.
+    */
+    if (!handle_as_role)
+      rebuild_check_host();   // 'acl_users' has been modified
     rebuild_role_grants();
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
+
+  if (first_errno)
+  {
+    // the first error wins, as for a statement that never cleared it
+    thd->clear_error();
+    my_printf_error(first_errno, "%s", MYF(0), first_errmsg);
+  }
 
   if (result)
   {

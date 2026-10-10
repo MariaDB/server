@@ -41,3 +41,110 @@ Warnings:
 Note	1974	Can't drop user 'u1'@'%'; it doesn't exist
 DROP USER u2;
 ERROR HY000: Operation DROP USER failed for 'u2'@'%'
+CREATE USER u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+SELECT user FROM mysql.user WHERE user='u3';
+User
+u3
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+u3	test
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+test	t1
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u3';
+plugin	authentication_string
+mysql_native_password	*B27918D2D9402882CEADA0EF687D35FBDC137D72
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+SELECT password_expired FROM mysql.user WHERE user='u3';
+password_expired
+N
+CREATE OR REPLACE USER u3@localhost;
+SELECT password_expired FROM mysql.user WHERE user='u3';
+password_expired
+N
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+ERROR HY000: Plugin 'no_such_plugin' is not loaded
+SELECT user FROM mysql.user WHERE user='u3';
+User
+u3
+SELECT user,db FROM mysql.db WHERE user='u3';
+user	db
+u3	test
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+db	table_name
+test	t1
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT RELOAD ON *.* TO u3@localhost;
+SHOW GRANTS FOR u3@localhost;
+Grants for u3@localhost
+GRANT RELOAD ON *.* TO `u3`@`localhost` IDENTIFIED BY PASSWORD '*2B602296A79E0A8784ACC5C88D92E46588CCA3C3'
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SHOW GRANTS FOR u3@localhost;
+Grants for u3@localhost
+GRANT USAGE ON *.* TO `u3`@`localhost` IDENTIFIED BY PASSWORD '*B27918D2D9402882CEADA0EF687D35FBDC137D72'
+DROP USER u3@localhost;
+INSERT INTO mysql.db (Host,Db,User,Select_priv) VALUES ('localhost','test','orph','Y');
+SELECT user,db FROM mysql.db WHERE user='orph';
+user	db
+orph	test
+CREATE OR REPLACE USER orph@localhost IDENTIFIED BY 'pw1';
+SELECT user,db FROM mysql.db WHERE user='orph';
+user	db
+DROP USER orph@localhost;
+CREATE ROLE r1;
+CREATE USER ur@localhost IDENTIFIED BY 'pw1';
+GRANT r1 TO ur@localhost;
+SELECT user,role FROM mysql.roles_mapping WHERE user='ur';
+user	role
+ur	r1
+SHOW GRANTS FOR ur@localhost;
+Grants for ur@localhost
+GRANT `r1` TO `ur`@`localhost`
+GRANT USAGE ON *.* TO `ur`@`localhost` IDENTIFIED BY PASSWORD '*2B602296A79E0A8784ACC5C88D92E46588CCA3C3'
+CREATE OR REPLACE USER ur@localhost IDENTIFIED BY 'pw2';
+SELECT user,role FROM mysql.roles_mapping WHERE user='ur';
+user	role
+SHOW GRANTS FOR ur@localhost;
+Grants for ur@localhost
+GRANT USAGE ON *.* TO `ur`@`localhost` IDENTIFIED BY PASSWORD '*B27918D2D9402882CEADA0EF687D35FBDC137D72'
+connect  con_ur,localhost,ur,pw2;
+SET ROLE r1;
+ERROR OP000: Invalid role specification `r1`
+disconnect con_ur;
+connection default;
+DROP ROLE r1;
+DROP USER ur@localhost;
+CREATE USER u1@localhost IDENTIFIED BY 'secret' WITH MAX_USER_CONNECTIONS 5 MAX_QUERIES_PER_HOUR 100;
+ALTER USER u1@localhost ACCOUNT LOCK;
+SHOW CREATE USER u1@localhost;
+CREATE USER for u1@localhost
+CREATE USER `u1`@`localhost` IDENTIFIED BY PASSWORD '*14E65567ABDB5135D0CFD9A70B3032C179A49EE7' WITH MAX_QUERIES_PER_HOUR 100 MAX_USER_CONNECTIONS 5 ACCOUNT LOCK
+CREATE OR REPLACE USER u1@localhost;
+SHOW CREATE USER u1@localhost;
+CREATE USER for u1@localhost
+CREATE USER `u1`@`localhost`
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+plugin	authentication_string
+mysql_native_password	
+DROP USER u1@localhost;

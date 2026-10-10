@@ -44,3 +44,105 @@ DROP USER IF EXISTS u1, u2;
 
 --error ER_CANNOT_USER
 DROP USER u2;
+
+# MDEV-37214: CREATE OR REPLACE USER with invalid plugin must not drop
+# the existing user and must not leave master/replica in diverged state.
+CREATE USER u3@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+--disable_view_protocol
+SELECT user FROM mysql.user WHERE user='u3';
+--enable_view_protocol
+DROP USER u3@localhost;
+
+# MDEV-37214: CREATE OR REPLACE USER must wipe old privileges from other
+# grant tables (mysql.db, mysql.tables_priv, etc.) before updating mysql.user.
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u3';
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER with no IDENTIFIED clause must
+# produce a fresh account (empty password, new password_last_changed), not a
+# password-expired one. An unset password_last_changed reads back as 0, which
+# is indistinguishable from "manually expired".
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+SELECT password_expired FROM mysql.user WHERE user='u3';
+CREATE OR REPLACE USER u3@localhost;
+SELECT password_expired FROM mysql.user WHERE user='u3';
+DROP USER u3@localhost;
+
+# Failed OR REPLACE must not touch privileges either (all-or-nothing per account).
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT SELECT ON test.* TO u3@localhost;
+CREATE TABLE test.t1 (id INT);
+GRANT SELECT ON test.t1 TO u3@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER u3@localhost IDENTIFIED VIA no_such_plugin;
+--disable_view_protocol
+SELECT user FROM mysql.user WHERE user='u3';
+--enable_view_protocol
+SELECT user,db FROM mysql.db WHERE user='u3';
+SELECT db,table_name FROM mysql.tables_priv WHERE user='u3';
+DROP TABLE test.t1;
+DROP USER u3@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER must not let the replaced
+# account keep its old GLOBAL privileges. Since OR REPLACE now UPDATEs the
+# existing mysql.global_priv row in place, User_table::set_access()'s additive
+# merge (access |= rights) would otherwise leave old global privilege bits
+# set even though the OR REPLACE statement itself grants nothing.
+CREATE USER u3@localhost IDENTIFIED BY 'pw1';
+GRANT RELOAD ON *.* TO u3@localhost;
+SHOW GRANTS FOR u3@localhost;
+CREATE OR REPLACE USER u3@localhost IDENTIFIED BY 'pw2';
+SHOW GRANTS FOR u3@localhost;
+DROP USER u3@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER must also clean up orphan
+# privileges (rows in the grant tables with no matching mysql.user row), so
+# that the newly created account does not silently inherit them.
+INSERT INTO mysql.db (Host,Db,User,Select_priv) VALUES ('localhost','test','orph','Y');
+SELECT user,db FROM mysql.db WHERE user='orph';
+CREATE OR REPLACE USER orph@localhost IDENTIFIED BY 'pw1';
+SELECT user,db FROM mysql.db WHERE user='orph';
+DROP USER orph@localhost;
+
+# MDEV-37214 follow-up: a successful CREATE OR REPLACE USER of an account that
+# was granted a role must drop the role grant and leave the in-memory
+# role/user cross references consistent (no assertion on later DROP ROLE).
+CREATE ROLE r1;
+CREATE USER ur@localhost IDENTIFIED BY 'pw1';
+GRANT r1 TO ur@localhost;
+SELECT user,role FROM mysql.roles_mapping WHERE user='ur';
+SHOW GRANTS FOR ur@localhost;
+CREATE OR REPLACE USER ur@localhost IDENTIFIED BY 'pw2';
+SELECT user,role FROM mysql.roles_mapping WHERE user='ur';
+# The in-memory role/user cross references must be gone too, not only the table
+SHOW GRANTS FOR ur@localhost;
+connect (con_ur,localhost,ur,pw2);
+--error ER_INVALID_ROLE
+SET ROLE r1;
+disconnect con_ur;
+connection default;
+DROP ROLE r1;
+DROP USER ur@localhost;
+
+# MDEV-37214 follow-up: CREATE OR REPLACE USER is DROP IF EXISTS + CREATE, so
+# whatever the statement doesn't mention (password, resource limits, lock
+# status) must go back to its default instead of surviving from the old account.
+CREATE USER u1@localhost IDENTIFIED BY 'secret' WITH MAX_USER_CONNECTIONS 5 MAX_QUERIES_PER_HOUR 100;
+ALTER USER u1@localhost ACCOUNT LOCK;
+SHOW CREATE USER u1@localhost;
+CREATE OR REPLACE USER u1@localhost;
+SHOW CREATE USER u1@localhost;
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+DROP USER u1@localhost;

@@ -65,4 +65,5 @@ GRANT r TO foo;
 --error ER_PLUGIN_IS_NOT_LOADED
 CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
 DROP ROLE r;
+DROP USER foo;
 DROP USER bar;
