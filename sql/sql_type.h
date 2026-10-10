@@ -7248,6 +7248,8 @@ class Type_handler_hex_hybrid: public Type_handler_varchar
 {
 public:
   virtual ~Type_handler_hex_hybrid() = default;
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
+    override;
   const Type_handler *cast_to_int_type_handler() const override;
   bool Item_hybrid_func_fix_attributes(THD *thd, const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *h,
