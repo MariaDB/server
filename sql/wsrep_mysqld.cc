@@ -3626,6 +3626,19 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     // Granted thread is either TOI or applying
     wsrep_handle_granted_bf(request_thd, granted_thd, ticket, key);
   }
+  else if (granted_thd->system_thread != NON_SYSTEM_THREAD &&
+           granted_thd->mdl_context.has_explicit_locks())
+  {
+    /* Granted thread is a server-internal background thread holding an
+       explicit MDL, e.g. the InnoDB purge coordinator holding MDL_SHARED
+       on a table for the duration of a purge batch. Such a thread has no
+       wsrep transaction to roll back and never resets THD::killed, so a
+       BF abort would leave it killed for the rest of the server lifetime
+       (MDEV-41450). It releases its locks on its own; the requestor waits,
+       as it did before MDEV-38218. */
+    wsrep_mdl_log(WSREP_MDL_DEBUG, "MDL conflict, waiting for system thread",
+                  request_thd, granted_thd, ticket, key);
+  }
   else
   {
     // Granted thread is not brute-force thread, we can abort it
