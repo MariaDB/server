@@ -100,8 +100,7 @@ drop table mysql_json_test;
 drop table mysql_json_test_big;
 
 --echo #
---echo # MDEV-32790: Output result in show create table
---echo #             for mysql_json type should be longtext
+--echo # MDEV-32790: Output result in show create table for mysql_json type should be longtext
 --echo #
 
 create table t1(j json);
@@ -198,3 +197,25 @@ alter table t1 force;
 drop table t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-41473 more mysql_json plugin OOB reads
+--echo #
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/t1.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/t1.MYD
+
+perl;
+  my $f="$ENV{MYSQLD_DATADIR}/test/t1.MYD";
+  open F, '+<', $f or die "open($f): $!";
+  sysseek F, 0x3b8, 0 or die "sysseek: $!";
+  syswrite F, '~~' or die "syswrite: $!";
+EOF
+
+--error ER_UNKNOWN_ERROR
+alter table t1 force;
+
+drop table t1;
+
+--echo # End of 10.11 tests
