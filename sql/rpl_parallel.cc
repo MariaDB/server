@@ -32,11 +32,10 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
                                            rpl_parallel_entry *entry);
 
 static int
-rpt_handle_event(rpl_parallel_thread::queued_event *qev,
+rpt_handle_event(rpl_group_info *rgi, rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
   int err;
-  rpl_group_info *rgi= qev->rgi;
   Relay_log_info *rli= rgi->q->rli;
   THD *thd= rgi->thd;
   Log_event *ev;
@@ -98,7 +97,7 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
   /* Do not update position if an earlier event group caused an error abort. */
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE);
-  rli= qev->rgi->q->rli;
+  rli= qev->rgi_q->rli;
   e= qev->entry_for_queued;
   if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
       (e->force_abort && !rli->stop_for_until))
@@ -382,7 +381,7 @@ register_wait_for_prior_event_group_commit(rpl_group_info *rgi,
       complete itself, so that we preserve commit order.
     */
     wait_for_commit *waitee=
-      &rgi->q->wait_commit_group_info->q->commit_orderer;
+      &rgi->q->wait_commit_rgi_q->commit_orderer;
     rgi->q->commit_orderer.register_wait_for_prior_commit(waitee);
   }
 }
@@ -1178,7 +1177,7 @@ do_retry:
     if (is_group_ending(ev, event_type) == 1)
       rgi->mark_start_commit();
 
-    err= rpt_handle_event(qev, rpt);
+    err= rpt_handle_event(rgi, qev, rpt);
     ++event_count;
     mysql_mutex_lock(&rpt->LOCK_rpl_thread);
     rpt->free_qev(qev);
@@ -1240,7 +1239,7 @@ handle_rpl_parallel_thread(void *arg)
   bool group_standalone= true;
   bool in_event_group= false;
   bool skip_event_group= false;
-  rpl_group_info *group_rgi= NULL;
+  rpl_group_info worker_rgi;
   group_commit_orderer *gco;
   uint64 event_gtid_sub_id= 0;
   rpl_sql_thread_info sql_info(NULL);
@@ -1253,6 +1252,9 @@ handle_rpl_parallel_thread(void *arg)
   thd = new THD(next_thread_id());
   server_threads.insert(thd);
   set_current_thd(thd);
+  worker_rgi.thd= thd;
+  worker_rgi.is_parallel_exec= true;
+  worker_rgi.rpt= rpt;
 
   pthread_detach_this_thread();
   thd->store_globals();
@@ -1320,7 +1322,7 @@ handle_rpl_parallel_thread(void *arg)
     */
     while (!( (events= rpt->event_queue) ||
               (rpt->current_owner && !in_event_group) ||
-              (rpt->current_owner && group_rgi->q->parallel_entry->force_abort) ||
+              (rpt->current_owner && worker_rgi.q->parallel_entry->force_abort) ||
               rpt->stop))
     {
       if (!wait_count++)
@@ -1335,8 +1337,8 @@ handle_rpl_parallel_thread(void *arg)
     for (qev= events; qev; qev= next_qev)
     {
       Log_event_type event_type;
-      rpl_group_info *rgi= qev->rgi;
-      rpl_parallel_entry *entry= rgi->q->parallel_entry;
+      rgi_queued_part *rgi_q= qev->rgi_q;
+      rpl_parallel_entry *entry= rgi_q->parallel_entry;
       bool end_of_group;
       int group_ending;
 
@@ -1356,13 +1358,14 @@ handle_rpl_parallel_thread(void *arg)
             Master restarted (crashed) in the middle of an event group.
             So we need to roll back and discard that event group.
           */
-          group_rgi->cleanup_context(thd, 1);
+          worker_rgi.cleanup_context(thd, 1);
           in_event_group= false;
-          finish_event_group(rpt, group_rgi->q->gtid_sub_id,
-                             qev->entry_for_queued, group_rgi);
+          finish_event_group(rpt, worker_rgi.q->gtid_sub_id,
+                             qev->entry_for_queued, &worker_rgi);
 
-          rpt->loc_free_rgi(group_rgi);
-          thd->rgi_slave= group_rgi= NULL;
+          rpt->loc_free_rgi(worker_rgi.q);
+          thd->rgi_slave= NULL;
+          worker_rgi.reinit();
         }
 
         rpt->loc_free_qev(qev);
@@ -1370,44 +1373,42 @@ handle_rpl_parallel_thread(void *arg)
       }
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
-      thd->rgi_slave= rgi;
-      gco= rgi->q->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
       {
         rpt->last_trans_retry_count= 0;
-        rpt->last_seen_gtid= rgi->q->current_gtid;
-        rpt->channel_name_length= (uint)rgi->q->rli->mi->connection_name.length;
+        rpt->last_seen_gtid= rgi_q->current_gtid;
+        rpt->channel_name_length= (uint)rgi_q->rli->mi->connection_name.length;
         if (rpt->channel_name_length)
-          memcpy(rpt->channel_name, rgi->q->rli->mi->connection_name.str,
-                 rgi->q->rli->mi->connection_name.length);
+          memcpy(rpt->channel_name, rgi_q->rli->mi->connection_name.str,
+                 rgi_q->rli->mi->connection_name.length);
 
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
         DBUG_EXECUTE_IF("rpl_parallel_delay_gtid_0_x_100_start", {
-            if (rgi->q->current_gtid.domain_id==0 &&
-                rgi->q->current_gtid.seq_no == 100)
+            if (rgi_q->current_gtid.domain_id==0 &&
+                rgi_q->current_gtid.seq_no == 100)
               my_sleep(10000);
           });
 #ifdef ENABLED_DEBUG_SYNC
         DBUG_EXECUTE_IF("hold_worker_on_schedule", {
-            if (rgi->q->current_gtid.domain_id == 0 &&
-                rgi->q->current_gtid.seq_no == 100) {
+            if (rgi_q->current_gtid.domain_id == 0 &&
+                rgi_q->current_gtid.seq_no == 100) {
                   debug_sync_set_action(thd,
                 STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
             }
           });
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
-            if (rgi->q->current_gtid.domain_id == 0 &&
-                rgi->q->current_gtid.seq_no == 100) {
+            if (rgi_q->current_gtid.domain_id == 0 &&
+                rgi_q->current_gtid.seq_no == 100) {
               debug_sync_set_action(thd,
                       STRING_WITH_LEN("now SIGNAL scheduled_gtid_0_x_100"));
             }
           });
 #endif
 
-        if (unlikely(thd->wait_for_commit_ptr) && group_rgi != NULL)
+        if (unlikely(thd->wait_for_commit_ptr) && worker_rgi.q != NULL)
         {
           /*
             This indicates that we get a new GTID event in the middle of
@@ -1416,13 +1417,18 @@ handle_rpl_parallel_thread(void *arg)
             someone tries to inject wrong crafted binlog, but let us still
             try to handle it somewhat nicely.
           */
-          group_rgi->cleanup_context(thd, true);
-          finish_event_group(rpt, group_rgi->q->gtid_sub_id,
-                             group_rgi->q->parallel_entry, group_rgi);
-          rpt->loc_free_rgi(group_rgi);
+          worker_rgi.cleanup_context(thd, true);
+          finish_event_group(rpt, worker_rgi.q->gtid_sub_id,
+                             worker_rgi.q->parallel_entry, &worker_rgi);
+          rpt->loc_free_rgi(worker_rgi.q);
+          worker_rgi.reinit();
         }
 
         thd->tx_isolation= (enum_tx_isolation)thd->variables.tx_isolation;
+        /* At this point, we are starting the new event group. */
+        worker_rgi.install_queued_part(rgi_q);
+        thd->rgi_slave= &worker_rgi;
+        gco= rgi_q->gco;
         in_event_group= true;
         /*
           If the standalone flag is set, then this event group consists of a
@@ -1433,43 +1439,43 @@ handle_rpl_parallel_thread(void *arg)
           (0 != (static_cast<Gtid_log_event *>(qev->ev)->flags2 &
                  Gtid_log_event::FL_STANDALONE));
 
-        event_gtid_sub_id= rgi->q->gtid_sub_id;
-        rgi->thd= thd;
+        event_gtid_sub_id= rgi_q->gtid_sub_id;
 
         DBUG_EXECUTE_IF("gco_wait_delay_gtid_0_x_99", {
-            if (rgi->q->current_gtid.domain_id == 0 && rgi->q->current_gtid.seq_no == 99) {
+            if (rgi_q->current_gtid.domain_id == 0 && rgi_q->current_gtid.seq_no == 99) {
               debug_sync_set_action(thd,
                   STRING_WITH_LEN("now SIGNAL gco_wait_paused WAIT_FOR gco_wait_cont"));
             } });
 
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
-        do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
-        skip_event_group= do_stop_handling(rgi);
+        do_gco_wait(&worker_rgi, gco, &did_enter_cond, &old_stage);
+        skip_event_group= do_stop_handling(&worker_rgi);
         if (likely(!skip_event_group))
-          skip_event_group= do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
+          skip_event_group= do_ftwrl_wait(&worker_rgi, &did_enter_cond,
+                                          &old_stage);
 
         /*
           Register ourself to wait for the previous commit, if we need to do
           such registration _and_ that previous commit has not already
           occurred.
         */
-        register_wait_for_prior_event_group_commit(rgi, entry);
+        register_wait_for_prior_event_group_commit(&worker_rgi, entry);
 
         unlock_or_exit_cond(thd, &entry->LOCK_parallel_entry,
                             &did_enter_cond, &old_stage);
 
-        thd->wait_for_commit_ptr= &rgi->q->commit_orderer;
+        thd->wait_for_commit_ptr= &worker_rgi.q->commit_orderer;
 
         if (opt_gtid_ignore_duplicates &&
-            rgi->q->rli->mi->using_gtid != Master_info::USE_GTID_NO)
+            rgi_q->rli->mi->using_gtid != Master_info::USE_GTID_NO)
         {
-          int res= rpl_global_gtid_slave_state-> check_duplicate_gtid(&rgi->q->current_gtid,
-                                                                      rgi);
+          int res= rpl_global_gtid_slave_state->
+            check_duplicate_gtid(&rgi_q->current_gtid, &worker_rgi);
           if (res < 0)
           {
             /* Error. */
-            slave_output_error_info(rgi, thd);
-            signal_error_to_sql_driver_thread(thd, rgi, 1);
+            slave_output_error_info(&worker_rgi, thd);
+            signal_error_to_sql_driver_thread(thd, &worker_rgi, 1);
           }
           else if (!res)
           {
@@ -1487,15 +1493,14 @@ handle_rpl_parallel_thread(void *arg)
           before, then wait now for the prior transaction to complete its
           commit.
         */
-        if (rgi->q->speculation == SPECULATE_WAIT &&
+        if (rgi_q->speculation == SPECULATE_WAIT &&
             (err= thd->wait_for_prior_commit()))
         {
-          slave_output_error_info(rgi, thd);
-          signal_error_to_sql_driver_thread(thd, rgi, 1);
+          slave_output_error_info(&worker_rgi, thd);
+          signal_error_to_sql_driver_thread(thd, &worker_rgi, 1);
         }
       }
 
-      group_rgi= rgi;
       group_ending= is_group_ending(qev->ev, event_type);
       /*
         We do not unmark_start_commit() here in case of an explicit ROLLBACK
@@ -1508,7 +1513,7 @@ handle_rpl_parallel_thread(void *arg)
         in ha_rollback_trans() that we do not rollback after doing
         mark_start_commit().
       */
-      if (group_ending == 1 && likely(!rgi->worker_error))
+      if (group_ending == 1 && likely(!worker_rgi.worker_error))
       {
         /*
           Do an extra check for (deadlock) kill here. This helps prevent a
@@ -1532,8 +1537,8 @@ handle_rpl_parallel_thread(void *arg)
           kill at this point just before mark_start_commit(), we should be
           robust even towards spurious deadlock kills.
         */
-        if (rgi->killed_for_retry != rpl_group_info::RETRY_KILL_NONE)
-          wait_for_pending_deadlock_kill(thd, rgi);
+        if (worker_rgi.killed_for_retry != rpl_group_info::RETRY_KILL_NONE)
+          wait_for_pending_deadlock_kill(thd, &worker_rgi);
         if (!thd->killed)
         {
           DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
@@ -1549,10 +1554,10 @@ handle_rpl_parallel_thread(void *arg)
               wakeup_subsequent_commits() until this event group is fully
               done, inside finish_event_group().
             */
-            rgi->q->commit_orderer.wakeup_blocked= true;
+            worker_rgi.q->commit_orderer.wakeup_blocked= true;
           }
           else
-            rgi->mark_start_commit();
+            worker_rgi.mark_start_commit();
           DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
 #ifdef ENABLED_DEBUG_SYNC
           DBUG_EXECUTE_IF("halt_past_mark_start_commit",
@@ -1571,9 +1576,9 @@ handle_rpl_parallel_thread(void *arg)
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      if (likely(!rgi->worker_error) && !skip_event_group)
+      if (likely(!worker_rgi.worker_error) && !skip_event_group)
       {
-        ++rgi->retry_event_count;
+        ++worker_rgi.retry_event_count;
 #ifndef DBUG_OFF
         err= 0;
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
@@ -1596,21 +1601,21 @@ handle_rpl_parallel_thread(void *arg)
             err= 1;
           }
           else
-            err= rpt_handle_event(qev, rpt);
+            err= rpt_handle_event(&worker_rgi, qev, rpt);
         }
-        delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
+        delete_or_keep_event_post_apply(&worker_rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
-                        err= dbug_simulate_tmp_error(rgi, thd););
+                        err= dbug_simulate_tmp_error(&worker_rgi, thd););
         if (unlikely(err))
         {
           ulong max_retries= slave_trans_retries;
-          convert_kill_to_deadlock_error(rgi);
+          convert_kill_to_deadlock_error(&worker_rgi);
           DBUG_EXECUTE_IF("rpl_mdev31655_zero_retries",
-                          if ((rgi->q->current_gtid.seq_no % 1000) == 0)
+                          if ((worker_rgi.q->current_gtid.seq_no % 1000) == 0)
                             max_retries= 0;
                           );
           if (has_temporary_error(thd) && max_retries > 0)
-            err= retry_event_group(rgi, rpt, qev);
+            err= retry_event_group(&worker_rgi, rpt, qev);
         }
       }
       else
@@ -1628,19 +1633,20 @@ handle_rpl_parallel_thread(void *arg)
 
       if (unlikely(err))
       {
-        if (!rgi->worker_error)
+        if (!worker_rgi.worker_error)
         {
-          slave_output_error_info(rgi, thd);
-          signal_error_to_sql_driver_thread(thd, rgi, err);
+          slave_output_error_info(&worker_rgi, thd);
+          signal_error_to_sql_driver_thread(thd, &worker_rgi, err);
         }
         thd->reset_killed();
       }
       if (end_of_group)
       {
         in_event_group= false;
-        finish_event_group(rpt, event_gtid_sub_id, entry, rgi);
-        rpt->loc_free_rgi(rgi);
-        thd->rgi_slave= group_rgi= rgi= NULL;
+        finish_event_group(rpt, event_gtid_sub_id, entry, &worker_rgi);
+        thd->rgi_slave= NULL;
+        rpt->loc_free_rgi(worker_rgi.q);
+        worker_rgi.reinit();
         skip_event_group= false;
         DEBUG_SYNC(thd, "rpl_parallel_end_of_group");
       }
@@ -1668,7 +1674,7 @@ handle_rpl_parallel_thread(void *arg)
 
     rpt->inuse_relaylog_refcount_update();
 
-    if (in_event_group && group_rgi->q->parallel_entry->force_abort)
+    if (in_event_group && worker_rgi.q->parallel_entry->force_abort)
     {
       /*
         We are asked to abort, without getting the remaining events in the
@@ -1679,13 +1685,14 @@ handle_rpl_parallel_thread(void *arg)
         half-processed event group.
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      signal_error_to_sql_driver_thread(thd, group_rgi, 1);
-      finish_event_group(rpt, group_rgi->q->gtid_sub_id,
-                         group_rgi->q->parallel_entry, group_rgi);
+      signal_error_to_sql_driver_thread(thd, &worker_rgi, 1);
+      finish_event_group(rpt, worker_rgi.q->gtid_sub_id,
+                         worker_rgi.q->parallel_entry, &worker_rgi);
       in_event_group= false;
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
-      rpt->free_rgi(group_rgi);
-      thd->rgi_slave= group_rgi= NULL;
+      thd->rgi_slave= NULL;
+      rpt->free_rgi(worker_rgi.q);
+      worker_rgi.reinit();
       skip_event_group= false;
     }
     if (!in_event_group)
@@ -1892,7 +1899,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     }
     while (rpt->rgi_free_list)
     {
-      rpl_group_info *next= rpt->rgi_free_list->next;
+      rgi_queued_part *next= rpt->rgi_free_list->next;
       delete rpt->rgi_free_list;
       rpt->rgi_free_list= next;
     }
@@ -2119,7 +2126,7 @@ rpl_parallel_thread::retry_get_qev(Log_event *ev, queued_event *orig_qev,
   queued_event *qev= get_qev_common(ev, event_size);
   if (!qev)
     return NULL;
-  qev->rgi= orig_qev->rgi;
+  qev->rgi_q= orig_qev->rgi_q;
   safe_strcpy(qev->event_relay_log_name, sizeof(qev->event_relay_log_name),
               relay_log_name);
   qev->event_relay_log_pos= event_pos;
@@ -2177,78 +2184,69 @@ rpl_parallel_thread::free_qev(rpl_parallel_thread::queued_event *qev)
 }
 
 
-rpl_group_info*
-rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
-                             rpl_parallel_entry *e, ulonglong event_size)
+rgi_queued_part*
+rpl_parallel_thread::get_rgi_q(Relay_log_info *rli, Gtid_log_event *gtid_ev,
+                               rpl_parallel_entry *e, ulonglong event_size)
 {
-  rpl_group_info *rgi;
+  rgi_queued_part *rgi_q;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
-  if ((rgi= rgi_free_list))
+  if ((rgi_q= rgi_free_list))
   {
-    rgi_free_list= rgi->next;
-    rgi->reinit(rli);
+    rgi_free_list= rgi_q->next;
   }
   else
   {
-    if(!(rgi= new rpl_group_info(rli)))
+    if(!(rgi_q= new rgi_queued_part()))
     {
-      my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*rgi));
+      my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*rgi_q));
       return NULL;
     }
-    rgi->is_parallel_exec = true;
   }
-  if ((rgi->q->deferred_events_collecting= rli->mi->rpl_filter->is_on()) &&
-      !rgi->deferred_events)
-    rgi->deferred_events= new Deferred_log_events(rli);
-  if (event_group_new_gtid(rgi, gtid_ev))
+  rgi_q->rli= rli;
+  rgi_q->commit_orderer.reinit();
+  rgi_q->deferred_events_collecting= rli->mi->rpl_filter->is_on();
+  if (event_group_new_gtid(rgi_q, gtid_ev))
   {
-    free_rgi(rgi);
+    free_rgi(rgi_q);
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
   }
-  rgi->q->parallel_entry= e;
-  rgi->q->relay_log= rli->last_inuse_relaylog;
-  rgi->q->retry_start_offset= rli->future_event_relay_log_pos-event_size;
-  rgi->retry_event_count= 0;
-  rgi->killed_for_retry= rpl_group_info::RETRY_KILL_NONE;
+  rgi_q->parallel_entry= e;
+  rgi_q->relay_log= rli->last_inuse_relaylog;
+  rgi_q->retry_start_offset= rli->future_event_relay_log_pos-event_size;
   /* rgi is transaction specific so we need to move this value to rgi */
-  rgi->q->reserved_start_alter_thread= reserved_start_alter_thread;
-  rgi->rpt= this;
-  rgi->direct_commit_alter= false;
-  rgi->finish_event_group_called= false;
+  rgi_q->reserved_start_alter_thread= reserved_start_alter_thread;
+  rgi_q->speculation= SPECULATE_NO;
 
-  DBUG_ASSERT(!rgi->sa_info);
   /*
     We can remove the reserved_start_alter_thread flag.
     If we get more concurrent alter handle_split_alter will
     automatically set this flag again.
   */
   reserved_start_alter_thread= false;
-  return rgi;
+  return rgi_q;
 }
 
 
 void
-rpl_parallel_thread::loc_free_rgi(rpl_group_info *rgi)
+rpl_parallel_thread::loc_free_rgi(rgi_queued_part *rgi_q)
 {
-  DBUG_ASSERT(rgi->q->commit_orderer.waitee == NULL);
-  rgi->free_annotate_event();
+  DBUG_ASSERT(rgi_q->commit_orderer.waitee == NULL);
   if (!loc_rgi_list)
-    loc_rgi_last_ptr_ptr= &rgi->next;
+    loc_rgi_last_ptr_ptr= &rgi_q->next;
   else
-    rgi->next= loc_rgi_list;
-  loc_rgi_list= rgi;
+    rgi_q->next= loc_rgi_list;
+  loc_rgi_list= rgi_q;
 }
 
 
 void
-rpl_parallel_thread::free_rgi(rpl_group_info *rgi)
+rpl_parallel_thread::free_rgi(rgi_queued_part *rgi_q)
 {
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
-  DBUG_ASSERT(rgi->q->commit_orderer.waitee == NULL);
-  rgi->free_annotate_event();
-  rgi->next= rgi_free_list;
-  rgi_free_list= rgi;
+  DBUG_ASSERT(rgi_q->commit_orderer.waitee == NULL);
+  rgi_q->next= rgi_free_list;
+  rgi_free_list= rgi_q;
 }
 
 
@@ -3138,7 +3136,7 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
     return 1;
   }
 
-  qev->rgi= rgi;
+  qev->rgi_q= rgi->q;
   qev->typ= rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART;
   qev->entry_for_queued= this;
   qev->ir= rli->last_inuse_relaylog;
@@ -3256,7 +3254,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   rpl_parallel_entry *e;
   rpl_parallel_thread *cur_thread;
   rpl_parallel_thread::queued_event *qev;
-  rpl_group_info *rgi= NULL;
+  rgi_queued_part *rgi_q= NULL;
   Relay_log_info *rli= serial_rgi->q->rli;
   enum Log_event_type typ;
   bool is_group_event;
@@ -3473,7 +3471,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     uint8 force_switch_flag;
     enum enum_speculation speculation;
 
-    if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
+    if (!(rgi_q= cur_thread->get_rgi_q(rli, gtid_ev, e, event_size)))
     {
       cur_thread->free_qev(qev);
       abandon_worker_thread(rli->sql_driver_thd, cur_thread,
@@ -3487,16 +3485,16 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       with previous groups.
 
       To preserve commit order within the replication domain, we set up
-      rgi->q->wait_commit_sub_id to make the new group commit only after the
+      rgi_q->wait_commit_sub_id to make the new group commit only after the
       previous group has committed.
 
       Event groups that group-committed together on the master can be run
       in parallel with each other without restrictions. But one batch of
       group-commits may not start before all groups in the previous batch
-      have initiated their commit phase; we set up rgi->q->gco to ensure that.
+      have initiated their commit phase; we set up rgi_q->gco to ensure that.
     */
-    rgi->q->wait_commit_sub_id= e->current_sub_id;
-    rgi->q->wait_commit_group_info= e->current_group_info;
+    rgi_q->wait_commit_sub_id= e->current_sub_id;
+    rgi_q->wait_commit_rgi_q= e->current_rgi_q;
 
     speculation= SPECULATE_NO;
     new_gco= true;
@@ -3570,7 +3568,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       if (gtid_flags & Gtid_log_event::FL_DDL)
         force_switch_flag= group_commit_orderer::FORCE_SWITCH;
     }
-    rgi->q->speculation= speculation;
+    rgi_q->speculation= speculation;
 
     if (gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID)
       e->last_commit_id= gtid_ev->commit_id;
@@ -3591,7 +3589,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
       if (!(gco= cur_thread->get_gco(count, gco, e->current_sub_id)))
       {
-        cur_thread->free_rgi(rgi);
+        cur_thread->free_rgi(rgi_q);
         cur_thread->free_qev(qev);
         abandon_worker_thread(rli->sql_driver_thd, cur_thread,
                               &did_enter_cond, &old_stage);
@@ -3601,10 +3599,10 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       gco->flags|= force_switch_flag;
       e->current_gco= gco;
     }
-    rgi->q->gco= gco;
+    rgi_q->gco= gco;
 
-    qev->rgi= e->current_group_info= rgi;
-    e->current_sub_id= rgi->q->gtid_sub_id;
+    qev->rgi_q= e->current_rgi_q= rgi_q;
+    e->current_sub_id= rgi_q->gtid_sub_id;
     ++e->count_queued_event_groups;
   }
   else if (!is_group_event)
@@ -3616,11 +3614,11 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       Same for events not preceeded by GTID (we should not see those normally,
       but they might be from an old master).
     */
-    qev->rgi= serial_rgi;
+    qev->rgi_q= serial_rgi->q;
 
     tmp= serial_rgi->is_parallel_exec;
     serial_rgi->is_parallel_exec= true;
-    err= rpt_handle_event(qev, NULL);
+    err= rpt_handle_event(serial_rgi, qev, NULL);
     serial_rgi->is_parallel_exec= tmp;
     if (ev->is_relay_log_event())
       qev->future_event_master_log_pos= 0;
@@ -3655,14 +3653,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   }
   else
   {
-    qev->rgi= e->current_group_info;
+    qev->rgi_q= e->current_rgi_q;
   }
 
   /*
     The original execution time of the event from the master is stored on the
     serial_rgi, so copy it to our new one for parallel execution.
   */
-  qev->rgi->q->orig_exec_time= serial_rgi->q->orig_exec_time;
+  qev->rgi_q->orig_exec_time= serial_rgi->q->orig_exec_time;
 
   /*
     Queue the event for processing.

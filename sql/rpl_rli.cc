@@ -2074,15 +2074,13 @@ end:
 
 
 void
-rpl_group_info::reinit(Relay_log_info *rli)
+rpl_group_info::reinit()
 {
-  this->q->rli= rli;
+  q= NULL;
   tables_to_lock= NULL;
   tables_to_lock_count= 0;
   trans_retries= 0;
   last_event_start_time= 0;
-  q->gtid_sub_id= 0;
-  q->commit_id= 0;
   gtid_pending= false;
   worker_error= 0;
   row_stmt_start_timestamp= 0;
@@ -2092,25 +2090,24 @@ rpl_group_info::reinit(Relay_log_info *rli)
   gtid_ev_flags_extra= 0;
   gtid_ev_sa_seq_no= 0;
   last_master_timestamp = 0;
-  q->orig_exec_time= 0;
+  killed_for_retry= RETRY_KILL_NONE;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
-  q->speculation= SPECULATE_NO;
-  rpt= NULL;
+  finish_event_group_called= false;
   start_alter_ev= NULL;
+  sa_info= NULL;
   direct_commit_alter= false;
-  q->commit_orderer.reinit();
+  free_annotate_event();
 }
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli)
-  : q(new rgi_queued_part(rli)), thd(0),
+rpl_group_info::rpl_group_info()
+  : thd(0),
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
     gtid_ev_flags2(0), gtid_ev_flags_extra(0), gtid_ev_sa_seq_no(0),
-    finish_event_group_called(0), rpt(NULL),
-    start_alter_ev(NULL), direct_commit_alter(false), sa_info(NULL),
+    rpt(NULL),
+    start_alter_ev(NULL), direct_commit_alter(false),
     is_new_trans(false), assembler(NULL)
 {
-  reinit(rli);
-  bzero(&q->current_gtid, sizeof(q->current_gtid));
+  reinit();
   mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
                    MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_rpl_group_info_sleep_cond, &sleep_cond, NULL);
@@ -2139,8 +2136,19 @@ rgi_queued_part::rgi_queued_part(Relay_log_info *rli_)
 }
 
 
+void
+rpl_group_info::install_queued_part(rgi_queued_part *rgi_q)
+{
+  q= rgi_q;
+  gtid_pending= true;
+  retry_event_count= 0;
+  if (unlikely(rgi_q->deferred_events_collecting) && !deferred_events)
+    deferred_events= new Deferred_log_events(rgi_q->rli);
+}
+
+
 int
-event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
+event_group_new_gtid(rgi_queued_part *rgi_q, Gtid_log_event *gev)
 {
   uint64 sub_id= rpl_global_gtid_slave_state->next_sub_id(gev->domain_id);
   if (!sub_id)
@@ -2148,13 +2156,12 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
     /* Out of memory caused hash insertion to fail. */
     return 1;
   }
-  rgi->q->gtid_sub_id= sub_id;
-  rgi->q->current_gtid.domain_id= gev->domain_id;
-  rgi->q->current_gtid.server_id= gev->server_id;
-  rgi->q->current_gtid.seq_no= gev->seq_no;
-  rgi->q->commit_id= gev->commit_id;
-  rgi->gtid_pending= true;
-  rgi->sa_info= NULL;
+  rgi_q->gtid_sub_id= sub_id;
+  rgi_q->current_gtid.domain_id= gev->domain_id;
+  rgi_q->current_gtid.server_id= gev->server_id;
+  rgi_q->current_gtid.seq_no= gev->seq_no;
+  rgi_q->commit_id= gev->commit_id;
+  rgi_q->orig_exec_time= 0;
   return 0;
 }
 

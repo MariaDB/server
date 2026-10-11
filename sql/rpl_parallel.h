@@ -11,6 +11,8 @@ extern struct rpl_parallel_thread_pool pool_bkp_for_pfs;
 
 class Relay_log_info;
 struct inuse_relaylog;
+struct rpl_group_info;
+struct rgi_queued_part;
 
 
 /*
@@ -148,7 +150,7 @@ struct rpl_parallel_thread {
       rpl_parallel_entry *entry_for_queued;     /* QUEUED_POS_UPDATE and
                                                    QUEUED_MASTER_RESTART */
     };
-    rpl_group_info *rgi;
+    rgi_queued_part *rgi_q;
     inuse_relaylog *ir;
     ulonglong future_event_relay_log_pos;
     char event_relay_log_name[FN_REFLEN];
@@ -160,7 +162,7 @@ struct rpl_parallel_thread {
   uint64 queued_size;
   /* These free lists are protected by LOCK_rpl_thread. */
   queued_event *qev_free_list;
-  rpl_group_info *rgi_free_list;
+  rgi_queued_part *rgi_free_list;
   group_commit_orderer *gco_free_list;
   /*
     These free lists are local to the thread, so need not be protected by any
@@ -175,7 +177,7 @@ struct rpl_parallel_thread {
   queued_event *loc_qev_list, **loc_qev_last_ptr_ptr;
   size_t loc_qev_size;
   uint64 qev_free_pending;
-  rpl_group_info *loc_rgi_list, **loc_rgi_last_ptr_ptr;
+  rgi_queued_part *loc_rgi_list, **loc_rgi_last_ptr_ptr;
   group_commit_orderer *loc_gco_list, **loc_gco_last_ptr_ptr;
   /* These keep track of batch update of inuse_relaylog refcounts. */
   inuse_relaylog *accumulated_ir_last;
@@ -247,18 +249,18 @@ struct rpl_parallel_thread {
     LOCK_rpl_thread mutex.
   */
   void free_qev(queued_event *qev);
-  rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
-                          rpl_parallel_entry *e, ulonglong event_size);
+  rgi_queued_part *get_rgi_q(Relay_log_info *rli, Gtid_log_event *gtid_ev,
+                             rpl_parallel_entry *e, ulonglong event_size);
   /*
     Put an gco on the local free list, to be later released to the global free
     list by batch_free().
   */
-  void loc_free_rgi(rpl_group_info *rgi);
+  void loc_free_rgi(rgi_queued_part *rgi_q);
   /*
     Release an rgi immediately to the global free list. Requires holding the
     LOCK_rpl_thread mutex.
   */
-  void free_rgi(rpl_group_info *rgi);
+  void free_rgi(rgi_queued_part *rgi_q);
   group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev,
                                 uint64 first_sub_id);
   /*
@@ -451,7 +453,7 @@ struct rpl_parallel_entry {
     transactions with smaller sub_id have started).
   */
   uint64 largest_started_sub_id;
-  rpl_group_info *current_group_info;
+  rgi_queued_part *current_rgi_q;
   /*
     If we get an error in some event group, we set the sub_id of that event
     group here. Then later event groups (with higher sub_id) can know not to

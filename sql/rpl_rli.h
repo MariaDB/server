@@ -789,6 +789,7 @@ struct rgi_queued_part {
   */
   wait_for_commit commit_orderer;
 
+  rgi_queued_part *next= nullptr;   /* For free list in rpl_parallel_thread */
   Relay_log_info *rli= nullptr;
   /*
     Current GTID being processed.
@@ -807,7 +808,7 @@ struct rgi_queued_part {
   uint64 retry_start_offset= 0;
   /*
     If non-zero, the sub_id of a prior event group whose commit we have to
-    wait for before committing ourselves. Then wait_commit_group_info points
+    wait for before committing ourselves. Then wait_commit_rgi_q points
     to the event group to wait for.
 
     Before using this, rpl_parallel_entry::last_committed_sub_id should be
@@ -817,7 +818,7 @@ struct rgi_queued_part {
     for the wrong commit).
   */
   uint64 wait_commit_sub_id= 0;
-  rpl_group_info *wait_commit_group_info= nullptr;
+  rgi_queued_part *wait_commit_rgi_q= nullptr;
   /*
     This holds a pointer to a struct that keeps track of the need to wait
     for the previous batch of event groups to reach the commit stage, before
@@ -864,7 +865,6 @@ struct rpl_group_info
   */
   struct rgi_queued_part *q;
 
-  rpl_group_info *next= nullptr;   /* For free list in rpl_parallel_thread */
   THD *thd;
   /* Currently applied event or NULL */
   Log_event *current_event;
@@ -987,9 +987,10 @@ struct rpl_group_info
   */
   Rows_log_event_assembler *assembler;
 
-  rpl_group_info(Relay_log_info *rli_);
+  rpl_group_info();
   ~rpl_group_info();
-  void reinit(Relay_log_info *rli);
+  void reinit();
+  void install_queued_part(rgi_queued_part *rgi_q);
 
   /* 
      Returns true if the argument event resides in the container;
@@ -1174,7 +1175,7 @@ extern gtid_waiting rpl_global_gtid_waiting;
 
 int rpl_load_gtid_slave_state(THD *thd);
 int find_gtid_slave_pos_tables(THD *thd);
-int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
+int event_group_new_gtid(rgi_queued_part *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                      Log_event_type typ, Log_event *ev);
 

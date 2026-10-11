@@ -4260,11 +4260,12 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     {
       Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
 
+      serial_rgi->sa_info= NULL;
       /*
         For GTID, allocate a new sub_id for the given domain_id.
         The sub_id must be allocated in increasing order of binlog order.
       */
-      if (event_group_new_gtid(serial_rgi, gev))
+      if (event_group_new_gtid(serial_rgi->q, gev))
       {
         sql_print_error("Error reading relay log event: %s", "slave SQL thread "
                         "aborted because of out-of-memory error");
@@ -4275,6 +4276,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
+      serial_rgi->gtid_pending= true;
+
       rli->last_seen_gtid= serial_rgi->q->current_gtid;
       rli->last_trans_retry_count= serial_rgi->trans_retries;
       if (opt_gtid_ignore_duplicates &&
@@ -5221,7 +5224,8 @@ pthread_handler_t handle_slave_sql(void *arg)
  wsrep_restart_point:
 #endif
 
-  serial_rgi= new rpl_group_info(rli);
+  serial_rgi= new rpl_group_info();
+  serial_rgi->q= new rgi_queued_part(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
   thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
