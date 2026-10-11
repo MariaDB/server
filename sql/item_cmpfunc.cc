@@ -5832,6 +5832,14 @@ bool Item_func_isnotnull::val_bool()
 }
 
 
+bool Item_func_isnotnull::find_not_null_fields(table_map allowed)
+{
+  // An always non-NULL argument makes this predicate true for every row.
+  // Its input fields need not be non-NULL for the predicate to be true.
+  return args[0]->maybe_null() ? Item_func::find_not_null_fields(allowed) : false;
+}
+
+
 void Item_func_isnotnull::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
