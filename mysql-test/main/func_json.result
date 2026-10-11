@@ -2787,6 +2787,67 @@ SELECT JSON_VALUE(JSON_OBJECT("a", ""), '$.a') = "" AS not_null;
 not_null
 1
 #
+# MDEV-40972: JSON_TABLE scalar conversion error responses
+#
+SELECT * FROM JSON_TABLE('{"a":"str"}', '$' COLUMNS(c INT PATH '$.a' NULL ON ERROR)) jt;
+c
+NULL
+Warnings:
+Warning	1366	Incorrect integer value: 'str' for column `*any*`.`json_table`.`c` at row 1
+SELECT * FROM JSON_TABLE('[{"a":"str","b":7},{"a":3,"b":8}]', '$[*]'
+  COLUMNS(ord FOR ORDINALITY,
+c INT PATH '$.a' NULL ON ERROR,
+d INT PATH '$.a' DEFAULT '42' ON ERROR,
+good INT PATH '$.b' ERROR ON ERROR,
+js JSON PATH '$.b' ERROR ON ERROR)) jt;
+ord	c	d	good	js
+1	NULL	42	7	7
+2	3	3	8	8
+Warnings:
+Warning	1366	Incorrect integer value: 'str' for column `*any*`.`json_table`.`c` at row 1
+Warning	1366	Incorrect integer value: 'str' for column `*any*`.`json_table`.`d` at row 1
+SELECT * FROM JSON_TABLE('[{}, {"a":null}, {"a":true}, {"a":false}]', '$[*]'
+  COLUMNS(ord FOR ORDINALITY,
+c INT PATH '$.a' DEFAULT '9' ON EMPTY DEFAULT '8' ON ERROR)) jt;
+ord	c
+1	9
+2	NULL
+3	1
+4	0
+SELECT * FROM JSON_TABLE('{}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON EMPTY)) jt;
+ERROR HY000: Field 'c' can't be set for JSON_TABLE 'jt'.
+SELECT * FROM JSON_TABLE('{"a":"str"}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON ERROR)) jt;
+ERROR HY000: Field 'c' can't be set for JSON_TABLE 'jt'.
+SELECT * FROM JSON_TABLE('{"a":1000}', '$'
+  COLUMNS(c TINYINT PATH '$.a' ERROR ON ERROR)) jt;
+ERROR HY000: Field 'c' can't be set for JSON_TABLE 'jt'.
+SELECT * FROM JSON_TABLE('{"a":[1,2]}', '$'
+  COLUMNS(c INT PATH '$.a' ERROR ON ERROR)) jt;
+ERROR HY000: Can't store an array or an object in the scalar column 'c' of JSON_TABLE 'jt'.
+SELECT * FROM JSON_TABLE('{"a":{}}', '$'
+  COLUMNS(c INT PATH '$.a' DEFAULT '42' ON ERROR)) jt;
+c
+42
+SELECT * FROM JSON_TABLE('{"a":1.239}', '$'
+  COLUMNS(c DECIMAL(5,2) PATH '$.a' DEFAULT '9.99' ON ERROR,
+d INT PATH '$.missing' DEFAULT '7' ON EMPTY ERROR ON ERROR)) jt;
+c	d
+1.24	7
+Warnings:
+Note	1265	Data truncated for column 'c' at row 1
+SET @mdev40972_sql_mode= @@sql_mode;
+SET sql_mode= 'STRICT_ALL_TABLES';
+SELECT * FROM JSON_TABLE('{"a":"str","b":7}', '$'
+  COLUMNS(c INT PATH '$.a' DEFAULT '42' ON ERROR,
+d INT PATH '$.b' ERROR ON ERROR)) jt;
+c	d
+42	7
+Warnings:
+Warning	1366	Incorrect integer value: 'str' for column `*any*`.`json_table`.`c` at row 1
+SET sql_mode= @mdev40972_sql_mode;
+#
 # MDEV-36319: Wrong result json_table
 #
 SET @JSON='

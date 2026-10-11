@@ -328,7 +328,7 @@ SELECT * FROM v;
 SHOW CREATE VIEW v;
 DROP VIEW v;
 
-#--error ER_JSON_TABLE_SCALAR_EXPECTED
+--error ER_JSON_TABLE_ERROR_ON_FIELD
 SELECT * FROM JSON_TABLE('"asdf"',
                          '$' COLUMNS (a INT PATH '$' ERROR ON ERROR)) AS jt;
 --error ER_JSON_TABLE_MULTIPLE_MATCHES
@@ -340,7 +340,7 @@ SELECT * FROM
 SELECT * FROM
   JSON_TABLE('[{"a":1},{"a":2}]',
              '$' COLUMNS (a JSON PATH '$[*].a' ERROR ON ERROR)) AS jt;
-#--error ER_JSON_TABLE_SCALAR_EXPECTED
+--error ER_JSON_TABLE_ERROR_ON_FIELD
 SELECT * FROM
   JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$' ERROR ON ERROR)) AS jt;
 SELECT * FROM
@@ -721,8 +721,7 @@ SELECT * FROM
                 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$')
                 ) AS alias2;
 
-#--error ER_JT_VALUE_OUT_OF_RANGE
-# --error ER_JSON_TABLE_SCALAR_EXPECTED
+--error ER_JSON_TABLE_ERROR_ON_FIELD
 SELECT * FROM
   JSON_TABLE('[3.14159]',
               '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$' ERROR ON ERROR)
@@ -1374,7 +1373,7 @@ INSERT INTO t SELECT * FROM
                         JSON_OBJECT('c', TIME'12:00:00', 'd', 1e308)),
              '$[*]' COLUMNS (id FOR ORDINALITY,
                              a TINYINT PATH '$.a' DEFAULT '111' ON ERROR,
-                             b VARCHAR(3) PATH '$.b' DEFAULT '"ERR"' ON ERROR,
+                             b VARCHAR(3) PATH '$.b' DEFAULT 'ERR' ON ERROR,
                              c DATE PATH '$.c' DEFAULT '"2001-01-01"' ON ERROR,
                              d DECIMAL PATH '$.c' DEFAULT '999' ON ERROR)
             ) AS jt;
