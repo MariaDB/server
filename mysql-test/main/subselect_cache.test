@@ -1743,3 +1743,9 @@ SET optimizer_switch=@save_optimizer_switch;
 
 --echo # restore default
 set @@optimizer_switch= default;
+--echo # MDEV-39366 Preserve precision of cached STDDEV_POP results
+CREATE TABLE t1 (p INT, v INT);
+INSERT INTO t1 VALUES (1,0),(1,0),(1,1);
+SELECT CAST((SELECT STDDEV_POP(b.v) FROM t1 AS b WHERE b.p=a.p)
+            AS DECIMAL(10,8)) AS sd FROM t1 AS a;
+DROP TABLE t1;
