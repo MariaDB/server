@@ -1,0 +1,28 @@
+SET @save_slow_query_log= @@GLOBAL.slow_query_log;
+SET @@GLOBAL.slow_query_log= 1;
+SET @save_log_slow_verbosity= @@GLOBAL.log_slow_verbosity;
+SET @@GLOBAL.log_slow_verbosity= 'warnings';
+SET @save_log_slow_query_time= @@GLOBAL.log_slow_query_time;
+SET @@GLOBAL.log_slow_query_time= 0;
+SET @save_init_slave= @@GLOBAL.init_slave;
+SET GLOBAL init_slave= 'GARBAGE';
+CHANGE MASTER TO master_host= 'not important';
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1064]
+SET @@SESSION.slow_query_log= @@GLOBAL.slow_query_log;
+SET @@SESSION.log_slow_verbosity= @@GLOBAL.log_slow_verbosity;
+SET @@SESSION.log_slow_query_time= @@GLOBAL.log_slow_query_time;
+SELECT CAST('' AS INT);
+CAST('' AS INT)
+0
+GARBAGE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GARBAGE' at line 1
+NOT FOUND /Error 1064/ in mysqld-slow.log
+SET @@SESSION.log_slow_query_time= @save_log_slow_query_time;
+SET @@SESSION.slow_query_log= @save_slow_query_log;
+SET @@SESSION.log_slow_verbosity= @save_log_slow_verbosity;
+SET @@GLOBAL.log_slow_query_time= @@SESSION.log_slow_query_time;
+SET @@GLOBAL.slow_query_log= @@SESSION.slow_query_log;
+SET @@GLOBAL.log_slow_verbosity= @@SESSION.log_slow_verbosity;
+RESET SLAVE ALL;
+SET GLOBAL init_slave= @save_init_slave;
