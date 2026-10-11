@@ -1546,6 +1546,10 @@ Table_triggers_list::~Table_triggers_list()
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
       delete *fld_ptr;
 
+  if (null_row_field)
+    for (Field **fld_ptr= null_row_field; *fld_ptr; fld_ptr++)
+      delete *fld_ptr;
+
   DBUG_VOID_RETURN;
 }
 
@@ -1634,6 +1638,38 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
         return 1;
       (*trg_fld)->move_field_offset((my_ptrdiff_t)(table->record[1] -
                                                    table->record[0]));
+    }
+    *trg_fld= 0;
+  }
+
+  /*
+    Every trigger defined for several events is defined for INSERT or
+    DELETE, so it is found in one of these two lists.
+  */
+  bool has_multi_event_trigger= false;
+  for (trg_event_type event : {TRG_EVENT_INSERT, TRG_EVENT_DELETE})
+    for (uint time= 0; time < TRG_ACTION_MAX; time++)
+      for (Trigger *trg= get_trigger(event, time); trg; trg= trg->next[event])
+        if (trg->events != trg2bit(event))
+          has_multi_event_trigger= true;
+
+  if (has_multi_event_trigger)
+  {
+    uchar *null_ptr;
+    if (!(null_ptr= (uchar *) alloc_root(&table->mem_root, 1)) ||
+        !(null_row_field= (Field **)alloc_root(&table->mem_root,
+                                               (table->s->fields + 1) *
+                                               sizeof(Field*))))
+      return 1;
+    *null_ptr= 1;
+
+    for (fld= table->field, trg_fld= null_row_field; *fld; fld++, trg_fld++)
+    {
+      if (!(*trg_fld= (*fld)->make_new_field(&table->mem_root, table,
+                                             table == (*fld)->table, 0)))
+        return 1;
+      (*trg_fld)->null_ptr= null_ptr;
+      (*trg_fld)->null_bit= 1;
     }
     *trg_fld= 0;
   }
@@ -2769,34 +2805,35 @@ static inline bool do_skip_row_indicator(Diagnostics_area *da,
 
 /**
   This class is responsible for storing a kind of current trigger event
-  for processing of NEW/OLD clauses inside trigger's body.
+  for processing of the clauses INSERTING, UPDATING, DELETING inside
+  trigger's body.
   Before start processing of triggers for the given event type, the event type
-  pushed into the stack of events in constructor of the class
-  Trigger_event_guard and popped after processing all triggers of this event
-  type by running destructor of the class Trigger_event_guard.
+  is made the current one in constructor of the class Trigger_event_guard,
+  and the previous one is restored after processing all triggers of this
+  event type by running destructor of the class Trigger_event_guard.
 
-  Every time when the NEW or OLD clause is evaluated on processing a trigger
-  body, the event type of trigger being executed is consulted to determine
-  whether a value of the clause can produce meaning value: for INSERT event,
-  evaluation of the OLD clause should return NULL; for DELETE event, evaluation
-  of the NEW clause should return NULL.
-  @see Item_trigger_field::check_new_old_qulifiers_comform_with_trg_event()
-  @see Item_trigger_field::save_in_field()
-  @see Item_trigger_field::val_*()
+  Every time when one of the clauses INSERTING, UPDATING, DELETING is
+  evaluated on processing a trigger body, it is matched against the event
+  type of the trigger being executed. A DML statement run by the trigger's
+  body changes the current event only while it fires triggers of its own, so
+  the current event is always the event of the innermost trigger being
+  executed.
+  @see Item_trigger_type_of_statement::val_bool()
 */
 class Trigger_event_guard
 {
   Statement *m_stmt;
+  trg_event_type m_saved_event;
 public:
   Trigger_event_guard(Statement *stmt,
                       trg_event_type event)
-  : m_stmt{stmt}
+  : m_stmt{stmt}, m_saved_event{stmt->current_trg_event()}
   {
-    m_stmt->push_current_trg_event(event);
+    m_stmt->set_current_trg_event(event);
   }
   ~Trigger_event_guard()
   {
-    m_stmt->pop_current_trg_event();
+    m_stmt->set_current_trg_event(m_saved_event);
   }
 };
 
@@ -2860,6 +2897,14 @@ bool Table_triggers_list::process_triggers(THD *thd,
     new_field= record1_field;
     old_field= record0_field;
   }
+  /*
+    OLD is NULL for an INSERT event and NEW is NULL for a DELETE event.
+    Only a trigger defined for several events can refer to them there.
+  */
+  if (event == TRG_EVENT_INSERT)
+    old_field= null_row_field;
+  else if (event == TRG_EVENT_DELETE)
+    new_field= null_row_field;
   /*
     This trigger must have been processed by the pre-locking
     algorithm.

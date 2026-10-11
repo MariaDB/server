@@ -240,9 +240,23 @@ class Table_triggers_list: public Sql_alloc
   */
   Field             **record1_field;
   /**
+    Copy of TABLE::Field array with every field being NULL. A trigger
+    defined for several events uses it for OLD values when it is run for
+    an INSERT event and for NEW values when it is run for a DELETE event,
+    so that every way of reading such a value sees the NULL. Only allocated
+    if the table has such a trigger, since only it can read OLD or NEW
+    there. The fields are never written to: OLD is always read-only, SET
+    NEW is refused in a trigger defined for a DELETE event, and NEW as an
+    OUT or INOUT routine argument is refused when the trigger is run for a
+    DELETE event (see Item_trigger_field::check_settable()).
+  */
+  Field             **null_row_field;
+  /**
     During execution of trigger new_field and old_field should point to the
     array of fields representing new or old version of row correspondingly
-    (so it can point to TABLE::field or to Tale_triggers_list::record1_field)
+    (so it can point to TABLE::field, to Tale_triggers_list::record1_field
+    or, for OLD on an INSERT event and NEW on a DELETE event, to
+    null_row_field)
   */
   Field             **new_field;
   Field             **old_field;
@@ -302,7 +316,7 @@ public:
 
   Table_triggers_list(TABLE *table_arg)
     :record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),
-    record1_field(0), trigger_table(table_arg),
+    record1_field(0), null_row_field(0), trigger_table(table_arg),
     m_has_unparseable_trigger(false), count(0)
   {
     bzero((char *) triggers, sizeof(triggers));

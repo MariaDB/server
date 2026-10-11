@@ -263,6 +263,40 @@ public:
 
 
 /**
+  This item is instantiated in case one of the clauses
+    INSERTING, UPDATING, DELETING
+  encountered in trigger's body. The method val_bool() of this class returns
+  true if the event that fired the trigger being run (insert, update, delete)
+  is the one named by the clause. The event is read from the THD that
+  evaluates the item, since one TABLE, and so one parsed trigger body, is
+  used by many connections.
+*/
+
+class Item_trigger_type_of_statement : public Item_bool_func
+{
+public:
+  Item_trigger_type_of_statement(THD *thd,
+                                 active_dml_stmt stmt_type)
+  : Item_bool_func(thd), m_trigger_stmt_type{stmt_type}
+  {}
+
+  bool val_bool() override;
+  LEX_CSTRING func_name_cstring() const override;
+  void print(String *str, enum_query_type) override
+  {
+    str->append(func_name_cstring());
+  }
+
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_trigger_type_of_statement>(thd, this); }
+
+private:
+  active_dml_stmt m_trigger_stmt_type;
+};
+
+
+/**
   Abstract Item class, to represent <code>X IS [NOT] (TRUE | FALSE)</code>
   boolean predicates.
 */

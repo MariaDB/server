@@ -10937,6 +10937,25 @@ void Item_trigger_field::set_required_privilege(bool rw)
 }
 
 
+bool Item_trigger_field::check_settable(THD *thd)
+{
+  /*
+    NEW is settable in a BEFORE trigger, but a trigger that is also defined
+    for a DELETE event has no NEW row to write to when it fires for that
+    event. SET NEW is refused in such a trigger when it is created, while
+    the mode of a routine parameter is only known when the routine is
+    called.
+  */
+  DBUG_ASSERT(row_version == NEW_ROW);
+  if (thd->current_trg_event() == TRG_EVENT_DELETE)
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
+    return true;
+  }
+  return false;
+}
+
+
 bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
   if (fix_fields_if_needed(thd, NULL))
@@ -10966,25 +10985,6 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   field->set_has_explicit_value();
 
   return err_code < 0 || thd->is_error()/*e.g. PS command failed*/;
-}
-
-
-/**
-  Check whether a value of the clause OLD or NEW can produce meaning value:
-    for INSERT event, evaluation of the OLD clause should return NULL;
-    for DELETE event, evaluation of the NEW clause should return NULL.
-
-  @param thd  current thread context
-*/
-
-void
-Item_trigger_field::check_new_old_qulifiers_comform_with_trg_event(THD *thd)
-{
-  if ((thd->current_trg_event() == TRG_EVENT_INSERT && row_version == OLD_ROW) ||
-      (thd->current_trg_event() == TRG_EVENT_DELETE && row_version == NEW_ROW))
-    null_value= true;
-  else
-    null_value= false;
 }
 
 
@@ -11023,7 +11023,6 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
     field= (row_version == OLD_ROW) ? triggers->old_field[field_idx] :
                                       triggers->new_field[field_idx];
     set_field(field);
-    check_new_old_qulifiers_comform_with_trg_event(thd);
     base_flags|= item_base_t::FIXED;
     return FALSE;
   }
@@ -11048,52 +11047,6 @@ bool Item_trigger_field::check_vcol_func_processor(void *arg)
   return mark_unsupported_function(ver, field_name.str, arg, VCOL_IMPOSSIBLE);
 }
 
-
-int Item_trigger_field::save_in_field(Field *to, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null_with_conversions(to, no_conversions);
-
-  return Item_field::save_in_field(to, no_conversions);
-}
-
-
-double Item_trigger_field::val_real()
-{
-  if (null_value)
-    return 0.0;
-  return Item_field::val_real();
-}
-
-longlong Item_trigger_field::val_int()
-{
-  if (null_value)
-    return 0;
-  return Item_field::val_int();
-}
-
-bool Item_trigger_field::val_bool()
-{
-  if (null_value)
-    return false;
-  return Item_field::val_bool();
-}
-
-my_decimal *
-Item_trigger_field::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return 0;
-  return Item_field::val_decimal(decimal_value);
-}
-
-String *
-Item_trigger_field::val_str(String *str)
-{
-  if (null_value)
-    return nullptr;
-  return Item_field::val_str(str);
-}
 
 void Item_trigger_field::cleanup()
 {
@@ -11174,7 +11127,27 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 
 bool Item_trigger_type_of_statement::val_bool()
 {
-  return m_trigger_stmt_type == m_thd->current_active_stmt();
+  switch (current_thd->current_trg_event()) {
+  case TRG_EVENT_INSERT:
+    return m_trigger_stmt_type == active_dml_stmt::INSERTING_STMT;
+  case TRG_EVENT_UPDATE:
+    return m_trigger_stmt_type == active_dml_stmt::UPDATING_STMT;
+  case TRG_EVENT_DELETE:
+    return m_trigger_stmt_type == active_dml_stmt::DELETING_STMT;
+  default:
+    return false;
+  }
+}
+
+
+LEX_CSTRING Item_trigger_type_of_statement::func_name_cstring() const
+{
+  static const LEX_CSTRING inserting= {STRING_WITH_LEN("INSERTING")};
+  static const LEX_CSTRING updating= {STRING_WITH_LEN("UPDATING")};
+  static const LEX_CSTRING deleting= {STRING_WITH_LEN("DELETING")};
+  return m_trigger_stmt_type == active_dml_stmt::INSERTING_STMT ? inserting :
+         m_trigger_stmt_type == active_dml_stmt::UPDATING_STMT ? updating :
+         deleting;
 }
 
 void Item_cache::store(Item *item)
