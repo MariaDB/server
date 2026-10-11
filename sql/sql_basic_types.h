@@ -338,12 +338,13 @@ static const time_round_mode_t
   TIME_FRAC_ROUND             (time_round_mode_t::FRAC_ROUND);
 
 
-enum class active_dml_stmt
+/** Event on which trigger is invoked. */
+enum trg_event_type
 {
-  NO_DML_STMT= 0,
-  INSERTING_STMT= 1,
-  UPDATING_STMT= 2,
-  DELETING_STMT= 3
+  TRG_EVENT_INSERT= 0,
+  TRG_EVENT_UPDATE= 1,
+  TRG_EVENT_DELETE= 2,
+  TRG_EVENT_MAX
 };
 
 #endif

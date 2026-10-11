@@ -4463,7 +4463,7 @@ public:
   */
 
   Item *create_item_ident_trigger_specific(THD *thd,
-                                           active_dml_stmt stmt_type,
+                                           trg_event_type event,
                                            bool *throw_error);
 
 
@@ -4480,16 +4480,13 @@ public:
     *throw_error= false;
 
     if (Lex_ident_ci(clause).streq("INSERTING"_Lex_ident_column))
-      return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::INSERTING_STMT,
+      return create_item_ident_trigger_specific(thd, TRG_EVENT_INSERT,
                                                 throw_error);
     else if (Lex_ident_ci(clause).streq("UPDATING"_Lex_ident_column))
-      return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::UPDATING_STMT,
+      return create_item_ident_trigger_specific(thd, TRG_EVENT_UPDATE,
                                                 throw_error);
     else if (Lex_ident_ci(clause).streq("DELETING"_Lex_ident_column))
-      return create_item_ident_trigger_specific(thd,
-                                                active_dml_stmt::DELETING_STMT,
+      return create_item_ident_trigger_specific(thd, TRG_EVENT_DELETE,
                                                 throw_error);
 
     return nullptr;

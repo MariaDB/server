@@ -31,16 +31,9 @@ class Query_tables_list;
 typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 #include <sql_list.h>
+#include "sql_basic_types.h"                   // enum trg_event_type
 
 static const uint8 TRG_EVENT_UNKNOWN= 0;
-/** Event on which trigger is invoked. */
-enum trg_event_type
-{
-  TRG_EVENT_INSERT= 0,
-  TRG_EVENT_UPDATE= 1,
-  TRG_EVENT_DELETE= 2,
-  TRG_EVENT_MAX
-};
 
 typedef uint8 trg_event_set;
 
