@@ -30,6 +30,14 @@ SET @@SESSION.default_master_connection= 'master2';
 --source include/start_slave.inc
 
 
+# TODO MDEV-40941:
+# `Rpl_semi_sync_slave_status` does not refer to `@@default_master_connection`,
+# but rather the most recent START SLAVE (`$mode2` in this case).
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
+SET @@SESSION.default_master_connection= 'master1';
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
+
+
 # Verify `master2`
 --connection master2
   if ($mode2)
@@ -56,7 +64,11 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack';
 
 
 # Stop `master2`
+SET @@SESSION.default_master_connection= 'master2';
 --source include/stop_slave.inc
+# TODO MDEV-40941:
+# `Rpl_semi_sync_slave_status` shows OFF after STOP SLAVE on any connection.
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 
 # Verify `master1`
 --connection master1

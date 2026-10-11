@@ -29,12 +29,10 @@ RESET MASTER;
 
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER 'master1' TO
-  master_host='127.0.0.1', master_port=$SERVER_MYPORT_1,
-  master_user='root', master_ssl_verify_server_cert=0;
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root';
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER 'master2' TO
-  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2,
-  master_user='root', master_ssl_verify_server_cert=0;
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root';
 
 
 --echo # Test semi-sync replication during async replication

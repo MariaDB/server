@@ -40,22 +40,15 @@ int Repl_semi_sync_slave::init_object()
   return result;
 }
 
+static bool local_semi_sync_enabled;
+
 int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
                           system_status_var *status_var,
                           enum_var_type scope)
 {
-  if (Master_info *mi=
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_NOTE))
-  {
-    *static_cast<bool *>(buff)=
-      repl_semisync_slave.get_slave_enabled(mi);
-    mi->release();
-    var->type= SHOW_BOOL;
-    var->value= buff;
-  }
-  else
-    var->type= SHOW_UNDEF;
+  local_semi_sync_enabled= repl_semisync_slave.m_slave_enabled;
+  var->type= SHOW_BOOL;
+  var->value= (char*) &local_semi_sync_enabled;
   return 0;
 }
 

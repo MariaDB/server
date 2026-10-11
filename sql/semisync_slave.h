@@ -34,6 +34,7 @@ class Master_info;
 class Repl_semi_sync_slave
   :public Repl_semi_sync_base {
 public:
+  Repl_semi_sync_slave() :m_slave_enabled(false) {}
   ~Repl_semi_sync_slave() = default;
 
   void set_trace_level(unsigned long trace_level) {
@@ -50,7 +51,7 @@ public:
   }
 
   void set_slave_enabled(Master_info *mi, bool enabled) {
-    mi->semi_sync_enabled= enabled;
+    m_slave_enabled= mi->semi_sync_enabled= enabled;
   }
 
   inline bool is_delay_master(){
@@ -94,6 +95,8 @@ public:
   int request_transmit(Master_info *mi);
   void kill_connection(Master_info *mi);
 
+  /// @deprecated For `Rpl_semi_sync_slave_status` compatibility only
+  bool m_slave_enabled;
 private:
   /* True when init_object has been called */
   bool m_init_done;
