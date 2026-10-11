@@ -275,13 +275,18 @@ public:
 class Item_trigger_type_of_statement : public Item_bool_func
 {
 public:
-  Item_trigger_type_of_statement(THD *thd,
-                                 active_dml_stmt stmt_type)
-  : Item_bool_func(thd), m_trigger_stmt_type{stmt_type}
+  Item_trigger_type_of_statement(THD *thd, trg_event_type event)
+  : Item_bool_func(thd), m_event{event}
   {}
 
+  /* The clause that names the event: INSERTING, UPDATING or DELETING */
+  static LEX_CSTRING clause_name(trg_event_type event);
+
   bool val_bool() override;
-  LEX_CSTRING func_name_cstring() const override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return clause_name(m_event);
+  }
   void print(String *str, enum_query_type) override
   {
     str->append(func_name_cstring());
@@ -292,7 +297,7 @@ protected:
   { return get_item_copy<Item_trigger_type_of_statement>(thd, this); }
 
 private:
-  active_dml_stmt m_trigger_stmt_type;
+  trg_event_type m_event;
 };
 
 

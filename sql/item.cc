@@ -11004,27 +11004,20 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 
 bool Item_trigger_type_of_statement::val_bool()
 {
-  switch (current_thd->current_trg_event()) {
-  case TRG_EVENT_INSERT:
-    return m_trigger_stmt_type == active_dml_stmt::INSERTING_STMT;
-  case TRG_EVENT_UPDATE:
-    return m_trigger_stmt_type == active_dml_stmt::UPDATING_STMT;
-  case TRG_EVENT_DELETE:
-    return m_trigger_stmt_type == active_dml_stmt::DELETING_STMT;
-  default:
-    return false;
-  }
+  return current_thd->current_trg_event() == m_event;
 }
 
 
-LEX_CSTRING Item_trigger_type_of_statement::func_name_cstring() const
+LEX_CSTRING Item_trigger_type_of_statement::clause_name(trg_event_type event)
 {
-  static const LEX_CSTRING inserting= {STRING_WITH_LEN("INSERTING")};
-  static const LEX_CSTRING updating= {STRING_WITH_LEN("UPDATING")};
-  static const LEX_CSTRING deleting= {STRING_WITH_LEN("DELETING")};
-  return m_trigger_stmt_type == active_dml_stmt::INSERTING_STMT ? inserting :
-         m_trigger_stmt_type == active_dml_stmt::UPDATING_STMT ? updating :
-         deleting;
+  static const LEX_CSTRING names[TRG_EVENT_MAX]=
+  {
+    {STRING_WITH_LEN("INSERTING")},
+    {STRING_WITH_LEN("UPDATING")},
+    {STRING_WITH_LEN("DELETING")}
+  };
+  DBUG_ASSERT(event < TRG_EVENT_MAX);
+  return names[event];
 }
 
 void Item_cache::store(Item *item)
