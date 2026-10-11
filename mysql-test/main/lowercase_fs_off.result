@@ -260,7 +260,7 @@ drop database TEST;
 create table t1 (a int);
 create trigger t1_bi before insert on t1 for each row set new.a= 1;
 show triggers like '%T1%';
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 drop table t1;
 set GLOBAL sql_mode=default;
 #

@@ -1,0 +1,607 @@
+#
+# AFTER ... FOR EACH STATEMENT and AFTER ... BEFORE COMMIT [OR SAVEPOINT]
+# triggers: what SQL shows of them in any build.  No trigger body is
+# executed yet; the server hook points are traced, in debug builds only, by
+# trigger_commit_hookup.test.
+#
+
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-41218 Syntax of FOR EACH STATEMENT and BEFORE COMMIT triggers
+--echo #
+--echo # The granularity clause follows ON table_name, where FOR EACH ROW is.
+--echo # Only AFTER triggers have the new granularities, UPDATE OF is not
+--echo # accepted with them, and their bodies have no NEW and OLD rows.
+
+CREATE TABLE t1 (id INT PRIMARY KEY, slot INT, v VARCHAR(10) UNIQUE)
+  ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+  SET @s= 1;
+CREATE TRIGGER t1_commit AFTER INSERT OR UPDATE OR DELETE ON t1
+  BEFORE COMMIT SET @c= 1;
+CREATE TRIGGER t1_commit_savepoint AFTER INSERT ON t1
+  BEFORE COMMIT OR SAVEPOINT SET @p= 1;
+CREATE TRIGGER t1_row AFTER INSERT ON t1 FOR EACH ROW SET @r= 1;
+CREATE TRIGGER t2_stmt AFTER INSERT ON t2 FOR EACH STATEMENT SET @s2= 1;
+
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad BEFORE INSERT ON t1 BEFORE COMMIT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad BEFORE INSERT ON t1 FOR EACH STATEMENT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER UPDATE OF v ON t1 FOR EACH STATEMENT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER UPDATE OF v ON t1 BEFORE COMMIT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH STATEMENT OR SAVEPOINT
+  SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH SAVEPOINT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH COMMIT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE SAVEPOINT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE STATEMENT SET @x= 1;
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE COMMIT SET @x= NEW.id;
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER bad AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= OLD.id;
+--echo # INSERTING, UPDATING and DELETING name the statement that fired the
+--echo # trigger; one BEFORE COMMIT firing covers statements of every kind
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE TRIGGER bad AFTER INSERT OR UPDATE OR DELETE ON t1 BEFORE COMMIT
+  SET @x= INSERTING;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE TRIGGER bad AFTER INSERT OR UPDATE OR DELETE ON t1
+  BEFORE COMMIT OR SAVEPOINT SET @x= DELETING;
+--echo # A BEFORE COMMIT trigger needs a table whose engine has transactions
+--echo # and can roll back; a FOR EACH STATEMENT trigger does not
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER INSERT ON t2 BEFORE COMMIT SET @x= 1;
+--echo # FOLLOWS/PRECEDES orders triggers of the same granularity only
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE COMMIT FOLLOWS t1_row
+  SET @x= 1;
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH STATEMENT FOLLOWS t1_row
+  SET @x= 1;
+CREATE TRIGGER t1_commit_first AFTER INSERT ON t1 BEFORE COMMIT
+  PRECEDES t1_commit_savepoint SET @f= 1;
+
+--echo #
+--echo # MDEV-41218 The trigger object of the new granularities
+--echo #
+--echo # SHOW CREATE TRIGGER, INFORMATION_SCHEMA.TRIGGERS and SHOW TRIGGERS
+--echo # give the granularity; it is read back from the .TRG file, follows
+--echo # the table through RENAME TABLE, and keeps the table from becoming
+--echo # non-transactional.
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1_commit_savepoint;
+--echo # ACTION_ORIENTATION names the clause that follows ON table_name
+SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_TIMING, ACTION_ORIENTATION,
+       ACTION_ORDER
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  ORDER BY EVENT_OBJECT_TABLE, ACTION_ORIENTATION, ACTION_ORDER, TRIGGER_NAME;
+--echo # Only a ROW trigger has the OLD and NEW row variables
+SELECT TRIGGER_NAME, ACTION_ORIENTATION, ACTION_REFERENCE_OLD_ROW,
+       ACTION_REFERENCE_NEW_ROW
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME;
+--echo # SHOW TRIGGERS appends Orientation after its existing columns
+--replace_column 6 #
+SHOW TRIGGERS;
+FLUSH TABLES;
+SELECT TRIGGER_NAME, ACTION_ORIENTATION FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND ACTION_ORIENTATION <> 'ROW'
+  ORDER BY TRIGGER_NAME;
+RENAME TABLE t1 TO t1_renamed;
+--replace_column 7 #
+SHOW CREATE TRIGGER t1_commit_first;
+FLUSH TABLES;
+SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, ACTION_ORIENTATION, ACTION_ORDER
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  AND ACTION_ORIENTATION LIKE 'BEFORE COMMIT%' ORDER BY ACTION_ORDER;
+RENAME TABLE t1_renamed TO t1;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t1 ENGINE=MyISAM;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t1 ENGINE=Aria;
+ALTER TABLE t1 ENGINE=InnoDB, ALGORITHM=COPY;
+SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+SELECT COUNT(*) FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t1';
+
+--echo # Statements on the tables work, in autocommit mode and in a
+--echo # transaction with savepoints
+INSERT INTO t1 VALUES (1, 1, 'a'), (2, 2, 'b');
+INSERT INTO t2 VALUES (1), (2);
+BEGIN;
+UPDATE t1 SET slot= slot + 10;
+SAVEPOINT s1;
+DELETE FROM t1 WHERE id = 2;
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES (3, 3, 'c');
+COMMIT;
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY id;
+SELECT * FROM t2 ORDER BY a;
+
+--echo #
+--echo # MDEV-41218 Capture column lists
+--echo #
+--echo # OF names the captured columns, EXCEPT the ones left out, and no list
+--echo # captures every column that NEW and OLD can reach.  A list that no
+--echo # longer resolves after ALTER TABLE fails the statement that needs it.
+
+CREATE TABLE t6 (id INT PRIMARY KEY, a INT, b BLOB, c INT INVISIBLE,
+                 g INT AS (id + 1) VIRTUAL) ENGINE=InnoDB;
+--echo # Duplicates are elided, column names compare case-insensitively
+CREATE TRIGGER t6_of AFTER INSERT OR UPDATE ON t6 BEFORE COMMIT
+  OF a, A, id SET @x= 1;
+CREATE TRIGGER t6_except AFTER UPDATE ON t6 BEFORE COMMIT OR SAVEPOINT
+  EXCEPT b FOLLOWS t6_of SET @x= 1;
+CREATE TRIGGER t6_stmt_of AFTER INSERT ON t6 FOR EACH STATEMENT OF a
+  SET @x= 1;
+CREATE TRIGGER t6_stmt_except AFTER INSERT OR DELETE ON t6
+  FOR EACH STATEMENT EXCEPT b, g SET @x= 1;
+--echo # OF is not reserved: a body labeled "of" quotes the label
+CREATE TRIGGER t6_label AFTER DELETE ON t6 FOR EACH STATEMENT
+  `of`: BEGIN END;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER DELETE ON t6 FOR EACH STATEMENT of: BEGIN END;
+--echo # A ROW trigger has no capture list
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 FOR EACH ROW OF a SET @x= 1;
+--echo # Unknown columns, and nothing left to capture
+--error ER_BAD_FIELD_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 BEFORE COMMIT OF a, nosuch SET @x= 1;
+--error ER_BAD_FIELD_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 FOR EACH STATEMENT EXCEPT nosuch
+  SET @x= 1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+CREATE TRIGGER bad AFTER INSERT ON t6 BEFORE COMMIT EXCEPT id, a, b, c, g
+  SET @x= 1;
+--replace_column 7 #
+SHOW CREATE TRIGGER t6_except;
+--echo # One row per column captured, after evaluating OF or EXCEPT
+SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t6'
+  ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--echo # The lists are read back from the .TRG file
+FLUSH TABLES;
+SELECT TRIGGER_NAME, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t6'
+  ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+INSERT INTO t6 (id, a, b, c) VALUES (1, 1, 'x', 1), (2, 2, 'y', 2);
+UPDATE t6 SET a= a + 10;
+ALTER TABLE t6 DROP COLUMN b;
+--echo # A list that no longer resolves gives a warning and no rows
+SELECT TRIGGER_NAME, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t6'
+  ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--echo # The BEFORE COMMIT triggers' EXCEPT b fails the INSERT and the UPDATE
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t6 (id, a, c) VALUES (3, 3, 3);
+--error ER_BAD_FIELD_ERROR
+UPDATE t6 SET a= a + 1;
+--echo # DELETE has only STATEMENT triggers, whose EXCEPT b, g fails it too
+--error ER_BAD_FIELD_ERROR
+DELETE FROM t6 WHERE id= 1;
+ALTER TABLE t6 ADD COLUMN b BLOB;
+DELETE FROM t6 WHERE id= 1;
+SELECT id, a, c FROM t6 ORDER BY id;
+
+--echo # A captured column cannot be named like a control column; a row has
+--echo # no row identity column, so __rowid is an ordinary name
+CREATE TABLE t7 (id INT PRIMARY KEY, __op INT, __rowid INT) ENGINE=InnoDB;
+--error ER_DUP_FIELDNAME
+CREATE TRIGGER bad AFTER INSERT ON t7 BEFORE COMMIT SET @x= 1;
+--error ER_DUP_FIELDNAME
+CREATE TRIGGER bad AFTER INSERT ON t7 FOR EACH STATEMENT OF id, __OP
+  SET @x= 1;
+CREATE TRIGGER t7_of AFTER INSERT ON t7 FOR EACH STATEMENT OF id SET @x= 1;
+CREATE TRIGGER t7_except AFTER INSERT ON t7 BEFORE COMMIT EXCEPT __op
+  SET @x= 1;
+INSERT INTO t7 VALUES (1, 1, 1);
+ALTER TABLE t7 ADD COLUMN __state INT;
+--error ER_DUP_FIELDNAME
+INSERT INTO t7 VALUES (2, 2, 2, 2);
+SELECT id FROM t7 ORDER BY id;
+
+--echo #
+--echo # MDEV-41218 The order of BEFORE COMMIT triggers
+--echo #
+--echo # They form one list per table whatever their events: creation order,
+--echo # or as FOLLOWS/PRECEDES places them, and the anchor may have other
+--echo # events.  The order is kept in the .TRG file and by mysqldump.
+
+CREATE TABLE t8 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t8_del AFTER DELETE ON t8 BEFORE COMMIT SET @x= 1;
+CREATE TRIGGER t8_ins AFTER INSERT ON t8 BEFORE COMMIT SET @x= 1;
+CREATE TRIGGER t8_upd AFTER UPDATE ON t8 BEFORE COMMIT PRECEDES t8_del
+  SET @x= 1;
+CREATE TRIGGER t8_all AFTER INSERT OR UPDATE OR DELETE ON t8 BEFORE COMMIT
+  FOLLOWS t8_upd SET @x= 1;
+--echo # For STATEMENT triggers the anchor must have every event of the new one
+CREATE TRIGGER t8_stmt_del AFTER DELETE ON t8 FOR EACH STATEMENT SET @x= 1;
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t8 FOR EACH STATEMENT FOLLOWS t8_stmt_del
+  SET @x= 1;
+SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_ORIENTATION, ACTION_ORDER
+  FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  ORDER BY ACTION_ORIENTATION, ACTION_ORDER;
+FLUSH TABLES;
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+--echo # Dropping one closes the gap
+DROP TRIGGER t8_all;
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+--exec $MYSQL_DUMP --compact --no-data test t8 > $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+DROP TABLE t8;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+
+--echo #
+--echo # MDEV-41218 CREATE TABLE ... SELECT and BEFORE COMMIT triggers
+--echo #
+--echo # CREATE TABLE ... SELECT commits in the middle of the statement, so its
+--echo # SELECT may not write a table that has BEFORE COMMIT triggers, through
+--echo # a function or through the trigger of a table that a function writes.
+--echo # It may read such a table, and CREATE TEMPORARY TABLE ... SELECT, which
+--echo # commits nothing, may write one.
+
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t3_row AFTER INSERT ON t3 FOR EACH ROW
+  INSERT INTO t1 VALUES (NEW.a + 100, NEW.a, CONCAT('t3_', NEW.a));
+--delimiter |
+CREATE FUNCTION f_t1_ins(i INT) RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (i, 13, CONCAT('f', i));
+  RETURN i;
+END|
+CREATE FUNCTION f_t3_ins(i INT) RETURNS INT
+BEGIN
+  INSERT INTO t3 VALUES (i);
+  RETURN i;
+END|
+--delimiter ;
+SET autocommit= 0;
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT f_t1_ins(41) AS b;
+--echo # t3 has no BEFORE COMMIT triggers, but its ROW trigger writes t1
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT f_t3_ins(41) AS b;
+SHOW TABLES LIKE 't_ctas';
+SELECT COUNT(*) FROM t1 WHERE id IN (41, 141);
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT COUNT(*) AS n FROM t1;
+DROP TABLE t_ctas;
+CREATE TEMPORARY TABLE t_ctas ENGINE=InnoDB SELECT f_t1_ins(42) AS b;
+COMMIT;
+DROP TEMPORARY TABLE t_ctas;
+SET autocommit= 1;
+SELECT id FROM t1 WHERE id = 42;
+DROP FUNCTION f_t1_ins;
+DROP FUNCTION f_t3_ins;
+DROP TABLE t3;
+
+--echo #
+--echo # MDEV-41218 Trigger DDL waits for a transaction with captured rows
+--echo #
+--echo # The set of BEFORE COMMIT triggers of a table, and the columns they
+--echo # capture, are fixed when the transaction captures its first row of
+--echo # the table.  The transaction's metadata lock on the table keeps
+--echo # CREATE TRIGGER and DROP TRIGGER of another session waiting until it
+--echo # ends.
+
+CREATE TABLE tl (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tl_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tl_commit AFTER INSERT ON tl BEFORE COMMIT SET @x= 1;
+--connect (con2,localhost,root,,test)
+SET lock_wait_timeout= 1;
+--connection default
+BEGIN;
+INSERT INTO tl VALUES (1), (2);
+--connection con2
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE TRIGGER tl_other AFTER INSERT ON tl BEFORE COMMIT SET @x= 2;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TRIGGER tl_commit;
+--connection default
+COMMIT;
+--connection con2
+CREATE TRIGGER tl_other AFTER DELETE ON tl BEFORE COMMIT SET @x= 2;
+DROP TRIGGER tl_other;
+--connection default
+DROP TRIGGER tl_commit;
+
+--echo #
+--echo # MDEV-41218 A statement locks the tables of the BEFORE COMMIT bodies
+--echo #
+--echo # A statement that writes a table takes the metadata locks of the
+--echo # tables that the bodies of its BEFORE COMMIT triggers use, as it does
+--echo # for ROW triggers: whether or not it captures a row, and in the same
+--echo # way inside a transaction and in autocommit mode.  The locks stay
+--echo # until the transaction ends, so a commit boundary, which opens the
+--echo # tables again, holds them already.
+
+CREATE TRIGGER tl_sp AFTER INSERT ON tl BEFORE COMMIT OR SAVEPOINT
+  INSERT INTO tl_log VALUES (1);
+BEGIN;
+INSERT INTO tl SELECT 100 FROM DUAL WHERE 1 = 0;
+--connection con2
+--echo # Locked by a statement that captured no row
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tl_log COMMENT= 'after an INSERT of no row';
+--connection default
+COMMIT;
+BEGIN;
+INSERT INTO tl VALUES (3), (4);
+--connection con2
+--echo # Locked by the INSERT
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tl_log COMMENT= 'after the INSERT';
+--connection default
+SAVEPOINT s1;
+--connection con2
+--echo # Still locked after the SAVEPOINT that fired tl_sp
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tl_log COMMENT= 'after the savepoint';
+--connection default
+COMMIT;
+--connection con2
+ALTER TABLE tl_log COMMENT= 'after the commit';
+
+--echo # A prepared statement locks the same tables whether it was prepared
+--echo # in autocommit mode or inside a transaction
+--connection default
+PREPARE st_auto FROM 'INSERT INTO tl VALUES (?), (?)';
+BEGIN;
+PREPARE st_trans FROM 'INSERT INTO tl VALUES (?), (?)';
+COMMIT;
+SET @a= 31, @b= 32;
+BEGIN;
+EXECUTE st_auto USING @a, @b;
+--connection con2
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tl_log COMMENT= 'prepared in autocommit mode';
+--connection default
+COMMIT;
+SET @a= 33, @b= 34;
+BEGIN;
+EXECUTE st_trans USING @a, @b;
+--connection con2
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tl_log COMMENT= 'prepared inside a transaction';
+--connection default
+COMMIT;
+SET @a= 35, @b= 36;
+EXECUTE st_trans USING @a, @b;
+DEALLOCATE PREPARE st_auto;
+DEALLOCATE PREPARE st_trans;
+SELECT a FROM tl WHERE a BETWEEN 31 AND 36 ORDER BY a;
+
+--echo # A boundary waits for a lock as a statement does: here for the
+--echo # global read lock of another session, which a statement that writes
+--echo # waits for.  A COMMIT that times out waiting rolls the transaction
+--echo # back, and its error says so with SQLSTATE 40001, after the lock
+--echo # wait timeout itself
+SET @save_lock_wait_timeout= @@lock_wait_timeout;
+SET lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO tl VALUES (5), (6);
+--connection con2
+FLUSH TABLES WITH READ LOCK;
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT_ROLLBACK
+COMMIT;
+SHOW WARNINGS;
+SET lock_wait_timeout= @save_lock_wait_timeout;
+--connection con2
+UNLOCK TABLES;
+--connection default
+SELECT * FROM tl ORDER BY a;
+
+--echo # A deadlock while the boundary waits for a lock is the error of the
+--echo # COMMIT, as a deadlock inside a body is: it says by itself that the
+--echo # transaction was rolled back.  The other session holds the global
+--echo # read lock and waits for tl, which the transaction holds, when the
+--echo # boundary asks for the right to write.
+BEGIN;
+INSERT INTO tl VALUES (19), (20);
+--connection con2
+FLUSH TABLES WITH READ LOCK;
+--send LOCK TABLES tl READ
+--connection default
+let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE = 'Waiting for table metadata lock'
+    AND INFO LIKE 'LOCK TABLES%';
+--source include/wait_condition.inc
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SHOW WARNINGS;
+--connection con2
+--reap
+UNLOCK TABLES;
+--disconnect con2
+--connection default
+SELECT a FROM tl WHERE a IN (19, 20) ORDER BY a;
+
+--echo #
+--echo # MDEV-41218 A BEFORE COMMIT body that writes a non-transactional table
+--echo #
+--echo # Only the table that the trigger is on has to be transactional.  A
+--echo # statement that writes it takes the metadata lock of the table that
+--echo # the body writes for the transaction, and its table lock for the
+--echo # statement only.  The commit boundary takes the table lock again, so
+--echo # it waits for a statement of another session that writes the table.
+
+CREATE TABLE tm (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tm_log (a INT) ENGINE=MyISAM;
+INSERT INTO tm_log VALUES (1), (2);
+CREATE TRIGGER tm_sp AFTER INSERT ON tm BEFORE COMMIT OR SAVEPOINT
+  INSERT INTO tm_log VALUES (3);
+--connect (con2,localhost,root,,test)
+SET lock_wait_timeout= 1;
+--connect (con3,localhost,root,,test)
+--connection default
+BEGIN;
+INSERT INTO tm VALUES (1), (2);
+--connection con2
+--echo # The metadata lock is held, the table lock is not
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tm_log COMMENT= 'after the INSERT';
+UPDATE tm_log SET a= a + 10;
+SELECT a FROM tm_log ORDER BY a;
+--connection default
+--echo # A SAVEPOINT is not refused: the engine of tm_log takes no part in
+--echo # the transaction
+SAVEPOINT s1;
+COMMIT;
+SELECT a FROM tm ORDER BY a;
+
+--echo # A COMMIT that times out waiting for the table lock rolls the
+--echo # transaction back
+--connection con3
+SELECT GET_LOCK('tm_log_writer', 60);
+--connection default
+SET @save_lock_wait_timeout= @@lock_wait_timeout;
+SET lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO tm VALUES (3), (4);
+--connection con2
+--send UPDATE tm_log SET a= a WHERE GET_LOCK('tm_log_writer', 60) = 1
+--connection default
+let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE = 'User lock' AND INFO LIKE 'UPDATE tm_log%';
+--source include/wait_condition.inc
+--error ER_LOCK_WAIT_TIMEOUT_ROLLBACK
+COMMIT;
+SHOW WARNINGS;
+SET lock_wait_timeout= @save_lock_wait_timeout;
+--connection con3
+SELECT RELEASE_LOCK('tm_log_writer');
+--disconnect con3
+--connection con2
+--reap
+--disconnect con2
+--connection default
+SELECT a FROM tm ORDER BY a;
+DROP TABLE tm, tm_log;
+
+--echo #
+--echo # MDEV-41218 A commit boundary under a prepared statement or a procedure
+--echo #
+--echo # A prepared statement, and a statement of a stored procedure from its
+--echo # second execution on, checks the tables and routines it opens against
+--echo # the versions it was prepared with.  When such a statement commits
+--echo # implicitly, the boundary's statement runs inside it.  It is not the
+--echo # prepared statement: it opens its tables and the routines of the
+--echo # bodies as a new statement does, and the commit goes through.
+
+CREATE FUNCTION f_tl() RETURNS INT RETURN 1;
+CREATE TRIGGER tl_fn AFTER INSERT ON tl BEFORE COMMIT
+  INSERT INTO tl_log VALUES (f_tl());
+PREPARE st_ddl FROM 'CREATE TABLE tl_ddl (a INT)';
+BEGIN;
+INSERT INTO tl VALUES (7), (8);
+EXECUTE st_ddl;
+DROP TABLE tl_ddl;
+BEGIN;
+INSERT INTO tl VALUES (9), (10);
+EXECUTE st_ddl;
+DROP TABLE tl_ddl;
+DEALLOCATE PREPARE st_ddl;
+SELECT a FROM tl WHERE a BETWEEN 7 AND 10 ORDER BY a;
+
+PREPARE st_autocommit FROM 'SET autocommit= 1';
+SET autocommit= 0;
+INSERT INTO tl VALUES (11), (12);
+EXECUTE st_autocommit;
+SELECT @@autocommit;
+SET autocommit= 0;
+INSERT INTO tl VALUES (13), (14);
+EXECUTE st_autocommit;
+DEALLOCATE PREPARE st_autocommit;
+SELECT @@autocommit;
+SELECT a FROM tl WHERE a BETWEEN 11 AND 14 ORDER BY a;
+
+--echo # The statements of a procedure, in its first and its second call
+--delimiter $$
+CREATE PROCEDURE p_tl(i INT)
+BEGIN
+  START TRANSACTION;
+  INSERT INTO tl VALUES (i), (i + 1);
+  CREATE TABLE tl_ddl (a INT);
+  DROP TABLE tl_ddl;
+END $$
+--delimiter ;
+CALL p_tl(15);
+CALL p_tl(17);
+SELECT a FROM tl WHERE a BETWEEN 15 AND 18 ORDER BY a;
+DROP PROCEDURE p_tl;
+DROP TRIGGER tl_fn;
+DROP FUNCTION f_tl;
+
+--echo #
+--echo # MDEV-41218 The locks of a chain of BEFORE COMMIT bodies
+--echo #
+--echo # A statement that may capture a row takes the metadata locks of the
+--echo # whole chain: of the tables that the bodies of its table's triggers
+--echo # use, of the tables that the bodies of those tables' BEFORE COMMIT
+--echo # triggers use, and so on.  A SAVEPOINT fires only the triggers
+--echo # declared OR SAVEPOINT; the rows that their bodies write wait for the
+--echo # COMMIT, and the tables of the bodies that fire then are locked
+--echo # already.
+
+CREATE TABLE tk1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tk2 (a INT) ENGINE=InnoDB;
+CREATE TABLE tk3 (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tk1_commit AFTER INSERT ON tk1 BEFORE COMMIT OR SAVEPOINT
+  INSERT INTO tk2 VALUES (1);
+CREATE TRIGGER tk2_commit AFTER INSERT ON tk2 BEFORE COMMIT
+  INSERT INTO tk3 VALUES (1);
+--connect (con2,localhost,root,,test)
+SET lock_wait_timeout= 1;
+--connection default
+BEGIN;
+INSERT INTO tk1 VALUES (1), (2);
+--connection con2
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tk2 ADD COLUMN b INT;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tk3 ADD COLUMN b INT;
+--connection default
+SAVEPOINT s1;
+--connection con2
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tk3 ADD COLUMN b INT;
+--connection default
+COMMIT;
+--connection con2
+ALTER TABLE tk3 ADD COLUMN b INT;
+--disconnect con2
+--connection default
+SELECT a FROM tk1 ORDER BY a;
+DROP TABLE tk1, tk2, tk3;
+
+DROP TABLE t1, t2, t6, t7, t8, tl, tl_log;
+--source include/wait_until_count_sessions.inc

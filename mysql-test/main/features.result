@@ -126,8 +126,8 @@ select @a;
 @a
 1
 SHOW TRIGGERS IN test like 't1';
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg	INSERT	t1	set @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+trg	INSERT	t1	set @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 drop trigger trg;
 drop table t1;
 show status like "%trigger%";

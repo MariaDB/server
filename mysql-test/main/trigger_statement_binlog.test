@@ -1,0 +1,147 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+# The trigger bodies of the hookup sketch do not run, so a failing body is
+# injected with debug_dbug.
+
+--echo #
+--echo # MDEV-41218 A failing FOR EACH STATEMENT trigger is logged with its error
+--echo #
+--echo # A FOR EACH STATEMENT trigger fires inside the DML function, after the
+--echo # statement's last row is written and before the statement is written
+--echo # to the binary log.  When its body fails on a table that cannot roll
+--echo # back, the rows stay in the table, and the statement is logged with
+--echo # the body's error code, as a statement whose AFTER ROW trigger fails
+--echo # is.  Every DML function that fires FOR EACH STATEMENT triggers is
+--echo # covered: INSERT, INSERT ... SELECT, LOAD DATA, UPDATE, multi-table
+--echo # UPDATE, DELETE and multi-table DELETE.
+
+CREATE TABLE t_ins (a INT) ENGINE=MyISAM;
+CREATE TABLE t_sel (a INT) ENGINE=MyISAM;
+CREATE TABLE t_load (a INT) ENGINE=MyISAM;
+CREATE TABLE t_upd (a INT) ENGINE=MyISAM;
+CREATE TABLE t_mupd (a INT) ENGINE=MyISAM;
+CREATE TABLE t_del (a INT) ENGINE=MyISAM;
+CREATE TABLE t_mdel (a INT) ENGINE=MyISAM;
+CREATE TABLE t_row (a INT) ENGINE=MyISAM;
+CREATE TABLE t_src (a INT) ENGINE=MyISAM;
+INSERT INTO t_src VALUES (1), (2);
+INSERT INTO t_upd VALUES (1), (2);
+INSERT INTO t_mupd VALUES (1), (2);
+INSERT INTO t_del VALUES (1), (2), (3);
+INSERT INTO t_mdel VALUES (1), (2), (3);
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval SELECT a + 10 FROM t_src INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.txt'
+
+CREATE TRIGGER t_ins_stmt AFTER INSERT ON t_ins FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_sel_stmt AFTER INSERT ON t_sel FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_load_stmt AFTER INSERT ON t_load FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_upd_stmt AFTER UPDATE ON t_upd FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_mupd_stmt AFTER UPDATE ON t_mupd FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t_del_stmt AFTER DELETE ON t_del FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_mdel_stmt AFTER DELETE ON t_mdel FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t_row_row AFTER INSERT ON t_row FOR EACH ROW
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row trigger failed';
+
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug= '+d,trg_stmt_body_fails';
+--error ER_UNKNOWN_ERROR
+INSERT INTO t_ins VALUES (1), (2);
+--error ER_UNKNOWN_ERROR
+INSERT INTO t_sel SELECT a FROM t_src;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_UNKNOWN_ERROR
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.txt' INTO TABLE t_load
+--error ER_UNKNOWN_ERROR
+UPDATE t_upd SET a= a + 10;
+--error ER_UNKNOWN_ERROR
+UPDATE t_mupd, t_src SET t_mupd.a= t_mupd.a + 10 WHERE t_mupd.a = t_src.a;
+--error ER_UNKNOWN_ERROR
+DELETE FROM t_del WHERE a < 3;
+--error ER_UNKNOWN_ERROR
+DELETE t_mdel FROM t_mdel, t_src WHERE t_mdel.a = t_src.a;
+SET debug_dbug= @save_dbug;
+--echo # The same with a failing AFTER ROW trigger, for comparison
+--error ER_SIGNAL_EXCEPTION
+INSERT INTO t_row VALUES (1), (2);
+
+--echo # The tables cannot roll back: the rows of the failed statements stay
+SELECT * FROM t_ins ORDER BY a;
+SELECT * FROM t_sel ORDER BY a;
+SELECT * FROM t_load ORDER BY a;
+SELECT * FROM t_upd ORDER BY a;
+SELECT * FROM t_mupd ORDER BY a;
+SELECT * FROM t_del ORDER BY a;
+SELECT * FROM t_mdel ORDER BY a;
+SELECT * FROM t_row ORDER BY a;
+
+FLUSH BINARY LOGS;
+--let $datadir= `SELECT @@datadir`
+--exec $MYSQL_BINLOG --local-load=$MYSQLTEST_VARDIR/tmp/ $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.sql
+--echo # Each failed statement with the error code it was logged with
+--perl
+  open(F, "$ENV{MYSQLTEST_VARDIR}/tmp/trigger_statement_binlog.sql") or die;
+  my $code= '';
+  while (<F>)
+  {
+    $code= $1 if /(error_code=\d+)/;
+    next unless /^(INSERT|UPDATE|DELETE|LOAD DATA) /;
+    chomp;
+    s/INFILE '[^']*'/INFILE '<file>'/;
+    print "binlogged: $_ with $code\n";
+  }
+  close(F);
+EOF
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.sql
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp SQL_LOAD_MB*
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.txt
+
+DROP TABLE t_ins, t_sel, t_load, t_upd, t_mupd, t_del, t_mdel, t_row, t_src;
+
+--echo #
+--echo # MDEV-41218 A failing FOR EACH STATEMENT trigger on a transactional table
+--echo #
+--echo # The statement is rolled back, so nothing of it is logged: not when it
+--echo # is the whole transaction, and not inside a transaction, which logs
+--echo # only its other statements.
+
+CREATE TABLE ti (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER ti_stmt AFTER INSERT ON ti FOR EACH STATEMENT SET @x= 1;
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+SET debug_dbug= '+d,trg_stmt_body_fails';
+--error ER_UNKNOWN_ERROR
+INSERT INTO ti VALUES (1), (2);
+SET debug_dbug= @save_dbug;
+BEGIN;
+INSERT INTO ti VALUES (3), (4);
+SET debug_dbug= '+d,trg_stmt_body_fails';
+--error ER_UNKNOWN_ERROR
+INSERT INTO ti VALUES (5), (6);
+SET debug_dbug= @save_dbug;
+INSERT INTO ti VALUES (7), (8);
+COMMIT;
+SELECT * FROM ti ORDER BY a;
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.sql
+--perl
+  open(F, "$ENV{MYSQLTEST_VARDIR}/tmp/trigger_statement_binlog.sql") or die;
+  my $code= '';
+  while (<F>)
+  {
+    $code= $1 if /(error_code=\d+)/;
+    next unless /^INSERT /;
+    chomp;
+    print "binlogged: $_ with $code\n";
+  }
+  close(F);
+EOF
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.sql
+DROP TABLE ti;

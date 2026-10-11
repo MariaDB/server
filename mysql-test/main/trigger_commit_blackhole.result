@@ -1,0 +1,203 @@
+#
+# MDEV-41218 BEFORE COMMIT triggers on an engine that does not register
+# with the transaction
+#
+# BLACKHOLE reports that it has transactions and can roll back, so it
+# may have BEFORE COMMIT triggers, and it never registers with the
+# statement or the transaction.  The rows captured for the triggers
+# register themselves as a transaction participant, so the end of the
+# statement and of the transaction reach them whatever the engine
+# does.
+CREATE TABLE bh (a INT) ENGINE=BLACKHOLE;
+CREATE TABLE t_in (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER bh_commit AFTER INSERT ON bh BEFORE COMMIT SET @x= 1;
+# CREATE TRIGGER test.bh_commit: AFTER INSERT ON bh BEFORE COMMIT, body compiled, added to the BEFORE COMMIT list of the table
+# An autocommit statement fires the triggers at its own end
+INSERT INTO bh VALUES (1), (2);
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: no
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (1), (2)): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: yes
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (1), (2)): test.bh enters the firing chain at depth 1; it is still open in thd->open_tables, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the statement prelocked
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (1), (2)): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+# ... so the next statement, on another table, has nothing to fire
+INSERT INTO t_in VALUES (1);
+# Nothing is left of the transaction when the table is dropped
+INSERT INTO bh VALUES (3), (4);
+DROP TABLE bh;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: no
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (3), (4)): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: yes
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (3), (4)): test.bh enters the firing chain at depth 1; it is still open in thd->open_tables, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the statement prelocked
+# COMMIT of an autocommit statement (statement: INSERT INTO bh VALUES (3), (4)): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+INSERT INTO t_in VALUES (2);
+SELECT * FROM t_in ORDER BY a;
+a
+1
+2
+#
+# MDEV-41218 The statement mark of a statement on such an engine
+#
+# Inside a transaction the rows of a successful statement stay when a
+# later statement fails: only the failed statement's rows are dropped.
+CREATE TABLE bh (a INT) ENGINE=BLACKHOLE;
+CREATE TRIGGER bh_commit AFTER INSERT ON bh BEFORE COMMIT OR SAVEPOINT
+SET @x= 1;
+# CREATE TRIGGER test.bh_commit: AFTER INSERT ON bh BEFORE COMMIT OR SAVEPOINT, body compiled, added to the BEFORE COMMIT list of the table
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+INSERT INTO t_in VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+COMMIT;
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.bh: the bodies of the triggers that have rows to fire over (bh_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.bh enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+# A statement that fails after it captured rows.  The captured rows
+# are the only participant of the statement, and its rollback drops
+# them: inside a transaction the rows of the failed statement, in
+# autocommit mode all of them.
+CREATE TRIGGER bh_row BEFORE INSERT ON bh FOR EACH ROW
+BEGIN
+IF NEW.a = 13 THEN
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row refused';
+END IF;
+END $$
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+INSERT INTO bh VALUES (11), (12), (13);
+ERROR 45000: row refused
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 3
+# statement rollback inside the transaction: 2 rows captured by the failed statement dropped
+COMMIT;
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.bh: the bodies of the triggers that have rows to fire over (bh_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.bh enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+INSERT INTO bh VALUES (11), (12), (13);
+ERROR 45000: row refused
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# ROLLBACK of the transaction, or to a savepoint set before its first captured row: 2 captured rows discarded; BEFORE COMMIT triggers had not fired
+DROP TRIGGER bh_row;
+# The same with a savepoint: ROLLBACK TO SAVEPOINT drops the rows
+# captured after it, and only those
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+SAVEPOINT s1;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# SAVEPOINT: boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# SAVEPOINT: the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# SAVEPOINT: prelocking for test.bh: the bodies of the triggers that have rows to fire over (bh_commit) are prelocked by the boundary's statement
+# SAVEPOINT: test.bh enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# SAVEPOINT: FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# SAVEPOINT: marker at position 2
+INSERT INTO bh VALUES (3), (4);
+ROLLBACK TO SAVEPOINT s1;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 3
+# statement committed inside the transaction: statement mark moves from 2 to 4
+# ROLLBACK TO SAVEPOINT: 2 rows captured after the savepoint dropped, watermarks clamped
+INSERT INTO bh VALUES (5), (6);
+COMMIT;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 3
+# statement committed inside the transaction: statement mark moves from 2 to 4
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 4 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.bh: the bodies of the triggers that have rows to fire over (bh_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.bh enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [2, 4): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 4 rows freed with the transaction mem_root
+# ROLLBACK discards the rows
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+ROLLBACK;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# ROLLBACK of the transaction, or to a savepoint set before its first captured row: 2 captured rows discarded; BEFORE COMMIT triggers had not fired
+# A savepoint set before the first row was captured: the rows joined
+# the transaction after it, so the rollback to it discards all of
+# them, and the rows captured afterwards start from position 0
+BEGIN;
+SAVEPOINT s0;
+INSERT INTO bh VALUES (1), (2);
+INSERT INTO t_in VALUES (3);
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+ROLLBACK TO SAVEPOINT s0;
+# ROLLBACK of the transaction, or to a savepoint set before its first captured row: 2 captured rows discarded; BEFORE COMMIT triggers had not fired
+INSERT INTO bh VALUES (3), (4);
+COMMIT;
+# prelocking for test.bh: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.bh: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.bh, columns: a, + __op_order, __op, __state; fixed from triggers bh_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.bh (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.bh: the bodies of the triggers that have rows to fire over (bh_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.bh enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.bh_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+SELECT * FROM t_in ORDER BY a;
+a
+1
+2
+DROP TABLE bh, t_in;

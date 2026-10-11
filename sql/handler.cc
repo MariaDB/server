@@ -36,6 +36,7 @@
 #include "create_options.h"
 #include <myisampack.h>
 #include "transaction.h"
+#include "sql_trigger.h"                     // trg_commit_*
 #include "myisam.h"
 #include "probes_mysql.h"
 #include <mysql/psi/mysql_table.h>
@@ -1846,6 +1847,27 @@ int ha_commit_trans(THD *thd, bool all)
   if (is_real_trans)                          /* not a statement commit */
     thd->stmt_map.close_transient_cursors();
 
+  /*
+    BEFORE COMMIT triggers of a multi-statement transaction have fired
+    already, in trans_commit(), trans_commit_implicit() or trans_begin(),
+    before those started to end the transaction; an XA transaction's at
+    XA END.  The end of an autocommit statement fires them here: the
+    transaction is still active, nothing is in the binary log yet, and the
+    read-only coalescing below has not run, so engines that trigger bodies
+    write to are counted when choosing one-phase vs two-phase commit.  The
+    statement is the whole transaction, so a failing body fails it and
+    rolls it back.
+  */
+  if (thd->transaction->trg_commit && is_real_trans)
+  {
+    if (!all && trg_commit_fire_at_autocommit_end(thd))
+    {
+      ha_rollback_trans(thd, all);
+      DBUG_RETURN(1);
+    }
+    ha_info= trans->ha_list;      // trigger bodies may have added engines
+  }
+
   bool no_rollback;
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
                                                         &no_rollback);
@@ -1888,6 +1910,14 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans && thd->check_read_only_with_error())
     goto err;
+
+  /* A statement commit inside a transaction with captured rows fails */
+  DBUG_EXECUTE_IF("trg_stmt_commit_fails",
+                  if (!is_real_trans && thd->transaction->trg_commit)
+                  {
+                    my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+                    goto err;
+                  });
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
@@ -3408,6 +3438,33 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 
   DBUG_RETURN(error);
 }
+
+/**
+  Check that every participant of the transaction can set a savepoint.
+
+  ha_savepoint() refuses the savepoint when one of them cannot.  A caller
+  that has work to do before the savepoint is set, work it would have to
+  undo after such a refusal, asks here first.
+
+  @retval 0  every participant can
+  @retval 1  one cannot, the error of ha_savepoint() is set
+*/
+
+int ha_savepoint_check(THD *thd)
+{
+  THD_TRANS *trans= thd->in_sub_stmt_ps_unsafe() ?
+                    &thd->transaction->stmt : &thd->transaction->all;
+  for (Ha_trx_info *ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
+  {
+    if (!ha_info->ht()->savepoint_set)
+    {
+      my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "SAVEPOINT");
+      return 1;
+    }
+  }
+  return 0;
+}
+
 
 /**
   @note

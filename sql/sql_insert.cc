@@ -1302,6 +1302,14 @@ values_loop_end:
       finalize_replace(table, duplic, ignore);
     }
 
+    /*
+      FOR EACH STATEMENT triggers fire after the last row and before the
+      statement is logged, so a failing body is logged like a failing
+      AFTER ROW trigger; see trg_fire_statement_triggers().
+    */
+    if (trg_fire_statement_triggers(thd, error > 0))
+      error= 1;
+
     transactional_table= table->file->has_transactions_and_rollback();
 
     if (likely(changed= (info.copied || info.deleted || info.updated)))
@@ -4662,6 +4670,14 @@ bool select_insert::prepare_eof()
   }
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+
+  /*
+    FOR EACH STATEMENT triggers fire before the statement is logged, as
+    in mysql_insert().  When a body fails, abort_result_set() logs the
+    statement, as it does when an AFTER ROW trigger fails.
+  */
+  if (trg_fire_statement_triggers(thd, error != 0))
+    DBUG_RETURN(true);
 
   if (likely((changed= (info.copied || info.deleted || info.updated))))
   {

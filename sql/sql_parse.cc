@@ -3739,6 +3739,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
   thd->get_binlog_format(&orig_binlog_format,
                          &orig_current_stmt_binlog_format);
+  /* What an enclosing command saved when it forced the format, see below */
+  enum_binlog_format outer_binlog_format_before_force=
+    thd->binlog_format_before_force;
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
@@ -3818,7 +3821,17 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   if (!(sql_command_flags[lex->sql_command] &
         (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
          CF_STATUS_COMMAND)))
+  {
+    /*
+      The command may reach a commit boundary: COMMIT, SAVEPOINT, XA END,
+      and a statement that commits implicitly.  The statement that the
+      BEFORE COMMIT triggers run in there writes rows, and needs the
+      format of the session.
+    */
+    if (outer_binlog_format_before_force == BINLOG_FORMAT_UNSPEC)
+      thd->binlog_format_before_force= orig_binlog_format;
     thd->set_binlog_format_stmt();
+  }
 
   /*
     End a active transaction so that this command will have it's
@@ -4992,6 +5005,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (thd->variables.option_bits & OPTION_TABLE_LOCK)
     {
       res= trans_commit_implicit(thd);
+      /* A failing BEFORE COMMIT body: the statement does not run */
+      if (res && trg_commit_boundary_failed(thd))
+        goto error;
       if (thd->locked_tables_list.unlock_locked_tables(thd))
         res= 1;
       thd->release_transactional_locks();
@@ -5008,6 +5024,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_LOCK_TABLES:
     /* We must end the transaction first, regardless of anything */
     res= trans_commit_implicit(thd);
+    /* ... except a failing BEFORE COMMIT body: the statement does not run */
+    if (res && trg_commit_boundary_failed(thd))
+      goto error;
     if (thd->locked_tables_list.unlock_locked_tables(thd))
       res= 1;
     /* Release transactional metadata locks. */
@@ -5977,6 +5996,18 @@ finish:
   if (res || thd->is_error())
     clean_captured_ctx(thd);
 
+  /*
+    FOR EACH STATEMENT triggers have fired inside the DML function, see
+    trg_fire_statement_triggers().  A statement that failed before it got
+    there still has the rows it captured: they are dropped here, before
+    the LEX is used again.  A statement that succeeded has none left.
+  */
+  if (thd->lex->trg_stmt_set)
+  {
+    DBUG_ASSERT(res || thd->is_error() || thd->killed);
+    trg_fire_statement_triggers(thd, true);
+  }
+
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
@@ -6051,8 +6082,11 @@ finish:
   if (!(sql_command_flags[lex->sql_command] &
         (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
          CF_STATUS_COMMAND)))
+  {
     thd->set_binlog_format(orig_binlog_format,
                            orig_current_stmt_binlog_format);
+    thd->binlog_format_before_force= outer_binlog_format_before_force;
+  }
 
   if (! thd->in_sub_stmt_ps_unsafe() && thd->transaction_rollback_request)
   {

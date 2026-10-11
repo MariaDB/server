@@ -135,8 +135,8 @@ delete from tb3 where f121='Test 3.5.1.1';
 Testcase: 3.5.1.2:
 ------------------
 Create trigger trg_1 after insert
-on tb3 for each statement set @x= 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'statement set @x= 1' at line 2
+on tb3 for each savepoint set @x= 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'savepoint set @x= 1' at line 2
 drop trigger trg_1;
 
 Testcase 3.5.1.3:

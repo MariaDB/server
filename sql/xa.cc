@@ -19,6 +19,7 @@
 #include "mariadb.h"
 #include "sql_class.h"
 #include "transaction.h"
+#include "sql_trigger.h"                     // trg_commit_*
 #include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
@@ -503,7 +504,9 @@ bool trans_xa_end(THD *thd)
     thd->transaction->xid_state.er_xaer_rmfail();
   else if (!thd->transaction->xid_state.xid_cache_element->xid.eq(thd->lex->xid))
     my_error(ER_XAER_NOTA, MYF(0));
-  else if (!xa_trans_rolled_back(thd->transaction->xid_state.xid_cache_element))
+  else if (!xa_trans_rolled_back(thd->transaction->xid_state.xid_cache_element) &&
+           /* Last point where the branch can still write */
+           !trg_commit_fire_at_xa_end(thd))
   {
     thd->transaction->xid_state.xid_cache_element->xa_state= XA_IDLE;
     MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_IDLE);

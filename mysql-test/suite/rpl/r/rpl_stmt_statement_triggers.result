@@ -1,0 +1,215 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+SET @x= 1;
+connection slave;
+# On the replica only
+CREATE TRIGGER t1_del_stmt AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= 1;
+# The replica runs the statement and fires the trigger it got from
+# the primary
+connection master;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t1_stmt (AFTER INSERT,UPDATE FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# MDEV-41218 No firing over zero rows
+# A statement that matches no row fires nothing, on the primary or
+# on the replica: neither trace has a statement set or a firing
+connection master;
+UPDATE t1 SET b= 0 WHERE a > 100;
+UPDATE t1 SET b= 0 WHERE 1 = 0;
+DELETE FROM t1 WHERE 1 = 0;
+UPDATE t1 SET b= 0 LIMIT 0;
+# Primary
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+connection slave;
+# Replica
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# The trigger created on the replica alone fires as well
+connection master;
+DELETE FROM t1 WHERE a = 1;
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture DELETE row of test.t1 through t1 (OLD=record[0]) into the statement set, now 1 DELETE rows
+# end of statement: FIRE test.t1_del_stmt (AFTER DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 1 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+SELECT a, b FROM t1 ORDER BY a;
+a	b
+2	2
+#
+# MDEV-41218 BEFORE COMMIT triggers with statement-based logging
+#
+# Nothing is logged for a BEFORE COMMIT body.  The replica executes
+# the statements of the transaction, captures their rows and fires
+# its own triggers at the same SAVEPOINT, which is logged with the
+# transaction, and at the same COMMIT.
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2_log (a INT) ENGINE=InnoDB;
+CREATE TABLE t2_src (a INT) ENGINE=InnoDB;
+INSERT INTO t2_src VALUES (1), (2);
+CREATE TRIGGER t2_commit AFTER INSERT ON t2 BEFORE COMMIT OR SAVEPOINT
+INSERT INTO t2_log VALUES (1);
+connection slave;
+connection master;
+BEGIN;
+INSERT INTO t2 VALUES (1), (2);
+SAVEPOINT s1;
+INSERT INTO t2 VALUES (3), (4);
+COMMIT;
+INSERT INTO t2 VALUES (5), (6);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (1), (2)
+master-bin.000001	#	Query	#	#	SAVEPOINT `s1`
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (3), (4)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (5), (6)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+# Primary
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t2, columns: a, + __op_order, __op, __state; fixed from triggers t2_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# SAVEPOINT: boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# SAVEPOINT: the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# SAVEPOINT: prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# SAVEPOINT: test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# SAVEPOINT: FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# SAVEPOINT: marker at position 2
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 3
+# statement committed inside the transaction: statement mark moves from 2 to 4
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 4 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [2, 4): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 4 rows freed with the transaction mem_root
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t2, columns: a, + __op_order, __op, __state; fixed from triggers t2_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 1
+# COMMIT of an autocommit statement (statement: INSERT INTO t2 VALUES (5), (6)): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: yes
+# COMMIT of an autocommit statement (statement: INSERT INTO t2 VALUES (5), (6)): test.t2 enters the firing chain at depth 1; it is still open in thd->open_tables, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the statement prelocked
+# COMMIT of an autocommit statement (statement: INSERT INTO t2 VALUES (5), (6)): FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+connection slave;
+# Replica
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t2, columns: a, + __op_order, __op, __state; fixed from triggers t2_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# SAVEPOINT: boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# SAVEPOINT: the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# SAVEPOINT: prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# SAVEPOINT: test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# SAVEPOINT: FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# SAVEPOINT: marker at position 2
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 3
+# statement committed inside the transaction: statement mark moves from 2 to 4
+# COMMIT of a multi-statement transaction (statement: ): boundary reached, accumulator holds 4 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: ): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: ): prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: ): test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: ): FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [2, 4): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 4 rows freed with the transaction mem_root
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t2, columns: a, + __op_order, __op, __state; fixed from triggers t2_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# COMMIT of a multi-statement transaction (statement: ): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: ): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: ): prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: ): test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: ): FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+#
+# MDEV-41218 BEFORE COMMIT triggers with binlog_format=MIXED
+#
+# With binlog_format=MIXED the format is chosen for each statement,
+# and a replica captures no rows from row events.  A transaction that
+# captured rows for one trigger with a statement logged as a statement
+# and with one logged in row format would fire the replica's trigger
+# over a part of its rows.  So every statement that may capture a row
+# for a BEFORE COMMIT trigger is logged in row format, here also the
+# one that is safe to log as a statement, and the replica fires no
+# trigger for the transaction.
+connection master;
+SET binlog_format= MIXED;
+BEGIN;
+INSERT INTO t2 VALUES (11), (12);
+INSERT INTO t2 SELECT a + 20 + 0 * LENGTH(UUID()) FROM t2_src;
+COMMIT;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (11), (12)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2_log)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 SELECT a + 20 + 0 * LENGTH(UUID()) FROM t2_src
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2_log)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+SET binlog_format= STATEMENT;
+# Primary
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t2, columns: a, + __op_order, __op, __state; fixed from triggers t2_commit; has OR SAVEPOINT triggers: yes
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# prelocking for test.t2: INSERT BEFORE COMMIT triggers are prelocked by this statement
+# column marking for test.t2: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 2
+# capture INSERT row of test.t2 (NEW=record[0]) into the transaction accumulator at position 3
+# statement committed inside the transaction: statement mark moves from 2 to 4
+# COMMIT of a multi-statement transaction (statement: COMMIT): boundary reached, accumulator holds 4 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: COMMIT): the boundary's statement opens and locks the tables whose triggers fire and the tables their bodies use
+# COMMIT of a multi-statement transaction (statement: COMMIT): prelocking for test.t2: the bodies of the triggers that have rows to fire over (t2_commit) are prelocked by the boundary's statement
+# COMMIT of a multi-statement transaction (statement: COMMIT): test.t2 enters the firing chain at depth 1; it is open and locked by the boundary's statement, transactional MDL_SHARED_WRITE held: yes; bodies would run on the tables the boundary prelocked
+# COMMIT of a multi-statement transaction (statement: COMMIT): FIRE test.t2_commit (AFTER INSERT BEFORE COMMIT OR SAVEPOINT, order 1) over positions [0, 4): 4 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 4 rows freed with the transaction mem_root
+connection slave;
+# Replica
+SELECT a FROM t2 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+11
+12
+21
+22
+connection master;
+DROP TABLE t1, t2, t2_log, t2_src;
+connection slave;
+include/rpl_end.inc

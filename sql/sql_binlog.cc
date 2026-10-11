@@ -24,6 +24,7 @@
 #include "rpl_mi.h"
 #include "slave.h"
 #include "log_event.h"
+#include "sql_trigger.h"                        // trg_fire_statement_triggers
 
 
 /**
@@ -462,6 +463,12 @@ end:
   if (unlikely(is_fragmented))
     my_free(const_cast<char*>(thd->lex->comment.str));
   thd->variables.option_bits= thd_options;
+  /*
+    Rows applied without the end of their statement were captured for its
+    FOR EACH STATEMENT triggers, which do not fire: the rows are dropped
+    while their tables are open.
+  */
+  trg_fire_statement_triggers(thd, true);
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
 

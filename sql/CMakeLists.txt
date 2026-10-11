@@ -145,7 +145,8 @@ SET (SQL_SOURCE
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
-               sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
+               sql_table.cc sql_test.cc sql_trigger.cc sql_trigger_commit.cc
+               sql_udf.cc sql_union.cc
                ddl_log.cc ddl_log.h
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc

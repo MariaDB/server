@@ -1,0 +1,40 @@
+# CREATE TRIGGER client_test_db.t_bulk_trg_stmt: AFTER INSERT,UPDATE,DELETE ON t_bulk_trg FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 1 INSERT rows
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 2 INSERT rows
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 3 INSERT rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 3 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1]) into the statement set, now 1 DELETE rows
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 1 INSERT rows
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1]) into the statement set, now 2 DELETE rows
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 2 INSERT rows
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1]) into the statement set, now 3 DELETE rows
+# capture INSERT row of client_test_db.t_bulk_trg through t_bulk_trg (NEW=record[0]) into the statement set, now 3 INSERT rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 3 INSERT, 0 UPDATE, 3 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture UPDATE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 1 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture UPDATE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 1 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture UPDATE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 1 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[0]) into the statement set, now 1 DELETE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 1 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[0]) into the statement set, now 1 DELETE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 1 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# column marking for client_test_db.t_bulk_trg: captured columns marked for read: a, v, + __op_order, __op, __state
+# statement set: entry for client_test_db.t_bulk_trg created, columns: a, v, + __op_order, __op, __state
+# capture DELETE row of client_test_db.t_bulk_trg through t_bulk_trg (OLD=record[0]) into the statement set, now 1 DELETE rows
+# end of statement: FIRE client_test_db.t_bulk_trg_stmt (AFTER INSERT,UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 1 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER

@@ -3469,6 +3469,22 @@ has_temporary_error(THD *thd)
       DBUG_RETURN(1);
   }
 
+  /*
+    A commit boundary failed and the transaction was rolled back, because
+    a BEFORE COMMIT trigger body failed or because the triggers could not
+    fire: the cause is a further condition, and it may be one to retry,
+    such as a lock wait timeout.
+  */
+  if (current_errno == ER_TRG_BEFORE_COMMIT_ROLLBACK ||
+      current_errno == ER_TRG_BEFORE_COMMIT_NOT_FIRED ||
+      current_errno == ER_LOCK_WAIT_TIMEOUT_ROLLBACK)
+  {
+    const Diagnostics_area *da= thd->get_stmt_da();
+    for (uint i= 0; i < slave_transaction_retry_error_length; i++)
+      if (da->has_sql_condition(slave_transaction_retry_errors[i]))
+        DBUG_RETURN(1);
+  }
+
   DBUG_RETURN(0);
 }
 

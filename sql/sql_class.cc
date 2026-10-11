@@ -7070,6 +7070,17 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool found_first_not_own_table= FALSE;
     bool has_write_tables_with_unsafe_statements= FALSE;
     bool blackhole_table_found= 0;
+    /*
+      If the statement may capture a row for a BEFORE COMMIT trigger, or
+      is the statement of a commit boundary, which runs their bodies.
+      With statement-based logging the replica captures the rows of the
+      statements it executes and fires its own triggers; it captures
+      nothing from row events.  One transaction must not have rows of
+      both kinds for one trigger, so with binlog_format=MIXED all these
+      statements are logged in row format.
+    */
+    bool trg_commit_row_if_mixed=
+      lex->trg_commit_boundary != LEX::TRG_BOUNDARY_NONE;
 
     /*
       A pointer to a previous table that was changed.
@@ -7200,6 +7211,12 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
         if (table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB)
           blackhole_table_found= 1;
+
+        /* Rows that a foreign key cascade changes are not captured */
+        if (tbl->prelocking_placeholder != TABLE_LIST::PRELOCK_FK &&
+            table->triggers &&
+            table->triggers->may_capture_for_commit(tbl->trg_event_map))
+          trg_commit_row_if_mixed= true;
 
         if (share->non_determinstic_insert &&
             (sql_command_flags() & CF_CAN_GENERATE_ROW_EVENTS
@@ -7409,7 +7426,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       {
         if (lex->is_stmt_unsafe() || lex->is_stmt_row_injection()
             || (flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0 ||
-            is_bulk_op())
+            is_bulk_op() || trg_commit_row_if_mixed)
         {
           /* log in row format! */
           set_current_stmt_binlog_format_row_if_mixed();

@@ -1053,6 +1053,17 @@ cleanup:
   delete select;
   select= NULL;
 
+  /*
+    FOR EACH STATEMENT triggers fire after the last row and before the
+    statement is logged, so a failing body is logged like a failing
+    AFTER ROW trigger; see trg_fire_statement_triggers().
+  */
+  if (trg_fire_statement_triggers(thd, error >= 0))
+  {
+    error= 1;
+    killed_status= thd->killed;
+  }
+
   if (!transactional_table && deleted > 0)
     thd->transaction->stmt.modified_non_trans_table=
       thd->transaction->all.modified_non_trans_table= TRUE;
@@ -1757,6 +1768,12 @@ bool multi_delete::send_eof()
 
   /* compute a total error to know if something failed */
   local_error= local_error || error;
+  /*
+    FOR EACH STATEMENT triggers fire after the last row and before the
+    statement is logged, as in Sql_cmd_delete::delete_from_single_table().
+  */
+  if (trg_fire_statement_triggers(thd, local_error != 0))
+    local_error= 1;
   killed_status= (local_error == 0)? NOT_KILLED : thd->killed;
   /* reset used flags */
   THD_STAGE_INFO(thd, stage_end);

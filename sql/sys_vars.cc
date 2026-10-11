@@ -4946,9 +4946,11 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
-      thd->release_transactional_locks();
-      WSREP_DEBUG("autocommit, MDL TRX lock released: %lld",
-                  (longlong) thd->thread_id);
+      /*
+        The metadata locks are released at the end of the statement, as
+        after a commit that succeeded (see below): the statement may have
+        tables open.
+      */
       return true;
     }
     /*

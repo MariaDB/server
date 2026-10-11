@@ -1,0 +1,18 @@
+#
+# MDEV-41218 The participant of BEFORE COMMIT triggers does not make
+# the server use a transaction coordinator log
+#
+# The participant is a part of every server.  A server without the
+# binary log and without an engine that can prepare a transaction
+# has nothing to coordinate: it uses no transaction coordinator log
+# and creates no tc.log.
+SELECT PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_NAME = 'commit_triggers';
+PLUGIN_STATUS
+ACTIVE
+SELECT @@log_bin;
+@@log_bin
+0
+SHOW GLOBAL STATUS LIKE 'Tc_log_page_size';
+Variable_name	Value
+Tc_log_page_size	0

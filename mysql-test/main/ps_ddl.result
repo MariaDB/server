@@ -2395,11 +2395,11 @@ drop table if exists t1;
 create table t1 (a int);
 prepare stmt from "show triggers where (1) in (select * from t1)";
 execute stmt;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 drop table t1;
 create table t1 (x int);
 execute stmt;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 drop table t1;
 deallocate prepare stmt;
 #

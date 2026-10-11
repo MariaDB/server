@@ -1,0 +1,138 @@
+#
+# FOR EACH STATEMENT triggers under statement-based replication: the
+# replica executes each replicated statement itself, so it fires the FOR
+# EACH STATEMENT triggers it has, as it fires ROW triggers, those created
+# on the replica alone included.  A statement that matches no row fires
+# nothing, on the primary or on the replica.
+#
+# BEFORE COMMIT triggers: the replica captures the rows of the statements
+# it executes and fires its own triggers at the boundaries of the
+# transaction; with binlog_format=MIXED the statements are logged in row
+# format.
+#
+# No trigger body is executed yet.  The replica writes one
+# "Trigger hook:" line per hook to its error log, and
+# main/trigger_hook_trace.inc prints them.
+#
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+  SET @x= 1;
+--sync_slave_with_master
+
+--echo # On the replica only
+CREATE TRIGGER t1_del_stmt AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= 1;
+--let $trg_hook_server= 2
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+
+--echo # The replica runs the statement and fires the trigger it got from
+--echo # the primary
+--connection master
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # MDEV-41218 No firing over zero rows
+--echo # A statement that matches no row fires nothing, on the primary or
+--echo # on the replica: neither trace has a statement set or a firing
+--connection master
+--let $trg_hook_server= 1
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+UPDATE t1 SET b= 0 WHERE a > 100;
+UPDATE t1 SET b= 0 WHERE 1 = 0;
+DELETE FROM t1 WHERE 1 = 0;
+UPDATE t1 SET b= 0 LIMIT 0;
+--echo # Primary
+--source main/trigger_hook_trace.inc
+--sync_slave_with_master
+--echo # Replica
+--let $trg_hook_server= 2
+--source main/trigger_hook_trace.inc
+
+--echo # The trigger created on the replica alone fires as well
+--connection master
+DELETE FROM t1 WHERE a = 1;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+SELECT a, b FROM t1 ORDER BY a;
+
+--echo #
+--echo # MDEV-41218 BEFORE COMMIT triggers with statement-based logging
+--echo #
+--echo # Nothing is logged for a BEFORE COMMIT body.  The replica executes
+--echo # the statements of the transaction, captures their rows and fires
+--echo # its own triggers at the same SAVEPOINT, which is logged with the
+--echo # transaction, and at the same COMMIT.
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2_log (a INT) ENGINE=InnoDB;
+CREATE TABLE t2_src (a INT) ENGINE=InnoDB;
+INSERT INTO t2_src VALUES (1), (2);
+CREATE TRIGGER t2_commit AFTER INSERT ON t2 BEFORE COMMIT OR SAVEPOINT
+  INSERT INTO t2_log VALUES (1);
+--sync_slave_with_master
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+--connection master
+--let $trg_hook_server= 1
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t2 VALUES (1), (2);
+SAVEPOINT s1;
+INSERT INTO t2 VALUES (3), (4);
+COMMIT;
+INSERT INTO t2 VALUES (5), (6);
+--source include/show_binlog_events.inc
+--echo # Primary
+--source main/trigger_hook_trace.inc
+--sync_slave_with_master
+--echo # Replica
+--let $trg_hook_server= 2
+--source main/trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 BEFORE COMMIT triggers with binlog_format=MIXED
+--echo #
+--echo # With binlog_format=MIXED the format is chosen for each statement,
+--echo # and a replica captures no rows from row events.  A transaction that
+--echo # captured rows for one trigger with a statement logged as a statement
+--echo # and with one logged in row format would fire the replica's trigger
+--echo # over a part of its rows.  So every statement that may capture a row
+--echo # for a BEFORE COMMIT trigger is logged in row format, here also the
+--echo # one that is safe to log as a statement, and the replica fires no
+--echo # trigger for the transaction.
+--connection master
+--let $trg_hook_server= 1
+SET binlog_format= MIXED;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO t2 VALUES (11), (12);
+INSERT INTO t2 SELECT a + 20 + 0 * LENGTH(UUID()) FROM t2_src;
+COMMIT;
+--source include/show_binlog_events.inc
+SET binlog_format= STATEMENT;
+--echo # Primary
+--source main/trigger_hook_trace.inc
+--sync_slave_with_master
+--echo # Replica
+--let $trg_hook_server= 2
+--source main/trigger_hook_trace.inc
+SELECT a FROM t2 ORDER BY a;
+
+--connection master
+DROP TABLE t1, t2, t2_log, t2_src;
+--sync_slave_with_master
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.2.pos
+
+--source include/rpl_end.inc

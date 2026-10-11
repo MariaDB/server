@@ -1,0 +1,23 @@
+#
+# mysql_refresh() (COM_REFRESH) commits the transaction implicitly,
+# outside any statement.  A BEFORE COMMIT trigger that fails there rolls
+# the transaction back at once, as at every other commit.
+#
+# The client side is test_refresh_commit_trigger in
+# tests/mysql_client_test.c, which checks the error, that the transaction
+# is over, and that its rows are gone.  No trigger body is executed yet;
+# the server writes one "Trigger hook:" line per hook to its error log,
+# and trigger_hook_trace.inc prints them.
+#
+
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--let $trg_hook_reset= 1
+--source trigger_hook_trace.inc
+
+--exec $MYSQL_CLIENT_TEST test_refresh_commit_trigger > $MYSQLTEST_VARDIR/log/trigger_commit_refresh.out.log 2>&1
+--source trigger_hook_trace.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos

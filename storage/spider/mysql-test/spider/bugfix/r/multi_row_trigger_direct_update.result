@@ -1,0 +1,78 @@
+#
+# FOR EACH STATEMENT and BEFORE COMMIT triggers capture every row the
+# statement writes, through the per-row trigger calls.  An UPDATE or
+# DELETE that Spider executes directly on the remote server makes no
+# such calls, so a trigger of that event switches the direct
+# operation off.  Triggers on other events leave it on.
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t_remote (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t_remote VALUES (1, 1), (2, 2), (3, 3), (4, 4);
+CREATE TABLE t (id INT PRIMARY KEY, v INT)
+ENGINE=SPIDER COMMENT='wrapper "mysql", srv "srv", table "t_remote"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+# No trigger: direct update and direct delete
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	0
+UPDATE t SET v= v + 1 WHERE id = 1;
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	1
+SHOW STATUS LIKE 'Spider_direct_delete';
+Variable_name	Value
+Spider_direct_delete	0
+DELETE FROM t WHERE id = 4;
+SHOW STATUS LIKE 'Spider_direct_delete';
+Variable_name	Value
+Spider_direct_delete	1
+# Triggers on INSERT only: still direct
+CREATE TRIGGER t_ins_stmt AFTER INSERT ON t FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_ins_commit AFTER INSERT ON t BEFORE COMMIT SET @x= 1;
+UPDATE t SET v= v + 1 WHERE id = 1;
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	2
+DELETE FROM t WHERE id = 3;
+SHOW STATUS LIKE 'Spider_direct_delete';
+Variable_name	Value
+Spider_direct_delete	2
+# A FOR EACH STATEMENT UPDATE trigger: the update is not direct
+CREATE TRIGGER t_upd_stmt AFTER UPDATE ON t FOR EACH STATEMENT SET @x= 1;
+UPDATE t SET v= v + 1 WHERE id = 1;
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	2
+DROP TRIGGER t_upd_stmt;
+# A BEFORE COMMIT UPDATE trigger: the update is not direct
+CREATE TRIGGER t_upd_commit AFTER UPDATE ON t BEFORE COMMIT SET @x= 1;
+UPDATE t SET v= v + 1 WHERE id = 1;
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	2
+DROP TRIGGER t_upd_commit;
+# Direct again once the UPDATE triggers are gone
+UPDATE t SET v= v + 1 WHERE id = 1;
+SHOW STATUS LIKE 'Spider_direct_update';
+Variable_name	Value
+Spider_direct_update	3
+# A FOR EACH STATEMENT DELETE trigger: the delete is not direct
+CREATE TRIGGER t_del_stmt AFTER DELETE ON t FOR EACH STATEMENT SET @x= 1;
+DELETE FROM t WHERE id = 2;
+SHOW STATUS LIKE 'Spider_direct_delete';
+Variable_name	Value
+Spider_direct_delete	2
+SELECT id, v FROM t_remote ORDER BY id;
+id	v
+1	6
+DROP TABLE t, t_remote;
+DROP SERVER srv;
+for master_1
+for child2
+for child3

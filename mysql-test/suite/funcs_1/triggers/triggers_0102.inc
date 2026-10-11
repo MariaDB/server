@@ -110,7 +110,7 @@ let $message= Testcase: 3.5.1.2:;
 	
 	--error ER_PARSE_ERROR
 	Create trigger trg_1 after insert
-		on tb3 for each statement set @x= 1;
+		on tb3 for each savepoint set @x= 1;
 
 #Cleanup
 	--disable_warnings

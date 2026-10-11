@@ -1,0 +1,28 @@
+#
+# The transaction participant of BEFORE COMMIT triggers and the choice of
+# the transaction coordinator log.  The server runs without the binary
+# log and without InnoDB.
+#
+
+if (`SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+     WHERE XA = 'YES' AND SUPPORT IN ('YES', 'DEFAULT')`)
+{
+  --skip Needs a server without an engine that can prepare a transaction
+}
+
+--echo #
+--echo # MDEV-41218 The participant of BEFORE COMMIT triggers does not make
+--echo # the server use a transaction coordinator log
+--echo #
+--echo # The participant is a part of every server.  A server without the
+--echo # binary log and without an engine that can prepare a transaction
+--echo # has nothing to coordinate: it uses no transaction coordinator log
+--echo # and creates no tc.log.
+
+SELECT PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_NAME = 'commit_triggers';
+SELECT @@log_bin;
+SHOW GLOBAL STATUS LIKE 'Tc_log_page_size';
+--let $datadir= `SELECT @@datadir`
+--error 1
+--file_exists $datadir/tc.log

@@ -1,0 +1,247 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+
+# The trigger bodies of the hookup sketch do not run: what each hook does is
+# read from the trace it writes to the error log, and a failing body is
+# injected with debug_dbug.
+
+--let $trg_hook_reset= 1
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 BEFORE COMMIT triggers on a primary with the binary log on
+--echo #
+--echo # With the binary log on, the log is a participant of the transaction
+--echo # and the commit is a two-phase commit with it.  The triggers fire
+--echo # before anything of the transaction is written to the log: a
+--echo # transaction that commits is logged whole, and one whose body fails
+--echo # leaves nothing in the log.
+
+# The binary log events are shown with the name of their file
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t1_commit AFTER INSERT OR UPDATE ON t1
+  BEFORE COMMIT OR SAVEPOINT SET @x= 1;
+CREATE TRIGGER t1_stmt AFTER INSERT ON t1 FOR EACH STATEMENT SET @x= 1;
+--source trigger_hook_trace.inc
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--echo # An autocommit statement
+INSERT INTO t1 VALUES (1), (2);
+--source trigger_hook_trace.inc
+--echo # A transaction with a savepoint
+BEGIN;
+INSERT INTO t1 VALUES (3), (4);
+SAVEPOINT s1;
+UPDATE t1 SET a= a + 10 WHERE a < 3;
+COMMIT;
+--source trigger_hook_trace.inc
+--source include/show_binlog_events.inc
+
+--echo # A failing body, in an autocommit statement and at COMMIT
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+INSERT INTO t1 VALUES (5), (6);
+--source trigger_hook_trace.inc
+BEGIN;
+INSERT INTO t1 VALUES (7), (8);
+UPDATE t1 SET a= a + 10 WHERE a IN (3, 4);
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+COMMIT;
+SET debug_dbug= @save_dbug;
+--source trigger_hook_trace.inc
+--echo # Nothing was logged
+--source include/show_binlog_events.inc
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 A row event replayed by a BINLOG statement in idempotent
+--echo # mode, on a table with triggers
+--echo #
+--echo # With slave_exec_mode=IDEMPOTENT the applier leaves a DML command on
+--echo # the statement, and with slave_run_triggers_for_rbr=YES it prelocks
+--echo # the tables of the triggers in a table list that it frees at the end
+--echo # of the event.  The triggers fire inside the BINLOG statement, at the
+--echo # end of the row event, and nothing of the statement reads that table
+--echo # list afterwards.
+
+CREATE TABLE tb (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO tb VALUES (1, 1), (2, 2);
+FLUSH BINARY LOGS;
+--let $datadir= `SELECT @@datadir`
+--exec $MYSQL_BINLOG $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+--echo # The triggers are created after the event is logged, so that the
+--echo # event does not say that the primary ran triggers for it
+CREATE TRIGGER tb_row AFTER INSERT ON tb FOR EACH ROW SET @x= 1;
+CREATE TRIGGER tb_stmt AFTER INSERT ON tb FOR EACH STATEMENT SET @x= 1;
+SET @save_mode= @@global.slave_exec_mode;
+SET @save_trg= @@global.slave_run_triggers_for_rbr;
+SET GLOBAL slave_exec_mode= IDEMPOTENT;
+SET GLOBAL slave_run_triggers_for_rbr= YES;
+--source trigger_hook_trace.inc
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+--source trigger_hook_trace.inc
+SET GLOBAL slave_exec_mode= @save_mode;
+SET GLOBAL slave_run_triggers_for_rbr= @save_trg;
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+SELECT * FROM tb ORDER BY a;
+DROP TABLE tb;
+
+--echo #
+--echo # MDEV-41218 A BINLOG statement whose row event does not end its
+--echo # statement
+--echo #
+--echo # The rows are applied and captured, and the statement that they
+--echo # belong to never ends: its FOR EACH STATEMENT triggers do not fire.
+--echo # The captured rows are dropped before the BINLOG statement closes
+--echo # the table.
+
+CREATE TABLE tu (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+SET @save_checksum= @@global.binlog_checksum;
+SET GLOBAL binlog_checksum= NONE;
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO tu VALUES (1, 1), (2, 2);
+FLUSH BINARY LOGS;
+SET GLOBAL binlog_checksum= @save_checksum;
+--exec $MYSQL_BINLOG $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+--echo # The row event is rewritten without its end-of-statement flag
+perl;
+  use MIME::Base64;
+  my $file= "$ENV{MYSQLTEST_VARDIR}/tmp/trigger_commit_binlog.sql";
+  open(F, "<", $file) or die "$file: $!";
+  my @lines= <F>;
+  close(F);
+  open(F, ">", $file) or die "$file: $!";
+  my ($in_binlog, $events)= (0, '');
+  foreach (@lines)
+  {
+    if (/^BINLOG '/)
+    {
+      ($in_binlog, $events)= (1, '');
+      print F;
+    }
+    elsif ($in_binlog && /^'/)
+    {
+      # Each event: its type is byte 4 of the header, its length bytes 9-12
+      for (my $pos= 0; $pos < length($events); )
+      {
+        my $length= unpack("V", substr($events, $pos + 9, 4));
+        my $event= substr($events, $pos, $length);
+        my $type= ord(substr($event, 4, 1));
+        # WRITE_ROWS_EVENT_V1 and WRITE_ROWS_EVENT: the flags follow the
+        # 19 bytes of the header and the 6 bytes of the table id
+        if ($type == 23 || $type == 30)
+        {
+          my $flags= unpack("v", substr($event, 25, 2));
+          substr($event, 25, 2)= pack("v", $flags & ~1);
+          print "# STMT_END_F cleared in a row event\n" if $flags & 1;
+        }
+        print F encode_base64($event);
+        $pos+= $length;
+      }
+      $in_binlog= 0;
+      print F;
+    }
+    elsif ($in_binlog)
+    {
+      $events.= decode_base64($_);
+    }
+    else
+    {
+      print F;
+    }
+  }
+  close(F);
+EOF
+TRUNCATE TABLE tu;
+CREATE TRIGGER tu_stmt AFTER INSERT ON tu FOR EACH STATEMENT SET @x= 1;
+SET @save_trg= @@global.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr= YES;
+--source trigger_hook_trace.inc
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+--source trigger_hook_trace.inc
+SET GLOBAL slave_run_triggers_for_rbr= @save_trg;
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_commit_binlog.sql
+SELECT * FROM tu ORDER BY a;
+DROP TABLE tu;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 A DDL statement that commits a transaction whose BEFORE
+--echo # COMMIT body writes only a table that is not replicated
+--echo #
+--echo # The statement of the commit boundary writes no replicated table, so
+--echo # nothing of it is to be logged.  That is decided for the boundary's
+--echo # statement alone: the DDL statement that reached the boundary is
+--echo # logged.
+
+CREATE TABLE tf (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tf_ddl1 (a INT) ENGINE=InnoDB;
+CREATE TABLE tf_ddl2 (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tf_commit AFTER INSERT ON tf BEFORE COMMIT
+  UPDATE performance_schema.setup_consumers SET ENABLED= 'YES'
+    WHERE NAME = 'no_such_consumer';
+--source trigger_hook_trace.inc
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+INSERT INTO tf VALUES (1), (2);
+DROP TABLE tf_ddl1;
+BEGIN;
+INSERT INTO tf VALUES (3), (4);
+RENAME TABLE tf_ddl2 TO tf_ddl3;
+--source trigger_hook_trace.inc
+--source include/show_binlog_events.inc
+SELECT a FROM tf ORDER BY a;
+DROP TABLE tf, tf_ddl3;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 The read locks of a commit boundary
+--echo #
+--echo # With statement-based logging nothing is logged for a BEFORE COMMIT
+--echo # body and the replica runs the body again, so on the primary the body
+--echo # has to read under the locks of a statement that writes.  The
+--echo # boundary's statement locks a table that a body only reads with
+--echo # TL_READ_NO_INSERT when binlog_format is STATEMENT or MIXED, and with
+--echo # TL_READ when it is ROW.
+
+CREATE TABLE tr (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tr_src (a INT) ENGINE=InnoDB;
+CREATE TABLE tr_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER tr_commit AFTER INSERT ON tr BEFORE COMMIT
+  INSERT INTO tr_log SELECT a FROM tr_src;
+--let $trg_hook_reset= 1
+--source trigger_hook_trace.inc
+--echo # binlog_format=STATEMENT
+SET binlog_format= STATEMENT;
+BEGIN;
+INSERT INTO tr VALUES (1), (2);
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # binlog_format=MIXED
+SET binlog_format= MIXED;
+BEGIN;
+INSERT INTO tr VALUES (3), (4);
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # binlog_format=ROW
+SET binlog_format= ROW;
+BEGIN;
+INSERT INTO tr VALUES (5), (6);
+COMMIT;
+--source trigger_hook_trace.inc
+SELECT a FROM tr ORDER BY a;
+DROP TABLE tr, tr_src, tr_log;
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos

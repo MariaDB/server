@@ -191,7 +191,9 @@ public:
       a result set in a function context is detected at run time
       in Prepared_statement::execute_loop().
     */
-    MULTI_RESULTS_DYNAMIC= 32768
+    MULTI_RESULTS_DYNAMIC= 32768,
+    /* SAVEPOINT, ROLLBACK TO SAVEPOINT or RELEASE SAVEPOINT */
+    HAS_SAVEPOINT_STMT= 65536
   };
 
   sp_package *m_parent;

@@ -1,0 +1,123 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_blackhole.inc
+--source include/not_embedded.inc
+
+# The trigger bodies of the hookup sketch do not run: what each hook does is
+# read from the trace it writes to the error log.
+
+--let $trg_hook_reset= 1
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # MDEV-41218 BEFORE COMMIT triggers on an engine that does not register
+--echo # with the transaction
+--echo #
+--echo # BLACKHOLE reports that it has transactions and can roll back, so it
+--echo # may have BEFORE COMMIT triggers, and it never registers with the
+--echo # statement or the transaction.  The rows captured for the triggers
+--echo # register themselves as a transaction participant, so the end of the
+--echo # statement and of the transaction reach them whatever the engine
+--echo # does.
+
+CREATE TABLE bh (a INT) ENGINE=BLACKHOLE;
+CREATE TABLE t_in (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER bh_commit AFTER INSERT ON bh BEFORE COMMIT SET @x= 1;
+--source trigger_hook_trace.inc
+
+--echo # An autocommit statement fires the triggers at its own end
+INSERT INTO bh VALUES (1), (2);
+--source trigger_hook_trace.inc
+--echo # ... so the next statement, on another table, has nothing to fire
+INSERT INTO t_in VALUES (1);
+--source trigger_hook_trace.inc
+
+--echo # Nothing is left of the transaction when the table is dropped
+INSERT INTO bh VALUES (3), (4);
+DROP TABLE bh;
+--source trigger_hook_trace.inc
+INSERT INTO t_in VALUES (2);
+--source trigger_hook_trace.inc
+SELECT * FROM t_in ORDER BY a;
+
+--echo #
+--echo # MDEV-41218 The statement mark of a statement on such an engine
+--echo #
+--echo # Inside a transaction the rows of a successful statement stay when a
+--echo # later statement fails: only the failed statement's rows are dropped.
+
+CREATE TABLE bh (a INT) ENGINE=BLACKHOLE;
+CREATE TRIGGER bh_commit AFTER INSERT ON bh BEFORE COMMIT OR SAVEPOINT
+  SET @x= 1;
+--source trigger_hook_trace.inc
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+--source trigger_hook_trace.inc
+--error ER_DUP_ENTRY
+INSERT INTO t_in VALUES (1);
+--source trigger_hook_trace.inc
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo # A statement that fails after it captured rows.  The captured rows
+--echo # are the only participant of the statement, and its rollback drops
+--echo # them: inside a transaction the rows of the failed statement, in
+--echo # autocommit mode all of them.
+--delimiter $$
+CREATE TRIGGER bh_row BEFORE INSERT ON bh FOR EACH ROW
+BEGIN
+  IF NEW.a = 13 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row refused';
+  END IF;
+END $$
+--delimiter ;
+--source trigger_hook_trace.inc
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+--error ER_SIGNAL_EXCEPTION
+INSERT INTO bh VALUES (11), (12), (13);
+--source trigger_hook_trace.inc
+COMMIT;
+--source trigger_hook_trace.inc
+--error ER_SIGNAL_EXCEPTION
+INSERT INTO bh VALUES (11), (12), (13);
+--source trigger_hook_trace.inc
+DROP TRIGGER bh_row;
+--source trigger_hook_trace.inc
+
+--echo # The same with a savepoint: ROLLBACK TO SAVEPOINT drops the rows
+--echo # captured after it, and only those
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+SAVEPOINT s1;
+--source trigger_hook_trace.inc
+INSERT INTO bh VALUES (3), (4);
+ROLLBACK TO SAVEPOINT s1;
+--source trigger_hook_trace.inc
+INSERT INTO bh VALUES (5), (6);
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo # ROLLBACK discards the rows
+BEGIN;
+INSERT INTO bh VALUES (1), (2);
+ROLLBACK;
+--source trigger_hook_trace.inc
+
+--echo # A savepoint set before the first row was captured: the rows joined
+--echo # the transaction after it, so the rollback to it discards all of
+--echo # them, and the rows captured afterwards start from position 0
+BEGIN;
+SAVEPOINT s0;
+INSERT INTO bh VALUES (1), (2);
+INSERT INTO t_in VALUES (3);
+--source trigger_hook_trace.inc
+ROLLBACK TO SAVEPOINT s0;
+--source trigger_hook_trace.inc
+INSERT INTO bh VALUES (3), (4);
+COMMIT;
+--source trigger_hook_trace.inc
+SELECT * FROM t_in ORDER BY a;
+
+DROP TABLE bh, t_in;
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos

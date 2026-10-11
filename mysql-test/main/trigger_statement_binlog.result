@@ -1,0 +1,130 @@
+#
+# MDEV-41218 A failing FOR EACH STATEMENT trigger is logged with its error
+#
+# A FOR EACH STATEMENT trigger fires inside the DML function, after the
+# statement's last row is written and before the statement is written
+# to the binary log.  When its body fails on a table that cannot roll
+# back, the rows stay in the table, and the statement is logged with
+# the body's error code, as a statement whose AFTER ROW trigger fails
+# is.  Every DML function that fires FOR EACH STATEMENT triggers is
+# covered: INSERT, INSERT ... SELECT, LOAD DATA, UPDATE, multi-table
+# UPDATE, DELETE and multi-table DELETE.
+CREATE TABLE t_ins (a INT) ENGINE=MyISAM;
+CREATE TABLE t_sel (a INT) ENGINE=MyISAM;
+CREATE TABLE t_load (a INT) ENGINE=MyISAM;
+CREATE TABLE t_upd (a INT) ENGINE=MyISAM;
+CREATE TABLE t_mupd (a INT) ENGINE=MyISAM;
+CREATE TABLE t_del (a INT) ENGINE=MyISAM;
+CREATE TABLE t_mdel (a INT) ENGINE=MyISAM;
+CREATE TABLE t_row (a INT) ENGINE=MyISAM;
+CREATE TABLE t_src (a INT) ENGINE=MyISAM;
+INSERT INTO t_src VALUES (1), (2);
+INSERT INTO t_upd VALUES (1), (2);
+INSERT INTO t_mupd VALUES (1), (2);
+INSERT INTO t_del VALUES (1), (2), (3);
+INSERT INTO t_mdel VALUES (1), (2), (3);
+SELECT a + 10 FROM t_src INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.txt';
+CREATE TRIGGER t_ins_stmt AFTER INSERT ON t_ins FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_sel_stmt AFTER INSERT ON t_sel FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_load_stmt AFTER INSERT ON t_load FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_upd_stmt AFTER UPDATE ON t_upd FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_mupd_stmt AFTER UPDATE ON t_mupd FOR EACH STATEMENT
+SET @x= 1;
+CREATE TRIGGER t_del_stmt AFTER DELETE ON t_del FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t_mdel_stmt AFTER DELETE ON t_mdel FOR EACH STATEMENT
+SET @x= 1;
+CREATE TRIGGER t_row_row AFTER INSERT ON t_row FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row trigger failed';
+FLUSH BINARY LOGS;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug= '+d,trg_stmt_body_fails';
+INSERT INTO t_ins VALUES (1), (2);
+ERROR HY000: FOR EACH STATEMENT trigger t_ins_stmt failed (injected)
+INSERT INTO t_sel SELECT a FROM t_src;
+ERROR HY000: FOR EACH STATEMENT trigger t_sel_stmt failed (injected)
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/trigger_statement_binlog.txt' INTO TABLE t_load;
+ERROR HY000: FOR EACH STATEMENT trigger t_load_stmt failed (injected)
+UPDATE t_upd SET a= a + 10;
+ERROR HY000: FOR EACH STATEMENT trigger t_upd_stmt failed (injected)
+UPDATE t_mupd, t_src SET t_mupd.a= t_mupd.a + 10 WHERE t_mupd.a = t_src.a;
+ERROR HY000: FOR EACH STATEMENT trigger t_mupd_stmt failed (injected)
+DELETE FROM t_del WHERE a < 3;
+ERROR HY000: FOR EACH STATEMENT trigger t_del_stmt failed (injected)
+DELETE t_mdel FROM t_mdel, t_src WHERE t_mdel.a = t_src.a;
+ERROR HY000: FOR EACH STATEMENT trigger t_mdel_stmt failed (injected)
+SET debug_dbug= @save_dbug;
+# The same with a failing AFTER ROW trigger, for comparison
+INSERT INTO t_row VALUES (1), (2);
+ERROR 45000: row trigger failed
+# The tables cannot roll back: the rows of the failed statements stay
+SELECT * FROM t_ins ORDER BY a;
+a
+1
+2
+SELECT * FROM t_sel ORDER BY a;
+a
+1
+2
+SELECT * FROM t_load ORDER BY a;
+a
+11
+12
+SELECT * FROM t_upd ORDER BY a;
+a
+11
+12
+SELECT * FROM t_mupd ORDER BY a;
+a
+11
+12
+SELECT * FROM t_del ORDER BY a;
+a
+3
+SELECT * FROM t_mdel ORDER BY a;
+a
+3
+SELECT * FROM t_row ORDER BY a;
+a
+1
+FLUSH BINARY LOGS;
+# Each failed statement with the error code it was logged with
+binlogged: INSERT INTO t_ins VALUES (1), (2) with error_code=1105
+binlogged: INSERT INTO t_sel SELECT a FROM t_src with error_code=1105
+binlogged: LOAD DATA LOCAL INFILE '<file>' INTO TABLE `t_load` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`) with error_code=1105
+binlogged: UPDATE t_upd SET a= a + 10 with error_code=1105
+binlogged: UPDATE t_mupd, t_src SET t_mupd.a= t_mupd.a + 10 WHERE t_mupd.a = t_src.a with error_code=1105
+binlogged: DELETE FROM t_del WHERE a < 3 with error_code=1105
+binlogged: DELETE t_mdel FROM t_mdel, t_src WHERE t_mdel.a = t_src.a with error_code=1105
+binlogged: INSERT INTO t_row VALUES (1), (2) with error_code=1644
+DROP TABLE t_ins, t_sel, t_load, t_upd, t_mupd, t_del, t_mdel, t_row, t_src;
+#
+# MDEV-41218 A failing FOR EACH STATEMENT trigger on a transactional table
+#
+# The statement is rolled back, so nothing of it is logged: not when it
+# is the whole transaction, and not inside a transaction, which logs
+# only its other statements.
+CREATE TABLE ti (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER ti_stmt AFTER INSERT ON ti FOR EACH STATEMENT SET @x= 1;
+FLUSH BINARY LOGS;
+SET debug_dbug= '+d,trg_stmt_body_fails';
+INSERT INTO ti VALUES (1), (2);
+ERROR HY000: FOR EACH STATEMENT trigger ti_stmt failed (injected)
+SET debug_dbug= @save_dbug;
+BEGIN;
+INSERT INTO ti VALUES (3), (4);
+SET debug_dbug= '+d,trg_stmt_body_fails';
+INSERT INTO ti VALUES (5), (6);
+ERROR HY000: FOR EACH STATEMENT trigger ti_stmt failed (injected)
+SET debug_dbug= @save_dbug;
+INSERT INTO ti VALUES (7), (8);
+COMMIT;
+SELECT * FROM ti ORDER BY a;
+a
+3
+4
+7
+8
+FLUSH BINARY LOGS;
+binlogged: INSERT INTO ti VALUES (3), (4) with error_code=0
+binlogged: INSERT INTO ti VALUES (7), (8) with error_code=0
+DROP TABLE ti;

@@ -1279,6 +1279,17 @@ update_end:
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   /*
+    FOR EACH STATEMENT triggers fire after the last row and before the
+    statement is logged, so a failing body is logged like a failing
+    AFTER ROW trigger; see trg_fire_statement_triggers().
+  */
+  if (trg_fire_statement_triggers(thd, error >= 0))
+  {
+    error= 1;
+    killed_status= thd->killed;
+  }
+
+  /*
     Invalidate the table in the query cache if something changed.
     This must be before binlog writing and ha_autocommit_...
   */
@@ -2951,6 +2962,12 @@ bool multi_update::send_eof()
   int local_error= thd->is_error();
   if (likely(!local_error))
     local_error = (table_count) ? do_updates() : 0;
+  /*
+    FOR EACH STATEMENT triggers fire after the last row and before the
+    statement is logged, as in Sql_cmd_update::update_single_table().
+  */
+  if (trg_fire_statement_triggers(thd, local_error != 0))
+    local_error= 1;
   /*
     if local_error is not set ON until after do_updates() then
     later carried out killing should not affect binlogging.

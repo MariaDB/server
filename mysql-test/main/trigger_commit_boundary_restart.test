@@ -1,0 +1,67 @@
+#
+# AFTER ... BEFORE COMMIT [OR SAVEPOINT] triggers: the statement that a
+# commit boundary runs its bodies in, when opening its tables starts over.
+# No trigger body is executed yet, but the boundary opens and locks the
+# tables the bodies use.
+#
+
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-41218 A commit boundary that starts opening its tables over
+--echo #
+--echo # The boundary's statement opens the tables whose triggers fire, adds
+--echo # the tables of their bodies, and opens those.  When one of them makes
+--echo # the server close everything and open the tables again, the tables
+--echo # of the bodies are already in the table list.  Here a body writes a
+--echo # system-versioned table that needs a new history partition, which is
+--echo # created when the table is opened, and reads a view.
+
+SET timestamp= UNIX_TIMESTAMP('2000-01-01 00:00:00');
+CREATE TABLE tb (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE tb_src (n INT) ENGINE=InnoDB;
+CREATE VIEW tb_v AS SELECT n FROM tb_src;
+CREATE TABLE tb_hist (n INT) ENGINE=InnoDB WITH SYSTEM VERSIONING
+  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR AUTO PARTITIONS 3;
+INSERT INTO tb_src VALUES (1), (2);
+INSERT INTO tb_hist VALUES (1), (2);
+CREATE TRIGGER tb_commit AFTER INSERT ON tb BEFORE COMMIT OR SAVEPOINT
+  UPDATE tb_hist SET n= n + (SELECT COUNT(*) FROM tb_v);
+
+let $partitions= SELECT PARTITION_NAME FROM INFORMATION_SCHEMA.PARTITIONS
+  WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 'tb_hist'
+  ORDER BY PARTITION_ORDINAL_POSITION;
+eval $partitions;
+
+--echo # At COMMIT
+SET timestamp= UNIX_TIMESTAMP('2000-01-01 02:00:00');
+BEGIN;
+INSERT INTO tb VALUES (1), (2);
+COMMIT;
+eval $partitions;
+SELECT id FROM tb ORDER BY id;
+
+--echo # At SAVEPOINT: the transaction goes on, and commits
+SET timestamp= UNIX_TIMESTAMP('2000-01-01 03:00:00');
+BEGIN;
+INSERT INTO tb VALUES (3), (4);
+SAVEPOINT s1;
+eval $partitions;
+INSERT INTO tb VALUES (5), (6);
+ROLLBACK TO SAVEPOINT s1;
+COMMIT;
+SELECT id FROM tb ORDER BY id;
+
+--echo # At the implicit commit of a DDL statement
+SET timestamp= UNIX_TIMESTAMP('2000-01-01 04:00:00');
+BEGIN;
+INSERT INTO tb VALUES (7), (8);
+CREATE TABLE tb_ddl (a INT);
+eval $partitions;
+SELECT id FROM tb ORDER BY id;
+
+SET timestamp= DEFAULT;
+DROP TABLE tb_ddl;
+DROP VIEW tb_v;
+DROP TABLE tb, tb_src, tb_hist;

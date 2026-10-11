@@ -1129,6 +1129,7 @@ enum enum_schema_tables
   SCH_TABLE_PRIVILEGES,
   SCH_TRIGGERS,
   SCH_TRIGGERED_UPDATE_COLUMNS,
+  SCH_TRIGGERED_CAPTURE_COLUMNS,
   SCH_USERS,
   SCH_USER_PRIVILEGES,
   SCH_VIEWS,
@@ -5932,6 +5933,7 @@ int ha_enable_transaction(THD *thd, bool on);
 /* savepoints */
 int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv);
 bool ha_rollback_to_savepoint_can_release_mdl(THD *thd);
+int ha_savepoint_check(THD *thd);
 int ha_savepoint(THD *thd, SAVEPOINT *sv);
 int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
 #ifdef WITH_WSREP

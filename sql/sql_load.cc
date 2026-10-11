@@ -736,6 +736,13 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   free_blobs(table);				/* if pack_blob was used */
   table->copy_blobs=0;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
+  /*
+    FOR EACH STATEMENT triggers fire after the last row and before the
+    statement is logged, so a failing body is logged like a failing
+    AFTER ROW trigger; see trg_fire_statement_triggers().
+  */
+  if (trg_fire_statement_triggers(thd, error != 0))
+    error= 1;
   /* 
      simulated killing in the middle of per-row loop
      must be effective for binlogging
