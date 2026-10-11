@@ -1967,6 +1967,41 @@ public:
 
 
 /**
+  This class is responsible for storing a kind of current trigger event
+  for processing of the clauses INSERTING, UPDATING, DELETING inside
+  trigger's body.
+  Before start processing of triggers for the given event type, the event type
+  is made the current one in constructor of the class Trigger_event_guard,
+  and the previous one is restored after processing all triggers of this
+  event type by running destructor of the class Trigger_event_guard.
+
+  Every time when one of the clauses INSERTING, UPDATING, DELETING is
+  evaluated on processing a trigger body, it is matched against the event
+  type of the trigger being executed. A DML statement run by the trigger's
+  body changes the current event only while it fires triggers of its own, so
+  the current event is always the event of the innermost trigger being
+  executed.
+  @see Item_trigger_type_of_statement::val_bool()
+*/
+class Trigger_event_guard
+{
+  Statement *m_stmt;
+  trg_event_type m_saved_event;
+public:
+  Trigger_event_guard(Statement *stmt,
+                      trg_event_type event)
+  : m_stmt{stmt}, m_saved_event{stmt->current_trg_event()}
+  {
+    m_stmt->set_current_trg_event(event);
+  }
+  ~Trigger_event_guard()
+  {
+    m_stmt->set_current_trg_event(m_saved_event);
+  }
+};
+
+
+/**
   Container for all statements created/used in a connection.
   Statements in Statement_map have unique Statement::id (guaranteed by id
   assignment in Statement::Statement)
@@ -2021,6 +2056,10 @@ private:
   Statement *last_found_statement;
 };
 
+class Trg_commit_accumulator;
+void trg_commit_detach(Trg_commit_accumulator *acc);
+struct Trg_firing_link;
+
 struct st_savepoint {
   struct st_savepoint *prev;
   char                *name;
@@ -2028,6 +2067,13 @@ struct st_savepoint {
   Ha_trx_info         *ha_list;
   /** State of metadata locks before this savepoint was set. */
   MDL_savepoint        mdl_savepoint;
+  /**
+    Length of the BEFORE COMMIT trigger accumulator when this savepoint
+    was set.
+    Recorded whether or not any trigger fires on SAVEPOINT; ROLLBACK TO
+    SAVEPOINT truncates the accumulator back to it.
+  */
+  ulonglong            trg_commit_pos;
 };
 
 /**
@@ -3649,6 +3695,17 @@ public:
   */
   bool stmt_state_conflicts_with_ps() const;
 
+  /*
+    The BEFORE COMMIT firings in progress, innermost first; not empty
+    only while a boundary runs trigger bodies.
+  */
+  Trg_firing_link *trg_firing_chain= nullptr;
+  /*
+    The statement whose commit failed at its BEFORE COMMIT triggers; the
+    transaction was rolled back with the accumulator, so this outlives
+    both (see trg_commit_boundary_failed()).
+  */
+  query_id_t trg_commit_failed_query_id= 0;
   /* True when opt_userstat_running is set at start of query */
   bool userstat_running;
   /*
@@ -3933,11 +3990,20 @@ public:
     */
     CHANGED_TABLE_LIST* changed_tables;
     MEM_ROOT mem_root; // Transaction-life memory allocation pool
+    /*
+      Rows captured for BEFORE COMMIT triggers in this transaction.
+      Allocated on mem_root on the first captured row, so it lives and
+      dies with the transaction exactly like the savepoint list.
+    */
+    Trg_commit_accumulator *trg_commit;
     void cleanup()
     {
       DBUG_ENTER("THD::st_transactions::cleanup");
       changed_tables= 0;
       savepoints= 0;
+      if (trg_commit)
+        trg_commit_detach(trg_commit);
+      trg_commit= 0;
       implicit_xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;

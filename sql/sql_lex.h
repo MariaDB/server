@@ -271,6 +271,7 @@ class LEX_COLUMN;
 class sp_head;
 class sp_name;
 class sp_instr;
+class Trg_stmt_set;
 class sp_instr_fetch_cursor;
 class sp_pcontext;
 class sp_variable;
@@ -1797,6 +1798,9 @@ struct st_trg_chistics: public st_trg_execution_order
 {
   enum trg_action_time_type action_time;
   trg_event_set events;
+  /* FOR EACH ROW | FOR EACH STATEMENT | BEFORE COMMIT [OR SAVEPOINT] */
+  enum trg_granularity_type granularity;
+  bool fires_on_savepoint;
 
   const char *ordering_clause_begin;
   const char *ordering_clause_end;
@@ -1806,6 +1810,14 @@ struct st_trg_chistics: public st_trg_execution_order
     must be fired.
   */
   List<LEX_CSTRING> *on_update_col_names;
+
+  /*
+    FOR EACH STATEMENT | BEFORE COMMIT [OR SAVEPOINT] followed by
+    OF col, ... (capture only these columns) or EXCEPT col, ... (capture
+    all columns but these).  NULL when there is no list: all columns.
+  */
+  List<LEX_CSTRING> *capture_col_names;
+  bool capture_cols_except;
 };
 
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
@@ -3725,6 +3737,14 @@ public:
   st_trg_chistics trg_chistics;
 
   /*
+    The rows this statement captured for FOR EACH STATEMENT triggers and
+    the events it activated, on the statement's mem_root; fired and reset
+    at its end.  A statement inside a routine or a trigger body has a LEX,
+    and so a set, of its own.
+  */
+  Trg_stmt_set *trg_stmt_set= nullptr;
+
+  /*
     stmt_definition_begin is intended to point to the next word after
     DEFINER-clause in the following statements:
       - CREATE TRIGGER (points to "TRIGGER");
@@ -4149,6 +4169,7 @@ public:
                                      enum_sp_aggregate_type agg_type);
   bool sp_body_finalize_routine(THD *);
   bool sp_body_finalize_trigger(THD *);
+  bool check_multi_row_trigger_chistics();
   bool sp_body_finalize_event(THD *);
   bool sp_body_finalize_function(THD *);
   bool sp_body_finalize_procedure(THD *);

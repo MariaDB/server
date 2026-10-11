@@ -74,12 +74,12 @@ ERROR 42000: Trigger 'tr13' has an error in its body: 'You have an error in your
 CREATE TRIGGER tr22 BEFORE INSERT ON t2 FOR EACH ROW DELETE FROM non_existing_table;
 ERROR 42000: Unknown trigger has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'Not allowed syntax here, and trigger name cant be extracted either.' at line 1'
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr11	INSERT	t1	DELETE FROM t3	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr12	INSERT	t1	DELETE FROM t3	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr15	UPDATE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr13	DELETE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr14	DELETE	t1	DELETE FROM non_existing_table	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+tr11	INSERT	t1	DELETE FROM t3	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr12	INSERT	t1	DELETE FROM t3	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr15	UPDATE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr13	DELETE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr14	DELETE	t1	DELETE FROM non_existing_table	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 INSERT INTO t1 VALUES (1);
 ERROR 42000: Trigger 'tr13' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING t1 a' at line 1'
 INSERT INTO t2 VALUES (1);
@@ -96,12 +96,12 @@ a
 RENAME TABLE t1 TO t1_2;
 ERROR 42000: Trigger 'tr13' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'USING t1 a' at line 1'
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr11	INSERT	t1	DELETE FROM t3	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr12	INSERT	t1	DELETE FROM t3	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr15	UPDATE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr13	DELETE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-tr14	DELETE	t1	DELETE FROM non_existing_table	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+tr11	INSERT	t1	DELETE FROM t3	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr12	INSERT	t1	DELETE FROM t3	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr15	UPDATE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr15 BEFORE UPDATE ON t1 FOR EACH ROW DELETE FROM non_existing_table a USING non_existing_table a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr13	DELETE	t1	CREATE DEFINER=`root`@`localhost` TRIGGER tr13 BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t1 a USING t1 a	BEFORE	#			latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+tr14	DELETE	t1	DELETE FROM non_existing_table	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 DROP TRIGGER tr11;
 Warnings:
 Warning	1603	Triggers for table `test`.`t1` have no creation context
@@ -110,7 +110,7 @@ DROP TRIGGER tr13;
 DROP TRIGGER tr14;
 DROP TRIGGER tr15;
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # Make sure there is no trigger file left.
 # We write the same trigger files one more time to test DROP TABLE.
 FLUSH TABLE t1;
@@ -173,6 +173,7 @@ Definer
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
 TRIGGER_SCHEMA	test
@@ -238,6 +239,7 @@ Definer
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
 TRIGGER_SCHEMA	test
@@ -298,6 +300,7 @@ Definer	root@localhost
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 Trigger	tr1
 Event	DELETE
 Table	t1
@@ -315,6 +318,7 @@ Definer
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
 TRIGGER_SCHEMA	test
@@ -375,6 +379,7 @@ Definer	root@localhost
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 Trigger	tr1
 Event	DELETE
 Table	t1
@@ -392,6 +397,7 @@ Definer
 character_set_client	utf8mb4
 collation_connection	utf8mb4_general_ci
 Database Collation	latin1_swedish_ci
+Orientation	ROW
 SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
 TRIGGER_CATALOG	def
 TRIGGER_SCHEMA	test
@@ -445,7 +451,7 @@ call mtr.add_suppression('Trigger for table ''test''.''mdev38801''');
 create table mdev38801 (a int);
 insert into mdev38801 values (1);
 show triggers like 'mdev38801';
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 Warnings:
 Warning	1604	Trigger creation context of table `test`.`mdev38801` is invalid
 drop table mdev38801;

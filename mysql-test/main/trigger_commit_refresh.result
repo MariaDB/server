@@ -1,0 +1,14 @@
+# CREATE TRIGGER client_test_db.t_refresh_trg_commit: AFTER INSERT ON t_refresh_trg BEFORE COMMIT, body compiled, added to the BEFORE COMMIT list of the table
+# prelocking for client_test_db.t_refresh_trg: INSERT BEFORE COMMIT triggers are NOT prelocked by this statement
+# column marking for client_test_db.t_refresh_trg: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for client_test_db.t_refresh_trg, columns: a, + __op_order, __op, __state; fixed from triggers t_refresh_trg_commit; has OR SAVEPOINT triggers: no
+# capture INSERT row of client_test_db.t_refresh_trg (NEW=record[0]) into the transaction accumulator at position 0
+# capture INSERT row of client_test_db.t_refresh_trg (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# implicit COMMIT (statement: ): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# implicit COMMIT (statement: ): client_test_db.t_refresh_trg enters the firing chain at depth 1; it is closed, transactional MDL_SHARED_WRITE held: yes; re-opening it to reach its triggers
+# implicit COMMIT (statement: ): FIRE client_test_db.t_refresh_trg_commit (AFTER INSERT BEFORE COMMIT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# implicit COMMIT (statement: ): a body failed; the transaction is rolled back, and the statement that caused the commit fails
+# ROLLBACK of the transaction: 2 captured rows discarded; BEFORE COMMIT triggers had ALREADY FIRED, their writes roll back with the transaction
+# transaction end: accumulator of 2 rows freed with the transaction mem_root

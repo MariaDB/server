@@ -3469,6 +3469,22 @@ has_temporary_error(THD *thd)
       DBUG_RETURN(1);
   }
 
+  /*
+    A BEFORE COMMIT trigger body failed and the transaction was rolled
+    back: the body's error is a further condition, and it may be one to
+    retry, such as a lock wait timeout.
+  */
+  if (current_errno == ER_TRG_BEFORE_COMMIT_ROLLBACK)
+  {
+    Diagnostics_area::Sql_condition_iterator it=
+      thd->get_stmt_da()->sql_conditions();
+    const Sql_condition *cond;
+    while ((cond= it++))
+      for (uint i= 0; i < slave_transaction_retry_error_length; i++)
+        if (cond->get_sql_errno() == slave_transaction_retry_errors[i])
+          DBUG_RETURN(1);
+  }
+
   DBUG_RETURN(0);
 }
 

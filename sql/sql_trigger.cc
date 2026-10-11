@@ -381,11 +381,12 @@ Trigger::~Trigger()
 Trigger* Table_triggers_list::for_all_triggers(Triggers_processor func,
                                                void *arg)
 {
+  for (uint g= 0; g < (uint) TRG_GRANULARITY_COMMIT; g++)
   for (uint i= 0; i < (uint)TRG_EVENT_MAX; i++)
   {
     for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
     {
-      for (Trigger *trigger= get_trigger(i,j) ;
+      for (Trigger *trigger= triggers[g][i][j] ;
            trigger ;
            trigger= trigger->next[i])
         if (is_the_right_most_event_bit(trigger->events, i) &&
@@ -396,6 +397,14 @@ Trigger* Table_triggers_list::for_all_triggers(Triggers_processor func,
         }
     }
   }
+  /*
+    BEFORE COMMIT triggers in their firing order.  This is also the order
+    of the .TRG file, which is how that order survives a reload.
+  */
+  for (Trigger *trigger= commit_triggers; trigger;
+       trigger= trigger->next_commit)
+    if ((trigger->*func)(arg))
+      return trigger;
   return 0;
 }
 
@@ -962,6 +971,44 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     DBUG_RETURN(true);
 
   /*
+    A BEFORE COMMIT trigger needs a commit boundary, statement rollback and
+    ROLLBACK TO SAVEPOINT to mean something, so the table must be
+    transactional.  The rule must hold for the life of the trigger: an
+    ALTER TABLE ... ENGINE= to a non-transactional engine is refused while
+    one exists (mysql_alter_table()).
+  */
+  if (lex->trg_chistics.granularity == TRG_GRANULARITY_COMMIT &&
+      !table->file->has_transactions_and_rollback())
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "BEFORE COMMIT trigger on a non-transactional table");
+    DBUG_RETURN(true);
+  }
+
+  /*
+    The columns a FOR EACH STATEMENT or BEFORE COMMIT trigger captures
+    must exist, must not be named like the control columns of a captured
+    row, and must not be empty.  ALTER TABLE does not check them again; building the capture
+    set does.
+  */
+  if (lex->trg_chistics.granularity != TRG_GRANULARITY_ROW)
+  {
+    MY_BITMAP columns;
+    if (my_bitmap_init(&columns, nullptr, table->s->fields))
+      DBUG_RETURN(true);
+    bool error= trg_capture_columns_resolve(table,
+                                            lex->trg_chistics.capture_col_names,
+                                            lex->trg_chistics.capture_cols_except,
+                                            &columns, true);
+    my_bitmap_free(&columns);
+    if (error)
+      DBUG_RETURN(true);
+  }
+
+  /* A BEFORE COMMIT body may not use savepoints */
+  trg_commit_check_body_at_create(thd, lex);
+
+  /*
     Let us check if all references to fields in old/new versions of row in
     this trigger are ok.
 
@@ -998,10 +1045,15 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     if (!(trigger= find_trigger(&lex->trg_chistics.anchor_trigger_name, 0)) ||
         /*
           check that every event listed for the trigger being created is also
-          specified for anchored trigger
+          specified for anchored trigger.  BEFORE COMMIT triggers fire at
+          one event, the commit, so any of them can be the anchor.
         */
-        !is_subset_of_trg_events(trigger->events, lex->trg_chistics.events) ||
-        trigger->action_time != lex->trg_chistics.action_time)
+        (lex->trg_chistics.granularity != TRG_GRANULARITY_COMMIT &&
+         !is_subset_of_trg_events(trigger->events,
+                                  lex->trg_chistics.events)) ||
+        trigger->action_time != lex->trg_chistics.action_time ||
+        /* FOLLOWS/PRECEDES orders triggers within one granularity only */
+        trigger->granularity != lex->trg_chistics.granularity)
     {
       my_error(ER_REFERENCED_TRG_DOES_NOT_EXIST, MYF(0),
                lex->trg_chistics.anchor_trigger_name.str);
@@ -1139,6 +1191,28 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   trigger->connection_cl_name= thd->variables.collation_connection->coll_name;
   trigger->db_cl_name= get_default_db_collation(thd, tables->db.str)->coll_name;
   trigger->name= Lex_ident_trigger(lex->spname->m_name);
+  /*
+    The granularity, OR SAVEPOINT and the capture column list are not
+    written to the .TRG file as keys: they are re-parsed from the
+    definition text at every load.  A server that predates these clauses
+    cannot parse that text, so after a downgrade it marks the table's
+    triggers unparseable, and every statement that writes a row of the
+    table fails with ER_PARSE_ERROR.  Nor can it drop such a trigger: its
+    parser stops before it reads the trigger's name, which DROP TRIGGER
+    looks the trigger up by.  So these triggers must be dropped before a
+    downgrade.
+  */
+  trigger->granularity= lex->trg_chistics.granularity;
+  trigger->fires_on_savepoint= lex->trg_chistics.fires_on_savepoint;
+  if (trigger->granularity != TRG_GRANULARITY_ROW)
+    trg_hook_trace("CREATE TRIGGER %s.%s: AFTER %s ON %s %s%s, "
+                   "body compiled, added to the %s list of the table",
+                   tables->db.str, trigger->name.str,
+                   trg_event_type_names[lex->trg_chistics.events].str,
+                   tables->table_name.str,
+                   trg_granularity_clause(trigger->granularity),
+                   trigger->fires_on_savepoint ? " OR SAVEPOINT" : "",
+                   trg_granularity_type_names[trigger->granularity].str);
 
 
   /* Add trigger in it's correct place */
@@ -1374,13 +1448,14 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
 {
   Trigger *trigger = nullptr;
 
+  for (uint g= 0; g < (uint) TRG_GRANULARITY_MAX; g++)
   for (uint i= 0; i < (uint)TRG_EVENT_MAX; i++)
   {
     for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
     {
       Trigger **parent;
 
-      for (parent= &triggers[i][j];
+      for (parent= &triggers[g][i][j];
            (trigger= *parent);
            parent= &trigger->next[i])
       {
@@ -1407,6 +1482,8 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
               trigger->events &= ~(1 << i);
               continue;
             }
+            if (trigger->granularity == TRG_GRANULARITY_COMMIT)
+              remove_commit_trigger(trigger);
           }
           return trigger;
         }
@@ -1518,12 +1595,13 @@ Table_triggers_list::~Table_triggers_list()
     instance of the Trigger class in case there are several events associated
     with the trigger.
   */
+  for (uint g= 0; g < (uint) TRG_GRANULARITY_MAX; g++)
   for (int i= (int)TRG_EVENT_MAX - 1; i >= 0; i--)
   {
     for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
     {
       Trigger *next, *trigger;
-      for (trigger= get_trigger(i,j) ; trigger ; trigger= next)
+      for (trigger= triggers[g][i][j] ; trigger ; trigger= next)
       {
         next= trigger->next[i];
         /*
@@ -1684,13 +1762,17 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
   @param table_mem_root  table mem_root from where a memory is allocated.
   @param [out]  dst_col_names  destination list where to copy an original one
   @param  src_col_names  source list that has to be copied
+  @param  elide_duplicates  copy every column name once (the capture list
+                            of a FOR EACH STATEMENT or BEFORE COMMIT
+                            trigger is a set)
 
   @return false on success, true on OOM error
 */
 static bool
 copy_on_update_columns_list(MEM_ROOT *table_mem_root,
                             List<LEX_CSTRING> **dst_col_names,
-                            List<LEX_CSTRING> *src_col_names)
+                            List<LEX_CSTRING> *src_col_names,
+                            bool elide_duplicates= false)
 {
   if (!src_col_names)
   {
@@ -1717,6 +1799,16 @@ copy_on_update_columns_list(MEM_ROOT *table_mem_root,
 
   while ((column_name= columns_it++))
   {
+    if (elide_duplicates)
+    {
+      List_iterator_fast<LEX_CSTRING> copied_it(*result);
+      LEX_CSTRING *copied;
+      while ((copied= copied_it++) &&
+             !Lex_ident_column(*copied).streq(*column_name))
+      {}
+      if (copied)
+        continue;
+    }
     LEX_CSTRING *cname= (LEX_CSTRING*)alloc_root(table_mem_root,
                                                  sizeof(LEX_CSTRING));
 
@@ -1963,6 +2055,22 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           goto err_with_lex_cleanup;
 
         /*
+          Like the UPDATE OF list and the granularity, the capture list is
+          not a .TRG key: it lives only in the definition text.  A server
+          that predates these clauses fails to parse the text, so it marks
+          the table's triggers unparseable (m_has_unparseable_trigger) and
+          every statement that writes a row of the table fails with
+          ER_PARSE_ERROR.  It cannot drop the trigger either, so it must be
+          dropped before a downgrade (see create_trigger()).
+        */
+        if (copy_on_update_columns_list(&table->mem_root,
+                                        &trigger->capture_columns,
+                                        lex.trg_chistics.capture_col_names,
+                                        true))
+          goto err_with_lex_cleanup;
+        trigger->capture_columns_except= lex.trg_chistics.capture_cols_except;
+
+        /*
           events can be equal TRG_EVENT_UNKNOWN only in case of
           fatal parse errors
         */
@@ -1971,6 +2079,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           const Lex_ident_trigger
             anchor_trg_name(lex.trg_chistics.anchor_trigger_name);
 
+          trigger->granularity= lex.trg_chistics.granularity;
+          trigger->fires_on_savepoint= lex.trg_chistics.fires_on_savepoint;
           trigger_list->add_trigger(lex.trg_chistics.events,
                                     lex.trg_chistics.action_time,
                                     TRG_ORDER_NONE, anchor_trg_name, trigger);
@@ -2145,6 +2255,17 @@ void Table_triggers_list::add_trigger(trg_event_set trg_events,
                                         anchor_trigger_name,
                                       Trigger *trigger)
 {
+  /*
+    BEFORE COMMIT triggers all fire at one event, the commit, so they are
+    ordered in one list whatever their events, and FOLLOWS/PRECEDES places
+    them there.  The per-event slots only record which events they capture.
+  */
+  if (trigger->granularity == TRG_GRANULARITY_COMMIT)
+  {
+    add_commit_trigger(ordering_clause, anchor_trigger_name, trigger);
+    ordering_clause= TRG_ORDER_NONE;
+  }
+
   if (is_trg_event_on(trg_events, TRG_EVENT_INSERT))
     add_trigger(TRG_EVENT_INSERT,
                 action_time,
@@ -2168,6 +2289,55 @@ void Table_triggers_list::add_trigger(trg_event_set trg_events,
 }
 
 
+/*
+  Add a BEFORE COMMIT trigger to the table's single list of them, before or
+  after the anchor, or last.
+*/
+
+void Table_triggers_list::add_commit_trigger(trigger_order_type ordering_clause,
+                                             const Lex_ident_trigger &
+                                               anchor_trigger_name,
+                                             Trigger *trigger)
+{
+  Trigger **parent= &commit_triggers;
+  for ( ; *parent ; parent= &(*parent)->next_commit)
+  {
+    if (ordering_clause != TRG_ORDER_NONE &&
+        anchor_trigger_name.streq((*parent)->name))
+    {
+      if (ordering_clause == TRG_ORDER_FOLLOWS)
+        parent= &(*parent)->next_commit;        // Add after this one
+      break;
+    }
+  }
+  trigger->next_commit= *parent;
+  *parent= trigger;
+  renumber_commit_triggers();
+}
+
+
+void Table_triggers_list::remove_commit_trigger(Trigger *trigger)
+{
+  for (Trigger **parent= &commit_triggers; *parent;
+       parent= &(*parent)->next_commit)
+    if (*parent == trigger)
+    {
+      *parent= trigger->next_commit;
+      break;
+    }
+  renumber_commit_triggers();
+}
+
+
+void Table_triggers_list::renumber_commit_triggers()
+{
+  uint position= 0;
+  for (Trigger *trigger= commit_triggers; trigger;
+       trigger= trigger->next_commit)
+    trigger->commit_order= ++position;
+}
+
+
 /**
    Add trigger in the correct position according to ordering clause
    Also update action order
@@ -2182,7 +2352,8 @@ void Table_triggers_list::add_trigger(trg_event_type event,
                                         anchor_trigger_name,
                                       Trigger *trigger)
 {
-  Trigger **parent= &triggers[event][action_time];
+  /* The caller sets trigger->granularity before adding the trigger */
+  Trigger **parent= &triggers[trigger->granularity][event][action_time];
   uint position= 0;
 
   for ( ; *parent ; parent= &(*parent)->next[event], position++)
@@ -2367,12 +2538,15 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   }
   if (table.triggers)
   {
+    for (uint g= 0; g < (uint) TRG_GRANULARITY_MAX; g++)
     for (uint i= 0; i < (uint)TRG_EVENT_MAX; i++)
     {
       for (uint j= 0; j < (uint)TRG_ACTION_MAX; j++)
       {
         Trigger *trigger;
-        for (trigger= table.triggers->get_trigger(i,j) ;
+        for (trigger= table.triggers->
+               get_trigger((trg_granularity_type) g, (trg_event_type) i,
+                           (trg_action_time_type) j) ;
              trigger ;
              trigger= trigger->next[i])
         {
@@ -2804,41 +2978,6 @@ static inline bool do_skip_row_indicator(Diagnostics_area *da,
 
 
 /**
-  This class is responsible for storing a kind of current trigger event
-  for processing of the clauses INSERTING, UPDATING, DELETING inside
-  trigger's body.
-  Before start processing of triggers for the given event type, the event type
-  is made the current one in constructor of the class Trigger_event_guard,
-  and the previous one is restored after processing all triggers of this
-  event type by running destructor of the class Trigger_event_guard.
-
-  Every time when one of the clauses INSERTING, UPDATING, DELETING is
-  evaluated on processing a trigger body, it is matched against the event
-  type of the trigger being executed. A DML statement run by the trigger's
-  body changes the current event only while it fires triggers of its own, so
-  the current event is always the event of the innermost trigger being
-  executed.
-  @see Item_trigger_type_of_statement::val_bool()
-*/
-class Trigger_event_guard
-{
-  Statement *m_stmt;
-  trg_event_type m_saved_event;
-public:
-  Trigger_event_guard(Statement *stmt,
-                      trg_event_type event)
-  : m_stmt{stmt}, m_saved_event{stmt->current_trg_event()}
-  {
-    m_stmt->set_current_trg_event(event);
-  }
-  ~Trigger_event_guard()
-  {
-    m_stmt->set_current_trg_event(m_saved_event);
-  }
-};
-
-
-/**
   Execute trigger for given (event, time) pair.
 
   The operation executes trigger for the specified event (insert, update,
@@ -2881,6 +3020,16 @@ bool Table_triggers_list::process_triggers(THD *thd,
               (skip_row_indicator && *skip_row_indicator == false));
 
   if (check_for_broken_triggers())
+    return TRUE;
+
+  /*
+    The AFTER call is made once per row that was actually written, and
+    has_triggers() keeps the bulk paths that skip it switched off.  This is
+    the one place that sees every row of every DML form (REPLACE fan-out,
+    ON DUPLICATE KEY UPDATE, LOAD DATA, multi-table, replicated rows).
+  */
+  if (time_type == TRG_ACTION_AFTER && has_multi_row_triggers(event) &&
+      capture_row_for_multi_row_triggers(thd, event, old_row_is_record1))
     return TRUE;
 
   if (!(trigger= get_trigger(event, time_type)))
@@ -3012,9 +3161,64 @@ add_tables_and_routines_for_triggers(THD *thd,
   {
     if (table_list->trg_event_map & trg2bit(static_cast<trg_event_type>(i)))
     {
+      /*
+        A FOR EACH STATEMENT trigger runs at the end of the statement,
+        still inside the statement's prelocked set, so its tables are
+        prelocked here like those of a ROW trigger.  A BEFORE COMMIT
+        trigger runs after the statement's tables are closed and unlocked,
+        possibly many statements later: its body tables cannot be part of
+        this set and are opened and locked at the commit boundary instead.  LOCK TABLES is the exception: its
+        locks outlive every commit under it, and nothing can be locked
+        at a boundary in between, so it locks the tables of BEFORE COMMIT
+        bodies too.  So does a statement in autocommit mode, which is the
+        whole transaction: its triggers fire in its own commit, before its
+        tables are unlocked, and bodies that locked their tables then
+        would wait for locks while holding the statement's, which table
+        locks of engines like MyISAM detect no deadlock for.
+      */
+      bool lock_commit_bodies=
+        prelocking_ctx->sql_command == SQLCOM_LOCK_TABLES ||
+        !thd->in_multi_stmt_transaction_mode();
+      bool has_commit_triggers=
+        get_trigger(TRG_GRANULARITY_COMMIT, (trg_event_type) i,
+                    TRG_ACTION_AFTER);
+      /*
+        CREATE TABLE ... SELECT commits in the middle of the statement, and
+        when it fails, InnoDB commits the transaction as it drops the new
+        table, past the BEFORE COMMIT triggers.  So it may not write a table
+        that has them, through a function or a trigger body.  CREATE
+        TEMPORARY TABLE ... SELECT does not commit.
+      */
+      if (has_commit_triggers &&
+          prelocking_ctx->sql_command == SQLCOM_CREATE_TABLE &&
+          thd->lex->create_info.is_create_select() &&
+          !thd->lex->tmp_table())
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "CREATE TABLE ... SELECT that writes a table with BEFORE "
+                 "COMMIT triggers");
+        return TRUE;
+      }
+      if (has_commit_triggers)
+        trg_hook_trace("prelocking for %s.%s: %s BEFORE COMMIT triggers are "
+                       "%s",
+                       table_list->db.str, table_list->table_name.str,
+                       trg_event_type_names[trg2bit((trg_event_type) i)].str,
+                       !lock_commit_bodies ?
+                       "NOT prelocked by this statement" :
+                       prelocking_ctx->sql_command == SQLCOM_LOCK_TABLES ?
+                       "prelocked by LOCK TABLES" :
+                       "prelocked by this statement, which is the "
+                       "transaction");
+      for (int g= 0;
+           g < (int) (lock_commit_bodies ? TRG_GRANULARITY_MAX :
+                                           TRG_GRANULARITY_COMMIT);
+           g++)
       for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
       {
-        Trigger *triggers= table_list->table->triggers->get_trigger(i,j);
+        Trigger *triggers= table_list->table->triggers->
+          get_trigger((trg_granularity_type) g, (trg_event_type) i,
+                      (trg_action_time_type) j);
 
         for ( ; triggers ; triggers= triggers->next[i])
         {
@@ -3058,6 +3262,14 @@ add_tables_and_routines_for_triggers(THD *thd,
  */
 bool Table_triggers_list::match_updatable_columns(List<Item> *fields)
 {
+  /*
+    A FOR EACH STATEMENT or BEFORE COMMIT UPDATE trigger takes no UPDATE
+    OF list and captures every updated row, whatever columns the UPDATE
+    sets, so it always matches; this keeps the direct update path, which
+    bypasses the per-row capture, switched off.  Triggers on other events leave it on.
+  */
+  if (has_multi_row_triggers(TRG_EVENT_UPDATE))
+    return true;
   for (uint i= 0; i < (uint)TRG_ACTION_MAX; i++)
   {
     for (Trigger *trigger= get_trigger(TRG_EVENT_UPDATE, i) ;
@@ -3118,6 +3330,33 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
         }
       );
     }
+  }
+  /*
+    Every column a captured row holds must be read: the union of the
+    columns the table's STATEMENT triggers capture, and of those its COMMIT
+    triggers capture, whichever capture rows of this event.  Without this
+    an UPDATE reads only the columns it needs and the captured images have
+    holes.  Errors are left to the capture, which checks the columns again.
+  */
+  MY_BITMAP captured;
+  if (has_multi_row_triggers(event) &&
+      !my_bitmap_init(&captured, nullptr, trigger_table->s->fields))
+  {
+    for (uint g= TRG_GRANULARITY_STATEMENT; g < (uint) TRG_GRANULARITY_MAX;
+         g++)
+      if (get_trigger((trg_granularity_type) g, event, TRG_ACTION_AFTER))
+        (void) get_capture_columns((trg_granularity_type) g, &captured,
+                                   false);
+    for (uint i= 0; i < trigger_table->s->fields; i++)
+      if (bitmap_is_set(&captured, i))
+        trigger_table->mark_column_with_deps(trigger_table->field[i]);
+    StringBuffer<256> names;
+    print_capture_columns(&captured, &names);
+    trg_hook_trace("column marking for %s.%s: captured columns marked for "
+                   "read: %s",
+                   trigger_table->s->db.str, trigger_table->s->table_name.str,
+                   names.c_ptr_safe());
+    my_bitmap_free(&captured);
   }
   trigger_table->file->column_bitmaps_signal(false);
   DBUG_VOID_RETURN;

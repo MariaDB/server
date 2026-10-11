@@ -12262,6 +12262,28 @@ alter_copy:
   if (!new_table)
     goto err_new_table_cleanup;
 
+  /*
+    A BEFORE COMMIT trigger requires a transactional table for as long as
+    it exists.  A change of engine always takes this COPY path, and the
+    handler of the new table is the first thing that can tell whether the
+    new table can roll back.
+  */
+  if (table->triggers && table->triggers->has_commit_triggers())
+  {
+    bool transactional= new_table->file->has_transactions_and_rollback();
+    trg_hook_trace("ALTER TABLE %s.%s: has BEFORE COMMIT triggers, new "
+                   "engine %s is %stransactional: %s",
+                   table_list->db.str, table_list->table_name.str,
+                   new_table->file->table_type(), transactional ? "" : "not ",
+                   transactional ? "allowed" : "refused");
+    if (!transactional)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "BEFORE COMMIT trigger on a non-transactional table");
+      goto err_new_table_cleanup;
+    }
+  }
+
   DBUG_ASSERT(new_table->s->hlindexes() <= 1);
   for (uint i= new_table->s->keys; i < new_table->s->total_keys; i++)
     if (new_table->hlindex_open(i))

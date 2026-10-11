@@ -368,6 +368,11 @@ sp_get_flags_for_command(LEX *lex)
       flags= sp_head::MULTI_RESULTS; 
     break;
   }
+  case SQLCOM_SAVEPOINT:
+  case SQLCOM_ROLLBACK_TO_SAVEPOINT:
+  case SQLCOM_RELEASE_SAVEPOINT:
+    flags= sp_head::HAS_SAVEPOINT_STMT;
+    break;
   default:
     flags= 0;
     break;

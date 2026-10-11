@@ -54,6 +54,7 @@
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
 #include "sql_table.h"
+#include "sql_trigger.h"                     // trg_fire_statement_triggers
 #include <mysql/service_wsrep.h>
 
 #include <my_bitmap.h>
@@ -5614,6 +5615,25 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_ASSERT(error == 0);
 
   /*
+    The end of a replicated statement: every row of every table it changed
+    has been applied, and with slave_run_triggers_for_rbr the rows went
+    through the triggers and were captured.  FOR EACH STATEMENT triggers
+    fire here, before the statement's handling completes: the tables of
+    trigger bodies are still in the table list (removed just below), and
+    the statement transaction is still open (committed in
+    rows_event_stmt_cleanup()).  Without slave_run_triggers_for_rbr
+    nothing was captured and nothing fires: the writes of the primary's
+    trigger bodies arrive as rows of their own.
+  */
+  if (get_flags(STMT_END_F) &&
+      unlikely(trg_fire_statement_triggers(thd, false, true)))
+  {
+    error= thd->get_stmt_da()->sql_errno();
+    thd->is_slave_error= 1;
+    goto err;
+  }
+
+  /*
     Remove trigger's tables. In case of ONLINE ALTER TABLE, event doesn't own
     the table (hence, no tables are locked), and therefore no cleanup should be
     done after each event.
@@ -5642,6 +5662,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_RETURN(error);
 
 err:
+  /* A failed statement fires no FOR EACH STATEMENT trigger */
+  trg_fire_statement_triggers(thd, true);
   if (rgi->tables_to_lock_count)
   {
     restore_empty_query_table_list(thd->lex);

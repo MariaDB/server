@@ -609,9 +609,9 @@ select @a;
 @a
 10
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 drop table t1;
 set sql_mode="traditional";
 create table t1 (a date);
@@ -631,8 +631,8 @@ t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 drop table t1;
 create table t1 (id int);
 create trigger t1_ai after insert on t1 for each row reset query cache;
@@ -2111,8 +2111,8 @@ CREATE TABLE t2 (a INT);
 CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1);
 # Used to crash
 SHOW TRIGGERS IN db1;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 INSERT INTO t2 VALUES (1);
 ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
 SELECT * FROM t1;
@@ -2704,7 +2704,7 @@ a	b
 # in the column `event`. For the trigger t1_b_any the column `event`
 # must contain the value `INSERT,UPDATE,DELETE`
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 t1_b_any	INSERT,UPDATE,DELETE	t1	BEGIN
 IF INSERTING THEN
 INSERT INTO t2 VALUES (NEW.a, 'INSERTING');
@@ -2713,12 +2713,12 @@ INSERT INTO t2 VALUES (NEW.a, 'UPDATING');
 ELSEIF DELETING THEN
 INSERT INTO t2 VALUES (OLD.a, 'DELETING');
 END IF;
-END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 # Check that DROP TRIGGER does work correctly
 DROP TRIGGER t1_b_any;
 # No triggers in output of SHOW TRIGGERS;
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # Clean up
 DROP TABLE t1, t2;
 #

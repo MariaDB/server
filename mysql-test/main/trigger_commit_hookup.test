@@ -1,0 +1,1259 @@
+#
+# AFTER ... FOR EACH STATEMENT and AFTER ... BEFORE COMMIT [OR SAVEPOINT]
+# triggers: syntax, the trigger object, and the server hook points.
+#
+# No trigger body is executed yet.  Each hook writes one "Trigger hook:"
+# line to the error log; trigger_hook_trace.inc prints the lines written
+# by the preceding statements, so the result file shows which hooks each
+# statement reaches and what is available there.
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+# A hook writes its line each time a statement runs, and the ps2 protocol
+# runs every SELECT a second time
+--disable_ps2_protocol
+
+--let $trg_hook_reset= 1
+--source trigger_hook_trace.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY, slot INT, v VARCHAR(10) UNIQUE)
+  ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+
+--echo #
+--echo # Syntax and the trigger object
+--echo #
+
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+  SET @s= 1;
+CREATE TRIGGER t1_commit AFTER INSERT OR UPDATE OR DELETE ON t1
+  BEFORE COMMIT SET @c= 1;
+CREATE TRIGGER t1_commit_savepoint AFTER INSERT ON t1
+  BEFORE COMMIT OR SAVEPOINT SET @p= 1;
+CREATE TRIGGER t1_row AFTER INSERT ON t1 FOR EACH ROW SET @r= 1;
+CREATE TRIGGER t2_stmt AFTER INSERT ON t2 FOR EACH STATEMENT SET @s2= 1;
+--source trigger_hook_trace.inc
+
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad BEFORE INSERT ON t1 BEFORE COMMIT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad BEFORE INSERT ON t1 FOR EACH STATEMENT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER UPDATE OF v ON t1 FOR EACH STATEMENT SET @x= 1;
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER UPDATE OF v ON t1 BEFORE COMMIT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH STATEMENT OR SAVEPOINT
+  SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH SAVEPOINT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH COMMIT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE SAVEPOINT SET @x= 1;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE STATEMENT SET @x= 1;
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE COMMIT SET @x= NEW.id;
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER bad AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= OLD.id;
+--echo # INSERTING, UPDATING and DELETING name the statement that fired the
+--echo # trigger; one BEFORE COMMIT firing covers statements of every kind
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE TRIGGER bad AFTER INSERT OR UPDATE OR DELETE ON t1 BEFORE COMMIT
+  SET @x= INSERTING;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE TRIGGER bad AFTER INSERT OR UPDATE OR DELETE ON t1 BEFORE COMMIT
+  SET @x= UPDATING;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+CREATE TRIGGER bad AFTER INSERT OR UPDATE OR DELETE ON t1
+  BEFORE COMMIT OR SAVEPOINT SET @x= DELETING;
+--echo # A BEFORE COMMIT trigger needs a transactional table, a FOR EACH
+--echo # STATEMENT one does not
+--error ER_NOT_SUPPORTED_YET
+CREATE TRIGGER bad AFTER INSERT ON t2 BEFORE COMMIT SET @x= 1;
+--echo # FOLLOWS/PRECEDES orders triggers of the same granularity only
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t1 BEFORE COMMIT FOLLOWS t1_row
+  SET @x= 1;
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t1 FOR EACH STATEMENT FOLLOWS t1_row
+  SET @x= 1;
+CREATE TRIGGER t1_commit_first AFTER INSERT ON t1 BEFORE COMMIT
+  PRECEDES t1_commit_savepoint SET @f= 1;
+--source trigger_hook_trace.inc
+
+--replace_column 7 #
+SHOW CREATE TRIGGER t1_commit_savepoint;
+--echo # ACTION_ORIENTATION names the clause that follows ON table_name
+SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_TIMING, ACTION_ORIENTATION,
+       ACTION_ORDER
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  ORDER BY EVENT_OBJECT_TABLE, ACTION_ORIENTATION, ACTION_ORDER, TRIGGER_NAME;
+--echo # Only a ROW trigger has the OLD and NEW row variables
+SELECT TRIGGER_NAME, ACTION_ORIENTATION, ACTION_REFERENCE_OLD_ROW,
+       ACTION_REFERENCE_NEW_ROW
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME;
+--echo # SHOW TRIGGERS appends Orientation after its existing columns
+--replace_column 6 #
+SHOW TRIGGERS;
+--source trigger_hook_trace.inc
+
+--echo # Granularity is re-parsed from the .TRG file, not stored
+FLUSH TABLES;
+SELECT TRIGGER_NAME, ACTION_ORIENTATION FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND ACTION_ORIENTATION <> 'ROW'
+  ORDER BY TRIGGER_NAME;
+--source trigger_hook_trace.inc
+
+--echo # RENAME TABLE rewrites "ON t1" and keeps the clause after it
+RENAME TABLE t1 TO t1_renamed;
+--replace_column 7 #
+SHOW CREATE TRIGGER t1_commit_first;
+FLUSH TABLES;
+SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, ACTION_ORIENTATION, ACTION_ORDER
+  FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='test'
+  AND ACTION_ORIENTATION LIKE 'BEFORE COMMIT%' ORDER BY ACTION_ORDER;
+RENAME TABLE t1_renamed TO t1;
+--source trigger_hook_trace.inc
+
+--echo # A table with BEFORE COMMIT triggers cannot become non-transactional
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t1 ENGINE=MyISAM;
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t1 ENGINE=Aria;
+ALTER TABLE t1 ENGINE=InnoDB, ALGORITHM=COPY;
+--source trigger_hook_trace.inc
+SELECT ENGINE FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+SELECT COUNT(*) FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t1';
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Autocommit: the FOR EACH STATEMENT trigger fires at the end of the
+--echo # statement, the BEFORE COMMIT triggers in the statement commit, with
+--echo # the table still open.  Every firing names the account the body would
+--echo # run as: the trigger's DEFINER.
+--echo #
+INSERT INTO t1 VALUES (1, 1, 'a'), (2, 2, 'b');
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Multi-statement transaction with savepoints.  t1_commit_savepoint
+--echo # fires at every SAVEPOINT, the others only at COMMIT, where the table
+--echo # is no longer open and is re-opened under the MDL the DML still holds.
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (3, 1, 'c');
+SAVEPOINT x;
+INSERT INTO t1 VALUES (4, 2, 'd');
+UPDATE t1 SET slot= slot + 10 WHERE id IN (3, 4);
+SAVEPOINT y;
+DELETE FROM t1 WHERE id = 4;
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # ROLLBACK TO SAVEPOINT truncates the accumulator and clamps the
+--echo # watermark of a trigger that already fired over the discarded rows.
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (5, 1, 'e');
+SAVEPOINT s1;
+INSERT INTO t1 VALUES (6, 1, 'f');
+SAVEPOINT s2;
+INSERT INTO t1 VALUES (7, 1, 'g');
+ROLLBACK TO SAVEPOINT s1;
+RELEASE SAVEPOINT s1;
+INSERT INTO t1 VALUES (8, 1, 'h');
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A failed statement inside a transaction: its rows are dropped from
+--echo # the statement set and truncated from the accumulator.
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (9, 2, 'i');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (10, 2, 'j'), (1, 2, 'k');
+COMMIT;
+--source trigger_hook_trace.inc
+SELECT id FROM t1 ORDER BY id;
+--echo # So is one whose statement commit fails: the statement is rolled
+--echo # back, and the next boundary fires over the first statement's row
+--echo # only
+BEGIN;
+INSERT INTO t1 VALUES (10, 2, 'j');
+SET debug_dbug= '+d,trg_stmt_commit_fails';
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (31, 2, 'k');
+SET debug_dbug= '';
+SAVEPOINT s_stmt_commit;
+SELECT id FROM t1 WHERE id IN (10, 31) ORDER BY id;
+ROLLBACK;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # One REPLACE deletes two rows and inserts one: the DELETE COMMIT
+--echo # trigger makes REPLACE delete instead of updating in place.
+--echo #
+REPLACE INTO t1 VALUES (2, 3, 'a');
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # INSERT ... ON DUPLICATE KEY UPDATE captures an UPDATE
+--echo #
+INSERT INTO t1 VALUES (3, 4, 'c') ON DUPLICATE KEY UPDATE slot= 40;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Rows written by a ROW trigger body are captured inside the
+--echo # sub-statement and fire with the outer statement's commit.
+--echo #
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+CREATE TRIGGER t3_row AFTER INSERT ON t3 FOR EACH ROW
+  INSERT INTO t1 VALUES (NEW.a, 5, CONCAT('t3_', NEW.a));
+--source trigger_hook_trace.inc
+INSERT INTO t3 VALUES (100), (101);
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Implicit commit before DDL
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (11, 6, 'l');
+CREATE TABLE t4 (a INT);
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # LOCK TABLES with autocommit=0: the table stays open and locked
+--echo # across COMMIT.  LOCK TABLES locks the tables of BEFORE COMMIT
+--echo # bodies as well as those of ROW and STATEMENT bodies, since nothing
+--echo # can be locked at a COMMIT under it; a DML statement does not lock
+--echo # them.  (BEGIN would end LOCK TABLES.)
+--echo #
+CREATE TABLE t9 (a INT) ENGINE=InnoDB;
+CREATE TABLE t9_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER t9_commit AFTER INSERT ON t9 BEFORE COMMIT
+  INSERT INTO t9_log SELECT COUNT(*) FROM t9;
+INSERT INTO t9 VALUES (1);
+--source trigger_hook_trace.inc
+SET autocommit= 0;
+LOCK TABLES t1 WRITE, t9 WRITE;
+--echo # t9_log is locked only because the body of t9_commit names it
+SELECT COUNT(*) FROM t9_log;
+INSERT INTO t1 VALUES (12, 6, 'm');
+INSERT INTO t9 VALUES (2);
+COMMIT;
+UNLOCK TABLES;
+SET autocommit= 1;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # ROLLBACK discards everything; nothing fires
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (13, 7, 'n');
+ROLLBACK;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A failing BEFORE COMMIT body at a commit rolls back the whole
+--echo # transaction, as the SQL standard has it for a COMMIT whose triggered
+--echo # actions fail, with SQLSTATE 40004.  The body's error stays as a
+--echo # further condition.  The statement that caused the commit does not
+--echo # run.  The injected failure is in the last trigger of t1's list, after
+--echo # the first two have fired.
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (14, 8, 'o');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+COMMIT;
+SHOW WARNINGS;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--echo # The transaction is over, and its row is gone
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 14;
+
+--echo # A body error that is itself a transaction rollback, a deadlock
+--echo # (SQLSTATE 40001), is the error of the statement, so that clients and
+--echo # replicas retry the transaction
+BEGIN;
+INSERT INTO t1 VALUES (34, 8, 'dl');
+SET debug_dbug= '+d,trg_commit_body_deadlocks';
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SHOW WARNINGS;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 34;
+--echo # A lock wait timeout (HY000) is not one: 40004 follows it
+BEGIN;
+INSERT INTO t1 VALUES (35, 8, 'lw');
+SET debug_dbug= '+d,trg_commit_body_lock_wait_timeout';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+COMMIT;
+SHOW WARNINGS;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 35;
+
+--echo # A failure at the boundary that is not a body's rolls the transaction
+--echo # back too, with SQLSTATE 40000 and the failure as a further condition:
+--echo # here a KILL QUERY makes re-opening t1 fail
+--connect con_kill,localhost,root,,test
+--let $con_kill_id= `SELECT CONNECTION_ID()`
+BEGIN;
+INSERT INTO t1 VALUES (36, 8, 'kq');
+SET debug_sync= 'before_execute_sql_command SIGNAL ready WAIT_FOR go';
+--send COMMIT
+--connection default
+SET debug_sync= 'now WAIT_FOR ready';
+--replace_result $con_kill_id CON_KILL
+--eval KILL QUERY $con_kill_id
+SET debug_sync= 'now SIGNAL go';
+--connection con_kill
+--error ER_TRG_BEFORE_COMMIT_NOT_FIRED
+--reap
+SHOW WARNINGS;
+SET debug_sync= 'RESET';
+SELECT @@in_transaction;
+--disconnect con_kill
+--connection default
+SET debug_sync= 'RESET';
+--source trigger_hook_trace.inc
+SELECT COUNT(*) FROM t1 WHERE id = 36;
+
+--echo # An implicit commit: the DDL does not run
+BEGIN;
+INSERT INTO t1 VALUES (22, 8, 'u');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+CREATE TABLE t_not_created (a INT);
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 22;
+SHOW TABLES LIKE 't_not_created';
+
+--echo # BEGIN inside a transaction: no new transaction starts
+BEGIN;
+INSERT INTO t1 VALUES (27, 8, 'z');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+BEGIN;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 27;
+
+--echo # SAVEPOINT is not a commit: it fails with the body's error, sets no
+--echo # savepoint, and the transaction stays active
+BEGIN;
+INSERT INTO t1 VALUES (23, 8, 'v');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_UNKNOWN_ERROR
+SAVEPOINT sv_failed;
+SET debug_dbug= '';
+--error ER_SP_DOES_NOT_EXIST
+ROLLBACK TO SAVEPOINT sv_failed;
+SELECT @@in_transaction;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # So when the savepoint cannot be set after the triggers fired: an
+--echo # engine of the transaction has no savepoints.  The triggers fire
+--echo # again at the next boundary.
+CREATE TABLE t_aria (a INT) ENGINE=Aria TRANSACTIONAL=1;
+BEGIN;
+INSERT INTO t1 VALUES (32, 8, 'sa');
+INSERT INTO t_aria VALUES (1);
+--error ER_CHECK_NOT_IMPLEMENTED
+SAVEPOINT sv_no_engine;
+COMMIT;
+DROP TABLE t_aria;
+DELETE FROM t1 WHERE id = 32;
+--source trigger_hook_trace.inc
+
+--echo # At the end of an autocommit statement the statement is the whole
+--echo # transaction: it fails and is rolled back
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+INSERT INTO t1 VALUES (24, 8, 'w');
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT COUNT(*) FROM t1 WHERE id = 24;
+--echo # It is rolled back once: a non-transactional change that stays is
+--echo # reported once, after 40004
+CREATE TABLE t_ac (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t_ac_log (a INT) ENGINE=MyISAM;
+CREATE TRIGGER t_ac_row AFTER INSERT ON t_ac FOR EACH ROW
+  INSERT INTO t_ac_log VALUES (NEW.a);
+CREATE TRIGGER t_ac_commit AFTER INSERT ON t_ac BEFORE COMMIT SET @x= 1;
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+INSERT INTO t_ac VALUES (1);
+SHOW WARNINGS;
+SET debug_dbug= '';
+SELECT a FROM t_ac_log;
+DROP TABLE t_ac, t_ac_log;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # XA: the triggers fire at XA END, the last point where the branch can
+--echo # still write; XA PREPARE and XA COMMIT find nothing left to fire.
+--echo #
+XA START 'xa1';
+INSERT INTO t1 VALUES (15, 9, 'p');
+XA END 'xa1';
+XA PREPARE 'xa1';
+XA COMMIT 'xa1';
+--source trigger_hook_trace.inc
+
+--echo # XA ROLLBACK after XA END rolls back what the triggers wrote
+XA START 'xa2';
+INSERT INTO t1 VALUES (16, 9, 'q');
+XA END 'xa2';
+XA ROLLBACK 'xa2';
+--source trigger_hook_trace.inc
+
+--echo # A failing body at XA END rolls the branch back and leaves it
+--echo # ROLLBACK ONLY, as a deadlock does: only XA ROLLBACK is accepted
+XA START 'xa3';
+INSERT INTO t1 VALUES (25, 9, 'x');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_XA_RBROLLBACK
+XA END 'xa3';
+SHOW WARNINGS;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--error ER_XAER_RMFAIL
+XA END 'xa3';
+--error ER_XAER_RMFAIL
+XA PREPARE 'xa3';
+--error ER_XAER_RMFAIL
+ROLLBACK;
+XA ROLLBACK 'xa3';
+--source trigger_hook_trace.inc
+SELECT COUNT(*) FROM t1 WHERE id = 25;
+--echo # A deadlock in a body at XA END gives XA_RBDEADLOCK, as a deadlock in
+--echo # the branch does
+XA START 'xa4';
+INSERT INTO t1 VALUES (37, 9, 'xd');
+SET debug_dbug= '+d,trg_commit_body_deadlocks';
+--error ER_XA_RBDEADLOCK
+XA END 'xa4';
+SHOW WARNINGS;
+SET debug_dbug= '';
+XA ROLLBACK 'xa4';
+--source trigger_hook_trace.inc
+SELECT COUNT(*) FROM t1 WHERE id = 37;
+--echo # A lock wait timeout in a body gives XA_RBTIMEOUT
+XA START 'xa5';
+INSERT INTO t1 VALUES (38, 9, 'xt');
+SET debug_dbug= '+d,trg_commit_body_lock_wait_timeout';
+--error ER_XA_RBTIMEOUT
+XA END 'xa5';
+SHOW WARNINGS;
+SET debug_dbug= '';
+XA ROLLBACK 'xa5';
+--source trigger_hook_trace.inc
+SELECT COUNT(*) FROM t1 WHERE id = 38;
+
+--echo #
+--echo # Disconnect with an open transaction rolls it back
+--echo #
+--connect con1,localhost,root,,test
+BEGIN;
+INSERT INTO t1 VALUES (17, 10, 'r');
+--disconnect con1
+--connection default
+--source include/wait_until_count_sessions.inc
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A rollback to a point before a table was first touched removes the
+--echo # table's accumulator entry, not only its rows: the next DML on the
+--echo # table creates the entry again from the triggers the table has then.
+--echo #
+CREATE TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t5_commit AFTER INSERT ON t5 BEFORE COMMIT SET @t5= 1;
+--source trigger_hook_trace.inc
+--echo # ROLLBACK TO a savepoint taken before t5 was touched
+BEGIN;
+INSERT INTO t1 VALUES (20, 11, 's');
+SAVEPOINT before_t5;
+INSERT INTO t5 VALUES (1), (2);
+ROLLBACK TO SAVEPOINT before_t5;
+INSERT INTO t5 VALUES (3);
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # A failed statement that was the first to touch t5
+BEGIN;
+INSERT INTO t1 VALUES (21, 11, 't');
+--error ER_DUP_ENTRY
+INSERT INTO t5 VALUES (4), (4);
+COMMIT;
+--source trigger_hook_trace.inc
+SELECT a FROM t5 ORDER BY a;
+
+--echo #
+--echo # A STATEMENT trigger on a non-transactional table
+--echo #
+INSERT INTO t2 VALUES (1), (2), (3);
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Capture column lists: OF names the captured columns, EXCEPT the ones
+--echo # left out, no list captures every column NEW and OLD can reach
+--echo # (invisible and virtual ones included).  The control columns come
+--echo # in addition.
+--echo #
+CREATE TABLE t6 (id INT PRIMARY KEY, a INT, b BLOB, c INT INVISIBLE,
+                 g INT AS (id + 1) VIRTUAL) ENGINE=InnoDB;
+--echo # Duplicates are elided, column names compare case-insensitively
+CREATE TRIGGER t6_of AFTER INSERT OR UPDATE ON t6 BEFORE COMMIT
+  OF a, A, id SET @x= 1;
+CREATE TRIGGER t6_except AFTER UPDATE ON t6 BEFORE COMMIT OR SAVEPOINT
+  EXCEPT b FOLLOWS t6_of SET @x= 1;
+CREATE TRIGGER t6_stmt_of AFTER INSERT ON t6 FOR EACH STATEMENT OF a
+  SET @x= 1;
+CREATE TRIGGER t6_stmt_except AFTER INSERT OR DELETE ON t6
+  FOR EACH STATEMENT EXCEPT b, g SET @x= 1;
+--echo # OF is not reserved: a body labeled "of" quotes the label
+CREATE TRIGGER t6_label AFTER DELETE ON t6 FOR EACH STATEMENT
+  `of`: BEGIN END;
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER DELETE ON t6 FOR EACH STATEMENT of: BEGIN END;
+--echo # A ROW trigger has no capture list
+--error ER_PARSE_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 FOR EACH ROW OF a SET @x= 1;
+--echo # Unknown columns, and nothing left to capture
+--error ER_BAD_FIELD_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 BEFORE COMMIT OF a, nosuch SET @x= 1;
+--error ER_BAD_FIELD_ERROR
+CREATE TRIGGER bad AFTER INSERT ON t6 FOR EACH STATEMENT EXCEPT nosuch
+  SET @x= 1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+CREATE TRIGGER bad AFTER INSERT ON t6 BEFORE COMMIT EXCEPT id, a, b, c, g
+  SET @x= 1;
+--source trigger_hook_trace.inc
+--replace_column 7 #
+SHOW CREATE TRIGGER t6_except;
+--echo # One row per column captured, after evaluating OF or EXCEPT
+SELECT TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--echo # The lists are re-parsed from the .TRG file, not stored
+FLUSH TABLES;
+SELECT TRIGGER_NAME, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--echo # The statement set and the accumulator entry carry the union of the
+--echo # columns of their triggers; the statement reads them all
+INSERT INTO t6 (id, a, b, c) VALUES (1, 1, 'x', 1), (2, 2, 'y', 2);
+--source trigger_hook_trace.inc
+UPDATE t6 SET a= a + 10;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # ALTER TABLE does not check capture lists; the statement that builds
+--echo # a capture set fails instead.
+--echo #
+ALTER TABLE t6 DROP COLUMN b;
+--source trigger_hook_trace.inc
+--echo # A list that no longer resolves gives a warning and no rows
+SELECT TRIGGER_NAME, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t6'
+  ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--echo # The BEFORE COMMIT triggers' EXCEPT b fails the INSERT
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t6 (id, a, c) VALUES (3, 3, 3);
+--error ER_BAD_FIELD_ERROR
+UPDATE t6 SET a= a + 1;
+--echo # DELETE has only STATEMENT triggers, whose EXCEPT b, g fails it too
+--error ER_BAD_FIELD_ERROR
+DELETE FROM t6 WHERE id= 1;
+--source trigger_hook_trace.inc
+ALTER TABLE t6 ADD COLUMN b BLOB;
+DELETE FROM t6 WHERE id= 1;
+--source trigger_hook_trace.inc
+SELECT id, a, c FROM t6 ORDER BY id;
+
+--echo # Control column names: a captured user column cannot have one.  A
+--echo # row has no row identity column: __rowid is an ordinary name.
+CREATE TABLE t7 (id INT PRIMARY KEY, __op INT, __rowid INT) ENGINE=InnoDB;
+--error ER_DUP_FIELDNAME
+CREATE TRIGGER bad AFTER INSERT ON t7 BEFORE COMMIT SET @x= 1;
+--error ER_DUP_FIELDNAME
+CREATE TRIGGER bad AFTER INSERT ON t7 FOR EACH STATEMENT OF id, __OP
+  SET @x= 1;
+CREATE TRIGGER t7_of AFTER INSERT ON t7 FOR EACH STATEMENT OF id SET @x= 1;
+CREATE TRIGGER t7_except AFTER INSERT ON t7 BEFORE COMMIT EXCEPT __op
+  SET @x= 1;
+INSERT INTO t7 VALUES (1, 1, 1);
+--source trigger_hook_trace.inc
+--echo # ALTER TABLE adds a column named like a control column
+ALTER TABLE t7 ADD COLUMN __state INT;
+SELECT TRIGGER_NAME, EVENT_OBJECT_COLUMN
+  FROM information_schema.TRIGGERED_CAPTURE_COLUMNS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t7'
+  ORDER BY TRIGGER_NAME, EVENT_OBJECT_COLUMN;
+--error ER_DUP_FIELDNAME
+INSERT INTO t7 VALUES (2, 2, 2, 2);
+--source trigger_hook_trace.inc
+SELECT id FROM t7 ORDER BY id;
+
+--echo #
+--echo # BEFORE COMMIT triggers all fire at the commit, so they form one list
+--echo # whatever their events: creation order, or as FOLLOWS/PRECEDES places
+--echo # them, and the anchor may have other events.  STATEMENT triggers keep
+--echo # the per-event order of ROW triggers.
+--echo #
+CREATE TABLE t8 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t8_del AFTER DELETE ON t8 BEFORE COMMIT SET @x= 1;
+CREATE TRIGGER t8_ins AFTER INSERT ON t8 BEFORE COMMIT SET @x= 1;
+CREATE TRIGGER t8_upd AFTER UPDATE ON t8 BEFORE COMMIT PRECEDES t8_del
+  SET @x= 1;
+CREATE TRIGGER t8_all AFTER INSERT OR UPDATE OR DELETE ON t8 BEFORE COMMIT
+  FOLLOWS t8_upd SET @x= 1;
+--echo # For STATEMENT triggers the anchor must have every event of the new one
+CREATE TRIGGER t8_stmt_del AFTER DELETE ON t8 FOR EACH STATEMENT SET @x= 1;
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE TRIGGER bad AFTER INSERT ON t8 FOR EACH STATEMENT FOLLOWS t8_stmt_del
+  SET @x= 1;
+--source trigger_hook_trace.inc
+--echo # ACTION_ORDER of a BEFORE COMMIT trigger is its place in that one list
+SELECT TRIGGER_NAME, EVENT_MANIPULATION, ACTION_ORIENTATION, ACTION_ORDER
+  FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  ORDER BY ACTION_ORIENTATION, ACTION_ORDER;
+--echo # The order is kept in the .TRG file and survives a reload
+FLUSH TABLES;
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+--echo # At the commit they fire in that order
+BEGIN;
+INSERT INTO t8 VALUES (1), (2);
+UPDATE t8 SET a= 3 WHERE a= 1;
+DELETE FROM t8 WHERE a= 2;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # Dropping one closes the gap
+DROP TRIGGER t8_all;
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+--source trigger_hook_trace.inc
+--echo # INFORMATION_SCHEMA.TRIGGERS and SHOW TRIGGERS list them in that
+--echo # order, and mysqldump creates them in the order it gets them, so a
+--echo # restore keeps it
+--exec $MYSQL_DUMP --compact --no-data test t8 > $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+DROP TABLE t8;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t8_dump.sql
+SELECT TRIGGER_NAME, ACTION_ORDER FROM information_schema.TRIGGERS
+  WHERE TRIGGER_SCHEMA='test' AND EVENT_OBJECT_TABLE='t8'
+  AND ACTION_ORIENTATION='BEFORE COMMIT' ORDER BY ACTION_ORDER;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # At a boundary the tables fire in the order in which the transaction
+--echo # first changed them.  Each table enters the firing chain while its
+--echo # triggers run; a table that its bodies write would fire nested
+--echo # under it.
+--echo #
+BEGIN;
+INSERT INTO t5 VALUES (10);
+INSERT INTO t1 VALUES (26, 12, 'y');
+INSERT INTO t5 VALUES (11);
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # A temporary table of the same name does not hide the table from the
+--echo # boundary
+BEGIN;
+INSERT INTO t5 VALUES (12);
+CREATE TEMPORARY TABLE t5 (a INT) ENGINE=InnoDB;
+COMMIT;
+--source trigger_hook_trace.inc
+DROP TEMPORARY TABLE t5;
+
+--echo #
+--echo # A BEFORE COMMIT body may not set, roll back to or release a
+--echo # savepoint.  A FOR EACH STATEMENT body may, as a ROW body may.
+--echo #
+--delimiter |
+CREATE TRIGGER t5_commit_sp AFTER DELETE ON t5 BEFORE COMMIT
+BEGIN
+  SAVEPOINT s;
+  ROLLBACK TO SAVEPOINT s;
+END|
+--delimiter ;
+CREATE TRIGGER t5_stmt_sp AFTER DELETE ON t5 FOR EACH STATEMENT
+  RELEASE SAVEPOINT s;
+--source trigger_hook_trace.inc
+DROP TRIGGER t5_commit_sp;
+DROP TRIGGER t5_stmt_sp;
+
+--echo #
+--echo # A savepoint inside a ROW trigger body, in the middle of a statement:
+--echo # it does not fire OR SAVEPOINT triggers, it only marks the boundary.
+--echo # A trigger body has a savepoint level of its own, so ROLLBACK TO it
+--echo # happens in the same invocation of the body: the statements of the
+--echo # body that ran in between have fired their STATEMENT triggers
+--echo # already, and the accumulator drops their rows.  The statement
+--echo # around the body captured nothing in between.
+--echo #
+CREATE TABLE t10 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t10_child (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t10_stmt AFTER INSERT ON t10 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t10_commit AFTER INSERT ON t10 BEFORE COMMIT OR SAVEPOINT
+  SET @x= 1;
+CREATE TRIGGER t10_child_stmt AFTER INSERT ON t10_child FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t10_child_commit AFTER INSERT ON t10_child BEFORE COMMIT
+  SET @x= 1;
+--delimiter |
+CREATE TRIGGER t10_row AFTER INSERT ON t10 FOR EACH ROW
+BEGIN
+  IF NEW.a = 2 THEN
+    SAVEPOINT in_row;
+    INSERT INTO t10_child VALUES (NEW.a);
+    ROLLBACK TO SAVEPOINT in_row;
+  END IF;
+END|
+--delimiter ;
+--source trigger_hook_trace.inc
+BEGIN;
+INSERT INTO t10 VALUES (1), (2), (3);
+--source trigger_hook_trace.inc
+SELECT a FROM t10 ORDER BY a;
+SELECT a FROM t10_child ORDER BY a;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # A savepoint set outside the body cannot be reached from it
+DROP TRIGGER t10_row;
+CREATE TRIGGER t10_row AFTER INSERT ON t10 FOR EACH ROW
+  ROLLBACK TO SAVEPOINT outside;
+BEGIN;
+SAVEPOINT outside;
+--error ER_SP_DOES_NOT_EXIST
+INSERT INTO t10 VALUES (4);
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A statement that fails fires no FOR EACH STATEMENT trigger, also on a
+--echo # non-transactional table, where the rows it wrote before the error
+--echo # stay
+--echo #
+CREATE TABLE t11 (a INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TRIGGER t11_stmt AFTER INSERT ON t11 FOR EACH STATEMENT SET @x= 1;
+--error ER_DUP_ENTRY
+INSERT INTO t11 VALUES (1), (2), (1);
+--source trigger_hook_trace.inc
+SELECT a FROM t11 ORDER BY a;
+
+--echo #
+--echo # A statement fires the FOR EACH STATEMENT triggers of every event it
+--echo # activates on a table it writes, whether or not it changes a row, as
+--echo # the SQL standard has it.  A row reaches the triggers when the
+--echo # statement matches it, as for an AFTER ROW trigger: a matched row
+--echo # that does not change is captured with OLD and NEW equal.
+--echo #
+UPDATE t1 SET slot= slot WHERE id < 0;
+--source trigger_hook_trace.inc
+--enable_info
+UPDATE t1 SET slot= slot WHERE id = 3;
+--disable_info
+--source trigger_hook_trace.inc
+--echo # A multi-table UPDATE that matches no row of its target
+UPDATE t1 JOIN t3 ON t3.a = t1.id SET t1.slot= 0 WHERE t3.a < 0;
+--source trigger_hook_trace.inc
+--echo # The only change of a transaction is a row set to its own value
+BEGIN;
+UPDATE t1 SET slot= slot WHERE id = 2;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # REPLACE activates INSERT and DELETE, with a conflict or without
+CREATE TABLE t12 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t12_ins AFTER INSERT ON t12 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t12_del AFTER DELETE ON t12 FOR EACH STATEMENT SET @x= 1;
+REPLACE INTO t12 VALUES (1);
+--source trigger_hook_trace.inc
+REPLACE INTO t12 VALUES (1);
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # Rows are collected per table, not per TABLE instance: a self-join
+--echo # that writes the table through two aliases fires its triggers once,
+--echo # over the rows of both.  A row written through both aliases is
+--echo # captured twice.
+--echo #
+CREATE TABLE t13 (id INT PRIMARY KEY, v INT, w INT) ENGINE=InnoDB;
+INSERT INTO t13 VALUES (1, 0, 0), (2, 0, 0), (3, 0, 0), (4, 0, 0);
+CREATE TRIGGER t13_stmt AFTER UPDATE OR DELETE ON t13 FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t13_commit AFTER UPDATE OR DELETE ON t13 BEFORE COMMIT
+  SET @x= 1;
+UPDATE t13 a JOIN t13 b ON b.id = a.id + 1 SET a.v= a.v + 1, b.w= b.w + 1
+  WHERE a.id < 3;
+--source trigger_hook_trace.inc
+SELECT id, v, w FROM t13 ORDER BY id;
+DELETE a, b FROM t13 a JOIN t13 b ON b.id = a.id + 2 WHERE a.id = 1;
+--source trigger_hook_trace.inc
+SELECT id FROM t13 ORDER BY id;
+
+--echo #
+--echo # FOR EACH STATEMENT triggers fire in the order of ROW triggers: a
+--echo # statement with one event follows that event's list, as the ROW
+--echo # triggers of the same events do (they record their order in
+--echo # @row_order).  A statement with more than one event (REPLACE,
+--echo # INSERT ... ON DUPLICATE KEY UPDATE) walks the lists of its events
+--echo # in INSERT, UPDATE, DELETE order, and a trigger fires once, in the
+--echo # first list it is on.
+--echo #
+CREATE TABLE t14 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TRIGGER t14_u AFTER UPDATE ON t14 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t14_iu AFTER INSERT OR UPDATE ON t14 FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t14_d AFTER DELETE ON t14 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t14_id AFTER INSERT OR DELETE ON t14 FOR EACH STATEMENT
+  SET @x= 1;
+CREATE TRIGGER t14_row_u AFTER UPDATE ON t14 FOR EACH ROW
+  SET @row_order= CONCAT(@row_order, 'u ');
+CREATE TRIGGER t14_row_iu AFTER INSERT OR UPDATE ON t14 FOR EACH ROW
+  SET @row_order= CONCAT(@row_order, 'iu ');
+CREATE TRIGGER t14_row_d AFTER DELETE ON t14 FOR EACH ROW
+  SET @row_order= CONCAT(@row_order, 'd ');
+CREATE TRIGGER t14_row_id AFTER INSERT OR DELETE ON t14 FOR EACH ROW
+  SET @row_order= CONCAT(@row_order, 'id ');
+--source trigger_hook_trace.inc
+INSERT INTO t14 VALUES (1, 1), (2, 2);
+--source trigger_hook_trace.inc
+SET @row_order= '';
+UPDATE t14 SET v= v + 1 WHERE id = 2;
+--source trigger_hook_trace.inc
+SELECT @row_order;
+SET @row_order= '';
+DELETE FROM t14 WHERE id = 1;
+--source trigger_hook_trace.inc
+SELECT @row_order;
+--echo # The INSERT list: t14_iu, t14_id; then the DELETE list: t14_d
+REPLACE INTO t14 VALUES (2, 5);
+--source trigger_hook_trace.inc
+--echo # The INSERT list: t14_iu, t14_id; then the UPDATE list: t14_u
+INSERT INTO t14 VALUES (2, 6), (3, 3) ON DUPLICATE KEY UPDATE v= 7;
+--source trigger_hook_trace.inc
+--echo # Without a conflict it activates both events too: the UPDATE list
+--echo # fires t14_u over no row
+INSERT INTO t14 VALUES (10, 10) ON DUPLICATE KEY UPDATE v= 11;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A multi-table UPDATE or DELETE activates its event on the tables it
+--echo # writes, whether rows match or not; a table it only reads fires
+--echo # nothing.  So do the other statements that change no row.  BEFORE
+--echo # COMMIT triggers of an activated event fire at the commit of the
+--echo # autocommit statement.
+--echo #
+UPDATE t13 JOIN t14 ON t14.id = t13.id SET t13.v= 0 WHERE t14.id < 0;
+--source trigger_hook_trace.inc
+DELETE t14 FROM t14 JOIN t13 ON t13.id = t14.id WHERE t13.id < 0;
+--source trigger_hook_trace.inc
+DELETE FROM t14 WHERE id < 0;
+--source trigger_hook_trace.inc
+INSERT INTO t14 SELECT id, v FROM t13 WHERE id < 0;
+--source trigger_hook_trace.inc
+--echo # Reading a table activates nothing
+SELECT COUNT(*) FROM t14;
+--source trigger_hook_trace.inc
+--echo # Nor does EXPLAIN, which changes nothing
+--disable_result_log
+EXPLAIN UPDATE t13 SET v= v + 1;
+EXPLAIN DELETE FROM t13 WHERE id < 0;
+EXPLAIN INSERT INTO t14 VALUES (20, 20);
+--enable_result_log
+--source trigger_hook_trace.inc
+--echo # Nor does reading a table under FOR UPDATE: INSERT ... SELECT and
+--echo # REPLACE ... SELECT write their target only
+INSERT INTO t12 SELECT id + 100 FROM t14 WHERE id < 0 FOR UPDATE;
+--source trigger_hook_trace.inc
+REPLACE INTO t12 SELECT id + 100 FROM t13 WHERE id < 0 FOR UPDATE;
+--source trigger_hook_trace.inc
+--echo # INSERT through a join view writes one table of the view
+CREATE VIEW v13_14 AS
+  SELECT t13.id AS id13, t13.v AS v13, t14.id AS id14, t14.v AS v14
+  FROM t13 JOIN t14 ON t14.id = t13.id;
+INSERT INTO v13_14 (id13, v13) VALUES (50, 50);
+--source trigger_hook_trace.inc
+DROP VIEW v13_14;
+--echo # Each statement of a trigger body activates its own events: the body
+--echo # runs once per row, and each run fires the statement triggers
+CREATE TABLE t16 (a INT) ENGINE=InnoDB;
+CREATE TRIGGER t16_row AFTER INSERT ON t16 FOR EACH ROW
+  DELETE FROM t14 WHERE id < 0;
+INSERT INTO t16 VALUES (1), (2);
+--source trigger_hook_trace.inc
+--echo # DELETE HISTORY fires no DELETE ROW trigger, and activates nothing
+CREATE TABLE t15 (id INT PRIMARY KEY) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+INSERT INTO t15 VALUES (1), (2);
+DELETE FROM t15 WHERE id = 1;
+CREATE TRIGGER t15_stmt AFTER DELETE ON t15 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t15_commit AFTER DELETE ON t15 BEFORE COMMIT SET @x= 1;
+--source trigger_hook_trace.inc
+DELETE HISTORY FROM t15;
+--source trigger_hook_trace.inc
+DELETE FROM t15 WHERE id < 0;
+--source trigger_hook_trace.inc
+DROP TABLE t15, t16;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # BEFORE COMMIT triggers fire at a boundary when a statement activated
+--echo # one of their events on the table since their previous firing, even
+--echo # if no row changed.  Reading the table activates nothing, and ROLLBACK
+--echo # TO SAVEPOINT rolls an activation back.
+--echo #
+BEGIN;
+DELETE FROM t1 WHERE id < 0;
+COMMIT;
+--source trigger_hook_trace.inc
+BEGIN;
+SELECT COUNT(*) FROM t1;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # The activation was the first to touch t1: its entry goes with it
+BEGIN;
+INSERT INTO t5 VALUES (30);
+SAVEPOINT before_delete;
+DELETE FROM t1 WHERE id < 0;
+ROLLBACK TO SAVEPOINT before_delete;
+COMMIT;
+--source trigger_hook_trace.inc
+--echo # After an OR SAVEPOINT trigger fired, an activation fires it again at
+--echo # the next boundary, over no row
+BEGIN;
+INSERT INTO t1 VALUES (48, 14, 'r48');
+SAVEPOINT s48;
+INSERT INTO t1 SELECT * FROM t1 WHERE id < 0;
+COMMIT;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # A failing FOR EACH STATEMENT body fails its statement like a failing
+--echo # AFTER ROW body: the statement is rolled back, and the transaction
+--echo # around it stays active.
+--echo #
+SET debug_dbug= '+d,trg_stmt_body_fails';
+--error ER_UNKNOWN_ERROR
+UPDATE t14 SET v= 100 WHERE id = 3;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT id, v FROM t14 ORDER BY id;
+BEGIN;
+INSERT INTO t14 VALUES (4, 4);
+SET debug_dbug= '+d,trg_stmt_body_fails';
+--error ER_UNKNOWN_ERROR
+UPDATE t14 SET v= 100;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT @@in_transaction;
+SELECT id, v FROM t14 ORDER BY id;
+ROLLBACK;
+--source trigger_hook_trace.inc
+--echo # The body runs under the statement's max_statement_time, as an AFTER
+--echo # ROW body does: one that runs too long fails the statement
+SET debug_dbug= '+d,trg_stmt_body_runs_until_killed';
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time= 0.5 FOR INSERT INTO t12 VALUES (40);
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+SELECT a FROM t12 ORDER BY a;
+
+--echo #
+--echo # In a FOR EACH STATEMENT body INSERTING, UPDATING and DELETING name
+--echo # the statement that fired the trigger, as in Oracle.  INSERT ... SELECT,
+--echo # INSERT ... ON DUPLICATE KEY UPDATE, REPLACE and LOAD DATA are INSERT
+--echo # statements.
+--echo #
+CREATE TABLE t17 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TRIGGER t17_stmt AFTER INSERT OR UPDATE OR DELETE ON t17
+  FOR EACH STATEMENT
+  SET @k= CASE WHEN INSERTING THEN 'I' WHEN UPDATING THEN 'U' ELSE 'D' END;
+--source trigger_hook_trace.inc
+INSERT INTO t17 VALUES (1, 1), (2, 2);
+INSERT INTO t17 SELECT a + 10, b FROM t17;
+INSERT INTO t17 VALUES (1, 1) ON DUPLICATE KEY UPDATE b= 10;
+REPLACE INTO t17 VALUES (2, 20);
+--let $t17_file= $MYSQLTEST_VARDIR/tmp/trigger_t17.txt
+--replace_result $t17_file T17_FILE
+--eval SELECT 30, 30 INTO OUTFILE '$t17_file'
+--replace_result $t17_file T17_FILE
+--eval LOAD DATA INFILE '$t17_file' INTO TABLE t17
+--remove_file $t17_file
+UPDATE t17 SET b= b + 1;
+DELETE FROM t17 WHERE a = 1;
+--source trigger_hook_trace.inc
+DROP TABLE t17;
+--source trigger_hook_trace.inc
+--echo # A FOR EACH STATEMENT trigger fired by a statement of a ROW trigger
+--echo # body names that statement, and the ROW body reads its own event
+--echo # again after it, also as a value.  The FOR EACH STATEMENT triggers of
+--echo # the outer statement, fired after all its ROW bodies, name the outer
+--echo # statement.
+CREATE TABLE t20 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t21 (id INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t20_log (id INT AUTO_INCREMENT PRIMARY KEY, k VARCHAR(10),
+                      i INT, u INT, d INT) ENGINE=InnoDB;
+DELIMITER |;
+CREATE TRIGGER t20_row AFTER INSERT OR UPDATE OR DELETE ON t20 FOR EACH ROW
+BEGIN
+  INSERT INTO t20_log (k, i, u, d)
+    VALUES ('before', INSERTING, UPDATING, DELETING);
+  INSERT INTO t21 VALUES (NULL);
+  INSERT INTO t20_log (k, i, u, d)
+    VALUES ('after', INSERTING, UPDATING, DELETING);
+END|
+DELIMITER ;|
+CREATE TRIGGER t20_stmt AFTER INSERT OR UPDATE OR DELETE ON t20
+  FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t21_stmt AFTER INSERT ON t21 FOR EACH STATEMENT SET @x= 1;
+--source trigger_hook_trace.inc
+INSERT INTO t20 VALUES (1, 1), (2, 2);
+--source trigger_hook_trace.inc
+UPDATE t20 SET b= b + 1;
+--source trigger_hook_trace.inc
+DELETE FROM t20 WHERE a = 1;
+--source trigger_hook_trace.inc
+SELECT k, i, u, d FROM t20_log ORDER BY id;
+--echo # The same when another connection loaded the triggers, and has gone
+--echo # away since
+TRUNCATE TABLE t20_log;
+FLUSH TABLES;
+--connect con_t20,localhost,root,,test
+SELECT a, b FROM t20;
+--disconnect con_t20
+--connection default
+--source trigger_hook_trace.inc
+UPDATE t20 SET b= b + 1;
+--source trigger_hook_trace.inc
+SELECT k, i, u, d FROM t20_log ORDER BY id;
+DROP TABLE t20, t21, t20_log;
+--source trigger_hook_trace.inc
+--echo # UPDATE and DELETE ... FOR PORTION OF also activate INSERT, for the
+--echo # parts of the rows outside the portion, whether or not a row is
+--echo # split.  They are still UPDATE and DELETE statements.
+CREATE TABLE t18 (id INT, s DATE, e DATE, v INT, PERIOD FOR p(s, e))
+  ENGINE=InnoDB;
+INSERT INTO t18 VALUES (1, '2000-01-01', '2001-01-01', 1),
+                       (2, '2000-01-01', '2001-01-01', 2);
+CREATE TRIGGER t18_ins AFTER INSERT ON t18 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t18_upd_del AFTER UPDATE OR DELETE ON t18 FOR EACH STATEMENT
+  SET @x= 1;
+--source trigger_hook_trace.inc
+UPDATE t18 FOR PORTION OF p FROM '2000-03-01' TO '2000-04-01' SET v= 10;
+--source trigger_hook_trace.inc
+DELETE FROM t18 FOR PORTION OF p FROM '2000-06-01' TO '2000-07-01'
+  WHERE id = 2;
+--source trigger_hook_trace.inc
+UPDATE t18 FOR PORTION OF p FROM '2000-03-01' TO '2000-04-01' SET v= 20
+  WHERE id = 100;
+--source trigger_hook_trace.inc
+SELECT id, s, e, v FROM t18 ORDER BY id, s;
+DROP TABLE t18;
+--source trigger_hook_trace.inc
+--echo # LOAD DATA ... REPLACE activates INSERT and DELETE, whether or not a
+--echo # row conflicts
+CREATE TABLE t19 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t19 VALUES (1, 1), (11, 11);
+CREATE TRIGGER t19_del AFTER DELETE ON t19 FOR EACH STATEMENT SET @x= 1;
+--source trigger_hook_trace.inc
+--let $t19_file= $MYSQLTEST_VARDIR/tmp/trigger_t19.txt
+--replace_result $t19_file T19_FILE
+--eval SELECT 2, 2 UNION ALL SELECT 12, 12 INTO OUTFILE '$t19_file'
+--replace_result $t19_file T19_FILE
+--eval LOAD DATA INFILE '$t19_file' REPLACE INTO TABLE t19
+--remove_file $t19_file
+--source trigger_hook_trace.inc
+--replace_result $t19_file T19_FILE
+--eval SELECT 1, 10 UNION ALL SELECT 3, 3 INTO OUTFILE '$t19_file'
+--replace_result $t19_file T19_FILE
+--eval LOAD DATA INFILE '$t19_file' REPLACE INTO TABLE t19
+--remove_file $t19_file
+--source trigger_hook_trace.inc
+--echo # A statement that writes one table through two views fires its
+--echo # FOR EACH STATEMENT triggers once, over the rows written through both
+CREATE TRIGGER t19_upd AFTER UPDATE ON t19 FOR EACH STATEMENT SET @x= 1;
+CREATE VIEW v19_low AS SELECT a, b FROM t19 WHERE a < 10;
+CREATE VIEW v19_high AS SELECT a, b FROM t19 WHERE a >= 10;
+--source trigger_hook_trace.inc
+UPDATE v19_low JOIN v19_high ON v19_high.a = v19_low.a + 10
+  SET v19_low.b= 100, v19_high.b= 200;
+--source trigger_hook_trace.inc
+SELECT a, b FROM t19 ORDER BY a;
+DROP VIEW v19_low, v19_high;
+DROP TABLE t19;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # CREATE TABLE ... SELECT commits in the middle of the statement, and
+--echo # when it fails, InnoDB commits the transaction as it drops the new
+--echo # table.  So it may not write a table with BEFORE COMMIT triggers,
+--echo # whether through a function or through the trigger of a table that a
+--echo # function writes.  It may read such a table.  CREATE TEMPORARY TABLE
+--echo # ... SELECT does not commit, so it may write one.
+--echo #
+--delimiter |
+CREATE FUNCTION f_t1_ins(i INT) RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (i, 13, CONCAT('f', i));
+  RETURN i;
+END|
+CREATE FUNCTION f_t3_ins(i INT) RETURNS INT
+BEGIN
+  INSERT INTO t3 VALUES (i);
+  RETURN i;
+END|
+--delimiter ;
+SET autocommit= 0;
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT f_t1_ins(41) AS b;
+--echo # t3 has no BEFORE COMMIT triggers, but its ROW trigger writes t1
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT f_t3_ins(41) AS b;
+--source trigger_hook_trace.inc
+SHOW TABLES LIKE 't_ctas';
+SELECT COUNT(*) FROM t1 WHERE id = 41;
+CREATE TABLE t_ctas ENGINE=InnoDB SELECT COUNT(*) AS n FROM t1;
+--source trigger_hook_trace.inc
+DROP TABLE t_ctas;
+CREATE TEMPORARY TABLE t_ctas ENGINE=InnoDB SELECT f_t1_ins(42) AS b;
+COMMIT;
+--source trigger_hook_trace.inc
+DROP TEMPORARY TABLE t_ctas;
+SET autocommit= 1;
+SELECT id FROM t1 WHERE id = 42;
+
+--echo #
+--echo # SET autocommit= 1 commits the transaction.  When a body fails, the
+--echo # transaction is rolled back, the SET fails and autocommit stays off;
+--echo # the implicit commit at the end of the statement does not fire the
+--echo # triggers again.
+--echo #
+SET autocommit= 0;
+INSERT INTO t1 VALUES (43, 13, 'r43');
+SET debug_dbug= '+d,trg_commit_body_fails_once';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+SET autocommit= 1;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--let $assert_text= autocommit stays off
+--let $assert_cond= @@autocommit = 0
+--source include/assert.inc
+--let $assert_text= The transaction is over
+--let $assert_cond= @@in_transaction = 0
+--source include/assert.inc
+SET autocommit= 1;
+--let $assert_text= The row of the transaction was not committed
+--let $assert_cond= [SELECT COUNT(*) AS c FROM t1 WHERE id = 43, c, 1] = 0
+--source include/assert.inc
+
+--echo #
+--echo # Under LOCK TABLES the triggers of an autocommit statement run on the
+--echo # tables LOCK TABLES locked
+--echo #
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (44, 13, 'r44');
+UNLOCK TABLES;
+--source trigger_hook_trace.inc
+
+--echo #
+--echo # BEGIN, UNLOCK TABLES and LOCK TABLES end LOCK TABLES after the
+--echo # implicit commit: the triggers fire first, on the locked tables.  When
+--echo # a body fails, the transaction is rolled back and the statement does
+--echo # not run, so LOCK TABLES stays.
+--echo #
+SET autocommit= 0;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (45, 13, 'r45');
+BEGIN;
+--source trigger_hook_trace.inc
+DELETE FROM t1 WHERE id = 45;
+COMMIT;
+--source trigger_hook_trace.inc
+
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (46, 13, 'r46');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+BEGIN;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--echo # Still under LOCK TABLES: t2 is not locked
+--error ER_TABLE_NOT_LOCKED
+SELECT COUNT(*) FROM t2;
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 46;
+UNLOCK TABLES;
+--source trigger_hook_trace.inc
+
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (46, 13, 'r46');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+UNLOCK TABLES;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--error ER_TABLE_NOT_LOCKED
+SELECT COUNT(*) FROM t2;
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 46;
+UNLOCK TABLES;
+--source trigger_hook_trace.inc
+
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES (46, 13, 'r46');
+SET debug_dbug= '+d,trg_commit_body_fails';
+--error ER_TRG_BEFORE_COMMIT_ROLLBACK
+LOCK TABLES t1 WRITE, t2 READ;
+SET debug_dbug= '';
+--source trigger_hook_trace.inc
+--error ER_TABLE_NOT_LOCKED
+SELECT COUNT(*) FROM t2;
+SELECT @@in_transaction;
+SELECT COUNT(*) FROM t1 WHERE id = 46;
+UNLOCK TABLES;
+--source trigger_hook_trace.inc
+SET autocommit= 1;
+SELECT COUNT(*) FROM t1 WHERE id IN (45, 46);
+
+--echo #
+--echo # ROLLBACK after an OR SAVEPOINT trigger fired: its writes roll back
+--echo # with the transaction
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (47, 13, 'r47');
+SAVEPOINT s47;
+ROLLBACK;
+--source trigger_hook_trace.inc
+
+DROP FUNCTION f_t1_ins;
+DROP FUNCTION f_t3_ins;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t9_log, t10, t10_child, t11,
+  t12, t13, t14;
+--source trigger_hook_trace.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos
+--enable_ps2_protocol

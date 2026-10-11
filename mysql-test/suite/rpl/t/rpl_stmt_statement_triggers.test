@@ -1,0 +1,54 @@
+#
+# FOR EACH STATEMENT triggers under statement-based replication: the
+# replica executes each replicated statement itself, so it fires the FOR
+# EACH STATEMENT triggers it has, as it fires ROW triggers, those created
+# on the replica alone included, and also for a statement that changes no
+# row.
+#
+# No trigger body is executed yet.  The replica writes one
+# "Trigger hook:" line per hook to its error log, and
+# main/trigger_hook_trace.inc prints them.
+#
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+  SET @x= 1;
+--sync_slave_with_master
+
+--echo # On the replica only
+CREATE TRIGGER t1_del_stmt AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= 1;
+--let $trg_hook_server= 2
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+
+--echo # The replica runs the statement and fires the trigger it got from
+--echo # the primary
+--connection master
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # A statement that changes no row fires it too
+--connection master
+UPDATE t1 SET b= 0 WHERE a > 100;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # The trigger created on the replica alone fires as well
+--connection master
+DELETE FROM t1 WHERE a = 1;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+SELECT a, b FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.2.pos
+
+--source include/rpl_end.inc

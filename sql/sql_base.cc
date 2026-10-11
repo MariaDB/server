@@ -5540,7 +5540,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
       if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
 
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
@@ -6285,6 +6285,14 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     DBUG_RETURN(0);
 
   first_not_own= thd->lex->first_not_own_table();
+
+  /*
+    Under a BEFORE COMMIT trigger body no statement may write a table on
+    the firing chain; the check below for ROW trigger bodies relies on a
+    calling statement, which a commit boundary does not have.
+  */
+  if (thd->trg_firing_chain && trg_chain_check_write(thd, tables))
+    DBUG_RETURN(TRUE);
 
   /*
     Check for thd->locked_tables_mode to avoid a redundant
