@@ -344,7 +344,7 @@ public:
    :Item_field(thd, field)
   { }
 
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_field_assoc_array>(thd, this); }
 
   const Type_handler *type_handler() const override
@@ -417,7 +417,7 @@ public:
   void bring_value() override;
   void print(String *str, enum_query_type query_type) override;
 
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_assoc_array>(thd, this); }
   Item *deep_copy(THD *thd) const override;
 };
@@ -464,7 +464,7 @@ public:
   bool append_for_log(THD *thd, String *str) override;
   void print(String *str, enum_query_type query_type) override;
 
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 
   Item_composite_base *get_composite_variable(sp_rcontext *ctx) const;

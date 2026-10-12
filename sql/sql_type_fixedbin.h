@@ -304,10 +304,10 @@ public:
     }
 
   protected:
-    Item *shallow_copy(THD *thd) const override
+    Item *surface_copy(THD *thd) const override
     { return get_item_copy<Item_literal_fbt>(thd, this); }
     Item *deep_copy(THD *thd) const override
-    { return shallow_copy_with_checks(thd); }
+    { return surface_copy_with_checks(thd); }
   };
 
   class Field_fbt: public Field
@@ -882,10 +882,10 @@ public:
     }
 
   protected:
-    Item *shallow_copy(THD *thd) const override
+    Item *surface_copy(THD *thd) const override
     { return get_item_copy<Item_copy_fbt>(thd, this); }
     Item *deep_copy(THD *thd) const override
-    { return shallow_copy_with_checks(thd); }
+    { return surface_copy_with_checks(thd); }
   };
 
   class Item_char_typecast_func_handler_fbt_to_binary:
@@ -999,7 +999,7 @@ public:
     }
 
   protected:
-    Item *shallow_copy(THD *thd) const override
+    Item *surface_copy(THD *thd) const override
     { return get_item_copy<Item_typecast_fbt>(thd, this); }
   };
 
@@ -1074,10 +1074,10 @@ public:
     }
 
   protected:
-    Item *shallow_copy(THD *thd) const override
+    Item *surface_copy(THD *thd) const override
     { return get_item_copy<Item_cache_fbt>(thd, this); }
     Item *deep_copy(THD *thd) const override
-    { return shallow_copy_with_checks(thd); }
+    { return surface_copy_with_checks(thd); }
   };
 
   /* =[ methods ]=============================================== */

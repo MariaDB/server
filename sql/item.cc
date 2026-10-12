@@ -2377,7 +2377,7 @@ public:
   }
   Ref_Type ref_type() override final { return AGGREGATE_REF; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_aggregate_ref>(thd, this); }
 };
 
@@ -2910,7 +2910,7 @@ Item* Item_func_or_sum::deep_copy(THD *thd) const
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(shallow_copy_with_checks(thd));
+  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(surface_copy_with_checks(thd));
   if (unlikely(!copy))
     return 0;
   if (arg_count > 2)
@@ -3331,7 +3331,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
 Item* Item_ref::deep_copy(THD *thd) const
 {
-  Item_ref *copy= (Item_ref *) shallow_copy_with_checks(thd);
+  Item_ref *copy= (Item_ref *) surface_copy_with_checks(thd);
   if (unlikely(!copy) ||
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
                                                 sizeof(Item*)))) ||
@@ -11312,7 +11312,7 @@ Item *Item_cache::deep_copy_cache(THD *thd) const
     if (!(example_copy= example->deep_copy_with_checks(thd)))
       return NULL;
   }
-  Item_cache *copy= (Item_cache *) shallow_copy_with_checks(thd);
+  Item_cache *copy= (Item_cache *) surface_copy_with_checks(thd);
   if (!copy)
     return NULL;
   copy->example= example_copy;
@@ -12303,3 +12303,37 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
   }
   return false;
 }
+
+
+#ifndef DBUG_OFF
+#include <typeindex>
+#include <unordered_set>
+#include <mutex>
+
+void Item::dbug_check_surface_copy_type(THD *thd) const
+{
+  static std::unordered_set<std::type_index> checked;
+  static std::mutex checked_mutex;
+  {
+    std::lock_guard<std::mutex> lock(checked_mutex);
+    if (!checked.insert(typeid(*this)).second)
+      return;
+  }
+  Item *copy= surface_copy(thd);
+  if (!copy)
+    return;
+  /*
+    get_item_copy() registered the copy in thd->free_list. Unlink it: it is
+    only inspected, and destroying a copy that shares pointers with the
+    original could free them twice.
+  */
+  if (thd->free_list == copy)
+    thd->free_list= copy->next;
+  if (typeid(*copy) != typeid(*this))
+  {
+    fprintf(stderr, "SURFACE_COPY_TYPE_MISMATCH: %s copied as %s\n",
+            typeid(*this).name(), typeid(*copy).name());
+    DBUG_ASSERT(0);
+  }
+}
+#endif

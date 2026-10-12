@@ -1384,7 +1384,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_hash>(thd, this); }
 };
 
@@ -1402,7 +1402,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_hash_mariadb_100403>(thd, this); }
 };
 
@@ -1476,7 +1476,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_rowcount>(thd, this); }
 };
 
@@ -1503,7 +1503,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_connection_id>(thd, this); }
 };
 
@@ -1577,7 +1577,7 @@ public:
   bool need_parentheses_in_default() override { return true; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_signed>(thd, this); }
 };
 
@@ -1615,7 +1615,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_unsigned>(thd, this); }
 };
 
@@ -1659,7 +1659,7 @@ public:
   bool need_parentheses_in_default() override { return true; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_decimal_typecast>(thd, this); }
 };
 
@@ -1716,7 +1716,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_float_typecast>(thd, this); }
 };
 
@@ -1740,7 +1740,7 @@ public:
   double val_real() override { return val_real_with_truncate(DBL_MAX); }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_double_typecast>(thd, this); }
 };
 
@@ -1772,7 +1772,7 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_plus>(thd, this); }
 };
 
@@ -1813,7 +1813,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_minus>(thd, this); }
 };
 
@@ -1838,7 +1838,7 @@ public:
   bool check_vcol_func_processor(void *arg) override { return FALSE;}
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_mul>(thd, this); }
 };
 
@@ -1863,7 +1863,7 @@ public:
   void result_precision() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_div>(thd, this); }
 };
 
@@ -1893,7 +1893,7 @@ public:
   bool need_parentheses_in_default() override { return true; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_int_div>(thd, this); }
 };
 
@@ -1933,7 +1933,7 @@ public:
   bool check_vcol_func_processor(void *arg) override { return FALSE;}
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_mod>(thd, this); }
 };
 
@@ -1966,7 +1966,7 @@ public:
   bool need_parentheses_in_default() override { return true; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_neg>(thd, this); }
 };
 
@@ -1990,7 +1990,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_abs>(thd, this); }
 };
 
@@ -2024,7 +2024,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_exp>(thd, this); }
 };
 
@@ -2041,7 +2041,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_ln>(thd, this); }
 };
 
@@ -2059,7 +2059,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_log>(thd, this); }
 };
 
@@ -2076,7 +2076,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_log2>(thd, this); }
 };
 
@@ -2093,7 +2093,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_log10>(thd, this); }
 };
 
@@ -2110,7 +2110,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqrt>(thd, this); }
 };
 
@@ -2127,7 +2127,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_pow>(thd, this); }
 };
 
@@ -2144,7 +2144,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_acos>(thd, this); }
 };
 
@@ -2160,7 +2160,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_asin>(thd, this); }
 };
 
@@ -2177,7 +2177,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_atan>(thd, this); }
 };
 
@@ -2193,7 +2193,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_cos>(thd, this); }
 };
 
@@ -2209,7 +2209,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_sin>(thd, this); }
 };
 
@@ -2225,7 +2225,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_tan>(thd, this); }
 };
 
@@ -2241,7 +2241,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_cot>(thd, this); }
 };
 
@@ -2295,7 +2295,7 @@ public:
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_ceiling>(thd, this); }
 };
 
@@ -2317,7 +2317,7 @@ public:
   bool time_op(THD *thd, MYSQL_TIME *ltime) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_floor>(thd, this); }
 };
 
@@ -2374,7 +2374,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_round>(thd, this); }
 };
 
@@ -2406,7 +2406,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_rand>(thd, this); }
 };
 
@@ -2462,7 +2462,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return 0; }
+  Item *surface_copy(THD *thd) const override { return 0; }
 };
 
 void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr);
@@ -2484,7 +2484,7 @@ public:
   longlong val_int() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_sign>(thd, this); }
 };
 
@@ -2513,7 +2513,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_units>(thd, this); }
 };
 
@@ -2622,7 +2622,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_min>(thd, this); }
 };
 
@@ -2637,7 +2637,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_max>(thd, this); }
 };
 
@@ -2679,7 +2679,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_rollup_const>(thd, this); }
 };
 
@@ -2707,7 +2707,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_octet_length>(thd, this); }
 };
 
@@ -2729,7 +2729,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_length>(thd, this); }
 };
 
@@ -2746,7 +2746,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_char_length>(thd, this); }
 };
 
@@ -2784,7 +2784,7 @@ public:
   table_map used_tables() const override { return 0; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_coercibility>(thd, this); }
 };
 
@@ -2823,7 +2823,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_locate>(thd, this); }
 };
 
@@ -2844,7 +2844,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_field>(thd, this); }
   // block standard processor for never null
   bool add_maybe_null_after_ora_join_processor(void *arg) override
@@ -2868,7 +2868,7 @@ public:
   bool fix_length_and_dec(THD *thd) override { max_length=3; return FALSE; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_ascii>(thd, this); }
 };
 
@@ -2888,7 +2888,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_ord>(thd, this); }
 };
 
@@ -2912,7 +2912,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
 };
 
@@ -2958,7 +2958,7 @@ public:
     return name;
   }
   enum precedence precedence() const override { return BITOR_PRECEDENCE; }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_or>(thd, this); }
 };
 
@@ -2975,7 +2975,7 @@ public:
   }
   enum precedence precedence() const override { return BITAND_PRECEDENCE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_and>(thd, this); }
 };
 
@@ -2992,7 +2992,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_count>(thd, this); }
 };
 
@@ -3009,7 +3009,7 @@ public:
   }
   enum precedence precedence() const override { return SHIFT_PRECEDENCE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_shift_left>(thd, this); }
 };
 
@@ -3026,7 +3026,7 @@ public:
   }
   enum precedence precedence() const override { return SHIFT_PRECEDENCE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_shift_right>(thd, this); }
 };
 
@@ -3047,7 +3047,7 @@ public:
     args[0]->print_parenthesised(str, query_type, precedence());
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_neg>(thd, this); }
 };
 
@@ -3078,7 +3078,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_last_insert_id>(thd, this); }
 };
 
@@ -3115,7 +3115,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_benchmark>(thd, this); }
 };
 
@@ -3147,7 +3147,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_sleep>(thd, this); }
 };
 
@@ -3305,7 +3305,7 @@ class Item_func_udf_float :public Item_udf_func
   { return &type_handler_double; }
   bool fix_length_and_dec(THD *thd) override { fix_num_length_and_dec(); return FALSE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_float>(thd, this); }
 };
 
@@ -3333,7 +3333,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override { decimals= 0; max_length= 21; return FALSE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_int>(thd, this); }
 };
 
@@ -3362,7 +3362,7 @@ public:
   { return &type_handler_newdecimal; }
   bool fix_length_and_dec(THD *thd) override { fix_num_length_and_dec(); return FALSE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_decimal>(thd, this); }
 };
 
@@ -3403,7 +3403,7 @@ public:
   { return string_type_handler(); }
   bool fix_length_and_dec(THD *thd) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_udf_str>(thd, this); }
 };
 
@@ -3509,7 +3509,7 @@ class Item_func_get_lock final :public Item_func_lock
     return FALSE;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override final
+  Item *surface_copy(THD *thd) const override final
   { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
 
@@ -3526,7 +3526,7 @@ public:
     return name;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override final
+  Item *surface_copy(THD *thd) const override final
   { return get_item_copy<Item_func_release_all_locks>(thd, this); }
 };
 
@@ -3551,7 +3551,7 @@ public:
     return FALSE;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override final
+  Item *surface_copy(THD *thd) const override final
   { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
 
@@ -3593,7 +3593,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_master_pos_wait>(thd, this); }
 };
 
@@ -3623,7 +3623,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_master_gtid_wait>(thd, this); }
 };
 
@@ -3745,7 +3745,7 @@ public:
   bool set_entry(THD *thd, bool create_if_not_exists);
   void cleanup() override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_set_user_var>(thd, this); }
 public:
   bool excl_dep_on_table(table_map tab_map) override { return false; }
@@ -3780,7 +3780,7 @@ public:
   { return const_item() ? 0 : RAND_TABLE_BIT; }
   bool eq(const Item *item, const Eq_config &config) const override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_user_var>(thd, this); }
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
@@ -3864,10 +3864,10 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_user_var_as_out_param>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -3930,7 +3930,7 @@ public:
   void cleanup() override;
   bool check_vcol_func_processor(void *arg) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_get_system_var>(thd, this); }
 };
 
@@ -3994,7 +3994,7 @@ public:
     return mark_unsupported_function("match ... against()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_match>(thd, this); }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 private:
@@ -4047,7 +4047,7 @@ public:
   }
   enum precedence precedence() const override { return BITXOR_PRECEDENCE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_bit_xor>(thd, this); }
 };
 
@@ -4076,7 +4076,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_free_lock>(thd, this); }
 };
 
@@ -4104,7 +4104,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_used_lock>(thd, this); }
 };
 
@@ -4177,7 +4177,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_row_count>(thd, this); }
 };
 
@@ -4461,7 +4461,7 @@ public:
     return TRUE;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override { return 0; }
+  Item *surface_copy(THD *thd) const override { return 0; }
 public:
   bool eval_not_null_tables(void *opt_arg) override
   {
@@ -4501,7 +4501,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_found_rows>(thd, this); }
 };
 
@@ -4525,7 +4525,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, this); }
 };
 
@@ -4559,7 +4559,7 @@ public:
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   { return 0; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_sqlcode>(thd, this); }
 };
 
@@ -4587,7 +4587,7 @@ public:
                                      VCOL_NON_DETERMINISTIC);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_uuid_short>(thd, this); }
 };
 
@@ -4630,7 +4630,7 @@ public:
     copy_flags(last_value, item_base_t::MAYBE_NULL);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_last_value>(thd, this); }
 };
 
@@ -4681,7 +4681,7 @@ public:
   }
   bool const_item() const override { return 0; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_nextval>(thd, this); }
 public:
   void print(String *str, enum_query_type query_type) override;
@@ -4708,7 +4708,7 @@ public:
     return name;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_lastval>(thd, this); }
 };
 
@@ -4736,7 +4736,7 @@ public:
   }
   void print(String *str, enum_query_type query_type) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_setval>(thd, this); }
 };
 

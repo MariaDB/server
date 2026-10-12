@@ -68,7 +68,7 @@ public:
   }
 
 protected:
-  Item* shallow_copy(THD *thd) const override { return nullptr; }
+  Item* surface_copy(THD *thd) const override { return nullptr; }
 };
 
 class Item_proc_real :public Item_proc
@@ -125,7 +125,7 @@ public:
   unsigned int size_of() { return sizeof(*this);}
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
+  Item *surface_copy(THD *thd) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -169,7 +169,7 @@ public:
   unsigned int size_of() { return sizeof(*this);}  
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
+  Item *surface_copy(THD *thd) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 

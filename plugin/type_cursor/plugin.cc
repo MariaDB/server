@@ -367,6 +367,8 @@ public:
     DBUG_ASSERT(fc);
     return fc->resolve_spvar_cursor_rowtype(thd, cursor);
   }
+protected:
+  ITEM_SURFACE_COPY(Item_field_refcursor)
 };
 
 
@@ -1218,7 +1220,7 @@ public:
     const ULonglong_null count= cursor_array(thd)->ref_count(offset);
     return (null_value= count.is_null()) ? 0LL : (longlong) count.value();
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_cursor_ref_count>(thd, this); }
 };
 

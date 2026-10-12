@@ -184,7 +184,7 @@ Item* Item_row::deep_copy(THD *thd) const
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_row *copy= (Item_row *) shallow_copy_with_checks(thd);
+  Item_row *copy= (Item_row *) surface_copy_with_checks(thd);
   if (unlikely(!copy))
     return 0;
   copy->args= copy_args;

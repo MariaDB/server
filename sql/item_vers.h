@@ -46,7 +46,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_history>(thd, this); }
 };
 
@@ -66,7 +66,7 @@ public:
   { fix_attributes_datetime(decimals); return FALSE; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
 };
 
@@ -111,7 +111,7 @@ public:
   longlong val_int() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
@@ -130,7 +130,7 @@ public:
   bool val_bool() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 
@@ -148,6 +148,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees_eq") };
     return name;
   }
+protected:
+  ITEM_SURFACE_COPY(Item_func_trt_trx_sees_eq)
 };
 
 #endif /* ITEM_VERS_INCLUDED */

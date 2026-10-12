@@ -5690,7 +5690,7 @@ void Item_cond::neg_arguments(THD *thd)
 
 Item *Item_cond::deep_copy(THD *thd) const
 {
-  Item_cond *copy= (Item_cond *) shallow_copy_with_checks(thd);
+  Item_cond *copy= (Item_cond *) surface_copy_with_checks(thd);
   if (!copy)
     return 0;
   copy->list.empty();

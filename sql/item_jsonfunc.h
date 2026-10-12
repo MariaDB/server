@@ -114,7 +114,7 @@ public:
   enum Functype functype() const override { return JSON_VALID_FUNC; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_valid>(thd, this); }
 };
 
@@ -134,7 +134,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_equals>(thd, this); }
   bool val_bool() override;
 };
@@ -161,7 +161,7 @@ public:
   bool val_bool() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_exists>(thd, this); }
 };
 
@@ -206,7 +206,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_value>(thd, this); }
 };
 
@@ -234,7 +234,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_query>(thd, this); }
 };
 
@@ -257,7 +257,7 @@ public:
   String *val_str(String *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_quote>(thd, this); }
 };
 
@@ -282,7 +282,7 @@ public:
   String *val_str(String *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_unquote>(thd, this); }
 };
 
@@ -348,7 +348,7 @@ public:
   uint get_n_paths() const override { return arg_count - 1; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_extract>(thd, this); }
 };
 
@@ -378,7 +378,7 @@ public:
   bool val_bool() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
   int check_contains(json_engine_t *je, json_engine_t *ve);
 };
@@ -412,7 +412,7 @@ public:
   bool val_bool() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };
 
@@ -440,7 +440,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array>(thd, this); }
 };
 
@@ -467,7 +467,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array_append>(thd, this); }
 };
 
@@ -485,7 +485,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array_insert>(thd, this); }
 };
 
@@ -505,7 +505,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_object>(thd, this); }
 };
 
@@ -528,7 +528,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
@@ -545,7 +545,7 @@ public:
   String *val_str(String *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_merge_patch>(thd, this); }
 };
 
@@ -565,7 +565,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_normalize>(thd, this); }
 };
 
@@ -587,7 +587,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_object_to_array>(thd, this); }
 };
 
@@ -624,7 +624,7 @@ public:
   longlong val_int() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_length>(thd, this); }
 };
 
@@ -649,7 +649,7 @@ public:
   longlong val_int() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_depth>(thd, this); }
 };
 
@@ -671,7 +671,7 @@ public:
   String *val_str(String *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_type>(thd, this); }
 };
 
@@ -702,7 +702,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_insert>(thd, this); }
 };
 
@@ -728,7 +728,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_remove>(thd, this); }
 };
 
@@ -753,7 +753,7 @@ public:
   String *val_str(String *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_keys>(thd, this); }
 };
 
@@ -786,7 +786,7 @@ public:
   uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_search>(thd, this); }
 };
 
@@ -820,7 +820,7 @@ public:
   String *val_json(String *str) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_format>(thd, this); }
 };
 
@@ -868,7 +868,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
 
@@ -921,7 +921,7 @@ public:
   void no_rows_in_result() override {}
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 
@@ -946,7 +946,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
 };
 
@@ -975,7 +975,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
   void cleanup() override;
 };
@@ -1004,7 +1004,7 @@ public:
     return je->check_and_get_value_complex(res, error, JSON_VALUE_OBJECT);
   }
   bool get_key_value(json_engine_t *je, String *str);
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_key_value>(thd, this); }
 };
 
@@ -1035,7 +1035,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_intersect") };
     return name;
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_array_intersect>(thd, this); }
   void cleanup() override
   {
@@ -1079,7 +1079,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_object_filter_keys") };
     return name;
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_object_filter_keys>(thd, this); }
 
   void cleanup() override
@@ -1125,7 +1125,7 @@ public:
     return name;
   }
 
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_json>(thd, this); }
 };
 

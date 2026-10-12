@@ -110,7 +110,7 @@ public:
     return str;
   }
 
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_run_in_duckdb>(thd, this); }
 };
 

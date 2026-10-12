@@ -1923,16 +1923,16 @@ public:
   }
 
   /*
-    Create a shallow copy of the item (usually invoking copy constructor).
+    Create a surface copy of the item (usually invoking copy constructor).
     For deep copying see deep_copy_with_checks().
 
     Return value:
     - pointer to a copy of the Item
     - nullptr if the item is not copyable
   */
-  Item *shallow_copy_with_checks(THD *thd) const
+  Item *surface_copy_with_checks(THD *thd) const
   {
-    Item *copy= shallow_copy(thd);
+    Item *copy= surface_copy(thd);
     if (copy)
     {
       // Make sure the copy is of same type as this item
@@ -1979,6 +1979,12 @@ public:
   bool check_deep_copy(THD *thd, Item *clone, const char *what);
   /* walk() processor used by check_deep_copy() */
   bool deep_copy_check_processor(void *arg);
+  /*
+    Check, once per dynamic type, that surface_copy() creates an object of
+    the same class as this item, i.e. that the class did not inherit
+    surface_copy() from a concrete parent.
+  */
+  void dbug_check_surface_copy_type(THD *thd) const;
 #endif
 
   /*
@@ -1990,7 +1996,7 @@ public:
 
     Note: the clone may have item type different from this
     (i.e., instance of another basic constant class may be returned).
-    For real clones look at deep_copy_with_checks()/shallow_copy_with_checks()
+    For real clones look at deep_copy_with_checks()/surface_copy_with_checks()
     methods
   */
   virtual Item *clone_constant(THD *thd) const { return nullptr; }
@@ -2897,11 +2903,11 @@ public:
 
 protected:
   /*
-    Service function for public method shallow_copy_with_checks().
-    See comments for shallow_copy_with_checks() above. Override this method
-    in derived classes to create shallow copies of the item
+    Service function for public method surface_copy_with_checks().
+    See comments for surface_copy_with_checks() above. Override this method
+    in derived classes to create surface copies of the item
   */
-  virtual Item *shallow_copy(THD *thd) const = 0;
+  virtual Item *surface_copy(THD *thd) const = 0;
 
   /*
     Service function for public method deep_copy_with_checks(). See comments
@@ -2921,6 +2927,15 @@ inline T* get_item_copy (THD *thd, const T* item)
     copy->register_in(thd);
   return copy;
 }
+
+/*
+  Every instantiable Item class must declare its own surface_copy(): one
+  inherited from a concrete parent creates an object of the parent class.
+  Item::dbug_check_surface_copy_type() asserts that in debug builds.
+*/
+#define ITEM_SURFACE_COPY(CLASS)                                  \
+  Item *surface_copy(THD *thd) const override                     \
+  { return get_item_copy<CLASS>(thd, this); }
 
 
 #ifndef DBUG_OFF
@@ -3460,10 +3475,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_splocal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -3484,7 +3499,7 @@ public:
   { }
 
 protected:
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -3520,7 +3535,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -3544,7 +3559,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -3594,7 +3609,7 @@ private:
   uint m_case_expr_id;
 
 protected:
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -3678,10 +3693,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_name_const>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -4132,10 +4147,10 @@ public:
   friend class st_select_lex_unit;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_field>(thd, this); }
   Item* deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -4223,6 +4238,8 @@ public:
 
 private:
   uchar *saved_row_ref;
+protected:
+  ITEM_SURFACE_COPY(Item_old_field)
 };
 
 /**
@@ -4265,7 +4282,7 @@ public:
                                                                      override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_field_row>(thd, this); }
 };
 
@@ -4315,10 +4332,10 @@ public:
     override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_null>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -4339,6 +4356,8 @@ public:
     str->append("(+)"_LEX_CSTRING);
   }
   static List<Item> *make_as_item_list(THD *thd);
+protected:
+  ITEM_SURFACE_COPY(Item_join_operator_plus)
 };
 
 
@@ -4369,6 +4388,8 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+protected:
+  ITEM_SURFACE_COPY(Item_null_result)
 };
 
 /*
@@ -4886,7 +4907,7 @@ private:
   Field *m_default_field;
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
+  Item *surface_copy(THD *thd) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -4949,10 +4970,10 @@ public:
   { return (decimal_digits_t) (max_length - MY_TEST(value < 0)); }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_int>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -4984,10 +5005,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_bool>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5005,7 +5026,7 @@ public:
   void cleanup() override {}
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_bool_static>(thd, this); }
 };
 
@@ -5025,7 +5046,7 @@ public:
   { return decimal_digits_t(max_length); }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_uint>(thd, this); }
 };
 
@@ -5054,6 +5075,8 @@ public:
     return false;
   }
   void print(String *str, enum_query_type query_type) override;
+protected:
+  ITEM_SURFACE_COPY(Item_datetime)
 };
 
 
@@ -5102,10 +5125,10 @@ public:
   void set_decimal_value(my_decimal *value_par);
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_decimal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5154,10 +5177,10 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_float>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5179,7 +5202,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_static_float_func>(thd, this); }
 };
 
@@ -5322,10 +5345,10 @@ public:
   Item *make_odbc_literal(THD *thd, const LEX_CSTRING *typestr) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_string>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5346,7 +5369,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_string_with_introducer>(thd, this); }
 };
 
@@ -5362,7 +5385,7 @@ public:
   { }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_string_sys>(thd, this); }
 };
 
@@ -5380,7 +5403,7 @@ public:
   { }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_string_ascii>(thd, this); }
 };
 
@@ -5420,7 +5443,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_static_string_func>(thd, this); }
 };
 
@@ -5441,7 +5464,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_partition_func_safe_string>(thd, this); }
 };
 
@@ -5465,6 +5488,8 @@ public:
                                     length * cs->mbmaxlen, cs)
   { }
   void make_send_field(THD *thd, Send_field *field) override;
+protected:
+  ITEM_SURFACE_COPY(Item_empty_string)
 };
 
 
@@ -5484,6 +5509,8 @@ public:
       Type_handler::get_handler_by_field_type(int_field_type);
     return unsigned_flag ? h->type_handler_unsigned() : h;
   }
+protected:
+  ITEM_SURFACE_COPY(Item_return_int)
 };
 
 
@@ -5559,10 +5586,10 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_hex_hybrid>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5607,10 +5634,10 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_hex_string>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5621,7 +5648,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_bin_string>(thd, this); }
 };
 
@@ -5695,10 +5722,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_timestamp_literal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5794,10 +5821,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_date_literal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5849,10 +5876,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_time_literal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5928,10 +5955,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_datetime_literal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -5976,10 +6003,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_date_literal_for_invalid_dates>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -6004,10 +6031,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_datetime_literal_for_invalid_dates>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -6550,7 +6577,7 @@ public:
 
 protected:
   Item *deep_copy(THD *thd) const override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_ref>(thd, this); }
 };
 
@@ -6605,7 +6632,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref>(thd, this); }
 };
 
@@ -6768,7 +6795,7 @@ public:
     return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_wrapper>(thd, this); }
   Item *deep_copy(THD *) const override { return nullptr; }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
@@ -6993,7 +7020,7 @@ public:
   bool val_bool_result() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
 public:
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
@@ -7073,10 +7100,10 @@ public:
   Ref_Type ref_type() override { return OUTER_REF; }
   bool check_inner_refs_processor(void * arg) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_outer_ref>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7114,7 +7141,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
   table_map used_tables() const override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_ref_null_helper>(thd, this); }
 };
 
@@ -7143,10 +7170,10 @@ public:
   Item *clone_constant(THD *thd) const override;
   Item *real_item() override { return ref; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_int_with_ref>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 #ifdef MYSQL_SERVER
@@ -7294,10 +7321,10 @@ public:
   void copy() override;
   int save_in_field(Field *field, bool no_conversions) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_copy_string>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7339,10 +7366,10 @@ public:
   Item_copy_float(THD *thd, Item *item_arg): Item_copy_real(thd, item_arg) {}
   String *val_str(String *str) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_copy_float>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7352,10 +7379,10 @@ public:
   Item_copy_double(THD *thd, Item *item_arg): Item_copy_real(thd, item_arg) {}
   String *val_str(String *str) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_copy_double>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7438,10 +7465,10 @@ public:
     return null_value || m_value.to_native(to, dec);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_copy_timestamp>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7648,7 +7675,7 @@ public:
   */
   bool associate_with_target_field(THD *thd, Item_field *field) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   {
     Item_default_value *new_item= get_item_copy<Item_default_value>(thd, this);
     // This is a copy so do not manage the field and should not delete it
@@ -7658,7 +7685,7 @@ protected:
   Item* deep_copy(THD *thd) const override
   {
     Item_default_value *copy=
-      (Item_default_value *) shallow_copy_with_checks(thd);
+      (Item_default_value *) surface_copy_with_checks(thd);
     if (!copy || (arg && !(copy->arg= arg->deep_copy_with_checks(thd))))
       return NULL;
     return copy;
@@ -7754,10 +7781,10 @@ public:
     return false;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_default_specification>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7795,10 +7822,10 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_ignore_specification>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -7848,7 +7875,7 @@ public:
     return mark_unsupported_function("value()", arg, VCOL_IMPOSSIBLE);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_insert_value>(thd, this); }
 };
 
@@ -7933,10 +7960,10 @@ public:
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_trigger_field>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 
 private:
   void set_required_privilege(bool rw) override;
@@ -7989,6 +8016,8 @@ public:
 private:
   THD *m_thd;
   active_dml_stmt m_trigger_stmt_type;
+protected:
+  ITEM_SURFACE_COPY(Item_trigger_type_of_statement)
 };
 
 
@@ -8218,7 +8247,7 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   Item *convert_to_basic_const_item(THD *thd) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_int>(thd, this); }
 };
 
@@ -8240,7 +8269,7 @@ public:
     return Item_cache_bool::val_bool();
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_bool>(thd, this); }
 };
 
@@ -8255,7 +8284,7 @@ public:
     return type_handler_year.Item_get_date_with_warn(thd, this, to, mode);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_year>(thd, this); }
 };
 
@@ -8293,7 +8322,7 @@ public:
   Item_cache_time(THD *thd)
    :Item_cache_temporal(thd, &type_handler_time2) { }
   bool cache_value() override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_time>(thd, this); }
   Item *make_literal(THD *) override;
   longlong val_datetime_packed(THD *thd) override
@@ -8334,7 +8363,7 @@ public:
   Item_cache_datetime(THD *thd)
    :Item_cache_temporal(thd, &type_handler_datetime2) { }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_datetime>(thd, this); }
 public:
   Item *make_literal(THD *) override;
@@ -8371,7 +8400,7 @@ public:
   Item_cache_date(THD *thd)
    :Item_cache_temporal(thd, &type_handler_newdate) { }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_date>(thd, this); }
 public:
   Item *make_literal(THD *) override;
@@ -8406,7 +8435,7 @@ public:
   Item_cache_timestamp(THD *thd)
    :Item_cache(thd, &type_handler_timestamp2) { }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_timestamp>(thd, this); }
 public:
   bool cache_value() override;
@@ -8468,7 +8497,7 @@ public:
   { }
   String *val_str(String *str) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_double>(thd, this); }
 };
 
@@ -8481,7 +8510,7 @@ public:
   { }
   String *val_str(String *str) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_float>(thd, this); }
 };
 
@@ -8505,7 +8534,7 @@ public:
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_decimal>(thd, this); }
 };
 
@@ -8536,7 +8565,7 @@ public:
   bool cache_value() override;
   Item *convert_to_basic_const_item(THD *thd) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str>(thd, this); }
 };
 
@@ -8562,7 +8591,7 @@ public:
     return Item::safe_charset_converter(thd, tocs);
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_str_for_nullif>(thd, this); }
 };
 
@@ -8640,7 +8669,7 @@ public:
   bool cache_value() override;
   void set_null() override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_row>(thd, this); }
   /*
     A copy sharing the values[] array of element caches with the original is
@@ -8726,7 +8755,7 @@ public:
                                 *this, table);
   }
 protected:
-  Item *shallow_copy(THD *) const override { return nullptr; }
+  Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *) const override { return nullptr; }
 };
 
@@ -8883,7 +8912,7 @@ public:
   Item *get_tmp_table_item(THD *thd) override
   { return m_item->get_tmp_table_item(thd); }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_direct_ref_to_item>(thd, this); }
 public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
@@ -8968,7 +8997,7 @@ public:
     if (clone_item)
     {
       Item_direct_ref_to_item *copy=
-       (Item_direct_ref_to_item *) shallow_copy_with_checks(thd);
+       (Item_direct_ref_to_item *) surface_copy_with_checks(thd);
       if (!copy)
         return 0;
       copy->set_item(clone_item);

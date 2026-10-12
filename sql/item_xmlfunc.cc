@@ -222,7 +222,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
 };
 
@@ -239,7 +239,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_union>(thd, this); }
 };
 
@@ -280,7 +280,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
 };
 
@@ -298,7 +298,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
 };
 
@@ -318,7 +318,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
 };
 
@@ -338,7 +338,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
 };
 
@@ -357,7 +357,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
 };
 
@@ -375,7 +375,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
 };
 
@@ -396,7 +396,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
 };
 
@@ -413,7 +413,7 @@ public:
   }
   bool val_native(THD *thd, Native *nodeset) override;
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
 };
 
@@ -445,7 +445,7 @@ public:
     return args[0]->val_real() ? 1 : 0;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_bool>(thd, this); }
 };
 
@@ -463,7 +463,7 @@ public:
   }
   double val_real() override { return args[0]->val_real(); }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_xpath_cast_number>(thd, this); }
 };
 
@@ -484,7 +484,7 @@ public:
   bool fix_length_and_dec(THD *thd) override
   { max_length= MAX_BLOB_WIDTH; return FALSE; }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
 };
 
@@ -509,7 +509,7 @@ public:
     return 0;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_position>(thd, this); }
 };
 
@@ -536,7 +536,7 @@ public:
     return tmp_native_value.elements();
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_count>(thd, this); }
 };
 
@@ -585,7 +585,7 @@ public:
     return sum;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_xpath_sum>(thd, this); }
 };
 
@@ -614,6 +614,8 @@ public:
     */
     return this;
   }
+protected:
+  ITEM_SURFACE_COPY(Item_string_xml_non_const)
 };
 
 
@@ -671,7 +673,7 @@ public:
     return 0;
   }
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_nodeset_to_const_comparator>(thd, this); }
 };
 

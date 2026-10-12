@@ -164,7 +164,7 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *to) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_xmltype_typecast>(thd, this); }
 
   void print(String *str, enum_query_type query_type) override;

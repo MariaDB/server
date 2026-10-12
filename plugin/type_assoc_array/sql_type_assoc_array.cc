@@ -244,6 +244,8 @@ public:
     unpack();
     return Item_field::save_in_field(field, no_conversions);
   }
+protected:
+  ITEM_SURFACE_COPY(Item_field_packable_scalar)
 };
 
 
@@ -280,11 +282,7 @@ public:
     return false;
   }
 
-  Item *shallow_copy(THD *thd) const override
-  {
-    DBUG_ASSERT(0);
-    return get_item_copy<Item_field_packable_row>(thd, this);
-  }
+  Item *surface_copy(THD *thd) const override { return nullptr; }
 
   static uint packed_col_length(Field *field)
   {
@@ -675,7 +673,7 @@ public:
     set_func_handler(&ha_str_key);
     return m_func_handler->fix_length_and_dec(this);
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_first>(thd, this); }
 };
 
@@ -695,7 +693,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_last>(thd, this); }
 };
 
@@ -715,7 +713,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_next>(thd, this); }
 };
 
@@ -735,7 +733,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_prior>(thd, this); }
 };
 
@@ -772,7 +770,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_count>(thd, this); }
 };
 
@@ -814,7 +812,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_exists>(thd, this); }
 };
 
@@ -865,7 +863,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_assoc_array_delete>(thd, this); }
 };
 
@@ -1796,7 +1794,7 @@ Item *Item_assoc_array::deep_copy(THD *thd) const
       return 0;
     copy_args[i]= arg_clone;
   }
-  Item_assoc_array *copy= (Item_assoc_array *) shallow_copy_with_checks(thd);
+  Item_assoc_array *copy= (Item_assoc_array *) surface_copy_with_checks(thd);
   if (unlikely(!copy))
     return 0;
   copy->args= copy_args;

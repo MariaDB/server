@@ -151,7 +151,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_row_number>(thd, this); }
 };
 
@@ -228,7 +228,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_rank>(thd, this); }
 };
 
@@ -303,7 +303,7 @@ class Item_sum_dense_rank: public Item_sum_int
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
@@ -368,7 +368,7 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_first_value>(thd, this); }
 };
 
@@ -396,7 +396,7 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_last_value>(thd, this); }
 };
 
@@ -419,7 +419,7 @@ class Item_sum_nth_value : public Item_sum_hybrid_simple
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_nth_value>(thd, this); }
 };
 
@@ -442,7 +442,7 @@ class Item_sum_lead : public Item_sum_hybrid_simple
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lead>(thd, this); }
 };
 
@@ -465,7 +465,7 @@ class Item_sum_lag : public Item_sum_hybrid_simple
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
@@ -581,7 +581,7 @@ class Item_sum_percent_rank: public Item_sum_double,
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
  private:
@@ -670,7 +670,7 @@ class Item_sum_cume_dist: public Item_sum_double,
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 };
 
@@ -758,7 +758,7 @@ class Item_sum_ntile : public Item_sum_int,
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
@@ -923,7 +923,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_disc>(thd, this); }
 
 public:
@@ -1063,7 +1063,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_percentile_cont>(thd, this); }
 
 public:
@@ -1427,7 +1427,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
+  Item *surface_copy(THD *thd) const override { return nullptr; }
 };
 
 #endif /* ITEM_WINDOWFUNC_INCLUDED */

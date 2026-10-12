@@ -915,7 +915,7 @@ private:
   ulonglong count;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_sum>(thd, this); }
 };
 
@@ -987,7 +987,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_count>(thd, this); }
 };
 
@@ -1046,7 +1046,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_avg>(thd, this); }
 };
 
@@ -1132,7 +1132,7 @@ public:
   }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_variance>(thd, this); }
 };
 
@@ -1160,7 +1160,7 @@ class Item_sum_std final :public Item_sum_variance
   Item *copy_or_same(THD* thd) override final;
 
 protected:
-  Item *shallow_copy(THD *thd) const override final
+  Item *surface_copy(THD *thd) const override final
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
@@ -1267,7 +1267,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_min>(thd, this); }
 };
 
@@ -1288,7 +1288,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_max>(thd, this); }
 };
 
@@ -1389,7 +1389,7 @@ private:
   void set_bits_from_counters() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_or>(thd, this); }
 };
 
@@ -1412,7 +1412,7 @@ private:
   void set_bits_from_counters() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_and>(thd, this); }
 };
 
@@ -1433,7 +1433,7 @@ private:
   void set_bits_from_counters() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_xor>(thd, this); }
 };
 
@@ -1580,7 +1580,7 @@ public:
   Item *copy_or_same(THD *thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_sp>(thd, this); }
 };
 
@@ -1647,10 +1647,10 @@ public:
   double val_real() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_double>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1681,10 +1681,10 @@ public:
   my_decimal *val_decimal(my_decimal *) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_decimal>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1707,10 +1707,10 @@ public:
   { return &type_handler_double; }
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_variance_field>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1724,10 +1724,10 @@ public:
   double val_real() override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_std_field>(thd, this); }
   Item *deep_copy(THD *thd) const override
-  { return shallow_copy_with_checks(thd); }
+  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1829,7 +1829,7 @@ class Item_sum_udf_float :public Item_udf_sum
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_udf_float>(thd, this); }
 };
 
@@ -1858,7 +1858,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_udf_int>(thd, this); }
 };
 
@@ -1902,7 +1902,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_udf_str>(thd, this); }
 };
 
@@ -1936,7 +1936,7 @@ public:
   Item *copy_or_same(THD* thd) override;
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_sum_udf_decimal>(thd, this); }
 };
 
@@ -2229,7 +2229,7 @@ public:
   uint get_null_bytes();
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_group_concat>(thd, this); }
 };
 
@@ -2275,7 +2275,7 @@ public:
   Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item);
 
 protected:
-  Item *shallow_copy(THD *thd) const override
+  Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_collect>(thd, this); }
 };
 #endif /* ITEM_SUM_INCLUDED */
