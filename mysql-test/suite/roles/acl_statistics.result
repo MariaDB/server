@@ -3,9 +3,9 @@ Variable_name	Value
 Acl_column_grants	0
 Acl_database_grants	0
 Acl_function_grants	0
-Acl_procedure_grants	0
-Acl_package_spec_grants	0
 Acl_package_body_grants	0
+Acl_package_spec_grants	0
+Acl_procedure_grants	0
 Acl_proxy_users	4
 Acl_role_grants	0
 Acl_roles	0
@@ -68,9 +68,9 @@ Variable_name	Value
 Acl_column_grants	2
 Acl_database_grants	2
 Acl_function_grants	3
-Acl_procedure_grants	2
-Acl_package_spec_grants	0
 Acl_package_body_grants	0
+Acl_package_spec_grants	0
+Acl_procedure_grants	2
 Acl_proxy_users	5
 Acl_role_grants	4
 Acl_roles	2
