@@ -7394,7 +7394,9 @@ ha_innobase::build_template(
 	ibool		fetch_all_in_key	= FALSE;
 	ibool		fetch_primary_key_cols	= FALSE;
 
-	if (m_prebuilt->select_lock_type == LOCK_X || m_prebuilt->table->no_rollback()) {
+	if ((m_prebuilt->select_lock_type == LOCK_X
+	     && !m_prebuilt->full_scan_covering_read)
+	    || m_prebuilt->table->no_rollback()) {
 		/* We always retrieve the whole clustered index record if we
 		use exclusive row level locks, for example, if the read is
 		done in an UPDATE statement or if we are using a no rollback
@@ -16432,7 +16434,14 @@ int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
     case HA_EXTRA_FULL_SCAN:
       if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
           !m_prebuilt->skip_locked && arg == ULONG_MAX)
+      {
         m_prebuilt->full_table_scan = true;
+        m_prebuilt->full_scan_covering_read=
+          thd_sql_command(ha_thd()) == SQLCOM_SELECT &&
+          !m_prebuilt->used_in_HANDLER &&
+          !(m_prebuilt->trx->snapshot_isolation &&
+            m_prebuilt->trx->read_view.is_open());
+      }
       return 0;
     default:/* Do nothing */
       ;
@@ -16461,6 +16470,7 @@ ha_innobase::reset()
 
 	m_prebuilt->skip_locked = false;
 	m_prebuilt->full_table_scan = false;
+	m_prebuilt->full_scan_covering_read = false;
 	return(0);
 }
 

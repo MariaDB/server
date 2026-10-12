@@ -289,3 +289,58 @@ let $result= `SELECT $end_val - $start_val`;
 echo # lock_rec_created;
 echo $result;
 drop table t10, t11;
+
+--echo #
+--echo # MDEV-41351 Redundant clustered lookups in covering scans when holding a table X-lock
+--echo #
+
+--echo # default, covering
+CREATE TABLE t1 (id INT PRIMARY KEY, sec INT, pad CHAR(100), KEY i1(sec))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_10000;
+
+let $bp= SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+         WHERE VARIABLE_NAME='INNODB_BUFFER_POOL_READ_REQUESTS';
+let $s= `$bp`;
+--disable_result_log
+SELECT sec,id FROM t1 FOR UPDATE;
+--enable_result_log
+let $e= `$bp`;
+--echo # 10000 rows; clustered path costs ~2/row
+evalp SELECT ($e - $s) < 10000 AS covering;
+
+--connect (con1,localhost,root,,)
+SET innodb_lock_wait_timeout=1;
+
+--echo # Case 1: covering point lookup (never a full scan, no table lock)
+--connection default
+--replace_column 9 #
+EXPLAIN SELECT sec,id FROM t1 WHERE sec=5 FOR UPDATE;
+BEGIN;
+SELECT sec,id FROM t1 WHERE sec=5 FOR UPDATE;
+--connection con1
+--echo # PK path, non-indexed column: must wait for A's clustered X lock
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET pad='y' WHERE id=5;
+--connection default
+COMMIT;
+
+--echo # Case 2: covering full scan
+--connection default
+BEGIN;
+--disable_result_log
+SELECT sec,id FROM t1 FOR UPDATE;
+--enable_result_log
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET pad='y' WHERE id=5;
+--connection default
+COMMIT;
+
+--echo # locks released: the UPDATE now succeeds
+--connection con1
+UPDATE t1 SET pad='y' WHERE id=5;
+SELECT pad FROM t1 WHERE id=5;
+--disconnect con1
+--connection default
+DROP TABLE t1;
