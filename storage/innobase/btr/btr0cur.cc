@@ -259,6 +259,7 @@ unreadable:
 		ib::error() << "Table " << index->table->name
 			    << " is missing instant ALTER metadata";
 		index->table->corrupted = true;
+		index->table->file_unreadable = true;
 		return DB_CORRUPTION;
 	}
 
@@ -268,6 +269,7 @@ incompatible:
 		ib::error() << "Table " << index->table->name
 			<< " contains unrecognizable instant ALTER metadata";
 		index->table->corrupted = true;
+		index->table->file_unreadable = true;
 		return DB_CORRUPTION;
 	}
 
