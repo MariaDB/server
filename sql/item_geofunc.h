@@ -834,6 +834,7 @@ public:
   }
   bool need_parentheses_in_default() override { return false; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 protected:
   /* Shared: subclasses own Gcalc state that a copy would free twice */
   Item *same_select_copy(THD *thd) const override

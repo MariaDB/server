@@ -682,6 +682,14 @@ public:
     }
     return clone;
   }
+  Item *pushdown_copy(THD *thd) const override
+  {
+    Item_bool_rowready_func2 *copy=
+      (Item_bool_rowready_func2 *) Item_func::pushdown_copy(thd);
+    if (copy)
+      copy->cmp.comparators= 0;
+    return copy;
+  }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
 protected:
   Item *same_select_copy(THD *thd) const override
@@ -1225,7 +1233,6 @@ struct interval_range
 
 class Item_func_interval :public Item_long_func
 {
-  Item_row *row;
   bool use_decimal_comparison;
   interval_range *intervals;
   bool check_arguments() const override
@@ -1234,8 +1241,9 @@ class Item_func_interval :public Item_long_func
   }
 public:
   Item_func_interval(THD *thd, Item_row *a):
-    Item_long_func(thd, a), row(a), intervals(0)
+    Item_long_func(thd, a), intervals(0)
   { }
+  Item_row *row() const { return static_cast<Item_row*>(args[0]); }
   longlong val_int() override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
@@ -2626,6 +2634,15 @@ protected:
       return NULL;
     return clone;
   }
+  Item *pushdown_copy(THD *thd) const override
+  {
+    Item_func_case_simple *copy= (Item_func_case_simple *)
+                                 Item_func_case::pushdown_copy(thd);
+    if (copy && copy->Predicant_to_list_comparator::init_clone(thd,
+                                                               when_count()))
+      return nullptr;
+    return copy;
+  }
   Item *same_select_copy(THD *thd) const override
   {
     Item_func_case_simple *copy= (Item_func_case_simple *)
@@ -2841,6 +2858,17 @@ public:
         return NULL;
     }
     return clone;
+  }
+  Item *pushdown_copy(THD *thd) const override
+  {
+    Item_func_in *copy= (Item_func_in *) Item_func::pushdown_copy(thd);
+    if (copy)
+    {
+      copy->array= 0;
+      if (copy->Predicant_to_list_comparator::init_clone(thd, arg_count - 1))
+        return nullptr;
+    }
+    return copy;
   }
 protected:
   Item *same_select_copy(THD *thd) const override
@@ -3498,6 +3526,7 @@ public:
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
   Item *deep_copy(THD *thd) const override;
+  Item *pushdown_copy(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
 

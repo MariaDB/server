@@ -2014,17 +2014,17 @@ bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 
 bool Item_func_interval::fix_length_and_dec(THD *thd)
 {
-  uint rows= row->cols();
+  uint rows= row()->cols();
 
   for (uint i= 0 ; i < rows; i++)
   {
-    if (row->element_index(i)->check_cols(1))
+    if (row()->element_index(i)->check_cols(1))
       return true;
   }
 
-  use_decimal_comparison= ((row->element_index(0)->result_type() ==
+  use_decimal_comparison= ((row()->element_index(0)->result_type() ==
                             DECIMAL_RESULT) ||
-                           (row->element_index(0)->result_type() ==
+                           (row()->element_index(0)->result_type() ==
                             INT_RESULT));
   if (rows > 8)
   {
@@ -2032,7 +2032,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
 
     for (uint i= 1; not_null_consts && i < rows; i++)
     {
-      Item *el= row->element_index(i);
+      Item *el= row()->element_index(i);
       not_null_consts&= el->const_item() && !el->is_null();
     }
 
@@ -2046,7 +2046,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
       {
         for (uint i= 1; i < rows; i++)
         {
-          Item *el= row->element_index(i);
+          Item *el= row()->element_index(i);
           interval_range *range= intervals + (i-1);
           if ((el->result_type() == DECIMAL_RESULT) ||
               (el->result_type() == INT_RESULT))
@@ -2070,16 +2070,16 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
       {
         for (uint i= 1; i < rows; i++)
         {
-          intervals[i-1].dbl= row->element_index(i)->val_real();
+          intervals[i-1].dbl= row()->element_index(i)->val_real();
         }
       }
     }
   }
   base_flags&= ~item_base_t::MAYBE_NULL;
   max_length= 2;
-  used_tables_and_const_cache_join(row);
-  not_null_tables_cache= row->not_null_tables();
-  with_flags|= row->with_flags;
+  used_tables_and_const_cache_join(row());
+  not_null_tables_cache= row()->not_null_tables();
+  with_flags|= row()->with_flags;
   return false;
 }
 
@@ -2107,15 +2107,15 @@ longlong Item_func_interval::val_int()
 
   if (use_decimal_comparison)
   {
-    dec= row->element_index(0)->val_decimal(&dec_buf);
-    if (row->element_index(0)->null_value)
+    dec= row()->element_index(0)->val_decimal(&dec_buf);
+    if (row()->element_index(0)->null_value)
       return -1;
     my_decimal2double(E_DEC_FATAL_ERROR, dec, &value);
   }
   else
   {
-    value= row->element_index(0)->val_real();
-    if (row->element_index(0)->null_value)
+    value= row()->element_index(0)->val_real();
+    if (row()->element_index(0)->null_value)
       return -1;
   }
 
@@ -2123,7 +2123,7 @@ longlong Item_func_interval::val_int()
   {					// Use binary search to find interval
     uint start,end;
     start= 0;
-    end=   row->cols()-2;
+    end=   row()->cols()-2;
     while (start != end)
     {
       uint mid= (start + end + 1) / 2;
@@ -2149,9 +2149,9 @@ longlong Item_func_interval::val_int()
             value < range->dbl) ? 0 : start + 1;
   }
 
-  for (i=1 ; i < row->cols() ; i++)
+  for (i=1 ; i < row()->cols() ; i++)
   {
-    Item *el= row->element_index(i);
+    Item *el= row()->element_index(i);
     if (use_decimal_comparison &&
         ((el->result_type() == DECIMAL_RESULT) ||
          (el->result_type() == INT_RESULT)))
@@ -5707,6 +5707,23 @@ Item *Item_cond::deep_copy(THD *thd) const
 }
 
 
+Item *Item_cond::pushdown_copy(THD *thd) const
+{
+  Item_cond *copy= (Item_cond *) surface_copy_with_checks(thd);
+  if (!copy)
+    return nullptr;
+  copy->list.empty();
+
+  for (const Item &item : list)
+  {
+    Item *arg_copy= item.pushdown_copy_with_checks(thd);
+    if (!arg_copy || copy->list.push_back(arg_copy, thd->mem_root))
+      return nullptr;
+  }
+  return copy;
+}
+
+
 Item *Item_cond::same_select_copy(THD *thd) const
 {
   Item_cond *copy= (Item_cond *) surface_copy_with_checks(thd);
@@ -8085,9 +8102,9 @@ bool Item_equal::create_pushable_equalities(THD *thd,
   if (right_item)
   {
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
+    Item *left_item_clone= left_item->pushdown_copy_with_checks(thd);
     Item *right_item_clone= !clone_const ?
-                            right_item : right_item->deep_copy_with_checks(thd);
+                            right_item : right_item->pushdown_copy_with_checks(thd);
     if (!left_item_clone || !right_item_clone)
       return true;
     eq= new (thd->mem_root) Item_func_eq(thd,
@@ -8114,8 +8131,8 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (checker && !((item->*checker) (arg)))
       continue;
     Item_func_eq *eq= 0;
-    Item *left_item_clone= left_item->deep_copy_with_checks(thd);
-    Item *right_item_clone= item->deep_copy_with_checks(thd);
+    Item *left_item_clone= left_item->pushdown_copy_with_checks(thd);
+    Item *right_item_clone= item->pushdown_copy_with_checks(thd);
     if (!(left_item_clone && right_item_clone))
       return true;
     left_item_clone->set_item_equal(NULL);

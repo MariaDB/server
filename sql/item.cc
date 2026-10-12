@@ -2923,6 +2923,40 @@ Item* Item_func_or_sum::deep_copy(THD *thd) const
   return copy;
 }
 
+
+/*
+  The arguments are copied first: if one of them cannot be copied, no copy
+  of this node is created, as its cleanup() would free what it still shares
+  with the original.
+*/
+
+Item *Item_func_or_sum::pushdown_copy(THD *thd) const
+{
+  Item *copy_tmp_args[2]= {0,0};
+  Item **copy_args= copy_tmp_args;
+  if (arg_count > 2 &&
+      unlikely(!(copy_args= static_cast<Item**>
+                 (alloc_root(thd->mem_root, sizeof(Item*) * arg_count)))))
+    return nullptr;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (unlikely(!(copy_args[i]= args[i]->pushdown_copy_with_checks(thd))))
+      return nullptr;
+  }
+  Item_func_or_sum *copy=
+    static_cast<Item_func_or_sum *>(surface_copy_with_checks(thd));
+  if (unlikely(!copy))
+    return nullptr;
+  if (arg_count > 2)
+    copy->args= copy_args;
+  else if (arg_count > 0)
+  {
+    copy->args= copy->tmp_arg;
+    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
+  }
+  return copy;
+}
+
 Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
                  sp_name *name_arg) :
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
@@ -3337,6 +3371,17 @@ Item* Item_ref::deep_copy(THD *thd) const
                                                 sizeof(Item*)))) ||
       unlikely(!(*copy->ref= (* ref)->deep_copy_with_checks(thd))))
     return 0;
+  return copy;
+}
+
+
+Item *Item_ref::pushdown_copy(THD *thd) const
+{
+  Item_ref *copy= (Item_ref *) surface_copy_with_checks(thd);
+  if (unlikely(!copy) ||
+      unlikely(!(copy->ref= thd->alloc<Item*>(1))) ||
+      unlikely(!(*copy->ref= (*ref)->pushdown_copy_with_checks(thd))))
+    return nullptr;
   return copy;
 }
 
@@ -8648,7 +8693,7 @@ Item *Item::build_pushable_cond(THD *thd,
   {
     if (with_sum_func())
       return 0;
-    return deep_copy_with_checks(thd);
+    return pushdown_copy_with_checks(thd);
   }
   return 0;
 }
@@ -8780,7 +8825,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
   {
-    Item *producing_clone= producing_item->deep_copy_with_checks(thd);
+    Item *producing_clone= producing_item->pushdown_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8808,7 +8853,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     st_select_lex *sel= (st_select_lex *)arg;
     Item *producing_item= find_producing_item(this, sel);
     DBUG_ASSERT (producing_item != NULL);
-    return producing_item->deep_copy_with_checks(thd);
+    return producing_item->pushdown_copy_with_checks(thd);
   }
   return (*ref);
 }
@@ -8821,7 +8866,7 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
   if (gr_field)
   {
     Item *producing_clone=
-      gr_field->corresponding_item->deep_copy_with_checks(thd);
+      gr_field->corresponding_item->pushdown_copy_with_checks(thd);
     if (producing_clone)
       producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
@@ -8855,7 +8900,7 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Field_pair *gr_field= find_matching_field_pair(this,
                                                  sel->grouping_tmp_fields);
-  return gr_field->corresponding_item->deep_copy_with_checks(thd);
+  return gr_field->corresponding_item->pushdown_copy_with_checks(thd);
 }
 
 void Item_field::print(String *str, enum_query_type query_type)
@@ -11374,6 +11419,31 @@ Item *Item_cache::deep_copy_cache(THD *thd) const
   Item_cache *copy= (Item_cache *) surface_copy_with_checks(thd);
   if (!copy)
     return NULL;
+  copy->example= example_copy;
+  copy->clear();
+  return copy;
+}
+
+
+Item *Item_cache::pushdown_copy(THD *thd) const
+{
+  Item *example_copy= example;
+  /*
+    Aggregate and window functions cannot be copied: a copy would share their
+    per-execution data with the original. So a copy of a cache over one of
+    them shares the example with the original cache.
+
+    The cleanup walk of the pushdown code never reaches that example: every
+    transformer the pushdown code applies before the walk replaces an
+    Item_cache with a basic constant (see convert_to_basic_const_item()), or
+    fails, in which case the condition is not pushed down.
+  */
+  if (example && !example->with_sum_func() && !example->with_window_func() &&
+      !(example_copy= example->pushdown_copy_with_checks(thd)))
+    return nullptr;
+  Item_cache *copy= (Item_cache *) surface_copy_with_checks(thd);
+  if (!copy)
+    return nullptr;
   copy->example= example_copy;
   copy->clear();
   return copy;

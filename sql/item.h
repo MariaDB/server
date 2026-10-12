@@ -2019,6 +2019,39 @@ public:
     return copy;
   }
 
+  /*
+    Creates a copy of the item for a condition that is pushed down from one
+    select into another: into a materialized derived table or view, into a
+    materialized IN subquery, or from HAVING into WHERE.
+
+    The pushdown code then transforms the copy, replacing the columns it
+    refers to with what the target select computes them from, walks it with
+    cleanup_excluding_const_fields_processor and fixes it again in the
+    target select. So every node of the copy that the cleanup walk can reach
+    is a separate object that shares nothing with the original: a shared
+    node would be cleaned up under the original. The fixed state of the
+    copied nodes only has to last until that cleanup. Nodes that would
+    otherwise share owned state with the original, like comparators, get
+    their own. A node that the walk cannot reach may be shared: the only
+    such node is the example of an Item_cache over an aggregate or window
+    function, see Item_cache::pushdown_copy().
+
+    Return value:
+    - pointer to the copy
+    - nullptr if the item cannot be copied, in which case the condition is
+      not pushed down
+  */
+  Item *pushdown_copy_with_checks(THD *thd) const
+  {
+    Item *copy= pushdown_copy(thd);
+    if (copy)
+    {
+      // Make sure the copy is of same type as this item
+      DBUG_ASSERT(typeid(*copy) == typeid(*this));
+    }
+    return copy;
+  }
+
 #ifndef DBUG_OFF
   /*
     Debug-only validation of a clone produced by deep_copy_with_checks().
@@ -2992,6 +3025,15 @@ protected:
     outer reference otherwise.
   */
   virtual Item *new_select_copy(THD *thd, st_select_lex *item_select) const;
+
+  /*
+    Service function for public method pushdown_copy_with_checks(). See
+    comments for pushdown_copy_with_checks() above. By default the item is
+    copied as a single node. Override this method in classes that have
+    child items, and in classes that cannot be copied.
+  */
+  virtual Item *pushdown_copy(THD *thd) const
+  { return surface_copy_with_checks(thd); }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -3578,6 +3620,7 @@ public:
 protected:
   Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3614,6 +3657,7 @@ public:
 protected:
   Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3638,6 +3682,7 @@ public:
 protected:
   Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -3688,6 +3733,7 @@ private:
 protected:
   Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 /*****************************************************************************
@@ -4987,6 +5033,7 @@ private:
 protected:
   Item *surface_copy(THD *thd) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -6344,6 +6391,7 @@ public:
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
   Item* deep_copy(THD *thd) const override;
+  Item *pushdown_copy(THD *thd) const override;
   Sql_mode_dependency value_depends_on_sql_mode() const override
   {
     return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
@@ -6655,6 +6703,7 @@ public:
 
 protected:
   Item *deep_copy(THD *thd) const override;
+  Item *pushdown_copy(THD *thd) const override;
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_ref>(thd, this); }
 };
@@ -6876,6 +6925,7 @@ protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_cache_wrapper>(thd, this); }
   Item *deep_copy(THD *) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
     if (orig_item->maybe_null())
@@ -7182,6 +7232,8 @@ protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_outer_ref>(thd, this); }
   Item *deep_copy(THD *thd) const override
+  { return surface_copy_with_checks(thd); }
+  Item *pushdown_copy(THD *thd) const override
   { return surface_copy_with_checks(thd); }
 };
 
@@ -7769,6 +7821,14 @@ protected:
       return NULL;
     return copy;
   }
+  Item *pushdown_copy(THD *thd) const override
+  {
+    Item_default_value *copy=
+      (Item_default_value *) surface_copy_with_checks(thd);
+    if (!copy || (arg && !(copy->arg= arg->pushdown_copy_with_checks(thd))))
+      return nullptr;
+    return copy;
+  }
   /* Not a plain column: refer to it like any other item */
   Item *new_select_copy(THD *thd, st_select_lex *item_select) const override
   { return Item::new_select_copy(thd, item_select); }
@@ -8294,6 +8354,7 @@ protected:
   */
   Item *deep_copy_cache(THD *thd) const;
   Item *deep_copy(THD *thd) const override { return deep_copy_cache(thd); }
+  Item *pushdown_copy(THD *thd) const override;
 public:
   Item *get_example() const { return example; }
 
@@ -8759,6 +8820,7 @@ protected:
     caches is implemented.
   */
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -8839,6 +8901,7 @@ public:
 protected:
   Item *surface_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
 
@@ -9086,6 +9149,18 @@ public:
       return copy;
     }
     return 0;
+  }
+  Item *pushdown_copy(THD *thd) const override
+  {
+    Item *item_copy= m_item->pushdown_copy_with_checks(thd);
+    if (!item_copy)
+      return nullptr;
+    Item_direct_ref_to_item *copy=
+      (Item_direct_ref_to_item *) surface_copy_with_checks(thd);
+    if (!copy)
+      return nullptr;
+    copy->set_item(item_copy);
+    return copy;
   }
 
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,

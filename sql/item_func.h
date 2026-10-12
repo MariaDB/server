@@ -4014,6 +4014,7 @@ protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_match>(thd, this); }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
 private:
   /**
      Check whether storage engine for given table, 

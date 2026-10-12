@@ -280,6 +280,7 @@ public:
 
 protected:
   Item* deep_copy(THD *thd) const override { return nullptr; }
+  Item *pushdown_copy(THD *thd) const override { return nullptr; }
   Item *surface_copy(THD *thd) const override { return nullptr; }
 
   friend class select_result_interceptor;

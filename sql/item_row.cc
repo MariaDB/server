@@ -192,6 +192,25 @@ Item* Item_row::deep_copy(THD *thd) const
 }
 
 
+Item* Item_row::pushdown_copy(THD *thd) const
+{
+  Item **copy_args= static_cast<Item**>
+    (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
+  if (unlikely(!copy_args))
+    return nullptr;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!(copy_args[i]= args[i]->pushdown_copy_with_checks(thd)))
+      return nullptr;
+  }
+  Item_row *copy= (Item_row *) surface_copy_with_checks(thd);
+  if (unlikely(!copy))
+    return nullptr;
+  copy->args= copy_args;
+  return copy;
+}
+
+
 Item* Item_row::same_select_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item**>

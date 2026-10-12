@@ -140,6 +140,7 @@ protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_row>(thd, this); }
   Item *deep_copy(THD *thd) const override;
+  Item *pushdown_copy(THD *thd) const override;
   Item *same_select_copy(THD *thd) const override;
 };
 
