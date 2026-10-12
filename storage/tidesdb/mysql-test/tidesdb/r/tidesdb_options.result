@@ -1,0 +1,258 @@
+#
+# === Setup: install the TIDESDB engine plugin ===
+#
+#
+# ============================================
+# TEST 1: System variables - verify defaults
+# ============================================
+#
+SHOW VARIABLES LIKE 'tidesdb_flush_threads';
+Variable_name	Value
+tidesdb_flush_threads	4
+SHOW VARIABLES LIKE 'tidesdb_compaction_threads';
+Variable_name	Value
+tidesdb_compaction_threads	4
+SHOW VARIABLES LIKE 'tidesdb_log_level';
+Variable_name	Value
+tidesdb_log_level	DEBUG
+SHOW VARIABLES LIKE 'tidesdb_block_cache_size';
+Variable_name	Value
+tidesdb_block_cache_size	268435456
+SHOW VARIABLES LIKE 'tidesdb_max_open_sstables';
+Variable_name	Value
+tidesdb_max_open_sstables	256
+SHOW VARIABLES LIKE 'tidesdb_max_memory_usage';
+Variable_name	Value
+tidesdb_max_memory_usage	0
+#
+# ============================================
+# TEST 2: CREATE TABLE with default options
+# ============================================
+#
+CREATE TABLE t_defaults (id INT, val VARCHAR(50)) ENGINE=TIDESDB;
+SHOW CREATE TABLE t_defaults;
+Table	Create Table
+t_defaults	CREATE TABLE `t_defaults` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+INSERT INTO t_defaults VALUES (1, 'default_opts');
+SELECT * FROM t_defaults;
+id	val
+1	default_opts
+DROP TABLE t_defaults;
+#
+# ============================================
+# TEST 3: CREATE TABLE with custom compression
+# ============================================
+#
+CREATE TABLE t_none (id INT, val VARCHAR(50)) ENGINE=TIDESDB COMPRESSION='NONE';
+SHOW CREATE TABLE t_none;
+Table	Create Table
+t_none	CREATE TABLE `t_none` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='NONE'
+INSERT INTO t_none VALUES (1, 'no compression');
+SELECT * FROM t_none;
+id	val
+1	no compression
+DROP TABLE t_none;
+CREATE TABLE t_zstd (id INT, val VARCHAR(50)) ENGINE=TIDESDB COMPRESSION='ZSTD';
+SHOW CREATE TABLE t_zstd;
+Table	Create Table
+t_zstd	CREATE TABLE `t_zstd` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='ZSTD'
+INSERT INTO t_zstd VALUES (1, 'zstd compressed');
+SELECT * FROM t_zstd;
+id	val
+1	zstd compressed
+DROP TABLE t_zstd;
+#
+# ============================================
+# TEST 4: CREATE TABLE with custom bloom filter
+# ============================================
+#
+CREATE TABLE t_nobloom (id INT, val VARCHAR(50)) ENGINE=TIDESDB BLOOM_FILTER=0;
+SHOW CREATE TABLE t_nobloom;
+Table	Create Table
+t_nobloom	CREATE TABLE `t_nobloom` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `BLOOM_FILTER`=0
+INSERT INTO t_nobloom VALUES (1, 'no bloom');
+SELECT * FROM t_nobloom;
+id	val
+1	no bloom
+DROP TABLE t_nobloom;
+CREATE TABLE t_lowfpr (id INT, val VARCHAR(50)) ENGINE=TIDESDB BLOOM_FPR=10;
+SHOW CREATE TABLE t_lowfpr;
+Table	Create Table
+t_lowfpr	CREATE TABLE `t_lowfpr` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `BLOOM_FPR`=10
+INSERT INTO t_lowfpr VALUES (1, 'low fpr 0.1%');
+SELECT * FROM t_lowfpr;
+id	val
+1	low fpr 0.1%
+DROP TABLE t_lowfpr;
+#
+# ============================================
+# TEST 5: CREATE TABLE with custom write buffer
+# ============================================
+#
+CREATE TABLE t_bigbuf (id INT, val VARCHAR(50)) ENGINE=TIDESDB WRITE_BUFFER_SIZE=16777216;
+SHOW CREATE TABLE t_bigbuf;
+Table	Create Table
+t_bigbuf	CREATE TABLE `t_bigbuf` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `WRITE_BUFFER_SIZE`=16777216
+INSERT INTO t_bigbuf VALUES (1, '16MB write buffer');
+SELECT * FROM t_bigbuf;
+id	val
+1	16MB write buffer
+DROP TABLE t_bigbuf;
+#
+# ============================================
+# TEST 6: CREATE TABLE with sync mode options
+# ============================================
+#
+CREATE TABLE t_syncnone (id INT) ENGINE=TIDESDB SYNC_MODE='NONE';
+Warnings:
+Warning	1105	[TIDESDB] Table SYNC_MODE=NONE governs SSTable file sync only.  Under tidesdb_unified_memtable=ON the shared WAL is fsynced according to tidesdb_unified_memtable_sync_mode=FULL, so the table option does not change WAL durability for this table
+SHOW CREATE TABLE t_syncnone;
+Table	Create Table
+t_syncnone	CREATE TABLE `t_syncnone` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `SYNC_MODE`='NONE'
+INSERT INTO t_syncnone VALUES (1);
+SELECT * FROM t_syncnone;
+id
+1
+DROP TABLE t_syncnone;
+CREATE TABLE t_syncint (id INT) ENGINE=TIDESDB SYNC_MODE='INTERVAL' SYNC_INTERVAL_US=500000;
+Warnings:
+Warning	1105	[TIDESDB] Table SYNC_MODE=INTERVAL governs SSTable file sync only.  Under tidesdb_unified_memtable=ON the shared WAL is fsynced according to tidesdb_unified_memtable_sync_mode=FULL, so the table option does not change WAL durability for this table
+SHOW CREATE TABLE t_syncint;
+Table	Create Table
+t_syncint	CREATE TABLE `t_syncint` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `SYNC_MODE`='INTERVAL' `SYNC_INTERVAL_US`=500000
+INSERT INTO t_syncint VALUES (1);
+SELECT * FROM t_syncint;
+id
+1
+DROP TABLE t_syncint;
+#
+# ============================================
+# TEST 7: CREATE TABLE with isolation level
+# ============================================
+#
+CREATE TABLE t_rc (id INT, val VARCHAR(50)) ENGINE=TIDESDB ISOLATION_LEVEL='READ_COMMITTED';
+SHOW CREATE TABLE t_rc;
+Table	Create Table
+t_rc	CREATE TABLE `t_rc` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `ISOLATION_LEVEL`='READ_COMMITTED'
+INSERT INTO t_rc VALUES (1, 'read committed');
+SELECT * FROM t_rc;
+id	val
+1	read committed
+DROP TABLE t_rc;
+CREATE TABLE t_ser (id INT, val VARCHAR(50)) ENGINE=TIDESDB ISOLATION_LEVEL='SERIALIZABLE';
+SHOW CREATE TABLE t_ser;
+Table	Create Table
+t_ser	CREATE TABLE `t_ser` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `ISOLATION_LEVEL`='SERIALIZABLE'
+INSERT INTO t_ser VALUES (1, 'serializable');
+SELECT * FROM t_ser;
+id	val
+1	serializable
+DROP TABLE t_ser;
+#
+# ============================================
+# TEST 8: CREATE TABLE with B+tree format
+# ============================================
+#
+CREATE TABLE t_btree (id INT, val VARCHAR(50)) ENGINE=TIDESDB USE_BTREE=1;
+SHOW CREATE TABLE t_btree;
+Table	Create Table
+t_btree	CREATE TABLE `t_btree` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(50) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `USE_BTREE`=1
+INSERT INTO t_btree VALUES (1, 'btree format');
+SELECT * FROM t_btree;
+id	val
+1	btree format
+DROP TABLE t_btree;
+#
+# ============================================
+# TEST 9: CREATE TABLE with multiple options
+# ============================================
+#
+CREATE TABLE t_multi (
+id INT,
+val VARCHAR(100)
+) ENGINE=TIDESDB
+COMPRESSION='ZSTD'
+  WRITE_BUFFER_SIZE=8388608
+BLOOM_FILTER=1
+BLOOM_FPR=50
+BLOCK_INDEXES=1
+SYNC_MODE='FULL'
+  ISOLATION_LEVEL='REPEATABLE_READ'
+  LEVEL_SIZE_RATIO=8
+MIN_LEVELS=3
+SKIP_LIST_MAX_LEVEL=16
+SKIP_LIST_PROBABILITY=50;
+SHOW CREATE TABLE t_multi;
+Table	Create Table
+t_multi	CREATE TABLE `t_multi` (
+  `id` int(11) DEFAULT NULL,
+  `val` varchar(100) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='ZSTD' `WRITE_BUFFER_SIZE`=8388608 `BLOOM_FILTER`=1 `BLOOM_FPR`=50 `BLOCK_INDEXES`=1 `SYNC_MODE`='FULL' `ISOLATION_LEVEL`='REPEATABLE_READ' `LEVEL_SIZE_RATIO`=8 `MIN_LEVELS`=3 `SKIP_LIST_MAX_LEVEL`=16 `SKIP_LIST_PROBABILITY`=50
+INSERT INTO t_multi VALUES (1, 'multi-option table');
+INSERT INTO t_multi VALUES (2, 'second row');
+SELECT * FROM t_multi;
+id	val
+1	multi-option table
+2	second row
+UPDATE t_multi SET val = 'updated' WHERE id = 1;
+SELECT * FROM t_multi;
+id	val
+1	updated
+2	second row
+DELETE FROM t_multi WHERE id = 2;
+SELECT * FROM t_multi;
+id	val
+1	updated
+DROP TABLE t_multi;
+#
+# ============================================
+# TEST 10: Default isolation is REPEATABLE_READ
+# ============================================
+#
+CREATE TABLE t_default_iso (id INT) ENGINE=TIDESDB;
+SHOW CREATE TABLE t_default_iso;
+Table	Create Table
+t_default_iso	CREATE TABLE `t_default_iso` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+INSERT INTO t_default_iso VALUES (1), (2), (3);
+SELECT * FROM t_default_iso;
+id
+1
+2
+3
+DROP TABLE t_default_iso;
+#
+#
+# Done.

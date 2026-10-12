@@ -1,0 +1,63 @@
+#
+# TEST 1: Large TEXT insert and retrieval
+#
+CREATE TABLE t_blob (id INT PRIMARY KEY, data LONGTEXT) ENGINE=TidesDB;
+INSERT INTO t_blob VALUES (1, REPEAT('A', 1000));
+INSERT INTO t_blob VALUES (2, REPEAT('B', 65536));
+INSERT INTO t_blob VALUES (3, REPEAT('C', 262144));
+SELECT id, LENGTH(data) FROM t_blob ORDER BY id;
+id	LENGTH(data)
+1	1000
+2	65536
+3	262144
+#
+# TEST 2: Large BLOB with secondary index
+#
+CREATE TABLE t_blob_idx (
+id INT PRIMARY KEY,
+cat INT,
+payload LONGBLOB,
+KEY(cat)
+) ENGINE=TidesDB;
+INSERT INTO t_blob_idx VALUES (1, 10, REPEAT('X', 100000));
+INSERT INTO t_blob_idx VALUES (2, 20, REPEAT('Y', 100000));
+INSERT INTO t_blob_idx VALUES (3, 10, REPEAT('Z', 100000));
+SELECT id, LENGTH(payload) FROM t_blob_idx WHERE cat = 10 ORDER BY id;
+id	LENGTH(payload)
+1	100000
+3	100000
+#
+# TEST 3: UPDATE large BLOB
+#
+UPDATE t_blob SET data = REPEAT('D', 500000) WHERE id = 2;
+SELECT id, LENGTH(data) FROM t_blob WHERE id = 2;
+id	LENGTH(data)
+2	500000
+#
+# TEST 4: DELETE and re-insert large BLOB
+#
+DELETE FROM t_blob WHERE id = 3;
+INSERT INTO t_blob VALUES (3, REPEAT('E', 131072));
+SELECT id, LENGTH(data) FROM t_blob ORDER BY id;
+id	LENGTH(data)
+1	1000
+2	500000
+3	131072
+#
+# TEST 5: Multiple BLOB columns
+#
+CREATE TABLE t_multi_blob (
+id INT PRIMARY KEY,
+a LONGBLOB,
+b LONGTEXT,
+c MEDIUMBLOB
+) ENGINE=TidesDB;
+INSERT INTO t_multi_blob VALUES (1, REPEAT('A', 80000), REPEAT('B', 80000), REPEAT('C', 40000));
+SELECT id, LENGTH(a), LENGTH(b), LENGTH(c) FROM t_multi_blob;
+id	LENGTH(a)	LENGTH(b)	LENGTH(c)
+1	80000	80000	40000
+#
+# Cleanup
+#
+DROP TABLE t_blob, t_blob_idx, t_multi_blob;
+# Done.

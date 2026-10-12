@@ -1,0 +1,21 @@
+--source include/have_tidesdb.inc
+#
+# Issue #73: SHOW ENGINE TIDESDB STATUS
+#
+
+--echo #
+--echo # SHOW ENGINE TIDESDB STATUS should return output
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, val INT) ENGINE=TidesDB;
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+
+# Mask the data directory path (varies per build) and volatile numbers
+--replace_regex /Data directory: [^\n]*/Data directory: TIDESDB_DATA_DIR/ /[0-9]+/N/
+SHOW ENGINE TIDESDB STATUS;
+
+DROP TABLE t1;
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

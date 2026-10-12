@@ -1,0 +1,43 @@
+CREATE TABLE t_snap (id INT PRIMARY KEY, v INT) ENGINE=TidesDB;
+INSERT INTO t_snap VALUES (1, 10);
+CREATE TABLE t_rc (id INT PRIMARY KEY, v INT)
+ENGINE=TidesDB `ISOLATION_LEVEL`=READ_COMMITTED;
+INSERT INTO t_rc VALUES (1, 10);
+connect  con1, localhost, root,,test;
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+#
+# default table -- the transaction holds a stable snapshot
+#
+BEGIN;
+SELECT id, v FROM t_snap ORDER BY id;
+id	v
+1	10
+connection default;
+INSERT INTO t_snap VALUES (2, 20);
+connection con1;
+# the snapshot is stable, so the row committed afterwards is unseen
+SELECT id, v FROM t_snap ORDER BY id;
+id	v
+1	10
+COMMIT;
+#
+# ISOLATION_LEVEL=READ_COMMITTED -- the transaction sees fresh commits
+#
+BEGIN;
+SELECT id, v FROM t_rc ORDER BY id;
+id	v
+1	10
+connection default;
+INSERT INTO t_rc VALUES (2, 20);
+connection con1;
+# read committed sees the row committed after the transaction began
+SELECT id, v FROM t_rc ORDER BY id;
+id	v
+1	10
+2	20
+COMMIT;
+connection default;
+disconnect con1;
+DROP TABLE t_snap, t_rc;
+# Done.

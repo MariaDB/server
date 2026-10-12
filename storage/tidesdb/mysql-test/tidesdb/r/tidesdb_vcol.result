@@ -1,0 +1,197 @@
+#
+# ============================================
+# TEST 1: VIRTUAL generated column
+# ============================================
+#
+CREATE TABLE t_vcol (
+id INT PRIMARY KEY,
+price DECIMAL(10,2),
+qty INT,
+total DECIMAL(10,2) AS (price * qty) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_vcol (id, price, qty) VALUES (1, 10.50, 3);
+INSERT INTO t_vcol (id, price, qty) VALUES (2, 25.00, 2);
+INSERT INTO t_vcol (id, price, qty) VALUES (3, 5.75, 10);
+# Virtual column 'total' should be computed on read
+SELECT * FROM t_vcol ORDER BY id;
+id	price	qty	total
+1	10.50	3	31.50
+2	25.00	2	50.00
+3	5.75	10	57.50
+# Update base column and verify virtual column recalculates
+UPDATE t_vcol SET qty = 5 WHERE id = 1;
+SELECT id, price, qty, total FROM t_vcol WHERE id = 1;
+id	price	qty	total
+1	10.50	5	52.50
+DROP TABLE t_vcol;
+#
+# ============================================
+# TEST 2: STORED (PERSISTENT) generated column
+# ============================================
+#
+CREATE TABLE t_scol (
+id INT PRIMARY KEY,
+first_name VARCHAR(50),
+last_name VARCHAR(50),
+full_name VARCHAR(101) AS (CONCAT(first_name, ' ', last_name)) PERSISTENT
+) ENGINE=TIDESDB;
+INSERT INTO t_scol (id, first_name, last_name) VALUES (1, 'John', 'Doe');
+INSERT INTO t_scol (id, first_name, last_name) VALUES (2, 'Jane', 'Smith');
+SELECT * FROM t_scol ORDER BY id;
+id	first_name	last_name	full_name
+1	John	Doe	John Doe
+2	Jane	Smith	Jane Smith
+# Update base column and verify stored column updates
+UPDATE t_scol SET last_name = 'Johnson' WHERE id = 1;
+SELECT * FROM t_scol WHERE id = 1;
+id	first_name	last_name	full_name
+1	John	Johnson	John Johnson
+DROP TABLE t_scol;
+#
+# ============================================
+# TEST 3: Multiple virtual columns
+# ============================================
+#
+CREATE TABLE t_multi_vcol (
+id INT PRIMARY KEY,
+radius DOUBLE,
+area DOUBLE AS (PI() * radius * radius) VIRTUAL,
+circumference DOUBLE AS (2 * PI() * radius) VIRTUAL,
+diameter DOUBLE AS (2 * radius) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_multi_vcol (id, radius) VALUES (1, 5.0);
+INSERT INTO t_multi_vcol (id, radius) VALUES (2, 10.0);
+SELECT id, radius, ROUND(area, 2) AS area, ROUND(circumference, 2) AS circ, diameter
+FROM t_multi_vcol ORDER BY id;
+id	radius	area	circ	diameter
+1	5	78.54	31.42	10
+2	10	314.16	62.83	20
+DROP TABLE t_multi_vcol;
+#
+# ============================================
+# TEST 4: Virtual column with conditional expression
+# ============================================
+#
+CREATE TABLE t_vcol_cond (
+id INT PRIMARY KEY,
+score INT,
+grade VARCHAR(10) AS (
+CASE
+WHEN score >= 90 THEN 'A'
+      WHEN score >= 80 THEN 'B'
+      WHEN score >= 70 THEN 'C'
+      WHEN score >= 60 THEN 'D'
+      ELSE 'F'
+    END
+) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_vcol_cond (id, score) VALUES (1, 95), (2, 82), (3, 71), (4, 55);
+SELECT * FROM t_vcol_cond ORDER BY id;
+id	score	grade
+1	95	A
+2	82	B
+3	71	C
+4	55	F
+# Update score and verify grade recalculates
+UPDATE t_vcol_cond SET score = 91 WHERE id = 4;
+SELECT * FROM t_vcol_cond WHERE id = 4;
+id	score	grade
+4	91	A
+DROP TABLE t_vcol_cond;
+#
+# ============================================
+# TEST 5: Mixed virtual and stored columns
+# ============================================
+#
+CREATE TABLE t_mixed (
+id INT PRIMARY KEY,
+a INT,
+b INT,
+sum_ab INT AS (a + b) PERSISTENT,
+product_ab INT AS (a * b) VIRTUAL,
+diff_ab INT AS (a - b) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_mixed (id, a, b) VALUES (1, 10, 3), (2, 7, 4), (3, 15, 8);
+SELECT * FROM t_mixed ORDER BY id;
+id	a	b	sum_ab	product_ab	diff_ab
+1	10	3	13	30	7
+2	7	4	11	28	3
+3	15	8	23	120	7
+UPDATE t_mixed SET a = 20 WHERE id = 2;
+SELECT * FROM t_mixed WHERE id = 2;
+id	a	b	sum_ab	product_ab	diff_ab
+2	20	4	24	80	16
+DROP TABLE t_mixed;
+#
+# ============================================
+# TEST 6: Virtual column with string functions
+# ============================================
+#
+CREATE TABLE t_vcol_str (
+id INT PRIMARY KEY,
+email VARCHAR(100),
+domain VARCHAR(100) AS (SUBSTRING_INDEX(email, '@', -1)) VIRTUAL,
+username VARCHAR(100) AS (SUBSTRING_INDEX(email, '@', 1)) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_vcol_str (id, email) VALUES
+(1, 'alice@example.com'),
+(2, 'bob@gmail.com'),
+(3, 'charlie@company.org');
+SELECT * FROM t_vcol_str ORDER BY id;
+id	email	domain	username
+1	alice@example.com	example.com	alice
+2	bob@gmail.com	gmail.com	bob
+3	charlie@company.org	company.org	charlie
+# Verify WHERE clause on virtual column works
+SELECT id, email FROM t_vcol_str WHERE domain = 'gmail.com';
+id	email
+2	bob@gmail.com
+DROP TABLE t_vcol_str;
+#
+# ============================================
+# TEST 7: Virtual column with DELETE
+# ============================================
+#
+CREATE TABLE t_vcol_del (
+id INT PRIMARY KEY,
+val INT,
+doubled INT AS (val * 2) VIRTUAL
+) ENGINE=TIDESDB;
+INSERT INTO t_vcol_del (id, val) VALUES (1, 10), (2, 20), (3, 30);
+SELECT * FROM t_vcol_del ORDER BY id;
+id	val	doubled
+1	10	20
+2	20	40
+3	30	60
+DELETE FROM t_vcol_del WHERE id = 2;
+SELECT * FROM t_vcol_del ORDER BY id;
+id	val	doubled
+1	10	20
+3	30	60
+DROP TABLE t_vcol_del;
+#
+# ============================================
+# TEST 8: SHOW CREATE TABLE with virtual columns
+# ============================================
+#
+CREATE TABLE t_vcol_show (
+id INT PRIMARY KEY,
+a INT,
+b INT,
+v_sum INT AS (a + b) VIRTUAL,
+s_prod INT AS (a * b) PERSISTENT
+) ENGINE=TIDESDB;
+SHOW CREATE TABLE t_vcol_show;
+Table	Create Table
+t_vcol_show	CREATE TABLE `t_vcol_show` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v_sum` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
+  `s_prod` int(11) GENERATED ALWAYS AS (`a` * `b`) STORED,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+DROP TABLE t_vcol_show;
+#
+#
+# Done.

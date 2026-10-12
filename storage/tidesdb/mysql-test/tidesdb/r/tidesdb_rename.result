@@ -1,0 +1,212 @@
+#
+# === Setup: install the TIDESDB engine plugin ===
+#
+#
+# ============================================
+# TEST 1: Basic RENAME TABLE
+# ============================================
+#
+CREATE TABLE t_orig (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_orig VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+SELECT * FROM t_orig ORDER BY id;
+id	val
+1	alpha
+2	beta
+3	gamma
+RENAME TABLE t_orig TO t_renamed;
+SELECT * FROM t_orig;
+ERROR 42S02: Table 'test.t_orig' doesn't exist
+SELECT * FROM t_renamed ORDER BY id;
+id	val
+1	alpha
+2	beta
+3	gamma
+INSERT INTO t_renamed VALUES (4, 'delta');
+UPDATE t_renamed SET val = 'BETA' WHERE id = 2;
+DELETE FROM t_renamed WHERE id = 3;
+SELECT * FROM t_renamed ORDER BY id;
+id	val
+1	alpha
+2	BETA
+4	delta
+DROP TABLE t_renamed;
+#
+# ============================================
+# TEST 2: RENAME TABLE with secondary index
+# ============================================
+#
+CREATE TABLE t_idx (
+id INT PRIMARY KEY,
+name VARCHAR(50) NOT NULL,
+KEY idx_name (name)
+) ENGINE=TIDESDB;
+INSERT INTO t_idx VALUES (1, 'alice'), (2, 'bob'), (3, 'charlie'), (4, 'alice');
+SELECT id, name FROM t_idx WHERE name = 'alice' ORDER BY id;
+id	name
+1	alice
+4	alice
+RENAME TABLE t_idx TO t_idx_new;
+SELECT id, name FROM t_idx_new WHERE name = 'alice' ORDER BY id;
+id	name
+1	alice
+4	alice
+SELECT id, name FROM t_idx_new WHERE name = 'bob';
+id	name
+2	bob
+INSERT INTO t_idx_new VALUES (5, 'bob');
+SELECT id, name FROM t_idx_new WHERE name = 'bob' ORDER BY id;
+id	name
+2	bob
+5	bob
+DROP TABLE t_idx_new;
+#
+# ============================================
+# TEST 3: ALTER TABLE changes table options
+# ============================================
+#
+CREATE TABLE t_alter (id INT PRIMARY KEY, val VARCHAR(100)) ENGINE=TIDESDB;
+INSERT INTO t_alter VALUES (1, 'before'), (2, 'alter'), (3, 'table');
+SELECT * FROM t_alter ORDER BY id;
+id	val
+1	before
+2	alter
+3	table
+SHOW CREATE TABLE t_alter;
+Table	Create Table
+t_alter	CREATE TABLE `t_alter` (
+  `id` int(11) NOT NULL,
+  `val` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+ALTER TABLE t_alter SYNC_MODE='NONE';
+SHOW CREATE TABLE t_alter;
+Table	Create Table
+t_alter	CREATE TABLE `t_alter` (
+  `id` int(11) NOT NULL,
+  `val` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `SYNC_MODE`='NONE'
+SELECT * FROM t_alter ORDER BY id;
+id	val
+1	before
+2	alter
+3	table
+INSERT INTO t_alter VALUES (4, 'after_alter');
+UPDATE t_alter SET val = 'ALTERED' WHERE id = 2;
+DELETE FROM t_alter WHERE id = 1;
+SELECT * FROM t_alter ORDER BY id;
+id	val
+2	ALTERED
+3	table
+4	after_alter
+DROP TABLE t_alter;
+#
+# ============================================
+# TEST 4: ALTER TABLE ADD COLUMN (schema change)
+# ============================================
+#
+CREATE TABLE t_schema (id INT PRIMARY KEY, val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_schema VALUES (1, 'one'), (2, 'two');
+ALTER TABLE t_schema ADD COLUMN extra INT DEFAULT 0;
+SHOW CREATE TABLE t_schema;
+Table	Create Table
+t_schema	CREATE TABLE `t_schema` (
+  `id` int(11) NOT NULL,
+  `val` varchar(50) DEFAULT NULL,
+  `extra` int(11) DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+SELECT * FROM t_schema ORDER BY id;
+id	val	extra
+1	one	NULL
+2	two	NULL
+INSERT INTO t_schema VALUES (3, 'three', 99);
+SELECT * FROM t_schema ORDER BY id;
+id	val	extra
+1	one	NULL
+2	two	NULL
+3	three	99
+DROP TABLE t_schema;
+#
+# ============================================
+# TEST 5: ALTER TABLE with secondary index
+# ============================================
+#
+CREATE TABLE t_altidx (
+id INT PRIMARY KEY,
+name VARCHAR(50) NOT NULL,
+KEY idx_name (name)
+) ENGINE=TIDESDB;
+INSERT INTO t_altidx VALUES (1, 'alice'), (2, 'bob'), (3, 'charlie');
+SELECT id FROM t_altidx WHERE name = 'bob';
+id
+2
+ALTER TABLE t_altidx SYNC_MODE='NONE';
+SELECT id FROM t_altidx WHERE name = 'bob';
+id
+2
+SELECT id FROM t_altidx WHERE name = 'alice';
+id
+1
+SELECT * FROM t_altidx ORDER BY id;
+id	name
+1	alice
+2	bob
+3	charlie
+INSERT INTO t_altidx VALUES (4, 'alice');
+SELECT id FROM t_altidx WHERE name = 'alice' ORDER BY id;
+id
+1
+4
+DROP TABLE t_altidx;
+#
+# ============================================
+# TEST 6: Double rename
+# ============================================
+#
+CREATE TABLE t_a (id INT PRIMARY KEY, val INT) ENGINE=TIDESDB;
+INSERT INTO t_a VALUES (1, 10), (2, 20);
+RENAME TABLE t_a TO t_b;
+SELECT * FROM t_b ORDER BY id;
+id	val
+1	10
+2	20
+RENAME TABLE t_b TO t_c;
+SELECT * FROM t_c ORDER BY id;
+id	val
+1	10
+2	20
+SELECT * FROM t_a;
+ERROR 42S02: Table 'test.t_a' doesn't exist
+SELECT * FROM t_b;
+ERROR 42S02: Table 'test.t_b' doesn't exist
+DROP TABLE t_c;
+#
+# ============================================
+# TEST 7: ALTER TABLE without explicit PK (hidden PK)
+# ============================================
+#
+CREATE TABLE t_nopk (val VARCHAR(50)) ENGINE=TIDESDB;
+INSERT INTO t_nopk VALUES ('row1'), ('row2'), ('row3');
+SELECT * FROM t_nopk;
+val
+row1
+row2
+row3
+ALTER TABLE t_nopk SYNC_MODE='NONE';
+SELECT * FROM t_nopk;
+val
+row1
+row2
+row3
+INSERT INTO t_nopk VALUES ('row4');
+SELECT * FROM t_nopk;
+val
+row1
+row2
+row3
+row4
+DROP TABLE t_nopk;
+#
+#
+# Done.
