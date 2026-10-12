@@ -11107,6 +11107,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     part_share->next_auto_inc_val+= nb_desired_values * increment;
 
     unlock_auto_increment();
+    DEBUG_SYNC(ha_thd(), "ha_partition_get_auto_increment_after_reservation");
     DBUG_PRINT("info", ("*first_value: %lu", (ulong) *first_value));
     *nb_reserved_values= nb_desired_values;
   }
@@ -11139,7 +11140,8 @@ void ha_partition::release_auto_increment()
         we can lower the reserved value.
       */
       if (next_insert_id < next_auto_inc_val &&
-          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val &&
+          next_insert_id >= auto_inc_interval_for_cur_row.minimum())
       {
         THD *thd= ha_thd();
         /*
