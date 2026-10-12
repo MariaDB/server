@@ -980,7 +980,11 @@ bool Item_field::check_field_expression_processor(void *arg)
 bool Item_field::update_vcol_processor(void *arg)
 {
   MY_BITMAP *map= (MY_BITMAP *) arg;
-  if (field->vcol_info &&
+  /*
+    Stored vcols are not recomputed: the caller must have their values
+    in the record (the engine fills them as base columns).
+  */
+  if (!field->stored_in_db() &&
       !bitmap_fast_test_and_set(map, field->field_index))
   {
     field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
