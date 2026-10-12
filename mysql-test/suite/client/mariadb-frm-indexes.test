@@ -1,0 +1,119 @@
+--echo MariaDB frm parser test - Index Types
+--echo Testing various index types and configurations
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+
+# Test basic BTREE indexes
+CREATE TABLE t_btree_indexes (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100),
+  age INT,
+  score DECIMAL(5,2),
+  INDEX idx_name (name) USING BTREE,
+  UNIQUE KEY idx_email (email) USING BTREE,
+  INDEX idx_age_score (age, score) USING BTREE
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_btree_indexes.frm
+DROP TABLE t_btree_indexes;
+
+# Test HASH indexes (for MEMORY engine)
+CREATE TABLE t_hash_indexes (
+  id INT,
+  code VARCHAR(10),
+  category VARCHAR(20),
+  INDEX idx_code (code) USING HASH,
+  INDEX idx_category (category) USING HASH
+) ENGINE=MEMORY;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_hash_indexes.frm
+DROP TABLE t_hash_indexes;
+
+# Test compound primary key
+CREATE TABLE t_compound_pk (
+  tenant_id INT,
+  user_id INT,
+  name VARCHAR(50),
+  PRIMARY KEY (tenant_id, user_id),
+  INDEX idx_name (name)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_compound_pk.frm
+DROP TABLE t_compound_pk;
+
+# Test various index options
+CREATE TABLE t_index_options (
+  id INT AUTO_INCREMENT,
+  title VARCHAR(200),
+  content TEXT,
+  status TINYINT,
+  created_at DATETIME,
+  PRIMARY KEY (id),
+  INDEX idx_title_partial (title(50)),
+  INDEX idx_status_created (status, created_at),
+  FULLTEXT KEY ft_content (content)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_index_options.frm
+DROP TABLE t_index_options;
+
+# Test spatial indexes (RTREE) - requires MyISAM or compatible engine
+CREATE TABLE t_spatial_indexes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  location POINT NOT NULL,
+  area POLYGON NOT NULL,
+  SPATIAL INDEX idx_location (location),
+  SPATIAL INDEX idx_area (area)
+) ENGINE=MyISAM;
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_spatial_indexes.frm
+DROP TABLE t_spatial_indexes;
+
+# Test unique indexes and constraints
+CREATE TABLE t_unique_indexes (
+  id INT,
+  username VARCHAR(50),
+  email VARCHAR(100),
+  phone VARCHAR(20),
+  ssn VARCHAR(11),
+  UNIQUE KEY idx_username (username),
+  UNIQUE KEY idx_email (email),
+  UNIQUE KEY idx_phone_ssn (phone, ssn),
+  INDEX idx_id (id)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_unique_indexes.frm
+DROP TABLE t_unique_indexes;
+
+# Test descending indexes (if supported)
+CREATE TABLE t_desc_indexes (
+  id INT,
+  created_at TIMESTAMP,
+  priority INT,
+  INDEX idx_created_desc (created_at DESC),
+  INDEX idx_priority_created (priority ASC, created_at DESC)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_desc_indexes.frm
+DROP TABLE t_desc_indexes;
+
+# Test ignored indexes (MariaDB 10.6+)
+CREATE TABLE t_ignored_indexes (
+  id INT,
+  name VARCHAR(100),
+  status INT,
+  INDEX idx_name (name),
+  INDEX idx_status (status) IGNORED
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_ignored_indexes.frm
+DROP TABLE t_ignored_indexes;
+
+--echo Index types test completed
