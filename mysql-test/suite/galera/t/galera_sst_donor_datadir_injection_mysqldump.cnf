@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_debug=1
+
+# Both nodes bootstrap as their own standalone single-member cluster (see
+# galera_sst_donor_datadir_injection.cnf for why). node_2 is later joined
+# to node_1 with wsrep_sst_method=mysqldump, forcing sst_donate_mysqldump()
+# to run on node_1.
+[mysqld.1]
+wsrep_cluster_address=gcomm://
+datadir=@ENV.MYSQL_TMP_DIR/donor_dd_inj_md'&touch @ENV.MYSQL_TMP_DIR/donor_dd_inj_md_marker&'x
+
+[mysqld.2]
+wsrep_cluster_address=gcomm://
