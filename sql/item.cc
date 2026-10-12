@@ -3341,6 +3341,65 @@ Item* Item_ref::deep_copy(THD *thd) const
 }
 
 
+/*
+  Refer to this item from a select nested in item_select, as an outer
+  reference to item_select.
+*/
+
+Item *Item::new_select_copy(THD *thd, st_select_lex *item_select) const
+{
+  if (!(used_tables() & ~PSEUDO_TABLE_BITS))
+    return const_cast<Item*>(this);
+  Item **slot= thd->alloc<Item*>(1);
+  if (unlikely(!slot))
+    return nullptr;
+  *slot= const_cast<Item*>(this);
+  Item_direct_ref *ref= new (thd->mem_root)
+    Item_direct_ref(thd, &item_select->context, slot, null_clex_str,
+                    null_clex_str);
+  if (unlikely(!ref))
+    return nullptr;
+  ref->depended_from= item_select;
+  return ref;
+}
+
+
+Item *Item_field::new_select_copy(THD *thd, st_select_lex *item_select) const
+{
+  if (get_depended_from())
+    return const_cast<Item_field*>(this);     // Already an outer reference
+  Item_field *copy= (Item_field *) surface_copy_with_checks(thd);
+  if (unlikely(!copy))
+    return nullptr;
+  copy->depended_from= item_select;
+  copy->item_equal= NULL;
+  return copy;
+}
+
+
+/*
+  A column of a merged view or derived table is copied like a column: the
+  copy refers to a copy of the item the view column stands for.
+*/
+
+Item *Item_direct_view_ref::new_select_copy(THD *thd,
+                                            st_select_lex *item_select) const
+{
+  if (get_depended_from())
+    return const_cast<Item_direct_view_ref*>(this);
+  Item *ref_copy= (*ref)->new_select_copy_with_checks(thd, item_select);
+  if (unlikely(!ref_copy))
+    return nullptr;
+  Item_direct_view_ref *copy=
+    (Item_direct_view_ref *) surface_copy_with_checks(thd);
+  if (unlikely(!copy) || unlikely(!(copy->ref= thd->alloc<Item*>(1))))
+    return nullptr;
+  *copy->ref= ref_copy;
+  copy->item_equal= NULL;
+  return copy;
+}
+
+
 /**********************************************/
 
 Item_field::Item_field(THD *thd, Field *f)

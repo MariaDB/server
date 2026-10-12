@@ -1991,6 +1991,34 @@ public:
     return copy;
   }
 
+  /*
+    Creates a copy of the item for use in a select nested in 'item_select',
+    the SELECT_LEX the item belongs to, for instance to push a condition that
+    refers to the item down into a derived table.
+
+    In the nested select the copy is an outer reference: it evaluates to the
+    value the item has for the current row of 'item_select'. An Item_field is
+    copied and marked as depending on 'item_select'. Any other item that
+    depends on tables of 'item_select' is not copied at all: the copy is an
+    Item_direct_ref to the original, marked the same way. So a cache, an
+    aggregate or a subquery of 'item_select' is read where its owner keeps it
+    up to date, rather than duplicated into an object nobody refreshes. An
+    item that depends on no table of 'item_select' is shared.
+
+    The copy is fixed and needs no fix_fields().
+
+    Return value:
+    - pointer to the copy, or to this item if it is shared
+    - nullptr only on out of memory
+  */
+  Item *new_select_copy_with_checks(THD *thd, st_select_lex *item_select) const
+  {
+    Item *copy= new_select_copy(thd, item_select);
+    // The copy may only refer to tables outside the select it is used in
+    DBUG_ASSERT(!copy || !(copy->used_tables() & ~PSEUDO_TABLE_BITS));
+    return copy;
+  }
+
 #ifndef DBUG_OFF
   /*
     Debug-only validation of a clone produced by deep_copy_with_checks().
@@ -2956,6 +2984,14 @@ protected:
   */
   virtual Item *same_select_copy(THD *thd) const
   { return const_cast<Item*>(this); }
+
+  /*
+    Service function for public method new_select_copy_with_checks(). See
+    comments for new_select_copy_with_checks() above. By default the item is
+    shared if it depends on no table of 'item_select', and referenced as an
+    outer reference otherwise.
+  */
+  virtual Item *new_select_copy(THD *thd, st_select_lex *item_select) const;
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -4192,6 +4228,7 @@ protected:
   { return get_item_copy<Item_field>(thd, this); }
   Item* deep_copy(THD *thd) const override
   { return surface_copy_with_checks(thd); }
+  Item *new_select_copy(THD *thd, st_select_lex *item_select) const override;
 };
 
 
@@ -7063,6 +7100,7 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_direct_view_ref>(thd, this); }
+  Item *new_select_copy(THD *thd, st_select_lex *item_select) const override;
 public:
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
@@ -7731,6 +7769,9 @@ protected:
       return NULL;
     return copy;
   }
+  /* Not a plain column: refer to it like any other item */
+  Item *new_select_copy(THD *thd, st_select_lex *item_select) const override
+  { return Item::new_select_copy(thd, item_select); }
 private:
   bool tie_field(THD *thd);
 };

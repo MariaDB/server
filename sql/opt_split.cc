@@ -654,23 +654,16 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     fixed when the condition is injected, see inject_best_splitting_cond().
   */
   Item *left_item= spl_field->producing_item->same_select_copy_with_checks(thd);
-  Item *right_item= key_field->val->deep_copy_with_checks(thd);
-  DBUG_EXECUTE_IF("split_materialized_clones",
-                  if (right_item)
-                    key_field->val->check_deep_copy(thd, right_item,
-                                                    "key_field->val"););
+  /*
+    right_item is pushed down into the select that specifies this table,
+    where it refers to the select key_field->val belongs to.
+  */
+  Item *right_item=
+    key_field->val->new_select_copy_with_checks(thd,
+                                    join->select_lex->outer_select());
   Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
-    right_item->walk(&Item::set_fields_as_dependent_processor,
-                     join->select_lex, 0);
-    right_item->update_used_tables();
-    /*
-      We've just pushed right_item down into the child select. It may only
-      have references to outside.
-    */
-    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
-
     //  Item_func::EQUAL_FUNC is null-safe, others can use Item_func_eq()
     if (key_field->cond->type() == Item::FUNC_ITEM &&
         ((Item_func*)key_field->cond)->functype() == Item_func::EQUAL_FUNC)
