@@ -1,0 +1,23 @@
+#
+# MDEV-40786: CLI validation on Windows. Network behavior is exercised by
+# the disposable WinHTTP helper, not by this offline MTR test.
+#
+--source include/windows.inc
+
+--echo #
+--echo # Missing operands are rejected before installation detection
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN install 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN uninstall 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN search one two 2>&1 > /dev/null
+
+--echo #
+--echo # Invalid options are rejected before network or file access
+--echo #
+--error 1
+--exec $MYSQL_PLUGIN search --file=missing.tar.gz 2>&1 > /dev/null
+--error 1
+--exec $MYSQL_PLUGIN uninstall provider --base-url=https://example.invalid/ 2>&1 > /dev/null
