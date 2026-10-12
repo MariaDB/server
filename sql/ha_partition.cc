@@ -5991,7 +5991,8 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
   }
 
   if (have_start_key &&
-      (m_start_key.flag == HA_READ_PREFIX_LAST ||
+      (m_start_key.flag == HA_READ_KEY_OR_PREV ||
+       m_start_key.flag == HA_READ_PREFIX_LAST ||
        m_start_key.flag == HA_READ_PREFIX_LAST_OR_PREV ||
        m_start_key.flag == HA_READ_BEFORE_KEY))
   {
@@ -7515,8 +7516,24 @@ bool ha_partition::can_skip_merging_scans()
         (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
       if (m_index_scan_type == partition_index_read)
       {
-        return
-          m_start_key.key && (m_start_key.keypart_map & prefix) == prefix;
+        switch (m_start_key.flag) {
+        case HA_READ_AFTER_KEY:
+        case HA_READ_BEFORE_KEY:
+          return m_start_key.key && m_start_key.keypart_map != prefix &&
+            (m_start_key.keypart_map & prefix) == prefix;
+        case HA_READ_KEY_EXACT:
+        case HA_READ_KEY_OR_NEXT:
+        case HA_READ_KEY_OR_PREV:
+        case HA_READ_PREFIX:
+        case HA_READ_PREFIX_LAST:
+        case HA_READ_PREFIX_LAST_OR_PREV:
+          return m_start_key.key &&
+          (m_start_key.keypart_map & prefix) == prefix;
+        default:
+          /* SPATIAL keys have a single key part, so Case 2 cannot apply */
+          DBUG_ASSERT(0);
+          return false;
+        }
       }
       else if (m_index_scan_type == partition_read_range)
       {
@@ -8065,6 +8082,26 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
       error= file->ha_index_read_map(buf, m_start_key.key,
                                      m_start_key.keypart_map,
                                      m_start_key.flag);
+      /*
+        Case 2 of can_skip_merging_scans(): only rows with the fixed
+        prefix are wanted.
+
+        - Here: index_read_map() is not bounded, so a row with another
+          prefix means this partition has no such rows in the scan
+          direction: try the next partition
+        - handle_unordered_next(): the calls it makes on the partition
+          (read_range_next, index_next_same, MRR) stop at their own end
+          key, which has the same prefix, so no check is needed there
+        - handle_unordered_prev(): index_prev has no end key, so the
+          same check is done there
+      */
+      if (!error && m_unordered_prefix_len)
+      {
+        DBUG_ASSERT(buf == table->record[0]);
+        if (key_cmp_if_same(table, m_start_key.key, active_index,
+                            m_unordered_prefix_len))
+          error= HA_ERR_END_OF_FILE;
+      }
       break;
     case partition_index_first:
       DBUG_PRINT("info", ("index_first on partition %u", i));

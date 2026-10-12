@@ -287,8 +287,8 @@
  show status like 'handler_read_%';
  Variable_name	Value
  Handler_read_first	0
--Handler_read_key	6
-+Handler_read_key	7
+-Handler_read_key	8
++Handler_read_key	11
  Handler_read_last	0
  Handler_read_next	0
  Handler_read_prev	0
