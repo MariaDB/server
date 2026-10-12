@@ -2882,6 +2882,11 @@ public:
     return name;
   }
   Item *surface_copy(THD *thd) const override { return nullptr; }
+protected:
+  /* Shared: it cannot be copied */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
+public:
 
   // Get an Item_func_to_number pointer from a Item_handled_func pointer.
   static Item_func_to_number *to_func_to_number(Item_handled_func *func)

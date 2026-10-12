@@ -421,6 +421,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_convexhull>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -504,6 +507,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_boundary>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -828,6 +834,10 @@ public:
   }
   bool need_parentheses_in_default() override { return false; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
+protected:
+  /* Shared: subclasses own Gcalc state that a copy would free twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -890,6 +900,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_relate>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -929,6 +942,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_operation>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -992,6 +1008,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_buffer>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -1056,6 +1075,10 @@ public:
   }
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_simplify>(thd, this); }
+protected:
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 class Item_func_isclosed: public Item_long_func_args_geometry
@@ -1346,6 +1369,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_distance>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -1495,6 +1521,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_pointonsurface>(thd, this); }
+  /* Shared: a copy would free its Gcalc state twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 

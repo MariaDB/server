@@ -616,6 +616,9 @@ public:
   }
 protected:
   Item *surface_copy(THD *thd) const override { return nullptr; }
+  /* Shared: cleanup() of a copy would free the compiled regex */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -664,6 +667,9 @@ public:
   }
 protected:
   Item *surface_copy(THD *thd) const override { return nullptr; }
+  /* Shared: cleanup() of a copy would free the compiled regex */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 

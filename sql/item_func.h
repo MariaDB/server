@@ -207,6 +207,9 @@ public:
     Item_func_or_sum::cleanup();
     used_tables_and_const_cache_init();
   }
+protected:
+  Item *same_select_copy(THD *thd) const override;
+public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
   void quick_fix_field() override;
@@ -2408,6 +2411,9 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_rand>(thd, this); }
+  /* Shared: a copy would restart the random sequence */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -2463,6 +2469,9 @@ public:
 
 protected:
   Item *surface_copy(THD *thd) const override { return 0; }
+  /* Shared: it counts the rows of its SELECT_LEX */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr);
@@ -3274,6 +3283,10 @@ public:
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override
   { return false; }
+protected:
+  /* Shared: cleanup() of a copy would deinit the UDF */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -3749,6 +3762,10 @@ protected:
   { return get_item_copy<Item_func_set_user_var>(thd, this); }
 public:
   bool excl_dep_on_table(table_map tab_map) override { return false; }
+protected:
+  /* Shared: a copy would assign the variable twice */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -4031,6 +4048,10 @@ private:
 
     return false;
   }
+protected:
+  /* Shared: it is registered in its SELECT_LEX's ftfunc_list */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -4474,6 +4495,10 @@ public:
   {
     return false;
   }
+protected:
+  /* Shared: cleanup() of a copy would free the result field */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 

@@ -978,6 +978,10 @@ public:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
   void cleanup() override;
+protected:
+  /* Shared: cleanup() of a copy would free the parsed schema */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 class Item_func_json_key_value: public Item_json_func,
@@ -1054,6 +1058,10 @@ public:
                                    MEM_ROOT *current_mem_root,
                                    json_engine_t *temp_je,
                                    MEM_ROOT_DYNAMIC_ARRAY *stack, HASH *seen);
+protected:
+  /* Shared: cleanup() of a copy would free its hash */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func
@@ -1090,6 +1098,10 @@ public:
       free_root(&hash_root, MYF(0));
     Item_str_func::cleanup();
   }
+protected:
+  /* Shared: cleanup() of a copy would free its hash */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 

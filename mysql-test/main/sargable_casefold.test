@@ -139,3 +139,21 @@ explain update t1 set col2='ABC' where upper(col1) IN ('A','B');
 drop table t1,t2,t3,t4;
 
 set optimizer_switch=@tmp_switch_sarg_casefold;
+
+--echo #
+--echo # MDEV-41228 UPPER(key_col) IN (...) with a subquery in the list
+--echo #
+set optimizer_switch='sargable_casefold=on';
+create table t1 (a varchar(10) collate utf8mb4_general_ci, b int, key(a));
+insert into t1 select concat('a-',seq), seq from seq_1_to_1000;
+create table t2 (c varchar(10) collate utf8mb4_general_ci);
+insert into t2 values ('A-1'),('A-3');
+
+--echo # must use range:
+explain
+select * from t1 where upper(a) in ((select max(c) from t2),'A-2');
+select * from t1 where upper(a) in ((select max(c) from t2),'A-2');
+
+drop table t1,t2;
+
+set optimizer_switch=@tmp_switch_sarg_casefold;

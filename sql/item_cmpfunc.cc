@@ -5707,6 +5707,23 @@ Item *Item_cond::deep_copy(THD *thd) const
 }
 
 
+Item *Item_cond::same_select_copy(THD *thd) const
+{
+  Item_cond *copy= (Item_cond *) surface_copy_with_checks(thd);
+  if (!copy)
+    return nullptr;
+  copy->list.empty();
+
+  for (const Item &item : list)
+  {
+    Item *arg_copy= item.same_select_copy_with_checks(thd);
+    if (!arg_copy || copy->list.push_back(arg_copy, thd->mem_root))
+      return nullptr;
+  }
+  return copy;
+}
+
+
 bool Item_cond::excl_dep_on_table(table_map tab_map)
 {
   if (used_tables() & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
