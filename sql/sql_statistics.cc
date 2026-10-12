@@ -311,7 +311,7 @@ static int open_stat_tables(THD *thd, TABLE_LIST *tables, bool for_write)
 static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                                           const LEX_CSTRING *stat_tab_name)
 {
-  table->init_one_table(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
+  table->init_one_tab_r(&MYSQL_SCHEMA_NAME, stat_tab_name, NULL, TL_WRITE);
   Dummy_error_handler error_handler;
   thd->push_internal_handler(&error_handler);
   int res= open_system_tables_for_read(thd, table);

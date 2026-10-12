@@ -125,11 +125,6 @@ public:
 
 enum enum_mdl_type {
   /* This means that the MDL_request is not initialized */
-  /*
-    TODO (newbie): should be MDL_NOT_INITIALIZED= 0, as it is strange
-    that not-inited request has MDL_INTENTION_EXCLUSIVE.
-    Must fix tests, as at least mysql_rm_table_no_locks() depends on this.
-  */
   MDL_NOT_INITIALIZED= -1,
   /*
     An intention exclusive metadata lock (IX). Used only for scoped locks.
@@ -615,7 +610,6 @@ public:
     /* Do nothing, in particular, don't try to copy the key. */
     return *this;
   }
-  /* Another piece of ugliness for TABLE_LIST constructor */
   MDL_request(): type(MDL_NOT_INITIALIZED), ticket(NULL) {}
 
   MDL_request(const MDL_request *rhs)

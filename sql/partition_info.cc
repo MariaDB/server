@@ -1560,7 +1560,6 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   TABLE_LIST table_list;
   THD *thd= current_thd;
 
-  table_list.reset();
   table_list.db= table_arg->s->db;
   table_list.table_name= table_arg->s->table_name;
 
