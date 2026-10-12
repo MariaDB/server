@@ -153,8 +153,6 @@ struct rpl_parallel_thread {
     rgi_queued_part *rgi_q;
     inuse_relaylog *ir;
     ulonglong future_event_relay_log_pos;
-    char event_relay_log_name[FN_REFLEN];
-    char future_event_master_log_name[FN_REFLEN];
     ulonglong event_relay_log_pos;
     my_off_t future_event_master_log_pos;
     size_t event_size;
@@ -233,7 +231,8 @@ struct rpl_parallel_thread {
     queued_size-= dequeue_size;
   }
 
-  queued_event *get_qev_common(Log_event *ev, ulonglong event_size);
+  queued_event *get_qev_common(Log_event *ev, ulonglong event_size,
+                               inuse_relaylog *ir);
   queued_event *get_qev(Log_event *ev, ulonglong event_size,
                         Relay_log_info *rli);
   queued_event *retry_get_qev(Log_event *ev, queued_event *orig_qev,

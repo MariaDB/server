@@ -54,12 +54,13 @@ rpt_handle_event(rpl_group_info *rgi, rpl_parallel_thread::queued_event *qev,
   ev->thd= thd;
 
   safe_strcpy(rgi->event_relay_log_name_buf, sizeof(rgi->event_relay_log_name_buf),
-              qev->event_relay_log_name);
+              qev->ir->relaylog_name);
   rgi->event_relay_log_name= rgi->event_relay_log_name_buf;
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
-  safe_strcpy(rgi->future_event_master_log_name, sizeof(rgi->future_event_master_log_name),
-              qev->future_event_master_log_name);
+  safe_strcpy(rgi->future_event_master_log_name,
+              sizeof(rgi->future_event_master_log_name),
+              qev->ir->master_binlog_name);
   if (event_can_update_last_master_timestamp(ev))
     rgi->last_master_timestamp= ev->when + ev->exec_time;
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
@@ -115,20 +116,21 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   #endif
 
   mysql_mutex_lock(&rli->data_lock);
-  cmp= compare_log_name(rli->group_relay_log_name, qev->event_relay_log_name);
+  cmp= compare_log_name(rli->group_relay_log_name, qev->ir->relaylog_name);
   if (cmp < 0)
   {
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
-    strmake_buf(rli->group_relay_log_name, qev->event_relay_log_name);
+    strmake_buf(rli->group_relay_log_name, qev->ir->relaylog_name);
   } else if (cmp == 0 &&
              rli->group_relay_log_pos < qev->future_event_relay_log_pos)
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
 
-  cmp= compare_log_name(rli->group_master_log_name, qev->future_event_master_log_name);
+  cmp= compare_log_name(rli->group_master_log_name,
+                        qev->ir->master_binlog_name);
   if (cmp < 0)
   {
     safe_strcpy(rli->group_master_log_name, sizeof(rli->group_master_log_name),
-                qev->future_event_master_log_name);
+                qev->ir->master_binlog_name);
     rli->group_master_log_pos= qev->future_event_master_log_pos;
   }
   else if (cmp == 0
@@ -1044,7 +1046,7 @@ do_retry:
     WSREP_DEBUG("parallel slave retry, after trx start");
   }
 #endif /* WITH_WSREP */
-  strmake_buf(log_name, ir->name);
+  strmake_buf(log_name, ir->relaylog_name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
   {
     err= 1;
@@ -2081,7 +2083,8 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
 
 
 rpl_parallel_thread::queued_event *
-rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
+rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size,
+                                    inuse_relaylog *ir)
 {
   queued_event *qev;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
@@ -2094,6 +2097,7 @@ rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
   }
   qev->typ= rpl_parallel_thread::queued_event::QUEUED_EVENT;
   qev->ev= ev;
+  qev->ir= ir;
   qev->event_size= (size_t)event_size;
   qev->next= NULL;
   return qev;
@@ -2104,16 +2108,12 @@ rpl_parallel_thread::queued_event *
 rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
                              Relay_log_info *rli)
 {
-  queued_event *qev= get_qev_common(ev, event_size);
+  queued_event *qev= get_qev_common(ev, event_size, rli->last_inuse_relaylog);
   if (!qev)
     return NULL;
-  safe_strcpy(qev->event_relay_log_name, sizeof(qev->event_relay_log_name),
-              rli->event_relay_log_name);
   qev->event_relay_log_pos= rli->event_relay_log_pos;
   qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
-  safe_strcpy(qev->future_event_master_log_name,
-              sizeof(qev->future_event_master_log_name),
-              rli->future_event_master_log_name);
+  /* The relaylog and master binlog names are available in qev->ir. */
   return qev;
 }
 
@@ -2123,17 +2123,13 @@ rpl_parallel_thread::retry_get_qev(Log_event *ev, queued_event *orig_qev,
                                    const char *relay_log_name,
                                    ulonglong event_pos, ulonglong event_size)
 {
-  queued_event *qev= get_qev_common(ev, event_size);
+  queued_event *qev= get_qev_common(ev, event_size, orig_qev->ir);
   if (!qev)
     return NULL;
   qev->rgi_q= orig_qev->rgi_q;
-  safe_strcpy(qev->event_relay_log_name, sizeof(qev->event_relay_log_name),
-              relay_log_name);
   qev->event_relay_log_pos= event_pos;
   qev->future_event_relay_log_pos= event_pos+event_size;
-  safe_strcpy(qev->future_event_master_log_name,
-              sizeof(qev->future_event_master_log_name),
-              orig_qev->future_event_master_log_name);
+  /* The relaylog and master binlog names are available in qev->ir. */
   return qev;
 }
 
@@ -3286,6 +3282,32 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         !rev->is_relay_log_event() &&
         !rli->is_in_group())
     {
+      /*
+        We rotate the relaylog everytime we see a rotate event from the master.
+        So we should only ever see one master rotate event that causes the
+        master binlog name in inuse_relaylog to be set.
+
+        When we reach the temporary EOF of the hot relay log however, we
+        generate an artificial rotate event, this can occur any number of times
+        and should not cause us to set the master name in inuse_relaylog again.
+      */
+      if (!rev->is_hot_log_rotate())
+      {
+        /*
+          The rotate event, if any, comes near the start of the relay log file
+          and contains the master binlog name of the events contained in this
+          relay log file.
+
+          We overwrite here the original name set when the inuse_relaylog was
+          allocated at the last relaylog rotation. If the rotation was due to
+          this master rotate, then the previous value will be one behind and
+          we correct it here, and we rely on the rotate event coming before
+          any following events in the relaylog to be queued for the worker
+          threads.
+        */
+        memcpy(rli->last_inuse_relaylog->master_binlog_name,
+               rev->new_log_ident, rev->ident_len+1);
+      }
       memcpy(rli->future_event_master_log_name,
              rev->new_log_ident, rev->ident_len+1);
       rli->notify_group_master_log_name_update();
@@ -3665,7 +3687,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   /*
     Queue the event for processing.
   */
-  qev->ir= rli->last_inuse_relaylog;
   qev->ir->queued_count.fetch_add(1, std::memory_order_relaxed);
   cur_thread->enqueue(qev);
   unlock_or_exit_cond(rli->sql_driver_thd, &cur_thread->LOCK_rpl_thread,

@@ -5854,14 +5854,14 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
       included= false;
       break;
     }
-    if (!included && !strcmp(ir->name, rli->group_relay_log_name))
+    if (!included && !strcmp(ir->relaylog_name, rli->group_relay_log_name))
       break;
     if (!next)
     {
       rli->last_inuse_relaylog= NULL;
       included= 1;
       to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
-                                      ir->name, MYF(0));
+                                      ir->relaylog_name, MYF(0));
     }
     rli->free_inuse_relaylog(ir);
     ir= next;
@@ -5869,7 +5869,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   rli->inuse_relaylog_list= ir;
   if (ir)
     to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
-                                    ir->name, MYF(0));
+                                    ir->relaylog_name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to

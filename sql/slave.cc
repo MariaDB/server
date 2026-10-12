@@ -5374,7 +5374,8 @@ pthread_handler_t handle_slave_sql(void *arg)
     goto err_before_start;
   }
   rli->reset_inuse_relaylog();
-  if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+  if (rli->alloc_inuse_relaylog(rli->group_relay_log_name,
+                                rli->group_master_log_name))
   {
     mysql_mutex_unlock(&rli->data_lock);
     goto err_before_start;
@@ -5686,7 +5687,7 @@ pthread_handler_t handle_slave_sql(void *arg)
             ++gtid;
             --count;
           }
-          strmake_buf(rli->group_relay_log_name, ir->name);
+          strmake_buf(rli->group_relay_log_name, ir->relaylog_name);
           rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
           rli->relay_log_state.load(ir->relay_log_state, ir->relay_log_state_count);
         }
@@ -7463,19 +7464,20 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         {
           /* We generate and return a Rotate, to make our positions advance */
           DBUG_PRINT("info",("seeing an ignored end segment"));
-          ev= new Rotate_log_event(rli->ign_master_log_name_end,
+          Rotate_log_event *rev=
+              new Rotate_log_event(rli->ign_master_log_name_end,
                                    0, rli->ign_master_log_pos_end,
                                    Rotate_log_event::DUP_NAME);
           rli->ign_master_log_name_end[0]= 0;
           mysql_mutex_unlock(log_lock);
-          if (unlikely(!ev))
+          if (unlikely(!rev))
           {
             errmsg= "Slave SQL thread failed to create a Rotate event "
               "(out of memory?), SHOW SLAVE STATUS may be inaccurate";
             goto err;
           }
-          ev->server_id= 0; // don't be ignored by slave SQL thread
-          DBUG_RETURN(ev);
+          rev->set_is_hot_log_rotate(); // don't be ignored by slave SQL thread
+          DBUG_RETURN(rev);
         }
 
         if (rli->ign_gtids.count() && !rli->is_in_group())
@@ -7646,6 +7648,9 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         To guard against this, we need to have LOCK_log.
       */
 
+      const char *master_binlog_name=
+        (rli->mi->using_parallel() ?
+         rli->future_event_master_log_name : rli->group_master_log_name);
       DBUG_PRINT("info",("hot_log: %d",hot_log));
       if (!hot_log) /* if hot_log, we already have this mutex */
         mysql_mutex_lock(log_lock);
@@ -7722,7 +7727,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
             mysql_mutex_unlock(log_lock);
           goto err;
         }
-        if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name))
+        if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name,
+                                      master_binlog_name))
         {
           if (!hot_log)
             mysql_mutex_unlock(log_lock);
@@ -7743,7 +7749,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       if ((rli->cur_log_fd=open_binlog(cur_log,rli->linfo.log_file_name,
                                        &errmsg)) <0)
         goto err;
-      if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name))
+      if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name,
+                                    master_binlog_name))
         goto err;
     }
     else

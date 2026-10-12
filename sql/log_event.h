@@ -3352,6 +3352,13 @@ public:
   bool is_valid() const override { return new_log_ident != 0; }
 #ifdef MYSQL_SERVER
   bool write(Log_event_writer *writer) override;
+  /*
+    Mark that this is an artificial event generated on-the-fly when the SQL
+    driver thread reaches the (temporary) EOF of the hot log, to allow to
+    update the currently reached position.
+  */
+  void set_is_hot_log_rotate() { server_id= 0; }
+  bool is_hot_log_rotate() { return (server_id == 0); }
 #endif
 
 private:

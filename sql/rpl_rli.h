@@ -490,7 +490,8 @@ public:
     SLAVE STATUS</code>.
   */
   bool stmt_done(my_off_t event_log_pos, THD *thd, rpl_group_info *rgi);
-  int alloc_inuse_relaylog(const char *name);
+  int alloc_inuse_relaylog(const char *relaylog_name,
+                           const char *master_binlog_name);
   void free_inuse_relaylog(inuse_relaylog *ir);
   void reset_inuse_relaylog();
   int update_relay_log_state(rpl_gtid *gtid_list, uint32 count);
@@ -684,16 +685,19 @@ struct inuse_relaylog {
   std::atomic<int64> dequeued_count;
   /* Set when all events have been read from a relaylog. */
   std::atomic<bool> completed;
-  char name[FN_REFLEN];
+  char relaylog_name[FN_REFLEN];
+  char master_binlog_name[FN_REFLEN];
 
   inuse_relaylog(Relay_log_info *rli_arg, rpl_gtid *relay_log_state_arg,
                  uint32 relay_log_state_count_arg,
-                 const char *name_arg):
+                 const char *relaylog_name_arg,
+                 const char *master_binlog_name_arg):
     next(0), rli(rli_arg), relay_log_state(relay_log_state_arg),
     relay_log_state_count(relay_log_state_count_arg), queued_count(0),
     dequeued_count(0), completed(false)
   {
-    strmake_buf(name, name_arg);
+    strmake_buf(relaylog_name, relaylog_name_arg);
+    strmake_buf(master_binlog_name, master_binlog_name_arg);
   }
 };
 

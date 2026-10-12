@@ -1428,7 +1428,8 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
 
 
 int
-Relay_log_info::alloc_inuse_relaylog(const char *name)
+Relay_log_info::alloc_inuse_relaylog(const char *relaylog_name,
+                                     const char *master_binlog_name)
 {
   inuse_relaylog *ir;
   uint32 gtid_count;
@@ -1441,7 +1442,8 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
     return 1;
   }
-  if (!(ir= new inuse_relaylog(this, gtid_list, gtid_count, name)))
+  if (!(ir= new inuse_relaylog(this, gtid_list, gtid_count, relaylog_name,
+                               master_binlog_name)))
   {
     my_free(gtid_list);
     my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*ir));
