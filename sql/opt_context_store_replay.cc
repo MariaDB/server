@@ -947,7 +947,10 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   sql_script.append(STRING_WITH_LEN(";\n"));
 
   sql_script.append(STRING_WITH_LEN("SET character_set_results="));
-  sql_script.append(thd->variables.character_set_results->cs_name);
+  if (thd->variables.character_set_results)
+    sql_script.append(thd->variables.character_set_results->cs_name);
+  else
+    sql_script.append(STRING_WITH_LEN("NULL"));
   sql_script.append(STRING_WITH_LEN(";\n"));
 
   sql_script.append(STRING_WITH_LEN("SET collation_connection="));

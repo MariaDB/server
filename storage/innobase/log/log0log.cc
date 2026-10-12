@@ -2075,11 +2075,12 @@ ATTRIBUTE_COLD void log_t::checkpoint_margin() noexcept
       }
       lsn-= max_age;
     }
-    else if (resize_log.is_opened())
-      lsn+= file_size;
+    else if (resize_log.is_opened() && resize_log.m_file != log.m_file)
+      lsn+= capacity();
     else
       goto done;
 
+    ut_ad(lsn <= get_lsn());
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     /* We must wait to prevent the tail of the log overwriting the head. */
