@@ -15,7 +15,7 @@
 
 SET(WIXCA_SOURCES CustomAction.cpp CustomAction.def)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql ${CMAKE_CURRENT_SOURCE_DIR} ${WIX_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Custom action should not depend on C runtime, since we do not know if CRT is installed.
 ADD_VERSION_INFO(wixca SHARED WIXCA_SOURCES)

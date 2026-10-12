@@ -158,21 +158,6 @@ static bool GetProperty(MSIHANDLE hInstall, const wchar_t *name,
   return false;
 }
 
-/*
-  Convert to a narrow string in the ANSI codepage, the form of paths in
-  mysqld_service_properties, to be able to compare with them.
-*/
-static std::string ToAnsi(const std::wstring &s)
-{
-  int len= WideCharToMultiByte(CP_ACP, 0, s.c_str(), (int)s.length(), NULL, 0,
-                               NULL, NULL);
-  std::string result(len > 0 ? len : 0, '\0');
-  if (len > 0)
-    WideCharToMultiByte(CP_ACP, 0, s.c_str(), (int)s.length(), &result[0], len,
-                        NULL, NULL);
-  return result;
-}
-
 extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
 {
   std::wstring dir;
@@ -188,7 +173,7 @@ extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
   }
 
   er= ExecRemoveDataDirectory(dir);
-  Log(L"SHFileOperation returned %d", er);
+  Log(L"Removing %s returned %u", dir.c_str(), er);
   return er;
 }
 
@@ -384,7 +369,9 @@ bool ExecRemoveService(const wchar_t *name)
    {
      ret= false;
    }
+   DWORD error= GetLastError();
    CloseServiceHandle(manager);
+   SetLastError(error);
    return ret;
 }
 
@@ -491,6 +478,13 @@ wchar_t *strip_quotes(wchar_t *s)
    return s;
 }
 
+
+/* Uninstall does not touch the service and the data directory then */
+static void KeepServiceAndData(MSIHANDLE hInstall)
+{
+  MsiSetPropertyW(hInstall, L"SERVICENAME", L"");
+  MsiSetPropertyW(hInstall, L"CLEANUPDATA", L"");
+}
 
 /*
   Checks  for consistency of service configuration.
@@ -652,7 +646,9 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
       !GetProperty(hInstall, L"INSTALLDIR", installdir) ||
       installdir.empty())
   {
-    Log(L"SERVICENAME, DATADIR or INSTALLDIR is not known, checking nothing");
+    Log(L"SERVICENAME, DATADIR or INSTALLDIR is not known, service and data "
+        L"are kept");
+    KeepServiceAndData(hInstall);
     return ERROR_INSTALL_FAILURE;
   }
   /* INSTALLDIR ends with backslash */
@@ -708,6 +704,8 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   }
 
 LExit:
+  if(er)
+    KeepServiceAndData(hInstall);
   if(scm)
     CloseServiceHandle(scm);
   return er;
@@ -758,6 +756,7 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   std::wstring BufferPoolSize;
   wchar_t invalidValueMsg[256];
   const wchar_t *ErrorMsg=0;
+  bool tooLong= false;
   UINT er= ERROR_SUCCESS;
 
   Log(L"Initialized.");
@@ -779,6 +778,7 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
     if(ServiceName.length() > MAX_SERVICENAME_LEN)
     {
       ErrorMsg= L"Invalid service name. The maximum length is 256 characters.";
+      tooLong= true;
       goto LExit;
     }
     if(ServiceName.find_first_of(L"\\/'\"") != std::wstring::npos)
@@ -800,6 +800,7 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   if(Password.length() > MAX_PASSWORD_LEN)
   {
     ErrorMsg= L"The password is too long. The maximum length is 8192 characters.";
+    tooLong= true;
     goto LExit;
   }
   EscapedPassword= EscapeCommandLine(Password);
@@ -900,6 +901,16 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   }
 LExit:
   MsiSetPropertyW (hInstall, L"WarningText", ErrorMsg);
+  /*
+    Only the full UI shows the message. Without it, do not go on with a value
+    that was not accepted, e.g an empty password instead of a too long one.
+  */
+  if (ErrorMsg && tooLong &&
+      MsiEvaluateConditionW(hInstall, L"UILevel < 5") == MSICONDITION_TRUE)
+  {
+    Log(L"%s", ErrorMsg);
+    er= ERROR_INSTALL_FAILURE;
+  }
   return er;
 }
 
@@ -925,15 +936,18 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
     goto LExit;
   }
 
+  while (!BufferPoolSizeParam.empty() && BufferPoolSizeParam.back() == L' ')
+    BufferPoolSizeParam.pop_back();
+  if (BufferPoolSizeParam.length() > MAX_BUFFERPOOLSIZE_LEN ||
+      BufferPoolSizeParam.find_first_not_of(L"0123456789") != std::wstring::npos)
+  {
+    Log(L"Invalid BUFFERPOOLSIZE %s is ignored, the default is used",
+        BufferPoolSizeParam.c_str());
+    BufferPoolSizeParam.clear();
+  }
+
   if (!BufferPoolSizeParam.empty())
   {
-    if (BufferPoolSizeParam.length() > MAX_BUFFERPOOLSIZE_LEN)
-    {
-      Log(L"BUFFERPOOLSIZE is too long, the maximum is %u characters",
-          (unsigned)MAX_BUFFERPOOLSIZE_LEN);
-      er= ERROR_INSTALL_FAILURE;
-      goto LExit;
-    }
     Log(L"BUFFERPOOLSIZE=%s, len=%u", BufferPoolSizeParam.c_str(),
         (unsigned)BufferPoolSizeParam.length());
     InnodbBufferPoolSize= _wtoi64(BufferPoolSizeParam.c_str());
@@ -1029,14 +1043,14 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
     dir= data.substr(pos + 1);
   }
 
-  if(!service.empty())
-  {
-    ExecRemoveService(service.c_str());
-  }
+  if(!service.empty() && !ExecRemoveService(service.c_str()))
+    Log(L"Cannot remove service %s, error %u", service.c_str(), GetLastError());
   if(!dir.empty())
   {
     DumpErrorLog(hInstall,dir);
-    ExecRemoveDataDirectory(dir);
+    UINT rc= ExecRemoveDataDirectory(dir);
+    if (rc)
+      Log(L"Cannot remove directory %s, error %u", dir.c_str(), rc);
   }
   return ERROR_SUCCESS;
 }
@@ -1051,7 +1065,7 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   UINT er = ERROR_SUCCESS;
   std::wstring installerVersion;
   std::wstring installDirW;
-  std::string installDir;
+  char installDir[MAX_PATH]= "";
   int installerMajorVersion, installerMinorVersion, installerPatchVersion;
   bool upgradableServiceFound=false;
   LPENUM_SERVICE_STATUS_PROCESSW info;
@@ -1072,7 +1086,8 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   {
     assert(FALSE);
   }
-  installDir= ToAnsi(installDirW);
+  /* Same conversion as for mysqld_exe in winservice.c, to compare with it */
+  wcstombs(installDir, installDirW.c_str(), MAX_PATH - 1);
 
 
   scm = OpenSCManager(NULL, NULL,
@@ -1122,7 +1137,7 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
           Only look for services that have mysqld.exe outside of the current
           installation directory.
         */
-       if(installDir.empty() || strstr(props.mysqld_exe, installDir.c_str()) == 0)
+       if(installDir[0] == 0 || strstr(props.mysqld_exe, installDir) == 0)
         {
            Log(L"found service %s, major=%d, minor=%d",
             info[i].lpServiceName, props.version_major, props.version_minor);
