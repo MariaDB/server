@@ -5854,4 +5854,4 @@ drop table t1;
 # non-fully-constructed-due-to-an-error CTE
 #
 SELECT ( WITH RECURSIVE x AS ( WITH x AS ( SELECT 1 FROM t14 ) SELECT x ) , t14 AS ( SELECT 1 UNION SELECT 'x' FROM x ) SELECT x FROM x WHERE ( SELECT x FROM x ) ) ;
-ERROR 42S22: Unknown column 'x' in 'SELECT'
+ERROR 42S22: Unknown column 'x' in 'field list'
