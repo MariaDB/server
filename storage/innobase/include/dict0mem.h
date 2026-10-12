@@ -58,6 +58,7 @@ Created 1/8/1996 Heikki Tuuri
 
 /* Forward declaration. */
 struct ib_rbt_t;
+struct blink_page_pool_t;
 
 /** Type flags of an index: OR'ing of the flags is allowed to define a
 combination of types */
@@ -66,6 +67,7 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
+#define DICT_BLINK	4	/*!< B-link tree index */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -1030,6 +1032,8 @@ struct dict_index_t {
 # define DICT_INDEX_MAGIC_N	76789786
 #endif
 	dict_field_t*	fields;	/*!< array of field descriptions */
+	/** Benchmark-only pool of pages reserved outside B-link split latches. */
+	blink_page_pool_t*	blink_page_pool;
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
 
@@ -1386,7 +1390,10 @@ public:
 	bool is_primary() const { return is_clust(); }
 
 	/** @return whether this is a generated clustered index */
-	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+	bool is_gen_clust() const
+	{
+		return (type & ~DICT_BLINK) == DICT_CLUSTERED;
+	}
 
 	/** @return whether this is a clustered index */
 	bool is_clust() const { return type & DICT_CLUSTERED; }
@@ -2818,7 +2825,8 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields > 0);
 	ut_ad(n_core_fields <= n_fields || table->n_dropped());
 	ut_ad(n_core_fields == n_fields
-	      || (type & ~(DICT_UNIQUE | DICT_CORRUPT)) == DICT_CLUSTERED);
+	      || (type & ~(DICT_UNIQUE | DICT_BLINK | DICT_CORRUPT)) ==
+	      DICT_CLUSTERED);
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	ut_ad(!table->instant || !table->is_temporary());
