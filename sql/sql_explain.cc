@@ -1564,7 +1564,12 @@ int Explain_table_access::print_explain(select_result_sink *output,
   /* `type` column */
    StringBuffer<64> join_type_buf;
   if (rowid_filter == NULL)
-    push_str(thd, &item_list, join_type_str[type]);
+  {
+    if (type == JT_ALL && use_parallel_scan)
+      push_str(thd, &item_list, "PARALLEL");
+    else
+      push_str(thd, &item_list, join_type_str[type]);
+  }
   else
   {
     join_type_buf.append(join_type_str[type], strlen(join_type_str[type]));
@@ -2052,7 +2057,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     }
   }
 
-  writer->add_member("access_type").add_str(join_type_str[type]);
+  if (type == JT_ALL && use_parallel_scan)
+    writer->add_member("access_type").add_str("PARALLEL");
+  else
+    writer->add_member("access_type").add_str(join_type_str[type]);
 
   add_json_keyset(writer, "possible_keys", &possible_keys);
 
