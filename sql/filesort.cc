@@ -723,9 +723,9 @@ String dbug_format_row(TABLE *table, const uchar *rec, bool print_names)
   Example usage:
   (gdb) p dbug_print_row(table, table->record[1])
 */
-const char *dbug_print_row(TABLE *table, const uchar *rec)
+const char *dbug_print_row(TABLE *table, const uchar *rec, bool print_names)
 {
-  String row= dbug_format_row(table, table->record[0]);
+  String row= dbug_format_row(table, rec, print_names);
   if (row.length() > sizeof dbug_row_print_buf - 1)
     return "Couldn't fit into buffer";
   memcpy(dbug_row_print_buf, row.c_ptr(), row.length());
@@ -743,9 +743,9 @@ const char *dbug_print_row(TABLE *table, const uchar *rec)
 
   Only columns in table->read_set are printed
 */
-const char* dbug_print_table_row(TABLE *table)
+const char* dbug_print_table_row(TABLE *table, bool print_names)
 {
-  return dbug_print_row(table, table->record[0]);
+  return dbug_print_row(table, table->record[0], print_names);
 }
 
 
