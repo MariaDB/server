@@ -587,13 +587,13 @@ public:
             tracked=
               new tracked_log{log_sys.log.m_file, first_lsn,
                               log_sys.file_size};
-            if (log_sys.resize_log.m_file != log_sys.log.m_file &&
-                log_sys.resize_log.is_opened())
-              tracked->next= new tracked_log{log_sys.resize_log.m_file,
-                                             first_lsn + log_sys.capacity(),
+            const os_file_t l{log_sys.resize_log.m_file};
+
+            if (l != OS_FILE_CLOSED && l != log_sys.log.m_file)
+              tracked->next= new tracked_log{l, first_lsn + log_sys.capacity(),
                                              uint64_t
-                                             (lseek(log_sys.resize_log.m_file,
-                                                    0, SEEK_END))};
+                                             (IF_WIN(os_file_get_size(l),
+                                                     lseek(l, 0, SEEK_END)))};
           }
           log_dst= context::log_track_create(target, first_lsn);
           if (IF_WIN(log_dst != INVALID_HANDLE_VALUE, log_dst >= 0))
@@ -904,7 +904,6 @@ public:
           ut_ad(tracked.file != log_sys.resize_log.m_file);
           if (tracked.file != log_sys.log.m_file)
             std::ignore= IF_WIN(CloseHandle,close)(tracked.file);
-          fprintf(stderr, "closet(%d)\n", tracked.file);
         }
         /* Move to the next file */
         delete ctx.tracked;
