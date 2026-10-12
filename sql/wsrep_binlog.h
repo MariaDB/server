@@ -23,24 +23,17 @@
 #define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
 
 /*
-  Get the binlog cache contents from log_position to the end of the cache,
-  when the binlog is implemented in a storage engine
-  (--binlog-storage-engine). The data is not copied.
+  Read the binlog cache contents of thd from log_position to the end of the
+  cache, when the binlog is implemented in a storage engine
+  (--binlog-storage-engine), including data spilled into the engine binlog.
+  The data is passed to the callback in one or more pieces.
 
-  @return 0 on success, 1 if part of the data has already been spilled
-          into the engine binlog
+  @return 0 on success, 1 on error
  */
-int wsrep_engine_cache_data(IO_CACHE *cache, my_off_t log_position,
-                            const uchar **data, size_t *len);
-
-/*
-  Check, before certification of a local transaction, whether data not yet
-  replicated has been spilled into the binlog storage engine
-  (--binlog-storage-engine), so that it can not be replicated.
-
-  @return true, with the error set, if data has been spilled
- */
-bool wsrep_engine_binlog_spilled(THD *thd);
+int wsrep_read_engine_cache(THD *thd, IO_CACHE *cache, my_off_t log_position,
+                            bool (*callback)(void *arg, const uchar *data,
+                                             size_t len),
+                            void *arg);
 
 /*
   Write the contents of a cache to a memory buffer.

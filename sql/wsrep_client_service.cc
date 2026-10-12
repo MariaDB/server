@@ -171,19 +171,26 @@ int Wsrep_client_service::prepare_fragment_for_replication(
 
   if (opt_binlog_engine_hton)
   {
-    const uchar *data;
-    size_t length;
-    if (wsrep_engine_cache_data(cache, thd->wsrep_sr().log_position(),
-                                &data, &length))
-      DBUG_RETURN(1);
-    if (length > wsrep_max_ws_size)
+    struct push_arg
     {
-      WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
-                 wsrep_max_ws_size, length);
+      wsrep::mutable_buffer *buffer;
+      static bool push(void *arg, const uchar *data, size_t length)
+      {
+        wsrep::mutable_buffer *buffer= static_cast<push_arg *>(arg)->buffer;
+        if (buffer->size() + length > wsrep_max_ws_size)
+        {
+          WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
+                     wsrep_max_ws_size, buffer->size() + length);
+          return true;
+        }
+        buffer->push_back(reinterpret_cast<const char*>(data),
+                          reinterpret_cast<const char*>(data + length));
+        return false;
+      }
+    } a= { &buffer };
+    if (wsrep_read_engine_cache(thd, cache, thd->wsrep_sr().log_position(),
+                                push_arg::push, &a))
       DBUG_RETURN(1);
-    }
-    buffer.push_back(reinterpret_cast<const char*>(data),
-                     reinterpret_cast<const char*>(data + length));
     log_position= saved_pos;
     DBUG_RETURN(0);
   }

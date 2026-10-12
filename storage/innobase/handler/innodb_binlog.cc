@@ -171,6 +171,21 @@ struct binlog_oob_context {
   /* Set when the transaction is sealed after writing an XA PREPARE record. */
   bool is_xa_prepared;
   /*
+    The location of every node, in node index order. The node index order
+    is also the order of the data, so this allows innodb_binlog_oob_read() to
+    read back the data from any position without traversing the trees.
+  */
+  struct node_pos {
+    uint64_t file_no;
+    uint64_t offset;
+    /* End of the data of this node, counted from the start of all data. */
+    uint64_t data_end;
+  } *node_pos_list;
+  uint64_t node_pos_len;
+  uint64_t node_pos_alloc_len;
+  bool add_node_pos(uint64_t file_no, uint64_t offset, size_t data_len);
+  void truncate_node_pos();
+  /*
     The node_list contains the root of each tree in the forest of perfect
     binary trees.
   */
@@ -2812,6 +2827,9 @@ alloc_oob_context(uint32 list_length= 10)
     c->secondary_ctx= nullptr;
     c->pending_refcount= false;
     c->is_xa_prepared= false;
+    c->node_pos_list= nullptr;
+    c->node_pos_len= 0;
+    c->node_pos_alloc_len= 0;
   }
   else
     my_error(ER_OUTOFMEMORY, MYF(0), needed);
@@ -2874,6 +2892,7 @@ reset_oob_context(binlog_oob_context *c)
     c->pending_refcount= false;
   }
   c->node_list_len= 0;
+  c->node_pos_len= 0;
   c->secondary_ctx= nullptr;
   c->is_xa_prepared= false;
 }
@@ -2885,6 +2904,7 @@ free_oob_context(binlog_oob_context *c)
   ut_ad(!c->pending_refcount /* Should not have pending until free */);
   reset_oob_context(c);  /* Defensive programming, should be redundant */
   ut_free(c->stmt_start_point);
+  ut_free(c->node_pos_list);
   lf_hash_put_pins(c->lf_pins);
   ut_free(c);
 }
@@ -3016,7 +3036,9 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
        c->node_list[i-2].file_no, c->node_list[i-2].offset,
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        static_cast<const byte *>(data), data_len);
-    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins, &mtr))
+    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data, c->lf_pins, &mtr) ||
+        c->add_node_pos(c->node_list[i-2].file_no, c->node_list[i-2].offset,
+                        data_len))
       return true;
     c->node_list_len= i - 1;
   }
@@ -3031,7 +3053,9 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
        0, 0, /* NULL left child signifies a leaf */
        c->node_list[i-1].file_no, c->node_list[i-1].offset,
        static_cast<const byte *>(data), data_len);
-    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins, &mtr))
+    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data, c->lf_pins, &mtr) ||
+        c->add_node_pos(c->node_list[i].file_no, c->node_list[i].offset,
+                        data_len))
       return true;
     c->node_list_len= i + 1;
   }
@@ -3057,7 +3081,9 @@ innodb_binlog_oob_ordered(THD *thd, const unsigned char *data, size_t data_len,
       ibb_file_hash.oob_ref_inc(active, c->lf_pins) != ~(uint64_t)0;
 
     if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data,
-                       c->lf_pins, &mtr))
+                       c->lf_pins, &mtr) ||
+        c->add_node_pos(c->node_list[i].file_no, c->node_list[i].offset,
+                        data_len))
       return true;
 
     /*
@@ -3120,6 +3146,49 @@ binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
   node_list[node].node_index= new_idx;
   node_list[node].height= new_height;
   return false;
+}
+
+
+bool
+binlog_oob_context::add_node_pos(uint64_t file_no, uint64_t offset,
+                                 size_t data_len)
+{
+  if (node_pos_len >= node_pos_alloc_len)
+  {
+    uint64_t new_len= node_pos_alloc_len ? 2 * node_pos_alloc_len : 16;
+    size_t size= (size_t) new_len * sizeof(node_pos);
+    node_pos *new_list=
+      static_cast<node_pos *>(ut_realloc(node_pos_list, size));
+    if (UNIV_UNLIKELY(!new_list))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), size);
+      return true;
+    }
+    node_pos_list= new_list;
+    node_pos_alloc_len= new_len;
+  }
+  uint64_t data_start=
+    node_pos_len ? node_pos_list[node_pos_len - 1].data_end : 0;
+  node_pos_list[node_pos_len].file_no= file_no;
+  node_pos_list[node_pos_len].offset= offset;
+  node_pos_list[node_pos_len].data_end= data_start + data_len;
+  ++node_pos_len;
+  return false;
+}
+
+
+/**
+  After a rollback to a savepoint, forget the positions of the nodes that
+  are no longer part of the forest.
+*/
+void
+binlog_oob_context::truncate_node_pos()
+{
+  uint64_t num_nodes=
+    node_list_len ? node_list[node_list_len - 1].node_index + 1 : 0;
+  ut_ad(num_nodes <= node_pos_len);
+  if (num_nodes < node_pos_len)
+    node_pos_len= num_nodes;
 }
 
 
@@ -3262,6 +3331,7 @@ ibb_savepoint_rollback(THD *thd, void **engine_data,
       (binlog_oob_context::savepoint *)*savepoint_data;
     c->rollback_to_savepoint(savepoint);
   }
+  c->truncate_node_pos();
 }
 
 
@@ -3278,6 +3348,149 @@ void
 innodb_free_oob(void *engine_data)
 {
   free_oob_context(static_cast<binlog_oob_context *>(engine_data));
+}
+
+
+/**
+  Read back the out-of-band data binlogged so far for a transaction that is
+  not yet committed, for example to replicate it with Galera.
+
+  The data of the nodes is in node index order, and the location of each
+  node is kept in binlog_oob_context::node_pos_list. So the first node to
+  read is found with a binary search, and then the nodes are read one after
+  the other, without the post-order traversal of the forest of perfect
+  binary trees that a binlog reader does for a committed transaction. This
+  keeps reading from a later position (a streaming replication fragment)
+  from reading all the data before it.
+
+  The data need not be durable yet, so the reader is limited by
+  binlog_cur_end_offset.
+
+  @param engine_data  the oob context from innodb_binlog_oob_ordered()
+  @param skip         number of bytes to skip at the start of the data
+  @param callback     function to pass the data to, returns true on error
+  @param arg          argument for the callback
+
+  @return true on error
+*/
+bool
+innodb_binlog_oob_read(void *engine_data, uint64_t skip,
+                       bool (*callback)(void *arg, const uchar *data,
+                                        size_t len),
+                       void *arg)
+{
+  binlog_oob_context *c= static_cast<binlog_oob_context *>(engine_data);
+  if (!c || c->node_pos_len == 0 ||
+      skip >= c->node_pos_list[c->node_pos_len - 1].data_end)
+    return false;
+
+  /* Find the first node with data after skip. */
+  uint64_t lo= 0, hi= c->node_pos_len - 1;
+  while (lo < hi)
+  {
+    uint64_t mid= lo + (hi - lo) / 2;
+    if (c->node_pos_list[mid].data_end <= skip)
+      lo= mid + 1;
+    else
+      hi= mid;
+  }
+
+  byte *page_buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
+  byte *buf= static_cast<byte *>(ut_malloc(ibb_page_size, mem_key_binlog));
+  if (UNIV_UNLIKELY(!page_buf || !buf))
+  {
+    ut_free(page_buf);
+    ut_free(buf);
+    my_error(ER_OUTOFMEMORY, MYF(0), (int) (2 * ibb_page_size));
+    return true;
+  }
+
+  /* read_err: failed to read the binlog, err: also the callback failed. */
+  bool err= false, read_err= false;
+  {
+    binlog_chunk_reader chunk_rd(binlog_cur_end_offset);
+    chunk_rd.set_page_buf(page_buf);
+
+    for (uint64_t i= lo; !err && i < c->node_pos_len; ++i)
+    {
+      const binlog_oob_context::node_pos &pos= c->node_pos_list[i];
+      uint64_t const data_start= i ? c->node_pos_list[i - 1].data_end : 0;
+      /* Bytes to skip at the start of this node's data. */
+      uint64_t node_skip= skip > data_start ? skip - data_start : 0;
+      uint64_t node_read= 0;
+      byte hdr[5*COMPR_INT_MAX64];
+
+      /* Read the node header: index, left and right child file_no/offset. */
+      chunk_rd.seek(pos.file_no, pos.offset);
+      int res= chunk_rd.read_data(hdr, sizeof(hdr), true);
+      if (res <= 0 || chunk_rd.cur_type() != FSP_BINLOG_TYPE_OOB_DATA)
+      {
+        if (res >= 0)
+          chunk_rd.read_error_corruption("Expected oob chunk");
+        err= read_err= true;
+        break;
+      }
+      const byte *p= hdr;
+      const byte *const p_end= hdr + res;
+      for (int j= 0; j < 5; ++j)
+      {
+        p= compr_int_read(p).second;
+        if (p > p_end)
+        {
+          chunk_rd.read_error_corruption("Short chunk");
+          err= read_err= true;
+          break;
+        }
+      }
+      if (err)
+        break;
+
+      /* Any data read together with the header, then the rest. */
+      const byte *data= p;
+      size_t len= (size_t) (p_end - p);
+      for (;;)
+      {
+        node_read+= len;
+        if (node_skip >= len)
+          node_skip-= len;
+        else
+        {
+          if (callback(arg, data + node_skip, len - (size_t) node_skip))
+          {
+            err= true;
+            break;
+          }
+          node_skip= 0;
+        }
+        if (chunk_rd.end_of_record())
+          break;
+        res= chunk_rd.read_data(buf, (int) ibb_page_size, false);
+        if (res <= 0)
+        {
+          /* 0 would be the end of the binlog in the middle of the record. */
+          if (res == 0)
+            chunk_rd.read_error_corruption("Unexpected EOF in oob chunk");
+          err= read_err= true;
+          break;
+        }
+        data= buf;
+        len= (size_t) res;
+      }
+      if (!err && node_read != pos.data_end - data_start)
+      {
+        chunk_rd.read_error_corruption("Wrong oob chunk length");
+        err= read_err= true;
+      }
+    }
+  }
+
+  /* A read error has been logged by the chunk reader. */
+  if (read_err)
+    my_printf_error(ER_UNKNOWN_ERROR, "Failed to read back the out-of-band "
+                    "binlog data of the transaction", MYF(0));
+  ut_free(page_buf);
+  ut_free(buf);
+  return err;
 }
 
 

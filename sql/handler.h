@@ -1660,6 +1660,19 @@ struct handlerton : public transaction_participant
   /* Call to allow engine to release the engine_data from binlog_oob_data(). */
   void (*binlog_oob_free)(void *engine_data);
   /*
+    Read back the out-of-band data binlogged so far with binlog_oob_data() for
+    a transaction that is not yet committed, for example to replicate it with
+    Galera. The data is passed in order to the callback, in one or more
+    pieces, skipping the first `skip` bytes. The data pointer passed to the
+    callback is only valid during the call.
+
+    Returns true on error, or if the callback returns true.
+  */
+  bool (*binlog_oob_read)(void *engine_data, uint64_t skip,
+                          bool (*callback)(void *arg, const uchar *data,
+                                           size_t len),
+                          void *arg);
+  /*
     Durably persist the event data for the current user-XA transaction,
     identified by XID.
 

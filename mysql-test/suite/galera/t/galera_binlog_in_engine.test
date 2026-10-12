@@ -7,10 +7,10 @@
 #
 --source include/galera_cluster.inc
 --source include/have_innodb_binlog.inc
+--source include/have_sequence.inc
 
 --connection node_1
 call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
-call mtr.add_suppression("WSREP: Transaction data was spilled to the binlog storage engine before it was replicated");
 SELECT @@binlog_storage_engine;
 --connection node_2
 call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
@@ -88,9 +88,9 @@ COMMIT;
 SELECT COUNT(*) FROM t1 WHERE id BETWEEN 100 AND 119;
 
 --echo #
---echo # A transaction larger than the binlog cache is spilled to the
---echo # engine binlog before it is replicated. This is not yet supported,
---echo # the transaction is rolled back and nothing is replicated.
+--echo # Transactions larger than the binlog cache (32k) are spilled to the
+--echo # engine binlog as out-of-band data while they execute. The spilled
+--echo # data is read back from the engine binlog for replication.
 --echo #
 --connection node_1
 START TRANSACTION;
@@ -102,19 +102,105 @@ while ($i < 260)
   --inc $i
 }
 --enable_query_log
---error ER_NOT_YET_SUPPORTED_ENGINE_BINLOG
 COMMIT;
-SELECT COUNT(*) FROM t1 WHERE id BETWEEN 200 AND 259;
 
---echo # The cluster is still consistent and operational
-INSERT INTO t1 VALUES (300, 'after large');
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE id = 300
+--let $wait_condition = SELECT COUNT(*) = 60 FROM t1 WHERE id BETWEEN 200 AND 259
 --source include/wait_condition.inc
-SELECT COUNT(*) FROM t1 WHERE id BETWEEN 200 AND 259;
-SELECT COUNT(*) FROM t1;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 200 AND 259;
+
+--echo # Rollback to a savepoint and statement rollback after the savepoint
+--echo # and the statement start have been spilled
 --connection node_1
-SELECT COUNT(*) FROM t1;
+START TRANSACTION;
+--disable_query_log
+--let $i = 400
+while ($i < 440)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('a', 1000))
+  --inc $i
+}
+SAVEPOINT s1;
+while ($i < 500)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('r', 1000))
+  --inc $i
+}
+--enable_query_log
+ROLLBACK TO SAVEPOINT s1;
+--disable_query_log
+--let $i = 500
+while ($i < 540)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('b', 1000))
+  --inc $i
+}
+--enable_query_log
+--echo # A statement larger than the binlog cache that fails at its end
+--error ER_DUP_ENTRY
+INSERT INTO t1 SELECT seq, REPEAT('d', 1000) FROM seq_600_to_700 UNION ALL SELECT 400, 'dup';
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 80 FROM t1 WHERE id BETWEEN 400 AND 700
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+
+--echo # A multi-megabyte transaction, with many out-of-band nodes
+--connection node_1
+CREATE TABLE t2 (id INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(65 + seq % 26), 20000) FROM seq_1_to_200;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 200 FROM t2
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--echo #
+--echo # Streaming replication, with fragments smaller and larger than the
+--echo # binlog cache. A fragment starting in the middle of spilled data is
+--echo # read back from the engine binlog from that point.
+--echo #
+--connection node_1
+DELETE FROM t2;
+SET SESSION wsrep_trx_fragment_unit = 'bytes';
+SET SESSION wsrep_trx_fragment_size = 10000;
+START TRANSACTION;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_51_to_100;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+SET SESSION wsrep_trx_fragment_size = 100000;
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('u', 5000) WHERE id <= 50;
+UPDATE t2 SET b = REPEAT('v', 5000) WHERE id > 50;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--echo # Rollback of a streaming transaction after spilled fragments
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('w', 5000);
+ROLLBACK;
+SET SESSION wsrep_trx_fragment_size = 0;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 100 FROM t2 WHERE b LIKE 'v%' OR b LIKE 'u%'
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+DROP TABLE t2;
+
+--echo # The cluster is consistent
+--connection node_1
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
+--connection node_2
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
 
 --connection node_1
 DROP TABLE t1;
