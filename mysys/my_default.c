@@ -370,14 +370,18 @@ int load_defaults(const char *conf_file, const char **groups,
 
   SYNOPSIS
     my_load_defaults()
-    conf_file			Basename for configuration file to search for.
-    				If this is a path, then only this file is read.
-    groups			Which [group] entrys to read.
-				Points to an null terminated array of pointers
-    argc			Pointer to argc of original program
-    argv			Pointer to argv of original program
-    default_directories         Pointer to a location where a pointer to the list
-                                of default directories will be stored
+    conf_file           [in]     Basename of the option file to look for (e.g.
+                                 "my"), searched for in each standard directory.
+                                 If it instead contains a directory part (i.e.
+                                 it is a path), only that single file is read.
+    groups              [in]     Which [group] entries to read.
+                                 Points to a null terminated array of pointers.
+    argc                [in,out] Pointer to argc: original count in, count of the
+                                 merged argument vector out.
+    argv                [in,out] Pointer to argv: original vector in, new merged
+                                 vector out. Free it with free_defaults().
+    default_directories [out]    Optional; may be NULL. If not NULL, receives a
+                                 pointer to the list of searched directories.
 
   IMPLEMENTATION
 

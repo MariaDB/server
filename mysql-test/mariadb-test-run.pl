@@ -88,6 +88,7 @@ use File::Spec::Functions qw/splitdir rel2abs/;
 use My::Platform;
 use My::SafeProcess;
 use My::ConfigFactory;
+use My::Config;
 use My::Options;
 use My::Tee;
 use My::Find;
@@ -218,7 +219,7 @@ my @DEFAULT_SUITES= qw(
     period-
     sysschema-
   );
-my $opt_suites;
+my @opt_suites;
 
 our $opt_verbose= 0;  # Verbose output, enable with --verbose
 our $exe_patch;
@@ -234,14 +235,24 @@ our $opt_big_test= 0;
 our $opt_staging_run= 0;
 
 our @opt_combinations;
+our $opt_comb_sel;
+our $opt_exit_line;
 
 our @opt_extra_mysqld_opt;
 our @opt_mysqld_envs;
 
 my $opt_stress;
 my $opt_tail_lines= 20;
+my $opt_head_log;
+my $opt_tail_log;
+our $opt_strip_hints= 0;
+my $opt_strip_limits= 0;
+my $opt_strip_backtrace= 0;
+my $opt_head_warnings;
+my $opt_tail_warnings;
 
 my $opt_dry_run;
+my $opt_comb_list;
 
 my $opt_compress;
 my $opt_ssl;
@@ -404,15 +415,63 @@ sub main {
   check_debug_support();
   environment_setup();
 
-  if (!$opt_suites) {
-    $opt_suites= join ',', collect_default_suites(@DEFAULT_SUITES);
+  # Resolve the suite list. A "!NAME" entry excludes NAME; if only exclusions
+  # are given, they apply to the default suite set. Names accumulate across the
+  # command line and the [mtr] config file (see @opt_suites).
+  my $suites;
+  {
+    my (@names, %exclude);
+    for my $s (@opt_suites) {
+      if ($s =~ /^!(.+)/) { $exclude{(split /-/, $1)[0]}= 1; }
+      else                { push @names, $s; }
+    }
+    @names= collect_default_suites(@DEFAULT_SUITES) unless @names;
+    @names= grep { !$exclude{(split /-/, $_)[0]} } @names;
+    $suites= join ',', @names;
   }
-  mtr_report("Using suites: $opt_suites") unless @opt_cases;
+  mtr_report("Using suites: $suites") unless @opt_cases;
 
   mtr_report("Collecting tests...");
-  my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
+  my $tests= collect_test_cases($opt_reorder, $suites, \@opt_cases, \@opt_skip_test_list);
   if (@$tests == 0) {
     mtr_report("No tests to run...");
+    exit 0;
+  }
+
+  if ($opt_comb_list)
+  {
+    # For each collected test, list its combinations in the selectable
+    # "test,combination" form (one per line), preceded by a summary line.
+    my (%combs, @order);
+    for my $t (@$tests) {
+      my $name= $t->{name};
+      push @order, $name unless $combs{$name};
+      my $suffix= defined $t->{combinations}
+                  ? join(',', sort @{$t->{combinations}}) : '';
+      push @{$combs{$name}}, $suffix if length $suffix;
+    }
+    for my $name (@order) {
+      my @c= @{$combs{$name} || []};
+      # Summary line: list each distinct combination name once, keeping names
+      # from the same .combinations file together. Names from one file never
+      # appear together in a variant, so group names that never co-occur;
+      # order follows first appearance.
+      my @variants= map { [ split /,/ ] } @c;
+      my (%seen, %co, @cnames);
+      for my $v (@variants) {
+        for my $a (@$v) {
+          push @cnames, $a unless $seen{$a}++;
+          $co{$a}{$_}= 1 for @$v;
+        }
+      }
+      my @groups;
+      for my $n (@cnames) {
+        my ($g)= grep { !grep { $co{$n}{$_} } @$_ } @groups;
+        $g ? push(@$g, $n) : push(@groups, [$n]);
+      }
+      print "Combinations for $name: ", join(',', map { @$_ } @groups), "\n";
+      print "$name,$_\n" for @c;
+    }
     exit 0;
   }
 
@@ -1154,6 +1213,166 @@ sub print_global_resfile {
 }
 
 
+#
+# Read MTR's own options from the [mtr] group of the standard MariaDB option
+# files and merge them into @ARGV ahead of the command-line options, so the
+# latter take precedence. $args->{conf_file} (e.g. $ENV{MTR_CONFIG}) forces a
+# single file; otherwise the standard locations are searched. A
+# ---end-of-config--- marker separates config options from command-line
+# options so command_line_setup can report where an invalid option came from.
+# Parsing reuses My::Config.
+#
+#
+# get_defaults_options - mirror libmariadb's get_defaults_options(): read the
+# standard defaults options off @ARGV.
+#
+# --no-defaults, --defaults-group-suffix and --print-defaults are MTR-only, so
+# they are consumed from @ARGV (the main GetOptions never sees them).
+#
+# --defaults-file and --defaults-extra-file double as the server config
+# template (collected later by GetOptions), so they are only *peeked* here -
+# left in @ARGV for that second consumer. The two consumers read different
+# groups of the same file: [mysqld]/[client]/... for the template, [mtr] here.
+#
+sub get_defaults_options
+{
+  my %opt;
+
+  # Consume the MTR-only options from @ARGV
+  Getopt::Long::GetOptionsFromArray(
+    \@ARGV,
+    'no-defaults'             => \$opt{no_defaults},
+    'defaults-group-suffix=s' => \$opt{group_suffix},
+    'print-defaults'          => \$opt{print_defaults},
+    'mtr-config-only|M'       => \$opt{mtr_config_only});
+
+  # Peek the file options without removing them (parse a copy)
+  my @copy= @ARGV;
+  Getopt::Long::GetOptionsFromArray(
+    \@copy,
+    'defaults-file=s'         => \$opt{conf_file},
+    'defaults-extra-file=s'   => \$opt{extra_file});
+
+  # --defaults-group-suffix falls back to the environment, as in libmariadb
+  $opt{group_suffix}= $ENV{MARIADB_GROUP_SUFFIX} unless defined $opt{group_suffix};
+  $opt{group_suffix}= $ENV{MYSQL_GROUP_SUFFIX}   unless defined $opt{group_suffix};
+
+  return \%opt;
+}
+
+#
+# load_defaults - read MTR's own [mtr] options from the MariaDB option files
+# and merge them into @ARGV ahead of the command-line options (which follow the
+# ---end-of-config--- marker and therefore take precedence). Parsing reuses
+# My::Config; parse errors are reported through mtr_error as "file:line: reason".
+#
+sub load_defaults
+{
+  my $args= shift;
+  my $groups= $args->{groups} || [];
+  $groups= [ $groups ] unless ref $groups eq 'ARRAY';
+
+  # --defaults-group-suffix: also read [<group><suffix>] for each group
+  my @groups= @$groups;
+  if (defined $args->{group_suffix} and length $args->{group_suffix})
+  {
+    push @groups, map { "$_$args->{group_suffix}" } @$groups;
+  }
+
+  # Build the ordered list of option files. The reading and merge semantics
+  # follow libmariadb's my_search_option_files(), but the default locations
+  # below are the Unix set only (no Windows directories, no my.ini); for other
+  # platforms use an explicit MTR_CONFIG / --defaults-file, which work anywhere.
+  my @files;
+  if ($args->{no_defaults})
+  {
+    # --no-defaults: read no option files at all
+  }
+  elsif (defined $args->{conf_file})
+  {
+    # --defaults-file (or $MTR_CONFIG): this file only - not the standard
+    # files, not --defaults-extra-file
+    # error on a missing explicit file, as libmariadb does
+    mtr_error("Config file '$args->{conf_file}' not found")
+      unless -f $args->{conf_file};
+    @files= ($args->{conf_file});
+  }
+  else
+  {
+    # Standard search order (Unix, no compiled-in DEFAULT_SYSCONFDIR), read
+    # cumulatively - every file that exists, in this order:
+    #   /etc, /etc/mysql, $MARIADB_HOME|$MYSQL_HOME, --defaults-extra-file, ~/
+    push @files, "/etc/my.cnf", "/etc/mysql/my.cnf";
+    my ($home)= grep { defined $ENV{$_} } qw(MARIADB_HOME MYSQL_HOME);
+    push @files, "$ENV{$home}/my.cnf"      if defined $home;
+    push @files, $args->{extra_file}       if defined $args->{extra_file};
+    push @files, "$ENV{HOME}/.my.cnf"      if defined $ENV{HOME};
+  }
+
+  # Collect the requested groups' options from every existing file, in order.
+  # A later file's option overrides an earlier one (My::Config is last-wins),
+  # matching "if an option is set multiple times, the later setting wins".
+  my @opts;
+  my $mtr_config_only= $args->{mtr_config_only};
+  my $group_re= join('|', map { quotemeta } @groups);
+  for my $file (@files)
+  {
+    next unless defined $file and -f $file;
+    my $config= eval { My::Config->new($file) };
+    if ($@)
+    {
+      # My::Config reports parse errors as "file:line: reason"; re-throw it
+      # through mtr_error for output flushing, the uniform mtr error format
+      # and a controlled exit.
+      chomp(my $err= $@);
+      mtr_error($err);
+    }
+    for my $group ($config->groups())
+    {
+      # Match group names case-insensitively, like libmariadb's find_type()
+      next unless $group->name() =~ /^(?:$group_re)$/i;
+      for my $option ($group->options())
+      {
+        # Skip commented-out (#...) options: a "#suite=..." line in the config
+        # is a comment, not an MTR option (it would become an invalid "--#...").
+        next if $option->name() =~ /^#/;
+        # mtr-config-only (-M) may be set inside [mtr] itself; it is a
+        # directive, not a pass-through option, so consume it here.
+        if ($option->name() =~ /^mtr[-_]config[-_]only$/)
+        {
+          $mtr_config_only= 1;
+          next;
+        }
+        push @opts, $option->option();
+      }
+    }
+  }
+
+  # --mtr-config-only (-M): the --defaults-file / --defaults-extra-file we just
+  # read for [mtr] must NOT also become the server config template, so drop
+  # them from @ARGV before the main GetOptions/collect_option sees them.
+  if ($mtr_config_only)
+  {
+    Getopt::Long::GetOptionsFromArray(
+      \@ARGV,
+      'defaults-file=s'       => sub {},
+      'defaults-extra-file=s' => sub {});
+  }
+
+  # --print-defaults: show the [mtr] options picked up from config, then exit
+  if ($args->{print_defaults})
+  {
+    print "$_\n" for @opts;
+    exit(0);
+  }
+
+  # Prepend the config options; command-line options (already in @ARGV) follow
+  # the marker, so GetOptions lets them take precedence. The marker also lets
+  # command_line_setup report whether a bad option came from config or cmdline.
+  @ARGV= (@opts, "---end-of-config---", @ARGV);
+  return 1;
+}
+
 
 sub command_line_setup {
   my $opt_comment;
@@ -1187,13 +1406,15 @@ sub command_line_setup {
              # Control what test suites or cases to run
              'force+'                   => \$opt_force,
              'skip-not-found'           => \$opt_skip_not_found,
-             'suite|suites=s'           => \$opt_suites,
+             'suite|suites=s'           => sub { push @opt_suites, split(/,/, $_[1]) },
              'skip-rpl'                 => \&collect_option,
              'skip-test=s'              => \&collect_option,
              'do-test=s'                => \&collect_option,
              'start-from=s'             => \&collect_option,
              'big-test+'                => \$opt_big_test,
 	     'combination=s'            => \@opt_combinations,
+	     'combination-select|c=s'   => \$opt_comb_sel,
+	     'exit-line|l=i'            => \$opt_exit_line,
              'experimental=s'           => \@opt_experimentals,
              'staging-run'              => \$opt_staging_run,
 
@@ -1271,8 +1492,25 @@ sub command_line_setup {
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
+	     'head=i'                   => sub { $opt_head_log= $opt_head_warnings=
+						  $_[1];
+						$opt_tail_lines= $opt_tail_log=
+						  $opt_tail_warnings= 0 },
+	     'tail=i'                   => sub { $opt_tail_lines= $opt_tail_log=
+						  $opt_tail_warnings= $_[1];
+						$opt_head_log= $opt_head_warnings= 0 },
 	     'tail-lines=i'             => \$opt_tail_lines,
+	     'head-log=i'               => \$opt_head_log,
+	     'tail-log=i'               => \$opt_tail_log,
+	     'strip-hints'              => \$opt_strip_hints,
+	     'strip-limits'             => \$opt_strip_limits,
+	     'strip-backtrace'          => \$opt_strip_backtrace,
+	     'strip-log'                => sub { $opt_strip_hints= $opt_strip_limits=
+						  $opt_strip_backtrace= 1 },
+	     'head-warnings=i'          => \$opt_head_warnings,
+	     'tail-warnings=i'          => \$opt_tail_warnings,
              'dry-run'                  => \$opt_dry_run,
+             'list-combinations|lc'     => \$opt_comb_list,
 
              'help|h'                   => \$opt_usage,
 	     # list-options is internal, not listed in help
@@ -1286,11 +1524,30 @@ sub command_line_setup {
              My::Platform::options()
            );
 
-  # fix options (that take an optional argument and *only* after = sign
+  # 1. Merge [mtr] options from the config file(s) into @ARGV. Command-line
+  #    options take precedence (they come after the config options), and a
+  #    command-line --defaults-file/--defaults-extra-file overrides the
+  #    corresponding MTR_CONFIG / MTR_CONFIG_EXTRA environment variable.
+  my $defaults= get_defaults_options();
+  $defaults->{conf_file}  //= $ENV{MTR_CONFIG};
+  $defaults->{extra_file} //= $ENV{MTR_CONFIG_EXTRA};
+  $defaults->{groups}= ['mtr'];
+  load_defaults($defaults);
+
+  # 2. Fix options (that take an optional argument and *only* after = sign)
   @ARGV = My::Debugger::fix_options(@ARGV);
+
+  # 3. Run GetOptions() on the merged config (config file + command-line)
   GetOptions(%options) or usage("Can't read options");
   usage("") if $opt_usage;
   list_options(\%options) if $opt_list_options;
+
+  # Validate --combination-select here, so a bad value is rejected even when
+  # the selected test(s) have no .combinations file (combinations_from_file,
+  # the other check point, is only reached for tests that do).
+  mtr_error("--combination-select must be a non-zero integer, not ".
+            "'$opt_comb_sel'")
+    if defined $opt_comb_sel and $opt_comb_sel !~ /^-?[1-9][0-9]*$/;
 
   # --------------------------------------------------------------------------
   # Setup verbosity
@@ -1299,15 +1556,45 @@ sub command_line_setup {
     report_option('verbose', $opt_verbose);
   }
 
-  # Negative values aren't meaningful on integer options
+  # Negative values aren't meaningful on integer options, except the tail-*
+  # options where a negative value means "everything".
+  my %tail_opt= map { $_ => 1 }
+    qw(head=i tail=i tail-lines=i head-log=i tail-log=i head-warnings=i tail-warnings=i);
   foreach(grep(/=i$/, keys %options))
   {
+    next if $tail_opt{$_};
     if (defined ${$options{$_}} &&
         do { no warnings "numeric"; int ${$options{$_}} < 0})
     {
       my $v= (split /=/)[0];
       die("$v doesn't accept a negative value:");
     }
+  }
+
+  # mysqltest caps --tail-lines at 10000 and rejects negatives, so map a
+  # negative ("everything") to that maximum.
+  $opt_tail_lines= 10000 if $opt_tail_lines < 0;
+
+  # --head-log/--tail-log trim the server error log in a crash report to its
+  # first/last lines.  With neither given the whole log is kept; giving one
+  # alone switches the other end off.
+  if (defined $opt_head_log || defined $opt_tail_log) {
+    $opt_head_log //= 0;
+    $opt_tail_log //= 0;
+  }
+  else {
+    $opt_head_log= 0;
+    $opt_tail_log= -1;
+  }
+
+  # Same for --head-warnings/--tail-warnings on the shutdown-warnings report.
+  if (defined $opt_head_warnings || defined $opt_tail_warnings) {
+    $opt_head_warnings //= 0;
+    $opt_tail_warnings //= 0;
+  }
+  else {
+    $opt_head_warnings= 0;
+    $opt_tail_warnings= -1;
   }
 
   # Find the absolute path to the test directory
@@ -1430,6 +1717,16 @@ sub command_line_setup {
     }
   }
 
+  # load_defaults() unconditionally prepends the "---end-of-config---" marker
+  # between the [mtr] config options and the command line.  If it is gone now,
+  # a value-requiring option in the [mtr] section was written without a value
+  # and Getopt::Long consumed the marker (or the option after it) as its
+  # value; report that instead of misattributing a later error.
+  mtr_error("A value-less option in the [mtr] config file consumed the ",
+            "config/command-line separator - check the [mtr] section for an ",
+            "option that requires a value but was given none")
+    unless grep { /^---end-of-config---$/ } @ARGV;
+  my $opt_source= 'config file';
   foreach my $arg ( @ARGV )
   {
     if ( $arg =~ /^--skip-/ )
@@ -1442,9 +1739,19 @@ sub command_line_setup {
       # that the lone '--' separating options from arguments survives,
       # simply ignore it.
     }
+    elsif ( $arg =~ /^---end-of-config---$/ )
+    {
+      $opt_source= 'command-line';
+    }
     elsif ( $arg =~ /^-/ )
     {
-      usage("Invalid option \"$arg\"");
+      if ($opt_source eq 'config file')
+      {
+        # strip leading dashes and any =value, leaving the option name
+        $arg =~ s/^-+//;
+        $arg =~ s/=.*//s;
+      }
+      usage("Invalid ${opt_source} option \"${arg}\"");
     }
     else
     {
@@ -1584,9 +1891,10 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Check parallel value
   # --------------------------------------------------------------------------
-  if ($opt_parallel ne "auto" && $opt_parallel < 1)
+  if ($opt_parallel ne "auto" &&
+      ($opt_parallel !~ /^\d+$/ || $opt_parallel < 1))
   {
-    mtr_error("0 or negative parallel value makes no sense, use 'auto' or positive number");
+    mtr_error("Invalid parallel value '$opt_parallel', use 'auto' or a positive number");
   }
 
   # --------------------------------------------------------------------------
@@ -1673,7 +1981,7 @@ sub command_line_setup {
     mtr_error("--user-args only valid with --start options")
       unless $start_only;
     mtr_error("--user-args cannot be combined with named suites or tests")
-      if $opt_suites || @opt_cases;
+      if @opt_suites || @opt_cases;
   }
 
   # --------------------------------------------------------------------------
@@ -1694,8 +2002,8 @@ sub command_line_setup {
     $opt_stress=~ s/,/ /g;
     $opt_user_args= 1;
     mtr_error("--stress cannot be combined with named ordinary suites or tests")
-      if $opt_suites || @opt_cases;
-    $opt_suites="stress";
+      if @opt_suites || @opt_cases;
+    @opt_suites= ("stress");
     @opt_cases= ("wrapper");
     $ENV{MST_OPTIONS}= $opt_stress;
   }
@@ -4392,13 +4700,140 @@ sub extract_server_log ($$) {
 # Return as a single string
 #
 
+# Trim an excerpt (arrayref of lines) to its first $head and last $tail lines.
+#  For each of $head/$tail: <0 = unbounded, 0 = none, N = that many lines.
+#  A line is kept if it falls within the first $head or the last $tail; the
+#  omitted middle is replaced with a "< snip M lines >" marker.
+sub splice_lines {
+  my ($lines, $head, $tail)= @_;
+  my $total= @$lines;
+  return @$lines if $head < 0 || $tail < 0 || $head + $tail >= $total;
+  return () if $head == 0 && $tail == 0;
+  my $snipped= $total - $head - $tail;
+  return (@$lines[0 .. $head - 1],
+          "< snip $snipped lines >\n",
+          @$lines[$total - $tail .. $total - 1]);
+}
+
+# When --strip-hints is given, drop the explanatory crash-report "hint" paragraphs
+# (bug-reporting boilerplate, backtrace instructions, ...) that the server
+# writes to its error log, keeping the actual data. Each hint is a paragraph
+# from an opener line to the next blank line.
+sub strip_crash_hints
+{
+  my @openers=
+    (
+     qr/^Sorry, we probably made a mistake/,
+     qr/^Your assistance in bug reporting/,
+     qr/^To report this bug/,
+     qr/^Please include the information from the server start/,
+     qr/^The information page at/,
+     qr/^The manual page at/,
+     qr/^Attempting backtrace/,
+     qr/^This could be because you hit a bug/,
+     qr/^We will try our best to scrape up/,
+    );
+  my (@out, $skip);
+  for my $line (@_) {
+    if ($skip) {
+      $skip= 0 if $line =~ /^\s*$/;
+      next;
+    }
+    if (grep { $line =~ $_ } @openers) {
+      $skip= 1;
+      next;
+    }
+    push @out, $line;
+  }
+  return @out;
+}
+
+# When --strip-limits is given, drop the "Resource Limits" table the server writes
+# to its error log on a crash. Unlike a hint paragraph it has no trailing
+# blank line: the block is the opener, the "Limit ... Soft Limit ..." header
+# and the "Max ..." rows, ending at the first line that is neither.
+sub strip_resource_limits
+{
+  my (@out, $skip);
+  for my $line (@_) {
+    if ($skip) {
+      next if $line =~ /^(?:Limit\s|Max )/;
+      $skip= 0;
+    }
+    if ($line =~ /^Resource Limits/) {
+      $skip= 1;
+      next;
+    }
+    push @out, $line;
+  }
+  return @out;
+}
+
+# When --strip-backtrace is given, drop the server's own (non-debugger) stack
+# backtrace from the error log: the "Attempting backtrace" intro, the thread
+# pointer and stack_bottom lines, addr2line diagnostics and the frame lines
+# (which end in an [0x...] address). The gdb/lldb backtrace produced from a
+# core file by My::CoreDump is a separate thing and is not affected.
+sub strip_backtrace
+{
+  # A server crash backtrace is a bounded block: it starts at an "Attempting
+  # backtrace" or "Thread pointer:" line and runs through the intro prose, the
+  # optional "stack_bottom"/"Stack range" header, the frame list (either
+  # "...[0x...]" symbol lines, or bare "0x..." addresses from the builds whose
+  # my_print_stacktrace uses the frame-pointer walker), and the interleaved
+  # addr2line / my_addr_resolve diagnostics.  The block ends at the first line
+  # that is not recognisable backtrace content; that line and everything after
+  # it are kept, so later log sections (or a second backtrace) survive.
+  #
+  # Anything unrecognised ends the block (rather than being dropped), so a
+  # backtrace with no "stack_bottom" line and no bracketed frames - as the
+  # frame-pointer walker produces, and as an aborted backtrace produces - does
+  # not swallow the rest of the log.
+  my @out;
+  my $in= 0;
+  for my $line (@_) {
+    if (!$in) {
+      if ($line =~ /^Thread pointer:/ or $line =~ /^Attempting backtrace/) {
+        $in= 1;
+      } else {
+        push @out, $line;
+      }
+      next;
+    }
+    # Inside a backtrace: drop recognised content, otherwise the block has
+    # ended - fall back to keeping this line and resuming normal output.
+    next if $line =~ /^\s*$/                        # blank line
+         or $line =~ /^Thread pointer:/
+         or $line =~ /^\(note: /                    # "(note: Retrieving ...)"
+         or $line =~ /^stack_bottom /
+         or $line =~ /^Stack range sanity check/    # frame-pointer walker
+         or $line =~ /wild guesses/                 #   (Alpha) warning
+         or $line =~ /^\(my_addr_resolve failure/
+         or $line =~ /^addr2line:/
+         or $line =~ /\[0x[0-9a-fA-F]+\]\s*$/        # symbol frame
+         or $line =~ /^0x[0-9a-fA-F]+\s*$/           # bare walker frame
+         or $line =~ /Aborting backtrace/
+         or $line =~ /frame pointer/
+         or $line =~ /Bogus stack limit/;
+    $in= 0;
+    push @out, $line;
+  }
+  return @out;
+}
+
 sub get_log_from_proc ($$) {
   my ($proc, $name)= @_;
   my $srv_log= "";
 
+  return $srv_log if $opt_head_log == 0 && $opt_tail_log == 0;
+
   foreach my $mysqld (all_servers()) {
     if ($mysqld->{proc} eq $proc) {
-      my @srv_lines= extract_server_log($mysqld->if_exist('log-error'), $name);
+      my @lines= extract_server_log($mysqld->if_exist('log-error'), $name);
+      @lines= strip_crash_hints(@lines) if $opt_strip_hints;
+      @lines= strip_resource_limits(@lines) if $opt_strip_limits;
+      @lines= strip_backtrace(@lines) if $opt_strip_backtrace;
+      my @srv_lines= splice_lines(\@lines, $opt_head_log, $opt_tail_log);
       $srv_log= "\nServer log from this test:\n" .
 	"----------SERVER LOG START-----------\n". join ("", @srv_lines) .
 	"----------SERVER LOG END-------------\n";
@@ -4645,7 +5080,7 @@ sub start_check_warnings ($$) {
 
     # Get the args needed for the embedded server
     # and append them to args prefixed
-    # with --sever-arg=
+    # with --server-arg=
 
     my $mysqld=  $config->group('embedded')
       or mtr_error("Could not get [embedded] section");
@@ -4782,18 +5217,19 @@ sub check_warnings ($) {
 sub check_warnings_post_shutdown {
   my ($server_socket)= @_;
   my $testname_hash= { };
-  my $report= '';
+  my @match_all;
   foreach my $mysqld ( mysqlds())
   {
     my ($testlist, $match_lines)=
         extract_warning_lines($mysqld->value('log-error'), 1);
     $testname_hash->{$_}= 1 for @$testlist;
-    $report.= join('', @$match_lines);
+    push @match_all, @$match_lines;
   }
   my @warning_tests= keys(%$testname_hash);
   if (@warning_tests) {
     my $fake_test= My::Test->new(testnames => \@warning_tests);
-    $fake_test->{'warnings'}= $report;
+    $fake_test->{'warnings'}=
+      join('', splice_lines(\@match_all, $opt_head_warnings, $opt_tail_warnings));
     $fake_test->write_test($server_socket, 'WARNINGS');
   }
 }
@@ -5731,7 +6167,7 @@ sub start_mysqltest ($) {
 
     # Get the args needed for the embedded server
     # and append them to args prefixed
-    # with --sever-arg=
+    # with --server-arg=
 
     my $mysqld=  $config->group('embedded')
       or mtr_error("Could not get [embedded] section");
@@ -5765,6 +6201,10 @@ sub start_mysqltest ($) {
 
   # Number of lines of resut to include in failure report
   mtr_add_arg($args, "--tail-lines=%d", $opt_tail_lines);
+
+  # Stop the test before the command at this line (like an --exit directive)
+  mtr_add_arg($args, "--exit-line=%d", $opt_exit_line)
+    if $opt_exit_line;
 
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
@@ -5918,10 +6358,19 @@ Options to control what engine/variation to run:
                         tests
   defaults-extra-file=<config template> Extra config template to add to
                         all generated configs
-  combination=<opt>     Use at least twice to run tests with specified
-                        options to mysqld
+  combination=OPTIONS   Extra mysqld options making up one test combination.
+                        Repeat it (two or more times) to run every test once
+                        per combination. When given, it applies to all tests
+                        and their .combinations files are ignored.
+  combination-select=N  Run only the Nth combination from each .combinations
+  c=N                   file, counting [] sections in file order (1-based).
+                        A negative N counts from the end, -1 being the last.
+                        Ignored when --combination is used.
   dry-run               Don't run any tests, print the list of tests
                         that were selected for execution
+  list-combinations     For the specified test(s), list the available
+  lc                    combinations in selectable "test,combination" form
+                        and exit.
 
 Options to control directories to use
   tmpdir=DIR            The directory where temporary files are stored
@@ -5960,7 +6409,10 @@ Options to control what test suites or cases to run
                         prefix may be suite.testname or just testname
   suite[s]=NAME1,..,NAMEN
                         Collect tests in suites from the comma separated
-                        list of suite names.
+                        list of suite names. A name prefixed with '!' is
+                        excluded; if only '!'-prefixed names are given, they
+                        are excluded from the default set. Names accumulate
+                        across the command line and the [mtr] config file.
                         The default is: "@DEFAULT_SUITES"
   skip-rpl              Skip the replication test cases.
   big-test              Also run tests marked as "big". Repeat this option
@@ -6101,8 +6553,34 @@ Misc options
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
   xml-report=<file>     Output jUnit xml file of the results.
-  tail-lines=N          Number of lines of the result to include in a failure
-                        report.
+  tail-lines=N          Number of lines of the mysqltest result to include in
+                        a failure report. 0 disables it, negative includes all
+                        (max 10000); default 20.
+  head=N                Shortcut to set the head-* options to N and the tail-*
+                        options to 0.
+  tail=N                Shortcut to set the tail-* options to N and the head-*
+                        options to 0.
+  head-log=N            Keep the first N lines of the server error log in a
+                        crash report (0 none, negative all).  With neither
+                        head-log nor tail-log given the whole log is kept;
+                        giving one alone drops the opposite end, giving both
+                        keeps both ends with the middle snipped.
+  tail-log=N            Like head-log but keeps the last N lines.
+  strip-hints           Omit the explanatory bug-reporting and backtrace
+                        "hint" paragraphs from a crash report, keeping only
+                        the actual server log and backtrace.
+  strip-limits          Omit the "Resource Limits" table from a crash report.
+  strip-backtrace       Omit the server's own (non-debugger) stack backtrace
+                        from a crash report; the gdb/lldb backtrace from a
+                        core file, if any, is kept.
+  strip-log             Enable all of --strip-hints, --strip-limits and
+                        --strip-backtrace.
+  head-warnings=N       Keep the first N suspicious lines of the shutdown-
+                        warnings report (0 none, negative all).  With neither
+                        head-warnings nor tail-warnings given the whole report
+                        is kept; giving one alone drops the opposite end,
+                        giving both keeps both ends with the middle snipped.
+  tail-warnings=N       Like head-warnings but keeps the last N lines.
 
 Some options that control enabling a feature for normal test runs,
 can be turned off by prepending 'no' to the option, e.g. --notimer.

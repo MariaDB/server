@@ -455,7 +455,8 @@ sub mtr_report_stats ($$$$) {
     print
       "The log files in var/log may give you some hint of what went wrong.\n\n",
       "If you want to report this error, MariaDB's bug tracker is found at\n",
-      "https://jira.mariadb.org\n\n";
+      "https://jira.mariadb.org\n\n"
+      unless $::opt_strip_hints;
 
    }
   else
