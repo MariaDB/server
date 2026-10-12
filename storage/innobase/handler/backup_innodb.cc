@@ -1289,7 +1289,11 @@ public:
   void archive_create(lsn_t lsn, lsn_t file_size) noexcept
   {
     ut_ad(log_sys.latch_have_any());
-    if (ctx.state == PROCESSING)
+    if (ctx.state == PROCESSING &&
+#ifdef HAVE_PMEM
+        !log_sys.is_mmap() &&
+#endif
+        true)
     {
       mutex.wr_lock();
       if (ctx.state == PROCESSING && ctx.last_lsn > lsn &&
