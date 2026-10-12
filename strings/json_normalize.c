@@ -1242,15 +1242,14 @@ json_normalize(DYNAMIC_STRING *result,
     if (!s_utf8)
       return 1;
     memset(s_utf8, 0x00, in_size);
-    my_convert(s_utf8, (uint32)in_size, &my_charset_utf8mb4_bin,
-               s, (uint32)size, cs, &convert_err);
+    in_size= my_convert(s_utf8, (uint32)in_size, &my_charset_utf8mb4_bin,
+                       s, (uint32)size, cs, &convert_err);
     if (convert_err)
     {
        my_free(s_utf8);
        return 1;
     }
     in= s_utf8;
-    in_size= strlen(s_utf8);
   }
 
 
