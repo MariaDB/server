@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS ps_is_consumer_enabled;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_consumer_enabled (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_consumer_enabled (
         in_consumer varchar(64)
    )
    RETURNS enum('YES', 'NO')

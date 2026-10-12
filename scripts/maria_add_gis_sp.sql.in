@@ -20,15 +20,12 @@ SET sql_mode='';
 
 @ADD_GIS_SP_SET_DELIMITER@
 
-DROP PROCEDURE IF EXISTS AddGeometryColumn;
-DROP PROCEDURE IF EXISTS DropGeometryColumn;
-
-CREATE DEFINER=`mariadb.sys`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE OR REPLACE DEFINER=`mariadb.sys`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64), t_srid int) SQL SECURITY INVOKER
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end @ADD_GIS_SP_EOL@
 
-CREATE DEFINER=`mariadb.sys`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+CREATE OR REPLACE DEFINER=`mariadb.sys`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
    t_name varchar(64), geometry_column varchar(64)) SQL SECURITY INVOKER
 begin
   set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end @ADD_GIS_SP_EOL@
