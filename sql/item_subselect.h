@@ -279,7 +279,6 @@ public:
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
 protected:
-  Item* deep_copy(THD *thd) const override { return nullptr; }
   Item *pushdown_copy(THD *thd) const override { return nullptr; }
   Item *surface_copy(THD *thd) const override { return nullptr; }
 

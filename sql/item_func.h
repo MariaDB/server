@@ -3883,8 +3883,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_user_var_as_out_param>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -4013,7 +4011,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_func_match>(thd, this); }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
   Item *pushdown_copy(THD *thd) const override { return nullptr; }
 private:
   /**

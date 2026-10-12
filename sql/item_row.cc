@@ -170,28 +170,6 @@ void Item_row::bring_value()
     args[i]->bring_value();
 }
 
-
-Item* Item_row::deep_copy(THD *thd) const
-{
-  Item **copy_args= static_cast<Item**>
-    (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
-  if (unlikely(!copy_args))
-    return 0;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
-    if (!arg_clone)
-      return 0;
-    copy_args[i]= arg_clone;
-  }
-  Item_row *copy= (Item_row *) surface_copy_with_checks(thd);
-  if (unlikely(!copy))
-    return 0;
-  copy->args= copy_args;
-  return copy;
-}
-
-
 Item* Item_row::pushdown_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item**>

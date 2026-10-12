@@ -1913,17 +1913,6 @@ bool Item_func_eq::val_bool()
   return value == 0 ? 1 : 0;
 }
 
-
-Item *Item_func_eq::deep_copy(THD *thd) const
-{
-  /*
-    Clone the parent and cast to the child class since there is nothing
-    specific for Item_func_eq
-  */
-  return (Item_func_eq*) Item_bool_rowready_func2::deep_copy(thd);
-}
-
-
 /** Same as Item_func_eq, but NULL = NULL. */
 
 bool Item_func_equal::fix_length_and_dec(THD *thd)
@@ -5669,43 +5658,6 @@ void Item_cond::neg_arguments(THD *thd)
     (void) li.replace(new_item);
   }
 }
-
-
-/**
-  @brief
-    Building clone for Item_cond
-    
-  @param thd        thread handle
-  @param mem_root   part of the memory for the clone   
-
-  @details
-    This method gets copy of the current item and also 
-    build clones for its elements. For this elements 
-    build_copy is called again.
-      
-   @retval
-     clone of the item
-     0 if an error occurred
-*/ 
-
-Item *Item_cond::deep_copy(THD *thd) const
-{
-  Item_cond *copy= (Item_cond *) surface_copy_with_checks(thd);
-  if (!copy)
-    return 0;
-  copy->list.empty();
-
-  for (const Item &item : list)
-  {
-    Item *arg_clone= item.deep_copy_with_checks(thd);
-    if (!arg_clone)
-      return 0;
-    if (copy->list.push_back(arg_clone, thd->mem_root))
-      return 0;
-  }
-  return copy;
-}
-
 
 Item *Item_cond::pushdown_copy(THD *thd) const
 {

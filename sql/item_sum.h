@@ -1649,8 +1649,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_double>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1683,8 +1681,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_avg_field_decimal>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1709,8 +1705,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_variance_field>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return surface_copy_with_checks(thd); }
 };
 
 
@@ -1726,8 +1720,6 @@ public:
 protected:
   Item *surface_copy(THD *thd) const override
   { return get_item_copy<Item_std_field>(thd, this); }
-  Item *deep_copy(THD *thd) const override
-  { return surface_copy_with_checks(thd); }
 };
 
 

@@ -1780,28 +1780,6 @@ void Item_assoc_array::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
-
-Item *Item_assoc_array::deep_copy(THD *thd) const
-{
-  Item **copy_args= static_cast<Item **>
-    (alloc_root(thd->mem_root, sizeof(Item *) * arg_count));
-  if (unlikely(!copy_args))
-    return 0;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
-    if (!arg_clone)
-      return 0;
-    copy_args[i]= arg_clone;
-  }
-  Item_assoc_array *copy= (Item_assoc_array *) surface_copy_with_checks(thd);
-  if (unlikely(!copy))
-    return 0;
-  copy->args= copy_args;
-  return copy;
-}
-
-
 Item *Item_assoc_array::pushdown_copy(THD *thd) const
 {
   Item **copy_args= static_cast<Item **>

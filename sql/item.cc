@@ -2874,56 +2874,6 @@ Item_func_or_sum
   return false;
 }
 
-
-
-/**
-  @brief
-    Building clone for Item_func_or_sum
-
-  @param thd        thread handle
-  @param mem_root   part of the memory for the clone
-
-  @details
-    This method first builds clones of the arguments. If it is successful with
-    building the clones then it constructs a copy of this Item_func_or_sum object
-    and attaches to it the built clones of the arguments.
-
-   @return clone of the item
-   @retval 0 on a failure
-*/
-
-Item* Item_func_or_sum::deep_copy(THD *thd) const
-{
-  Item *copy_tmp_args[2]= {0,0};
-  Item **copy_args= copy_tmp_args;
-  if (arg_count > 2)
-  {
-    copy_args= static_cast<Item**>
-      (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
-    if (unlikely(!copy_args))
-      return 0;
-  }
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg_clone= args[i]->deep_copy_with_checks(thd);
-    if (unlikely(!arg_clone))
-      return 0;
-    copy_args[i]= arg_clone;
-  }
-  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(surface_copy_with_checks(thd));
-  if (unlikely(!copy))
-    return 0;
-  if (arg_count > 2)
-    copy->args= copy_args;
-  else if (arg_count > 0)
-  {
-    copy->args= copy->tmp_arg;
-    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
-  }
-  return copy;
-}
-
-
 /*
   The arguments are copied first: if one of them cannot be copied, no copy
   of this node is created, as its cleanup() would free what it still shares
@@ -3346,34 +3296,6 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
   DBUG_RETURN(FALSE);
 }
-
-/**
-  @brief
-    Building clone for Item_ref
-
-  @param thd        thread handle
-  @param mem_root   part of the memory for the clone
-
-  @details
-    This method gets copy of the current item and also
-    builds clone for its reference.
-
-   @retval
-     clone of the item
-     0 if an error occurred
-*/
-
-Item* Item_ref::deep_copy(THD *thd) const
-{
-  Item_ref *copy= (Item_ref *) surface_copy_with_checks(thd);
-  if (unlikely(!copy) ||
-      unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
-                                                sizeof(Item*)))) ||
-      unlikely(!(*copy->ref= (* ref)->deep_copy_with_checks(thd))))
-    return 0;
-  return copy;
-}
-
 
 Item *Item_ref::pushdown_copy(THD *thd) const
 {
@@ -8294,106 +8216,6 @@ bool Item::find_item_processor(void *arg)
   return (this == ((Item *) arg));
 }
 
-#ifndef DBUG_OFF
-/*
-  The context of Item::check_deep_copy() while it walks an item tree.
-*/
-struct Deep_copy_check
-{
-  /*
-    The root of the tree to check the visited items against, or NULL when
-    only the class names of the visited items are collected.
-  */
-  Item *other_root;
-  /* Class names of the visited items, in walk order */
-  String *classes;
-  /* The first item found in both trees, or NULL */
-  Item *shared;
-  /* How many items are shared by the two trees */
-  uint shared_count;
-};
-
-
-/*
-  typeid(x).name() is implementation defined: the Itanium ABI returns the
-  mangled name, "10Item_field", MSVC the undecorated one, "class Item_field".
-  Return just the class name, so that the notes do not depend on the compiler.
-*/
-static const char *dbug_item_class_name(const Item *item)
-{
-  const char *name= typeid(*item).name();
-  if (!strncmp(name, "class ", 6))
-    name+= 6;
-  while (*name >= '0' && *name <= '9')
-    name++;
-  return name;
-}
-
-
-bool Item::deep_copy_check_processor(void *arg)
-{
-  Deep_copy_check *ctx= (Deep_copy_check *) arg;
-  const char *name= dbug_item_class_name(this);
-
-  if (ctx->classes->length())
-    ctx->classes->append(' ');
-  ctx->classes->append(name, strlen(name));
-
-  if (ctx->other_root &&
-      ctx->other_root->walk(&Item::find_item_processor, this,
-                            (item_walk_flags) 0))
-  {
-    if (!ctx->shared)
-      ctx->shared= this;
-    ctx->shared_count++;
-  }
-  return false;                      // Always continue the walk
-}
-
-
-bool Item::check_deep_copy(THD *thd, Item *clone, const char *what)
-{
-  StringBuffer<256> orig_classes, clone_classes;
-  Deep_copy_check orig_ctx= { NULL, &orig_classes, NULL, 0 };
-  Deep_copy_check clone_ctx= { this, &clone_classes, NULL, 0 };
-  bool rc= false;
-
-  walk(&Item::deep_copy_check_processor, &orig_ctx, (item_walk_flags) 0);
-  clone->walk(&Item::deep_copy_check_processor, &clone_ctx,
-              (item_walk_flags) 0);
-
-  if (orig_classes.length() != clone_classes.length() ||
-      memcmp(orig_classes.ptr(), clone_classes.ptr(), orig_classes.length()))
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-                        "%s: clone is not structurally equal: "
-                        "original=[%.*s] clone=[%.*s]", what,
-                        (int) orig_classes.length(), orig_classes.ptr(),
-                        (int) clone_classes.length(), clone_classes.ptr());
-    rc= true;
-  }
-
-  if (clone_ctx.shared)
-  {
-    const char *name= dbug_item_class_name(this);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-                        "%s: clone of [%.*s] shares %u item(s) with the "
-                        "original, first one is %s", what,
-                        (int) orig_classes.length(), orig_classes.ptr(),
-                        clone_ctx.shared_count, name);
-    rc= true;
-  }
-
-  DBUG_EXECUTE_IF(
-    "check_deep_copy",
-    if (!rc)
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-                          "%s: [%.*s] is deeply cloned", what,
-                          (int) orig_classes.length(), orig_classes.ptr());
-  );
-  return rc;
-}
-#endif /* DBUG_OFF */
 
 bool Item_field::send(Protocol *protocol, st_value *buffer)
 {
@@ -11387,41 +11209,6 @@ void Item_cache::store(Item *item)
   if (!item)
     null_value= TRUE;
   value_cached= FALSE;
-}
-
-
-/*
-  Create a deep copy of this cache.
-
-  A cache is filled by store()/cache_value() calls made by the item that owns
-  it, e.g. Item_in_optimizer. Nobody does that for a clone, so a clone that
-  inherited the cached value of the original would keep returning that value
-  forever. The clone is given an empty cache instead, so that it computes the
-  value itself, out of the item the value is read from, when it is first asked
-  for it.
-*/
-
-Item *Item_cache::deep_copy_cache(THD *thd) const
-{
-  Item *example_copy= example;
-  if (example && !example->with_sum_func() && !example->with_window_func())
-  {
-    /*
-      Aggregate and window functions are not clonable yet: a copy of such an
-      item shares the per-execution data of the original, so that both would
-      free it. A cache over one of those has to share it with the original.
-      That is safe, as a cache only reads the value of the item, but it makes
-      the clone not a fully deep one, which Item::check_deep_copy() reports.
-    */
-    if (!(example_copy= example->deep_copy_with_checks(thd)))
-      return NULL;
-  }
-  Item_cache *copy= (Item_cache *) surface_copy_with_checks(thd);
-  if (!copy)
-    return NULL;
-  copy->example= example_copy;
-  copy->clear();
-  return copy;
 }
 
 

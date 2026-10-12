@@ -126,7 +126,6 @@ public:
 
 protected:
   Item *surface_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
   Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 
@@ -171,7 +170,6 @@ public:
 
 protected:
   Item *surface_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
   Item *pushdown_copy(THD *thd) const override { return nullptr; }
 };
 

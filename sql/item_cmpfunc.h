@@ -672,16 +672,6 @@ public:
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
-  Item *deep_copy(THD *thd) const override
-  {
-    Item_bool_rowready_func2 *clone=
-      (Item_bool_rowready_func2 *) Item_func::deep_copy(thd);
-    if (clone)
-    {
-      clone->cmp.comparators= 0;
-    }
-    return clone;
-  }
   Item *pushdown_copy(THD *thd) const override
   {
     Item_bool_rowready_func2 *copy=
@@ -902,7 +892,6 @@ public:
   Item* date_conds_transformer(THD *thd, uchar *arg) override
   { return do_date_conds_transformation(thd, this); }
   Item* varchar_upper_cmp_transformer(THD *thd, uchar *arg) override;
-  Item *deep_copy(THD *thd) const override;
 
 protected:
   Item *surface_copy(THD *thd) const override
@@ -2625,15 +2614,6 @@ public:
     override;
   Item *find_item() override;
 protected:
-  Item *deep_copy(THD *thd) const override
-  {
-    Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::deep_copy(thd);
-    uint ncases= when_count();
-    if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
-      return NULL;
-    return clone;
-  }
   Item *pushdown_copy(THD *thd) const override
   {
     Item_func_case_simple *copy= (Item_func_case_simple *)
@@ -2848,17 +2828,6 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
     override;
   bool count_sargable_conds(void *arg) override;
-  Item *deep_copy(THD *thd) const override
-  {
-    Item_func_in *clone= (Item_func_in *) Item_func::deep_copy(thd);
-    if (clone)
-    {
-      clone->array= 0;
-      if (clone->Predicant_to_list_comparator::init_clone(thd, arg_count - 1))
-        return NULL;
-    }
-    return clone;
-  }
   Item *pushdown_copy(THD *thd) const override
   {
     Item_func_in *copy= (Item_func_in *) Item_func::pushdown_copy(thd);
@@ -3525,7 +3494,6 @@ public:
   }
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
-  Item *deep_copy(THD *thd) const override;
   Item *pushdown_copy(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;

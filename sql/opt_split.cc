@@ -680,21 +680,6 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->field= spl_field->underlying_field;
   added_key_field->cond= eq_item;
   added_key_field->val= key_field->val;
-  /*
-    The clones built above are pushed into the materialized table, so they are
-    evaluated while the table is filled. The value used to look up the filled
-    table is still the original key_field->val. Under the
-    "split_materialized_clones" debug flag use a clone here as well, so that
-    the clone has to work in both roles. Note that right_item cannot be reused
-    for this: it has already been made dependent on the select that specifies
-    the materialized table.
-  */
-  DBUG_EXECUTE_IF("split_materialized_clones",
-                  {
-                    Item *val_clone= key_field->val->deep_copy_with_checks(thd);
-                    if (val_clone)
-                      added_key_field->val= val_clone;
-                  });
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
