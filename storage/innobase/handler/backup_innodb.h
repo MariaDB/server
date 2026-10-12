@@ -64,9 +64,14 @@ void innodb_backup_checkpoint(lsn_t first_lsn) noexcept;
 /** @return whether log-tracking backup is in progress */
 bool innodb_backup_log_tracking() noexcept;
 
-#ifdef HAVE_PMEM
 /**
-   Complete the first checkpoint in a new memory-mapped archive log file.
+   Register the creation of log_sys.log.
+   @param lsn       first_lsn of log_sys.log
+   @param file_size size of log_sys.log
 */
+void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept;
+
+#ifdef HAVE_PMEM
+/** Complete the first checkpoint in a new memory-mapped archive log file. */
 void innodb_backup_checkpoint_pmem() noexcept;
 #endif

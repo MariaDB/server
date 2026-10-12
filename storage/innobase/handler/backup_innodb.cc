@@ -577,12 +577,24 @@ public:
       do
       {
         try {
-          tracked=
 #ifdef HAVE_PMEM
-            log_sys.is_mmap()
-            ? new tracked_log{log_sys.buf, first_lsn, log_sys.file_size} :
+          if (log_sys.is_mmap())
+            tracked=
+              new tracked_log{log_sys.buf, first_lsn, log_sys.file_size};
+          else
 #endif
-            new tracked_log{log_sys.log.m_file, first_lsn, log_sys.file_size};
+          {
+            tracked=
+              new tracked_log{log_sys.log.m_file, first_lsn,
+                              log_sys.file_size};
+            if (log_sys.resize_log.m_file != log_sys.log.m_file &&
+                log_sys.resize_log.is_opened())
+              tracked->next= new tracked_log{log_sys.resize_log.m_file,
+                                             first_lsn + log_sys.capacity(),
+                                             uint64_t
+                                             (lseek(log_sys.resize_log.m_file,
+                                                    0, SEEK_END))};
+          }
           log_dst= context::log_track_create(target, first_lsn);
           if (IF_WIN(log_dst != INVALID_HANDLE_VALUE, log_dst >= 0))
             continue;
@@ -591,7 +603,11 @@ public:
           my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
         }
         log_sys.backup_stop(old_size, thd);
-        delete tracked;
+        if (tracked)
+        {
+          delete tracked->next;
+          delete tracked;
+        }
         return reinterpret_cast<void*>(-1);
       }
       while (false);
@@ -885,7 +901,10 @@ public:
 #endif
         {
           ut_ad(tail->file != tracked.file);
-          std::ignore= IF_WIN(CloseHandle,close)(tracked.file);
+          ut_ad(tracked.file != log_sys.resize_log.m_file);
+          if (tracked.file != log_sys.log.m_file)
+            std::ignore= IF_WIN(CloseHandle,close)(tracked.file);
+          fprintf(stderr, "closet(%d)\n", tracked.file);
         }
         /* Move to the next file */
         delete ctx.tracked;
@@ -1215,20 +1234,13 @@ public:
       {
         ut_ad(ctx.last_track_lsn < LSN_MAX);
         delete_file= ctx.old_size;
-#ifdef HAVE_PMEM
+# ifdef HAVE_PMEM
         if (!log_sys.is_mmap())
-#endif
+# endif
         {
           ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
-          ut_ad(!ctx.is_log_tracking(log_sys.log.m_file));
-          ut_ad(ctx.tracked->first_lsn < log_sys.first_lsn);
+          ut_ad(ctx.is_log_tracking(log_sys.log.m_file));
           log_sys.resize_log.m_file= OS_FILE_CLOSED;
-          try {
-            ctx.log_track_tail()=
-              new tracked_log{log_sys.log.m_file,
-                              log_sys.first_lsn, log_sys.file_size};
-          }
-          catch (std::bad_alloc&) { ctx.last_lsn= 0; }
         }
       }
       mutex.wr_unlock();
@@ -1267,6 +1279,33 @@ public:
                  log_sys.get_archive_path(lsn).c_str(), errno);
       }
       catch (std::bad_alloc&) {}
+  }
+
+  /**
+     Register log_sys.log
+     @param lsn         first_lsn of log_sys.log
+     @param file_size   size of log_sys.log
+  */
+  void archive_create(lsn_t lsn, lsn_t file_size) noexcept
+  {
+    ut_ad(log_sys.latch_have_any());
+    if (ctx.state == PROCESSING)
+    {
+      mutex.wr_lock();
+      if (ctx.state == PROCESSING && ctx.last_lsn > lsn &&
+          ctx.is_log_tracking())
+      {
+        ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
+        ut_ad(!ctx.is_log_tracking(log_sys.log.m_file));
+        ut_ad(ctx.tracked->first_lsn < lsn);
+        try {
+          ctx.log_track_tail()=
+            new tracked_log{log_sys.log.m_file, lsn, file_size};
+        }
+        catch (std::bad_alloc&) { ctx.last_lsn= 0; }
+      }
+      mutex.wr_unlock();
+    }
   }
 
   /** @return whether log-tracking backup is in progress */
@@ -2385,8 +2424,10 @@ void InnoDB_backup::context::destroy() noexcept
   else
 #endif
     for (; tracked_log *head= tracked; delete head)
-      if ((tracked= tracked->next))
-        IF_WIN(CloseHandle,close)(head->file);
+      if ((tracked= tracked->next) &&
+          head->file != log_sys.log.m_file &&
+          head->file != log_sys.resize_log.m_file)
+        std::ignore= IF_WIN(CloseHandle,close)(head->file);
 }
 
 }
@@ -2518,10 +2559,12 @@ bool innodb_backup_log_tracking() noexcept
   return innodb_backup.is_log_tracking();
 }
 
+void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept
+{
+  innodb_backup.archive_create(lsn, file_size);
+}
+
 #ifdef HAVE_PMEM
-/**
-   Complete the first checkpoint in a new memory-mapped archive log file.
-*/
 void innodb_backup_checkpoint_pmem() noexcept
 {
   innodb_backup.checkpoint_complete_pmem();

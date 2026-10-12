@@ -1405,6 +1405,7 @@ ATTRIBUTE_COLD void log_t::archive_create(lsn_t lsn, bool ex) noexcept
         /* Will be closed in write_checkpoint() */
         resize_log= log;
         log= file;
+        innodb_backup_archive_create(lsn, resize_target);
         return;
 #ifdef HAVE_PMEM
       }
