@@ -5841,7 +5841,15 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   while (ir)
   {
     inuse_relaylog *next= ir->next;
-    if (!ir->completed || ir->dequeued_count < ir->queued_count)
+    /*
+      Acquire semantics on the load on ir->completed, so we are sure that
+      all writes to ir->queued_count are visible. And on the ir->dequeued_count
+      to match release on its increment.
+    */
+    int64 loc_completed= ir->completed.load(std::memory_order_acquire);
+    if (!loc_completed ||
+        ir->dequeued_count.load(std::memory_order_acquire) <
+        ir->queued_count.load(std::memory_order_relaxed))
     {
       included= false;
       break;

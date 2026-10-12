@@ -7585,7 +7585,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       DBUG_ASSERT(rli->cur_log_fd >= 0);
       mysql_file_close(rli->cur_log_fd, MYF(MY_WME));
       rli->cur_log_fd = -1;
-      rli->last_inuse_relaylog->completed= true;
+      rli->last_inuse_relaylog->completed.store(true,
+                                                std::memory_order_release);
       rli->relay_log.description_event_for_sql_thread->reset_crypto();
 
       if (relay_log_purge)

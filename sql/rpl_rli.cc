@@ -1460,7 +1460,7 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     inuse_relaylog_list= ir;
   else
   {
-    last_inuse_relaylog->completed= true;
+    last_inuse_relaylog->completed.store(true, std::memory_order_release);
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;

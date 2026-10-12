@@ -2057,7 +2057,14 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    ir->dequeued_count+= accumulated_ir_count;
+    /*
+      Dequeue with release semantics, so we are sure none of our previous
+      accesses to the inuse_relaylog will be re-ordered past this increment
+      of dequeued_count (and thus potentially past the freeing of the
+      inuse_relaylog object).
+    */
+    ir->dequeued_count.fetch_add(accumulated_ir_count,
+                                 std::memory_order_release);
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
@@ -3083,8 +3090,9 @@ bool Relay_log_info::are_sql_threads_caught_up()
     Therefore, this place needs to check if it can now be `true`.
   */
   if (!worker_threads_caught_up && ( // No need to re-check if already `true`.
-    !last_inuse_relaylog || // `nullptr` case
-      last_inuse_relaylog->queued_count == last_inuse_relaylog->dequeued_count
+        !last_inuse_relaylog || // `nullptr` case
+        last_inuse_relaylog->queued_count.load(std::memory_order_relaxed) ==
+        last_inuse_relaylog->dequeued_count.load(std::memory_order_relaxed)
   ))
     worker_threads_caught_up= true; // Refresh
   return worker_threads_caught_up;
@@ -3132,7 +3140,7 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
   qev->typ= rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART;
   qev->entry_for_queued= this;
   qev->ir= rli->last_inuse_relaylog;
-  ++qev->ir->queued_count;
+  qev->ir->queued_count.fetch_add(1, std::memory_order_relaxed);
   thr->enqueue(qev);
   mysql_cond_signal(&thr->COND_rpl_thread);
   mysql_mutex_unlock(&thr->LOCK_rpl_thread);
@@ -3658,7 +3666,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     Queue the event for processing.
   */
   qev->ir= rli->last_inuse_relaylog;
-  ++qev->ir->queued_count;
+  qev->ir->queued_count.fetch_add(1, std::memory_order_relaxed);
   cur_thread->enqueue(qev);
   unlock_or_exit_cond(rli->sql_driver_thd, &cur_thread->LOCK_rpl_thread,
                       &did_enter_cond, &old_stage);
