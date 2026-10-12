@@ -1355,6 +1355,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   page less than 5% of BP. */
   const size_t buf_lru_min_len=
     std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
@@ -1476,7 +1477,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         const uint32_t page{bpage->id().page_no()};
         const uint32_t backup_page_end{space->backup_page_end()};
         if (page < backup_page_end &&
-            page >= backup_page_end - space->BACKUP_BATCH_SIZE)
+            page >= backup_page_end - BACKUP_BATCH_SIZE)
           bpage->lock.u_unlock(true);
         else if (bpage->flush(space))
         {
@@ -1551,6 +1552,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
   uint32_t last_space_id= FIL_NULL;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
 
   /* Start from the end of the list looking for a suitable block to be
   flushed. */
@@ -1653,8 +1655,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
           {
             const uint32_t backup_page_end{space->backup_page_end()};
             if (page_id.page_no() < backup_page_end &&
-                page_id.page_no() >=
-                backup_page_end - space->BACKUP_BATCH_SIZE)
+                page_id.page_no() >= backup_page_end - BACKUP_BATCH_SIZE)
             {
               bpage->lock.u_unlock(true);
               continue;
@@ -1760,6 +1761,7 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 @return whether the flush for some pages might not have been initiated */
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
 {
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
   const auto space_id= space->id;
   ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
 
@@ -1820,7 +1822,7 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
         const uint32_t page{bpage->id().page_no()};
         const uint32_t backup_page_end{space->backup_page_end()};
         if (UNIV_UNLIKELY(page < backup_page_end) &&
-            page >= backup_page_end - space->BACKUP_BATCH_SIZE)
+            page >= backup_page_end - BACKUP_BATCH_SIZE)
         {
           bpage->lock.u_unlock(true);
           may_have_skipped= true;
