@@ -2374,8 +2374,7 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (info->interface_version >= 0x0202 && info->preprocess_hash &&
-      auth->auth_string.length)
+  if (info->interface_version >= 0x0202 && info->preprocess_hash)
   {
     uchar buf[MAX_SCRAMBLE_LENGTH];
     size_t len= sizeof(buf);
@@ -15459,6 +15458,11 @@ static int old_password_get_salt(const char *hash, size_t hash_length,
 {
   DBUG_ASSERT(*out_length >= SALT_LENGTH_323);
 
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
   if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH_323);

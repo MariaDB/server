@@ -43,3 +43,16 @@ connect con5, localhost, test2, "wrong_pwd";
 ERROR 28000: Access denied for user 'test2'@'localhost' (using password: NO)
 connection default;
 drop user test2@'%';
+#
+# MDEV-41491 parsec ASAN crash on manually modified mysql.global_priv table
+#
+insert mysql.global_priv values ('localhost', 'u', '{"access":0,"plugin":"parsec"}');
+flush privileges;
+show create user u@localhost;
+CREATE USER for u@localhost
+CREATE USER `u`@`localhost` IDENTIFIED VIA parsec
+connect(localhost,u,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect u,localhost,u;
+ERROR HY000: Error in server handshake
+drop user u@localhost;
+# End of 11.8 tests

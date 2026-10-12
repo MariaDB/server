@@ -164,15 +164,20 @@ static int digest_to_binary(const char *hash, size_t hash_length,
                             unsigned char *out, size_t *out_length)
 {
   struct digest *authstr= (struct digest*)out;
-  assert(*out_length > sizeof(*authstr));
-  *out_length= sizeof(*authstr);
-  memset(out, 0, *out_length);
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
   if (hash_length != PASSWORD_LEN)
   {
     my_printf_error(ER_PASSWD_LENGTH, "Password hash should be "
                     "%zu characters long", 0, PASSWORD_LEN);
     return 1;
   }
+  assert(*out_length >= sizeof(*authstr));
+  *out_length= sizeof(*authstr);
+  memset(out, 0, *out_length);
   if (sscanf(hash, "$A$%X$%20c%43c", &authstr->iterations, authstr->salt,
              authstr->crypted) < 3)
   {
