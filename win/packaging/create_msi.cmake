@@ -449,7 +449,6 @@ IF(WIX_EXECUTABLE)
     LIST(APPEND WIX_DEFINE_ARGS -d "${def}")
   ENDFOREACH()
 
-  SET(EXTRA_WIX_BUILD_ARGS "$ENV{EXTRA_WIX_BUILD_ARGS}")
   EXECUTE_PROCESS(
     COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} build
     -arch ${Platform}
@@ -459,7 +458,6 @@ IF(WIX_EXECUTABLE)
     -cabcache .
     mysql_server.wxs extra.wxs
     -out ${CPACK_PACKAGE_FILE_NAME}.msi
-    ${EXTRA_WIX_BUILD_ARGS}
     RESULT_VARIABLE res
   )
   CHECK_WIX_RESULT("${res}" "wix build")
