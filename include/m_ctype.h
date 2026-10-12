@@ -870,12 +870,12 @@ struct charset_info_st
     return mbmaxlen > 1;
   }
 
-  size_t numchars(const char *b, const char *e) const
+  size_t numchars(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL) const
   {
     return (cset->numchars)(this, b, e);
   }
 
-  size_t charpos(const char *b, const char *e, size_t pos) const
+  size_t charpos(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, size_t pos) const
   {
     return (cset->charpos)(this, b, e, pos);
   }
@@ -884,30 +884,30 @@ struct charset_info_st
     return (cset->charpos)(this, (const char *) b, (const char*) e, pos);
   }
 
-  size_t lengthsp(const char *str, size_t length) const
+  size_t lengthsp(const char *str ATTRIBUTE_NONNULL, size_t length) const
   {
     return (cset->lengthsp)(this, str, length);
   }
 
-  size_t numcells(const char *b, const char *e) const
+  size_t numcells(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL) const
   {
     return (cset->numcells)(this, b, e);
   }
 
-  size_t caseup(const char *src, size_t srclen,
-                char *dst, size_t dstlen) const
+  size_t caseup(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     return (cset->caseup)(this, src, srclen, dst, dstlen);
   }
 
-  size_t casedn(const char *src, size_t srclen,
-                char *dst, size_t dstlen) const
+  size_t casedn(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
   }
 
-  size_t opt_casedn(const char *src, size_t srclen,
-                    char *dst, size_t dstlen, my_bool opt_casedn) const
+  size_t opt_casedn(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                    char *dst ATTRIBUTE_NONNULL, size_t dstlen, my_bool opt_casedn) const
   {
     if (opt_casedn)
       return casedn(src, srclen, dst, dstlen);
@@ -918,8 +918,8 @@ struct charset_info_st
   }
 
   /* Convert to a lower-cased 0-terminated string */
-  size_t casedn_z(const char *src, size_t srclen,
-                  char *dst, size_t dstlen) const
+  size_t casedn_z(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                  char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     DBUG_ASSERT(dstlen);
     DBUG_ASSERT(src != dst);
@@ -929,8 +929,8 @@ struct charset_info_st
   }
 
   /* Convert to a upper-cased 0-terminated string */
-  size_t caseup_z(const char *src, size_t srclen,
-                  char *dst, size_t dstlen) const
+  size_t caseup_z(const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                  char *dst ATTRIBUTE_NONNULL, size_t dstlen) const
   {
     DBUG_ASSERT(dstlen);
     DBUG_ASSERT(src != dst);
@@ -949,19 +949,19 @@ struct charset_info_st
     return (cset->casedn_multiply)(this);
   }
 
-  size_t long10_to_str(char *dst, size_t dstlen,
+  size_t long10_to_str(char *dst ATTRIBUTE_NONNULL, size_t dstlen,
                        int radix, long int val) const
   {
     return (cset->long10_to_str)(this, dst, dstlen, radix, val);
   }
 
-  size_t (longlong10_to_str)(char *dst, size_t dstlen,
+  size_t (longlong10_to_str)(char *dst ATTRIBUTE_NONNULL, size_t dstlen,
                              int radix, longlong val) const
   {
     return (cset->longlong10_to_str)(this, dst, dstlen, radix, val);
   }
 
-  int mb_wc(my_wc_t *wc, const uchar *b, const uchar *e) const
+  int mb_wc(my_wc_t *wc ATTRIBUTE_NONNULL, const uchar *b, const uchar *e) const
   {
     return (cset->mb_wc)(this, wc, b, e);
   }
@@ -981,58 +981,58 @@ struct charset_info_st
     return (cset->wc_to_printable)(this, wc, s, e);
   }
 
-  int ctype(int *to, const uchar *s, const uchar *e) const
+  int ctype(int *to ATTRIBUTE_NONNULL, const uchar *s, const uchar *e) const
   {
     return (cset->ctype)(this, to, s, e);
   }
 
-  void fill(char *to, size_t len, int ch) const
+  void fill(char *to ATTRIBUTE_NONNULL, size_t len, int ch) const
   {
     (cset->fill)(this, to, len, ch);
   }
 
-  long strntol(const char *str, size_t length,
+  long strntol(const char *str ATTRIBUTE_NONNULL, size_t length,
                int base, char **endptr, int *error) const
   {
     return (cset->strntol)(this, str, length, base, endptr, error);
   }
 
-  ulong strntoul(const char *str, size_t length,
+  ulong strntoul(const char *str ATTRIBUTE_NONNULL, size_t length,
                  int base, char **endptr, int *error) const
   {
     return (cset->strntoul)(this, str, length, base, endptr, error);
   }
 
-  longlong strntoll(const char *str, size_t length,
+  longlong strntoll(const char *str ATTRIBUTE_NONNULL, size_t length,
                     int base, char **endptr, int *error) const
   {
     return (cset->strntoll)(this, str, length, base, endptr, error);
   }
 
-  ulonglong strntoull(const char *str, size_t length,
+  ulonglong strntoull(const char *str ATTRIBUTE_NONNULL, size_t length,
                       int base, char **endptr, int *error) const
   {
     return (cset->strntoull)(this, str, length, base, endptr, error);
   }
 
-  double strntod(char *str, size_t length,
+  double strntod(char *str ATTRIBUTE_NONNULL, size_t length,
                  char **endptr, int *error) const
   {
     return (cset->strntod)(this, str, length, endptr, error);
   }
 
-  longlong strtoll10(const char *str, char **endptr, int *error) const
+  longlong strtoll10(const char *str ATTRIBUTE_NONNULL, char **endptr, int *error) const
   {
     return (cset->strtoll10)(this, str, endptr, error);
   }
 
-  ulonglong strntoull10rnd(const char *str, size_t length, int unsigned_fl,
+  ulonglong strntoull10rnd(const char *str ATTRIBUTE_NONNULL, size_t length, int unsigned_fl,
                            char **endptr, int *error) const
   {
     return (cset->strntoull10rnd)(this, str, length, unsigned_fl, endptr, error);
   }
 
-  size_t scan(const char *b, const char *e, int seq) const
+  size_t scan(const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, int seq) const
   {
     return (cset->scan)(this, b, e, seq);
   }
@@ -1041,7 +1041,7 @@ struct charset_info_st
   {
     return (cset->charlen)(this, str, end);
   }
-  int charlen(const char *str, const char *end) const
+  int charlen(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL) const
   {
     return (cset->charlen)(this, (const uchar *) str, (const uchar *) end);
   }
@@ -1052,20 +1052,20 @@ struct charset_info_st
     DBUG_ASSERT(str < end);
     return char_length > 0 ? (uint) char_length : (uint) 1U;
   }
-  uint charlen_fix(const char *str, const char *end) const
+  uint charlen_fix(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL) const
   {
     return charlen_fix((const uchar *) str, (const uchar *) end);
   }
 
-  size_t well_formed_char_length(const char *str, const char *end,
+  size_t well_formed_char_length(const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL,
                                  size_t nchars,
                                  MY_STRCOPY_STATUS *status) const
   {
     return (cset->well_formed_char_length)(this, str, end, nchars, status);
   }
 
-  size_t copy_fix(char *dst, size_t dst_length,
-                  const char *src, size_t src_length,
+  size_t copy_fix(char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+                  const char *src ATTRIBUTE_NONNULL, size_t src_length,
                   size_t nchars, MY_STRCOPY_STATUS *status) const
   {
     return (cset->copy_fix)(this, dst, dst_length, src, src_length, nchars,
@@ -1113,8 +1113,8 @@ struct charset_info_st
   {
     return (coll->strnncoll)(this, a, alen, b, blen, b_is_prefix);
   }
-  int strnncoll(const char *a, size_t alen,
-                const char *b, size_t blen, my_bool b_is_prefix= FALSE) const
+  int strnncoll(const char *a ATTRIBUTE_NONNULL, size_t alen,
+                const char *b ATTRIBUTE_NONNULL, size_t blen, my_bool b_is_prefix= FALSE) const
   {
     return (coll->strnncoll)(this,
                              (const uchar *) a, alen,
@@ -1126,8 +1126,8 @@ struct charset_info_st
   {
     return (coll->strnncollsp)(this, a, alen, b, blen);
   }
-  int strnncollsp(const char *a, size_t alen,
-                  const char *b, size_t blen) const
+  int strnncollsp(const char *a ATTRIBUTE_NONNULL, size_t alen,
+                  const char *b ATTRIBUTE_NONNULL, size_t blen) const
   {
     return (coll->strnncollsp)(this, (uchar *) a, alen, (uchar *) b, blen);
   }
@@ -1138,8 +1138,8 @@ struct charset_info_st
                                      (uchar *) b.str, b.length);
   }
 
-  my_strnxfrm_ret_t strnxfrm(char *dst, size_t dstlen, uint nweights,
-                             const char *src, size_t srclen, uint flags) const
+  my_strnxfrm_ret_t strnxfrm(char *dst ATTRIBUTE_NONNULL, size_t dstlen, uint nweights,
+                             const char *src ATTRIBUTE_NONNULL, size_t srclen, uint flags) const
   {
     return (coll->strnxfrm)(this,
                             (uchar *) dst, dstlen, nweights,
@@ -1165,10 +1165,10 @@ struct charset_info_st
     return (coll->strnxfrmlen)(this, length);
   }
 
-  my_bool like_range(const char *s, size_t s_length,
+  my_bool like_range(const char *s ATTRIBUTE_NONNULL, size_t s_length,
                      pchar w_prefix, pchar w_one, pchar w_many,
                      size_t res_length,
-                     char *min_str, char *max_str,
+                     char *min_str ATTRIBUTE_NONNULL, char *max_str ATTRIBUTE_NONNULL,
                      size_t *min_len, size_t *max_len) const
   {
     return (coll->like_range)(this, s, s_length,
@@ -1177,21 +1177,22 @@ struct charset_info_st
                               min_len, max_len);
   }
 
-  int wildcmp(const char *str,const char *str_end,
-              const char *wildstr,const char *wildend,
+  int wildcmp(const char *str ATTRIBUTE_NONNULL,const char *str_end ATTRIBUTE_NONNULL,
+              const char *wildstr ATTRIBUTE_NONNULL,const char *wildend ATTRIBUTE_NONNULL,
               int escape,int w_one, int w_many) const
   {
     return (coll->wildcmp)(this, str, str_end, wildstr, wildend, escape, w_one, w_many);
   }
 
-  uint instr(const char *b, size_t b_length,
-             const char *s, size_t s_length,
+  uint instr(const char *b ATTRIBUTE_NONNULL, size_t b_length,
+             const char *s ATTRIBUTE_NONNULL, size_t s_length,
              my_match_t *match, uint nmatch) const
   {
     return (coll->instr)(this, b, b_length, s, s_length, match, nmatch);
   }
 
-  void hash_sort(const uchar *key, size_t len, ulong *nr1, ulong *nr2) const
+  void hash_sort(const uchar *key, size_t len,
+                 ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL) const
   {
     (coll->hash_sort)(this, key, len, nr1, nr2);
   }
@@ -1228,7 +1229,7 @@ struct charset_info_st
     @return 0  Different
     @return 1  Identical
   */
-  my_bool eq_collation(CHARSET_INFO *rhs) const
+  my_bool eq_collation(CHARSET_INFO *rhs ATTRIBUTE_NONNULL) const
   {
     return this == rhs || (coll->eq_collation)(this, rhs);
   }
@@ -1240,7 +1241,8 @@ struct charset_info_st
 /* Character set routines */
 
 static inline my_bool
-my_ci_init_charset(struct charset_info_st *ci, MY_CHARSET_LOADER *loader)
+my_ci_init_charset(struct charset_info_st *ci ATTRIBUTE_NONNULL,
+                   MY_CHARSET_LOADER *loader ATTRIBUTE_NONNULL)
 {
   if (!ci->cset->init)
     return FALSE;
@@ -1255,55 +1257,61 @@ my_ci_use_mb(CHARSET_INFO *ci)
 }
 
 static inline size_t
-my_ci_numchars(CHARSET_INFO *cs, const char *b, const char *e)
+my_ci_numchars(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL,
+               const char *e ATTRIBUTE_NONNULL)
 {
   return (cs->cset->numchars)(cs, b, e);
 }
 
 static inline size_t
-my_ci_charpos(CHARSET_INFO *cs, const char *b, const char *e, size_t pos)
+my_ci_charpos(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL,
+              const char *e ATTRIBUTE_NONNULL, size_t pos)
 {
   return (cs->cset->charpos)(cs, b, e, pos);
 }
 
 static inline size_t
-my_ci_lengthsp(CHARSET_INFO *cs, const char *str, size_t length)
+my_ci_lengthsp(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+               size_t length)
 {
   return (cs->cset->lengthsp)(cs, str, length);
 }
 
 static inline size_t
-my_ci_numcells(CHARSET_INFO *cs, const char *b, const char *e)
+my_ci_numcells(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL,
+               const char *e ATTRIBUTE_NONNULL)
 {
   return (cs->cset->numcells)(cs, b, e);
 }
 
 static inline size_t
 my_ci_caseup(CHARSET_INFO *ci,
-             const char *src, size_t srclen,
-             char *dst, size_t dstlen)
+             const char *src ATTRIBUTE_NONNULL, size_t srclen,
+             char *dst ATTRIBUTE_NONNULL, size_t dstlen)
 {
   return (ci->cset->caseup)(ci, src, srclen, dst, dstlen);
 }
 
 static inline size_t
 my_ci_casedn(CHARSET_INFO *ci,
-             const char *src, size_t srclen,
-             char *dst, size_t dstlen)
+             const char *src ATTRIBUTE_NONNULL, size_t srclen,
+             char *dst ATTRIBUTE_NONNULL, size_t dstlen)
 {
   return (ci->cset->casedn)(ci, src, srclen, dst, dstlen);
 }
 
 static inline size_t
-my_ci_long10_to_str(CHARSET_INFO *cs, char *dst, size_t dstlen,
+my_ci_long10_to_str(CHARSET_INFO *cs,
+                    char *dst ATTRIBUTE_NONNULL, size_t dstlen,
                     int radix, long int val)
 {
   return (cs->cset->long10_to_str)(cs, dst, dstlen, radix, val);
 }
 
 static inline size_t
-my_ci_longlong10_to_str(CHARSET_INFO *cs, char *dst, size_t dstlen,
-                        int radix, longlong val)
+my_ci_longlong10_to_str(CHARSET_INFO *cs,
+                        char *dst ATTRIBUTE_NONNULL, size_t dstlen,
+                        int radix, longlong val) 
 {
   return (cs->cset->longlong10_to_str)(cs, dst, dstlen, radix, val);
 }
@@ -1314,63 +1322,77 @@ my_ci_longlong10_to_str(CHARSET_INFO *cs, char *dst, size_t dstlen,
 #define my_ci_ctype(s, pctype, b, e)     ((s)->cset->ctype)(s, pctype, b, e)
 
 static inline void
-my_ci_fill(CHARSET_INFO *cs, char *to, size_t len, int ch)
+my_ci_fill(CHARSET_INFO *cs, char *to ATTRIBUTE_NONNULL, size_t len, int ch)
 {
   (cs->cset->fill)(cs, to, len, ch);
 }
 
 static inline long
-my_ci_strntol(CHARSET_INFO *cs, const char *str, size_t length,
-              int base, char **endptr, int *error)
+my_ci_strntol(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+              size_t length, int base, char **endptr ATTRIBUTE_NONNULL,
+              int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strntol)(cs, str, length, base, endptr, error);
 }
 
 static inline ulong
-my_ci_strntoul(CHARSET_INFO *cs, const char *str, size_t length,
-               int base, char **endptr, int *error)
+my_ci_strntoul(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+               size_t length,
+               int base, char **endptr ATTRIBUTE_NONNULL, int *error)
 {
   return (cs->cset->strntoul)(cs, str, length, base, endptr, error);
 }
 
 static inline longlong
-my_ci_strntoll(CHARSET_INFO *cs, const char *str, size_t length,
-               int base, char **endptr, int *error)
+my_ci_strntoll(CHARSET_INFO *cs,
+               const char *str ATTRIBUTE_NONNULL, size_t length,
+               int base, char **endptr ATTRIBUTE_NONNULL,
+               int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strntoll)(cs, str, length, base, endptr, error);
 }
 
 static inline ulonglong
-my_ci_strntoull(CHARSET_INFO *cs, const char *str, size_t length,
-                int base, char **endptr, int *error)
+my_ci_strntoull(CHARSET_INFO *cs,
+                const char *str ATTRIBUTE_NONNULL, size_t length,
+                int base, char **endptr ATTRIBUTE_NONNULL,
+                int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strntoull)(cs, str, length, base, endptr, error);
 }
 
 static inline double
-my_ci_strntod(CHARSET_INFO *cs, char *str, size_t length,
-              char **endptr, int *error)
+my_ci_strntod(CHARSET_INFO *cs,
+              char *str ATTRIBUTE_NONNULL, size_t length,
+              char **endptr ATTRIBUTE_NONNULL,
+              int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strntod)(cs, str, length, endptr, error);
 }
 
 static inline longlong
-my_ci_strtoll10(CHARSET_INFO *cs, const char *str, char **endptr, int *error)
+my_ci_strtoll10(CHARSET_INFO *cs,
+                const char *str ATTRIBUTE_NONNULL,
+                char **endptr ATTRIBUTE_NONNULL,
+                int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strtoll10)(cs, str, endptr, error);
 }
 
 static inline ulonglong
 my_ci_strntoull10rnd(CHARSET_INFO *cs,
-                     const char *str, size_t length, int unsigned_fl,
-                     char **endptr, int *error)
+                     const char *str ATTRIBUTE_NONNULL, size_t length,
+                     int unsigned_fl,
+                     char **endptr ATTRIBUTE_NONNULL,
+                     int *error ATTRIBUTE_NONNULL)
 {
   return (cs->cset->strntoull10rnd)(cs, str, length, unsigned_fl, endptr, error);
 }
 
 
 static inline size_t
-my_ci_scan(CHARSET_INFO *cs, const char *b, const char *e, int seq)
+my_ci_scan(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL,
+           const char *e ATTRIBUTE_NONNULL, int seq) 
 {
   return (cs->cset->scan)(cs, b, e, seq);
 }
@@ -1397,9 +1419,9 @@ my_ci_charlen(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 
 static inline size_t
 my_ci_well_formed_char_length(CHARSET_INFO *cs,
-                              const char *str, const char *end,
+                              const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL,
                               size_t nchars,
-                              MY_STRCOPY_STATUS *status)
+                              MY_STRCOPY_STATUS *status ATTRIBUTE_NONNULL)
 {
   return (cs->cset->well_formed_char_length)(cs, str, end, nchars, status);
 }
@@ -1407,9 +1429,9 @@ my_ci_well_formed_char_length(CHARSET_INFO *cs,
 
 static inline size_t
 my_ci_copy_fix(CHARSET_INFO *cs,
-               char *dst, size_t dst_length,
-               const char *src, size_t src_length,
-               size_t nchars, MY_STRCOPY_STATUS *status)
+               char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+               const char *src ATTRIBUTE_NONNULL, size_t src_length,
+               size_t nchars, MY_STRCOPY_STATUS *status ATTRIBUTE_NONNULL)
 {
   return (cs->cset->copy_fix)(cs, dst, dst_length, src, src_length, nchars,
                               status);
@@ -1419,7 +1441,8 @@ my_ci_copy_fix(CHARSET_INFO *cs,
 /* Collation routines */
 
 static inline my_bool
-my_ci_init_collation(struct charset_info_st *ci, MY_CHARSET_LOADER *loader)
+my_ci_init_collation(struct charset_info_st *ci ATTRIBUTE_NONNULL,
+                     MY_CHARSET_LOADER *loader)
 {
   if (!ci->coll->init)
     return FALSE;
@@ -1447,11 +1470,11 @@ my_ci_strnncollsp(CHARSET_INFO *ci,
 
 static inline my_bool
 my_ci_like_range(CHARSET_INFO *ci,
-                 const char *s, size_t s_length,
+                 const char *s ATTRIBUTE_NONNULL, size_t s_length,
                  pchar w_prefix, pchar w_one, pchar w_many,
                  size_t res_length,
-                 char *min_str, char *max_str,
-                 size_t *min_len, size_t *max_len)
+                 char *min_str ATTRIBUTE_NONNULL, char *max_str ATTRIBUTE_NONNULL,
+                 size_t *min_len ATTRIBUTE_NONNULL, size_t *max_len ATTRIBUTE_NONNULL)
 {
   return (ci->coll->like_range)(ci, s, s_length,
                                 w_prefix, w_one, w_many,
@@ -1462,9 +1485,9 @@ my_ci_like_range(CHARSET_INFO *ci,
 
 static inline uint
 my_ci_instr(CHARSET_INFO *ci,
-            const char *b, size_t b_length,
-            const char *s, size_t s_length,
-            my_match_t *match, uint nmatch)
+            const char *b ATTRIBUTE_NONNULL, size_t b_length,
+            const char *s ATTRIBUTE_NONNULL, size_t s_length,
+            my_match_t *match ATTRIBUTE_NONNULL, uint nmatch)
 {
   return (ci->coll->instr)(ci, b, b_length, s, s_length, match, nmatch);
 }
@@ -1473,7 +1496,7 @@ my_ci_instr(CHARSET_INFO *ci,
 static inline void
 my_ci_hash_sort(CHARSET_INFO *ci,
                 const uchar *key, size_t len,
-                ulong *nr1, ulong *nr2)
+                ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL)
 {
   (ci->coll->hash_sort)(ci, key, len, nr1, nr2);
 }
@@ -1596,15 +1619,16 @@ extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
 
 extern void my_hash_sort_simple(CHARSET_INFO *cs,
 				const uchar *key, size_t len,
-				ulong *nr1, ulong *nr2); 
+				ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL); 
 
 extern void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
 				      const uchar *key, size_t len,
-				      ulong *nr1, ulong *nr2);
+				      ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL);
 
 extern void my_hash_sort_bin(CHARSET_INFO *cs,
-                             const uchar *key, size_t len, ulong *nr1,
-                             ulong *nr2);
+                             const uchar *key, size_t len,
+                             ulong *nr1 ATTRIBUTE_NONNULL,
+                             ulong *nr2 ATTRIBUTE_NONNULL);
 
 /**
   Compare a string to an array of spaces, for PAD SPACE comparison.
@@ -1617,30 +1641,30 @@ extern void my_hash_sort_bin(CHARSET_INFO *cs,
 */
 extern int my_strnncollsp_padspace_bin(const uchar *str, size_t length);
 
-extern size_t my_lengthsp_8bit(CHARSET_INFO *cs, const char *ptr, size_t length);
+extern size_t my_lengthsp_8bit(CHARSET_INFO *cs, const char *ptr ATTRIBUTE_NONNULL, size_t length);
 
 extern uint my_instr_simple(CHARSET_INFO *,
-                            const char *b, size_t b_length,
-                            const char *s, size_t s_length,
-                            my_match_t *match, uint nmatch);
+                            const char *b ATTRIBUTE_NONNULL, size_t b_length,
+                            const char *s ATTRIBUTE_NONNULL, size_t s_length,
+                            my_match_t *match ATTRIBUTE_NONNULL, uint nmatch);
 
 size_t my_copy_8bit(CHARSET_INFO *,
-                    char *dst, size_t dst_length,
-                    const char *src, size_t src_length,
+                    char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+                    const char *src ATTRIBUTE_NONNULL, size_t src_length,
                     size_t nchars, MY_STRCOPY_STATUS *);
 size_t my_copy_fix_mb(CHARSET_INFO *cs,
-                      char *dst, size_t dst_length,
-                      const char *src, size_t src_length,
+                      char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+                      const char *src ATTRIBUTE_NONNULL, size_t src_length,
                       size_t nchars, MY_STRCOPY_STATUS *);
 
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_8bit(CHARSET_INFO *, char *);
-static inline size_t my_caseup_str_latin1(char *str)
+static inline size_t my_caseup_str_latin1(char *str ATTRIBUTE_NONNULL)
 {
   return my_caseup_str_8bit(&my_charset_latin1, str);
 }
-static inline size_t my_casedn_str_latin1(char *str)
+static inline size_t my_casedn_str_latin1(char *str ATTRIBUTE_NONNULL)
 {
   return my_casedn_str_8bit(&my_charset_latin1, str);
 }
@@ -1648,92 +1672,110 @@ extern size_t my_caseup_8bit(CHARSET_INFO *,
                              const char *src, size_t srclen,
                              char *dst, size_t dstlen);
 extern size_t my_casedn_8bit(CHARSET_INFO *,
-                             const char *src, size_t srclen,
+                             const char *src , size_t srclen,
                              char *dst, size_t dstlen);
 
-extern int my_strcasecmp_8bit(CHARSET_INFO * cs, const char *, const char *);
+extern int my_strcasecmp_8bit(CHARSET_INFO * cs, const char *,
+                              const char *);
 
-int my_mb_wc_8bit(CHARSET_INFO *cs,my_wc_t *wc, const uchar *s,const uchar *e);
-int my_wc_mb_8bit(CHARSET_INFO *cs,my_wc_t wc, uchar *s, uchar *e);
-int my_wc_mb_bin(CHARSET_INFO *cs,my_wc_t wc, uchar *s, uchar *e);
+int my_mb_wc_8bit(CHARSET_INFO *cs,my_wc_t *wc ATTRIBUTE_NONNULL, const uchar *s,
+                  const uchar *e);
+int my_wc_mb_8bit(CHARSET_INFO *cs, my_wc_t wc,
+                  uchar *s, uchar *e);
+int my_wc_mb_bin(CHARSET_INFO *cs, my_wc_t wc,
+                 uchar *s, uchar *e);
 
-int my_mb_ctype_8bit(CHARSET_INFO *,int *, const uchar *,const uchar *);
-int my_mb_ctype_mb(CHARSET_INFO *,int *, const uchar *,const uchar *);
+int my_mb_ctype_8bit(CHARSET_INFO *,
+                     int *, const uchar *,
+                     const uchar *);
+int my_mb_ctype_mb(CHARSET_INFO *,
+                   int *, const uchar *,
+                   const uchar *);
 
-size_t my_scan_8bit(CHARSET_INFO *cs, const char *b, const char *e, int sq);
+size_t my_scan_8bit(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, int sq);
 
-size_t my_snprintf_8bit(CHARSET_INFO *, char *to, size_t n,
+size_t my_snprintf_8bit(CHARSET_INFO *, char *to ATTRIBUTE_NONNULL, size_t n,
                         const char *fmt, ...)
   ATTRIBUTE_FORMAT(printf, 4, 5);
 
-long       my_strntol_8bit(CHARSET_INFO *, const char *s, size_t l, int base,
-                           char **e, int *err);
-ulong      my_strntoul_8bit(CHARSET_INFO *, const char *s, size_t l, int base,
-			    char **e, int *err);
-longlong   my_strntoll_8bit(CHARSET_INFO *, const char *s, size_t l, int base,
-			    char **e, int *err);
-ulonglong my_strntoull_8bit(CHARSET_INFO *, const char *s, size_t l, int base,
-			    char **e, int *err);
-double      my_strntod_8bit(CHARSET_INFO *, char *s, size_t l,char **e,
-			    int *err);
-size_t my_long10_to_str_8bit(CHARSET_INFO *, char *to, size_t l, int radix,
+long       my_strntol_8bit(CHARSET_INFO *, const char *s ATTRIBUTE_NONNULL, size_t l, int base,
+                           char **e ATTRIBUTE_NONNULL, int *err ATTRIBUTE_NONNULL);
+ulong      my_strntoul_8bit(CHARSET_INFO *, const char *s ATTRIBUTE_NONNULL, size_t l, int base,
+			    char **e ATTRIBUTE_NONNULL, int *err ATTRIBUTE_NONNULL);
+longlong   my_strntoll_8bit(CHARSET_INFO *, const char *s ATTRIBUTE_NONNULL, size_t l, int base,
+			    char **e ATTRIBUTE_NONNULL, int *err ATTRIBUTE_NONNULL);
+ulonglong my_strntoull_8bit(CHARSET_INFO *, const char *s ATTRIBUTE_NONNULL, size_t l, int base,
+			    char **e ATTRIBUTE_NONNULL, int *err ATTRIBUTE_NONNULL);
+double      my_strntod_8bit(CHARSET_INFO *, char *s ATTRIBUTE_NONNULL, size_t l,
+                            char **e ATTRIBUTE_NONNULL,
+			    int *err ATTRIBUTE_NONNULL);
+size_t my_long10_to_str_8bit(CHARSET_INFO *, char *to ATTRIBUTE_NONNULL, size_t l, int radix,
                              long int val);
-size_t my_longlong10_to_str_8bit(CHARSET_INFO *, char *to, size_t l, int radix,
+size_t my_longlong10_to_str_8bit(CHARSET_INFO *, char *to ATTRIBUTE_NONNULL, size_t l, int radix,
                                  longlong val);
 
 longlong my_strtoll10_8bit(CHARSET_INFO *cs,
-                           const char *nptr, char **endptr, int *error);
+                           const char *nptr ATTRIBUTE_NONNULL, char **endptr ATTRIBUTE_NONNULL,
+			   int *error ATTRIBUTE_NONNULL);
 longlong my_strtoll10_ucs2(CHARSET_INFO *cs, 
-                           const char *nptr, char **endptr, int *error);
+                           const char *nptr ATTRIBUTE_NONNULL, char **endptr ATTRIBUTE_NONNULL,
+			   int *error ATTRIBUTE_NONNULL);
+                           
 
 ulonglong my_strntoull10rnd_8bit(CHARSET_INFO *cs,
-                                 const char *str, size_t length, int
-                                 unsigned_fl, char **endptr, int *error);
+                                 const char *str ATTRIBUTE_NONNULL, size_t length, int
+                                 unsigned_fl, char **endptr ATTRIBUTE_NONNULL,
+                                 int *error ATTRIBUTE_NONNULL);
 ulonglong my_strntoull10rnd_ucs2(CHARSET_INFO *cs, 
-                                 const char *str, size_t length,
-                                 int unsigned_fl, char **endptr, int *error);
+                                 const char *str ATTRIBUTE_NONNULL, size_t length, int
+                                 unsigned_fl, char **endptr ATTRIBUTE_NONNULL,
+                                 int *error ATTRIBUTE_NONNULL);
 
-void my_fill_8bit(CHARSET_INFO *cs, char* to, size_t l, int fill);
+void my_fill_8bit(CHARSET_INFO *cs, char* to ATTRIBUTE_NONNULL, size_t l, int fill);
 
 /* For 8-bit character set */
 my_bool  my_like_range_simple(CHARSET_INFO *cs,
-			      const char *ptr, size_t ptr_length,
+			      const char *ptr ATTRIBUTE_NONNULL, size_t ptr_length,
 			      pbool escape, pbool w_one, pbool w_many,
 			      size_t res_length,
-			      char *min_str, char *max_str,
-			      size_t *min_length, size_t *max_length);
+			      char *min_str ATTRIBUTE_NONNULL, char *max_str ATTRIBUTE_NONNULL,
+			      size_t *min_length ATTRIBUTE_NONNULL, size_t *max_length ATTRIBUTE_NONNULL);
 
 /* For ASCII-based multi-byte character sets with mbminlen=1 */
 my_bool  my_like_range_mb(CHARSET_INFO *cs,
-			  const char *ptr, size_t ptr_length,
+			  const char *ptr ATTRIBUTE_NONNULL, size_t ptr_length,
 			  pbool escape, pbool w_one, pbool w_many,
 			  size_t res_length,
-			  char *min_str, char *max_str,
-			  size_t *min_length, size_t *max_length);
+			  char *min_str ATTRIBUTE_NONNULL, char *max_str ATTRIBUTE_NONNULL,
+			  size_t *min_length ATTRIBUTE_NONNULL, size_t *max_length ATTRIBUTE_NONNULL);
 
 /* For other character sets, with arbitrary mbminlen and mbmaxlen numbers */
 my_bool  my_like_range_generic(CHARSET_INFO *cs,
-                               const char *ptr, size_t ptr_length,
+                               const char *ptr ATTRIBUTE_NONNULL , size_t ptr_length,
                                pbool escape, pbool w_one, pbool w_many,
                                size_t res_length,
-                               char *min_str, char *max_str,
-                               size_t *min_length, size_t *max_length);
+                               char *min_str ATTRIBUTE_NONNULL, char *max_str ATTRIBUTE_NONNULL,
+                               size_t *min_length ATTRIBUTE_NONNULL, size_t *max_length ATTRIBUTE_NONNULL);
 
 int my_wildcmp_8bit(CHARSET_INFO *,
-		    const char *str,const char *str_end,
-		    const char *wildstr,const char *wildend,
+		    const char *str ATTRIBUTE_NONNULL,
+                    const char *str_end ATTRIBUTE_NONNULL,
+		    const char *wildstr ATTRIBUTE_NONNULL,
+                    const char *wildend ATTRIBUTE_NONNULL,
 		    int escape, int w_one, int w_many);
 
 int my_wildcmp_bin(CHARSET_INFO *,
-		   const char *str,const char *str_end,
-		   const char *wildstr,const char *wildend,
-		   int escape, int w_one, int w_many);
+		    const char *str ATTRIBUTE_NONNULL,
+                    const char *str_end ATTRIBUTE_NONNULL,
+		    const char *wildstr ATTRIBUTE_NONNULL,
+                    const char *wildend ATTRIBUTE_NONNULL,
+		    int escape, int w_one, int w_many);
 
-size_t my_numchars_8bit(CHARSET_INFO *, const char *b, const char *e);
-size_t my_numcells_8bit(CHARSET_INFO *, const char *b, const char *e);
-size_t my_charpos_8bit(CHARSET_INFO *, const char *b, const char *e, size_t pos);
+size_t my_numchars_8bit(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL);
+size_t my_numcells_8bit(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL);
+size_t my_charpos_8bit(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, size_t pos);
 size_t my_well_formed_char_length_8bit(CHARSET_INFO *cs,
-                                       const char *b, const char *e,
+                                       const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL,
                                        size_t nchars,
                                        MY_STRCOPY_STATUS *status);
 int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
@@ -1741,48 +1783,51 @@ int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
 
 /* Functions for multibyte charsets */
 extern size_t my_caseup_mb(CHARSET_INFO *,
-                           const char *src, size_t srclen,
-                           char *dst, size_t dstlen);
+                           const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                           char *dst ATTRIBUTE_NONNULL, size_t dstlen);
 extern size_t my_casedn_mb(CHARSET_INFO *,
-                           const char *src, size_t srclen,
-                           char *dst, size_t dstlen);
+                           const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                           char *dst ATTRIBUTE_NONNULL, size_t dstlen);
 extern size_t my_caseup_ujis(CHARSET_INFO *,
-                             const char *src, size_t srclen,
-                             char *dst, size_t dstlen);
+                             const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                             char *dst ATTRIBUTE_NONNULL, size_t dstlen);
 extern size_t my_casedn_ujis(CHARSET_INFO *,
-                             const char *src, size_t srclen,
-                             char *dst, size_t dstlen);
+                             const char *src ATTRIBUTE_NONNULL, size_t srclen,
+                             char *dst ATTRIBUTE_NONNULL, size_t dstlen);
 
 int my_wildcmp_mb(CHARSET_INFO *,
-		  const char *str,const char *str_end,
-		  const char *wildstr,const char *wildend,
+		  const char *str ATTRIBUTE_NONNULL,const char *str_end ATTRIBUTE_NONNULL,
+		  const char *wildstr ATTRIBUTE_NONNULL,const char *wildend ATTRIBUTE_NONNULL,
 		  int escape, int w_one, int w_many);
-size_t my_numchars_mb(CHARSET_INFO *, const char *b, const char *e);
-size_t my_numcells_mb(CHARSET_INFO *, const char *b, const char *e);
-size_t my_charpos_mb(CHARSET_INFO *, const char *b, const char *e, size_t pos);
+size_t my_numchars_mb(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL);
+size_t my_numcells_mb(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL);
+size_t my_charpos_mb(CHARSET_INFO *, const char *b ATTRIBUTE_NONNULL, const char *e ATTRIBUTE_NONNULL, size_t pos);
 uint my_instr_mb(CHARSET_INFO *,
-                 const char *b, size_t b_length,
-                 const char *s, size_t s_length,
-                 my_match_t *match, uint nmatch);
+                 const char *b ATTRIBUTE_NONNULL, size_t b_length,
+                 const char *s ATTRIBUTE_NONNULL, size_t s_length,
+                 my_match_t *match ATTRIBUTE_NONNULL, uint nmatch);
 
 int my_wildcmp_mb_bin(CHARSET_INFO *cs,
-                      const char *str,const char *str_end,
-                      const char *wildstr,const char *wildend,
+                      const char *str ATTRIBUTE_NONNULL,const char *str_end ATTRIBUTE_NONNULL,
+                      const char *wildstr ATTRIBUTE_NONNULL,const char *wildend ATTRIBUTE_NONNULL,
                       int escape, int w_one, int w_many);
 
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
-                         const uchar *key, size_t len,ulong *nr1, ulong *nr2);
+                         const uchar *key,
+                         size_t len,ulong *nr1, ulong *nr2);
 
 void my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
                                const uchar *key, size_t len,
-                               ulong *nr1, ulong *nr2);
+                               ulong *nr1 ATTRIBUTE_NONNULL, ulong *nr2 ATTRIBUTE_NONNULL);
 
 
 extern my_bool my_parse_charset_xml(MY_CHARSET_LOADER *loader,
                                     const char *buf, size_t buflen);
-extern char *my_strchr(CHARSET_INFO *cs, const char *str, const char *end,
+extern char *my_strchr(CHARSET_INFO *cs, const char *str,
+                       const char *end,
                        pchar c);
-extern size_t my_strcspn(CHARSET_INFO *cs, const char *str, const char *end,
+extern size_t my_strcspn(CHARSET_INFO *cs, const char *str,
+                         const char *end,
                          const char *accept);
 
 my_bool my_propagate_simple(CHARSET_INFO *cs, const uchar *str, size_t len);
@@ -1798,10 +1843,10 @@ typedef struct
   my_repertoire_t repertoire;
 } MY_STRING_METADATA;
 
-void my_string_metadata_get(MY_STRING_METADATA *metadata,
+void my_string_metadata_get(MY_STRING_METADATA *metadata ATTRIBUTE_NONNULL,
                             CHARSET_INFO *cs, const char *str, size_t len);
 my_repertoire_t my_string_repertoire(CHARSET_INFO *cs,
-                                     const char *str, size_t len);
+                                     const char *str ATTRIBUTE_NONNULL, size_t len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
 my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs);
 
@@ -1812,7 +1857,7 @@ void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
 const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
                                                    int level);
 
-extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
+extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to ATTRIBUTE_NONNULL, size_t n,
                               const char* fmt, va_list ap)
                               ATTRIBUTE_FORMAT(printf, 4, 0);
 
@@ -1821,9 +1866,9 @@ extern size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
   Bad byte sequences as well as characters that cannot be
   encoded in the destination character set are replaced to '?'.
 */
-uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
-                  const char *from, uint32 from_length,
-                  CHARSET_INFO *from_cs, uint *errors);
+uint32 my_convert(char *to ATTRIBUTE_NONNULL, uint32 to_length, CHARSET_INFO *to_cs,
+                  const char *from ATTRIBUTE_NONNULL, uint32 from_length,
+                  CHARSET_INFO *from_cs, uint *errors ATTRIBUTE_NONNULL);
 
 /**
   An extended version of my_convert(), to pass non-default mb_wc() and wc_mb().
@@ -1831,12 +1876,12 @@ uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   Protocol::store_warning() uses this to escape control
   and non-convertible characters.
 */
-uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
+uint32 my_convert_using_func(char *to ATTRIBUTE_NONNULL, size_t to_length, CHARSET_INFO *to_cs,
                              my_charset_conv_wc_mb mb_wc,
-                             const char *from, size_t from_length,
+                             const char *from ATTRIBUTE_NONNULL, size_t from_length,
                              CHARSET_INFO *from_cs,
                              my_charset_conv_mb_wc wc_mb,
-                             uint *errors);
+                             uint *errors ATTRIBUTE_NONNULL);
 /*
   Convert a string between two character sets.
   Bad byte sequences as well as characters that cannot be
@@ -1860,8 +1905,8 @@ uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
   be equal to 0. All "status" members are initialized to NULL, and 0 is
   returned.
 */
-size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
-                      CHARSET_INFO *srccs, const char *src, size_t src_length,
+size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst ATTRIBUTE_NONNULL, size_t dst_length,
+                      CHARSET_INFO *srccs, const char *src ATTRIBUTE_NONNULL, size_t src_length,
                       size_t nchars,
                       MY_STRCOPY_STATUS *copy_status,
                       MY_STRCONV_STATUS *conv_status);
@@ -1912,7 +1957,7 @@ size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
   @return    0,  for a single byte character, broken sequence, empty string.
 */
 static inline
-uint my_ismbchar(CHARSET_INFO *cs, const char *str, const char *end)
+uint my_ismbchar(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL, const char *end ATTRIBUTE_NONNULL)
 {
   int char_length= (cs->cset->charlen)(cs, (const uchar *) str,
                                            (const uchar *) end);
@@ -1938,7 +1983,8 @@ uint my_ci_charlen_fix(CHARSET_INFO *cs, const uchar *str, const uchar *end)
   In C++ code please use Well_formed_prefix::length() instead.
 */
 static inline size_t
-my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
+my_well_formed_length(CHARSET_INFO *cs, const char *b ATTRIBUTE_NONNULL,
+                      const char *e ATTRIBUTE_NONNULL,
                       size_t nchars, int *error)
 {
   MY_STRCOPY_STATUS status;
@@ -1949,7 +1995,7 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
 
 
 static inline int
-my_strcasecmp_latin1(const char *a, const char *b)
+my_strcasecmp_latin1(const char *a ATTRIBUTE_NONNULL, const char *b ATTRIBUTE_NONNULL)
 {
   return my_strcasecmp_8bit(&my_charset_latin1, a, b);
 }
@@ -1982,7 +2028,8 @@ class Well_formed_prefix_status: public String_copy_status
 {
 public:
   Well_formed_prefix_status(CHARSET_INFO *cs,
-                            const char *str, const char *end, size_t nchars)
+                            const char *str ATTRIBUTE_NONNULL,
+                            const char *end ATTRIBUTE_NONNULL, size_t nchars)
   { cs->well_formed_char_length(str, end, nchars, this); }
 };
 
@@ -1991,15 +2038,17 @@ class Well_formed_prefix: public Well_formed_prefix_status
 {
   const char *m_str; // The beginning of the string
 public:
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, const char *end,
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+                     const char *end ATTRIBUTE_NONNULL,
                      size_t nchars)
    :Well_formed_prefix_status(cs, str, end, nchars), m_str(str)
   { }
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length,
-                     size_t nchars)
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+                     size_t length, size_t nchars)
    :Well_formed_prefix_status(cs, str, str + length, nchars), m_str(str)
   { }
-  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str ATTRIBUTE_NONNULL,
+                     size_t length)
    :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
   { }
   Well_formed_prefix(CHARSET_INFO *cs, LEX_CSTRING str, size_t nchars)
