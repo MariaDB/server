@@ -5630,13 +5630,13 @@ ATTRIBUTE_COLD bool log_t::archive_rename() noexcept
 inline bool recv_sys_t::validate_checkpoint() const noexcept
 {
   const lsn_t last_checkpoint_lsn{log_sys.last_checkpoint_lsn};
-  if (lsn >= file_checkpoint && lsn >= last_checkpoint_lsn)
+  if (scanned_lsn >= file_checkpoint && scanned_lsn >= last_checkpoint_lsn)
     return false;
   sql_print_error("InnoDB: The log was only scanned up to "
                   LSN_PF ", while the current LSN at the "
                   "time of the latest checkpoint " LSN_PF
                   " was " LSN_PF "!",
-                  lsn, last_checkpoint_lsn, file_checkpoint);
+                  scanned_lsn, last_checkpoint_lsn, file_checkpoint);
   return true;
 }
 
@@ -5867,15 +5867,7 @@ func_exit:
 		parser[true] = get_parse_mmap<recv_sys_t::store::YES>();
 		recv_scan_log(false, parser);
 		if (recv_needed_recovery) {
-read_only_recovery:
-			sql_print_warning("InnoDB: innodb_read_only"
-					  " prevents crash recovery between " LSN_PF
-					  " and " LSN_PF,
-					  log_sys.last_checkpoint_lsn.load(),
-					  recv_sys.lsn);
-			err = DB_READ_ONLY;
-			recv_sys.rpo = recv_sys.scanned_lsn;
-			goto func_exit;
+			goto read_only_recovery;
 		}
 		if (recv_sys.is_corrupt_log()) {
 corrupt_log:
@@ -5901,13 +5893,14 @@ corrupt_log:
 				goto corrupt_log;
 			}
 		}
+
 		rescan = recv_scan_log(false, parser);
 
 		if (srv_read_only_mode) {
-			recv_sys.rpo = recv_sys.scanned_lsn;
 			if (recv_needed_recovery) {
 				goto read_only_recovery;
 			}
+			recv_sys.rpo = recv_sys.scanned_lsn;
 		}
 
 		if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
@@ -5918,13 +5911,30 @@ corrupt_log:
 		}
 	}
 
+	ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
+	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn || rescan);
+
 	if (recv_sys_invalid_rpo(recv_sys_rpo_exceeded)) {
 		high_level_read_only = true;
 	} else {
+		ut_ad(recv_sys.scanned_lsn >= recv_sys.lsn);
+		ut_ad(recv_sys.scanned_lsn == recv_sys.lsn || rescan);
 		log_sys.set_recovered_lsn(recv_sys.scanned_lsn);
 	}
 
 	if (recv_needed_recovery) {
+		if (srv_read_only_mode) {
+read_only_recovery:
+			recv_sys.rpo = recv_sys.scanned_lsn;
+			sql_print_warning("InnoDB: innodb_read_only"
+					  " prevents crash recovery"
+					  " between " LSN_PF " and " LSN_PF,
+					  log_sys.last_checkpoint_lsn.load(),
+					  recv_sys.lsn);
+			err = DB_READ_ONLY;
+			goto func_exit;
+		}
+
 		bool missing_tablespace = false;
 
 		err = recv_init_crash_recovery_spaces(
@@ -5981,63 +5991,59 @@ corrupt_log:
 		}
 
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
-
-		if (rescan) {
-			recv_scan_log(true, parser);
-			if ((recv_sys.is_corrupt_log()
-			     && !srv_force_recovery)
-			    || recv_sys.is_corrupt_fs()) {
-				goto err_exit;
-			}
-
-			/* In case of multi-batch recovery,
-			redo log for the last batch is not
-			applied yet. */
-			ut_d(recv_sys.after_apply = false);
-		}
 	} else {
 		ut_ad(recv_sys.pages.empty());
 	}
 
-	if (log_sys.is_recoverable()) {
-		if (recv_sys_rpo_exceeded || recv_sys.validate_checkpoint()) {
-err_exit:
-			err = DB_ERROR;
-			goto func_exit;
-		}
-
-		if (!srv_read_only_mode) {
-			log_sys.set_recovered();
-			if (UNIV_UNLIKELY(recv_sys.was_archive)
-			    && !log_sys.archive_rename()) {
-				goto err_exit;
-			}
-		}
+	if (recv_sys_rpo_exceeded) {
+		goto err_exit;
 	}
 
 	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
-	if (UNIV_UNLIKELY(recv_sys.scanned_lsn != recv_sys.lsn)
-	    && log_sys.is_recoverable()) {
-		ut_ad("log parsing error" == 0);
-		mysql_mutex_unlock(&recv_sys.mutex);
-		err = DB_CORRUPTION;
-		goto func_exit;
-	}
-	recv_sys.apply_log_recs = true;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	if (srv_operation == SRV_OPERATION_NORMAL) {
 		err = recv_rename_files();
 	}
-
 	mysql_mutex_unlock(&recv_sys.mutex);
+
+	if (err != DB_SUCCESS) {
+	          goto func_exit;
+	}
+
+	if (rescan) {
+		recv_scan_log(true, parser);
+		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
+		    || recv_sys.is_corrupt_fs()) {
+	        err_exit:
+			err = DB_ERROR;
+			goto func_exit;
+		}
+
+		/* In case of multi-batch recovery, redo log
+		for the last batch is not applied yet. */
+		ut_d(recv_sys.after_apply = false);
+	}
+
+	ut_ad(recv_sys.scanned_lsn == recv_sys.lsn);
+	if (recv_sys.validate_checkpoint()) {
+		goto err_exit;
+	}
+	recv_sys.apply_log_recs = true;
+
+	if (log_sys.is_recoverable() && !srv_read_only_mode) {
+		log_sys.set_recovered();
+		if (UNIV_UNLIKELY(recv_sys.was_archive)
+		    && !log_sys.archive_rename()) {
+			goto err_exit;
+		}
+	}
 
 	/* The database is now ready to start almost normal processing of user
 	transactions: transaction rollbacks and the application of the log
 	records in the hash table can be run in background. */
-	if (err == DB_SUCCESS && deferred_spaces.reinit_all()
-	    && !srv_force_recovery) {
+	if (deferred_spaces.reinit_all() && !srv_force_recovery) {
 		err = DB_CORRUPTION;
 	}
 
