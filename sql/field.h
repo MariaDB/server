@@ -3806,7 +3806,7 @@ private:
   void sql_type(String &str) const
   {
     Field_varstring::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
   uint32 max_display_length() const { return field_length - 1; }
   uint32 character_octet_length() const { return field_length - 1; }
@@ -4179,7 +4179,7 @@ private:
   void sql_type(String &str) const
   {
     Field_blob::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
 
   /*

@@ -1,0 +1,11 @@
+#
+# MDEV-34318 MariaDB-specific executable comments
+#
+create table t1 (a blob compressed);
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*M!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;

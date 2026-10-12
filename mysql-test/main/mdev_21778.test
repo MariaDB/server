@@ -1,0 +1,37 @@
+--echo #
+--echo # MDEV-21778 Disable system commands in mysql/mariadb client
+--echo #
+
+--error 1
+--exec $MYSQL --sandbox -Ne "select 1; \! echo foo; select 0" 2>&1
+--error 1
+--exec $MYSQL --sandbox -Ne "select 2; \T echo foo; select 0" 2>&1
+--error 1
+--exec $MYSQL --sandbox -Ne "select 3; \. echo.foo; select 0" 2>&1
+
+# Live-session/source coverage from upstream MDEV-21778.
+# 10.4 mysqltest has no write_line, so use the shell to expand
+# $MYSQLTEST_VARDIR into the driver file.
+--write_file $MYSQLTEST_VARDIR/tmp/mdev_21778_in
+select 'entering sandbox';
+\-
+select 'system';
+\! echo foo
+select 'tee';
+\T echo foo
+select 'source';
+\. echo.foo
+select '^^^';
+EOF
+
+--exec printf 'select 1;\nsource $MYSQLTEST_VARDIR/tmp/mdev_21778_in;\nselect 2;\nsource $MYSQLTEST_VARDIR/tmp/mdev_21778_in;\nsandbox;\nselect 3;\nsource $MYSQLTEST_VARDIR/tmp/mdev_21778_in;\n' > $MYSQLTEST_VARDIR/tmp/mdev_21778_driver
+
+# Capture stderr and assert the actual sandbox refusal text. The first two
+# sourced legs each refuse \!, \T and \. (3 + 3); after sandbox; the
+# final source command itself is refused (1), for seven refusals total.
+--exec $MYSQL -fN < $MYSQLTEST_VARDIR/tmp/mdev_21778_driver > $MYSQLTEST_VARDIR/tmp/mdev_21778_out 2>&1
+--exec awk '/Not allowed in the sandbox mode/ { n++; leg=(n<=3?1:(n<=6?2:3)); print "source leg " leg ": Not allowed in the sandbox mode" } END { if (n != 7) exit 1 }' $MYSQLTEST_VARDIR/tmp/mdev_21778_out
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev_21778_in
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev_21778_driver
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev_21778_out

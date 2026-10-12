@@ -135,7 +135,7 @@ typedef struct st_status
   ulong query_start_line;
   char *file_name;
   LINE_BUFFER *line_buff;
-  bool batch,add_to_history;
+  bool batch, add_to_history, sandbox;
 } STATUS;
 
 
@@ -153,7 +153,7 @@ static my_bool ignore_errors=0,wait_flag=0,quick=0,
 	       vertical=0, line_numbers=1, column_names=1,opt_html=0,
                opt_xml=0,opt_nopager=1, opt_outfile=0, named_cmds= 0,
 	       tty_password= 0, opt_nobeep=0, opt_reconnect=1,
-	       opt_secure_auth= 0,
+               opt_secure_auth= 0,
                default_pager_set= 0, opt_sigint_ignore= 0,
                auto_vertical_output= 0,
                show_warnings= 0, executing_query= 0,
@@ -234,7 +234,8 @@ static int com_quit(String *str,char*),
 	   com_rehash(String *str, char*), com_tee(String *str, char*),
            com_notee(String *str, char*), com_charset(String *str,char*),
            com_prompt(String *str, char*), com_delimiter(String *str, char*),
-     com_warnings(String *str, char*), com_nowarnings(String *str, char*);
+     com_warnings(String *str, char*), com_nowarnings(String *str, char*),
+     com_sandbox(String *str, char*);
 
 #ifdef USE_POPEN
 static int com_nopager(String *str, char*), com_pager(String *str, char*),
@@ -307,6 +308,8 @@ static COMMANDS commands[] = {
   { "prompt", 'R', com_prompt, 1, "Change your mysql prompt."},
   { "quit",   'q', com_quit,   0, "Quit mysql." },
   { "rehash", '#', com_rehash, 0, "Rebuild completion hash." },
+  { "sandbox", '-', com_sandbox, 0,
+    "Disallow commands that access the file system (except \\P without an argument and \\e)." },
   { "source", '.', com_source, 1,
     "Execute an SQL script file. Takes a file name as an argument."},
   { "status", 's', com_status, 0, "Get status information from the server."},
@@ -1114,6 +1117,8 @@ inline int get_command_index(char cmd_char)
 
 static int delimiter_index= -1;
 static int charset_index= -1;
+static int sandbox_index= -1;
+
 static bool real_binary_mode= FALSE;
 
 
@@ -1124,7 +1129,8 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
-  
+
+  sandbox_index= get_command_index('-');
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
   delimiter_str= delimiter;
@@ -1657,6 +1663,8 @@ static struct my_option my_long_options[] =
   {"reconnect", OPT_RECONNECT, "Reconnect if the connection is lost. Disable "
    "with --disable-reconnect. This option is enabled by default.",
    &opt_reconnect, &opt_reconnect, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"sandbox", 0, "Disallow commands that access the file system (except \\P without an argument and \\e).",
+   &status.sandbox, &status.sandbox, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"silent", 's', "Be more silent. Print results with a tab as separator, "
    "each row on new line.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
@@ -2244,8 +2252,9 @@ static int read_and_execute(bool interactive)
 
 /**
    It checks if the input is a short form command. It returns the command's
-   pointer if a command is found, else return NULL. Note that if binary-mode
-   is set, then only \C is searched for.
+   pointer if a command is found, else return NULL.
+
+   Note that if binary-mode is set, then only \C and \- are searched for.
 
    @param cmd_char    A character of one byte.
 
@@ -2260,13 +2269,23 @@ static COMMANDS *find_command(char cmd_char)
   int index= -1;
 
   /*
-    In binary-mode, we disallow all mysql commands except '\C'
-    and DELIMITER.
+    In binary-mode, we disallow all client commands except '\C',
+    DELIMITER (see long comand finding find_command(char *))
+    and  '\-' (sandbox, see following comment).
   */
   if (real_binary_mode)
   {
     if (cmd_char == 'C')
       index= charset_index;
+    /*
+       binary-mode enforces stricter controls compared to sandbox mode.
+       Whether sandbox mode is enabled or not is irrelevant when
+       binary-mode is active.
+       The only purpose of processing sandbox mode here is to avoid error
+       messages on files made by mysqldump.
+    */
+    else if (cmd_char == '-')
+      index= sandbox_index;
   }
   else
     index= get_command_index(cmd_char);
@@ -2322,6 +2341,12 @@ static COMMANDS *find_command(char *name)
     len= (uint) strlen(name);
 
   int index= -1;
+  /*
+    In binary-mode, we disallow all client commands except DELIMITER
+    and short commands '\C' and  '\-' (see short command finding
+    find_command(char)).
+  */
+
   if (real_binary_mode)
   {
     if (is_delimiter_command(name, len))
@@ -4171,6 +4196,8 @@ com_tee(String *buffer __attribute__((unused)),
 {
   char file_name[FN_REFLEN], *end, *param;
 
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
   if (status.batch)
     return 0;
   while (my_isspace(charset_info,*line))
@@ -4255,6 +4282,8 @@ com_pager(String *buffer __attribute__((unused)),
   }
   else
   {
+    if (status.sandbox)
+      return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
     end= strmake_buf(pager_name, param);
     while (end > pager_name && (my_isspace(charset_info,end[-1]) || 
                                 my_iscntrl(charset_info,end[-1])))
@@ -4356,6 +4385,9 @@ com_shell(String *buffer __attribute__((unused)),
 {
   char *shell_cmd;
 
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
+
   /* Skip space from line begin */
   while (my_isspace(charset_info, *line))
     line++;
@@ -4454,6 +4486,9 @@ static int com_source(String *buffer __attribute__((unused)),
   FILE *sql_file;
   my_bool save_ignore_errors;
 
+  if (status.sandbox)
+    return put_info("Not allowed in the sandbox mode", INFO_ERROR, 0);
+
   /* Skip space from file name */
   while (my_isspace(charset_info,*line))
     line++;
@@ -4488,6 +4523,7 @@ static int com_source(String *buffer __attribute__((unused)),
   bfill((char*) &status,sizeof(status),(char) 0);
 
   status.batch=old_status.batch;		// Run in batch mode
+  status.sandbox=old_status.sandbox;
   status.line_buff=line_buff;
   status.file_name=source_name;
   glob_buffer.length(0);			// Empty command buffer
@@ -4610,6 +4646,13 @@ com_use(String *buffer __attribute__((unused)), char *line)
   }
 
   put_info("Database changed",INFO_INFO);
+  return 0;
+}
+
+static int com_sandbox(String *, char *)
+{
+  status.sandbox= 1;
+  put_info("Sandbox mode.", INFO_INFO);
   return 0;
 }
 

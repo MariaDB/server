@@ -7,12 +7,15 @@ connection slave;
 connection master;
 use test;
 connection slave;
+/*M!999999\- enable the sandbox mode */ 
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*M!999999\- enable the sandbox mode */ 
 STOP ALL SLAVES;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 START ALL SLAVES;
+/*M!999999\- enable the sandbox mode */ 
 STOP ALL SLAVES;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
@@ -20,6 +23,7 @@ START ALL SLAVES;
 start slave;
 Warnings:
 Note	1254	Slave is already running
+/*M!999999\- enable the sandbox mode */ 
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 start slave;
@@ -37,12 +41,14 @@ DROP TABLE t2;
 
 1. --dump-slave=1
 
+/*M!999999\- enable the sandbox mode */ 
 SET GLOBAL gtid_slave_pos='0-1-1001';
 CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 
 2. --dump-slave=2
 
+/*M!999999\- enable the sandbox mode */ 
 -- SET GLOBAL gtid_slave_pos='0-1-1001';
 -- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
@@ -50,18 +56,21 @@ CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 
 1. --master-data=1
 
+/*M!999999\- enable the sandbox mode */ 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
 
 2. --master-data=2
 
+/*M!999999\- enable the sandbox mode */ 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 -- CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 -- SET GLOBAL gtid_slave_pos='0-2-1003';
 
 3. --master-data --single-transaction
 
+/*M!999999\- enable the sandbox mode */ 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
@@ -77,6 +86,7 @@ include/stop_slave.inc
 change master to master_use_gtid=slave_pos;
 connection master;
 # Ensuring the binlog dump thread is killed on primary...
+/*M!999999\- enable the sandbox mode */ 
 -- CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
 -- SET GLOBAL gtid_slave_pos='0-1-1005';
 connection slave;

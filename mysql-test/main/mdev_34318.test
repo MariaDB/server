@@ -1,0 +1,17 @@
+--echo #
+--echo # MDEV-34318 MariaDB-specific executable comments
+--echo #
+
+create table t1 (a blob compressed);
+
+# Exercise the dump/load path. This pins the MariaDB-only executable-comment
+# format in dumped DDL; it is not an end-to-end Percona-server reproduction of
+# the MAX_STATEMENT_TIME parser bug.
+--exec $MYSQL_DUMP --compact test t1 > $MYSQLTEST_VARDIR/tmp/mdev_34318.sql
+--exec grep -F '/*M!100301 COMPRESSED*/' $MYSQLTEST_VARDIR/tmp/mdev_34318.sql > /dev/null
+
+drop table t1;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mdev_34318.sql
+show create table t1;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev_34318.sql

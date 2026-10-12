@@ -1,0 +1,16 @@
+#
+# MDEV-21778 Disable system commands in mysql/mariadb client
+#
+ERROR at line 1: Not allowed in the sandbox mode
+1
+ERROR at line 1: Not allowed in the sandbox mode
+2
+ERROR at line 1: Not allowed in the sandbox mode
+3
+source leg 1: Not allowed in the sandbox mode
+source leg 1: Not allowed in the sandbox mode
+source leg 1: Not allowed in the sandbox mode
+source leg 2: Not allowed in the sandbox mode
+source leg 2: Not allowed in the sandbox mode
+source leg 2: Not allowed in the sandbox mode
+source leg 3: Not allowed in the sandbox mode

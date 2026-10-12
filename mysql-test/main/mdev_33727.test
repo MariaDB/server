@@ -1,0 +1,18 @@
+--echo #
+--echo # MDEV-33727 mariadb-dump trusts the server and does not validate the data
+--echo #
+
+create table t1 (a int);
+--exec $MYSQL_DUMP --compact --add-drop-table test > $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+
+# Verify that the SQL itself can be loaded by mysqltest.
+--source $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+
+# Verify that the MariaDB client honors the sandbox directive from the dump.
+--append_file $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+\! echo foo
+EOF
+--error 1
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mdev33727.sql 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev33727.sql
+drop table t1;
