@@ -68,6 +68,10 @@ class federatedx_io_mysql :public federatedx_io
   DYNAMIC_ARRAY savepoints;
   bool requested_autocommit;
   bool actual_autocommit;
+  /** If true, send SET time_zone before next query (e.g. after reset). */
+  bool needs_to_set_timezone;
+  /** VIO for which time_zone was set; when it changes (reconnect/LB), set again. */
+  void *time_zone_set_vio;
 
   int actual_query(const char *buffer, size_t length);
   bool test_all_restrict() const;
@@ -134,7 +138,8 @@ federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
 
 federatedx_io_mysql::federatedx_io_mysql(FEDERATEDX_SERVER *aserver)
   : federatedx_io(aserver),
-    requested_autocommit(TRUE), actual_autocommit(TRUE)
+    requested_autocommit(TRUE), actual_autocommit(TRUE),
+    needs_to_set_timezone(TRUE), time_zone_set_vio(NULL)
 {
   DBUG_ENTER("federatedx_io_mysql::federatedx_io_mysql");
 
@@ -162,7 +167,9 @@ void federatedx_io_mysql::reset()
 {
   reset_dynamic(&savepoints);
   set_active(FALSE);
-  
+  needs_to_set_timezone= TRUE;
+  time_zone_set_vio= NULL;
+
   requested_autocommit= TRUE;
   mysql.reconnect= 1;
 }
@@ -452,10 +459,25 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
                             get_socket(), 0))
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 
+    needs_to_set_timezone= TRUE;
+    mysql.reconnect= 1;
+  }
+  else if (mysql.net.vio != time_zone_set_vio)
+  {
+    /* Connection changed (reconnect/LB); time_zone must be set again. */
+    needs_to_set_timezone= TRUE;
+  }
+
+  if (needs_to_set_timezone)
+  {
+    /*
+      Session state lost (reset) or connection changed. Set time_zone so
+      TIMESTAMP is consistent.
+    */
     if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
       DBUG_RETURN(error);
-
-    mysql.reconnect= 1;
+    needs_to_set_timezone= FALSE;
+    time_zone_set_vio= mysql.net.vio;
   }
 
   error= mysql_real_query(&mysql, buffer, (ulong)length);
