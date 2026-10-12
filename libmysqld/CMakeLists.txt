@@ -72,6 +72,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/mf_iocache.cc ../sql/my_decimal.cc 
            ../sql/net_serv.cc ../sql/opt_range.cc
            ../sql/opt_group_by_cardinality.cc
+           ../sql/sql_parallel_workers.cc
            ../sql/opt_rewrite_date_cmp.cc
            ../sql/opt_rewrite_remove_casefold.cc
            ../sql/opt_sargable_left.cc

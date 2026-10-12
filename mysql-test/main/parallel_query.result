@@ -1,0 +1,63 @@
+SET DEBUG_SYNC='RESET';
+#
+# MDEV-39492 Parallel Query: Study how to create worker threads
+#
+set session parallel_worker_threads=3;
+# we should currently see 3 warnings;
+select seq from seq_1_to_2;
+seq
+1
+2
+Warnings:
+Warning	1105	This is an example warning to show we can push a warning from a worker thread to its manager 
+Warning	1105	This is an example warning to show we can push a warning from a worker thread to its manager 
+Warning	1105	This is an example warning to show we can push a warning from a worker thread to its manager 
+set session parallel_worker_threads=10;
+# the 10th workers throws out an error
+select seq from seq_1_to_2;
+ERROR HY000: Argument to the worker_busted_function() function does not belong to the range [0,1]
+set session parallel_worker_threads=0;
+connect  killee, localhost, root, , ;
+# check that kill query on a parallel worker is passed to the manager
+connection killee;
+set session parallel_worker_threads=3;
+SET @save_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug = "+d,pwt_worker_pause_before_signal";
+select seq from seq_1_to_2;;
+# now use the default connection to view/kill the thread group executing
+# the parallel work
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
+# wait for all 3 workers to hit our debug sync point
+# then have a look at what is in our process list without thread ID
+select USER, DB, STATE, SUBSTRING(INFO, 1, 32)
+from information_schema.processlist
+where (INFO regexp '.*parallel worker.*' or
+STATE regexp '.*parallel worker.*') and
+NOT INFO regexp '.*information_schema\.processlist.*';
+USER	DB	STATE	SUBSTRING(INFO, 1, 32)
+root	test	debug sync point: now	Parallel Worker 3 For Thread ID 
+root	test	debug sync point: now	Parallel Worker 2 For Thread ID 
+root	test	debug sync point: now	Parallel Worker 1 For Thread ID 
+root	test	Reading data from parallel workers	select seq from seq_1_to_2
+kill query ID;
+# signal our workers to continue execution
+SET DEBUG_SYNC = "now SIGNAL pwt_worker_continue";
+# then wait for the manager thread to clean up and go back to sleep
+# review error message on --reap
+connection killee;
+ERROR 70100: Query execution was interrupted
+SET DEBUG_SYNC = "RESET";
+# save as above, but kill a worker with a simple kill and see the
+# connection drop
+select seq from seq_1_to_2;;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
+kill ID;
+SET DEBUG_SYNC = "now SIGNAL pwt_worker_continue";
+connection killee;
+ERROR 70100: Query execution was interrupted
+# killee connection now dead, confirmed below
+connection default;
+SET GLOBAL debug_dbug = @save_dbug;
+SET DEBUG_SYNC = "RESET";
