@@ -19,8 +19,8 @@ SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.me
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_TRANS_DML	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_SHARED_READ_ONLY	Table metadata lock	test	t1
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 UNLOCK TABLES;
 LOCK TABLES t1 WRITE CONCURRENT, t3 WRITE;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
@@ -47,11 +47,11 @@ SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.me
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysql	
+MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	global_priv
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	user
 MDL_SHARED_NO_READ_WRITE	Table metadata lock	test	t1
-MDL_INTENTION_EXCLUSIVE	Schema metadata lock	mysql	
-MDL_SHARED_NO_READ_WRITE	Table metadata lock	mysql	global_priv
-MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
 UNLOCK TABLES;
 LOCK TABLES mysql.general_log WRITE;
 ERROR HY000: You can't use locks with log tables
