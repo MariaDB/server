@@ -146,11 +146,11 @@ private:
   Hash_set<LEX_STRING> m_set;
   mysql_rwlock_t m_lock;
 
-  static const uchar *get_key(const void *ls_, size_t *sz, my_bool)
+  static const void *get_key(const void *ls_, size_t *sz, my_bool)
   {
     const LEX_STRING *ls= static_cast<const LEX_STRING*>(ls_);
     *sz= ls->length;
-    return reinterpret_cast<const uchar*>(ls->str);
+    return ls->str;
   }
 
 public:
@@ -240,14 +240,14 @@ static int my_rmdir(const char *dir)
   Function we use in the creation of our hash to get key.
 */
 
-extern "C" const uchar *dboptions_get_key(const void *opt, size_t *length,
-                                          my_bool);
+extern "C" const void *dboptions_get_key(const void *opt, size_t *length,
+                                         my_bool);
 
-const uchar *dboptions_get_key(const void *opt_, size_t *length, my_bool)
+const void *dboptions_get_key(const void *opt_, size_t *length, my_bool)
 {
   auto opt= static_cast<const my_dbopt_t *>(opt_);
   *length= opt->name_length;
-  return reinterpret_cast<const uchar *>(opt->name);
+  return opt->name;
 }
 
 
