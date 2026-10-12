@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 #include <string.h>
 #include <strsafe.h>
 #include <assert.h>
+#include <stdarg.h>
 #include <shellapi.h>
 #include <stdlib.h>
 #include <winservice.h>
@@ -102,14 +103,24 @@ static void WriteMsiLog(MSIHANDLE hInstall, const wchar_t *str)
   }
 }
 
-// use WriteMsiLog to log formatted messages
-#define Log(format, ...)                        \
-do{                                             \
- wchar_t log_buf[1024];                         \
- _snwprintf_s(log_buf, _TRUNCATE,               \
-            L"MariaDB_CA %S:" L##format,__FUNCTION__, __VA_ARGS__); \
- WriteMsiLog(hInstall, log_buf);                \
-} while (0)
+// Log a formatted message, prefixed with the function name, to the MSI log.
+static void LogMessage(MSIHANDLE hInstall, const char *function,
+                       const wchar_t *format, ...)
+{
+  wchar_t buf[1024];
+  int prefix_len= _snwprintf_s(buf, _TRUNCATE, L"MariaDB_CA %S:", function);
+  if (prefix_len < 0)
+    prefix_len= 0;
+  va_list args;
+  va_start(args, format);
+  _vsnwprintf_s(buf + prefix_len, ARRAYSIZE(buf) - prefix_len, _TRUNCATE,
+                format, args);
+  va_end(args);
+  WriteMsiLog(hInstall, buf);
+}
+
+/* Needs hInstall in scope, the format has to be a wide string literal. */
+#define Log(...) LogMessage(hInstall, __FUNCTION__, __VA_ARGS__)
 
 /*
   Get the value of an MSI property, whatever its length is.
@@ -142,9 +153,24 @@ static bool GetProperty(MSIHANDLE hInstall, const wchar_t *name,
       return true;
     }
   }
-  Log("Cannot get property %s, error %u", name, er);
+  Log(L"Cannot get property %s, error %u", name, er);
   value.clear();
   return false;
+}
+
+/*
+  Convert to a narrow string in the ANSI codepage, the form of paths in
+  mysqld_service_properties, to be able to compare with them.
+*/
+static std::string ToAnsi(const std::wstring &s)
+{
+  int len= WideCharToMultiByte(CP_ACP, 0, s.c_str(), (int)s.length(), NULL, 0,
+                               NULL, NULL);
+  std::string result(len > 0 ? len : 0, '\0');
+  if (len > 0)
+    WideCharToMultiByte(CP_ACP, 0, s.c_str(), (int)s.length(), &result[0], len,
+                        NULL, NULL);
+  return result;
 }
 
 extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
@@ -152,17 +178,17 @@ extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
   std::wstring dir;
   UINT er;
 
-  Log("Initialized.");
+  Log(L"Initialized.");
 
   /* Never delete, if the directory is not known for sure. */
   if (!GetProperty(hInstall, L"CustomActionData", dir) || dir.empty())
   {
-    Log("Directory to remove is not known, nothing is removed");
+    Log(L"Directory to remove is not known, nothing is removed");
     return ERROR_INSTALL_FAILURE;
   }
 
   er= ExecRemoveDataDirectory(dir);
-  Log("SHFileOperation returned %d", er);
+  Log(L"SHFileOperation returned %d", er);
   return er;
 }
 
@@ -279,7 +305,7 @@ extern "C" UINT __stdcall CheckDataDirectory(MSIHANDLE hInstall)
       !GetProperty(hInstall, L"INSTALLDIR", installdir))
     return ERROR_INSTALL_FAILURE;
 
-  Log("Checking files in %s", datadir.c_str());
+  Log(L"Checking files in %s", datadir.c_str());
   if (datadir.length() > MAX_DIRECTORY_LEN)
   {
     MsiSetPropertyW(hInstall, L"DATADIRERROR",
@@ -289,14 +315,14 @@ extern "C" UINT __stdcall CheckDataDirectory(MSIHANDLE hInstall)
 
   if (!IsDirectoryEmptyOrNonExisting(datadir))
   {
-    Log("DATADIR is NOT empty");
+    Log(L"DATADIR is NOT empty");
     MsiSetPropertyW(hInstall, L"DATADIRERROR",
                     L"data directory exists and is not empty");
     return ERROR_SUCCESS;
   }
-  Log("DATADIR is empty or non-existent");
+  Log(L"DATADIR is empty or non-existent");
   MsiSetPropertyW(hInstall, L"DATADIRERROR", L"");
-  Log("INSTALLDIR check");
+  Log(L"INSTALLDIR check");
 
   if (!_wcsicmp(datadir.c_str(), installdir.c_str()))
   {
@@ -509,24 +535,24 @@ void CheckServiceConfig(
   wchar_t *defaults_file;
   bool is_my_service;
 
-  Log("CommandLine= %s", commandline);
+  Log(L"CommandLine= %s", commandline);
   if(!argv  ||  !argv[0]  || ! wcsstr(argv[0], L"mysqld"))
   {
     goto end;
   }
 
-  Log("MySQL/MariaDB service %s found: CommandLine= %s",
+  Log(L"MySQL/MariaDB service %s found: CommandLine= %s",
     other_servicename, commandline);
   if (wcsstr(argv[0], bindir))
   {
-   Log("executable under bin directory");
+   Log(L"executable under bin directory");
     same_bindir = true;
   }
 
   is_my_service = (_wcsicmp(my_servicename, other_servicename) == 0);
   if(!is_my_service)
   {
-    Log("service does not match current service");
+    Log(L"service does not match current service");
     /*
       TODO probably the best thing possible would be to add temporary
       row to MSI ServiceConfig table with remove on uninstall
@@ -534,9 +560,9 @@ void CheckServiceConfig(
   }
   else if (!same_bindir)
   {
-    Log("Service name matches, but not the executable path directory, mine is %s",
+    Log(L"Service name matches, but not the executable path directory, mine is %s",
       bindir);
-    MsiSetProperty(hInstall,L"SERVICENAME", L"");
+    MsiSetPropertyW(hInstall,L"SERVICENAME", L"");
   }
 
   /* Check if data directory is used */
@@ -549,16 +575,16 @@ void CheckServiceConfig(
   defaults_file= argv[1]+16;
   defaults_file= strip_quotes(defaults_file);
 
-  Log("parsed defaults file is %s", defaults_file);
+  Log(L"parsed defaults file is %s", defaults_file);
 
   if (GetPrivateProfileStringW(L"mysqld", L"datadir", NULL, current_datadir,
     MAX_PATH, defaults_file) == 0)
   {
-    Log("Cannot find datadir in ini file '%s'", defaults_file);
+    Log(L"Cannot find datadir in ini file '%s'", defaults_file);
     goto end;
   }
 
-  Log("datadir from defaults-file is %s", current_datadir);
+  Log(L"datadir from defaults-file is %s", current_datadir);
   strip_quotes(current_datadir);
 
   /* Convert to Windows path */
@@ -567,14 +593,14 @@ void CheckServiceConfig(
   {
     /* Add backslash to be compatible with directory formats in MSI */
     wcscat_s(normalized_current_datadir, L"\\");
-    Log("normalized current datadir is '%s'",
+    Log(L"normalized current datadir is '%s'",
       normalized_current_datadir);
   }
 
   if (_wcsicmp(datadir, normalized_current_datadir) == 0 && !same_bindir)
   {
-    Log("database directory from current installation, but different mysqld.exe");
-    MsiSetProperty(hInstall,L"CLEANUPDATA", L"");
+    Log(L"database directory from current installation, but different mysqld.exe");
+    MsiSetPropertyW(hInstall,L"CLEANUPDATA", L"");
   }
 
 end:
@@ -616,7 +642,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   LPENUM_SERVICE_STATUS_PROCESS info = NULL;
   BOOL ok;
 
-  Log("Initialized.");
+  Log(L"Initialized.");
   /*
     Do not guess. Without INSTALLDIR, bindir would be just "bin\", which
     would match services of other installations.
@@ -626,21 +652,21 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
       !GetProperty(hInstall, L"INSTALLDIR", installdir) ||
       installdir.empty())
   {
-    Log("SERVICENAME, DATADIR or INSTALLDIR is not known, checking nothing");
+    Log(L"SERVICENAME, DATADIR or INSTALLDIR is not known, checking nothing");
     return ERROR_INSTALL_FAILURE;
   }
   /* INSTALLDIR ends with backslash */
   bindir= installdir + L"bin\\";
 
-  Log("SERVICENAME=%s, DATADIR=%s, bindir=%s", servicename.c_str(),
+  Log(L"SERVICENAME=%s, DATADIR=%s, bindir=%s", servicename.c_str(),
       datadir.c_str(), bindir.c_str());
 
   scm = OpenSCManager(NULL, NULL,
     SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
   if (scm == NULL)
   {
-    er= GetLastError();
-    Log("OpenSCManager failed with %d", er);
+    Log(L"OpenSCManager failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
     goto LExit;
   }
 
@@ -656,8 +682,8 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
     NULL);
   if(!ok)
   {
-    er= GetLastError();
-    Log("EnumServicesStatusExW failed with %d", er);
+    Log(L"EnumServicesStatusExW failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
     goto LExit;
   }
   info = (LPENUM_SERVICE_STATUS_PROCESS)buf;
@@ -667,7 +693,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
       SERVICE_QUERY_CONFIG);
     if (!service)
       continue;
-    Log("Checking Service %s", info[i].lpServiceName);
+    Log(L"Checking Service %s", info[i].lpServiceName);
     QUERY_SERVICE_CONFIGW *config=
       (QUERY_SERVICE_CONFIGW *)(void *)config_buffer;
     DWORD needed;
@@ -734,7 +760,7 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   const wchar_t *ErrorMsg=0;
   UINT er= ERROR_SUCCESS;
 
-  Log("Initialized.");
+  Log(L"Initialized.");
 
   if (!GetProperty(hInstall, L"SERVICENAME", ServiceName) ||
       !GetProperty(hInstall, L"PASSWORD", Password) ||
@@ -826,8 +852,8 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
 
      if (!GlobalMemoryStatusEx(&memstatus))
      {
-       er = GetLastError();
-       Log("Error %u from GlobalMemoryStatusEx",er);
+       Log(L"Error %u from GlobalMemoryStatusEx", GetLastError());
+       er= ERROR_INSTALL_FAILURE;
        goto LExit;
      }
      /* Strip trailing spaces */
@@ -890,7 +916,7 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
   wchar_t buff[32];
   UINT er = ERROR_SUCCESS;
   MEMORYSTATUSEX memstatus;
-  Log("Initialized.");
+  Log(L"Initialized.");
 
   /* Check if bufferpoolsize parameter was given on the command line*/
   if (!GetProperty(hInstall, L"BUFFERPOOLSIZE", BufferPoolSizeParam))
@@ -903,12 +929,12 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
   {
     if (BufferPoolSizeParam.length() > MAX_BUFFERPOOLSIZE_LEN)
     {
-      Log("BUFFERPOOLSIZE is too long, the maximum is %u characters",
+      Log(L"BUFFERPOOLSIZE is too long, the maximum is %u characters",
           (unsigned)MAX_BUFFERPOOLSIZE_LEN);
       er= ERROR_INSTALL_FAILURE;
       goto LExit;
     }
-    Log("BUFFERPOOLSIZE=%s, len=%u", BufferPoolSizeParam.c_str(),
+    Log(L"BUFFERPOOLSIZE=%s, len=%u", BufferPoolSizeParam.c_str(),
         (unsigned)BufferPoolSizeParam.length());
     InnodbBufferPoolSize= _wtoi64(BufferPoolSizeParam.c_str());
   }
@@ -917,7 +943,7 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
     memstatus.dwLength = sizeof(memstatus);
     if (!GlobalMemoryStatusEx(&memstatus))
     {
-       Log("Error %u from GlobalMemoryStatusEx",GetLastError());
+       Log(L"Error %u from GlobalMemoryStatusEx",GetLastError());
        er= ERROR_INSTALL_FAILURE;
        goto LExit;
     }
@@ -964,7 +990,7 @@ static void DumpErrorLog(MSIHANDLE hInstall, const std::wstring &dir)
   if (!f)
     return;
   char buf[2048];
-  Log("=== dumping error log %s === ",filepath.c_str());
+  Log(L"=== dumping error log %s === ",filepath.c_str());
   while (fgets(buf, sizeof(buf), f))
   {
      /* Strip off EOL chars. */
@@ -973,10 +999,10 @@ static void DumpErrorLog(MSIHANDLE hInstall, const std::wstring &dir)
        buf[--len]= 0;
      if (len > 0 && buf[len-1] == '\r')
        buf[--len]= 0;
-     Log("%S",buf);
+     Log(L"%S",buf);
   }
   fclose(f);
-  Log("=== end of error log ===");
+  Log(L"=== end of error log ===");
 }
 
 /* Remove service and data directory created by CreateDatabase operation */
@@ -986,7 +1012,7 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
   std::wstring service;
   std::wstring dir;
 
-  Log("Initialized.");
+  Log(L"Initialized.");
 
   if (!GetProperty(hInstall, L"CustomActionData", data))
     return ERROR_INSTALL_FAILURE;
@@ -1020,14 +1046,12 @@ extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
   Enables/disables optional "Launch upgrade wizard" checkbox at the end of
   installation
 */
-#define MAX_VERSION_PROPERTY_SIZE 64
-
 extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
 {
   UINT er = ERROR_SUCCESS;
-  wchar_t installerVersion[MAX_VERSION_PROPERTY_SIZE];
-  char installDir[MAX_PATH];
-  DWORD size =MAX_VERSION_PROPERTY_SIZE;
+  std::wstring installerVersion;
+  std::wstring installDirW;
+  std::string installDir;
   int installerMajorVersion, installerMinorVersion, installerPatchVersion;
   bool upgradableServiceFound=false;
   LPENUM_SERVICE_STATUS_PROCESSW info;
@@ -1036,34 +1060,27 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   BOOL ok;
   SC_HANDLE scm = NULL;
 
-  Log("Initialized.");
-  er= MsiGetPropertyW(hInstall, L"ProductVersion", installerVersion, &size);
-  if (er != ERROR_SUCCESS)
+  Log(L"Initialized.");
+  if (!GetProperty(hInstall, L"ProductVersion", installerVersion) ||
+      !GetProperty(hInstall, L"INSTALLDIR", installDirW))
   {
-    Log("MsiGetPropertyW failed, error %u", er);
+    er= ERROR_INSTALL_FAILURE;
     goto LExit;
   }
-   if (swscanf(installerVersion,L"%d.%d.%d",
+  if (swscanf(installerVersion.c_str(),L"%d.%d.%d",
     &installerMajorVersion, &installerMinorVersion, &installerPatchVersion) !=3)
   {
     assert(FALSE);
   }
-
-  size= MAX_PATH;
-  er= MsiGetPropertyA(hInstall,"INSTALLDIR", installDir, &size);
-  if (er != ERROR_SUCCESS)
-  {
-    Log("MsiGetPropertyA failed, error %u", er);
-    goto LExit;
-  }
+  installDir= ToAnsi(installDirW);
 
 
   scm = OpenSCManager(NULL, NULL,
     SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
   if (scm == NULL)
   {
-    er= GetLastError();
-    Log("OpenSCManager failed");
+    Log(L"OpenSCManager failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
     goto LExit;
   }
 
@@ -1077,8 +1094,8 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
     SERVICE_STATE_ALL,  buf, bufsize,  &bufneed, &num_services, NULL, NULL);
   if(!ok)
   {
-    er=GetLastError();
-    Log("EnumServicesStatusEx failed");
+    Log(L"EnumServicesStatusEx failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
     goto LExit;
   }
   info =
@@ -1105,9 +1122,9 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
           Only look for services that have mysqld.exe outside of the current
           installation directory.
         */
-       if(installDir[0] == 0 || strstr(props.mysqld_exe,installDir) == 0)
+       if(installDir.empty() || strstr(props.mysqld_exe, installDir.c_str()) == 0)
         {
-           Log("found service %s, major=%d, minor=%d",
+           Log(L"found service %s, major=%d, minor=%d",
             info[i].lpServiceName, props.version_major, props.version_minor);
           if(props.version_major < installerMajorVersion
             || (props.version_major == installerMajorVersion &&
@@ -1140,5 +1157,6 @@ LExit:
 /* Fail on purpose, to test rollback. Scheduled with TESTFAIL=1 in msiexec */
 extern "C" UINT __stdcall FakeFailure(MSIHANDLE hInstall)
 {
+  Log(L"Failing on purpose");
   return ERROR_INSTALL_FAILURE;
 }

@@ -368,11 +368,12 @@ CONFIGURE_FILE(${SRCDIR}/mysql_server.wxs.in
 CONFIGURE_FILE(${SRCDIR}/extra.wxs.in
   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs)
 
-MACRO(CHECK_WIX_RESULT res)
-  IF(res)
-    MESSAGE(FATAL_ERROR "WiX failed: ${res}")
+# Stop, if a WiX command failed. "what" tells which one.
+FUNCTION(CHECK_WIX_RESULT result what)
+  IF(NOT "${result}" STREQUAL "0")
+    MESSAGE(FATAL_ERROR "${what} failed, exit code ${result}")
   ENDIF()
-ENDMACRO()
+ENDFUNCTION()
 
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
 
@@ -383,7 +384,8 @@ IF(WIX_EXECUTABLE)
   SET(WIX_EULA_ARGS)
   EXECUTE_PROCESS(
     COMMAND ${WIX_EXECUTABLE} extension list --global
-    OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST)
+    OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST
+    RESULT_VARIABLE res)
   IF(WIX_EXTENSION_LIST MATCHES "WIX7015")
     IF(NOT WIX_ACCEPT_EULA)
       MESSAGE(FATAL_ERROR "${WIX_EXECUTABLE} requires its EULA to be accepted, "
@@ -393,7 +395,14 @@ IF(WIX_EXECUTABLE)
     SET(WIX_EULA_ARGS -acceptEula wix${WIX_MAJOR_VERSION})
     EXECUTE_PROCESS(
       COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension list --global
-      OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST)
+      OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST
+      RESULT_VARIABLE res)
+  ENDIF()
+  # With no extensions yet, "extension list" prints nothing and exits with 2.
+  # A failure that prints something is a real one, e.g missing .NET runtime.
+  IF(NOT "${res}" STREQUAL "0" AND NOT "${WIX_EXTENSION_LIST}" STREQUAL "")
+    MESSAGE(FATAL_ERROR
+      "wix extension list failed, exit code ${res}\n${WIX_EXTENSION_LIST}")
   ENDIF()
 
   # Modern WiX. Convert wxs sources from v3 to the current XML schema first.
@@ -428,7 +437,7 @@ IF(WIX_EXECUTABLE)
       EXECUTE_PROCESS(
         COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension add --global ${ext}/${WIX_VERSION}
         RESULT_VARIABLE res)
-      CHECK_WIX_RESULT(${res})
+      CHECK_WIX_RESULT("${res}" "wix extension add ${ext}/${WIX_VERSION}")
     ENDIF()
     LIST(APPEND WIX_EXTENSION_ARGS -ext "${ext}/${WIX_VERSION}")
   ENDFOREACH()
@@ -453,7 +462,7 @@ IF(WIX_EXECUTABLE)
     ${EXTRA_WIX_BUILD_ARGS}
     RESULT_VARIABLE res
   )
-  CHECK_WIX_RESULT(${res})
+  CHECK_WIX_RESULT("${res}" "wix build")
 ELSE()
   SET(EXTRA_CANDLE_ARGS "$ENV{EXTRA_CANDLE_ARGS}")
 
@@ -473,7 +482,7 @@ ELSE()
    ${EXTRA_CANDLE_ARGS}
    RESULT_VARIABLE res
   )
-  CHECK_WIX_RESULT(${res})
+  CHECK_WIX_RESULT("${res}" "candle mysql_server.wxs")
 
   EXECUTE_PROCESS(
    COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
@@ -484,7 +493,7 @@ ELSE()
    ${EXTRA_CANDLE_ARGS}
    RESULT_VARIABLE res
   )
-  CHECK_WIX_RESULT(${res})
+  CHECK_WIX_RESULT("${res}" "candle extra.wxs")
 
   IF(VCRedist_MSM)
     SET(SILENCE_VCREDIST_MSM_WARNINGS  -sice:ICE82 -sice:ICE03)
@@ -497,7 +506,7 @@ ELSE()
     ${EXTRA_LIGHT_ARGS}
    RESULT_VARIABLE res
   )
-  CHECK_WIX_RESULT(${res})
+  CHECK_WIX_RESULT("${res}" "light")
 ENDIF()
 
 IF(SIGNCODE)
