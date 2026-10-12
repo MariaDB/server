@@ -131,6 +131,8 @@ trx_init(
 
 	trx->undo_no = 0;
 
+	trx->instant_rollback_enabled = false;
+
 	trx->rsegs.m_redo.rseg = NULL;
 
 	trx->rsegs.m_noredo.rseg = NULL;
