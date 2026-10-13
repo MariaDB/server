@@ -421,3 +421,16 @@ id	s	e
 drop table t1;
 drop table log_tbl;
 drop procedure log;
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+create table t1 (c1 int key) engine innodb;
+create sequence cs1 engine myisam;
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+ERROR HY000: Period `app` is not found in table
+create or replace table t1 (c1 int key, s date, e date, period for app(s,e)) engine innodb;
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+drop sequence cs1;
+drop table t1;
+# End of 11.8 tests
