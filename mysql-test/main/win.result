@@ -4794,5 +4794,90 @@ c1	c2
 2	2
 DROP TABLE t1;
 #
+# MDEV-41517: IN subquery containing a window function returns empty set
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+SELECT GROUP_CONCAT(a ORDER BY a) AS c
+FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 UNION SELECT 100);
+c
+1,2,3,4
+SELECT (2 IN (SELECT row_number() over () FROM t1 UNION SELECT 100)) AS two_in_set;
+two_in_set
+1
+# Compound HAVING test: user condition combined with window function
+SELECT GROUP_CONCAT(a ORDER BY a) AS c
+FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 GROUP BY a HAVING a > 1 UNION SELECT 100);
+c
+1,2,3
+EXPLAIN FORMAT=JSON
+SELECT a FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 UNION SELECT 100);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 4,
+          "filtered": 100,
+          "attached_condition": "<in_optimizer>(t1.a,<exists>(subquery#2))"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "<cache>(t1.a) = <ref_null_helper>(row_number() over ())",
+                  "window_functions_computation": {
+                    "sorts": [
+                      {
+                        "filesort": {
+                          "sort_key": "`row_number() over ()`"
+                        }
+                      }
+                    ],
+                    "temporary_table": {
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "rows": 4,
+                            "filtered": 100
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
