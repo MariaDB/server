@@ -408,19 +408,19 @@ fts_optimize_read_node(
 	return(node);
 }
 
-/**********************************************************************//**
-Callback function to fetch the rows in an FTS INDEX record.
-@return always returns non-NULL */
-ibool
-fts_optimize_index_fetch_node(
-/*==========================*/
-	void*		row,		/*!< in: sel_node_t* */
-	void*		user_arg)	/*!< in: pointer to ib_vector_t */
+/** Add an FTS INDEX record to the fetched words.
+@param row      sel_node_t*
+@param fetch    fetch context
+@param words    the fetched words
+@param charset  if not NULL, the consecutive records whose words
+compare equal under this collation are added to the same word
+@return TRUE to continue fetching */
+static ibool
+fts_optimize_fetch_node(void *row, fts_fetch_t *fetch, ib_vector_t *words,
+                        const CHARSET_INFO *charset= nullptr)
 {
 	fts_word_t*	word;
 	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
-	fts_fetch_t*	fetch = static_cast<fts_fetch_t*>(user_arg);
-	ib_vector_t*	words = static_cast<ib_vector_t*>(fetch->read_arg);
 	que_node_t*	exp = sel_node->select_list;
 	dfield_t*	dfield = que_node_get_val(exp);
 	void*		data = dfield_get_data(dfield);
@@ -439,8 +439,18 @@ fts_optimize_index_fetch_node(
 
 	word = static_cast<fts_word_t*>(ib_vector_last(words));
 
-	if (dfield_len != word->text.f_len
-	    || memcmp(word->text.f_str, data, dfield_len)) {
+	bool same_word;
+	if (charset) {
+		fts_string_t	str;
+		str.f_str = static_cast<byte*>(data);
+		str.f_len = dfield_len;
+		same_word = !innobase_fts_text_cmp(charset, &word->text, &str);
+	} else {
+		same_word = dfield_len == word->text.f_len
+			&& !memcmp(word->text.f_str, data, dfield_len);
+	}
+
+	if (!same_word) {
 
 		word = static_cast<fts_word_t*>(ib_vector_push(words, NULL));
 		fts_word_init(word, (byte*) data, dfield_len);
@@ -463,6 +473,37 @@ fts_optimize_index_fetch_node(
 	}
 
 	return(TRUE);
+}
+
+/** Callback function to fetch the rows in an FTS INDEX record.
+@param row sel_node_t for the row fetched from the table
+@param user_arg  pointer to ib_vector_t
+@return always returns non-NULL */
+ibool
+fts_optimize_index_fetch_node(void *row, void *user_arg)
+{
+  fts_fetch_t *fetch= static_cast<fts_fetch_t*>(user_arg);
+  return fts_optimize_fetch_node(
+    row, fetch, static_cast<ib_vector_t*>(fetch->read_arg));
+}
+
+/** Callback function to fetch the rows in an FTS INDEX record
+for OPTIMIZE. The index lookup and the DELETE in
+fts_optimize_write_word() match words by collation, so the
+records of words that are equal under the index collation
+(such as 'resume' and 'résumé' in utf8_general_ci) are
+collected into a single word. Otherwise writing back one of
+them would delete the rows that were written for the other.
+@param row       sel_node_t*
+@param user_arg  fts_fetch_t whose read_arg is the fts_optimize_t
+@return always returns non-NULL */
+static ibool
+fts_optimize_collation_fetch_node(void *row, void *user_arg)
+{
+  fts_fetch_t *fetch= static_cast<fts_fetch_t*>(user_arg);
+  fts_optimize_t *optim= static_cast<fts_optimize_t*>(fetch->read_arg);
+  return fts_optimize_fetch_node(row, fetch, optim->words,
+                                 optim->fts_index_table.charset);
 }
 
 /**********************************************************************//**
@@ -1786,8 +1827,8 @@ fts_optimize_words(
 	const time_t start_time = time(NULL);
 
 	/* Setup the callback to use for fetching the word ilist etc. */
-	fetch.read_arg = optim->words;
-	fetch.read_record = fts_optimize_index_fetch_node;
+	fetch.read_arg = optim;
+	fetch.read_record = fts_optimize_collation_fetch_node;
 
 	while (!optim->done) {
 		dberr_t	error;
@@ -1806,8 +1847,15 @@ fts_optimize_words(
 		ut_ad(fetch.total_memory < fts_result_cache_limit);
 
 		if (error == DB_SUCCESS) {
-			/* There must be some nodes to read. */
-			ut_a(ib_vector_size(optim->words) > 0);
+			/* The word may already have been optimized and
+			rewritten together with an earlier word that compares
+			equal under the index collation, see
+			fts_optimize_collation_fetch_node(). The zip buffer
+			still holds the other spelling, so there is nothing
+			to read. */
+			if (ib_vector_size(optim->words) == 0) {
+				goto next_word;
+			}
 
 			/* Optimize the nodes that were read and write
 			back to DB. */
@@ -1820,6 +1868,7 @@ fts_optimize_words(
 			}
 		}
 
+next_word:
 		ib_vector_reset(optim->words);
 
 		if (error == DB_SUCCESS) {
