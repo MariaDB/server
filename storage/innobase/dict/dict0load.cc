@@ -697,6 +697,9 @@ dict_sys_tables_rec_read(
 	if (rec_get_deleted_flag(rec, 0)) {
 		ut_ad(id);
 		if (trx_id) {
+			if (heap) {
+				mem_heap_free(heap);
+			}
 			return READ_NOT_FOUND;
 		}
 	}
