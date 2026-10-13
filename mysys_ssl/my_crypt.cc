@@ -29,27 +29,20 @@
 #include <ssl_compat.h>
 #include <cstdint>
 
-#define CTX_ALIGN 16
-
 class MyCTX
 {
 public:
-  char ctx_buf[EVP_CIPHER_CTX_SIZE + CTX_ALIGN];
   EVP_CIPHER_CTX* ctx;
-  MyCTX()
-  {
-#if CTX_ALIGN > 0
-    uintptr_t p= ((uintptr_t)ctx_buf + (CTX_ALIGN - 1)) & ~(CTX_ALIGN - 1);
-    ctx = reinterpret_cast<EVP_CIPHER_CTX*>(p);
-#else
-    ctx = (EVP_CIPHER_CTX*)ctx_buf;
-#endif
-
-    EVP_CIPHER_CTX_init(ctx);
-  }
+  /*
+    The context must come from EVP_CIPHER_CTX_new, which sets its IV
+    length to -1.  In OpenSSL 4, EVP_CIPHER_CTX_reset leaves a zeroed
+    context unchanged, and EVP_CipherInit_ex then fails on its IV length
+    of 0 for CBC and CTR.
+  */
+  MyCTX() : ctx(EVP_CIPHER_CTX_new()) { }
   virtual ~MyCTX()
   {
-    EVP_CIPHER_CTX_reset(ctx);
+    EVP_CIPHER_CTX_free(ctx);
     ERR_remove_state(0);
   }
 
@@ -281,6 +274,7 @@ int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
                       const unsigned char* key, unsigned int klen,
                       const unsigned char* iv, unsigned int ivlen)
 {
+  int res;
 #ifdef HAVE_EncryptAes128Ctr
 #ifdef HAVE_EncryptAes128Gcm
   if (mode == MY_AES_GCM)
@@ -298,8 +292,15 @@ int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
     new (ctx) MyCTX_nopad();
   else
     new (ctx) MyCTX();
-  return ((MyCTX*)ctx)->init(ciphers[mode](klen), flags & 1,
+  if (!((MyCTX*)ctx)->ctx)
+    res= MY_AES_OPENSSL_ERROR;
+  else
+    res= ((MyCTX*)ctx)->init(ciphers[mode](klen), flags & 1,
                              key, klen, iv, ivlen);
+  /* A failed init is not followed by my_aes_crypt_finish */
+  if (res)
+    ((MyCTX*)ctx)->~MyCTX();
+  return res;
 }
 
 int my_aes_crypt_update(void *ctx, const uchar *src, uint slen,
