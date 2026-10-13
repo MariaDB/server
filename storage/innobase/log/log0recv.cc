@@ -2047,9 +2047,14 @@ dberr_t recv_sys_t::find_checkpoint()
               was_archive= true;
 #ifdef HAVE_PMEM
               if (log_sys.is_mmap_writeable())
+              {
                 log_sys.log.close();
+                log_sys.archive= false;
+                mtr_t::finisher_update();
+              }
+              else
 #endif
-              log_sys.archive= false;
+                log_sys.archive= false;
               file= OS_FILE_CLOSED;
               goto circular_log_recovery;
             }
