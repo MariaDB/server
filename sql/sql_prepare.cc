@@ -195,6 +195,8 @@ public:
   my_bool iterations;
   my_bool start_param;
   my_bool read_types;
+  /* the command reads bulk parameters itself in its internal loop */
+  bool bulk_optimized;
 
 #ifndef EMBEDDED_LIBRARY
   bool (*set_params)(Prepared_statement *st, uchar *data, uchar *data_end,
@@ -229,6 +231,7 @@ public:
   bool execute_server_runnable(Server_runnable *server_runnable);
   my_bool set_bulk_parameters(bool reset);
   bool bulk_iterations() { return iterations; };
+  bool is_bulk_optimized() const { return bulk_optimized; }
   /* Destroy this statement */
   void deallocate();
   bool execute_immediate(const char *query, uint query_length);
@@ -4201,6 +4204,7 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   iterations(0),
   start_param(0),
   read_types(0),
+  bulk_optimized(0),
   m_sql_mode(thd->variables.sql_mode)
 {
   init_sql_alloc(key_memory_prepared_statement_main_mem_root,
@@ -4453,6 +4457,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   error= (parse_sql(thd, & parser_state, NULL) ||
           thd->is_error() ||
           init_param_array(this));
+  if (likely(!error) && param_count)
+    lex->subquery_with_placeholder= lex->subquery_has_placeholder();
 
   if (thd->security_ctx->password_expired &&
       lex->sql_command != SQLCOM_SET_OPTION &&
@@ -4780,15 +4786,26 @@ my_bool bulk_parameters_set(THD *thd)
   DBUG_ENTER("bulk_parameters_set");
   Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
 
-  if (stmt && unlikely(stmt->set_bulk_parameters(FALSE)))
+  if (stmt && stmt->is_bulk_optimized() &&
+      unlikely(stmt->set_bulk_parameters(FALSE)))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
+}
+
+/*
+  Bulk execution where Prepared_statement::execute_bulk_loop() reads
+  parameters and executes the statement for every set of them
+*/
+my_bool bulk_execution_per_row(THD *thd)
+{
+  Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
+  return stmt && !stmt->is_bulk_optimized();
 }
 
 my_bool bulk_parameters_iterations(THD *thd)
 {
   Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
-  if (!stmt)
+  if (!stmt || !stmt->is_bulk_optimized())
     return FALSE;
   return stmt->bulk_iterations();
 }
@@ -4857,11 +4874,18 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     goto err;
   }
   /*
+    Subqueries are executed once per statement execution, so subqueries
+    depending on parameters need own execution for every set of
+    parameters.
+  */
+  bulk_optimized=
+    (sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+    !lex->subquery_with_placeholder;
+  /*
      Here second buffer for not optimized commands,
      optimized commands do it inside thier internal loop.
   */
-  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
-      this->lex->has_returning())
+  if (!bulk_optimized && this->lex->has_returning())
   {
     // Above check can be true for SELECT in future
     DBUG_ASSERT(lex->sql_command != SQLCOM_SELECT);
@@ -4890,17 +4914,21 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   while ((iterations || start_param) && !error && !thd->is_error())
   {
     int reprepare_attempt= 0;
+    uint warn_count= 0;
 
     /*
       Here we set parameters for not optimized commands,
       optimized commands do it inside thier internal loop.
     */
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED))
+    if (!bulk_optimized)
     {
       if (set_bulk_parameters(TRUE))
       {
         goto err;
       }
+      thd->get_stmt_da()->reset_for_next_command();
+      if (thd->get_stmt_da()->is_set())
+        warn_count= thd->get_stmt_da()->unsafe_statement_warn_count();
     }
 
 reexecute:
@@ -4925,13 +4953,16 @@ reexecute:
       thd->m_reprepare_observer= &reprepare_observer;
     }
 
+    Diagnostics_area::enum_diagnostics_status da_status=
+      thd->get_stmt_da()->status();
     error= execute(expanded_query, open_cursor) || thd->is_error();
+    if (!bulk_optimized)
+      thd->get_stmt_da()->set_bulk_warn_count(warn_count);
 
     thd->m_reprepare_observer= NULL;
 
 #ifdef WITH_WSREP
-    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
-	WSREP(thd))
+    if (!bulk_optimized && WSREP(thd))
     {
       if (wsrep_after_statement(thd))
       {
@@ -4954,6 +4985,11 @@ reexecute:
     {
       DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
       thd->clear_error();
+      /*
+        The failed attempt must not change the status, because it shows
+        whether result set metadata was already sent
+      */
+      thd->get_stmt_da()->restore_bulk_status(da_status);
 
       error= reprepare();
 
@@ -4963,6 +4999,7 @@ reexecute:
   }
   reset_stmt_params(this);
   thd->set_bulk_execution(0);
+  thd->set_last_insert_id_from_cur_stmt();
   if (readbuff)
     my_free(readbuff);
   return error;
@@ -4970,6 +5007,7 @@ reexecute:
 err:
   reset_stmt_params(this);
   thd->set_bulk_execution(0);
+  thd->set_last_insert_id_from_cur_stmt();
   if (readbuff)
     my_free(readbuff);
   return true;

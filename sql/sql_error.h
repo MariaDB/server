@@ -1054,6 +1054,14 @@ public:
   bool is_bulk_op() const { return is_bulk_execution; }
 
   enum_diagnostics_status status() const { return m_status; }
+  void restore_bulk_status(enum_diagnostics_status status)
+  {
+    DBUG_ASSERT(is_bulk_op());
+    DBUG_ASSERT(m_status == DA_OK_BULK);
+    DBUG_ASSERT(status == DA_EMPTY || status == DA_OK_BULK ||
+                status == DA_EOF_BULK);
+    m_status= status;
+  }
 
   const char *message() const
   {
@@ -1099,6 +1107,20 @@ public:
   uint unsafe_statement_warn_count() const
   {
     return m_statement_warn_count;
+  }
+
+  /*
+    Warnings of a bulk operation executed for every set of parameters are
+    the warnings before the execution and the warnings of the execution.
+    Warnings pushed while the status is DA_OK_BULK or DA_EOF_BULK are
+    counted by both increment_warning() and set_ok_status() or
+    set_eof_status(), so the sum is recomputed.
+  */
+  void set_bulk_warn_count(uint before)
+  {
+    DBUG_ASSERT(is_bulk_op());
+    if (m_status == DA_OK_BULK || m_status == DA_EOF_BULK)
+      m_statement_warn_count= before + uint(current_statement_warn_count());
   }
 
   /**
