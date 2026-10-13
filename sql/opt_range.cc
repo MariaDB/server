@@ -17347,6 +17347,8 @@ static void print_ror_scans_arr(TABLE *table, const char *msg,
 
 static String dbug_print_sel_arg_buf;
 
+static void print_mbr_range_operator(String *out, const ha_rkey_function flag);
+
 static void
 print_sel_arg_key(Field *field, const uchar *key, String *out)
 {
@@ -17422,6 +17424,30 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
   {
     out.append(STRING_WITH_LEN("type="));
     out.append(stype, strlen(stype));
+    goto end;
+  }
+
+  if (sel_arg->min_flag & GEOM_FLAG)
+  {
+    /*
+      A range over a SPATIAL index: min_value holds the MBR of the value,
+      and there is no min/max bound. Print it as "col mbr_relation value",
+      the same way print_range() does.
+    */
+    TABLE *table= sel_arg->field->table;
+    MY_BITMAP *old_sets[2];
+    dbug_tmp_use_all_columns(table, old_sets, &table->read_set,
+                             &table->write_set);
+    out.append(sel_arg->field->field_name);
+    print_mbr_range_operator(&out,
+                             (ha_rkey_function) (sel_arg->min_flag &
+                                                 ~GEOM_FLAG));
+    sel_arg->field->print_key_part_value(&out, sel_arg->min_value,
+                                         SIZEOF_STORED_DOUBLE * 4,
+                                         Field::itMBR);
+    dbug_tmp_restore_column_maps(&table->read_set, &table->write_set,
+                                 old_sets);
+    out.append(')');
     goto end;
   }
 
