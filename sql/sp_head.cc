@@ -1983,6 +1983,22 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   if (!(*func_ctx))
   {
+    for (arg_no= 0; arg_no < argcount; arg_no++)
+    {
+      /* Arguments must be fixed in Item_func_sp::fix_fields */
+      DBUG_ASSERT(argp[arg_no]->fixed());
+
+      sp_variable *spvar= m_pcont->find_variable(arg_no);
+      if (spvar->mode != sp_variable::MODE_IN)
+      {
+        Settable_routine_parameter *srp=
+        argp[arg_no]->get_settable_routine_parameter();
+        if (srp)
+        {
+          srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
+        }
+      }
+    }
     thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
     if (!(*func_ctx= rcontext_create(thd, return_value_fld, argp, argcount)))
@@ -2204,6 +2220,26 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (m_parent && m_parent->instantiate_if_needed(thd))
     DBUG_RETURN(true);
 
+  List_iterator<Item> it_args(*args);
+  for (uint i= 0 ; i < params ; i++)
+  {
+    Item *arg_item= it_args++;
+
+    if (!arg_item)
+      break;
+
+    sp_variable *spvar= m_pcont->find_variable(i);
+    if (spvar->mode != sp_variable::MODE_IN)
+    {
+      Settable_routine_parameter *srp=
+      arg_item->get_settable_routine_parameter();
+      if (srp)
+      {
+        srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
+      }
+    }
+  }
+
   if (args->elements < (params - default_params) ||
       args->elements > params)
   {
@@ -2258,7 +2294,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   if (params > 0)
   {
-    List_iterator<Item> it_args(*args);
+    it_args.rewind();
 
     DBUG_PRINT("info",(" %.*s: eval args", (int) m_name.length, m_name.str));
 
@@ -2438,11 +2474,16 @@ sp_head::bind_input_param(THD *thd,
     DBUG_RETURN(true);
   }
 
+  Settable_routine_parameter *srp=
+      arg_item->get_settable_routine_parameter();
+  if (srp && spvar->field_def.any_cs && !srp->can_handle_any_cs())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "this kind of argument");
+    DBUG_RETURN(TRUE);
+  }
+
   if (spvar->mode != sp_variable::MODE_IN)
   {
-    Settable_routine_parameter *srp=
-      arg_item->get_settable_routine_parameter();
-
     if (!srp)
     {
       my_error(ER_SP_NOT_VAR_ARG, MYF(0), arg_no+1, ErrConvDQName(this).ptr());
@@ -2466,8 +2507,6 @@ sp_head::bind_input_param(THD *thd,
         DBUG_RETURN(TRUE);
       }
     }
-
-    srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
   }
 
   if (spvar->mode == sp_variable::MODE_OUT)
