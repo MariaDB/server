@@ -445,6 +445,24 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     create_dirs
 
+    # Directories listed in ignore_db_dirs are not schemas and must be
+    # left alone by the transfer, the same way the server itself skips
+    # them when scanning the datadir:
+    IGNORE_DB_DIRS_FILTER=""
+    IGNORE_DB_DIRS_FIND_OPTS=()
+    ignore_db_dirs=$(get_ignore_db_dirs '--mysqld')
+    if [ -n "$ignore_db_dirs" ]; then
+        oldIFS="$IFS"
+        IFS=','
+        for ignore_db_dir in $ignore_db_dirs; do
+            [ -z "$ignore_db_dir" ] && continue
+            IGNORE_DB_DIRS_FILTER="$IGNORE_DB_DIRS_FILTER
+        -f '- /$ignore_db_dir/'"
+            IGNORE_DB_DIRS_FIND_OPTS+=(-not -name "$ignore_db_dir")
+        done
+        IFS="$oldIFS"
+    fi
+
     if [ -n "$STUNNEL" ]; then
         cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
@@ -610,7 +628,7 @@ FILTER="-f '- /lost+found'
         -f '- $ib_undo_dir/undo*'
         -f '- $ib_log_dir/ib_logfile[0-9]*'
         -f '- $ar_log_dir/aria_log_control'
-        -f '- $ar_log_dir/aria_log.*'
+        -f '- $ar_log_dir/aria_log.*'$IGNORE_DB_DIRS_FILTER
         -f '+ /*/'
         -f '- /*'"
 
@@ -740,7 +758,8 @@ FILTER="-f '- /lost+found'
         # target's leading '/'). Dereferencing the symlink and copying
         # the file it points to avoids depending on either behavior.
         find $findopt . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
-             -not -name '.zfs' -not -name .snapshot -print0 \
+             -not -name '.zfs' -not -name .snapshot \
+	     ${IGNORE_DB_DIRS_FIND_OPTS[@]+"${IGNORE_DB_DIRS_FIND_OPTS[@]}"} -print0 \
              | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --copy-links --specials --ignore-times \

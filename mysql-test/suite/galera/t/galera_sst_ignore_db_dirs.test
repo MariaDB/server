@@ -1,0 +1,72 @@
+--echo #
+--echo # MDEV-41490: ignore_db_dirs must stop SST from touching a directory
+--echo # the server itself never treats as a schema.
+--echo #
+# A directory listed there is typically a filesystem mount point (for
+# example a read-only snapshot) that happens to live under the datadir,
+# so a full SST must leave it alone on both donor and joiner, with
+# either SST method.
+--source include/big_test.inc
+--source include/have_mariabackup.inc
+--source include/galera_cluster.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+--mkdir $MYSQLTEST_VARDIR/mysqld.1/data/ignored_sst_dir
+--write_file $MYSQLTEST_VARDIR/mysqld.1/data/ignored_sst_dir/marker.txt
+donor
+EOF
+
+--connection node_2
+--mkdir $MYSQLTEST_VARDIR/mysqld.2/data/ignored_sst_dir
+--write_file $MYSQLTEST_VARDIR/mysqld.2/data/ignored_sst_dir/marker.txt
+joiner
+EOF
+
+--echo Shutting down node_2 ...
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo Clearing node_2's server state to force a full SST on restart ...
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+
+--connection node_2
+--echo Starting node_2, expecting SST ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--echo The directory ignore_db_dirs names must survive SST unchanged on both nodes
+--connection node_1
+--cat_file $MYSQLTEST_VARDIR/mysqld.1/data/ignored_sst_dir/marker.txt
+
+--connection node_2
+--cat_file $MYSQLTEST_VARDIR/mysqld.2/data/ignored_sst_dir/marker.txt
+
+--connection node_1
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/ignored_sst_dir/marker.txt
+--rmdir $MYSQLTEST_VARDIR/mysqld.1/data/ignored_sst_dir
+
+--connection node_2
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/ignored_sst_dir/marker.txt
+--rmdir $MYSQLTEST_VARDIR/mysqld.2/data/ignored_sst_dir
+
+--source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc
+
+--echo # End of 10.11 tests
