@@ -200,4 +200,12 @@ create server s1 foreign data wrapper 'my''sql' options (`ho``st` 'va''lue');
 show create server s1;
 drop server s1;
 
+--echo #
+--echo # MDEV-41064 MariaDB Server stack overflow when FLUSH PRIVILEGES parses a large JSON value from mysql.servers.Options inside a stored procedure
+--echo #
+
+INSERT INTO mysql.servers (Server_name, Options) VALUES ('t1', CONCAT('{"x": "', REPEAT('a', 12000000), '"}'));
+FLUSH PRIVILEGES;
+DELETE FROM mysql.servers WHERE Server_name = 't1';
+
 --echo # End of 11.8 tests
