@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_DEBUG_SYNC_INCLUDED
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
    Copyright (c) 2012, Monty Program Ab
 
@@ -17,7 +16,17 @@
 
 /**
   @file
-  == Debug Sync Facility ==
+  Debug Sync Facility
+*/
+
+
+#ifndef MYSQL_SERVICE_DEBUG_SYNC_INCLUDED
+#define MYSQL_SERVICE_DEBUG_SYNC_INCLUDED
+
+/**
+  @defgroup plugin_api_service_debug_sync Debug Sync service
+  @ingroup plugin_api_services
+  @brief Debug Sync service
 
   The Debug Sync Facility allows placement of synchronization points in
   the server code by using the DEBUG_SYNC macro:
@@ -144,7 +153,7 @@
       SET DEBUG_SYNC= 'name TEST';
 
 
-  === Formal Syntax ===
+  # Formal Syntax
 
   The string to "assign" to the DEBUG_SYNC variable can contain:
 
@@ -159,7 +168,7 @@
   separated by '&|' must be present or both of them.
 
 
-  === Activation/Deactivation ===
+  # Activation/Deactivation
 
   The facility is an optional part of the MySQL server.
   It is enabled in a debug server by default.
@@ -203,7 +212,7 @@
   parsed into a debug sync action and stored apart from the variable value.
 
 
-  === Implementation ===
+  # Implementation
 
   Pseudo code for a sync point:
 
@@ -219,7 +228,7 @@
   new action, the array is sorted again.
 
 
-  === A typical synchronization pattern ===
+  # A typical synchronization pattern
 
   There are quite a few places in MySQL, where we use a synchronization
   pattern like this:
@@ -264,7 +273,7 @@
 
   A bit off-topic: At some places, the loop is taken around the whole
   synchronization pattern:
-
+  @code
   while (!thd->killed && !end_of_wait_condition)
   {
     mysql_mutex_lock(&mutex);
@@ -276,7 +285,7 @@
     }
     thd->exit_cond(old_message);
   }
-
+  @endcode
   Note that it is important to repeat the test for thd->killed after
   enter_cond(). Otherwise the killing thread may kill this thread after
   it tested thd->killed in the loop condition and before it registered
@@ -291,31 +300,30 @@
   mysql_cond_wait(), the signaling happens at the right place. We
   have a safe synchronization.
 
-  === Co-work with the DBUG facility ===
+  # Co-work with the DBUG facility
 
   When running the MySQL test suite with the --debug-dbug command line
   option, the Debug Sync Facility writes trace messages to the DBUG
   trace. The following shell commands proved very useful in extracting
   relevant information:
 
+  @code
   egrep 'query:|debug_sync_exec:' mysql-test/var/log/mysqld.1.trace
+  @endcode
 
   It shows all executed SQL statements and all actions executed by
   synchronization points.
 
   Sometimes it is also useful to see, which synchronization points have
   been run through (hit) with or without executing actions. Then add
-  "|debug_sync_point:" to the egrep pattern.
+  `|debug_sync_point:` to the egrep pattern.
 
-  === Further reading ===
-
-  For a discussion of other methods to synchronize threads see
-  http://forge.mysql.com/wiki/MySQL_Internals_Test_Synchronization
+  # Further reading
 
   For complete syntax tests, functional tests, and examples see the test
   case debug_sync.test.
 
-  See also http://forge.mysql.com/worklog/task.php?id=4259
+  @{
 */
 
 #ifndef MYSQL_ABI_CHECK
@@ -361,5 +369,5 @@ extern void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t);
 }
 #endif
 
-#define MYSQL_SERVICE_DEBUG_SYNC_INCLUDED
+/** @} */
 #endif

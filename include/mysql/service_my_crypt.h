@@ -22,10 +22,16 @@
  @file
  my crypt service
 
- AES encryption functions, and a function to generate random bytes.
+*/
 
- Include my_config.h before this file to use CTR and GCM modes
- (they only work if server was compiled with  openssl).
+/**
+  @defgroup plugin_api_service_my_crypt My Crypt service
+  @ingroup plugin_api_services
+  AES encryption functions, and a function to generate random bytes.
+
+  Include my_config.h before this file to use CTR and GCM modes
+  (they only work if server was compiled with  openssl).
+  @{
 */
 
 
@@ -130,5 +136,7 @@ unsigned int my_aes_ctx_size(enum my_aes_mode mode);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /* MYSQL_SERVICE_MY_CRYPT_INCLUDED */

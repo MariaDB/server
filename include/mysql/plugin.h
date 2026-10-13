@@ -23,7 +23,16 @@
 #ifndef MYSQL_PLUGIN_INCLUDED
 #define MYSQL_PLUGIN_INCLUDED
 
-/*
+/** 
+  @defgroup plugin_api Plugin API
+  The Plugin API is a set of interfaces for handling plugins.
+  @{
+*/
+
+/**
+  @brief Declaration macros for MySQL plugins.
+  @ingroup plugin_declaration
+  
   On Windows, exports from DLL need to be declared
   Also, plugin needs to be declared as extern "C" because MSVC 
   unlike other compilers, uses C++ mangling for variables not only
@@ -38,6 +47,12 @@
 #else
   #define MYSQL_DLLEXPORT
 #endif
+
+
+/**
+  @brief Implementation independent macro for MySQL plugins
+  @ingroup plugin_declaration
+ */
 
 #ifdef __cplusplus
   #define MYSQL_PLUGIN_EXPORT extern "C" MYSQL_DLLEXPORT
@@ -55,9 +70,19 @@ typedef struct THD* MYSQL_THD;
 #endif
 
 typedef char my_bool;
+
+/**
+   @ingroup plugin_declaration
+   @brief Opaque type for a plugin handle.
+ */
 typedef void * MYSQL_PLUGIN;
 
 #include <mysql/services.h>
+
+/**
+  @addtogroup storage_engine_plugin_data 
+  @{
+*/
 
 #define MYSQL_XIDDATASIZE 128
 /**
@@ -76,28 +101,38 @@ struct st_mysql_xid {
 };
 typedef struct st_mysql_xid MYSQL_XID;
 
+/** @} */
+
 /*************************************************************************
   Plugin API. Common for all plugin types.
 */
 
+/**
+  @addtogroup plugin_declaration
+  @{
+*/
 /** MySQL plugin interface version */
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0105
 
 /** MariaDB plugin interface version */
 #define MARIA_PLUGIN_INTERFACE_VERSION 0x0110
 
-/*
-  The allowable types of plugins
+/** @} */
+
+/**
+  @defgroup plugin_types Plugin Types
+  The available plugin APIs (types).
+  @{
 */
 #define MYSQL_UDF_PLUGIN             0  /**< not implemented            */
-#define MYSQL_STORAGE_ENGINE_PLUGIN  1
+#define MYSQL_STORAGE_ENGINE_PLUGIN  1  /**< Storage engine plugin      */
 #define MYSQL_FTPARSER_PLUGIN        2  /**< Full-text parser plugin    */
-#define MYSQL_DAEMON_PLUGIN          3
-#define MYSQL_INFORMATION_SCHEMA_PLUGIN  4
-#define MYSQL_AUDIT_PLUGIN           5
-#define MYSQL_REPLICATION_PLUGIN     6
-#define MYSQL_AUTHENTICATION_PLUGIN  7
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    12  /**< The number of plugin types */
+#define MYSQL_DAEMON_PLUGIN          3  /**< Daemon plugin              */
+#define MYSQL_INFORMATION_SCHEMA_PLUGIN  4  /**< Information schema plugin */
+#define MYSQL_AUDIT_PLUGIN           5  /**< Audit plugin               */
+#define MYSQL_REPLICATION_PLUGIN     6  /**< Replication plugin         */
+#define MYSQL_AUTHENTICATION_PLUGIN  7  /**< Authentication plugin      */
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    12
 
 /* MariaDB plugin types */
 /** Client and server password validation */
@@ -109,6 +144,14 @@ typedef struct st_mysql_xid MYSQL_XID;
 /**< Plugins for new native SQL functions */
 #define MariaDB_FUNCTION_PLUGIN 11
 
+/** @} */
+
+/**
+  @defgroup plugin_license Plugin License
+  @ingroup plugin_declaration
+  The allowable licenses for plugins
+  @{
+*/
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
 #define PLUGIN_LICENSE_GPL 1
@@ -117,7 +160,15 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define PLUGIN_LICENSE_PROPRIETARY_STRING "PROPRIETARY"
 #define PLUGIN_LICENSE_GPL_STRING "GPL"
 #define PLUGIN_LICENSE_BSD_STRING "BSD"
+/** @} */
 
+
+/**
+  @defgroup plugin_maturity Plugin Maturity
+  @ingroup plugin_declaration
+  The allowable code maturity levels for plugins
+  @{
+*/
 /* definitions of code maturity for plugins */
 #define MariaDB_PLUGIN_MATURITY_UNKNOWN 0
 #define MariaDB_PLUGIN_MATURITY_EXPERIMENTAL 1
@@ -125,11 +176,16 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MariaDB_PLUGIN_MATURITY_BETA 3
 #define MariaDB_PLUGIN_MATURITY_GAMMA 4
 #define MariaDB_PLUGIN_MATURITY_STABLE 5
+/** @} */
 
-/*
-  Macros for beginning and ending plugin declarations.  Between
-  mysql_declare_plugin and mysql_declare_plugin_end there should
-  be a st_mysql_plugin struct for each plugin to be declared.
+/**
+  @defgroup plugin_declaration Plugin Declaration
+  How to declare a plugin to the server.
+  
+  Macros for beginning and ending plugin declarations. 
+  Between @ref maria_declare_plugin and @ref maria_declare_plugin_end
+  there should be a @ref st_maria_plugin struct for each plugin to be declared.
+  @{
 */
 
 
@@ -181,28 +237,56 @@ MARIA_DECLARE_PLUGIN__(NAME, \
 #define mysql_declare_plugin_end ,{0,0,0,0,0,0,0,0,0,0,0,0,0}}
 #define maria_declare_plugin_end ,{0,0,0,0,0,0,0,0,0,0,0,0,0}}
 
-/*
+/** @} */
+
+/**
+  @defgroup plugin_status_vars Plugin Status Variables
+  @ingroup plugin_declaration
+  @{
+ */
+
+/**
   declarations for SHOW STATUS support in plugins
 */
 enum enum_mysql_show_type
 {
-  SHOW_UNDEF, SHOW_BOOL, SHOW_UINT, SHOW_ULONG,
-  SHOW_ULONGLONG, SHOW_CHAR, SHOW_CHAR_PTR,
-  SHOW_ARRAY, SHOW_FUNC, SHOW_DOUBLE,
-  SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
-  SHOW_SIZE_T, SHOW_always_last
+  SHOW_UNDEF, /**< Internal only! */
+  SHOW_BOOL, /**< @ref my_bool */
+  SHOW_UINT, /**< `unsigned int` */
+  SHOW_ULONG, /**< `unsigned long` */
+  SHOW_ULONGLONG, /**< `unsigned long long` */
+  SHOW_CHAR, /**< `char *` */
+  SHOW_CHAR_PTR, /**< `char **` */
+  SHOW_ARRAY, /**< SHOW_VAR [] */
+  SHOW_FUNC,  /**< @sa SHOW_FUNC_ENTRY */
+  SHOW_DOUBLE, /**< `double` */
+  SHOW_SINT, /**< `int` */
+  SHOW_SLONG, /**< `long` */
+  SHOW_SLONGLONG, /**< `long long` */
+  SHOW_SIMPLE_FUNC, /**< @ref mysql_show_var_func * */
+  SHOW_SIZE_T, /**< `size_t` */
+  SHOW_always_last /**< Internal only! */
 };
 
-/* backward compatibility mapping. */
+/** Backward compatibility mapping to @ref SHOW_UINT */
 #define SHOW_INT      SHOW_UINT
+/** Backward compatibility mapping to @ref SHOW_ULONG */
 #define SHOW_LONG     SHOW_ULONG
+/** Backward compatibility mapping to @ref SHOW_ULONGLONG */
 #define SHOW_LONGLONG SHOW_ULONGLONG
 
+/** SHOW STATUS scope */
 enum enum_var_type
 {
-  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL, SHOW_OPT_SESSION_NO_LOCK
+  SHOW_OPT_DEFAULT= 0, /**< Internal only! */
+  SHOW_OPT_SESSION, /**< Session scope */
+  SHOW_OPT_GLOBAL, /**< Global scope */
+  SHOW_OPT_SESSION_NO_LOCK /**< Session scope without locking */
 };
 
+/**
+  Structure representing a SHOW STATUS variable in a plugin.
+*/
 struct st_mysql_show_var {
   const char *name;
   void *value;
@@ -226,59 +310,104 @@ struct st_mysql_show_var SHOW_FUNC_ENTRY(const char *name,
   return tmp;
 };
 
+/** @} */
 
-/*
+
+/**
+  @defgroup plugin_flags Plugin Flags
+  @ingroup plugin_declaration
   Constants for plugin flags.
+  @{
  */
 
-#define PLUGIN_OPT_NO_INSTALL   1UL   /**< Not dynamically loadable */
-#define PLUGIN_OPT_NO_UNINSTALL 2UL   /**< Not dynamically unloadable */
+#define PLUGIN_OPT_NO_INSTALL   1UL   /**< Unused */
+#define PLUGIN_OPT_NO_UNINSTALL 2UL   /**< Unused */
 
+/** @} */
 
-/*
-  declarations for server variables and command line options
+/**
+  @defgroup plugin_sys_vars Plugin System Variables
+  @ingroup plugin_declaration
+  Declarations for server variables and command line options.
+
+  @sa @ref impl_plugin_system_variables
+  @{
 */
 
 
-#define PLUGIN_VAR_BOOL         0x0001
-#define PLUGIN_VAR_INT          0x0002
-#define PLUGIN_VAR_LONG         0x0003
-#define PLUGIN_VAR_LONGLONG     0x0004
-#define PLUGIN_VAR_STR          0x0005
-#define PLUGIN_VAR_ENUM         0x0006
-#define PLUGIN_VAR_SET          0x0007
-#define PLUGIN_VAR_DOUBLE       0x0008
+/**
+  @defgroup plugin_sysvar_types Plugin System Variable Types
+  @ingroup plugin_sys_vars
+  
+  A list of the plugin system variable types.
+
+  For each data type there's a corresponding C++ native data type and
+  a macro to define the system variable of that type in
+  @ref plugin_sysvar_macros (for global variables)
+  or @ref plugin_thdvar_macros (for session-local variables).
+
+  @sa @ref impl_plugin_system_variables
+  @{
+ */
+
+#define PLUGIN_VAR_BOOL         0x0001 /**< @ref my_bool. @sa @ref MYSQL_SYSVAR_BOOL */
+#define PLUGIN_VAR_INT          0x0002 /**< `int`. @sa @ref MYSQL_SYSVAR_INT */
+#define PLUGIN_VAR_LONG         0x0003 /**< `long`. @sa @ref MYSQL_SYSVAR_LONG */
+#define PLUGIN_VAR_LONGLONG     0x0004 /**< `long long`. @sa @ref MYSQL_SYSVAR_LONGLONG */
+#define PLUGIN_VAR_STR          0x0005 /**< `char*`. @sa @ref MYSQL_SYSVAR_STR */
+#define PLUGIN_VAR_ENUM         0x0006 /**< `unsigned long`. @sa @ref MYSQL_SYSVAR_ENUM */
+#define PLUGIN_VAR_SET          0x0007 /**< `unsigned long long`. @sa @ref MYSQL_SYSVAR_SET */
+#define PLUGIN_VAR_DOUBLE       0x0008 /**< `double`. @sa @ref MYSQL_SYSVAR_DOUBLE */
+
+/** @} */
+
+/** 
+  @defgroup plugin_sysvar_flags Plugin System Variable Flags
+  @ingroup plugin_sys_vars
+  Flags for plugin system variables.
+  @{
+*/
+
+/**
+   Unsigned modifier for @ref PLUGIN_VAR_INT, @ref PLUGIN_VAR_LONG,
+   @ref PLUGIN_VAR_LONGLONG.
+ */
 #define PLUGIN_VAR_UNSIGNED     0x0080
-#define PLUGIN_VAR_THDLOCAL     0x0100 /**< Variable is per-connection */
+#define PLUGIN_VAR_THDLOCAL     0x0100 /**< Variable is per-connection. Do not use directly! */
 #define PLUGIN_VAR_READONLY     0x0200 /**< Server variable is read only */
-#define PLUGIN_VAR_NOSYSVAR     0x0400 /**< Not a server variable */
-#define PLUGIN_VAR_NOCMDOPT     0x0800 /**< Not a command line option */
+#define PLUGIN_VAR_NOSYSVAR     0x0400 /**< Not a server variable. Only a command line option */
+#define PLUGIN_VAR_NOCMDOPT     0x0800 /**< Not a command line option. Only a system variable */
 #define PLUGIN_VAR_NOCMDARG     0x1000 /**< No argument for cmd line */
 #define PLUGIN_VAR_RQCMDARG     0x0000 /**< Argument required for cmd line */
 #define PLUGIN_VAR_OPCMDARG     0x2000 /**< Argument optional for cmd line */
 #define PLUGIN_VAR_DEPRECATED   0x4000 /**< Server variable is deprecated */
 #define PLUGIN_VAR_MEMALLOC     0x8000 /**< String needs memory allocated */
 
+/** @} */
+
 struct st_mysql_sys_var;
 struct st_mysql_value;
 
 /**
-  SYNOPSIS
-    (*mysql_var_check_func)()
-      thd               thread handle
-      var               dynamic variable being altered
-      save              pointer to temporary storage
-      value             user provided value
-  RETURN
-    0   user provided value is OK and the update func may be called.
-    any other value indicates error.
-  
+  @param thd         thread handle
+  @param var         dynamic variable being altered
+  @param save        pointer to temporary storage. Valid across check and update functions.
+  @param value       user provided value
+  @retval 0   user provided value is OK and the update func may be called.
+  @retval any other value indicates error.
+
   This function should parse the user provided value and store in the
   provided temporary storage any data as required by the update func.
   There is sufficient space in the temporary storage to store a double.
   Note that the update func may not be called if any other error occurs
   so any memory allocated should be thread-local so that it may be freed
   automatically at the end of the statement.
+
+  @warning If this callback is supplied, it *MUST* store the new value into `save`, so that
+  @ref mysql_var_update_func can pick it up later. The server will not do it on its own in
+  addition to calling the callback.
+
+  @sa @ref impl_plugin_sysvars_callbacks
 */
 
 typedef int (*mysql_var_check_func)(MYSQL_THD thd,
@@ -286,26 +415,30 @@ typedef int (*mysql_var_check_func)(MYSQL_THD thd,
                                     void *save, struct st_mysql_value *value);
 
 /**
-  SYNOPSIS
-    (*mysql_var_update_func)()
-      thd               thread handle
-      var               dynamic variable being altered
-      var_ptr           pointer to dynamic variable
-      save              pointer to temporary storage
-   RETURN
-     NONE
+  @param thd               thread handle
+  @param var               dynamic variable being altered
+  @param var_ptr           pointer to dynamic variable
+  @param save              pointer to temporary storage. Valid across check and update functions.
    
-   This function should use the validated value stored in the temporary store
+   This function should use the validated value stored in the temporary store `save`
    and persist it in the provided pointer to the dynamic variable.
    For example, strings may require memory to be allocated.
+   
+   @warning If this callback is supplied, it *MUST* store the actual value from `save` to `var_ptr`.
+   The server will not do it on its own in addition to calling the callback.
+
+   @sa @ref impl_plugin_sysvars_callbacks
 */
 typedef void (*mysql_var_update_func)(MYSQL_THD thd,
                                       struct st_mysql_sys_var *var,
                                       void *var_ptr, const void *save);
 
 
-/* the following declarations are for internal use only */
-
+/** 
+  @defgroup internal_plugin_vars Internal Only declarations for plugin system variables 
+   The following declarations are for internal use only
+   @{
+*/
 
 #define PLUGIN_VAR_MASK \
         (PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | \
@@ -383,10 +516,15 @@ typedef void (*mysql_var_update_func)(MYSQL_THD thd,
   TYPELIB *typelib;             \
 } MYSQL_SYSVAR_NAME(name)
 
+/** @} */
 
-/*
-  the following declarations are for use by plugin implementors
-*/
+/** @defgroup plugin_sysvar_macros Plugin System Variable Macros
+  @ingroup plugin_sys_vars
+  Macros for defining plugin system variables.
+
+  @sa @ref impl_plugin_sysvars_global
+  @{
+ */
 
 #define MYSQL_SYSVAR_BOOL(name, varname, opt, comment, check, update, def) \
 DECLARE_MYSQL_SYSVAR_BASIC(name, char) = { \
@@ -465,6 +603,16 @@ DECLARE_MYSQL_SYSVAR_SIMPLE(name, double) = { \
   PLUGIN_VAR_DOUBLE | ((opt) & PLUGIN_VAR_MASK), \
   #name, comment, check, update, &varname, def, min, max, blk }
 
+/** @} */
+
+/** @defgroup plugin_thdvar_macros Plugin Session-Local System Variable Macros
+  @ingroup plugin_sys_vars
+  Macros for defining session-local plugin system variables.
+
+  @sa @ref impl_plugin_sysvars_session
+  @{
+ */
+
 #define MYSQL_THDVAR_BOOL(name, opt, comment, check, update, def) \
 DECLARE_MYSQL_THDVAR_BASIC(name, char) = { \
   PLUGIN_VAR_BOOL | PLUGIN_VAR_THDLOCAL | ((opt) & PLUGIN_VAR_MASK), \
@@ -520,18 +668,47 @@ DECLARE_MYSQL_THDVAR_SIMPLE(name, double) = { \
   PLUGIN_VAR_DOUBLE | PLUGIN_VAR_THDLOCAL | ((opt) & PLUGIN_VAR_MASK), \
   #name, comment, check, update, -1, def, min, max, blk, NULL }
 
-/* accessor macros */
+/** @} */
+
+/**
+  @brief System variable value reference macro
+	
+  Macro to reference plugin system variable global value.
+
+  Example use
+  @code
+  int value = SYSVAR(my_system_variable);
+  ...
+  SYSVAR(my_system_variable) = 12;
+  @endcode
+
+  @param name The name of the plugin system variable.
+
+  @sa st_mysql_sys_var and @ref impl_plugin_system_variables
+*/
 
 #define SYSVAR(name) \
   (*(MYSQL_SYSVAR_NAME(name).value))
 
-/* when thd == null, result points to global value */
+/**
+ @brief Access per-thread plugin system variable values.
+
+ Used to reference the session system variable values.
+
+ @param thd The session handle. If thd is NULL, the global value is accessed.
+ @param name The name of the plugin system variable.
+ @return Reference to the corresponding plugin system variable's value.
+
+ @sa @ref impl_plugin_sysvars_session
+*/
 #define THDVAR(thd, name) \
   (*(MYSQL_SYSVAR_NAME(name).resolve(thd, MYSQL_SYSVAR_NAME(name).offset)))
 
+  /** @}  */
 
 /**
-  Plugin description structure.
+  @brief Plugin description structure.
+  @ingroup plugin_declaration
 */
 
 struct st_mysql_plugin
@@ -558,7 +735,8 @@ struct st_mysql_plugin
 };
 
 /**
-  MariaDB extension for plugins declaration structure.
+  @brief MariaDB extension for plugins declaration structure.
+  @ingroup plugin_declaration
 
   It also copies current MySQL plugin fields to have more independency
   in plugins extension
@@ -592,16 +770,18 @@ struct st_maria_plugin
 */
 #include "plugin_ftparser.h"
 
-/*************************************************************************
-  API for Storage Engine plugin. (MYSQL_DAEMON_PLUGIN)
+/**
+   @defgroup daemon_plugin_data Daemon Plugin
+   @ingroup plugin_types
+   API for Daemon plugin. (@ref MYSQL_DAEMON_PLUGIN)
+   @{
 */
 
-/* daemon plugins of different MySQL releases are incompatible */
+/** daemon plugins of different MySQL releases are incompatible */
 #define MYSQL_DAEMON_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
-/*
-  Here we define only the descriptor structure, that is referred from
-  st_mysql_plugin.
+/**
+   The descriptor structure, that is referred from st_mysql_plugin.
 */
 
 struct st_mysql_daemon
@@ -609,17 +789,20 @@ struct st_mysql_daemon
   int interface_version;
 };
 
+/** @} */
 
-/*************************************************************************
-  API for I_S plugin. (MYSQL_INFORMATION_SCHEMA_PLUGIN)
+/**
+  @defgroup information_schema_plugin_data Information Schema Plugin
+  @ingroup plugin_types
+  API for I_S plugin. (@ref MYSQL_INFORMATION_SCHEMA_PLUGIN)
+  @{
 */
 
-/* information schema plugins different MySQL releases are incompatible */
+/** information schema plugins of different MySQL releases are incompatible */
 #define MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
-/*
-  Here we define only the descriptor structure, that is referred from
-  st_mysql_plugin.
+/**
+   The descriptor structure, that is referred from st_mysql_plugin.
 */
 
 struct st_mysql_information_schema
@@ -627,18 +810,23 @@ struct st_mysql_information_schema
   int interface_version;
 };
 
+/** @} */
 
-/*************************************************************************
-  API for Storage Engine plugin. (MYSQL_STORAGE_ENGINE_PLUGIN)
+
+/**
+  @defgroup storage_engine_plugin_data Storage Engine Plugin
+  @ingroup plugin_types
+  API for Storage Engine plugin. (@ref MYSQL_STORAGE_ENGINE_PLUGIN)
+  @{
 */
 
-/* storage engines of different MySQL releases are incompatible */
+/** storage engines of different MySQL releases are incompatible */
 #define MYSQL_HANDLERTON_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
-/*
-  The real API is in the sql/handler.h
-  Here we define only the descriptor structure, that is referred from
-  st_mysql_plugin.
+/**
+   The real API is in the sql/handler.h
+   Here we define only the descriptor structure, that is referred from
+   st_mysql_plugin.
 */
 
 struct st_mysql_storage_engine
@@ -648,9 +836,13 @@ struct st_mysql_storage_engine
 
 struct transaction_participant;
 
+/** @} */
 
-/*
-  API for Replication plugin. (MYSQL_REPLICATION_PLUGIN)
+/**
+  @defgroup replication_plugin_data Replication Plugin
+  @ingroup plugin_types
+  API for Replication plugin. (@ref MYSQL_REPLICATION_PLUGIN)
+  @{
 */
  #define MYSQL_REPLICATION_INTERFACE_VERSION 0x0200
  
@@ -661,13 +853,22 @@ struct transaction_participant;
    int interface_version;
  };
 
+/** @} */
+
+/**
+  @addtogroup plugin_sys_vars
+  @{ 
+*/
+
 #define MYSQL_VALUE_TYPE_STRING 0
 #define MYSQL_VALUE_TYPE_REAL   1
 #define MYSQL_VALUE_TYPE_INT    2
 
-/*************************************************************************
-  st_mysql_value struct for reading values from mysqld.
+/**
+  st_mysql_value Reading values API.
+  
   Used by server variables framework to parse user-provided values.
+
   Will be used for arguments when implementing UDFs.
 
   Note that val_str() returns a string in temporary memory
@@ -684,10 +885,16 @@ struct st_mysql_value
   int (*is_unsigned)(struct st_mysql_value *);
 };
 
+/** @} */
 
-/*************************************************************************
-  Miscellaneous functions for plugin implementors
-*/
+/** 
+  @defgroup plugin_api_service_direct Services for direct access to server internals
+  @ingroup plugin_api_services_for_plugins
+
+  These are callbacks to the server that predate the normal plugin service APIs
+
+  @{
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -726,12 +933,18 @@ int mysql_tmpfile(const char *prefix);
 unsigned long thd_get_thread_id(const MYSQL_THD thd);
 
 /**
+  @addtogroup plugin_api_service_wsrep 
+  @{
+*/
+/**
   Get the XID for this connection's transaction
 
   @param thd  user thread connection handle
   @param xid  location where identifier is stored
 */
 void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid);
+
+/** @} */
 
 /**
   Invalidate the query cache for a given table.
@@ -810,9 +1023,21 @@ void thd_set_ha_data(MYSQL_THD thd, const struct transaction_participant *hton,
 */
 void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
 
+/** @} */
+
 #ifdef __cplusplus
 }
 #endif
+
+/**
+  @defgroup plugin_api_services_for_plugins Services for plugins
+  Plugins calling back into the server.
+
+  If you need to call back into the server from a plugin, you should use the services
+  provided in this section.
+ */
+
+/** @} */
 
 #endif
 
