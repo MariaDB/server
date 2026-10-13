@@ -13,8 +13,6 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS quote_identifier;
-
 DELIMITER $$
 
 -- https://dev.mysql.com/doc/refman/5.7/en/identifiers.html
@@ -22,7 +20,7 @@ DELIMITER $$
 -- Before that, user variables could have any length.
 --
 -- Based on Paul Dubois' suggestion in Bug #78823/Bug #22011361.
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION quote_identifier(in_identifier TEXT)
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION quote_identifier(in_identifier TEXT)
     RETURNS TEXT CHARSET UTF8
     COMMENT '
              Description

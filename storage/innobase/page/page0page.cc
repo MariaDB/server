@@ -435,35 +435,33 @@ dberr_t
 page_copy_rec_list_end_no_locks(
 /*============================*/
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
-	buf_block_t*	block,		/*!< in: index page of rec */
-	rec_t*		rec,		/*!< in: record on page */
+	const rec_t*	rec,		/*!< in: record to copy from onward */
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	page_t*		new_page	= buf_block_get_frame(new_block);
-	page_cur_t	cur1;
+	const page_t*	page		= page_align(rec);
 	page_cur_t	cur2;
 	mem_heap_t*	heap		= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	cur1.index = cur2.index = index;
-	page_cur_position(rec, block, &cur1);
+	cur2.index = index;
 
-	if (page_cur_is_before_first(&cur1) && !page_cur_move_to_next(&cur1)) {
+	if (page_rec_is_infimum(rec) && !(rec = page_rec_get_next_const(rec))) {
 		return DB_CORRUPTION;
 	}
 
 	if (UNIV_UNLIKELY(page_is_comp(new_page)
-			  != page_is_comp(block->page.frame)
+			  != page_is_comp(page)
 			  || mach_read_from_2(new_page + srv_page_size - 10)
 			  != ulint(page_is_comp(new_page)
 				   ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM))) {
 		return DB_CORRUPTION;
 	}
 
-	const ulint n_core = page_is_leaf(block->page.frame)
+	const ulint n_core = page_is_leaf(page)
 		? index->n_core_fields : 0;
 
 	dberr_t err = DB_SUCCESS;
@@ -471,17 +469,17 @@ page_copy_rec_list_end_no_locks(
 
 	/* Copy records from the original page to the new page */
 
-	while (!page_cur_is_after_last(&cur1)) {
+	while (!page_rec_is_supremum(rec)) {
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1.rec, index, offsets, n_core,
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
-		ins_rec = page_cur_insert_rec_low(&cur2, cur1.rec, offsets,
+		ins_rec = page_cur_insert_rec_low(&cur2, rec, offsets,
 						  mtr);
-		if (UNIV_UNLIKELY(!ins_rec || !page_cur_move_to_next(&cur1))) {
+		if (UNIV_UNLIKELY(!ins_rec || !(rec = page_rec_get_next_const(rec)))) {
 			err = DB_CORRUPTION;
 			break;
 		}
-		ut_ad(!(rec_get_info_bits(cur1.rec, page_is_comp(new_page))
+		ut_ad(!(rec_get_info_bits(rec, page_is_comp(new_page))
 			& REC_INFO_MIN_REC_FLAG));
 		cur2.rec = ins_rec;
 	}
@@ -566,7 +564,7 @@ page_copy_rec_list_end(
 							   &num_moved,
 							   mtr);
 	} else {
-		*err = page_copy_rec_list_end_no_locks(new_block, block, rec,
+		*err = page_copy_rec_list_end_no_locks(new_block, rec,
 						       index, mtr);
 		if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 err_exit:

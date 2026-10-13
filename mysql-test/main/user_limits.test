@@ -39,7 +39,9 @@ select * from t1;
 connection default;
 disconnect mqph;
 disconnect mqph2;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Test of MAX_UPDATES_PER_HOUR limit
 create user mysqltest_1@localhost;
@@ -64,7 +66,9 @@ select * from t1;
 connection default;
 disconnect muph;
 disconnect muph2;
+--disable_warnings
 drop user mysqltest_1@localhost;
+--enable_warnings
 
 # Test of MAX_CONNECTIONS_PER_HOUR limit
 create user mysqltest_1@localhost;
@@ -233,6 +237,8 @@ select current_user();
 --disconnect con3
 --disconnect con1
 --connection default
+--disable_warnings
 drop user foo@'%';
+--enable_warnings
 
 --echo # End of 10.2 tests

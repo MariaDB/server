@@ -24,6 +24,47 @@ drop table fed;
 --echo # End of 5.5 tests
 
 --echo #
+--echo # MDEV-41211 Federated multi_delete skips some records
+--echo #
+
+connection slave;
+CREATE TABLE federated.t1 (pk INT NOT NULL PRIMARY KEY, a INT);
+INSERT INTO federated.t1 VALUES (1,1),(5,5),(9,9);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE federated.t1 (pk INT NOT NULL PRIMARY KEY, a INT)
+  ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+EXPLAIN DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 5 AND b.pk > 0;
+DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 5 AND b.pk > 0;
+SELECT * FROM federated.t1 ORDER BY pk;
+
+--echo # Both tables are const
+EXPLAIN DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 1 AND b.pk = 9;
+DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 1 AND b.pk = 9;
+SELECT * FROM federated.t1 ORDER BY pk;
+
+--echo # Multi-table UPDATE with a const target
+INSERT INTO federated.t1 VALUES (1,1),(5,5);
+EXPLAIN UPDATE federated.t1 a, federated.t1 b SET a.a = 0
+  WHERE a.pk = 5 AND b.pk > 0;
+UPDATE federated.t1 a, federated.t1 b SET a.a = 0 WHERE a.pk = 5 AND b.pk > 0;
+SELECT * FROM federated.t1 ORDER BY pk;
+
+connection slave;
+SELECT * FROM federated.t1 ORDER BY pk;
+
+connection master;
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+connection master;
+
+--echo # End of 11.4 tests
+
+--echo #
 --echo # MDEV-38039 SIGSEGV in parse_url on CREATE TABLE ... FEDERATED with empty CONNECTION
 --echo #
 --error 1

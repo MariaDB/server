@@ -281,6 +281,9 @@ MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
 #else
 #error unsupported mmap - no MAP_ANON{YMOUS}
 #endif
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
 #endif /* HAVE_MMAP && !_WIN32 */
 
 /**
@@ -442,6 +445,10 @@ char *my_large_virtual_alloc(size_t *size)
 
     while ((large_page_size= my_next_large_page_size(*size, &page_i)) != 0)
     {
+      /*
+        note we don't use MAP_NORESERVE here. Doing so would successfully allocate
+        large pages that fail on the first access to those memory regions.
+      */
       int mapflag= MAP_PRIVATE |
 # ifdef MAP_POPULATE
         MAP_POPULATE |
@@ -463,7 +470,7 @@ char *my_large_virtual_alloc(size_t *size)
 
       size_t aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
       ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
-      if (ptr == (void*) -1)
+      if (ptr == MAP_FAILED)
       {
         ptr= NULL;
         /* try next smaller memory size */
@@ -493,7 +500,13 @@ char *my_large_virtual_alloc(size_t *size)
   ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE,
             MAP_PRIVATE | OS_MAP_ANON, -1, 0);
 # else
-  ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON, -1, 0);
+/*
+  Illumos important to have MAP_NORESERVE otherwise reserves all swap. On
+  innodb_buffer_pool_size_max overallocation.
+  Linux is controlled on sysctl vm.overcommit_memory.
+*/
+  ptr= mmap(NULL, *size, PROT_NONE, MAP_PRIVATE | OS_MAP_ANON | MAP_NORESERVE,
+            -1, 0);
 # endif
   if (ptr == MAP_FAILED)
     ptr= NULL;

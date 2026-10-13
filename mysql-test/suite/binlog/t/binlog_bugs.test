@@ -7,11 +7,11 @@
 # like \G or \C (which in turn leads to BUG#36391: "mysqlbinlog creates invalid charset statements".
 #
 # The test executes simple commands that are stored in the binary log and
-# re-execute them through the mysql client which should have to process 
+# re-execute them through the mysql client which should have to process
 # some command shortcuts. The backslashes within strings is disabled in the file
 # rpl_bug36391-master.opt by the option --sql_mode=NO_BACKSLASH_ESCAPES.
 #
-# 
+#
 
 --source include/have_log_bin.inc
 --source include/have_binlog_format_mixed.inc
@@ -28,3 +28,18 @@ SHOW TABLES;
 
 # Clean up
 DROP TABLE t1;
+
+# Test case for MDEV-38839
+# Assertion `(thd->state_flags & Open_tables_state::BACKUPS_AVAIL) ||
+# !thd->has_pending_row_events()' failed in close_thread_tables
+# on CREATE TABLE ... SELECT * FROM temp_table FOR UPDATE in MIXED binlog mode
+
+SET sql_mode='';
+CREATE TEMPORARY TABLE t ENGINE=MyISAM AS SELECT @a AS c;
+INSERT INTO t VALUES (0xABB0);
+SET autocommit=OFF;
+--error ER_DUP_ENTRY
+CREATE TABLE t (c INT PRIMARY KEY) ENGINE=MyISAM SELECT * FROM t FOR UPDATE;
+SET autocommit=ON;
+DROP TEMPORARY TABLE IF EXISTS t;
+DROP TABLE IF EXISTS t;

@@ -148,9 +148,6 @@ using the call command. */
 #define UNIV_AIO_DEBUG				/* prints info about
 						submitted and reaped AIO
 						requests to the log. */
-#define UNIV_STATS_DEBUG			/* prints various stats
-						related debug info from
-						dict0stats.c */
 #endif
 
 // #define UNIV_SQL_DEBUG

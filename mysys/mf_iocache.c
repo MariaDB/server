@@ -123,6 +123,7 @@ static void reset_tracking_io_cache(IO_CACHE *info)
 
 void truncate_io_cache(IO_CACHE *info)
 {
+  DBUG_ASSERT(info->file >= (File)0);
   if (mysql_file_seek(info->file, 0L, MY_SEEK_END, MYF(0)) != 0 &&
       my_chsize(info->file, 0, 0, MYF(MY_WME)) == 0)
     reset_tracking_io_cache(info);

@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP FUNCTION IF EXISTS format_time;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_time (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION format_time (
         -- We feed in and return TEXT here, as aggregates of
         -- picoseconds can return numbers larger than BIGINT UNSIGNED
         picoseconds TEXT

@@ -198,8 +198,8 @@ INSERT INTO t1 values (3), (4);
 --let test6_t1_mid_checksum= `CHECKSUM TABLE t1`
 DROP TABLE t1;
 CREATE TABLE t1 (a int);
---echo # MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 | MYSQL
---exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --start-position=0-1-2 | $MYSQL
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 --gtid-strict-mode | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM --start-position=0-1-2 --gtid-strict-mode | $MYSQL
 if ($test6_t1_mid_checksum != `CHECKSUM TABLE t1`)
 {
     die $data_inconsistent_err;
@@ -468,8 +468,8 @@ if ($is_remote == 1)
     DROP TABLE t2;
     DROP TABLE t3;
 }
---echo # MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 | MYSQL
---exec $MYSQL_BINLOG $BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 | $MYSQL
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 --gtid-strict-mode | MYSQL
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 --gtid-strict-mode | $MYSQL
 if ($t3_final_checksum != `CHECKSUM TABLE t3`)
 {
     die $data_inconsistent_err;
@@ -578,9 +578,9 @@ if ($is_remote == 0)
 --echo #   Error Case 3:
 --echo #   A GTID --start-position with any sequence numbers that are not
 --echo # eventually processed results in error
---echo # MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > tmp_out_ 2> err_out_
+--echo # MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > tmp_out_ 2> err_out_
 --error 1
---exec $MYSQL_BINLOG $BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > $tmp_out_ 2> $err_out_
+--exec $MYSQL_BINLOG $BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > $tmp_out_ 2> $err_out_
 if ($is_remote == 1)
 {
     --let SEARCH_PATTERN=ERROR: Got error reading packet from server

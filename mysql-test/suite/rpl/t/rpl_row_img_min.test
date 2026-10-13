@@ -1,0 +1,28 @@
+--source include/have_sequence.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo ### MDEV-39774: Assertion `bitmap_is_set_all(&table->s->all_set)' fails on slave with binlog_row_image=MINIMAL
+--connection slave
+SET @old_binlog_image = @@global.binlog_row_image;
+SET GLOBAL binlog_row_image = MINIMAL;
+--source include/restart_slave_sql.inc
+
+--connection master
+SET binlog_row_image = MINIMAL;
+
+CREATE TABLE t (pk INT PRIMARY KEY, c CHAR(20), k INT);
+INSERT INTO t (pk) SELECT seq FROM seq_1_to_325;
+UPDATE t SET c = '01234567890123456789';
+
+--sync_slave_with_master
+
+# Cleanup
+
+SET GLOBAL binlog_row_image = @old_binlog_image;
+--source include/restart_slave_sql.inc
+
+--connection master
+DROP TABLE t;
+
+--source include/rpl_end.inc

@@ -1,0 +1,216 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (4, 0);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait=0;
+# The transaction above must have replicated a fragment, otherwise
+# this test degenerates into galera_sequences_bf_kill
+SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.wsrep_streaming_log;
+EXPECT_1
+1
+# Block the applier on node #1 and issue a conflicting insert on node #2
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, next value for s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Block the commit monitor and let the local transaction reserve a
+# new range of sequence values, which conflicts with the applier
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (5, next value for s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Release the applier
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+# Release the local transaction
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+# Both nodes must have the same table contents. The sequence values
+# are node specific, each node adjusts them to its own
+# auto_increment_offset
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	0
+5	1
+SELECT LASTVAL(s);
+LASTVAL(s)
+1
+SELECT next_not_cached_value FROM s;
+next_not_cached_value
+11
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	0
+5	1
+SELECT LASTVAL(s);
+LASTVAL(s)
+2
+SELECT next_not_cached_value FROM s;
+next_not_cached_value
+12
+# All fragments must have been removed on commit
+connection node_1a;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_1;
+DROP SEQUENCE s;
+DROP TABLE t1;
+connection node_1;
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (4, 0);
+SELECT * FROM t1 WHERE f1 > 0 FOR UPDATE;
+f1	f2
+1	0
+3	0
+4	0
+# Block the applier on node #1 and issue a conflicting insert on node #2
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (2, next value for s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Block the commit monitor and let the local transaction reserve a
+# new range of sequence values, which conflicts with the applier
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (5, next value for s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+# Release the applier
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+# Wait until the applier has BF aborted the local transaction
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Release the applier and the local transaction
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+# The streaming transaction is BF aborted and rolled back
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+# The rollback must have removed the already replicated fragments
+# from both nodes, so neither node has row 4
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+connection node_1a;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_1;
+DROP SEQUENCE s;
+DROP TABLE t1;
+connection node_1;
+CREATE SEQUENCE s INCREMENT=0 CACHE=5 ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 BIGINT) ENGINE=InnoDB;
+connection node_1;
+SET SESSION wsrep_trx_fragment_unit='rows';
+SET SESSION wsrep_trx_fragment_size=3;
+START TRANSACTION;
+INSERT INTO t1 VALUES (100, NULL);
+# Block the applier on node #1 and let node #2 reserve several
+# ranges of its own
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (201,NEXT VALUE FOR s),(202,NEXT VALUE FOR s),(203,NEXT VALUE FOR s),(204,NEXT VALUE FOR s),(205,NEXT VALUE FOR s),(206,NEXT VALUE FOR s),(207,NEXT VALUE FOR s),(208,NEXT VALUE FOR s),(209,NEXT VALUE FOR s),(210,NEXT VALUE FOR s),(211,NEXT VALUE FOR s),(212,NEXT VALUE FOR s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Block the commit monitor and let the local transaction reserve
+# several ranges of its own, spread over several fragments
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (101,NEXT VALUE FOR s),(102,NEXT VALUE FOR s),(103,NEXT VALUE FOR s),(104,NEXT VALUE FOR s),(105,NEXT VALUE FOR s),(106,NEXT VALUE FOR s),(107,NEXT VALUE FOR s),(108,NEXT VALUE FOR s),(109,NEXT VALUE FOR s),(110,NEXT VALUE FOR s),(111,NEXT VALUE FOR s),(112,NEXT VALUE FOR s);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+# Release the applier
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+# Release the local transaction
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+# Both nodes reserved more than one cache range
+connection node_1;
+SELECT next_not_cached_value > 21 AS EXPECT_1 FROM s;
+EXPECT_1
+1
+# No value was handed out twice, and the two nodes used disjoint
+# value spaces
+SELECT COUNT(*) AS EXPECT_25 FROM t1;
+EXPECT_25
+25
+SELECT COUNT(f2) = COUNT(DISTINCT f2) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f1 < 200 AND MOD(f2, 2) != 1;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f1 > 200 AND MOD(f2, 2) != 0;
+EXPECT_0
+0
+connection node_2;
+SELECT COUNT(*) AS EXPECT_25 FROM t1;
+EXPECT_25
+25
+SELECT COUNT(f2) = COUNT(DISTINCT f2) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+# All fragments must have been removed on commit
+connection node_1a;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_1;
+SET SESSION wsrep_trx_fragment_size=DEFAULT;
+SET SESSION wsrep_trx_fragment_unit=DEFAULT;
+DROP SEQUENCE s;
+DROP TABLE t1;
+connection node_1;
+wsrep_local_replays
+1
+disconnect node_1a;

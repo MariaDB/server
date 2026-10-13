@@ -71,7 +71,7 @@ private:
   std::string m_table_name;
   std::string m_tmp_table_name;
 
-  MY_BITMAP m_pk_bitmap;
+  MY_BITMAP m_pk_bitmap{};
   std::string m_pk_list{""};
   std::string m_col_list{""};
 

@@ -1,5 +1,5 @@
---- a/mysql-test/main/vector.result
-+++ b/mysql-test/main/vector.result
+--- vector.result
++++ vector,aria.result
 @@ -1,5 +1,5 @@
  create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 -ERROR HY000: Cannot create VECTOR index on temporary MyISAM table
@@ -581,6 +581,22 @@
  drop table t;
  #
  # MDEV-35821 - vector index sizes are not in INDEX_LENGTH
+@@ -903,13 +893,13 @@
+ from information_schema.tables
+ where table_schema = database() and table_name = 't1';
+ index_length
+-49152
++57344
+ flush tables;
+ select index_length
+ from information_schema.tables
+ where table_schema = database() and table_name = 't1';
+ index_length
+-49152
++57344
+ drop table t1;
+ #
+ # MDEV-34805 INFORMATION_SCHEMA.VECTOR_INDEXES
 @@ -929,8 +919,8 @@
  TABLE_NAME	t_vec
  INDEX_NAME	vi

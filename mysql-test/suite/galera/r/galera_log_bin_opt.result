@@ -2,11 +2,11 @@ connection node_2;
 connection node_1;
 connection node_2;
 set global wsrep_on=OFF;
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_1;
 set global wsrep_on=OFF;
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
@@ -77,5 +77,5 @@ DROP TABLE t2;
 #cleanup
 connection node_1;
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
