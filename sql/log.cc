@@ -8400,13 +8400,18 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
   if (opt_binlog_engine_hton)
   {
     DBUG_ASSERT(cache_data != nullptr);
-    uint32_t avail= (uint32_t)(dest->write_end - dest->write_pos);
+    uint64_t total= my_b_tell(dest);
+    uint32_t avail=
+      unlikely(total >= binlog_max_spill_size) ? 0 :
+      MY_MIN((uint32_t)(dest->write_end - dest->write_pos),
+             (uint32_t)(binlog_max_spill_size - total));
     if (unlikely(avail < Gtid_log_event::max_size) &&
         avail < gtid_event.get_size())
     {
       /*
-        The GTID event doesn't fit in the cache, so we have to spill the
-        contents as oob event data.
+        The GTID event doesn't fit in the cache (or within
+        binlog_max_spill_size), so we have to spill the contents as oob event
+        data.
       */
       if (my_b_flush_io_cache(dest, 0))
         DBUG_RETURN(true);
