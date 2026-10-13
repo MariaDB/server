@@ -6564,6 +6564,16 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
 
 
 /*
+  Three parameter state object describes the exclusive rhs of the
+  purgable range (left is the past). The state modification is
+  guared by LOCK_index.
+*/
+static bool waiting_for_slave_to_change_binlog= 0;
+static ulonglong purge_sending_new_binlog_file= 0;
+static char purge_binlog_name[FN_REFLEN];
+static bool purge_warning_given= 0;
+
+/*
   @param  log_file_name_arg  Name of log file to check
   @param  interactive        True if called by a PURGE BINLOG command.
 
@@ -6580,12 +6590,6 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
   sending_new_binlog_file, cached in purge_sending_new_binlog_file,
   is incremented every time a slave changes to use a new binary log.
 */
-
-static bool waiting_for_slave_to_change_binlog= 0;
-static ulonglong purge_sending_new_binlog_file= 0;
-static char purge_binlog_name[FN_REFLEN];
-static bool purge_warning_given= 0;
-
 bool
 MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
                              bool interactive)
@@ -6593,7 +6597,9 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
   int res;
   const char *reason;
 
+  mysql_mutex_assert_owner(&LOCK_index);
   DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
+
   if (is_active(log_file_name_arg))
   {
     reason= "it is the current active binlog";
