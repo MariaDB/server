@@ -460,3 +460,7 @@ repeated-path-segment type_test [usr/share/mysql/mysql-test/plugin/type_test/typ
 repeated-path-segment type_uuid [usr/share/mysql/mysql-test/plugin/type_uuid/type_uuid/]
 repeated-path-segment user_variables [usr/share/mysql/mysql-test/plugin/user_variables/user_variables/]
 repeated-path-segment wsrep_info [usr/share/mysql/mysql-test/plugin/wsrep_info/wsrep_info/]
+
+# Used to check if running in Bash
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mariadb/mariadb-test/std_data/wsrep_notify.sh:*]
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mariadb/mariadb-test/std_data/wsrep_notify_ssl.sh:*]
