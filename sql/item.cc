@@ -481,7 +481,7 @@ Item::Item(THD *thd, Item *item):
   str_value(item->str_value),
   name(item->name),
   orig_name(item->orig_name),
-  base_flags(item->base_flags & ~item_base_t::FIXED),
+  base_flags(item->base_flags & ~(item_base_t::FIXED | item_base_t::VISITED)),
   with_flags(item->with_flags),
   marker(item->marker),
   null_value(item->null_value),
@@ -11340,8 +11340,86 @@ table_map Item_ref::used_tables() const
 void Item_ref::update_used_tables()
 {
   if (!get_depended_from())
+  {
+    (*ref)->ref_target= true;
     (*ref)->update_used_tables();
+  }
 }
+
+
+/* The outermost Dedup_traversal of this thread */
+static thread_local Dedup_traversal *active_traversal= nullptr;
+/*
+  Visited items of active_traversal are kept here without allocating memory
+  until there are more of them, then on the heap without a limit
+*/
+static constexpr size_t VISITED_BUFFER_SIZE= 64;
+static thread_local Item *visited_buffer[VISITED_BUFFER_SIZE];
+
+
+void Dedup_traversal::init(Kind kind_arg, Item_processor processor_arg,
+                           bool flag_arg, void *arg_arg)
+{
+  kind= kind_arg;
+  processor= processor_arg;
+  flag= flag_arg;
+  arg= arg_arg;
+  if (!(owner= active_traversal))
+  {
+    owner= active_traversal= this;
+    oom= false;
+    visited= visited_buffer;
+    visited_size= array_elements(visited_buffer);
+    visited_count= 0;
+  }
+}
+
+
+void Dedup_traversal::finish()
+{
+  for (size_t i= 0; i < visited_count; i++)
+    visited[i]->base_flags&= ~item_base_t::VISITED;
+  if (visited != visited_buffer)
+    my_free(visited);
+  active_traversal= nullptr;
+}
+
+
+bool Dedup_traversal::mark(Item *item)
+{
+  if (owner->oom || owner->kind != kind || owner->processor != processor ||
+      owner->flag != flag || owner->arg != arg)
+    return false;
+  if (bool(item->base_flags & item_base_t::VISITED))
+    return true;
+  if (owner->visited_count == owner->visited_size)
+  {
+    size_t size= owner->visited_size * 2;
+    void *new_visited;
+    if (owner->visited == visited_buffer)
+    {
+      if ((new_visited= my_malloc(PSI_INSTRUMENT_ME, size * sizeof(Item*),
+                                  MYF(0))))
+        memcpy(new_visited, visited_buffer, sizeof(visited_buffer));
+    }
+    else
+      new_visited= my_realloc(PSI_INSTRUMENT_ME, owner->visited,
+                              size * sizeof(Item*), MYF(0));
+    if (!new_visited)
+    {
+      /* No error, the rest of the traversal is just not deduplicated */
+      DBUG_PRINT("warning", ("Dedup_traversal: out of memory"));
+      owner->oom= true;
+      return false;
+    }
+    owner->visited= static_cast<Item**>(new_visited);
+    owner->visited_size= size;
+  }
+  owner->visited[owner->visited_count++]= item;
+  item->base_flags|= item_base_t::VISITED;
+  return false;
+}
+
 
 void Item_direct_view_ref::update_used_tables()
 {
