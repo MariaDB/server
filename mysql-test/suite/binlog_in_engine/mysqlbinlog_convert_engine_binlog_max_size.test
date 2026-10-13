@@ -1,0 +1,59 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb_binlog.inc
+
+--let $datadir= `SELECT @@datadir`
+
+--source include/reset_master.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b LONGTEXT) ENGINE=InnoDB;
+
+# Generate a FORMAT_DESCRIPTION_EVENT that marks a server restart.
+--source include/restart_mysqld.inc
+
+INSERT INTO t1 VALUES (1, REPEAT('a', 48 * 1024));
+INSERT INTO t1 VALUES (2, REPEAT('b', 48 * 1024));
+INSERT INTO t1 VALUES (3, REPEAT('c', 48 * 1024));
+
+# Complete binlog-000000.ibb and wait until it is available on disk.
+FLUSH BINARY LOGS;
+--let $binlog_name= binlog-000002.ibb
+--let $binlog_size= 262144
+--source include/wait_for_engine_binlog.inc
+
+--echo *** Convert with a 32K maximum output binlog size
+--exec $MYSQL_BINLOG --convert-engine-binlog --max-binlog-size=32768 --result-file=$MYSQL_TMP_DIR/max_size_conv $datadir/binlog-000000.ibb
+
+# The restart rotates the initial file after CREATE TABLE. Size is checked at
+# transaction boundaries, so each large INSERT after the first causes the next
+# INSERT to start a new output file.
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000001
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000002
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000003
+--file_exists $MYSQL_TMP_DIR/max_size_conv.000004
+
+--echo *** Only the restart FDE is marked as created at startup
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/max_size_conv.000002 > $MYSQL_TMP_DIR/max_size_restart_fde.txt
+--let SEARCH_FILE= $MYSQL_TMP_DIR/max_size_restart_fde.txt
+--let SEARCH_PATTERN= Start: binlog v 4.*at startup
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/max_size_conv.000001 $MYSQL_TMP_DIR/max_size_conv.000003 $MYSQL_TMP_DIR/max_size_conv.000004 > $MYSQL_TMP_DIR/max_size_normal_fdes.txt
+--let SEARCH_FILE= $MYSQL_TMP_DIR/max_size_normal_fdes.txt
+--let SEARCH_PATTERN= Start: binlog v 4.*at startup
+--source include/search_pattern_in_file.inc
+
+--echo *** Rotated files form a replayable binlog sequence
+--exec $MYSQL_BINLOG --gtid-strict-mode=0 $MYSQL_TMP_DIR/max_size_conv.000001 $MYSQL_TMP_DIR/max_size_conv.000002 $MYSQL_TMP_DIR/max_size_conv.000003 $MYSQL_TMP_DIR/max_size_conv.000004 > $MYSQLTEST_VARDIR/tmp/max_size_replay.sql
+DROP TABLE t1;
+--exec $MYSQL --abort-source-on-error -e "source $MYSQLTEST_VARDIR/tmp/max_size_replay.sql;" test
+--remove_file $MYSQLTEST_VARDIR/tmp/max_size_replay.sql
+
+SELECT a, LENGTH(b) FROM t1 ORDER BY a;
+
+--remove_file $MYSQL_TMP_DIR/max_size_restart_fde.txt
+--remove_file $MYSQL_TMP_DIR/max_size_normal_fdes.txt
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000001
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000002
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000003
+--remove_file $MYSQL_TMP_DIR/max_size_conv.000004
+DROP TABLE t1;
