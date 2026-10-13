@@ -3284,6 +3284,11 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 bool Sql_cmd_show_routine_code::execute(THD *thd)
 {
   sp_head *sp;
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT(thd) &&
+      wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_SHOW))
+    return true;
+#endif /* WITH_WSREP */
   if (m_handler->sp_cache_routine(thd, m_name, &sp))
     return true;
   if (!sp || sp->show_routine_code(thd))
