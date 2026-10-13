@@ -154,6 +154,18 @@ size_t wsrep_normalize_string(int mysql_type,
 			      unsigned char* out_str,
 			      ulint str_length,
 			      ulint buf_length);
+
+/** Store the write set key value of a string column. Used by both write set
+key paths, so that one and the same column value always produces one and the
+same key. See the definition in ha_innodb.cc. */
+size_t wsrep_store_string_key_val(int mysql_type,
+				  uint charset_number,
+				  size_t n_chars,
+				  const unsigned char* str,
+				  size_t str_length,
+				  unsigned char* out_str,
+				  ulint out_length,
+				  bool mysql_format);
 #endif /* WITH_WSREP */
 
 /** Get high resolution timestamp for the current query start time.
