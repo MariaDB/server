@@ -1256,7 +1256,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
   page_cur.block= block;
   ut_ad(block == mtr->at_savepoint(block_savepoint));
-  const bool not_first_access{buf_page_make_young_if_needed(&block->page)};
+  const bool not_first_access{block->page.touch()};
 #ifdef UNIV_ZIP_DEBUG
   if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
     ut_a(page_zip_validate(page_zip, block->page.frame, index()));
@@ -1613,14 +1613,6 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
-/** Mark a non-leaf page "least recently used", but avoid invoking
-buf_page_t::set_accessed(), because we do not want linear read-ahead */
-static void btr_cur_nonleaf_make_young(buf_page_t *bpage)
-{
-  if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage)))
-    buf_page_make_young(bpage);
-}
-
 ATTRIBUTE_COLD
 dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
                                            page_cur_mode_t mode, mtr_t *mtr)
@@ -1724,7 +1716,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   if (--height != btr_page_get_level(block->page.frame))
     goto corrupted;
 
-  btr_cur_nonleaf_make_young(&block->page);
+  block->page.touch_no_stamp();
 
 #ifdef UNIV_ZIP_DEBUG
   const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
@@ -1824,7 +1816,7 @@ search_loop:
   else
   {
     btr_search_drop_page_hash_index(block, index);
-    btr_cur_nonleaf_make_young(&block->page);
+    block->page.touch_no_stamp();
   }
 
 #ifdef UNIV_ZIP_DEBUG
@@ -2938,7 +2930,7 @@ btr_cur_update_alloc_zip_func(
 		return(true);
 	}
 
-	if (!page_zip->m_nonempty && !page_has_garbage(page)) {
+	if (!page_zip->is_nonempty() && !page_has_garbage(page)) {
 		/* The page has been freshly compressed, so
 		reorganizing it will not help. */
 		return(false);
@@ -6477,7 +6469,7 @@ btr_copy_blob_prefix(
 			mtr.commit();
 			return copied_len;
 		}
-		if (!buf_page_make_young_if_needed(&block->page)) {
+		if (!block->page.touch()) {
 			buf_read_ahead_linear(id);
 		}
 
