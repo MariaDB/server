@@ -9291,37 +9291,19 @@ Item *LEX::create_item_ident(THD *thd,
 
 
 Item *LEX::create_item_ident_trigger_specific(THD *thd,
-                                              active_dml_stmt stmt_type,
+                                              trg_event_type event,
                                               bool *throw_error)
 {
-  if (stmt_type == active_dml_stmt::INSERTING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
+  if (!is_trg_event_on(trg_chistics.events, event))
   {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0),
+             Item_trigger_type_of_statement::clause_name(event).str,
              trg_event_type_names[trg_chistics.events].str);
     *throw_error= true;
     return nullptr;
   }
 
-  if (stmt_type == active_dml_stmt::UPDATING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
-  {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
-             trg_event_type_names[trg_chistics.events].str);
-    *throw_error= true;
-    return nullptr;
-  }
-
-  if (stmt_type == active_dml_stmt::DELETING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
-  {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
-             trg_event_type_names[trg_chistics.events].str);
-    *throw_error= true;
-    return nullptr;
-  }
-
-  return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
+  return new (thd->mem_root) Item_trigger_type_of_statement(thd, event);
 }
 
 

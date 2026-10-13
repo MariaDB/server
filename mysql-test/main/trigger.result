@@ -3065,3 +3065,347 @@ TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SC
 DROP VIEW IF EXISTS vt;
 DROP TABLE t, t1;
 # End of 12.2 tests
+#
+# INSERTING, UPDATING, DELETING, OLD and NEW in a multi-event trigger
+# describe the event of each firing
+#
+# Every check records the statement, the expected value and the value
+# it got in t_check; the rows that differ are listed at the end.
+CREATE TABLE t_check (id INT AUTO_INCREMENT PRIMARY KEY, stmt VARCHAR(100),
+expected VARCHAR(200), got VARCHAR(200));
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (1, 10), (2, 20);
+# Each firing logs b or a for BEFORE or AFTER, then I, U or D for the
+# flag that is true and a period for the others.  The AFTER trigger
+# also logs the flags as a string and as a number.
+CREATE TRIGGER t1_bef BEFORE INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+SET @log= CONCAT(@log, ' b', IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.'), IF(DELETING, 'D', '.'));
+CREATE TRIGGER t1_aft AFTER INSERT OR UPDATE OR DELETE ON t1 FOR EACH ROW
+SET @log= CONCAT(@log, ' a', IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.'), IF(DELETING, 'D', '.')),
+@val= CONCAT(@val, ' ', INSERTING, UPDATING, DELETING, '/',
+INSERTING + UPDATING * 2 + DELETING * 4);
+# Statements of one event
+SET @log= '', @val= '';
+INSERT INTO t1 VALUES (10, 10), (11, 11);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT ... VALUES', ' bI.. aI.. bI.. aI..', @log),
+('INSERT ... VALUES, values', ' 100/1 100/1', @val);
+SET @log= '';
+INSERT INTO t1 SELECT a, b FROM t2;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT ... SELECT', ' bI.. aI.. bI.. aI..', @log);
+SET @log= '';
+REPLACE INTO t1 SELECT a + 20, b FROM t2;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('REPLACE ... SELECT, no conflict', ' bI.. aI.. bI.. aI..', @log);
+SELECT 30, 30 UNION ALL SELECT 31, 31 INTO OUTFILE 'FILE';
+SET @log= '';
+LOAD DATA INFILE 'FILE' INTO TABLE t1;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('LOAD DATA', ' bI.. aI.. bI.. aI..', @log);
+SET @log= '', @val= '';
+UPDATE t1 SET b= b + 1 WHERE a IN (10, 11);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('UPDATE', ' b.U. a.U. b.U. a.U.', @log),
+('UPDATE, values', ' 010/2 010/2', @val);
+SET @log= '';
+UPDATE t1 JOIN t2 ON t1.a = t2.a SET t1.b= 0;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('multi-table UPDATE', ' b.U. a.U. b.U. a.U.', @log);
+SET @log= '', @val= '';
+DELETE FROM t1 WHERE a IN (30, 31);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('DELETE', ' b..D a..D b..D a..D', @log),
+('DELETE, values', ' 001/4 001/4', @val);
+SET @log= '';
+DELETE t1 FROM t1 JOIN t2 ON t1.a = t2.a;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('multi-table DELETE', ' b..D a..D b..D a..D', @log);
+# Statements that fire for events of several kinds
+SET @log= '';
+REPLACE INTO t1 VALUES (10, 100), (40, 40);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('REPLACE, a conflict and a new row',
+' bI.. b..D a..D aI.. bI.. aI..', @log);
+SET @log= '';
+INSERT INTO t1 VALUES (11, 1), (41, 41) ON DUPLICATE KEY UPDATE b= b + 100;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT ... ON DUPLICATE KEY UPDATE', ' bI.. b.U. a.U. bI.. aI..', @log);
+SET @log= '';
+INSERT INTO t1 SELECT a + 40, b FROM t2 ON DUPLICATE KEY UPDATE b= t1.b + 1;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT ... SELECT ... ON DUPLICATE KEY UPDATE',
+' bI.. b.U. a.U. bI.. aI..', @log);
+SELECT 40, 400 UNION ALL SELECT 50, 50 INTO OUTFILE 'FILE';
+SET @log= '';
+LOAD DATA INFILE 'FILE' REPLACE INTO TABLE t1;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('LOAD DATA ... REPLACE', ' bI.. b..D a..D aI.. bI.. aI..', @log);
+CREATE TABLE t4 (a INT, s DATE, e DATE, PERIOD FOR p(s, e));
+CREATE TRIGGER t4_bef BEFORE INSERT OR UPDATE OR DELETE ON t4 FOR EACH ROW
+SET @log= CONCAT(@log, ' b', IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.'), IF(DELETING, 'D', '.'));
+CREATE TRIGGER t4_aft AFTER INSERT OR UPDATE OR DELETE ON t4 FOR EACH ROW
+SET @log= CONCAT(@log, ' a', IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.'), IF(DELETING, 'D', '.'));
+INSERT INTO t4 VALUES (1, '2020-01-01', '2021-01-01'),
+(2, '2020-01-01', '2021-01-01');
+SET @log= '';
+UPDATE t4 FOR PORTION OF p FROM '2020-04-01' TO '2020-07-01'
+  SET a= 10 WHERE a = 1;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('UPDATE ... FOR PORTION OF',
+' b.U. bI.. aI.. bI.. aI.. a.U.', @log);
+SET @log= '';
+DELETE FROM t4 FOR PORTION OF p FROM '2020-04-01' TO '2020-07-01'
+  WHERE a = 2;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('DELETE ... FOR PORTION OF',
+' b..D bI.. aI.. bI.. aI.. a..D', @log);
+# Prepared statements and stored procedures, executed twice
+PREPARE s FROM 'REPLACE INTO t1 VALUES (?, ?), (?, ?)';
+SET @log= '';
+EXECUTE s USING 60, 60, 61, 61;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('prepared REPLACE, new rows', ' bI.. aI.. bI.. aI..', @log);
+SET @log= '';
+EXECUTE s USING 60, 600, 62, 62;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('prepared REPLACE, a conflict and a new row',
+' bI.. b..D a..D aI.. bI.. aI..', @log);
+DEALLOCATE PREPARE s;
+CREATE PROCEDURE p1(o INT) INSERT INTO t1 SELECT a + o, b FROM t2;
+SET @log= '';
+CALL p1(70);
+CALL p1(80);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT ... SELECT in a procedure, twice',
+' bI.. aI.. bI.. aI.. bI.. aI.. bI.. aI..', @log);
+DROP PROCEDURE p1;
+# A statement in the trigger body, and the triggers it fires, do not
+# change what the body reads
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT);
+CREATE TABLE t3_log (id INT AUTO_INCREMENT PRIMARY KEY, seen VARCHAR(2));
+INSERT INTO t3 VALUES (1, 1), (2, 2);
+CREATE TRIGGER t3_log_aft AFTER INSERT OR DELETE ON t3_log FOR EACH ROW
+SET @nested= CONCAT(@nested, ' ', IF(INSERTING, 'I', '.'),
+IF(DELETING, 'D', '.'));
+CREATE TRIGGER t3_aft AFTER INSERT OR UPDATE ON t3 FOR EACH ROW
+BEGIN
+INSERT INTO t3_log (seen) VALUES (CONCAT(IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.')));
+INSERT INTO t3_log (seen) VALUES (CONCAT(IF(INSERTING, 'I', '.'),
+IF(UPDATING, 'U', '.')));
+END|
+SET @nested= '';
+UPDATE t3 SET b= b + 1;
+INSERT INTO t_check (stmt, expected, got)
+SELECT 'UPDATE, body inserts twice', '.U .U .U .U',
+GROUP_CONCAT(seen ORDER BY id SEPARATOR ' ') FROM t3_log;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('UPDATE, the body''s own triggers', ' I. I. I. I.', @nested);
+# The connection that runs the statement, not the one that loaded the
+# triggers of the table
+connect  con1, localhost, root,,;
+SET @log= '';
+INSERT INTO t1 VALUES (90, 90), (91, 91);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT in another connection', ' bI.. aI.. bI.. aI..', @log);
+connection default;
+FLUSH TABLES;
+connection con1;
+SET @log= '';
+INSERT INTO t1 VALUES (92, 92), (93, 93);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT in another connection that loads the triggers',
+' bI.. aI.. bI.. aI..', @log);
+connection default;
+SET @log= '';
+INSERT INTO t1 VALUES (94, 94), (95, 95);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('INSERT reusing the table that connection loaded',
+' bI.. aI.. bI.. aI..', @log);
+disconnect con1;
+SET @log= '';
+UPDATE t1 SET b= b + 1 WHERE a IN (94, 95);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('UPDATE after that connection is gone', ' b.U. a.U. b.U. a.U.', @log);
+# OLD is NULL for an INSERT event and NEW for a DELETE event, as a value
+# and to IS NULL; a column that holds NULL is NULL for every event
+CREATE TABLE t5 (a INT);
+CREATE TRIGGER t5_bef BEFORE INSERT OR DELETE ON t5 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' b', OLD.a IS NULL, NEW.a IS NULL, ISNULL(OLD.a),
+ISNULL(NEW.a), '/', COALESCE(OLD.a, 'n'),
+COALESCE(NEW.a, 'n'));
+CREATE TRIGGER t5_aft AFTER INSERT OR DELETE ON t5 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' a', OLD.a IS NULL, NEW.a IS NULL, ISNULL(OLD.a),
+ISNULL(NEW.a), '/', COALESCE(OLD.a, 'n'),
+COALESCE(NEW.a, 'n'));
+SET @nul= '';
+INSERT INTO t5 VALUES (7), (8);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD on INSERT, one-column table',
+' b1010/n7 a1010/n7 b1010/n8 a1010/n8', @nul);
+SET @nul= '';
+DELETE FROM t5;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW on DELETE, one-column table',
+' b0101/7n a0101/7n b0101/8n a0101/8n', @nul);
+CREATE TABLE t6 (a INT PRIMARY KEY, b INT);
+CREATE TRIGGER t6_aft AFTER INSERT OR UPDATE OR DELETE ON t6 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' ', OLD.b IS NULL, NEW.b IS NULL, '/',
+COALESCE(OLD.b, 'n'), ',', COALESCE(NEW.b, 'n'));
+SET @nul= '';
+INSERT INTO t6 VALUES (1, 1), (2, NULL);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD on INSERT, a NULL column', ' 10/n,1 11/n,n', @nul);
+SET @nul= '';
+UPDATE t6 SET b= 11 WHERE a = 1;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD and NEW on UPDATE', ' 00/1,11', @nul);
+SET @nul= '';
+REPLACE INTO t6 VALUES (1, 100), (3, 3);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD and NEW on REPLACE', ' 01/11,n 10/n,100 10/n,3', @nul);
+SET @nul= '';
+DELETE FROM t6 WHERE a IN (2, 3);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW on DELETE, a NULL column', ' 11/n,n 01/3,n', @nul);
+# OLD on INSERT and NEW on DELETE are NULL however the value is read:
+# as a date, as a native value, in a comparison, from a NOT NULL column
+CREATE TABLE t7 (a INT PRIMARY KEY, d DATE, i INET6, n INT NOT NULL);
+CREATE TRIGGER t7_aft AFTER INSERT OR DELETE ON t7 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' ', COALESCE(DATE_FORMAT(OLD.d, '%Y'), 'n'), ',',
+COALESCE(DATE_FORMAT(NEW.d, '%Y'), 'n'), ',',
+COALESCE(OLD.i, '::ff'), ',', COALESCE(NEW.i, '::ff'), ',',
+COALESCE(OLD.i = '::1', 'n'), ',',
+COALESCE(NEW.i = '::1', 'n'), ',',
+OLD.n IS NULL, NEW.n IS NULL);
+SET @nul= '';
+INSERT INTO t7 VALUES (1, '2001-01-01', '::1', 5), (2, '2002-02-02', '::2', 6);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD on INSERT, read as a date and a native value',
+' n,2001,::ff,::1,n,1,10 n,2002,::ff,::2,n,0,10', @nul);
+SET @nul= '';
+REPLACE INTO t7 VALUES (1, '2003-03-03', '::3', 7);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD and NEW on REPLACE, read as a date and a native value',
+' 2001,n,::1,::ff,1,n,01 n,2003,::ff,::3,n,0,10', @nul);
+SET @nul= '';
+DELETE FROM t7 WHERE a = 2;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW on DELETE, read as a date and a native value',
+' 2002,n,::2,::ff,0,n,01', @nul);
+# The same in a BEFORE trigger, which REPLACE fires for the DELETE event
+# while the row it is about to insert is in the record buffer
+CREATE TABLE t11 (a INT PRIMARY KEY, d DATE, i INET6, n INT NOT NULL);
+CREATE TRIGGER t11_bef BEFORE INSERT OR DELETE ON t11 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' ', COALESCE(DATE_FORMAT(OLD.d, '%Y'), 'n'), ',',
+COALESCE(DATE_FORMAT(NEW.d, '%Y'), 'n'), ',',
+COALESCE(OLD.i, '::ff'), ',', COALESCE(NEW.i, '::ff'), ',',
+COALESCE(OLD.i = '::1', 'n'), ',',
+COALESCE(NEW.i = '::1', 'n'), ',',
+OLD.n IS NULL, NEW.n IS NULL);
+SET @nul= '';
+INSERT INTO t11 VALUES (1, '2001-01-01', '::1', 5), (2, '2002-02-02', '::2', 6);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD on INSERT, BEFORE trigger',
+' n,2001,::ff,::1,n,1,10 n,2002,::ff,::2,n,0,10', @nul);
+SET @nul= '';
+REPLACE INTO t11 VALUES (1, '2003-03-03', '::3', 7), (2, '2004-04-04', '::4', 8);
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD and NEW on REPLACE, BEFORE trigger',
+' n,2003,::ff,::3,n,0,10 2001,n,::1,::ff,1,n,01'
+   ' n,2004,::ff,::4,n,0,10 2002,n,::2,::ff,0,n,01', @nul);
+SET @nul= '';
+DELETE FROM t11;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW on DELETE, BEFORE trigger',
+' 2003,n,::3,::ff,0,n,01 2004,n,::4,::ff,0,n,01', @nul);
+CREATE TABLE t8 (a INT PRIMARY KEY, d DATE);
+CREATE TRIGGER t8_aft AFTER INSERT OR DELETE ON t8 FOR EACH ROW
+SET @nul= CONCAT(@nul, ' ', COALESCE(YEAR(OLD.d), 'n'), ',',
+COALESCE(YEAR(NEW.d), 'n'));
+SET @nul= '';
+INSERT INTO t8 VALUES (1, '2001-01-01'), (2, '2002-02-02');
+INSERT INTO t_check (stmt, expected, got) VALUES
+('OLD on INSERT, read by YEAR()', ' n,2001 n,2002', @nul);
+SET @nul= '';
+DELETE FROM t8;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW on DELETE, read by YEAR()', ' 2001,n 2002,n', @nul);
+# NEW is writable as an INOUT argument in a BEFORE trigger
+CREATE PROCEDURE p9(o INT, INOUT x INT) SET x= IF(o IS NULL, x, 999);
+CREATE TABLE t10 (a INT PRIMARY KEY, b INT);
+CREATE TRIGGER t10_bef BEFORE INSERT OR UPDATE ON t10 FOR EACH ROW
+CALL p9(OLD.a, NEW.b);
+INSERT INTO t10 VALUES (1, 1), (2, 2);
+UPDATE t10 SET b= 5 WHERE a = 2;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW as an INOUT argument, INSERT OR UPDATE trigger', '1,1 2,999',
+(SELECT GROUP_CONCAT(a, ',', b ORDER BY a SEPARATOR ' ') FROM t10));
+# NEW is writable as an INOUT argument when a trigger that is also defined
+# for a DELETE event fires for INSERT or UPDATE.  A firing for the DELETE
+# event has no NEW row to write to, so the call is refused there before
+# the routine runs
+CREATE PROCEDURE p11(INOUT x INT) SET x= x * 10, @runs= @runs + 1;
+CREATE TABLE t9 (a INT PRIMARY KEY, b INT);
+INSERT INTO t9 VALUES (1, 1), (2, 2);
+CREATE TRIGGER t9_bef BEFORE INSERT OR UPDATE OR DELETE ON t9 FOR EACH ROW
+CALL p11(NEW.b);
+SET @runs= 0;
+INSERT INTO t9 VALUES (3, 3), (4, 4);
+UPDATE t9 SET b= b + 1 WHERE a = 4;
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW as an INOUT argument, INSERT and UPDATE firings',
+'1,1 2,2 3,30 4,410 runs=3',
+(SELECT CONCAT(GROUP_CONCAT(a, ',', b ORDER BY a SEPARATOR ' '),
+' runs=', @runs) FROM t9));
+SET @runs= 0;
+REPLACE INTO t9 VALUES (1, 100), (5, 5);
+ERROR HY000: There is no NEW row in on DELETE trigger
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW as an INOUT argument, DELETE firing of REPLACE',
+'1,1 2,2 3,30 4,410 runs=1',
+(SELECT CONCAT(GROUP_CONCAT(a, ',', b ORDER BY a SEPARATOR ' '),
+' runs=', @runs) FROM t9));
+SET @runs= 0;
+DELETE FROM t9;
+ERROR HY000: There is no NEW row in on DELETE trigger
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW as an INOUT argument, DELETE firing',
+'1,1 2,2 3,30 4,410 runs=0',
+(SELECT CONCAT(GROUP_CONCAT(a, ',', b ORDER BY a SEPARATOR ' '),
+' runs=', @runs) FROM t9));
+# The same for an INOUT argument of a stored function
+CREATE FUNCTION f12(INOUT x INT) RETURNS INT
+BEGIN
+SET x= x * 10, @runs= @runs + 1;
+RETURN 0;
+END|
+CREATE TABLE t12 (a INT PRIMARY KEY, b INT);
+INSERT INTO t12 VALUES (1, 1), (2, 2);
+CREATE TRIGGER t12_bef BEFORE INSERT OR DELETE ON t12 FOR EACH ROW
+SET @r= f12(NEW.b);
+SET @runs= 0;
+INSERT INTO t12 VALUES (3, 3), (4, 4);
+DELETE FROM t12;
+ERROR HY000: There is no NEW row in on DELETE trigger
+INSERT INTO t_check (stmt, expected, got) VALUES
+('NEW as an INOUT argument of a function, INSERT and DELETE firings',
+'1,1 2,2 3,30 4,40 runs=2',
+(SELECT CONCAT(GROUP_CONCAT(a, ',', b ORDER BY a SEPARATOR ' '),
+' runs=', @runs) FROM t12));
+# Checks whose value differs from the expected one
+SELECT stmt, expected, got FROM t_check WHERE NOT expected <=> got ORDER BY id;
+stmt	expected	got
+include/assert.inc [Every check got its expected value]
+DROP TABLE t_check, t1, t2, t3, t3_log, t4, t5, t6, t7, t8, t9, t10, t11,
+t12;
+DROP PROCEDURE p9;
+DROP PROCEDURE p11;
+DROP FUNCTION f12;
+# End of 12.3 tests
