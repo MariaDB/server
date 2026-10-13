@@ -1275,6 +1275,7 @@ void LEX::start(THD *thd_arg)
   use_only_table_context= 0;
   escape_used= 0;
   default_used= 0;
+  subquery_with_placeholder= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
 
@@ -3067,6 +3068,7 @@ void st_select_lex::init_query()
   with_sum_func= with_rownum= 0;
   braces= 0;
   automatic_brackets= 0;
+  with_placeholder= 0;
   having_fix_field= 0;
   having_fix_field_for_pushed_cond= 0;
   subquery_in_having= 0;
@@ -8199,6 +8201,8 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
   }
+  if (current_select)
+    current_select->with_placeholder= true;
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
@@ -8208,6 +8212,53 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
   return item;
+}
+
+
+static bool expr_has_placeholder(LEX *lex, Item *expr)
+{
+  List_iterator_fast<Item_param> it(lex->param_list);
+  while (Item_param *param= it++)
+  {
+    if (expr->walk(&Item::find_item_processor, false, param))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  Check if a result of a subquery depends on a parameter placeholder:
+  the placeholder is inside the subquery (including derived tables
+  and UNION ORDER BY/LIMIT of the subquery) or in the left part of
+  IN/ALL/ANY subquery predicate.
+
+  @note Should be called right after parsing, before the tree is changed
+  by optimizations.
+*/
+
+bool LEX::subquery_has_placeholder()
+{
+  for (SELECT_LEX *sl= all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    SELECT_LEX_UNIT *unit= sl->master_unit();
+    if (!sl->with_placeholder &&
+        !(unit->fake_select_lex && unit->fake_select_lex->with_placeholder))
+      continue;
+    for (SELECT_LEX *s= sl; s; s= s->outer_select())
+    {
+      if (s->master_unit()->item)
+        return true;
+    }
+  }
+  for (SELECT_LEX *sl= all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    Item_subselect *subq= sl->master_unit()->item;
+    Item_in_subselect *in_subq= subq ? subq->get_IN_subquery() : NULL;
+    if (in_subq && expr_has_placeholder(this, in_subq->left_exp()))
+      return true;
+  }
+  return false;
 }
 
 

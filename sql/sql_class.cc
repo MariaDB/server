@@ -2397,14 +2397,12 @@ void THD::cleanup_after_query()
     making this reset necessary.
   */
   reset_binlog_local_stmt_filter();
-  if (first_successful_insert_id_in_cur_stmt > 0)
-  {
-    /* set what LAST_INSERT_ID() will return */
-    first_successful_insert_id_in_prev_stmt= 
-      first_successful_insert_id_in_cur_stmt;
-    first_successful_insert_id_in_cur_stmt= 0;
-    substitute_null_with_insert_id= TRUE;
-  }
+  /*
+    Bulk operation reports the first generated id of all its executions,
+    see Prepared_statement::execute_bulk_loop()
+  */
+  if (!is_bulk_op() || in_sub_stmt)
+    set_last_insert_id_from_cur_stmt();
   arg_of_last_insert_id_function= 0;
   /* Free Items that were created during this execution */
   free_items();

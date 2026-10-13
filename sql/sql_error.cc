@@ -462,10 +462,13 @@ Diagnostics_area::set_error_status(uint sql_errno,
   DBUG_PRINT("enter", ("error: %d", sql_errno));
   /*
     Only allowed to report error if has not yet reported a success
-    The only exception is when we flush the message to the client,
-    an error can happen during the flush.
+    The only exceptions are when we flush the message to the client,
+    an error can happen during the flush, and when a not first execution
+    of not optimized array binding operation fails.
   */
-  DBUG_ASSERT(! is_set() || m_can_overwrite_status);
+  DBUG_ASSERT(! is_set() || m_can_overwrite_status ||
+              ((m_status == DA_OK_BULK || m_status == DA_EOF_BULK) &&
+               is_bulk_op()));
 
   // message must be set properly by the caller.
   DBUG_ASSERT(message);

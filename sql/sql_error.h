@@ -1054,6 +1054,14 @@ public:
   bool is_bulk_op() const { return is_bulk_execution; }
 
   enum_diagnostics_status status() const { return m_status; }
+  void restore_bulk_status(enum_diagnostics_status status)
+  {
+    DBUG_ASSERT(is_bulk_op());
+    DBUG_ASSERT(m_status == DA_OK_BULK);
+    DBUG_ASSERT(status == DA_EMPTY || status == DA_OK_BULK ||
+                status == DA_EOF_BULK);
+    m_status= status;
+  }
 
   const char *message() const
   {
