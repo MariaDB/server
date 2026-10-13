@@ -77,7 +77,6 @@ public:
 #ifdef UNIV_DEBUG
 		m_total_data(0),
 #endif /* UNIV_DEBUG */
-		m_modify_clock(0),
 		m_err(DB_SUCCESS)
 	{
 		ut_ad(!dict_index_is_spatial(m_index));
@@ -261,10 +260,6 @@ private:
 	/** Total data in the page */
 	ulint		m_total_data;
 #endif /* UNIV_DEBUG */
-
-	/** The modify clock value of the buffer block
-	when the block is re-pinned */
-	ib_uint64_t     m_modify_clock;
 
 	/** Operation result DB_SUCCESS or error code */
 	dberr_t		m_err;

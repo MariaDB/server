@@ -2221,7 +2221,7 @@ end_of_index:
 					goto err_exit;
 				}
 
-				buf_page_make_young_if_needed(&block->page);
+				block->page.touch();
 
 				const auto s = mtr.get_savepoint();
 				mtr.rollback_to_savepoint(s - 2, s - 1);
