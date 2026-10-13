@@ -1237,8 +1237,14 @@ public:
         if (!log_sys.is_mmap())
 # endif
         {
+          /*
+            archive_create() filters out log files created after the
+            logical end time of a backup, or after the backup has been
+            aborted (ctx.last_lsn == 0).
+          */
+          ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
+                !!ctx.is_log_tracking(log_sys.log.m_file));
           ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
-          ut_ad(ctx.is_log_tracking(log_sys.log.m_file));
           log_sys.resize_log.m_file= OS_FILE_CLOSED;
         }
       }
