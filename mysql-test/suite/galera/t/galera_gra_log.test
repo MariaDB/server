@@ -37,7 +37,6 @@ CREATE TABLE t1 (f1 INTEGER);
 
 # restart and reconnect node_2
 --source include/kill_galera.inc
---source include/wait_until_disconnected.inc
 --source include/start_mysqld.inc
 
 --eval SET GLOBAL wsrep_ignore_apply_errors = $restore_wsrep_ignore_apply_errors

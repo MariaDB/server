@@ -49,6 +49,13 @@ openssl req -newkey rsa:4096 -keyout client-key.pem -out demoCA/client-req.pem -
 openssl rsa -in client-key.pem -out client-key.pem
 openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out client-cert.pem -in demoCA/client-req.pem
 
+# client cert with a single RDN whose value is the literal string "a/b+c"
+# ('/' and '+' are separator characters some SSL libraries escape and
+# some don't -- see https://github.com/wolfSSL/wolfssl/issues/11392)
+openssl req -newkey rsa:4096 -keyout client-slash-cn-key.pem -out demoCA/client-slash-cn-req.pem -days 7300 -nodes -subj '/CN=a\/b\+c'
+openssl rsa -in client-slash-cn-key.pem -out client-slash-cn-key.pem
+openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out client-slash-cn-cert.pem -in demoCA/client-slash-cn-req.pem
+
 # generate combined client cert and key file
 cat client-cert.pem client-key.pem > client-certkey.pem
 

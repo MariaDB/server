@@ -4030,6 +4030,7 @@ static const char *old_mode_names[]=
   "IGNORE_INDEX_ONLY_FOR_JOIN",         // deprecated since 11.3
   "COMPAT_5_1_CHECKSUM",                // deprecated since 11.3
   "NO_NULL_COLLATION_IDS",              // deprecated since 11.3
+  "X509_LENIENT_COMPARE",
   "LOCK_ALTER_TABLE_COPY",              // deprecated since 11.3
   0
 };

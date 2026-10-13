@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-36832: UPDATE...IN(SELECT) acquires spurious gap locks on FK index
+--echo #
+
+CREATE TABLE booking (
+  booking_id INT PRIMARY KEY
+) ENGINE=InnoDB;
+
+CREATE TABLE ticket (
+  ticket_id INT AUTO_INCREMENT PRIMARY KEY,
+  booking_id INT NOT NULL,
+  is_valid INT DEFAULT 1,
+  KEY fk_ticket_2_booking (booking_id),
+  FOREIGN KEY (booking_id) REFERENCES booking(booking_id)
+) ENGINE=InnoDB;
+
+INSERT INTO booking VALUES (1), (2);
+INSERT INTO ticket (booking_id) VALUES (1), (1), (2), (2);
+
+--connect (con1,localhost,root)
+SET SESSION innodb_lock_wait_timeout=1;
+
+--connect (con2,localhost,root)
+SET SESSION innodb_lock_wait_timeout=1;
+
+--echo #
+--echo # Con1: UPDATE tickets for booking_id=1 via subquery
+--echo #
+--connection con1
+BEGIN;
+UPDATE ticket SET is_valid=0
+  WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=1);
+
+--echo #
+--echo # Con2: UPDATE tickets for booking_id=2 via subquery
+--echo #
+--connection con2
+BEGIN;
+UPDATE ticket SET is_valid=0
+  WHERE ticket_id IN (SELECT ticket_id FROM ticket WHERE booking_id=2);
+
+--echo #
+--echo # Con1: INSERT into booking_id=1 (should not be blocked by Con2)
+--echo #
+--connection con1
+--send INSERT INTO ticket (booking_id) VALUES (1)
+
+--echo #
+--echo # Con2: INSERT into booking_id=2 (should succeed immediately)
+--echo #
+--connection con2
+INSERT INTO ticket (booking_id) VALUES (2);
+
+--echo #
+--echo # Con1: reap INSERT — must succeed without lock wait timeout
+--echo #
+--connection con1
+--reap
+
+--echo #
+--echo # Commit both transactions
+--echo #
+--connection con1
+COMMIT;
+
+--connection con2
+COMMIT;
+
+--echo #
+--echo # Verify: each booking has 2 updated + 1 new ticket
+--echo #
+--connection default
+SELECT booking_id, is_valid, COUNT(*) c FROM ticket
+  GROUP BY booking_id, is_valid ORDER BY booking_id, is_valid;
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE ticket;
+DROP TABLE booking;
+
+--disconnect con1
+--disconnect con2

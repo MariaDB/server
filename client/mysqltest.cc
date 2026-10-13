@@ -810,6 +810,16 @@ struct Expression_value
     type= EXPR_INT;
     is_numeric= true;
     is_unsigned= false;
+    int_val= (unsigned long long) value;
+  }
+
+
+  /* Preserve the bit pattern after a defined unsigned operation. */
+  void set_int_from_uint(unsigned long long value)
+  {
+    type= EXPR_INT;
+    is_numeric= true;
+    is_unsigned= false;
     int_val= value;
   }
 
@@ -996,6 +1006,17 @@ struct Expression_value
     set_string(token_start, token_len);
   }
 };
+
+
+static void check_mixed_unsigned_arithmetic(const Expression_value &left,
+                                            const Expression_value &right,
+                                            const char *op)
+{
+  if ((left.is_unsigned || right.is_unsigned) &&
+      ((!left.is_unsigned && left.to_int() < 0) ||
+       (!right.is_unsigned && right.to_int() < 0)))
+    die("Evaluation error: Signed integer overflow in operator '%s'", op);
+}
 
 
 /* Core expression parsing functions */
@@ -5692,7 +5713,15 @@ static void unary(Expression_value *result, const char **s)
     unary(result, s);
     if (!result->is_numeric)
       die("Type error: unary minus requires an integer operand");
-    result->set_int(-result->to_int());
+    if (result->is_unsigned)
+      result->set_int_from_uint(0ULL - result->to_uint());
+    else
+    {
+      long long value= result->to_int();
+      if (value == LLONG_MIN)
+        die("Evaluation error: Signed integer overflow in unary '-'");
+      result->set_int(-value);
+    }
     return;
   }
   if (match(s, "~"))
@@ -5741,10 +5770,26 @@ static void factor(Expression_value *result, const char **s)
       bitwise_xor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '*' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "*");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() * rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (right != 0 && left > ULLONG_MAX / right)
+          die("Evaluation error: Unsigned integer overflow in operator '*'");
+        result->set_uint(left * right);
+      }
       else
-        result->set_int(result->to_int() * rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((left > 0 && right > 0 && left > LLONG_MAX / right) ||
+            (left > 0 && right < 0 && right < LLONG_MIN / left) ||
+            (left < 0 && right > 0 && left < LLONG_MIN / right) ||
+            (left < 0 && right < 0 && left < LLONG_MAX / right))
+          die("Evaluation error: Signed integer overflow in operator '*'");
+        result->set_int(left * right);
+      }
     }
     else if (match(s, "/"))
     {
@@ -5754,17 +5799,17 @@ static void factor(Expression_value *result, const char **s)
         die("Type error: operator '/' requires integer operands");
       if (rhs.to_int() == 0)
         die("Evaluation error: Division by zero");
+      check_mixed_unsigned_arithmetic(*result, rhs, "/");
       if (result->is_unsigned || rhs.is_unsigned)
         result->set_uint(result->to_uint() / rhs.to_uint());
       else
       {
         long long nominator= result->to_int();
         long long denominator= rhs.to_int();
-        // Prevent fatal integer overflow from LLONG_MIN / -1, which causes a crash
+        // Prevent signed overflow from LLONG_MIN / -1.
         if (nominator == LLONG_MIN && denominator == -1)
-          result->set_int(nominator);
-        else
-          result->set_int(nominator / denominator);
+          die("Evaluation error: Signed integer overflow in operator '/'");
+        result->set_int(nominator / denominator);
       }
     }
     else if (match(s, "%"))
@@ -5775,13 +5820,14 @@ static void factor(Expression_value *result, const char **s)
         die("Type error: operator '%%' requires integer operands");
       if (rhs.to_int() == 0)
         die("Evaluation error: Modulo by zero");
+      check_mixed_unsigned_arithmetic(*result, rhs, "%");
       if (result->is_unsigned || rhs.is_unsigned)
         result->set_uint(result->to_uint() % rhs.to_uint());
       else
       {
         long long nominator= result->to_int();
         long long denominator= rhs.to_int();
-        // Prevent fatal integer overflow from LLONG_MIN % -1, which causes a crash
+        // LLONG_MIN % -1 is zero, but the CPU division can still trap.
         if (nominator == LLONG_MIN && denominator == -1)
           result->set_int(0);
         else
@@ -5807,10 +5853,24 @@ static void term(Expression_value *result, const char **s)
       factor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '+' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "+");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() + rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (left > ULLONG_MAX - right)
+          die("Evaluation error: Unsigned integer overflow in operator '+'");
+        result->set_uint(left + right);
+      }
       else
-        result->set_int(result->to_int() + rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((right > 0 && left > LLONG_MAX - right) ||
+            (right < 0 && left < LLONG_MIN - right))
+          die("Evaluation error: Signed integer overflow in operator '+'");
+        result->set_int(left + right);
+      }
     }
     else if (match(s, "-"))
     {
@@ -5818,10 +5878,27 @@ static void term(Expression_value *result, const char **s)
       factor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '-' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "-");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() - rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (left >= right)
+          result->set_uint(left - right);
+        else if (right - left <= (unsigned long long) LLONG_MAX + 1)
+          result->set_int_from_uint(left - right);  /* negative result */
+        else
+          die("Evaluation error: Integer overflow in operator '-'");
+      }
       else
-        result->set_int(result->to_int() - rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((right > 0 && left < LLONG_MIN + right) ||
+            (right < 0 && left > LLONG_MAX + right))
+          die("Evaluation error: Signed integer overflow in operator '-'");
+        result->set_int(left - right);
+      }
     }
     else
       break;
@@ -6287,7 +6364,19 @@ void func_abs(Expression_value args[], int count, Expression_value *result)
   if (!args[0].is_numeric)
     die("abs() requires numeric argument");
 
-  result->set_int(llabs(args[0].to_int()));
+  if (args[0].is_unsigned)
+  {
+    if (args[0].to_uint() > (unsigned long long) LLONG_MAX)
+      die("Evaluation error: Signed integer overflow in abs()");
+    result->set_int((long long) args[0].to_uint());
+  }
+  else
+  {
+    long long value= args[0].to_int();
+    if (value == LLONG_MIN)
+      die("Evaluation error: Signed integer overflow in abs()");
+    result->set_int(value < 0 ? -value : value);
+  }
 }
 
 

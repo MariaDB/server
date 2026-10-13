@@ -3710,7 +3710,7 @@ static int innodb_init_params()
   const size_t innodb_buffer_pool_size= buf_pool.size_in_bytes_requested;
 
   if (innodb_buffer_pool_size > buf_pool.size_in_bytes_max ||
-      my_use_large_pages /* large_pages=ON fixes innodb_buffer_pool_size */)
+      my_large_pages_flag /* large_pages=ON fixes innodb_buffer_pool_size */)
     buf_pool.size_in_bytes_max= ut_calc_align(innodb_buffer_pool_size,
                                               innodb_buffer_pool_extent_size);
 
@@ -11038,12 +11038,16 @@ create_index(
 						 & HA_REVERSE_SORT);
 		}
 
+		/* On failure, row_create_index_for_mysql() may roll
+		back the dictionary transaction, which will remove
+		the table from the cache and free it. */
+		const ulint table_flags = table->flags;
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
 					    index, trx, NULL,
 					    fil_encryption_t(o.encryption),
 					    uint32_t(o.encryption_key_id)),
-				    table->flags, NULL));
+				    table_flags, NULL));
 	}
 
 	ulint ind_type = 0;
@@ -16844,34 +16848,78 @@ ha_innobase::store_lock(
 		unexpected if an obsolete consistent read view would be
 		used. */
 
-		/* Use consistent read for checksum table */
+		/* Use consistent read for checksum table
+		and for read-only table accesses in multi-table
+		UPDATE.
+
+		Multi-table UPDATE modifies some tables and only
+		reads others. The read-only tables do not need
+		S locks: the MVCC snapshot provides read
+		consistency, and rows being modified still get
+		X locks via the write-side table handle.
+
+		For TL_READ we use consistent read (LOCK_NONE) at
+		all isolation levels below SERIALIZABLE. This is
+		safe because:
+		 - The MVCC snapshot is stable within a transaction
+		   in REPEATABLE READ.
+		 - Rows being modified still get X locks via the
+		   write-side table handle (F_WRLCK / LOCK_X).
+		SERIALIZABLE must be excluded here: the
+		::external_lock() upgrade of LOCK_NONE to LOCK_S
+		applies only to non-autocommit transactions, so an
+		autocommit multi-table UPDATE would otherwise do a
+		consistent read at SERIALIZABLE.
+
+		We limit this to SQLCOM_UPDATE_MULTI (not
+		SQLCOM_UPDATE) because single-table UPDATE with
+		scalar subqueries on other tables traditionally
+		uses S locks to block concurrent modifications to
+		those tables, and changing that would alter
+		observable behavior for existing applications.
+
+		For TL_READ_NO_INSERT we keep the pre-existing
+		behavior: consistent read only at READ COMMITTED
+		and below, S locks at REPEATABLE READ and above,
+		because statement-based replication needs locking
+		reads for serializable execution ordering. */
 
 		if (sql_command == SQLCOM_CHECKSUM
 		    || sql_command == SQLCOM_CREATE_SEQUENCE
 		    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
+		    || (lock_type == TL_READ
+			&& trx->isolation_level != TRX_ISO_SERIALIZABLE
+			&& sql_command == SQLCOM_UPDATE_MULTI)
 		    || (trx->isolation_level <= TRX_ISO_READ_COMMITTED
 			&& (lock_type == TL_READ
 			    || lock_type == TL_READ_NO_INSERT)
 			&& (sql_command == SQLCOM_INSERT_SELECT
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
+			    || sql_command == SQLCOM_UPDATE_MULTI
 			    || sql_command == SQLCOM_CREATE_SEQUENCE
 			    || sql_command == SQLCOM_CREATE_TABLE))
 		    || (trx->isolation_level == TRX_ISO_REPEATABLE_READ
 		        && sql_command == SQLCOM_ALTER_TABLE
 		        && lock_type == TL_READ)) {
 
-			/* If the transaction isolation level is
-			READ UNCOMMITTED or READ COMMITTED and we are executing
-			INSERT INTO...SELECT or REPLACE INTO...SELECT
-			or UPDATE ... = (SELECT ...) or CREATE  ...
-			SELECT... without FOR UPDATE or IN SHARE
-			MODE in select, then we use consistent read
-			for select. */
+			DBUG_PRINT("ib_lock",
+				   ("consistent read for DML: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
 
 			m_prebuilt->select_lock_type = LOCK_NONE;
 			m_prebuilt->stored_select_lock_type = LOCK_NONE;
 		} else {
+			DBUG_PRINT("ib_lock",
+				   ("LOCK_S for DML read: "
+				    "lock_type=%d sql_command=%d "
+				    "isolation_level=%u",
+				    lock_type, sql_command,
+				    trx->isolation_level));
+
 			m_prebuilt->select_lock_type = LOCK_S;
 			m_prebuilt->stored_select_lock_type = LOCK_S;
 		}

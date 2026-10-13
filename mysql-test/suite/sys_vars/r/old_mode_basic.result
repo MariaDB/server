@@ -55,6 +55,12 @@ Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed
 SELECT @@global.old_mode;
 @@global.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
+SET @@global.old_mode = X509_LENIENT_COMPARE;
+Warnings:
+Warning	1287	'X509_LENIENT_COMPARE' is deprecated and will be removed in a future release
+SELECT @@global.old_mode;
+@@global.old_mode
+X509_LENIENT_COMPARE
 SET @@global.old_mode = OFF;
 ERROR 42000: Variable 'old_mode' can't be set to the value of 'OFF'
 SET @@session.old_mode = NO_PROGRESS_INFO;
@@ -69,13 +75,19 @@ Warning	1287	'NO_DUP_KEY_WARNINGS_WITH_IGNORE' is deprecated and will be removed
 SELECT @@session.old_mode;
 @@session.old_mode
 NO_DUP_KEY_WARNINGS_WITH_IGNORE
+SET @@session.old_mode = X509_LENIENT_COMPARE;
+Warnings:
+Warning	1287	'X509_LENIENT_COMPARE' is deprecated and will be removed in a future release
+SELECT @@session.old_mode;
+@@session.old_mode
+X509_LENIENT_COMPARE
 SET @@session.old_mode = OFF;
 ERROR 42000: Variable 'old_mode' can't be set to the value of 'OFF'
 SET @@global.old_mode = '?';
 ERROR 42000: Variable 'old_mode' can't be set to the value of '?'
 SELECT @@global.old_mode;
 @@global.old_mode
-NO_DUP_KEY_WARNINGS_WITH_IGNORE
+X509_LENIENT_COMPARE
 '#--------------------FN_DYNVARS_152_04-------------------------#'
 SET @@global.old_mode = -1;
 ERROR 42000: Variable 'old_mode' can't be set to the value of '-1'
@@ -133,10 +145,16 @@ SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
 SET @@global.old_mode = 256;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '256'
+Warnings:
+Warning	1287	'LOCK_ALTER_TABLE_COPY' is deprecated and will be removed in a future release
 SELECT @@global.old_mode;
 @@global.old_mode
-ZERO_DATE_TIME_CAST
+LOCK_ALTER_TABLE_COPY
+SET @@global.old_mode = 512;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '512'
+SELECT @@global.old_mode;
+@@global.old_mode
+LOCK_ALTER_TABLE_COPY
 SET @@global.old_mode = 0.4;
 ERROR 42000: Incorrect argument type to variable 'old_mode'
 '#---------------------FN_DYNVARS_152_08----------------------#'

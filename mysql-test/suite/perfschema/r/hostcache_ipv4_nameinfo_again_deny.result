@@ -1,4 +1,5 @@
 call mtr.add_suppression("192.0.2.4");
+call mtr.add_suppression("Host 'santa.claus.ipv4.example.com' is not allowed to connect to this MariaDB server");
 flush status;
 flush hosts;
 flush user_resources;

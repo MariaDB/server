@@ -1,4 +1,5 @@
 call mtr.add_suppression("2001:db8::6:6");
+call mtr.add_suppression("Host 'santa.claus.ipv6.example.com' is not allowed to connect to this MariaDB server");
 flush status;
 flush hosts;
 flush user_resources;
