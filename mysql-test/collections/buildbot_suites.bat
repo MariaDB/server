@@ -3,6 +3,7 @@ perl mysql-test-run.pl --force --suite-timeout=120 --max-test-fail=10 --retry=3 
 vcol,gcol,period,perfschema,parts,^
 main,^
 innodb,^
+binlog_in_engine,^
 versioning,^
 plugins,^
 mariabackup,^

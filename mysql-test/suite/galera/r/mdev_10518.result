@@ -83,11 +83,11 @@ DROP TABLE t1, t2;
 #cleanup
 connection node_1;
 set global wsrep_on=OFF;
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_2;
 set global wsrep_on=OFF;
-reset master;
+include/reset_master.inc
 set global wsrep_on=ON;
 connection node_2;
 CALL mtr.add_suppression("Ignoring server id .* for non bootstrap node");

@@ -120,6 +120,17 @@ use warnings;
 use Fcntl qw(:DEFAULT :seek);
 sysopen F, $ENV{FILE_TO_CORRUPT}, O_RDWR
   or die "Cannot open file $ENV{FILE_TO_CORRUPT}: $!\n";
+
+# Wait for the index file to be written (this happens asynchronously).
+my @s;
+for (1 .. 500) {
+  @s= stat F;
+  last if $s[7] >= 17;                # Check file size
+  select(undef, undef, undef, 0.1);   # Portable sub-second sleep
+}
+die "Index file $ENV{FILE_TO_CORRUPT} never grew past $s[7] bytes\n"
+  unless $s[7] >= 17;
+
 # Corrupt the flag byte with an unused flag.
 sysseek(F, 16, SEEK_SET)
   or die "Cannot seek file: $!\n";

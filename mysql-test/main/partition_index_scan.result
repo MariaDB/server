@@ -1199,3 +1199,21 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 json_extract(@js,'$**.partitions_index_scan_method')
 NULL
 drop table t1;
+#
+# MDEV-40479: Reverse prefix scan across partitions
+#
+CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a, c), KEY (b, c ))
+PARTITION BY RANGE (c)
+(PARTITION p1 VALUES LESS THAN (10),
+PARTITION p2 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1, 1, 15), (2, 1, 11), (3, 1, 6);
+explain
+SELECT c FROM t1 WHERE b = 1 ORDER BY c desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	3	Using where; Using index
+SELECT c FROM t1 WHERE b = 1 ORDER BY c desc;
+c
+15
+11
+6
+DROP TABLE t1;

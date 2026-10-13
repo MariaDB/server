@@ -16,11 +16,13 @@ include/assert_grep.inc [Ensure each GTID event has the thread id (Master)]
 connection master;
 set @@pseudo_thread_id=99999;
 insert into t1 values(2);
+include/save_master_gtid.inc
 # MYSQL_BINLOG master_local_binlog > master_outfile
 include/assert_grep.inc [GTID event's thread_id should use pseudo_thread_id]
 #
 # Test the serial slave
 connection slave;
+include/sync_with_master_gtid.inc
 # MYSQL_BINLOG slave_local_binlog > slave_outfile
 include/assert_grep.inc [Ensure the same number of GTID events on the slave as the master]
 include/assert_grep.inc [Ensure GTID events logged with master's thread id maintain that value]

@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Can.t update table 'aud' in stored function/trigger");
+call mtr.add_suppression("Slave: At line 1 in test.ai Error_code: 4094");
+call mtr.add_suppression("Could not execute Write_rows");
+call mtr.add_suppression("Error running query, slave SQL thread aborted");
+include/stop_slave.inc
+SET @sav= @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= ENFORCE;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE aud (a INT) ENGINE=InnoDB;
+CREATE TRIGGER ai AFTER INSERT ON t1 FOR EACH ROW INSERT INTO aud VALUES (1+NEW.a);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1);
+# the slave must stop with an error at trying to "re-"exectute the trigger.
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1442]
+SET @@global.slave_run_triggers_for_rbr = NO;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT a FROM t1 ORDER BY a;
+a
+1
+# ENFORCE re-runs the master's trigger on the slave, but the audit row
+# was not going to be written twice.
+SELECT COUNT(*) AS aud_rows_on_slave FROM aud;
+aud_rows_on_slave
+1
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_run_triggers_for_rbr = @sav;
+include/start_slave.inc
+connection master;
+DROP TRIGGER ai;
+DROP TABLE t1, aud;
+connection slave;
+include/rpl_end.inc

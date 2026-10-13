@@ -33,14 +33,11 @@ STOP SLAVE;
 RESET SLAVE ALL;
 SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL WSREP_ON=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 SET GLOBAL WSREP_ON=ON;
 connection node_2;
 SET GLOBAL WSREP_ON=OFF;
-include/kill_binlog_dump_threads.inc
-reset master;
+include/reset_master.inc
 SET GLOBAL WSREP_ON=ON;
 connection node_3;
-include/kill_binlog_dump_threads.inc
-RESET MASTER;
+include/reset_master.inc

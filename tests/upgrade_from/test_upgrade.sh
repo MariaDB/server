@@ -5,7 +5,7 @@
 # system files before and after mariadb-upgrade is executed.
 # mariadb-upgrade should do nothing since the minor version is the same.
 
-# Adapted from: https://mariadb.com/kb/en/installing-mariadb-binary-tarballs/#installing-mariadb-as-root-in-usrlocalmysql
+# Adapted from: https://mariadb.com/docs/server/server-management/install-and-upgrade-mariadb/installing-mariadb/binary-packages/installing-mariadb-binary-tarballs#installing-mariadb-as-root-in-usr-local-mysql
 
 # Exit on error
 set -e -o pipefail

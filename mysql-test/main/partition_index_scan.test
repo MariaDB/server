@@ -552,5 +552,25 @@ select json_extract(@js,'$**.partitions_index_scan_method');
 
 drop table t1;
 
+--echo #
+--echo # MDEV-40479: Reverse prefix scan across partitions
+--echo #
+
+eval
+CREATE TABLE t1 (a int, b int, c int, PRIMARY KEY (a, c), KEY (b, c $direction))
+ PARTITION BY RANGE (c)
+(PARTITION p1 VALUES LESS THAN (10),
+ PARTITION p2 VALUES LESS THAN (20));
+
+INSERT INTO t1 VALUES (1, 1, 15), (2, 1, 11), (3, 1, 6);
+
+eval
+explain
+SELECT c FROM t1 WHERE b = 1 ORDER BY c $opposite_direction;
+eval
+SELECT c FROM t1 WHERE b = 1 ORDER BY c $opposite_direction;
+
+DROP TABLE t1;
+
 --enable_cursor_protocol
 --enable_ps2_protocol

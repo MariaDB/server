@@ -1,0 +1,30 @@
+--source ../include/have_duckdb.inc
+--source include/not_msan.inc
+
+--disable_query_log
+--disable_warnings
+SET @saved_duckdb_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+SET GLOBAL duckdb_dml_in_batch = ON;
+DROP DATABASE IF EXISTS mdev_40957;
+CREATE DATABASE mdev_40957 CHARACTER SET utf8mb4;
+USE mdev_40957;
+--enable_warnings
+--enable_query_log
+
+CREATE TABLE invoice (
+  id UUID DEFAULT UUID() PRIMARY KEY,
+  product VARCHAR(64)
+) ENGINE=DuckDB;
+CREATE TABLE invoice_audit (n INT) ENGINE=InnoDB;
+CREATE TRIGGER invoice_ad AFTER DELETE ON invoice
+  FOR EACH ROW INSERT INTO invoice_audit VALUES (1);
+INSERT INTO invoice (product) VALUES ('one'), ('two'), ('three'), ('four');
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+SELECT COUNT(*) FROM invoice_audit;
+
+--disable_query_log
+DROP DATABASE mdev_40957;
+USE test;
+SET GLOBAL duckdb_dml_in_batch = @saved_duckdb_dml_in_batch;
+--enable_query_log

@@ -34,12 +34,14 @@ The page must be either buffer-fixed, or its page hash must be locked.
 @return whether bpage is close to MRU end of LRU */
 inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 {
-	/* FIXME: bpage->freed_page_clock is 31 bits */
-	return((buf_pool.freed_page_clock & ((1UL << 31) - 1))
-	       < (bpage->freed_page_clock
-		  + (buf_pool.curr_size()
-		     * (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio)
-		     / (BUF_LRU_OLD_RATIO_DIV * 4))));
+  /* buf_page_t::freed_page_clock only holds the low 31 bits of
+  buf_pool.freed_page_clock, so the age must be computed modulo 2^31. */
+  constexpr uint32_t CLOCK_MASK= (1U << 31) - 1;
+  const uint32_t now= uint32_t(buf_pool.freed_page_clock) & CLOCK_MASK;
+  const uint32_t age= (now - uint32_t(bpage->freed_page_clock)) & CLOCK_MASK;
+  return age < buf_pool.curr_size() *
+    (BUF_LRU_OLD_RATIO_DIV - buf_pool.LRU_old_ratio) /
+    (BUF_LRU_OLD_RATIO_DIV * 4);
 }
 
 /** Determine if a block should be moved to the start of the LRU list if

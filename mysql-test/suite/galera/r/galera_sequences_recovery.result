@@ -31,6 +31,8 @@ SELECT LASTVAL(s);
 LASTVAL(s)
 12
 SET GLOBAL innodb_log_checkpoint_now=1;
+connection node_1_ctrl;
+# Wait for the next_not_cached_value = 21 FROM s (1_ctrl)
 connection node_1;
 INSERT INTO t1(f2) values (1);
 INSERT INTO t1(f2) values (1);

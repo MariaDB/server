@@ -26,6 +26,59 @@ Got one of the listed errors
 drop table fed;
 # End of 5.5 tests
 #
+# MDEV-41211 Federated multi_delete skips some records
+#
+connection slave;
+CREATE TABLE federated.t1 (pk INT NOT NULL PRIMARY KEY, a INT);
+INSERT INTO federated.t1 VALUES (1,1),(5,5),(9,9);
+connection master;
+CREATE TABLE federated.t1 (pk INT NOT NULL PRIMARY KEY, a INT)
+ENGINE=FEDERATED
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+EXPLAIN DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 5 AND b.pk > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	b	range	PRIMARY	PRIMARY	4	NULL	2	Using where
+DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 5 AND b.pk > 0;
+SELECT * FROM federated.t1 ORDER BY pk;
+pk	a
+1	1
+9	9
+# Both tables are const
+EXPLAIN DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 1 AND b.pk = 9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	b	const	PRIMARY	PRIMARY	4	const	1	
+DELETE a FROM federated.t1 a, federated.t1 b WHERE a.pk = 1 AND b.pk = 9;
+SELECT * FROM federated.t1 ORDER BY pk;
+pk	a
+9	9
+# Multi-table UPDATE with a const target
+INSERT INTO federated.t1 VALUES (1,1),(5,5);
+EXPLAIN UPDATE federated.t1 a, federated.t1 b SET a.a = 0
+WHERE a.pk = 5 AND b.pk > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	b	range	PRIMARY	PRIMARY	4	NULL	2	Using where
+UPDATE federated.t1 a, federated.t1 b SET a.a = 0 WHERE a.pk = 5 AND b.pk > 0;
+SELECT * FROM federated.t1 ORDER BY pk;
+pk	a
+1	1
+5	0
+9	9
+connection slave;
+SELECT * FROM federated.t1 ORDER BY pk;
+pk	a
+1	1
+5	0
+9	9
+connection master;
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+connection master;
+# End of 11.4 tests
+#
 # MDEV-38039 SIGSEGV in parse_url on CREATE TABLE ... FEDERATED with empty CONNECTION
 #
 create table t1 (id int) engine=federated;

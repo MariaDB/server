@@ -106,8 +106,7 @@ STOP SLAVE;
 RESET SLAVE ALL;
 
 --connection node_3
---source include/kill_binlog_dump_threads.inc
-RESET MASTER;
+--source include/reset_master.inc
 drop table t1;
 
 --connection node_2

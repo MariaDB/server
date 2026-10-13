@@ -87,7 +87,7 @@ CREATE TABLE t1 (a int);
 INSERT INTO t1 values (3), (4);
 DROP TABLE t1;
 CREATE TABLE t1 (a int);
-# MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 --gtid-strict-mode | MYSQL
 DROP TABLE t1;
 DROP TABLE t2;
 #
@@ -181,7 +181,7 @@ DROP TABLE t1;
 #   Successive binary logs (e.g. logs with previous logs that have been
 # purged) will write events when the --start-position matches their
 # Gtid_list_log_event state
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 --gtid-strict-mode | MYSQL
 DROP TABLE t3;
 #
 #   Test Case 22:
@@ -208,7 +208,7 @@ FOUND 1 /ERROR: Binary logs are missing data for domain 0/ in err.out
 #   Error Case 3:
 #   A GTID --start-position with any sequence numbers that are not
 # eventually processed results in error
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > tmp_out_ 2> err_out_
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > tmp_out_ 2> err_out_
 FOUND 2 /ERROR: Binary logs never reached expected GTID state/ in err.out
 ######################################
 #      Test Group 2
@@ -295,7 +295,7 @@ CREATE TABLE t1 (a int);
 INSERT INTO t1 values (3), (4);
 DROP TABLE t1;
 CREATE TABLE t1 (a int);
-# MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM --start-position=0-1-2 --gtid-strict-mode | MYSQL
 DROP TABLE t1;
 DROP TABLE t2;
 #
@@ -398,7 +398,7 @@ PURGE BINARY LOGS TO "master-bin.000002";
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 | MYSQL
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-3,1-2-5 --gtid-strict-mode | MYSQL
 DROP TABLE t3;
 #
 #   Test Case 22:
@@ -440,7 +440,7 @@ FOUND 1 /ERROR: Got error reading packet from server/ in err.out
 #   Error Case 3:
 #   A GTID --start-position with any sequence numbers that are not
 # eventually processed results in error
-# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 > tmp_out_ 2> err_out_
+# MYSQL_BINLOG BINLOG_FILE_PARAM2 --start-position=0-1-8,1-2-6 --gtid-strict-mode > tmp_out_ 2> err_out_
 FOUND 1 /ERROR: Got error reading packet from server/ in err.out
 #
 # Remote-only cleanup from error cases

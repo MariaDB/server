@@ -81,9 +81,8 @@ INSERT INTO t1 VALUES (3, 'three');
 INSERT INTO t1 VALUES (4, 'four');
 INSERT INTO t1 VALUES (5, 'five');
 
-# Subquery DELETE requires rnd_pos on t2 which DuckDB doesn't support
---error ER_ILLEGAL_HA
-DELETE FROM t1 WHERE id IN (SELECT id FROM t2);
+DELETE FROM t1
+  WHERE id IN (SELECT id FROM t2 FORCE INDEX(PRIMARY));
 SELECT * FROM t1 ORDER BY id;
 
 # -----------------------------------------------------------------
