@@ -2066,8 +2066,7 @@ protected:
   virtual String *get_str_from_item(Item *i, String *tmp)
     { return i->val_str(tmp); }
   virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
-                                     const uchar *key, size_t offset)
-    { return f->val_str(tmp, key + offset); }
+                                     const uchar *key, size_t offset);
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
   bool uses_non_standard_aggregator_for_distinct() const override
