@@ -1939,7 +1939,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
       return; // OOM
 
     ulonglong *frequencies=
-        (ulonglong *) thd->alloc(sizeof(ulonglong) * num_key_parts);
+        (ulonglong *) thd->calloc(sizeof(ulonglong) * num_key_parts);
 
     if (unlikely(!frequencies))
       return; // OOM
