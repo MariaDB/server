@@ -290,11 +290,11 @@ select * from t1 where a > 10;
 drop table t1;
 drop database db1;
 set optimizer_replay_context="";
+use test;
 
 --echo #
 --echo # MDEV-41564: context replay warnings/errors are non-translatable
 --echo #
-use test;
 create table t1
 (
     a int, b int,
@@ -397,8 +397,26 @@ set lc_messages=default;
 set character_set_results=default;
 set optimizer_replay_context="";
 drop table t2;
-
 drop table t1;
+
 --echo #
+--echo # MDEV-41541 uninitialized memory read in optimizer replay
+--echo #
+create table t1 (a int, b int, index t1_idx_ab (a, b));
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+set session use_stat_tables='complementary';
+analyze table t1 persistent for all;
+select a+1, b+1 from t1 limit 5;
+select * from t1 where a<2 and b>4;
+set optimizer_record_context=ON;
+select * from t1 where a<3 and b>6;
+--source include/opt_context_save_in_var.inc
+set @opt_context_truncated= json_remove(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]');
+set optimizer_replay_context='opt_context_truncated';
+select * from t1 where a<3 and b>6;
+--source include/opt_context_save_in_var.inc
+select hex(json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]') + 0.0);
+set optimizer_replay_context='';
+drop table t1;
+
 --echo # End of 13.1 tests
---echo #
