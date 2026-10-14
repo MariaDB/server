@@ -4683,7 +4683,25 @@ public:
 
     return NULL;
   }
-  /* store value for the duration of the current read record */
+  /*
+    Double-buffering of virtual blob columns with 'value' and 'read_value'.
+    'value' is the scratch buffer that store() writes into (and points the
+    record at), while 'read_value' holds the computed value for the read
+    row. The swap only exchanges buffer ownership, so a record pointer
+    already referring to that memory stays valid until a later swap returns
+    the buffer to 'value' and a store() reuses it.
+
+    VCOL_UPDATE_FOR_READ, VCOL_UPDATE_INDEXED and
+    VCOL_UPDATE_INDEXED_FOR_UPDATE compute the value for the read row into
+    'value' and then swap it into 'read_value', so a later store() into
+    'value' does not overwrite it. VCOL_UPDATE_FOR_REPLACE also swaps before
+    computing: this moves the record[0] bytes out of 'value' for the
+    duration of the computation. VCOL_UPDATE_FOR_WRITE and
+    VCOL_UPDATE_FOR_DELETE do not swap. check_duplicate_long_entry_key()
+    swaps back after its first lookup read, so that 'read_value' keeps the
+    buffer of the previously read row and the lookup's buffer stays in
+    'value' for restore_blob_values() to free.
+  */
   inline void swap_value_and_read_value()
   {
     read_value.swap(value);

@@ -438,6 +438,38 @@ insert into t (b) values (1);
 insert into t (b) values (1),(1) on duplicate key update a = 3;
 drop table t;
 
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB table (on UPDATE)
+--echo #
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning engine=innodb;
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+update t1 set c1= c1 + interval 1 day;
+check table t1 extended;
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+drop table t1;
+
+--echo # Multi-table UPDATE
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning engine=innodb;
+create table t2 (x int);
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+insert t2 values (1);
+update t1, t2 set t1.c1= t1.c1 + interval 1 day;
+check table t1 extended;
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+drop table t1, t2;
+
+--echo # Virtual fields of the new row are computed once
+set @save_sql_mode= @@sql_mode;
+set sql_mode= '';
+create table t1 (a varchar(10), b int as (a) virtual)
+with system versioning engine=innodb;
+insert t1 (a) values ('x');
+update t1 set a= 'y';
+drop table t1;
+set sql_mode= @save_sql_mode;
+
 --echo # End of 10.11 tests
 
 source suite/versioning/common_finish.inc;
