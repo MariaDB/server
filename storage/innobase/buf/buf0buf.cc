@@ -1661,12 +1661,15 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
   {
   withdraw_done:
     first_to_withdraw= nullptr;
+    uint64_t base{0};
     while (buf_page_t *b= UT_LIST_GET_FIRST(withdrawn))
     {
       UT_LIST_REMOVE(withdrawn, b);
+      base= std::max(base, reinterpret_cast<buf_block_t*>(b)->modify_clock);
       /* satisfy the check in lazy_allocate() */
       ut_d(memset((void*) b, 0, sizeof(buf_block_t)));
     }
+    withdrawn_modify_clock= std::max(withdrawn_modify_clock, base);
     return SHRINK_DONE;
   }
 
@@ -1976,6 +1979,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
       const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;
       const size_t pages= pages_in_extent[ssize];
       const size_t first_extent= n_blocks / pages;
+      const uint64_t modify_clock= withdrawn_modify_clock + 1;
 
       char *extent= memory + first_extent * innodb_buffer_pool_extent_size;
 
@@ -1997,6 +2001,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
         {
           block->page.frame= frame;
           block->page.lock.init();
+          block->modify_clock= modify_clock;
           UT_LIST_ADD_LAST(free, &block->page);
           ut_d(block->page.in_free_list= true);
         }
@@ -2020,6 +2025,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
         {
           block->page.frame= frame;
           block->page.lock.init();
+          block->modify_clock= modify_clock;
           UT_LIST_ADD_LAST(free, &block->page);
           ut_d(block->page.in_free_list= true);
         }
