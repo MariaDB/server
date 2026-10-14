@@ -2506,7 +2506,17 @@ sp_head::bind_input_param(THD *thd,
       in the end of the routine execution when copying its new value
       from the formal parameter in bind_output_param().
     */
-    if (Item_splocal *spv= arg_item->get_item_splocal())
+    Item_splocal *spv= arg_item->get_item_splocal();
+    /*
+      A ROW field or an assoc array element (including a field of
+      an assoc array element) is a part of its variable, so the variable
+      itself must not be destructed.
+      The part itself is not destructed either. If it holds a resource,
+      e.g. a SYS_REFCURSOR field of a ROW, the cursor stays open during
+      the routine call (unlike a SYS_REFCURSOR variable passed as OUT),
+      and it is released when the new value is copied back.
+    */
+    if (spv && !spv->is_part_of_variable())
     {
       /*
         In case of a SYS_REFCURSOR variable the call for expr_event_handler()
@@ -2515,6 +2525,17 @@ sp_head::bind_input_param(THD *thd,
         for details.
       */
       sp_rcontext *octx1= spv->rcontext_handler()->get_rcontext(octx);
+      /*
+        An item which is not a part of its variable must have the data type
+        of the variable. This catches a class derived from Item_splocal,
+        which stands for a part of a variable, but does not override
+        is_part_of_variable().
+        Items of ENUM and SET variables have the VARCHAR data type,
+        so compare using type_handler_for_item_field().
+      */
+      DBUG_ASSERT(spv->type_handler() ==
+                  octx1->get_variable(spv->get_var_idx())->
+                    field->type_handler()->type_handler_for_item_field());
       octx1->get_variable(spv->get_var_idx())->
         field->expr_event_handler(thd, expr_event_t::DESTRUCT_OUT_OF_SCOPE);
     }
@@ -2551,7 +2572,23 @@ sp_head::bind_output_param(THD *thd,
 
   DBUG_ASSERT(srp);
 
-  if (srp->set_value(thd, octx, nctx->get_variable_addr(arg_no)))
+  /*
+    The actual parameter belongs to the caller, so it must be evaluated
+    in the caller's context. E.g. an assoc array element OUT parameter
+    "a0(i)" resolves the variables "a0" and "i" using thd->spcont,
+    which is the callee's context at this point.
+
+    The argument is evaluated here, when the value is copied back to
+    the caller, not when the routine is called. So if an earlier OUT
+    argument of the same call changes the variable "i", for example
+    CALL p(i, a0(i)), the new value of "i" is used as the key.
+  */
+  sp_rcontext *callee_spcont= thd->spcont;
+  thd->spcont= octx;
+  const bool set_value_failed= srp->set_value(thd, octx,
+                                              nctx->get_variable_addr(arg_no));
+  thd->spcont= callee_spcont;
+  if (set_value_failed)
   {
     DBUG_PRINT("error", ("set value failed"));
     DBUG_RETURN(TRUE);

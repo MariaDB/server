@@ -3376,6 +3376,19 @@ private:
 public:
   Item_splocal *get_item_splocal() override { return this; }
 
+  /*
+    Return true if the item is a part of its SP variable (e.g. a ROW field,
+    an assoc array element), rather than the whole variable.
+    Passing such an item as an OUT parameter must not destruct the variable.
+
+    The default is false (the item is the whole variable). A class derived
+    from Item_splocal, which stands for a part of a variable, must override
+    this method. If it does not, the whole variable is destructed when
+    the item is passed as an OUT argument (e.g. all other elements of
+    an assoc array are lost).
+  */
+  virtual bool is_part_of_variable() const { return false; }
+
   Rewritable_query_parameter *get_rewritable_query_parameter() override
   { return this; }
 
@@ -3433,6 +3446,7 @@ public:
    :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
+  bool is_part_of_variable() const override { return false; } // A variable
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
@@ -3463,6 +3477,7 @@ public:
     m_field_name(*sp_field_name),
     m_field_idx(sp_field_idx)
   { }
+  bool is_part_of_variable() const override { return true; }
   bool fix_fields(THD *thd, Item **) override;
   Item *this_item() override;
   const Item *this_item() const override;

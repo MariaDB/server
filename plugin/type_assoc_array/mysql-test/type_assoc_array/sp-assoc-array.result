@@ -2894,3 +2894,232 @@ c1
 Warnings:
 Warning	1264	Out of range value for column 'i' at row 0
 DROP PROCEDURE p1;
+#
+# MDEV-41530 A field of an assoc array element as OUT parameter crashes
+# the server
+#
+# An assoc array element, or a field of an element, passed to an
+# OUT parameter
+#
+CREATE PROCEDURE p1(a OUT INT) AS
+BEGIN
+a:= 7;
+END;
+$$
+CREATE PROCEDURE p2(a INT, b OUT INT, c INT) AS
+BEGIN
+b:= a + c;
+END;
+$$
+DECLARE
+TYPE assoc0_t IS TABLE OF INT INDEX BY INTEGER;
+a0 assoc0_t;
+BEGIN
+a0(1):= 1;
+p1(a0(1));
+SELECT a0(1);
+END;
+$$
+a0(1)
+7
+DECLARE
+TYPE assoc0_t IS TABLE OF INT INDEX BY INTEGER;
+a0 assoc0_t;
+i INT:= 2;
+j INT:= 3;
+BEGIN
+a0(2):= 0;
+p2(10, a0(i), j);
+SELECT a0(2);
+END;
+$$
+a0(2)
+13
+DECLARE
+TYPE assoc0_t IS TABLE OF VARCHAR(10) INDEX BY VARCHAR(10);
+a0 assoc0_t;
+k VARCHAR(10):= 'key1';
+BEGIN
+a0('key1'):= 'x';
+p1(a0(k));
+SELECT k, a0('key1');
+END;
+$$
+k	a0('key1')
+key1	7
+# The other elements of the array must not be lost
+DECLARE
+TYPE assoc0_t IS TABLE OF INT INDEX BY INTEGER;
+a0 assoc0_t;
+BEGIN
+a0(1):= 1;
+a0(2):= 2;
+a0(3):= 3;
+p1(a0(2));
+SELECT a0.COUNT, a0(1), a0(2), a0(3);
+END;
+$$
+a0.COUNT	a0(1)	a0(2)	a0(3)
+3	1	7	3
+# A field of an assoc array ROW element passed to an OUT parameter
+# (earlier, this crashed the server with an assertion failure
+# in sp_rcontext::virtual_tmp_table_for_row())
+DECLARE
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(0, 'x'));
+BEGIN
+p1(a0(1).i);
+SELECT a0(1).i, a0(1).s;
+END;
+$$
+a0(1).i	a0(1).s
+7	x
+DECLARE
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(0, 'x'));
+BEGIN
+p2(10, a0(1).i, 3);
+SELECT a0(1).i, a0(1).s;
+END;
+$$
+a0(1).i	a0(1).s
+13	x
+# A field of a ROW variable passed to an OUT parameter: like for
+# an assoc array element, the other fields must not be lost
+DECLARE
+r ROW(a INT, b INT, c VARCHAR(10));
+BEGIN
+r.a:= 1;
+r.b:= 2;
+r.c:= 'x';
+p1(r.b);
+SELECT r.a, r.b, r.c;
+END;
+$$
+r.a	r.b	r.c
+1	7	x
+DECLARE
+TYPE rec_t IS RECORD (a INT, b INT, c VARCHAR(10));
+r rec_t;
+BEGIN
+r.a:= 1;
+r.b:= 2;
+r.c:= 'x';
+p2(10, r.b, 3);
+SELECT r.a, r.b, r.c;
+END;
+$$
+r.a	r.b	r.c
+1	13	x
+# An assoc array element and a field of an element passed to an
+# INOUT parameter
+CREATE PROCEDURE p_inout(a INOUT INT) AS
+BEGIN
+a:= a + 10;
+END;
+$$
+DECLARE
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+TYPE assoc1_t IS TABLE OF INT INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(5, 'x'), 2 => rec_t(6, 'y'));
+a1 assoc1_t;
+k INT:= 3;
+BEGIN
+a1(1):= 1;
+a1(3):= 3;
+p_inout(a1(k));
+p_inout(a0(2).i);
+SELECT a1.COUNT, a1(1), a1(3), a0.COUNT, a0(1).i, a0(2).i, a0(2).s;
+END;
+$$
+a1.COUNT	a1(1)	a1(3)	a0.COUNT	a0(1).i	a0(2).i	a0(2).s
+2	1	13	2	5	16	y
+# Failures when the value is copied back to the actual parameter
+# A NULL key
+DECLARE
+TYPE assoc1_t IS TABLE OF INT INDEX BY INT;
+a1 assoc1_t;
+k INT;
+BEGIN
+a1(1):= 1;
+p1(a1(k));
+END;
+$$
+ERROR HY000: NULL key used for associative array 'a1'
+DECLARE
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(0, 'x'));
+k INT;
+BEGIN
+p1(a0(k).i);
+END;
+$$
+ERROR HY000: NULL key used for associative array 'a0'
+# The key is changed by an earlier OUT argument of the same call.
+# The key of an OUT argument is evaluated when the values are copied
+# back, so it already has the new value (this is the current behavior,
+# it is not the same as fixing the key when the routine is called).
+CREATE PROCEDURE p3(x OUT INT, y OUT INT) AS
+BEGIN
+x:= 5;
+y:= 100;
+END;
+$$
+DECLARE
+TYPE assoc1_t IS TABLE OF INT INDEX BY INT;
+a1 assoc1_t;
+i INT:= 1;
+BEGIN
+a1(1):= 1;
+p3(i, a1(i));
+SELECT i, a1.COUNT, a1(1), a1(5);
+END;
+$$
+i	a1.COUNT	a1(1)	a1(5)
+5	2	1	100
+DECLARE
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(0, 'x'));
+i INT:= 1;
+BEGIN
+p3(i, a0(i).i);
+END;
+$$
+ERROR HY000: Element not found with key '5'
+DROP PROCEDURE p3
+$$
+# A field of an element which was deleted by the callee
+CREATE PACKAGE pk1 AS
+PROCEDURE p1;
+PROCEDURE p_delete(a OUT INT);
+END;
+$$
+CREATE PACKAGE BODY pk1 AS
+TYPE rec_t IS RECORD (i INT, s VARCHAR(10));
+TYPE assoc0_t IS TABLE OF rec_t INDEX BY INT;
+a0 assoc0_t:= assoc0_t(1 => rec_t(0, 'x'));
+PROCEDURE p_delete(a OUT INT) AS
+BEGIN
+a0.DELETE(1);
+a:= 7;
+END;
+PROCEDURE p1 AS
+BEGIN
+p_delete(a0(1).i);
+END;
+END;
+$$
+CALL pk1.p1
+$$
+ERROR HY000: Element not found with key '1'
+DROP PACKAGE pk1
+$$
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p_inout;
+# End of 12.3 tests

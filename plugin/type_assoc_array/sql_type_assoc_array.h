@@ -440,6 +440,18 @@ protected:
   bool is_element_exists(THD *thd,
                          const Field_composite *field,
                          const LEX_CSTRING &name) const;
+  /*
+    Evaluate the key expression and convert it to a string, which is used
+    as the key in the associative array variable.
+    @param thd        - Current thd
+    @param array_addr - The run-time address of the assoc array variable.
+    @param buffer     - A buffer for the key string
+    @param[out] key   - The key string
+    @retval false     - OK
+    @retval true      - Error (it is already raised)
+  */
+  bool evaluate_key(THD *thd, const sp_rcontext_addr &array_addr,
+                    String *buffer, LEX_CSTRING *key);
 public:
   Item_splocal_assoc_array_base(Item *key);
 };
@@ -456,6 +468,7 @@ public:
                                    const Lex_ident_sys &sp_var_name,
                                    Item *key, const Type_handler *handler,
                                    uint pos_in_q= 0, uint len_in_q= 0);
+  bool is_part_of_variable() const override { return true; }
   bool fix_fields(THD *thd, Item **) override;
   Item *this_item() override;
   const Item *this_item() const override;
@@ -476,6 +489,7 @@ class Item_splocal_assoc_array_element_field :
 {
 protected:
   Item_field *m_element_item;
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 public:
   Item_splocal_assoc_array_element_field(THD *thd,
                                         const sp_rcontext_addr &addr,
