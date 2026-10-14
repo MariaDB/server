@@ -3580,8 +3580,6 @@ public:
   bool verbose:1, no_write_to_binlog:1;
   bool safe_to_cache_query:1;
   bool ignore:1;
-  bool next_is_main:1; // use "main" SELECT_LEX for nrxt allocation;
-  bool next_is_down:1; // use "main" SELECT_LEX for nrxt allocation;
   /*
     field_list was created for view and should be removed before PS/SP
     reexecution

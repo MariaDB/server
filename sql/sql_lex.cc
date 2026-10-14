@@ -1297,8 +1297,6 @@ void LEX::start(THD *thd_arg)
   verbose= 0;
   safe_to_cache_query= 1;
   ignore= 0;
-  next_is_main= 0;
-  next_is_down= 0;
   empty_field_list_on_rset= 0;
   use_only_table_context= 0;
   escape_used= 0;
