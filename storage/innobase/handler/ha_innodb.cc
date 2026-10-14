@@ -16474,6 +16474,18 @@ ha_innobase::external_lock(
 set_lock:
 		*trx->detailed_error = 0;
 
+		if (trx->isolation_level == TRX_ISO_SERIALIZABLE
+		    && trx->snapshot_isolation
+		    && trx->state == TRX_STATE_NOT_STARTED) {
+			/* Start the transaction and create the read view
+			at the same time, so that lock checks can flag
+			ER_CHECKREAD for records committed after the start
+			of our transaction. */
+			trx->will_lock = true;
+			trx_start_if_not_started(trx, false);
+			trx->read_view.open(trx);
+		}
+
 		innobase_register_trx(ht, thd, trx);
 
 		if (not_autocommit
@@ -16743,6 +16755,7 @@ ha_innobase::store_lock(
 		switch ((trx->isolation_level
 			 = innodb_isolation_level(thd) & 3)) {
 		case ISO_REPEATABLE_READ:
+		case ISO_SERIALIZABLE:
 			break;
 		case ISO_READ_COMMITTED:
 		case ISO_READ_UNCOMMITTED:
@@ -16750,15 +16763,6 @@ ha_innobase::store_lock(
 			each consistent read set its own snapshot */
 			trx->read_view.close();
 			break;
-		case ISO_SERIALIZABLE:
-			auto trx_state = trx->state;
-			if (trx_state != TRX_STATE_NOT_STARTED) {
-				ut_ad(trx_state == TRX_STATE_ACTIVE);
-			} else if (trx->snapshot_isolation) {
-				trx->will_lock = true;
-				trx_start_if_not_started(trx, false);
-				trx->read_view.open(trx);
-			}
 		}
 	}
 
