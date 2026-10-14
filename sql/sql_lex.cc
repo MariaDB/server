@@ -1299,7 +1299,6 @@ void LEX::start(THD *thd_arg)
   ignore= 0;
   empty_field_list_on_rset= 0;
   use_only_table_context= 0;
-  escape_used= 0;
   default_used= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
