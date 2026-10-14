@@ -310,4 +310,19 @@ select * from t1 where a<3 and b>6;
 select hex(json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]') + 0.0);
 drop table t1;
 
+--echo #
+--echo # Replay mismatch warnings print numbers as text
+--echo #
+set optimizer_replay_context='';
+create table t1 (a int, b int, key(a));
+insert into t1 select seq%10, seq from seq_1_to_100;
+explain select t1.b from t1, t1 t2 where t1.a = t2.a;
+--source include/opt_context_save_in_var.inc
+set @opt_context_mismatch= json_remove(@opt_context,
+  '$.tables[0].cost_for_index_read_calls');
+set optimizer_replay_context='opt_context_mismatch';
+explain select t1.b from t1, t1 t2 where t1.a = t2.a;
+set optimizer_replay_context='';
+drop table t1;
+
 --echo # End of 13.1 tests
