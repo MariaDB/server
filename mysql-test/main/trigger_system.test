@@ -1,0 +1,600 @@
+--source include/not_embedded.inc
+
+--source include/count_sessions.inc
+
+call mtr.add_suppression('Column count of mysql.event is wrong.');
+call mtr.add_suppression('Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.');
+call mtr.add_suppression('An error occurred when loading data from the table mysql.event. System triggers not loaded');
+call mtr.add_suppression('Aborting');
+call mtr.add_suppression('Incorrect definition of table mysql.event: expected column');
+call mtr.add_suppression('Cannot open mysql.event');
+call mtr.add_suppression('System trigger (.*)execution failing 1146.*');
+call mtr.add_suppression('Fail to load metadata for trigger (.*). Skip it.');
+--echo #
+--echo # MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
+--echo #
+--echo # Test 1: Check that AFTER STARTUP trigger and BEFORE SHUTDOWN trigger
+--echo #         are fired at right time
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+--echo # BEFORE SHUTDOWN should be in action just after it has been created.
+--echo # So, after restarting the server the record about server shutdown should
+--echo # be inserted into the table t1.
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+
+--echo #
+--echo # Test 2: Check that ON STARTUP/ON SHUTDOWN can't be created
+--echo #         w/o the SUPER privilege
+--echo #
+
+--echo # Check that ON STARTUP/ON SHUTDOWN can be created w/o the SUPER privilege
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+--connect (con1, localhost, u1, , test)
+--echo # The following CREATE TRIGGER AFTER STARTUP statement should fail with
+--echo # the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+--echo # have the SUPER privilege
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP SET @a=1;
+
+--echo # The following CREATE TRIGGER BEFORE SHUTDOWN statement should fail with
+--echo # the error ER_SPECIFIC_ACCESS_DENIED_ERROR since the user `u1` doesn't
+--echo # have the SUPER privilege
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TRIGGER IF NOT EXISTS trg1 BEFORE SHUTDOWN SET @b=1;
+
+--connection default
+--disconnect con1
+--source include/wait_until_count_sessions.inc
+DROP USER u1;
+
+--echo #
+--echo # Test 3: Check that a user with the explicitly granted the SUPER privilege
+--echo #         can create a system trigger on STARTUP/on SHUTDOWN
+--echo #
+CREATE USER u1;
+GRANT SELECT ON test.* TO u1;
+GRANT SUPER ON *.* TO u1;
+
+--connect (con1, localhost, u1, , test)
+--echo # The following CREATE TRIGGER AFTER STARTUP statement and
+--echo # CREATE TRIGGER BEFORE SHUTDOWN statement should succeed
+--echo # since the SUPER privilege is granted to the user `u1`
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP INSERT INTO t1 VALUES('Startup');
+CREATE TRIGGER IF NOT EXISTS trg2 BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown');
+
+--connection default
+--disconnect con1
+--source include/wait_until_count_sessions.inc
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+DROP USER u1;
+
+--echo #
+--echo # Test 4: Check that it is not possible to create a System trigger
+--echo #         and a DML trigger with the same name
+--echo #
+CREATE TABLE t1 (a INT);
+--echo # First check that DML trigger can 't be created with the same name
+--echo # as the existing system trigger
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+DROP TRIGGER trg1;
+
+--echo # And then check in reverse order: a system trigger can't be created
+--echo # on presence of DML trigger with the same name
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP TABLE t1;
+
+--echo #
+--echo # Test 5: Check that multiple triggers can be created on the same
+--echo #         system event
+--echo #
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE TRIGGER IF NOT EXISTS trg1_ast AFTER STARTUP INSERT INTO t1 VALUES('Startup: first action');
+CREATE TRIGGER IF NOT EXISTS trg2_ast AFTER STARTUP INSERT INTO t1 VALUES('Startup: second action');
+--echo # BEFORE SHUTDOWN should be in action just after it has been created.
+--echo # So, after restarting the server the record about server shutdown should
+--echo # be inserted into the table t1.
+CREATE TRIGGER IF NOT EXISTS trg3_bshd BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown: first action');
+CREATE TRIGGER IF NOT EXISTS trg4_bshd BEFORE SHUTDOWN INSERT INTO t1 VALUES('Shutdown: second action');
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg1_ast;
+DROP TRIGGER trg2_ast;
+DROP TRIGGER trg3_bshd;
+DROP TRIGGER trg4_bshd;
+
+--echo #
+--echo # Test 6: SHOW TRIGGERS on a system trigger
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--replace_column 6 #
+SHOW TRIGGERS;
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 7: SHOW CREATE TRIGGER on a system trigger
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 8: Check that triggers and events have the same namespace
+--echo #
+
+--echo # Test 8.1 Check that attempt to create a trigger with the same name
+--echo #          as existent event result in error
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
+--error ER_TRG_EVENT_CONFLICTS_NAME
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+--echo # Clean up
+DROP EVENT ev1;
+
+--echo # Test 8.2 Check that attempt to create an event with the same name as
+--echo #          as existen trigger result in error
+CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
+--error ER_TRG_EVENT_CONFLICTS_NAME
+CREATE EVENT trg1 ON SCHEDULE EVERY 1 YEAR DO SET @aaa=1;
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 9: Check that server can operate on database with
+--echo #         broken table mysql.event.
+CREATE TRIGGER trg1 AFTER STARTUP SET @bbb=1;
+
+--echo # Backup the mysql.event table
+CREATE TABLE event_copy LIKE mysql.event;
+INSERT INTO event_copy SELECT * FROM mysql.event;
+
+--echo # Drop column 'kind' in the table mysql.event to simulate a failure on
+--echo # loading triggers metadata from the table mysql.event
+ALTER TABLE mysql.event DROP COLUMN kind;
+
+--echo # Shutdown server and restart it to see how it handle broken
+--echo # table mysql.event
+
+--echo # Restart server. Expect start up success
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo # Restore original mysql.event from backup
+DROP TABLE mysql.event;
+RENAME TABLE event_copy TO mysql.event;
+
+--echo # Restart server. Should be successful.
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 10: Check that server can be started up on the data dictionary
+--echo #          having the table mysql.event from previous version of
+--echo #          server (missing mandatory columns for support of system triggers)
+--echo #
+RENAME TABLE mysql.event TO mysql.ev_bk;
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+--source include/shutdown_mysqld.inc
+
+--echo # Copy event table's files from previous server version (12.3)
+--echo # that doesn't contain columns required for system triggers support
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.MAI $MYSQLD_DATADIR/mysql/event.MAI
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.MAD $MYSQLD_DATADIR/mysql/event.MAD
+--copy_file $MYSQL_TEST_DIR/std_data/mdev-30645-event.frm $MYSQLD_DATADIR/mysql/event.frm
+
+#--let $restart_parameters=--skip-grant-tables
+--source include/start_mysqld.inc
+
+--error ER_SYSTEM_TRG_DISABLED
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+
+SHOW TRIGGERS;
+SELECT * FROM information_schema.triggers WHERE trigger_schema != 'mtr';
+
+CREATE TABLE t1 (a INT);
+--echo # DROP for ON DML trigger, first go through the system trigger code path,
+--echo # and only then through code path for dml triggers
+--echo # Expect the following statement completes with success
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+DROP TRIGGER trg1;
+
+--echo # Clean up
+DROP TABLE t1;
+
+# back to mariadb default
+DROP TABLE mysql.event;
+RENAME TABLE mysql.ev_bk TO mysql.event;
+
+--echo # Restart server in order to reload a defintion of
+--echo # the table mysql.event in memory
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # Test 11: Check that trigger time/event combinations BEFORE STARTUP and
+--echo #          AFTER SHUTDOWN are invalid
+--echo #
+
+--error ER_SYS_TRG_SEMANTIC_ERROR
+CREATE TRIGGER ev1 BEFORE STARTUP SET @a=1;
+--error ER_SYS_TRG_SEMANTIC_ERROR
+CREATE TRIGGER ev1 AFTER SHUTDOWN SET @a=1;
+
+--echo #
+--echo # Test 12: Check that it is not possible to hang the server by
+--echo #          executing DROP TRIGGER inside the body of ON SHUTDOWN TRIGGER
+CREATE TRIGGER trg1 AFTER STARTUP SET @a=1;
+
+--delimiter $
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+CREATE TRIGGER trg2 BEFORE SHUTDOWN
+BEGIN
+  DROP TRIGGER trg1;
+END;
+$
+--delimiter ;
+--source include/restart_mysqld.inc
+--echo # Expected only the trigger trg2 in output
+--replace_column 6 #
+SHOW TRIGGERS;
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 13: Check that 'IF NOT EXISTS' clause handled correctly
+--echo #          on presence of ON DML trigger with the same name
+--echo #
+CREATE TABLE t1 (a VARCHAR(100));
+
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+
+--echo # On presence IF NOT EXISTS the CREATE TRIGGER statememt
+--echo # completes with success
+CREATE TRIGGER IF NOT EXISTS trg1 AFTER STARTUP SET @b=1;
+
+--replace_column 6 #
+SHOW TRIGGERS;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP TABLE t1;
+
+--echo #
+--echo # Test 14: Check that OR REPLACE clause allows to create
+--echo #          a system trigger in case there is already a system trigger
+--echo #          with the same name
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @b=1;
+
+--error ER_TRG_ALREADY_EXISTS
+CREATE TRIGGER trg1 BEFORE SHUTDOWN SET @b=1;
+--echo # OR REPLACE clause results in sucessful execution
+CREATE OR REPLACE TRIGGER trg1 BEFORE SHUTDOWN SET @b=1;
+--echo # It is expected 'BEFORE SHUTDOWN' trigger in output of
+--echo # SHOW TRIGGERS statememt
+--replace_column 6 #
+SHOW TRIGGERS;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # Test 15. Check that ALTER EVENT RENAME TO reports correct error in case there is
+--echo #          names conflict between system trigger and event
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @a=1;
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 YEAR DO SET @b=1;
+--error ER_TRG_EVENT_CONFLICTS_NAME
+ALTER EVENT ev1 RENAME TO trg1;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+DROP EVENT ev1;
+
+--echo #
+--echo # Test 16. Check that neither INSERTING/UPDATING/DELETING predicates
+--echo #          nor NEW/OLD clauses are accepted inside a system trigger body
+--echo #
+--delimiter $
+
+--error ER_SYSTEM_TRG_INVALID_PREDICATE
+CREATE TRIGGER trg1 BEFORE SHUTDOWN
+BEGIN
+  IF INSERTING THEN
+    SET @a=100;
+  END IF;
+END;
+$
+
+--error ER_TRG_NO_SUCH_ROW_IN_TRG
+CREATE TRIGGER trg2 BEFORE SHUTDOWN
+BEGIN
+  SET NEW.a = OLD.b;
+END;
+$
+
+--delimiter ;
+
+--echo #
+--echo # Test 17: Check that unknown database and the 'mysql' database for
+--echo #          trigger name in CREATE TRIGGER statement is handled correctly.
+--echo #
+--error ER_BAD_DB_ERROR
+CREATE TRIGGER not_existent_db.trg1 BEFORE SHUTDOWN SET @s=1;
+
+--error ER_NO_TRIGGERS_ON_SYSTEM_SCHEMA
+CREATE TRIGGER mysql.trg1 BEFORE SHUTDOWN SET @s=1;
+
+--echo # End of Test 17.
+
+--echo #
+--echo # MDEV-40064: Memory leak with unparseble trigger for startup body
+--echo #
+
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+
+UPDATE mysql.event SET body='not valid sql ;;;' WHERE name='trg1';
+
+--source include/restart_mysqld.inc
+SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name='trg1';
+
+# Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40074: Create or replace does not work for trigger for startup/shutdown
+--echo #
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+CREATE OR REPLACE TRIGGER trg1 AFTER STARTUP SET @x=1;
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40076: ASAN global-buffer-overflow in reconstruct_create_trigger_stmt
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+
+SET @save_sql_mode= @@sql_mode;
+# Reset the sql_mode to allow UPDATE mysql.event
+SET sql_mode='';
+UPDATE mysql.event SET `when`=0 WHERE name='trg1';
+
+--error ER_SYSTEM_TRG_INVALID_METADATA
+SHOW CREATE TRIGGER trg1;
+
+--echo # No triggers be output since triggers having invalid metadata are skipped
+SHOW TRIGGERS;
+
+--echo # Clean up
+DROP TRIGGER trg1;
+
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+UPDATE mysql.event SET `kind`=255 WHERE name='trg1';
+
+--error ER_SYSTEM_TRG_INVALID_METADATA
+SHOW CREATE TRIGGER trg1;
+
+--echo # No triggers be output since triggers having invalid metadata are skipped
+SHOW TRIGGERS;
+
+UPDATE mysql.event SET `kind`=0 WHERE name='trg1';
+--error ER_SYSTEM_TRG_INVALID_METADATA
+SHOW CREATE TRIGGER trg1;
+
+SET @@sql_mode= @save_sql_mode;
+
+DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40083: Compound triggers for startup/shutdown are stored without END, which leads to silent non-firing after restart
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--delimiter |
+
+CREATE TRIGGER c1 AFTER STARTUP  BEGIN INSERT INTO t1 VALUES (1); END|
+CREATE TRIGGER c2 BEFORE SHUTDOWN BEGIN INSERT INTO t1 VALUES (2); INSERT INTO t1 VALUES (3); END|
+
+--delimiter ;
+
+SELECT name, body FROM mysql.event WHERE name IN ('c1','c2') ORDER BY name;
+
+--replace_column 7 #
+SHOW CREATE TRIGGER c1;
+--replace_column 7 #
+SHOW CREATE TRIGGER c2;
+--echo # Restart server. The trigger c2 must be fired before shutdown, the trigger c1
+--echo # Must be fired after start up.
+--source include/restart_mysqld.inc
+--echo # In result, the rows (2), (3), (1) must be returned by the following query
+SELECT * from t1;
+
+--echo # Clean up
+DROP TRIGGER c1;
+DROP TRIGGER c2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40106 Sever crashes in store_trigger_metadata after 2nd
+--echo #            execution of ps with create system trigger
+--echo #
+PREPARE stmt FROM 'CREATE TRIGGER tr1 AFTER STARTUP SET @x=1';
+EXECUTE stmt;
+DROP TRIGGER tr1;
+--echo # Without the fix, the second execution of create trigger in PS mode
+--echo # would result in crash
+EXECUTE stmt;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TRIGGER tr1;
+
+--echo #
+--echo # MDEV-40947: ASAN global-buffer-overflow in events_to_string/reconstruct_create_trigger_stmt
+--echo #
+CREATE TABLE t (a INT);
+
+CREATE TRIGGER x1 AFTER STARTUP INSERT INTO test.t VALUES (1);
+UPDATE mysql.event SET kind='DDL' WHERE name='x1';
+
+--replace_column 7 #
+SHOW CREATE TRIGGER x1;
+
+DROP TRIGGER x1;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-40952: CREATE TRIGGER fails with ER_EVENT_STORE_FAILED after unrelated failed ALTER
+--echo #
+CREATE TABLE t1 (v ENUM('a','b'));
+
+INSERT INTO t1 VALUES ('a'),('b');
+
+--error WARN_DATA_TRUNCATED
+ALTER TABLE t1 MODIFY COLUMN v ENUM('c','d');
+
+--echo # The following statement should finish successfully
+CREATE TRIGGER trg AFTER STARTUP SET @x = 1;
+
+--echo # Clean up
+DROP TABLE t1;
+DROP TRIGGER trg;
+
+--echo #
+--echo # MDEV-40105: Information_schema.triggers doesn't show schema for system triggers
+--echo #
+
+CREATE TRIGGER trg1 AFTER STARTUP SET @x = 1;
+SELECT trigger_schema, event_manipulation FROM information_schema.triggers WHERE trigger_name = 'trg1';
+--echo # Query the same data from the base system table
+SELECT db, kind FROM mysql.event WHERE name = 'trg1';
+
+--echo # Clean up
+DROP TRIGGER trg1;
+
+--echo #
+--echo # MDEV-40095: Server doesn't start if system triggers not loaded (if cannot open mysql.event)
+--echo #
+RENAME TABLE mysql.event TO mysql.ev_bk;
+
+--source include/restart_mysqld.inc
+
+--echo # Support of system triggers relies on presence of
+--echo # the table mysql.event. Since the table mysql.event were
+--echo # explicitly renamed, attempt to create a system trigger
+--echo # results in the error ER_NO_SUCH_TABLE
+--error ER_NO_SUCH_TABLE
+CREATE TRIGGER ev1 AFTER STARTUP SET @bbb=1;
+
+# back to mariadb default
+RENAME TABLE mysql.ev_bk TO mysql.event;
+
+--echo # Restart server in order to reload a defintion of
+--echo # the table mysql.event in memory
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # MDEV-40067: mysqldump --sys-triggers creates unloadable dump
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @x=1;
+--exec $MYSQL_DUMP --sys-triggers test > $MYSQLTEST_VARDIR/tmp/dump.sql
+DROP TRIGGER trg1;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dump.sql
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+DROP TRIGGER trg1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dump.sql
+
+--echo #
+--echo # MDEV-40072: Server crashes in my_hash_first/name_hash_search after load_system_triggers
+--echo #
+CREATE USER a1@localhost;
+CREATE TABLE t1 (a VARCHAR(30));
+GRANT SUPER ON *.* TO a1@localhost;
+
+GRANT INSERT ON test.* TO a1@localhost;
+
+--connect (c1, localhost, a1,, test)
+
+CREATE TRIGGER tr1 AFTER STARTUP INSERT INTO t1 VALUES ('Fired on startup trigger');
+CREATE TRIGGER tr2 BEFORE SHUTDOWN INSERT INTO t1 VALUES ('Fired on shutdown trigger');
+
+--connection default
+
+--disconnect c1
+
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TABLE t1;
+DROP USER a1@localhost;
+
+--echo #
+--echo # MDEV-40951: System triggers give no visibility into slow/failed execution and misreport server readiness
+--echo #
+# The trigger 'trg1' references to not-existent table, so on server restart
+# the error should be output in error log
+CREATE TRIGGER tr1 AFTER STARTUP INSERT INTO t1 VALUES ('Shutdown');
+--error 1
+--source include/restart_mysqld.inc
+
+--echo # Clean up
+DROP TRIGGER tr1;
+
+--echo #
+--echo # Check that DROP TRIGGER and SHOW CREATE TRIGGER statement
+--echo # don't touch event with the same name
+--echo #
+CREATE EVENT trg1 ON SCHEDULE EVERY 1 YEAR STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH DO SELECT 1;
+--error ER_TRG_DOES_NOT_EXIST
+SHOW CREATE TRIGGER trg1;
+
+--error ER_TRG_DOES_NOT_EXIST
+DROP TRIGGER trg1;
+
+DROP EVENT trg1;
+
+--echo #
+--echo # Check that the statements SHOW CREATE EVENT, DROP EVENT, ALTER EVENT
+--echo # SHOW EVENTS don't touch triggers with the name
+--echo #
+CREATE TRIGGER trg1 BEFORE SHUTDOWN SET @a=1;
+--error ER_EVENT_DOES_NOT_EXIST
+SHOW CREATE EVENT trg1;
+--error ER_EVENT_DOES_NOT_EXIST
+ALTER EVENT trg1 COMMENT 'The trigger';
+--error ER_EVENT_DOES_NOT_EXIST
+DROP EVENT trg1;
+--echo # No events in the output
+SHOW EVENTS;
+
+--echo # Clean up
+DROP TRIGGER trg1;

@@ -25,6 +25,8 @@
   A public interface of Events_Scheduler module.
 */
 
+#include "event_common.h"
+
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_event_scheduler_LOCK_scheduler_state;
 extern PSI_cond_key key_event_scheduler_COND_state;
@@ -74,18 +76,12 @@ sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
   subsystems (ACL, time zone tables, etc).
 */
 
-class Events
+class Events : public Events_common
 {
 public:
-  /*
-    the following block is to support --event-scheduler command line option
-    and the @@global.event_scheduler SQL variable.
-    See sys_var.cc
-  */
-  enum enum_opt_event_scheduler { EVENTS_OFF, EVENTS_ON, EVENTS_DISABLED,
-                                  EVENTS_ORIGINAL };
+
   /* Protected using LOCK_global_system_variables only. */
-  static ulong opt_event_scheduler, startup_state;
+  static ulong opt_event_scheduler;
   static ulong inited;
   static bool check_if_system_tables_error();
   static bool start(int *err_no);
