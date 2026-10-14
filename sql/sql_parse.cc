@@ -10351,6 +10351,14 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   thd->m_parser_state= NULL;
 
+  /*
+    The parser-only part of LEX is not meant to be used after parsing.
+    Mark it as freed so that stale accesses are caught early. It is
+    brought back by LEX::start() -> LEX_Parser_state::reset_parser_state().
+  */
+  TRASH_FREE((void*) static_cast<LEX_Parser_state*>(thd->lex),
+             sizeof(LEX_Parser_state));
+
   /* Restore creation context. */
 
   if (creation_ctx)
