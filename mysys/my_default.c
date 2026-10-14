@@ -104,7 +104,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *,
   - Windows:     C:/
   - Windows:     Directory above where the executable is located
   - Unix:        /etc/ or the value of DEFAULT_SYSCONFDIR, if defined
-  - Unix:        /etc/mysql/ unless DEFAULT_SYSCONFDIR is defined
+  - Unix:        /etc/mariadb/ unless DEFAULT_SYSCONFDIR is defined
   - ALL:         getenv("MYSQL_HOME")
   - ALL:         --defaults-extra-file=<path> (run-time option)
   - Unix:        ~/
@@ -1080,7 +1080,7 @@ static const char **init_default_directories(MEM_ROOT *alloc)
     errors += add_directory(alloc, DEFAULT_SYSCONFDIR, dirs);
 #else
   errors += add_directory(alloc, "/etc/", dirs);
-  errors += add_directory(alloc, "/etc/mysql/", dirs);
+  errors += add_directory(alloc, "/etc/mariadb/", dirs);
 #endif /* DEFAULT_SYSCONFDIR */
 
 #endif
