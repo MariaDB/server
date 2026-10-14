@@ -269,6 +269,11 @@ sub pre_setup() {
   }
 }
 
+# Returns true if a debugger (gdb, valgrind, rr, ...) is used for
+# the servers. In that case mtr must not interfere with the
+# process, e.g. by sending it SIGABRT to get a core dump.
+sub used() { defined $debugger }
+
 sub setup_boot_args($$$) {
   my ($args, $exe, $input) = @_;
   do_args($args, $exe, $input, 'bootstrap', $boot_debugger)
