@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,7 +36,10 @@
 #include "sql_select.h"
 #include "debug_sync.h"
 
-	/* functions defined in this file */
+/* reject unrealistic cases */
+#define MAX_SORT_LENGTH (UINT_MAX32/2)
+
+/* functions defined in this file */
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
                                      uchar *buf);
@@ -247,8 +250,14 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   error= 1;
   sort->found_rows= HA_POS_ERROR;
 
-  param.sort_keys= sort_keys;
   sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
+  if (sort_len >= MAX_SORT_LENGTH)
+  {
+    my_error(ER_OUT_OF_SORTMEMORY,MYF(0));
+    goto err;
+  }
+
+  param.sort_keys= sort_keys;
   param.init_for_filesort(sort_len, table, max_rows, filesort);
   if (!param.accepted_rows)
     param.accepted_rows= &not_used;
@@ -311,8 +320,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     tracker->report_sort_keys_format(param.using_packed_sortkeys());
     param.using_pq= false;
 
-    size_t min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
-                                   param.sort_length*MERGEBUFF2);
+    ulonglong min_sort_memory= MY_MAX(MIN_SORT_MEMORY,
+                                   (ulonglong)param.sort_length*MERGEBUFF2);
     set_if_bigger(min_sort_memory, sizeof(Merge_chunk*)*MERGEBUFF2);
     while (memory_available >= min_sort_memory)
     {
@@ -2254,7 +2263,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
   }
 
   for (SORT_FIELD *sortorder= sort_keys->begin();
-       sortorder != sort_keys->end();
+       sortorder != sort_keys->end() && length < MAX_SORT_LENGTH;
        sortorder++)
   {
     sortorder->suffix_length= 0;
@@ -2308,7 +2317,6 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
       set_if_smaller(sortorder->length, thd->variables.max_sort_length);
       set_if_smaller(sortorder->original_length, thd->variables.max_sort_length);
     }
-    DBUG_ASSERT(length < UINT_MAX32 - sortorder->length);
     length+= sortorder->length;
 
     sort_keys->increment_size_of_packable_fields(sortorder->length_bytes);
