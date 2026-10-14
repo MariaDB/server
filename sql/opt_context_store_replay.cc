@@ -1911,7 +1911,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
 
   saved_ts->table= table;
 
-  if (saved_table_stats.push_back(saved_ts))
+  if (saved_table_stats.push_front(saved_ts))
     return;
 
   KEY *key_info, *key_info_end;
@@ -2014,6 +2014,11 @@ bool Optimizer_context_replay::infuse_records_in_range(
   @brief
     restore the saved stats for the tables, and indexes that were
     earlier recorded using infuse_table_stats()
+
+  @detail
+    A table can be infused more than once per statement, then only its
+    first save holds the original stats. saved_table_stats is in the
+    reverse order of saving, so that one is restored last.
 */
 void Optimizer_context_replay::restore_modified_table_stats()
 {
