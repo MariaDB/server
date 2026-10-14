@@ -1,0 +1,368 @@
+#
+# MDEV-41527 MEDIUMTEXT gets truncated to TINYTEXT in assoc array RECORD field
+#
+# A RECORD type is used by a variable and by an associative array
+# variable (TABLE OF the RECORD). The members of the RECORD must have
+# the same data types in any order of the declarations (earlier,
+# MEDIUMTEXT and TEXT members were truncated to 255 characters
+# after a variable of the associative array type was declared).
+#
+SET sql_mode=ORACLE;
+# The minimal case: only a MEDIUMTEXT member, the types are declared
+# locally in the block, the associative array is declared before
+# the RECORD variable
+DECLARE
+TYPE rec_t IS RECORD (s MEDIUMTEXT);
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+t tab_t;
+r rec_t;
+BEGIN
+r.s:= RPAD('s', 1000, 's');
+SELECT LENGTH(r.s);
+CREATE TABLE t1 AS SELECT r.s AS s;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+LENGTH(r.s)
+1000
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "s" mediumtext DEFAULT NULL
+)
+# The minimal case with a SET member (earlier, the server crashed
+# with an assertion failure in store_lowendian())
+DECLARE
+TYPE rec_t IS RECORD (st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+t tab_t;
+r rec_t;
+BEGIN
+r.st:= 'x,y';
+SELECT r.st;
+CREATE TABLE t1 AS SELECT r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r.st
+x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "st" varchar(3) DEFAULT NULL
+)
+#
+# The associative array and the RECORD variables of the same RECORD type
+# in various orders of the declarations, all members of the RECORD
+#
+# Local types: only the RECORD type
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+r rec_t;
+BEGIN
+r.a:= 1;
+r.v:= 'abcde';
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+r.e:= 'b';
+r.st:= 'x,y';
+SELECT r.a, r.v, LENGTH(r.s) AS s_length, LENGTH(r.t) AS t_length, r.e, r.st;
+CREATE TABLE t1 AS SELECT r.a AS a, r.v AS v, r.s AS s, r.t AS t,
+r.e AS e, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+# Local types: the RECORD type, then the associative array
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+r rec_t;
+t tab_t;
+BEGIN
+r.a:= 1;
+r.v:= 'abcde';
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+r.e:= 'b';
+r.st:= 'x,y';
+SELECT r.a, r.v, LENGTH(r.s) AS s_length, LENGTH(r.t) AS t_length, r.e, r.st;
+CREATE TABLE t1 AS SELECT r.a AS a, r.v AS v, r.s AS s, r.t AS t,
+r.e AS e, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+# Local types: the associative array, then the RECORD type
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+t tab_t;
+r rec_t;
+BEGIN
+r.a:= 1;
+r.v:= 'abcde';
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+r.e:= 'b';
+r.st:= 'x,y';
+SELECT r.a, r.v, LENGTH(r.s) AS s_length, LENGTH(r.t) AS t_length, r.e, r.st;
+CREATE TABLE t1 AS SELECT r.a AS a, r.v AS v, r.s AS s, r.t AS t,
+r.e AS e, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+# Local types: a RECORD variable, an associative array, another RECORD variable
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+r1 rec_t;
+t tab_t;
+r2 rec_t;
+BEGIN
+r1.a:= 1;
+r1.v:= 'abcde';
+r1.s:= RPAD('s', 32767, 's');
+r1.t:= RPAD('t', 40000, 't');
+r1.e:= 'b';
+r1.st:= 'x,y';
+SELECT r1.a, r1.v, LENGTH(r1.s) AS s_length, LENGTH(r1.t) AS t_length, r1.e, r1.st;
+CREATE TABLE t1 AS SELECT r1.a AS a, r1.v AS v, r1.s AS s, r1.t AS t,
+r1.e AS e, r1.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+r2.a:= 1;
+r2.v:= 'abcde';
+r2.s:= RPAD('s', 32767, 's');
+r2.t:= RPAD('t', 40000, 't');
+r2.e:= 'b';
+r2.st:= 'x,y';
+SELECT r2.a, r2.v, LENGTH(r2.s) AS s_length, LENGTH(r2.t) AS t_length, r2.e, r2.st;
+CREATE TABLE t1 AS SELECT r2.a AS a, r2.v AS v, r2.s AS s, r2.t AS t,
+r2.e AS e, r2.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r1.a	r1.v	s_length	t_length	r1.e	r1.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+r2.a	r2.v	s_length	t_length	r2.e	r2.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+# Local types: two associative arrays of the RECORD, then the RECORD variable
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+aa1 tab_t;
+aa2 tab_t;
+r rec_t;
+BEGIN
+r.a:= 1;
+r.v:= 'abcde';
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+r.e:= 'b';
+r.st:= 'x,y';
+SELECT r.a, r.v, LENGTH(r.s) AS s_length, LENGTH(r.t) AS t_length, r.e, r.st;
+CREATE TABLE t1 AS SELECT r.a AS a, r.v AS v, r.s AS s, r.t AS t,
+r.e AS e, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+# Local types: elements of the associative array
+DECLARE
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+t tab_t;
+r rec_t;
+BEGIN
+r.a:= 1;
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+t(1):= r;
+r.a:= 2;
+r.s:= RPAD('S', 40000, 'S');
+t(2):= r;
+SELECT t(1).a, LENGTH(t(1).s) AS s_length, LENGTH(t(1).t) AS t_length;
+SELECT t(2).a, LENGTH(t(2).s) AS s_length, LENGTH(t(2).t) AS t_length;
+END;
+$$
+t(1).a	s_length	t_length
+1	32767	40000
+t(2).a	s_length	t_length
+2	40000	40000
+# Local types in a stored procedure, called twice
+CREATE PROCEDURE p1() AS
+TYPE rec_t IS RECORD (a INT, v VARCHAR(5), s MEDIUMTEXT, t TEXT,
+e ENUM('a','b','c'), st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+t tab_t;
+r rec_t;
+BEGIN
+r.a:= 1;
+r.v:= 'abcde';
+r.s:= RPAD('s', 32767, 's');
+r.t:= RPAD('t', 40000, 't');
+r.e:= 'b';
+r.st:= 'x,y';
+SELECT r.a, r.v, LENGTH(r.s) AS s_length, LENGTH(r.t) AS t_length, r.e, r.st;
+CREATE TABLE t1 AS SELECT r.a AS a, r.v AS v, r.s AS s, r.t AS t,
+r.e AS e, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+CALL p1();
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+CALL p1();
+r.a	r.v	s_length	t_length	r.e	r.st
+1	abcde	32767	40000	b	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "v" varchar(5) DEFAULT NULL,
+  "s" mediumtext DEFAULT NULL,
+  "t" text DEFAULT NULL,
+  "e" varchar(1) DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+DROP PROCEDURE p1;
+#
+# The types are declared in a package body and are shared by several
+# routines of the package
+#
+CREATE PACKAGE pk1 AS
+PROCEDURE p1;
+PROCEDURE p2;
+END;
+$$
+CREATE PACKAGE BODY pk1 AS
+TYPE rec_t IS RECORD (s MEDIUMTEXT, st SET('x','y'));
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+PROCEDURE p1 AS
+t tab_t;
+r rec_t;
+BEGIN
+r.s:= RPAD('s', 1000, 's');
+r.st:= 'x,y';
+t(1):= r;
+SELECT LENGTH(t(1).s), t(1).st;
+CREATE TABLE t1 AS SELECT r.s AS s, r.st AS st;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+PROCEDURE p2 AS
+t tab_t;
+r rec_t;
+BEGIN
+r.s:= RPAD('s', 2000, 's');
+r.st:= 'y';
+t(1):= r;
+SELECT LENGTH(t(1).s), t(1).st;
+END;
+END;
+$$
+CALL pk1.p1();
+LENGTH(t(1).s)	t(1).st
+1000	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "s" mediumtext DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+CALL pk1.p2();
+LENGTH(t(1).s)	t(1).st
+2000	y
+CALL pk1.p1();
+LENGTH(t(1).s)	t(1).st
+1000	x,y
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "s" mediumtext DEFAULT NULL,
+  "st" varchar(3) DEFAULT NULL
+)
+CALL pk1.p2();
+LENGTH(t(1).s)	t(1).st
+2000	y
+DROP PACKAGE pk1;
+# End of 12.3 tests

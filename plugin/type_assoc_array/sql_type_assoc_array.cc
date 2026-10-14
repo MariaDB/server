@@ -2455,21 +2455,18 @@ bool Type_handler_assoc_array::
         (sp_type_def_record *)value_def->get_attr_const_void_ptr(0))
     {
       /*
-        Hack to ensure that we don't call sp_head::row_fill_field_definitions()
-        for the same row definition twice.
-
-        Check the pack_flag of the first field in the row definition.
-        FIELDFLAG_MAYBE_NULL will be set if the row_fill_field_definitions()
-        has been called.
+        sprec->field is the un-prepared definition of the RECORD, which
+        is shared by all variables of the RECORD type and by all associative
+        arrays of it. Do not prepare it: prepare its copy (like
+        Type_handler_row::sp_variable_declarations_finalize() does for
+        a variable of the RECORD type). Preparing the same definition twice
+        is wrong: e.g. a MEDIUMTEXT member would become TINYTEXT.
       */
-      List_iterator<Spvar_definition> it(*sprec->field);
-      auto first= sprec->field->head();
-
-      if (first && !(first->pack_flag & FIELDFLAG_MAYBE_NULL) &&
-          lex->sphead->row_fill_field_definitions(thd, sprec->field))
+      Row_definition_list *row= sprec->field->deep_copy(thd);
+      if (!row || lex->sphead->row_fill_field_definitions(thd, row))
         return true;
 
-      value_def->set_row_field_definitions(&type_handler_row, sprec->field);
+      value_def->set_row_field_definitions(&type_handler_row, row);
     }
   }
 
