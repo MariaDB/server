@@ -6094,11 +6094,16 @@ the generated partition syntax in a correct manner.
           tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
           part_info->num_parts == 0)
       {
-        if (part_info->vers_info->interval.is_set() && (
-            !tab_part_info->vers_info->interval.is_set() ||
-            part_info->vers_info->interval == tab_part_info->vers_info->interval))
+        if (alter_info->flags ||
+            (part_info->vers_info->interval.is_set() &&
+             (!tab_part_info->vers_info->interval.is_set() ||
+              part_info->vers_info->interval !=
+                tab_part_info->vers_info->interval)))
         {
-          /* If interval is changed we can not do fast alter */
+          /*
+            Fast alter changes only partitioning options. It cannot be done
+            if the interval is changed or the table definition is changed.
+          */
           tab_part_info= tab_part_info->get_clone(thd);
         }
         else
@@ -6107,7 +6112,10 @@ the generated partition syntax in a correct manner.
           *fast_alter_table= true;
           table->mark_table_for_reopen();
         }
-        *tab_part_info->vers_info= *part_info->vers_info;
+        /* Keep now_part and hist_part of the existing partitions */
+        tab_part_info->vers_info->interval= part_info->vers_info->interval;
+        tab_part_info->vers_info->limit= part_info->vers_info->limit;
+        tab_part_info->vers_info->auto_hist= part_info->vers_info->auto_hist;
         thd->work_part_info= part_info= tab_part_info;
         *partition_changed= true;
       }
