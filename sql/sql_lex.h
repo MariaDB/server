@@ -3509,7 +3509,6 @@ public:
     (see Item_field::fix_fields()).
   */
   bool use_only_table_context:1;
-  bool escape_used:1;
   bool default_used:1;    /* using default() function */
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */

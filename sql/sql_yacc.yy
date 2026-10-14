@@ -127,7 +127,6 @@ int yylex(void *yylval, void *yythd);
 
 static Item* escape(THD *thd)
 {
-  thd->lex->escape_used= false;
   const char *esc= thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES ? "" : "\\";
   return new (thd->mem_root) Item_string_ascii(thd, esc, MY_TEST(esc[0]));
 }
@@ -9621,7 +9620,6 @@ predicate:
           }
         | predicate LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
-            Lex->escape_used= true;
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $5, true);
             if (unlikely(!$$))
               MYSQL_YYABORT;
@@ -9635,7 +9633,6 @@ predicate:
           }
         | predicate not LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
-            Lex->escape_used= true;
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $6, true);
             if (unlikely(!item))
               MYSQL_YYABORT;
