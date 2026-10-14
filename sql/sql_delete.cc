@@ -1606,7 +1606,8 @@ bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
   return
     ((select_lex->order_list.elements &&
       select_lex->limit_params.select_limit) ||
-     thd->lex->has_returning());
+     thd->lex->has_returning() ||
+     thd->lex->period_conditions.is_set());
 }
 
 
