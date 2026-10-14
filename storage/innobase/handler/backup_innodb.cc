@@ -1844,7 +1844,7 @@ public:
                                ((ctx.checkpoint - lsn) & ~4095ULL));
         write_checkpoint_buf(cp_buf, ctx.checkpoint_end_lsn - lsn +
                              log_sys.START_OFFSET);
-        if (write_checkpoint(dh, cp_buf) | !CloseHandle(dh));
+        if (write_checkpoint(dh, cp_buf) | !CloseHandle(dh))
           goto fail;
       }
       return 0;
