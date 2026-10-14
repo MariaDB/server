@@ -1839,7 +1839,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
   return
-    (thd->lex->has_returning());
+    (thd->lex->has_returning() ||
+     thd->lex->period_conditions.is_set());
 }
 
 

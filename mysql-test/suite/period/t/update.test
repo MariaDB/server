@@ -205,3 +205,19 @@ UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+--echo # Subquery on another table: row must be split, not updated whole
+create table t1 (id int, s date, e date, period for app(s,e));
+create table t2 (id int);
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+insert into t2 values (1);
+update t1 for portion of app from '2000-01-05' to '2000-01-20' set id= 2
+  where id in (select id from t2);
+--sorted_result
+select * from t1;
+drop table t1, t2;
+
+--echo # End of 11.4 tests
