@@ -811,15 +811,18 @@ struct backup_context
           switch (de->d_type) {
           default:
             continue;
+          case DT_LNK:
+          case DT_UNKNOWN:
+            if (fstatat(dirfd(dir), de->d_name, &sb, 0) ||
+                (sb.st_mode & S_IFMT) != S_IFDIR)
+              continue;
+            /* fall through */
           case DT_DIR:
             if (de->d_name[0] == '.' &&
                 (de->d_name[1] == '\0' ||
                  (de->d_name[1] == '.' && de->d_name[2] == '\0')))
               continue;
-            break;
-          case DT_UNKNOWN:
-            if (fstatat(dirfd(dir), de->d_name, &sb, 0) ||
-                (sb.st_mode & S_IFMT) != S_IFDIR)
+            if (is_in_ignore_db_dirs_list(de->d_name))
               continue;
           }
           if (!mkdir(target, de->d_name))
@@ -841,7 +844,8 @@ struct backup_context
       {
       consume_subdir:
         assert(d);
-        assert(d->d_type == DT_DIR || d->d_type == DT_UNKNOWN);
+        assert(d->d_type == DT_DIR || d->d_type == DT_LNK ||
+               d->d_type == DT_UNKNOWN);
         struct dirent *sd;
         while ((sd= readdir(subdir)))
         {
@@ -850,8 +854,8 @@ struct backup_context
           default:
             continue;
           case DT_REG:
-          case DT_LNK:
             break;
+          case DT_LNK:
           case DT_UNKNOWN:
             if (fstatat(dirfd(subdir), name, &sb, 0) ||
                 (sb.st_mode & S_IFMT) != S_IFREG)
@@ -887,6 +891,8 @@ struct backup_context
           if (d.cFileName[0] == '.' &&
               (d.cFileName[1] == '\0' ||
                (d.cFileName[1] == '.' && d.cFileName[2] == '\0')))
+            continue;
+          if (is_in_ignore_db_dirs_list(d.cFileName))
             continue;
           if ((int) sizeof path <=
               snprintf(path, sizeof path, "%s/*.*", d.cFileName))
