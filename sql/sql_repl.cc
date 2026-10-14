@@ -838,22 +838,9 @@ bool purge_master_logs(THD* thd, const char* to_log)
     handler_binlog_purge_info purge_info;
     auto p= engine_binlog_in_use();
     purge_info.limit_file_no= p.first;
-    uint num_dump_threads= p.second;
-    if (num_dump_threads < slave_connections_needed_for_purge)
-    {
-      /*
-        Prevent purging any file.
-        We need to do it this way, since we have to call into the engine to let
-        it check if there are any files to potentially purge. If there are, we
-        want to give an error that purge was not possible. But if there were no
-        files to purge in any case, we do not want to give any error.
-      */
-      purge_info.limit_file_no= 0;
-      purge_info.nonpurge_reason= "less than "
-        "'slave_connections_needed_for_purge' slaves have processed it";
-    }
-    else
-      purge_info.nonpurge_reason= nullptr;
+    uint num_dump_threads __attribute__((unused))= p.second;
+    /* Interactive purge ignores slave_connections_needed_for_purge */
+    purge_info.nonpurge_reason= nullptr;
     purge_info.nonpurge_filename[0]= '\0';
     purge_info.purge_by_date= false;
     purge_info.limit_date= (time_t)0;
@@ -901,15 +888,9 @@ bool purge_master_logs_before_date(THD* thd, time_t purge_time)
     handler_binlog_purge_info purge_info;
     auto p= engine_binlog_in_use();
     purge_info.limit_file_no= p.first;
-    uint num_dump_threads= p.second;
-    if (num_dump_threads < slave_connections_needed_for_purge)
-    {
-      purge_info.limit_file_no= 0;
-      purge_info.nonpurge_reason= "less than "
-        "'slave_connections_needed_for_purge' slaves have processed it";
-    }
-    else
-      purge_info.nonpurge_reason= nullptr;
+    uint num_dump_threads __attribute__((unused))= p.second;
+    /* Interactive purge ignores slave_connections_needed_for_purge */
+    purge_info.nonpurge_reason= nullptr;
     purge_info.nonpurge_filename[0]= '\0';
     purge_info.purge_by_date= true;
     purge_info.limit_date= purge_time;
