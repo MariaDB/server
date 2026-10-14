@@ -378,3 +378,27 @@ drop table t1;
 drop function round_cost;
 
 drop database db1;
+use test;
+
+--echo #
+--echo # index statistics are restored after a replayed statement
+--echo # that reads them more than once
+--echo #
+create table t1 (a int, b int, key(a)) engine=innodb;
+insert into t1 select seq%10, seq from seq_1_to_100;
+analyze table t1 persistent for all;
+select count(*) from t1 where a=3;
+--source include/opt_context_save_in_var.inc
+set @opt_context_rpk= json_replace(@opt_context,
+  '$.tables[0].indexes[0].rec_per_key[0]', 77);
+set optimizer_replay_context='opt_context_rpk';
+begin;
+delete from t1;
+rollback;
+set optimizer_replay_context='';
+select count(*) from t1 where a=3;
+--source include/opt_context_save_in_var.inc
+select json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]');
+drop table t1;
+
+--echo # End of 13.1 tests

@@ -1321,3 +1321,42 @@ set optimizer_replay_context="";
 drop table t1;
 drop function round_cost;
 drop database db1;
+use test;
+#
+# index statistics are restored after a replayed statement
+# that reads them more than once
+#
+create table t1 (a int, b int, key(a)) engine=innodb;
+insert into t1 select seq%10, seq from seq_1_to_100;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select count(*) from t1 where a=3;
+count(*)
+10
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @opt_context_rpk= json_replace(@opt_context,
+'$.tables[0].indexes[0].rec_per_key[0]', 77);
+set optimizer_replay_context='opt_context_rpk';
+begin;
+delete from t1;
+rollback;
+set optimizer_replay_context='';
+select count(*) from t1 where a=3;
+count(*)
+10
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+select json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]');
+json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]')
+"10"
+drop table t1;
+# End of 13.1 tests
