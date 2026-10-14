@@ -3423,9 +3423,6 @@ public:
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
 
-  /** SELECT of CREATE VIEW statement */
-  LEX_STRING create_view_select;
-
   /** Start of 'ON table', in trigger statements.  */
   const char* raw_trg_on_table_name_begin;
   /** End of 'ON table', in trigger statements. */
