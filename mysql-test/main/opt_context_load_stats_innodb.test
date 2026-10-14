@@ -401,4 +401,23 @@ select count(*) from t1 where a=3;
 select json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]');
 drop table t1;
 
+--echo #
+--echo # replay does not apply to tables opened by INFORMATION_SCHEMA
+--echo #
+create table t1 (a int, b int, key(a)) engine=innodb;
+insert into t1 select seq%10, seq from seq_1_to_100;
+analyze table t1 persistent for all;
+select count(*) from t1 where a=3;
+--source include/opt_context_save_in_var.inc
+set @opt_context_rpk= json_replace(@opt_context,
+  '$.tables[0].indexes[0].rec_per_key[0]', 50);
+set optimizer_replay_context='opt_context_rpk';
+select index_name, cardinality from information_schema.statistics
+  where table_schema='test' and table_name='t1';
+set optimizer_replay_context='';
+select count(*) from t1 where a=3;
+--source include/opt_context_save_in_var.inc
+select json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]');
+drop table t1;
+
 --echo # End of 13.1 tests

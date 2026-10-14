@@ -4865,6 +4865,7 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   LEX *old_lex= thd->lex, temp_lex, *lex;
   LEX_CSTRING db_name, table_name;
   TABLE_LIST *table_list;
+  Optimizer_context_replay *old_opt_ctx_replay;
   bool result= true, open_result, run, ext_error_handling;
   DBUG_ENTER("fill_schema_table_by_open");
 
@@ -4884,6 +4885,13 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   old_arena= thd->stmt_arena;
   thd->stmt_arena= &i_s_arena;
   thd->set_n_backup_active_arena(&i_s_arena, &backup_arena);
+
+  /*
+    Tables opened here are closed before the end of the statement, so
+    the optimizer context replay could not restore their statistics.
+  */
+  old_opt_ctx_replay= thd->opt_ctx_replay;
+  thd->opt_ctx_replay= NULL;
 
   /* Prepare temporary LEX. */
   thd->lex= lex= &temp_lex;
@@ -5017,6 +5025,7 @@ end:
 
   thd->lex= old_lex;
 
+  thd->opt_ctx_replay= old_opt_ctx_replay;
   thd->stmt_arena= old_arena;
   thd->restore_active_arena(&i_s_arena, &backup_arena);
 
