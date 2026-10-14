@@ -2461,7 +2461,8 @@ loop:
   fail:
     my_error(ER_IO_WRITE_ERROR, MYF(0), errno, strerror(errno),
              "BACKUP SERVER");
-  else if (limit == buf_dblwr.begin() && n_chunk == 3)
+  else if (n_chunk >= 2 && node == fil_system.sys_space->chain.start &&
+           limit == buf_dblwr.begin())
   {
     /* Copy the rest after the doublewrite buffer. */
     ut_ad(start == page);
