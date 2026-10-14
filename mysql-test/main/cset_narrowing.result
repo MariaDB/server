@@ -303,7 +303,7 @@ EXPLAIN
           "rows": 4,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t1.mb3 = '????' or t1.mb3 = 'hello'"
+          "index_condition": "t1.mb3 = '�' or t1.mb3 = 'hello'"
         }
       }
     ]
@@ -520,7 +520,7 @@ EXPLAIN
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t1.mb3 = t10.mb4"
+          "index_condition": "t1.mb3 = 'hello'"
         }
       },
       {
@@ -536,7 +536,7 @@ EXPLAIN
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t2.mb4 = t10.mb4 and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
+          "index_condition": "t2.mb4 = 'hello' and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe'"
         }
       }
     ]
@@ -553,15 +553,15 @@ JS
         [
             {
                 "transformation": "equality_propagation",
-                "resulting_condition": "t10.mb4 = 'hello' and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal(t1.mb3, t2.mb4, t10.mb4)"
+                "resulting_condition": "concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal('hello', t1.mb3, t2.mb4, t10.mb4)"
             },
             {
                 "transformation": "constant_propagation",
-                "resulting_condition": "t10.mb4 = 'hello' and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal(t1.mb3, t2.mb4, t10.mb4)"
+                "resulting_condition": "concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal('hello', t1.mb3, t2.mb4, t10.mb4)"
             },
             {
                 "transformation": "trivial_condition_removal",
-                "resulting_condition": "t10.mb4 = 'hello' and concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal(t1.mb3, t2.mb4, t10.mb4)"
+                "resulting_condition": "concat(convert(t1.mb3 using utf8mb4),t2.mb4,t10.mb4) <> 'Bebebe' and multiple equal('hello', t1.mb3, t2.mb4, t10.mb4)"
             }
         ]
     }

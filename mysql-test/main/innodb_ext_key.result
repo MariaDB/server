@@ -779,7 +779,7 @@ EXPLAIN
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
+          "index_condition": "t1.f2 = 'abc' and t1.pk1 <= 5 and t1.pk2 <= 5",
           "attached_condition": "t1.f1 <= '3'"
         }
       }
@@ -816,7 +816,7 @@ EXPLAIN
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
+          "index_condition": "t1.pk1 = 'abc' and t1.f2 <= 5 and t1.pk2 <= 5",
           "attached_condition": "t1.f1 <= '3'"
         }
       }

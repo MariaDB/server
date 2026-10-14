@@ -2345,6 +2345,8 @@ public:
     return bitmap_is_set(table->write_set, field_index);
   }
   bool match_collation_to_optimize_range() const { return true; }
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+    override;
 
   Data_type_compatibility can_optimize_keypart_ref(const Item_bool_func *cond,
                                                    const Item *item)

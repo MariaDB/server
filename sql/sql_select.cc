@@ -19126,6 +19126,22 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       */
       Item *head_item= (!item_const && current_sjm && 
                         current_sjm_head != field_item) ? current_sjm_head: head;
+      if (item_const)
+      {
+        /*
+          The constant is held in the comparison collation of the multiple
+          equality.  A member that joined it through charset narrowing has a
+          different character set, so convert the constant for that member.
+        */
+        Field *field= it.get_curr_field();
+        head_item= field->get_equal_const_item(thd,
+                     Item::Context(Item::ANY_SUBST,
+                                   item_equal->compare_type_handler(),
+                                   item_equal->compare_collation()),
+                     item_const);
+        if (!head_item)
+          return 0;
+      }
       eq_item= new (thd->mem_root) Item_func_eq(thd, field_item, head_item);
 
       if (!eq_item || eq_item->set_cmp_func(thd))

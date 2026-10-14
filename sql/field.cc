@@ -2403,16 +2403,7 @@ Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 
 bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
 {
-  /*
-    Can't guarantee uniqueness when comparing a CHAR/VARCHAR/TEXT,
-    BINARY/VARBINARY/BLOB, ENUM,SET columns to an item with cmp_type()
-    of INT_RESULT, DOUBLE_RESULT, DECIMAL_RESULT or TIME_RESULT.
-    Example:
-      SELECT * FROM t1 WHERE varchar_column=DATE'2001-01-01'
-    return non-unuque values, e.g. '2001-01-01' and '2001-01-01x'.
-  */
-  if (!field_charset()->propagate(0, 0) ||
-      item->cmp_type() != STRING_RESULT)
+  if (item->cmp_type() != STRING_RESULT)
     return false;
   /*
     Can't guarantee uniqueness when comparing to
@@ -7611,6 +7602,56 @@ int Field_longstr::store_decimal(const my_decimal *d)
 uint32 Field_longstr::max_data_length() const
 {
   return field_length + (field_length > 255 ? 2 : 1);
+}
+
+
+/*
+  Convert a constant held by an Item_equal into this field's character set.
+
+  @param ctx  The comparison context.  ctx.compare_collation() is the
+              collation the Item_equal compares under, and the constant's
+              bytes are in that collation's character set.
+
+  Item_equal::add_const() and eliminate_item_equal() assume that every
+  constant held by an Item_equal is directly comparable with every field
+  member.  A utf8mb3_general_ci field and a utf8mb4_general_ci field can
+  share one Item_equal through charset narrowing, so when an equality
+  "utf8mb3_field = utf8mb4_constant" is manufactured for such a member the
+  constant has to be narrowed first.  Narrowing maps characters outside the
+  BMP to U+FFFD, which is what utf8mb4_general_ci compares them as.
+
+  @return  the constant itself when its character set is the field's,
+           a new string literal in the field's character set,
+           or NULL when the constant cannot be represented in the field's
+           character set, which makes the equality unusable.
+*/
+Item *Field_longstr::get_equal_const_item(THD *thd, const Context &ctx,
+                                          Item *const_item)
+{
+  if (ctx.subst_constraint() != ANY_SUBST ||
+      const_item->cmp_type() != STRING_RESULT)
+    return const_item;
+  CHARSET_INFO *from= ctx.compare_collation();
+  if (!from || my_charset_same(charset(), from))
+    return const_item;
+
+  StringBuffer<MAX_FIELD_WIDTH> buf;
+  String *str= const_item->val_str(&buf);
+  if (!str)
+    return const_item;                          // NULL, nothing to convert
+
+  CHARSET_INFO *conv_cs= Utf8_narrow::should_do_narrowing(this, from) ?
+                         utf8mb3_from_mb4.charset() : charset();
+  uint errors= 0;
+  StringBuffer<MAX_FIELD_WIDTH> conv;
+  if (conv.copy(str->ptr(), str->length(), from, conv_cs, &errors) || errors)
+    return NULL;
+
+  char *copy= thd->strmake(conv.ptr(), conv.length());
+  if (!copy)
+    return NULL;
+  return new (thd->mem_root) Item_string(thd, copy, conv.length(), charset(),
+                                         const_item->collation.derivation);
 }
 
 
