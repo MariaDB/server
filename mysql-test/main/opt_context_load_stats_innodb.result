@@ -1396,4 +1396,45 @@ select json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]');
 json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[0]')
 "10"
 drop table t1;
+#
+# index statistics are restored after a replayed statement
+# that runs a stored function
+#
+create table t1 (a int, b int, key(a)) engine=innodb;
+insert into t1 select seq%10, seq from seq_1_to_100;
+create table t2 (a int, key(a)) engine=innodb;
+insert into t2 select seq%10 from seq_1_to_100;
+analyze table t1, t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+create function f1() returns int return (select count(*) from t2);
+select count(*) from t2;
+count(*)
+100
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @opt_context_t2= @opt_context;
+select count(*) from t1 where a=3;
+count(*)
+10
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @opt_context_rpk= json_array_append(json_replace(@opt_context,
+'$.tables[0].indexes[0].rec_per_key[0]', 77),
+'$.tables', json_extract(@opt_context_t2, '$.tables[0]'));
+set optimizer_replay_context='opt_context_rpk';
+select f1() from t1 where a=3 limit 1;
+f1()
+100
+drop function f1;
+drop table t1, t2;
 # End of 13.1 tests

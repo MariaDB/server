@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2025, MariaDB
+   Copyright (c) 2025, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -177,6 +177,11 @@ void init_optimizer_context_replay_if_needed(THD *thd);
        thd->opt_ctx_replay->infuse_XXX()
 
     to get "infuse" the statistics records from the context.
+
+  - The object is created by a top-level statement and is used by its
+    sub-statements (stored functions, triggers) too. Everything it allocates
+    is on the mem_root of the top-level statement, which outlives the object,
+    independently of the arena that is active when a statistic is infused.
 */
 
 class Optimizer_context_replay
@@ -215,6 +220,7 @@ public:
 
 private:
   THD *thd;
+  MEM_ROOT *mem_root;
   /*
     counter that tracks infuse_range_stats() calls
   */
