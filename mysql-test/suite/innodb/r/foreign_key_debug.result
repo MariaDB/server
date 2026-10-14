@@ -212,5 +212,58 @@ connection default;
 DROP PROCEDURE p_upd;
 DROP TABLE t_log, c2, c1, p;
 #
+# MDEV-41539 Server crashes in prepare_fk_prelocking_list() when
+# allocating a TABLE_LIST for a referencing table fails
+#
+# A failure to allocate a referencing table for the prelocking set
+# fails the statement that modifies the table
+#
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (2), (3);
+CREATE PROCEDURE p_upd() UPDATE p SET b = b + 1;
+SET debug_dbug= '+d,fk_prelocking_alloc_fail';
+DELETE FROM p WHERE a = 1;
+ERROR HY000: Out of memory.
+UPDATE p SET b = b + 1;
+ERROR HY000: Out of memory.
+# The list is built on the statement arena of a stored procedure
+CALL p_upd();
+ERROR HY000: Out of memory.
+SET debug_dbug= @save_dbug;
+SELECT * FROM p ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+SELECT * FROM c1 ORDER BY a;
+a
+1
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+DELETE FROM p WHERE a = 1;
+UPDATE p SET b = b + 1;
+CALL p_upd();
+SELECT * FROM p ORDER BY a;
+a	b
+2	22
+3	32
+SELECT * FROM c1 ORDER BY a;
+a
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+DROP PROCEDURE p_upd;
+DROP TABLE c2, c1, p;
+#
 # End of 10.11 tests
 #

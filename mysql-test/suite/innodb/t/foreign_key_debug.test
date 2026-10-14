@@ -204,5 +204,43 @@ DROP PROCEDURE p_upd;
 DROP TABLE t_log, c2, c1, p;
 
 --echo #
+--echo # MDEV-41539 Server crashes in prepare_fk_prelocking_list() when
+--echo # allocating a TABLE_LIST for a referencing table fails
+--echo #
+--echo # A failure to allocate a referencing table for the prelocking set
+--echo # fails the statement that modifies the table
+--echo #
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+                 ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (2), (3);
+CREATE PROCEDURE p_upd() UPDATE p SET b = b + 1;
+
+SET debug_dbug= '+d,fk_prelocking_alloc_fail';
+--error ER_OUT_OF_RESOURCES
+DELETE FROM p WHERE a = 1;
+--error ER_OUT_OF_RESOURCES
+UPDATE p SET b = b + 1;
+--echo # The list is built on the statement arena of a stored procedure
+--error ER_OUT_OF_RESOURCES
+CALL p_upd();
+SET debug_dbug= @save_dbug;
+SELECT * FROM p ORDER BY a;
+SELECT * FROM c1 ORDER BY a;
+SELECT * FROM c2 ORDER BY a;
+
+DELETE FROM p WHERE a = 1;
+UPDATE p SET b = b + 1;
+CALL p_upd();
+SELECT * FROM p ORDER BY a;
+SELECT * FROM c1 ORDER BY a;
+SELECT * FROM c2 ORDER BY a;
+DROP PROCEDURE p_upd;
+DROP TABLE c2, c1, p;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

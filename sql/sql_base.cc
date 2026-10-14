@@ -5199,7 +5199,14 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
           lock_type))
       continue;
 
+    DBUG_EXECUTE_IF("fk_prelocking_alloc_fail",
+                    DBUG_SET("+d,simulate_out_of_memory"););
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    if (!tl)
+    {
+      error= TRUE;
+      break;
+    }
     tl->init_one_table_for_prelocking(fk->foreign_db,
         fk->foreign_table,
         NULL, lock_type,
