@@ -36,16 +36,22 @@ RESET MASTER;
 --echo #
 FLUSH BINARY LOGS;
 FLUSH BINARY LOGS;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 FLUSH BINARY LOGS;
+if ($binlog_in_engine) {
+  --let $binlog_name= binlog-000004.ibb
+  --let $binlog_size= 262144
+  --source include/wait_for_engine_binlog.inc
+}
 --source include/show_binary_logs.inc
-PURGE BINARY LOGS TO 'master-bin.000003';
+eval PURGE BINARY LOGS TO '$binlog_file';
 SHOW WARNINGS;
 --source include/show_binary_logs.inc
 
 --let $first= query_get_value(SHOW BINARY LOGS, Log_name, 1)
-if ($first != master-bin.000003)
+if ($first != $binlog_file)
 {
-  --echo # Control failed: expected master-bin.000003 first, got $first
+  --echo # Control failed: expected $binlog_file first, got $first
   --die Interactive purge did not work even with no cached refusal
 }
 
@@ -55,7 +61,12 @@ if ($first != master-bin.000003)
 --echo #
 FLUSH BINARY LOGS;
 FLUSH BINARY LOGS;
+--let $binlog_file2= query_get_value(SHOW MASTER STATUS, File, 1)
 FLUSH BINARY LOGS;
+if ($binlog_in_engine) {
+  --let $binlog_name= binlog-000007.ibb
+  --source include/wait_for_engine_binlog.inc
+}
 --source include/show_binary_logs.inc
 
 --echo # Let the files age past binlog_expire_logs_seconds: purge_logs_before_date
@@ -65,23 +76,30 @@ SET @@global.binlog_expire_logs_seconds= 1;
 --echo # Rotating attempts an automatic purge, which the guard refuses. That
 --echo # refusal is what populates the cache.
 FLUSH BINARY LOGS;
+--let $binlog_file3= query_get_value(SHOW MASTER STATUS, File, 1)
 
 --let $first= query_get_value(SHOW BINARY LOGS, Log_name, 1)
-if ($first != master-bin.000003)
+if ($first != $binlog_file)
 {
   --echo # Setup failed: expected the automatic purge to delete nothing.
   --die The automatic purge was not refused, so nothing was cached
 }
---echo # The automatic refusal states the correct reason in the error log:
---let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_PATTERN= Binary log .master-bin.000003. is not purged because less than .slave_connections_needed_for_purge. slaves have processed it
---source include/search_pattern_in_file.inc
+  if (!$binlog_in_engine) {
+  --echo # The automatic refusal states the correct reason in the error log:
+  --let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+  --let SEARCH_PATTERN= Binary log .$binlog_file. is not purged because less than .slave_connections_needed_for_purge. slaves have processed it
+  --source include/search_pattern_in_file.inc
+}
 
 --echo # Now the interactive purge. It should behave exactly as in part 1.
-PURGE BINARY LOGS TO 'master-bin.000006';
---echo # On affected versions this reports master-bin.000003 as the current active
---echo # binlog, while master-bin.000008 is active:
+eval PURGE BINARY LOGS TO '$binlog_file2';
+--echo # On affected versions this reports $binlog_file as the current active
+--echo # binlog, while $binlog_file3 is active:
 SHOW WARNINGS;
+if ($binlog_in_engine) {
+  --let $binlog_name= binlog-000008.ibb
+  --source include/wait_for_engine_binlog.inc
+}
 --source include/show_binary_logs.inc
 
 --evalp SET @@global.binlog_expire_logs_seconds = $save_binlog_expire_logs_seconds
