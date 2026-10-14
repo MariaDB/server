@@ -57,3 +57,24 @@ select a,row_foo_end from sv_explicit for system_time all;
 
 drop table sv_basic,sv_partition,sv_explicit;
 
+--echo #
+--echo # MDEV-25529 Auto-create: Pre-existing historical data is not
+--echo #            partitioned as specified by ALTER
+--echo #
+--echo # Current rows of a table that is not upgraded keep the old row_end
+--echo # marker; they are not history.
+--copy_file std_data/sv_basic.MYD $MARIADB_DATADIR/test/t1.MYD
+--copy_file std_data/sv_basic.MYI $MARIADB_DATADIR/test/t1.MYI
+--copy_file std_data/sv_basic.frm $MARIADB_DATADIR/test/t1.frm
+select a, row_end from t1 for system_time all order by a;
+let $hist_end= `select max(row_end) from t1 for system_time all where row_end < '2038-01-01'`;
+--disable_query_log
+eval set timestamp= unix_timestamp('$hist_end') + 60;
+--enable_query_log
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+select a from t1 partition (pn) order by a;
+set timestamp= default;
+drop table t1;
+
+--echo # End of 13.2 tests

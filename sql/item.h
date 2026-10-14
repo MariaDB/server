@@ -1849,6 +1849,16 @@ public:
   virtual double  val_result() { return val_real(); }
   virtual longlong val_int_result() { return val_int(); }
   virtual String *str_result(String* tmp) { return val_str(tmp); }
+  /*
+    Return a val_str() result and set null_value from it on every call. NULL
+    is SQL NULL, or an error that is already reported (e.g. out of memory),
+    which must not stay in null_value for the next execution.
+  */
+  String *check_str(String *res)
+  {
+    null_value= !res;
+    return res;
+  }
   virtual my_decimal *val_decimal_result(my_decimal *val)
   { return val_decimal(val); }
   virtual bool val_bool_result() { return val_bool(); }
@@ -5663,7 +5673,7 @@ public:
   }
   String *val_str(String *to) override
   {
-    return m_value.to_datetime(current_thd).to_string(to, decimals);
+    return check_str(m_value.to_datetime(current_thd).to_string(to, decimals));
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -5775,7 +5785,7 @@ public:
   }
   String *val_str(String *to) override
   {
-    return update_null() ? 0 : cached_time.to_string(to);
+    return update_null() ? 0 : check_str(cached_time.to_string(to));
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -5829,7 +5839,7 @@ public:
   }
   double val_real() override { return cached_time.to_double(); }
   String *val_str(String *to) override
-  { return cached_time.to_string(to, decimals); }
+  { return check_str(cached_time.to_string(to, decimals)); }
   my_decimal *val_decimal(my_decimal *to) override
   { return cached_time.to_decimal(to); }
   longlong val_time_packed(THD *thd) override
@@ -5909,7 +5919,8 @@ public:
   }
   String *val_str(String *to) override
   {
-    return update_null() ? NULL : cached_time.to_string(to, decimals);
+    return update_null() ? NULL :
+           check_str(cached_time.to_string(to, decimals));
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -7406,8 +7417,9 @@ public:
   {
     DBUG_ASSERT(copied_in);
     DBUG_ASSERT(sane());
-    return null_value ? NULL :
-           m_value.to_datetime(current_thd).to_string(to, decimals);
+    if (null_value)
+      return NULL;
+    return check_str(m_value.to_datetime(current_thd).to_string(to, decimals));
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -8302,7 +8314,7 @@ public:
   }
   String *val_str(String *to) override
   {
-    return has_value() ? Time(this).to_string(to, decimals) : NULL;
+    return has_value() ? check_str(Time(this).to_string(to, decimals)) : NULL;
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -8343,7 +8355,8 @@ public:
   }
   String *val_str(String *to) override
   {
-    return has_value() ? Datetime(this).to_string(to, decimals) : NULL;
+    return has_value() ? check_str(Datetime(this).to_string(to, decimals)) :
+                         NULL;
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -8376,7 +8389,7 @@ public:
   { return has_value() ? Date(this).to_double() : 0; }
   String *val_str(String *to) override
   {
-    return has_value() ? Date(this).to_string(to) : NULL;
+    return has_value() ? check_str(Date(this).to_string(to)) : NULL;
   }
   my_decimal *val_decimal(my_decimal *to) override
   {
@@ -8401,7 +8414,7 @@ public:
   bool cache_value() override;
   String* val_str(String *to) override
   {
-    return to_datetime(current_thd).to_string(to, decimals);
+    return check_str(to_datetime(current_thd).to_string(to, decimals));
   }
   my_decimal *val_decimal(my_decimal *to) override
   {

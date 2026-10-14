@@ -40,7 +40,8 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
   requested_algorithm(rhs.requested_algorithm),
-  requested_lock(rhs.requested_lock)
+  requested_lock(rhs.requested_lock),
+  vers_history_read(rhs.vers_history_read)
 {
   /*
     Make deep copies of used objects.
@@ -82,6 +83,20 @@ void Alter_info::set_requested_algorithm(enum_alter_table_algorithm algo_val)
 {
   requested_algorithm= algo_val;
 }
+
+void Alter_info::report_lock_none_unsupported(const char *reason)
+{
+  my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
+           "LOCK=NONE", reason, "LOCK=SHARED");
+}
+
+
+void Alter_info::report_algorithm_unsupported(THD *thd) const
+{
+  my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+           algorithm_clause(thd), "ALGORITHM=COPY");
+}
+
 
 bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
 {

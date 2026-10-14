@@ -692,7 +692,7 @@ public:
   double val_real() override
   { return Date(this).to_double(); }
   String *val_str(String *to) override
-  { return Date(this).to_string(to); }
+  { return check_str(Date(this).to_string(to)); }
   my_decimal *val_decimal(my_decimal *to) override
   { return Date(this).to_decimal(to); }
   bool fix_length_and_dec(THD *thd) override
@@ -721,7 +721,7 @@ public:
   double val_real() override
   { return Time(this).to_double(); }
   String *val_str(String *to) override
-  { return Time(this).to_string(to, decimals); }
+  { return check_str(Time(this).to_string(to, decimals)); }
   my_decimal *val_decimal(my_decimal *to) override
   { return Time(this).to_decimal(to); }
   bool val_native(THD *thd, Native *to) override
@@ -746,7 +746,7 @@ public:
   }
   double val_real() override { return Datetime(this).to_double(); }
   String *val_str(String *to) override
-  { return Datetime(this).to_string(to, decimals); }
+  { return check_str(Datetime(this).to_string(to, decimals)); }
   my_decimal *val_decimal(my_decimal *to) override
   { return Datetime(this).to_decimal(to); }
 };
@@ -790,8 +790,7 @@ public:
   String *val_str(String *to) override
   {
     const Datetime dt= to_datetime(current_thd);
-    null_value= !dt.is_valid_datetime();
-    return dt.to_string(to, decimals);
+    return check_str(dt.to_string(to, decimals));
   }
 };
 
@@ -1502,8 +1501,7 @@ public:
   String *val_str(String *to) override
   {
     Interval_DDhhmmssff it(current_thd, args[0], m_fsp);
-    null_value= !it.is_valid_interval_DDhhmmssff();
-    return it.to_string(to, m_fsp);
+    return check_str(it.to_string(to, m_fsp));
   }
 };
 
