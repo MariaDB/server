@@ -3403,7 +3403,6 @@ public:
 
   LEX_CSTRING name;
   const char *help_arg;
-  const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
