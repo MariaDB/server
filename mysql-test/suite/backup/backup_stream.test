@@ -5,6 +5,7 @@
 CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
 ENGINE=INNODB;
 INSERT INTO t SET a=1;
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT NOT NULL) ENGINE=InnoDB;
 
 CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (1);
@@ -19,6 +20,13 @@ if ($MARIADB_UPGRADE_EXE)
 {
 --exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
 }
+
+--connect con1,localhost,root
+INSERT INTO t1 SELECT seq, REPEAT('a', 4000) FROM seq_1_to_3000;
+UPDATE t1 SET b='';
+SET GLOBAL innodb_undo_log_truncate=ON, innodb_max_purge_lag_wait=0;
+--disconnect con1
+--connection default
 
 BEGIN;
 DELETE FROM t;
@@ -60,9 +68,12 @@ DROP DATABASE `$$$$$$$$$$$$`;
 SELECT * FROM at0;
 SELECT * FROM at1;
 SELECT * FROM t;
+SELECT COUNT(*) FROM t1;
 SELECT * FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 --error ER_OPEN_AS_READONLY
 DELETE FROM t;
+--error ER_OPEN_AS_READONLY
+DELETE FROM t1;
 --error ER_OPEN_AS_READONLY
 DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 
@@ -76,7 +87,8 @@ if ($MARIADB_UPGRADE_EXE)
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;
-DROP TABLE t;
+SELECT COUNT(*) FROM t1;
+DROP TABLE t, t1;
 --error ER_NO_SUCH_TABLE
 DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 

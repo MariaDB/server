@@ -1,6 +1,6 @@
 --- backup_stream.result
 +++ backup_stream,debug.result
-@@ -8,10 +8,13 @@
+@@ -18,9 +18,12 @@
  BEGIN;
  DELETE FROM t;
  connect backup,localhost,root;
@@ -13,4 +13,3 @@
  connection backup;
  disconnect backup;
  connection default;
- ROLLBACK;

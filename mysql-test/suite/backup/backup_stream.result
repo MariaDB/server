@@ -1,6 +1,7 @@
 CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255) DEFAULT '' NOT NULL, INDEX(b))
 ENGINE=INNODB;
 INSERT INTO t SET a=1;
+CREATE TABLE t1(a INT PRIMARY KEY, b TEXT NOT NULL) ENGINE=InnoDB;
 CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
 INSERT INTO at1 VALUES (1);
 CREATE TABLE at0 (i INTEGER) ENGINE=Aria TRANSACTIONAL=0;
@@ -8,6 +9,12 @@ INSERT INTO at0 VALUES (0);
 CREATE DATABASE `$$$$$$$$$$$$`;
 CREATE TABLE `$$$$$$$$$$$$`.`$$$$$$$$$$$$`(a SERIAL) ENGINE=InnoDB
 SELECT 1;
+connect con1,localhost,root;
+INSERT INTO t1 SELECT seq, REPEAT('a', 4000) FROM seq_1_to_3000;
+UPDATE t1 SET b='';
+SET GLOBAL innodb_undo_log_truncate=ON, innodb_max_purge_lag_wait=0;
+disconnect con1;
+connection default;
 BEGIN;
 DELETE FROM t;
 connect backup,localhost,root;
@@ -34,16 +41,24 @@ i
 SELECT * FROM t;
 a	b
 1	
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+3000
 SELECT * FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 a	1
 1	1
 DELETE FROM t;
 ERROR HY000: Table 't' is read only
+DELETE FROM t1;
+ERROR HY000: Table 't1' is read only
 DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 ERROR HY000: Table '$$$$$$$$$$$$' is read only
 # restart
 SELECT * FROM t;
 a	b
-DROP TABLE t;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+3000
+DROP TABLE t, t1;
 DELETE FROM `$$$$$$$$$$$$`.`$$$$$$$$$$$$`;
 ERROR 42S02: Table '$$$$$$$$$$$$.$$$$$$$$$$$$' doesn't exist

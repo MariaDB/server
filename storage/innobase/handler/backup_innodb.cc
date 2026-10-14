@@ -647,9 +647,11 @@ public:
       mysql_mutex_lock(&fil_system.mutex);
       for (fil_space_t &space : fil_system.space_list)
       {
-        if (space.id < SRV_SPACE_ID_UPPER_BOUND &&
-            !space.is_being_imported() && !space.is_stopping() &&
-            space.create_lsn <= start) try
+        if (space.id >= SRV_SPACE_ID_UPPER_BOUND)
+          continue;
+        const bool created_by_log{space.create_lsn > start};
+        if ((!created_by_log || srv_is_undo_tablespace(space.id)) &&
+            !space.is_being_imported() && !space.is_stopping()) try
         {
           UT_LIST_GET_FIRST(space.chain)->set_backup_name();
           /* FIXME: how to initialize create_lsn for old files, to
@@ -657,16 +659,23 @@ public:
           fil_node_t::read_page0() cannot assign it from
           FIL_PAGE_LSN because that would not reflect the file
           creation but for example allocating or freeing a page.
-          Perhaps we can read it from page 1 (change buffer bitmap)?
+          Perhaps we can read it from page 1 (change buffer bitmap),
+          which is currently unused?
 
-          The easy parts of initializing space->create_lsn are
+          The easy parts of initializing space.create_lsn are
           as follows:
           (1) In log_parse_file() when processing FILE_CREATE
           (2) In deferred_spaces.create()
           (3) In fil_ibd_create() outside recovery */
-          queue.emplace_back
-            (uint64_t{space.id} |
-             uint64_t{std::min(space.size, space.free_limit)} << 32);
+
+          const uint32_t size= created_by_log
+            ? /*
+                Work around MDEV-39694 by copying the first page of
+                tablespaces subject to innodb_undo_log_truncate=ON,
+                because we currently write no FILE_ records for them.
+              */ 1
+            : std::min(space.size, space.free_limit);
+          queue.emplace_back(uint64_t{space.id} | uint64_t{size} << 32);
         } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
       }
       mysql_mutex_unlock(&fil_system.mutex);
