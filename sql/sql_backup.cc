@@ -1148,6 +1148,8 @@ static bool backup_steps(THD *thd, backup_target_phase *target_phase,
 {
   auto &pending{target_phase->context.pending};
   assert(!pending);
+  if (unlikely(thd->killed != NOT_KILLED))
+    return true;
   if (threads == 1)
     return backup_step_one(thd, target_phase);
   tpool::task *const tasks=
