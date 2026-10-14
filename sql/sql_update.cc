@@ -2950,8 +2950,9 @@ bool Sql_cmd_update::processing_as_multitable_update_prohibited(THD *thd)
 {
   SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   return
-    (select_lex->order_list.elements &&
-     select_lex->limit_params.select_limit);
+    ((select_lex->order_list.elements &&
+      select_lex->limit_params.select_limit) ||
+     thd->lex->period_conditions.is_set());
 }
 
 
