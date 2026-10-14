@@ -1483,7 +1483,8 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
     /* This code is only executed when change_master() failes to create a new master info */
 
     // Delete any temporary relay log files that could have been created by change_master()
-    mi->rli.relay_log.reset_logs(current_thd, 0, (rpl_gtid*) 0, 0, 0);
+    if (mi->rli.relay_log.is_open())
+      mi->rli.relay_log.reset_logs(current_thd, 0, (rpl_gtid*) 0, 0, 0);
     /* Delete master-'connection'.info */
     create_logfile_name_with_suffix(tmp_name,
                                     sizeof(tmp_name),

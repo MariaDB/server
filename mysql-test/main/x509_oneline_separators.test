@@ -1,0 +1,54 @@
+#
+# MDEV-41008 Parsing of forward slash '/' and plus '+' behaving
+# differently between OpenSSL 3 vs OpenSSL 1 vs WolfSSL
+#
+# Real certificate whose subject has a single RDN, value "a/b+c" (literal
+# '/' and '+' inside the value, not separators). A library that escapes
+# (OpenSSL >= 3.0) renders this as /CN=a\/b\+c. One that doesn't (WolfSSL,
+# OpenSSL < 3.0) renders it raw: /CN=a/b+c.
+#
+
+--source include/have_ssl_communication.inc
+--source include/not_embedded.inc
+
+let $lib_combination= `SELECT IF(@@version_ssl_library LIKE 'WolfSSL%', 'wolfssl',
+  IF(NATURAL_SORT_KEY(@@version_ssl_library) < NATURAL_SORT_KEY('OpenSSL 3.0.0'),
+     'openssl_1', 'openssl_3_or_later'))`;
+
+if ($MTR_COMBINATIONS != $lib_combination)
+{
+  skip Needs SSL library '$lib_combination';
+}
+
+let $MYSQL_CLIENT= $MYSQL --ssl-key=$MYSQL_TEST_DIR/std_data/client-slash-cn-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-slash-cn-cert.pem --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem;
+
+create user escaped_user@localhost
+  require subject '/CN=a\\/b\\+c';
+
+create user raw_user@localhost
+  require subject '/CN=a/b+c';
+
+--echo #
+--echo # Default old_mode: only one grant matches, library-dependent
+--echo #
+--disable_abort_on_error
+--echo # connect as escaped_user
+--exec $MYSQL_CLIENT --user=escaped_user -e "select concat(current_user(), ' connected') as connect_test" 2>&1
+--echo # connect as raw_user
+--exec $MYSQL_CLIENT --user=raw_user -e "select concat(current_user(), ' connected') as connect_test" 2>&1
+--enable_abort_on_error
+
+--echo #
+--echo # old_mode=X509_LENIENT_COMPARE: both grants now match
+--echo #
+set @old_mode_save= @@global.old_mode;
+set global old_mode= concat(@@global.old_mode, ',X509_LENIENT_COMPARE');
+--disable_abort_on_error
+--echo # connect as escaped_user
+--exec $MYSQL_CLIENT --user=escaped_user -e "select concat(current_user(), ' connected') as connect_test" 2>&1
+--echo # connect as raw_user
+--exec $MYSQL_CLIENT --user=raw_user -e "select concat(current_user(), ' connected') as connect_test" 2>&1
+--enable_abort_on_error
+set global old_mode= @old_mode_save;
+
+drop user escaped_user@localhost, raw_user@localhost;

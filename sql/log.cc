@@ -3871,15 +3871,15 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
     Create an index file that will hold all file names uses for logging.
     Add new entries to the end of it.
   */
-  myf opt= MY_UNPACK_FILENAME;
+  myf opt= MY_UNPACK_FILENAME | MY_SAFE_PATH;
   if (!index_file_name_arg)
   {
     index_file_name_arg= log_name;    // Use same basename for index file
-    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT;
+    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_SAFE_PATH;
   }
-  fn_format(index_file_name, index_file_name_arg, mysql_data_home,
-            ".index", opt);
-  if ((index_file_nr= mysql_file_open(m_key_file_log_index,
+  if (!fn_format(index_file_name, index_file_name_arg, mysql_data_home,
+                ".index", opt) ||
+      (index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
                                       O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||

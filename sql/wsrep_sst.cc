@@ -1363,30 +1363,38 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
       if (ret > 0 && ret < s)
       {
         *addr_out= tmp;
+      }
+      else
+      {
+        if (ret > 0) /* buffer too short */ ret= -EMSGSIZE;
+        free (tmp);
+        WSREP_ERROR ("Could not prepare state transfer request: "
+                     "adding default port failed: %zd.", ret);
         return ret;
       }
-      if (ret > 0) /* buffer too short */ ret= -EMSGSIZE;
-      free (tmp);
     }
     else {
       ret= -ENOMEM;
+      WSREP_ERROR ("Could not prepare state transfer request: "
+                   "adding default port failed: %zd.", ret);
+      return ret;
     }
-
-    WSREP_ERROR ("Could not prepare state transfer request: "
-                 "adding default port failed: %zd.", ret);
   }
   else {
     *addr_out= addr_in;
   }
 
   pthread_t monitor;
-  ret = mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor, NULL, wsrep_sst_joiner_monitor_thread, NULL);
+  int thread_ret= mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor,
+                                        NULL, wsrep_sst_joiner_monitor_thread,
+                                        NULL);
 
-  if (ret)
+  if (thread_ret)
   {
-    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
-                ret, strerror(ret));
-    return -ret;
+    WSREP_ERROR("sst_prepare_mysqldump(): mysql_thread_create() failed: "
+                "%d (%s)", thread_ret, strerror(thread_ret));
+    if (*addr_out != addr_in) free ((char*) *addr_out);
+    return -thread_ret;
   }
 
   sst_joiner_completed= false;

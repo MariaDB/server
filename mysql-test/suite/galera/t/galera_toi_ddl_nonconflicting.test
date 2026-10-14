@@ -52,17 +52,15 @@ SET SESSION wsrep_sync_wait=0;
 --echo # DDL 2
 --send CREATE UNIQUE INDEX i1 ON t1(f2)
 
+--connection node_1a
 #
-# Wait until DDL 2 has been replicated and applied on node_2. That proves that
-# DDL 2 has reached total order after DDL 1 and is now waiting on node_1.
+# "acquiring total order isolation" is not listed here: wsrep_TOI_begin()
+# sets it with thd_proc_info() and THD_STAGE_INFO() overwrites it two lines
+# later, so it never reaches the process list. "Waiting for TOI DDL" is the
+# stage restored when a statement that already holds total order isolation
+# leaves one of the one second metadata lock wait slices.
 #
-# Polling INFORMATION_SCHEMA.PROCESSLIST on node_1 for the state of the DDL 2
-# thread is not a reliable substitute: wsrep_TOI_begin() sets the
-# "Waiting to execute in isolation" stage before it replicates the writeset,
-# so that state can be observed before DDL 2 has been ordered at all.
-#
---connection node_2a
---let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'Waiting for TOI DDL%' OR STATE LIKE 'Waiting to execute in isolation%';
 --source include/wait_condition.inc
 
 --echo # Neither DDL has been applied on node_1 yet

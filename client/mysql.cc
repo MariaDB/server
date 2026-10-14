@@ -1408,6 +1408,9 @@ int main(int argc,char *argv[])
             mysql_thread_id(&mysql), server_version_string(&mysql));
     put_info((char*) glob_buffer.ptr(),INFO_INFO);
     put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+    put_info("Help others discover MariaDB."
+             " Star it on GitHub: https://github.com/MariaDB/server\n",
+             INFO_INFO);
   }
 
 #ifdef HAVE_READLINE

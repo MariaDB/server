@@ -5457,7 +5457,21 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     bool conflict= false;
     char *real_end= end;
     if (round == 1 && own_name_base)
-        *end++= '_';
+    {
+      /*
+        A '_' plus a numeric suffix is appended from here on, so truncate
+        on a character boundary to make room, both in bytes (to stay
+        inside buff) and in characters (so the result still respects
+        NAME_CHAR_LEN) -- but only now that a suffix is actually needed.
+      */
+      size_t avail= sizeof(buff) - (1 + MY_INT32_NUM_DECIMAL_DIGITS + 1);
+      size_t avail_chars= NAME_CHAR_LEN - (1 + MY_INT32_NUM_DECIMAL_DIGITS);
+      end= buff + Well_formed_prefix(system_charset_info, buff,
+                                     MY_MIN(size_t(end - buff), avail),
+                                     avail_chars)
+                   .length();
+      *end++= '_';
+    }
     // if own_base_name provided, try it first
     if (round != 0 || !own_name_base)
       real_end= int10_to_str((*nr)++, end, 10);
@@ -7531,13 +7545,17 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
                              second table.
   @param[in]  create_info    Create options for the second table.
   @param[out] metadata_equal Result of comparison.
+  @param[in]  compare_vcol_expr_as_sets
+                             Ignore AND/OR order and duplicate terms in
+                             generated column expressions.
 
   @retval true   error
   @retval false  success
 */
 
 bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
-                          HA_CREATE_INFO *create_info, bool *metadata_equal)
+                          HA_CREATE_INFO *create_info, bool *metadata_equal,
+                          bool compare_vcol_expr_as_sets)
 {
   DBUG_ENTER("mysql_compare_tables");
 
@@ -7606,7 +7624,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
     {
       if (!tmp_new_field->field->vcol_info)
         DBUG_RETURN(false);
-      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info, true))
+      if (!field->vcol_info->is_equal(tmp_new_field->field->vcol_info,
+                                      true, compare_vcol_expr_as_sets))
         DBUG_RETURN(false);
     }
 

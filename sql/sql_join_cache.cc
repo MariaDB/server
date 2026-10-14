@@ -4085,7 +4085,7 @@ void bka_range_seq_key_info(void *init_params, uint *length,
 {
   TABLE_REF *ref= &(((JOIN_CACHE*)init_params)->join_tab->ref);
   *length= ref->key_length;
-  *map= (key_part_map(1) << ref->key_parts) - 1;
+  *map= make_prev_keypart_map(ref->key_parts);
 }
 
 
@@ -4150,7 +4150,7 @@ bool bka_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range)
   key_range *start_key= &range->start_key;
   if ((start_key->length= cache->get_next_key((uchar **) &start_key->key)))
   {
-    start_key->keypart_map= (1 << ref->key_parts) - 1;
+    start_key->keypart_map= make_prev_keypart_map(ref->key_parts);
     start_key->flag= HA_READ_KEY_EXACT;
     range->end_key= *start_key;
     range->end_key.flag= HA_READ_AFTER_KEY;
@@ -4631,7 +4631,7 @@ bool bkah_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range)
   key_range *start_key= &range->start_key;
   if ((start_key->length= cache->get_next_key((uchar **) &start_key->key)))
   {
-    start_key->keypart_map= (1 << ref->key_parts) - 1;
+    start_key->keypart_map= make_prev_keypart_map(ref->key_parts);
     start_key->flag= HA_READ_KEY_EXACT;
     range->end_key= *start_key;
     range->end_key.flag= HA_READ_AFTER_KEY;

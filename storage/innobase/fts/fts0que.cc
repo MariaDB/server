@@ -2890,8 +2890,12 @@ fts_query_phrase_search(
 func_exit:
 	mem_heap_free(heap);
 
-	/* Don't need it anymore. */
+	/* Don't need it anymore.
+	Reset the phrase/proximity flag to avoid the subsequent
+	wildcard term in the same boolean query would take the
+	exact word lookup path in fts_query_cache() */
 	query->matched = NULL;
+	query->flags = 0;
 
 	return(query->error);
 }

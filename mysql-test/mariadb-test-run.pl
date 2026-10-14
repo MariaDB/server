@@ -2307,6 +2307,19 @@ sub environment_setup {
   }
 
   # ----------------------------------------------------
+  # wsrep_notify (shipped example wsrep_notify_cmd script; tests point
+  # wsrep_notify_cmd at this instead of keeping a private std_data copy)
+  # ----------------------------------------------------
+  my $wsrep_notify=
+    mtr_pl_maybe_exists("$bindir/support-files/wsrep_notify") ||
+    mtr_pl_maybe_exists("$bindir/share/mariadb/wsrep_notify") ||
+    mtr_pl_maybe_exists("$bindir/share/mysql/wsrep_notify");
+  if ($wsrep_notify)
+  {
+    $ENV{'WSREP_NOTIFY_CMD'}= $wsrep_notify;
+  }
+
+  # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
   my $exe_perror= mtr_exe_exists("$bindir/extra$multiconfig/perror",

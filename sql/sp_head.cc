@@ -586,6 +586,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_thd_root(NULL),
    m_thd(NULL),
    m_pcont(new (&main_mem_root) sp_pcontext()),
+   m_pcont_list(NULL),
    m_cont_level(0)
 {
   mem_root= &main_mem_root;
@@ -906,6 +907,17 @@ sp_head::~sp_head()
   for (uint ip = 0 ; (i = get_instr(ip)) ; ip++)
     delete i;
   delete_dynamic(&m_instr);
+
+  /*
+    Free the parse contexts iteratively, freeing them recursively overran
+    the thread stack on deeply nested BEGIN blocks.
+  */
+  for (sp_pcontext *ctx= m_pcont_list; ctx; )
+  {
+    sp_pcontext *next= ctx->m_next_pcont;
+    delete ctx;
+    ctx= next;
+  }
   delete m_pcont;
   free_items();
 
@@ -1849,7 +1861,8 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
 {
   DBUG_ASSERT(args);
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
+  if (m_pcont->retrieve_field_definitions(thd, &defs))
+    return NULL;
   if (defs.adjust_formal_params_to_actual_params(thd, args))
     return NULL;
   return rcontext_create(thd, ret_value, &defs, true);
@@ -1860,7 +1873,8 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       Item **args, uint arg_count)
 {
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
+  if (m_pcont->retrieve_field_definitions(thd, &defs))
+    return NULL;
   if (defs.adjust_formal_params_to_actual_params(thd, args, arg_count))
     return NULL;
   return rcontext_create(thd, ret_value, &defs, true);
@@ -1965,8 +1979,8 @@ sp_head::execute_trigger(THD *thd,
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   Row_definition_list defs;
-  m_pcont->retrieve_field_definitions(&defs);
-  if (!(nctx= rcontext_create(thd, NULL, &defs, false)))
+  if (m_pcont->retrieve_field_definitions(thd, &defs) ||
+      !(nctx= rcontext_create(thd, NULL, &defs, false)))
   {
     err_status= TRUE;
     goto err_with_cleanup;

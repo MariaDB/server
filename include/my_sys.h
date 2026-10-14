@@ -95,6 +95,7 @@ C_MODE_START
 #define MY_ROOT_USE_VMEM 0x20000U /* init_alloc_root: use my_virtual_mem_commit */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
+#define MY_TRY_LARGE_PAGES 0x80000U /* try to allocate large pages */
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
@@ -176,14 +177,19 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
-extern my_bool my_use_large_pages;
+/**
+  0, or MY_TRY_LARGE_PAGES to request large pages from my_large_malloc(),
+  my_large_virtual_alloc(), or the my_virtual_mem_*() functions. Set once
+  by my_init_large_pages(), does not change thereafter.
+*/
+extern myf my_large_pages_flag;
 
 int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 #ifdef _WIN32
 /* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
 #else
-char *my_large_virtual_alloc(size_t *size);
+char *my_large_virtual_alloc(size_t *size, myf my_flags);
 #endif
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
