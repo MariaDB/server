@@ -1,0 +1,207 @@
+#
+# A compressed VARCHAR is a variable-length column, so a wide one is
+# moved out of the record like any other.  What moves is the compressed
+# image, so the table holds as many rows as the compression achieved --
+# where a column stored in the record reserves its declared width
+# whatever the compression achieved.
+#
+--source include/have_sequence.inc
+--source include/have_normal_zlib.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t_narrow, t_wide, t_plain, t1, t_dense, t_noise;
+--enable_warnings
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+--echo #
+--echo # What leaves the record is the compressed image.
+--echo #
+--echo # Both tables below take rows of the same length, one made of
+--echo # compressible bytes and one of bytes that do not compress.  With
+--echo # the payload in the record a row reserves the declared width
+--echo # either way, so the two tables were the same size and held the
+--echo # same number of rows.
+--echo #
+
+SET max_heap_table_size= 256*1024;
+
+CREATE TABLE t_dense (a VARBINARY(20000) COMPRESSED) ENGINE=MEMORY;
+CREATE TABLE t_noise (a VARBINARY(20000) COMPRESSED) ENGINE=MEMORY;
+
+--disable_query_log
+SET @noise= '';
+let $i= 30;
+while ($i)
+{
+  eval SET @noise= CONCAT(@noise, SHA2($i, 512));
+  dec $i;
+}
+SET @noise= UNHEX(@noise);
+SET @dense= REPEAT('a', LENGTH(@noise));
+--enable_query_log
+
+SELECT LENGTH(@noise) = LENGTH(@dense) AS same_length, LENGTH(@noise);
+
+INSERT INTO t_dense SELECT @dense FROM seq_1_to_50;
+INSERT INTO t_noise SELECT @noise FROM seq_1_to_50;
+
+SELECT TABLE_NAME, DATA_LENGTH < 50*LENGTH(@dense) AS smaller_than_payload
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_dense','t_noise')
+ORDER BY TABLE_NAME;
+
+--echo #
+--echo # And so the compressible table holds more rows before the memory
+--echo # ceiling refuses one.
+--echo #
+--error ER_RECORD_FILE_FULL
+INSERT INTO t_dense SELECT @dense FROM seq_1_to_20000;
+--error ER_RECORD_FILE_FULL
+INSERT INTO t_noise SELECT @noise FROM seq_1_to_20000;
+
+SELECT (SELECT COUNT(*) FROM t_dense) >
+       (SELECT COUNT(*) FROM t_noise) * 10 AS at_least_ten_times_the_rows;
+
+--echo #
+--echo # Both still read back whole.
+--echo #
+# Against each table's own row count rather than a recorded one.  How
+# many rows a memory ceiling admits depends on the width of a pointer,
+# so the number differs between a 32-bit and a 64-bit build, while what
+# is being asked -- that every row stored reads back as it was written
+# -- does not.
+SELECT COUNT(*) = (SELECT COUNT(*) FROM t_dense) AS all_rows_intact
+FROM t_dense WHERE a = @dense;
+SELECT COUNT(*) = (SELECT COUNT(*) FROM t_noise) AS all_rows_intact
+FROM t_noise WHERE a = @noise;
+
+DROP TABLE t_dense, t_noise;
+SET max_heap_table_size= @save_max_heap_table_size;
+
+--echo #
+--echo # Values of every shape come back whole, beside columns that must
+--echo # not move with them.  column_compression_threshold is 100 by
+--echo # default, so the short values here are stored uncompressed behind
+--echo # the same header.
+--echo #
+
+CREATE TABLE t1 (
+  id INT,
+  a VARCHAR(2000) COMPRESSED,
+  b INT,
+  c VARCHAR(3000) COMPRESSED,
+  d CHAR(10)
+) ENGINE=MEMORY CHARACTER SET latin1;
+
+INSERT INTO t1 VALUES (1, '',              10, '',                'tail');
+INSERT INTO t1 VALUES (2, 'x',             20, REPEAT('y', 99),   'tail');
+INSERT INTO t1 VALUES (3, REPEAT('p',100), 30, REPEAT('q', 3000), 'tail');
+INSERT INTO t1 VALUES (4, NULL,            40, NULL,              'tail');
+INSERT INTO t1 VALUES (5, REPEAT('r',2000), 50, REPEAT('s', 1500), 'tail');
+
+SELECT id, LENGTH(a), LEFT(a,1), b, LENGTH(c), LEFT(c,1), d
+FROM t1 ORDER BY id;
+
+--echo #
+--echo # A statement that stores what it read from the same column.
+--echo #
+UPDATE t1 SET a = a, c = CONCAT(c, c) WHERE id = 5;
+SELECT id, LENGTH(a), LEFT(a,1), LENGTH(c), LEFT(c,1) FROM t1 WHERE id = 5;
+
+--echo #
+--echo # Two rows alive at once: reading the second must not take the
+--echo # first row's value with it.
+--echo #
+SELECT x.id, LENGTH(x.c), y.id, LENGTH(y.c)
+FROM t1 AS x, t1 AS y WHERE x.id < y.id AND y.id < 4 ORDER BY x.id, y.id;
+
+--echo #
+--echo # Ordering and grouping are on the values rather than on the
+--echo # stored image.  GROUP_CONCAT with ORDER BY compares two stored
+--echo # images directly, which is the one place that reads the image
+--echo # from a record it was handed rather than from the field.
+--echo #
+SELECT id, LENGTH(c) FROM t1 ORDER BY c, id;
+SELECT LENGTH(c) AS len, COUNT(*) FROM t1 GROUP BY c ORDER BY len;
+SELECT COUNT(DISTINCT a) AS distinct_a FROM t1;
+SELECT GROUP_CONCAT(LEFT(c,1) ORDER BY c, id) AS heads FROM t1;
+SELECT id FROM t1 WHERE c = REPEAT('q', 3000);
+
+--echo #
+--echo # The bytes really are compressed, wherever they are kept.
+--echo #
+FLUSH STATUS;
+INSERT INTO t1 VALUES (6, REPEAT('z',2000), 60, REPEAT('z',3000), 'tail');
+SHOW STATUS LIKE 'Column_compressions';
+FLUSH STATUS;
+# The count is the assertion here -- one decompression per compressed
+# column read -- so the statement has to be executed once.  Under
+# ps2-protocol a bare SELECT is executed twice and the count doubles.
+--disable_ps2_protocol
+SELECT LENGTH(a) + LENGTH(c) AS total FROM t1 WHERE id = 6;
+--enable_ps2_protocol
+SHOW STATUS LIKE 'Column_decompressions';
+
+--echo #
+--echo # Copying between a compressed column and a plain one, in both
+--echo # directions.
+--echo #
+ALTER TABLE t1 MODIFY c VARCHAR(3000);
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+ALTER TABLE t1 MODIFY c VARCHAR(3000) COMPRESSED;
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+
+--echo #
+--echo # The same copies where the value does not fit, which is the case
+--echo # that chooses between the two copiers.  A strict mode refuses the
+--echo # cut rather than reporting it.
+--echo #
+--error ER_DATA_TOO_LONG
+ALTER TABLE t1 MODIFY c VARCHAR(1000) COMPRESSED;
+
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+
+ALTER TABLE t1 MODIFY c VARCHAR(1000) COMPRESSED;
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+ALTER TABLE t1 MODIFY c VARCHAR(500);
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+ALTER TABLE t1 MODIFY c VARCHAR(200) COMPRESSED;
+SELECT id, LENGTH(c), LEFT(c,1) FROM t1 ORDER BY id;
+
+SET sql_mode= @save_sql_mode;
+
+DROP TABLE t1;
+
+--echo #
+--echo # The record itself is reshaped, and only above the threshold.
+--echo #
+--echo # AVG_ROW_LENGTH is the width the engine lays a row out in.  A
+--echo # column left in the record reserves what it was declared as; one
+--echo # addressed through the record reserves a length prefix and a
+--echo # pointer.
+--echo #
+--echo # A compressed column carries its header inside the declared
+--echo # width the threshold is read against, so VARCHAR(31) COMPRESSED
+--echo # is the widest one the record still holds and VARCHAR(32)
+--echo # COMPRESSED the narrowest one it does not.
+--echo #
+
+CREATE TABLE t_narrow (a VARCHAR(31) COMPRESSED) ENGINE=MEMORY
+  CHARACTER SET latin1;
+CREATE TABLE t_wide (a VARCHAR(32) COMPRESSED) ENGINE=MEMORY
+  CHARACTER SET latin1;
+CREATE TABLE t_plain (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+
+SELECT TABLE_NAME, AVG_ROW_LENGTH >= 32 AS at_least_32_bytes
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_narrow','t_plain')
+ORDER BY TABLE_NAME;
+
+SELECT TABLE_NAME, AVG_ROW_LENGTH < 32 AS below_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_wide';
+
+DROP TABLE t_narrow, t_wide, t_plain;
+SET max_heap_table_size= @save_max_heap_table_size;
