@@ -885,7 +885,10 @@ public:
       }
       ut_ad(err <= 0);
 
+      log_sys.latch.rd_lock();
+      const lsn_t log_first_lsn{log_sys.first_lsn};
       mutex.wr_lock();
+      log_sys.latch.rd_unlock();
       ut_ad(ctx.tracked == &tracked);
       ut_ad(tracked.first_lsn == first + log_sys.START_OFFSET);
 
@@ -903,24 +906,65 @@ public:
 #ifdef HAVE_PMEM
         if (log_sys.is_mmap())
         {
+          /*
+            Tracked memory-mapped buffers can only be added by init()
+            or checkpoint_complete_pmem(). In both cases, the
+            log_sys.first_lsn will be associated with that buffer.  If
+            we are switching to another log file, the just completed
+            one must be for something earlier than log_sys.first_lsn.
+          */
+          ut_ad(tracked.first_lsn < log_first_lsn);
           ut_ad(tail->buf != tracked.buf);
+          ut_ad(tracked.buf != log_sys.resize_buf);
+          ut_ad(tracked.buf != log_sys.buf);
+          ut_ad(tracked.buf != log_sys.checkpoint_buf);
           my_munmap(const_cast<byte*>(tracked.buf), tracked.file_size);
         }
         else
 #endif
         {
+          const bool owned_by_us{tracked.first_lsn < log_first_lsn};
           ut_ad(tail->file != tracked.file);
-          ut_ad(tracked.file != log_sys.resize_log.m_file);
-          if (tracked.file != log_sys.log.m_file)
-            std::ignore= IF_WIN(CloseHandle,close)(tracked.file);
+          ut_ad(owned_by_us == (tracked.file != log_sys.resize_log.m_file));
+
+          if (!owned_by_us)
+          {
+            /*
+              We copied a previous log before the first checkpoint had
+              been completed in the current log_sys.log file, which had
+              been registered by archive_create(). The previous log will
+              be closed by checkpoint_complete().
+            */
+            ut_ad(tracked.first_lsn == log_first_lsn);
+            /* At most two innodb_log_archive=ON files can be active. */
+            ut_ad(!tail->next);
+          }
+          else if (tracked.file == log_sys.log.m_file)
+            /* The log file from init() was not disowned by log_sys. */
+            ut_ad(tracked.first_lsn == ctx.first_lsn);
+          else
+            /* Close the file, because we owned it. */
+            err= IF_WIN(-!CloseHandle,close)(tracked.file);
         }
         /* Move to the next file */
         delete ctx.tracked;
         ctx.tracked= tail;
-        err= -1;
-        if (ctx.log_dst != ctx.first_log_dst &&
-            IF_WIN(!CloseHandle,close)(ctx.log_dst))
+        {
+          const os_file_t dst{ctx.log_dst};
+          ctx.log_dst= OS_FILE_CLOSED;
+          if (dst != ctx.first_log_dst)
+            err= IF_WIN(-!CloseHandle,close)(dst);
+        }
+        if (err)
+        {
+          try {
+            my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+                     log_sys.get_archive_path(tracked.first_lsn).c_str(),
+                     errno);
+          } catch (std::bad_alloc&) {}
           goto flag_error;
+        }
+        err= -1;
         ctx.log_dst= context::log_track_create(*ctx.target, tail->first_lsn);
         if (IF_WIN(ctx.log_dst == INVALID_HANDLE_VALUE, ctx.log_dst < 0))
           goto flag_error;
@@ -1253,8 +1297,23 @@ public:
           */
           ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
                 !!ctx.is_log_tracking(log_sys.log.m_file));
-          ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
-          log_sys.resize_log.m_file= OS_FILE_CLOSED;
+          ut_ad(!ctx.tracked || ctx.tracked->first_lsn >= lsn);
+          const bool disown{ctx.tracked && ctx.tracked->first_lsn == lsn};
+          ut_ad(disown == !!ctx.is_log_tracking(log_sys.resize_log.m_file));
+
+          if (disown)
+            /*
+              Detach the file handle from log_sys and make it
+              exclusively owned by ctx.tracked, to be closed by
+              log_track() or context::destroy().
+            */
+            log_sys.resize_log.m_file= OS_FILE_CLOSED;
+
+          /*
+            If !disown, archive_create() registered and log_track()
+            already copied this log; checkpoint_complete() will
+            exclusively own the log and must close the handle.
+          */
         }
       }
       mutex.wr_unlock();
@@ -1785,9 +1844,7 @@ public:
                                ((ctx.checkpoint - lsn) & ~4095ULL));
         write_checkpoint_buf(cp_buf, ctx.checkpoint_end_lsn - lsn +
                              log_sys.START_OFFSET);
-        int fail= write_checkpoint(dh, cp_buf);
-        std::ignore= CloseHandle(dh);
-        if (fail)
+        if (write_checkpoint(dh, cp_buf) | !CloseHandle(dh));
           goto fail;
       }
       return 0;
@@ -1873,7 +1930,7 @@ public:
           if (dst >= 0)
             fallocate(dst, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
                       log_sys.START_OFFSET, garbage);
-          close(dst);
+          std::ignore= close(dst);
           std::ignore= fchmodat(target.fd, basename, 0444, 0);
         }
 # endif

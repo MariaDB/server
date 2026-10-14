@@ -1,0 +1,74 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t (a LONGBLOB) ENGINE=InnoDB;
+SET @save_archive= @@GLOBAL.innodb_log_archive;
+SET GLOBAL innodb_log_archive=ON;
+
+--let $from_lsn= FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='INNODB_LSN_CURRENT'
+--let LSN= `SELECT VARIABLE_VALUE $from_lsn`
+
+--perl
+my $d= $ENV{MARIADB_DATADIR}, $lsn= $ENV{LSN};
+opendir(my $h, $d) or die "opendir($d): $!\n";
+my ($f)= sort { $b cmp $a }
+grep { /^ib_([0-9a-f]{16})\.log$/ && hex($1) <= $lsn } readdir($h);
+closedir($h);
+die "no $d/ib_*.log\n" unless $f;
+my $end= hex(substr($f, 3, 16)) + (-s "$d/$f") - 12288;
+open(my $o, '>', "$ENV{MYSQL_TMP_DIR}/end.inc") or die;
+print $o "--let \$end= $end\n";
+close $o;
+EOF
+--source $MYSQL_TMP_DIR/end.inc
+--remove_file $MYSQL_TMP_DIR/end.inc
+
+--let $new_log= `SELECT CONCAT(@@datadir, '/ib_', LPAD(LOWER(HEX($end)),16,'0'), '.log')`
+
+# Fill the log up to its last MiB
+--disable_query_log
+while (`SELECT $end - VARIABLE_VALUE > 1048576 $from_lsn`)
+{
+  INSERT INTO t VALUES (REPEAT('x', 262144));
+}
+--enable_query_log
+SET GLOBAL innodb_log_checkpoint_now=ON;
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug='+d,ib_log_checkpoint_avoid';
+
+--connect backup,localhost,root
+SET DEBUG_SYNC='innodb_backup_start SIGNAL started WAIT_FOR go';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--send_eval BACKUP SERVER TO '$MYSQL_TMP_DIR/backup_log_track' 2 CONCURRENT
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR started';
+
+# Create $new_log
+--error 1
+--file_exists $new_log
+
+INSERT INTO t VALUES (REPEAT('x', 262144));
+--disable_query_log
+while (`SELECT $end - VARIABLE_VALUE >= 0 $from_lsn`)
+{
+  INSERT INTO t VALUES (REPEAT('x', 262144));
+}
+--enable_query_log
+
+--file_exists $new_log
+
+SET DEBUG_SYNC='now SIGNAL go';
+--connection backup
+--reap
+--disconnect backup
+--connection default
+SET GLOBAL debug_dbug= @save_dbug;
+SET DEBUG_SYNC='RESET';
+DROP TABLE t;
+SET GLOBAL innodb_log_archive=@save_archive;
+--rmdir $MYSQL_TMP_DIR/backup_log_track
+if (`select @save_archive='OFF'`) {
+--remove_files_wildcard $MARIADB_DATADIR ib_0*.log
+}
