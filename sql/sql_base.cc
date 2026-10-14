@@ -4973,6 +4973,19 @@ error:
   {
     (*table_to_open)->table= NULL;
   }
+  /*
+    The prelocking set that was being built may be incomplete. Throw it
+    away, so that the next execution of the statement (e.g. in a stored
+    procedure) builds it again instead of taking it as complete.
+  */
+  if (unlikely(error) && !has_prelocking_list &&
+      thd->lex->requires_prelocking())
+  {
+    if (thd->lex->first_not_own_table() == *start)
+      *start= NULL;
+    thd->lex->chop_off_not_own_tables();
+    sp_remove_not_own_routines(thd->lex);
+  }
   DBUG_PRINT("open_tables", ("returning: %d", (int) error));
   DBUG_RETURN(error);
 }

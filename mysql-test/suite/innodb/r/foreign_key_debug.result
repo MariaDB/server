@@ -153,5 +153,64 @@ a	b
 DROP PROCEDURE p_upd;
 DROP TABLE t_log, c2, c1, p;
 #
+# MDEV-41538 A stored procedure statement whose foreign key prelocking
+# failed once never locks the referencing tables again
+#
+# A stored procedure statement whose foreign key prelocking failed
+# locks the referencing tables on its next execution
+#
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+CREATE TABLE t_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER p_bu BEFORE UPDATE ON p FOR EACH ROW
+INSERT INTO t_log VALUES (OLD.a);
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (1), (3);
+# Updating a column that no foreign key uses keeps InnoDB from
+# locking the referencing tables on its own
+CREATE PROCEDURE p_upd(x INT) UPDATE p SET b = b + 1 WHERE a = x;
+SET debug_dbug= '+d,fk_list_fail';
+CALL p_upd(2);
+ERROR HY000: Out of memory.
+SET debug_dbug= @save_dbug;
+BEGIN;
+CALL p_upd(2);
+connect con1, localhost, root;
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t_log NOWAIT COMMENT 't_log';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+SELECT * FROM p ORDER BY a;
+a	b
+1	10
+2	21
+3	30
+SELECT * FROM c1 ORDER BY a;
+a
+1
+2
+SELECT * FROM c2 ORDER BY a;
+a
+1
+3
+SELECT * FROM t_log ORDER BY a;
+a
+2
+# The locks are released at the end of the transaction
+connection con1;
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+disconnect con1;
+connection default;
+DROP PROCEDURE p_upd;
+DROP TABLE t_log, c2, c1, p;
+#
 # End of 10.11 tests
 #

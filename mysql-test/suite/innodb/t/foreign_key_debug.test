@@ -153,5 +153,56 @@ DROP PROCEDURE p_upd;
 DROP TABLE t_log, c2, c1, p;
 
 --echo #
+--echo # MDEV-41538 A stored procedure statement whose foreign key prelocking
+--echo # failed once never locks the referencing tables again
+--echo #
+--echo # A stored procedure statement whose foreign key prelocking failed
+--echo # locks the referencing tables on its next execution
+--echo #
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+                 ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+CREATE TABLE t_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER p_bu BEFORE UPDATE ON p FOR EACH ROW
+  INSERT INTO t_log VALUES (OLD.a);
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (1), (3);
+--echo # Updating a column that no foreign key uses keeps InnoDB from
+--echo # locking the referencing tables on its own
+CREATE PROCEDURE p_upd(x INT) UPDATE p SET b = b + 1 WHERE a = x;
+
+SET debug_dbug= '+d,fk_list_fail';
+--error ER_OUT_OF_RESOURCES
+CALL p_upd(2);
+SET debug_dbug= @save_dbug;
+
+BEGIN;
+CALL p_upd(2);
+connect con1, localhost, root;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t_log NOWAIT COMMENT 't_log';
+connection default;
+COMMIT;
+SELECT * FROM p ORDER BY a;
+SELECT * FROM c1 ORDER BY a;
+SELECT * FROM c2 ORDER BY a;
+SELECT * FROM t_log ORDER BY a;
+
+--echo # The locks are released at the end of the transaction
+connection con1;
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+disconnect con1;
+connection default;
+DROP PROCEDURE p_upd;
+DROP TABLE t_log, c2, c1, p;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
