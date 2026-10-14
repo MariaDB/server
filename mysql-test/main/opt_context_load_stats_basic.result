@@ -480,4 +480,31 @@ select hex(json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]') +
 hex(json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]') + 0.0)
 0
 drop table t1;
+#
+# Replay mismatch warnings print numbers as text
+#
+set optimizer_replay_context='';
+create table t1 (a int, b int, key(a));
+insert into t1 select seq%10, seq from seq_1_to_100;
+explain select t1.b from t1, t1 t2 where t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @opt_context_mismatch= json_remove(@opt_context,
+'$.tables[0].cost_for_index_read_calls');
+set optimizer_replay_context='opt_context_mismatch';
+explain select t1.b from t1, t1 t2 where t1.a = t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	Using index
+Warnings:
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.t1 with key_number:0, records:10, eq_ref:0 doesn't exist in cost_for_index_read_calls
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.t1 with key_number:0, records:10, eq_ref:0 doesn't exist in cost_for_index_read_calls
+set optimizer_replay_context='';
+drop table t1;
 # End of 13.1 tests

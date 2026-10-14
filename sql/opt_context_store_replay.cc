@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2025, MariaDB
+   Copyright (c) 2025, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1879,11 +1879,11 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
   String warn_msg(256);
   warn_msg.append(tbl_name);
   warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
+  warn_msg.append_ulonglong(keynr);
   warn_msg.append(STRING_WITH_LEN(", records:"));
-  warn_msg.q_append_int64(records);
+  warn_msg.append_ulonglong(records);
   warn_msg.append(STRING_WITH_LEN(", eq_ref:"));
-  warn_msg.append(eq_ref);
+  warn_msg.append(eq_ref ? '1' : '0');
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
@@ -1997,7 +1997,7 @@ bool Optimizer_context_replay::infuse_records_in_range(
   String warn_msg(256);
   warn_msg.append(tbl_name);
   warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
+  warn_msg.append_ulonglong(keynr);
   warn_msg.append(STRING_WITH_LEN(" with min_key:"));
   warn_msg.append(min_key);
   warn_msg.append(STRING_WITH_LEN(" with max_key:"));
