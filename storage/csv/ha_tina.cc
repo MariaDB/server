@@ -46,6 +46,7 @@ TODO:
 #include "sql_priv.h"
 #include "sql_class.h"                          // SSV
 #include <mysql/psi/mysql_file.h>
+#include <mysys_err.h>
 #include "ha_tina.h"
 #include "probes_mysql.h"
 
@@ -81,6 +82,7 @@ static int write_meta_file(File meta_file, ha_rows rows, bool dirty);
 extern "C" void tina_get_status(void* param, int concurrent_insert);
 extern "C" void tina_update_status(void* param);
 extern "C" my_bool tina_check_status(void* param);
+extern "C" void tina_copy_status(void* to, void* from);
 
 /* Stuff for shares */
 mysql_mutex_t tina_mutex;
@@ -524,8 +526,10 @@ ha_tina::ha_tina(handlerton *hton, TABLE_SHARE *table_arg)
     They are not probably completely right.
   */
   current_position(0), next_position(0), local_saved_data_file_length(0),
+  saved_length(&local_saved_data_file_length),
   file_buff(0), chain_alloced(0), chain_size(DEFAULT_CHAIN_LENGTH),
-  local_data_file_version(0), records_is_known(0)
+  local_data_file_version(0), records_is_known(0),
+  curr_lock_type(F_UNLCK)
 {
   /* Set our original buffers from pre-allocated memory */
   buffer.set((char*)byte_buffer, IO_SIZE, &my_charset_bin);
@@ -687,12 +691,12 @@ int ha_tina::find_current_row(uchar *buf)
   free_root(&blobroot, MYF(0));
 
   /*
-    We do not read further then local_saved_data_file_length in order
-    not to conflict with undergoing concurrent insert.
+    Do not read past the data file length of this handler, which excludes
+    rows that concurrent inserts appended after thr_lock granted its lock.
   */
   if ((end_offset=
         find_eoln_buff(file_buff, current_position,
-                       local_saved_data_file_length, &eoln_len)) == 0)
+                       *saved_length, &eoln_len)) == 0)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   /* We must read all columns in case a table is opened for update */
@@ -882,8 +886,10 @@ err:
 }
 
 /*
-  Three functions below are needed to enable concurrent insert functionality
-  for CSV engine. For more details see mysys/thr_lock.c
+  The four functions below are the thr_lock callbacks of the table.  They
+  enable concurrent inserts, and let the handlers of one table that the
+  same thr_multi_lock() call locks use one data file length.  For more
+  details see mysys/thr_lock.c
 */
 
 my_bool tina_get_status(void* param, my_bool concurrent_insert)
@@ -905,6 +911,12 @@ my_bool tina_check_status(void* param)
   return 0;
 }
 
+void tina_copy_status(void* to, void* from)
+{
+  ha_tina *tina= (ha_tina*) to;
+  tina->copy_status((ha_tina*) from);
+}
+
 /*
   Save the state of the table
 
@@ -919,6 +931,7 @@ my_bool tina_check_status(void* param)
 
 void ha_tina::get_status()
 {
+  saved_length= &local_saved_data_file_length;
   if (share->is_log_table)
   {
     /*
@@ -957,8 +970,30 @@ void ha_tina::get_status()
 
 void ha_tina::update_status()
 {
-  /* correct local_saved_data_file_length for writers */
-  share->saved_data_file_length= local_saved_data_file_length;
+  /*
+    A handler that uses the length of the first handler of the table can
+    unlock after that handler is closed, so only a handler that uses its
+    own length stores it.  The first handler holds the strongest lock of
+    the table, so it holds a write lock whenever another handler of the
+    table does, and releasing that lock stores the length.  A handler
+    whose lock thr_lock did not grant uses the length in the share, which
+    then keeps its value.
+  */
+  if (saved_length == &local_saved_data_file_length)
+    share->saved_data_file_length= *saved_length;
+}
+
+
+/*
+  Use the data file length of "from", the first handler of this table
+  locked by the same thr_multi_lock() call.  A write through any of these
+  handlers changes the one length that all of them read, and unlocking
+  "from" stores that length in the share.
+*/
+
+void ha_tina::copy_status(ha_tina *from)
+{
+  saved_length= &from->local_saved_data_file_length;
 }
 
 
@@ -991,7 +1026,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
 
   /*
     Init locking. Pass handler object to the locking routines,
-    so that they could save/update local_saved_data_file_length value
+    so that they could load and store the data file length of the handler
     during locking. This is needed to enable concurrent inserts.
   */
   thr_lock_data_init(&share->lock, &lock, (void*) this);
@@ -1002,6 +1037,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   share->lock.get_status= tina_get_status;
   share->lock.update_status= tina_update_status;
   share->lock.check_status= tina_check_status;
+  share->lock.copy_status= tina_copy_status;
 
   DBUG_RETURN(0);
 }
@@ -1021,9 +1057,45 @@ int ha_tina::close(void)
 }
 
 /*
-  This is an INSERT. At the moment this handler just seeks to the end
-  of the file and appends the data. In an error case it really should
-  just truncate to the original position (this is not done yet).
+  Write the first count bytes of buf, then fail with the error that a
+  write to a full disk reports.
+*/
+static size_t short_write(File file, const uchar *buf, size_t count)
+{
+  (void) mysql_file_write(file, buf, count, MYF(0));
+  my_errno= ENOSPC;
+  my_error(EE_WRITE, MYF(0), my_filename(file), my_errno);
+  return MY_FILE_ERROR;
+}
+
+
+/*
+  Append a row of size bytes from buf to the data file.  A failed write
+  can leave part of the row at the end of the file, where the next row
+  would be appended to it, so cut the file back to its length before the
+  write.  If that fails too, mark the table crashed.
+*/
+static int append_row(TINA_SHARE *share, const uchar *buf, size_t size)
+{
+  File file= share->tina_write_filedes;
+  my_off_t end= mysql_file_seek(file, 0, MY_SEEK_END, MYF(MY_WME));
+
+  if (end == MY_FILEPOS_ERROR)
+    return -1;
+  if (!(DBUG_IF("tina_write_row_short_write") ?
+        short_write(file, buf, 1) :
+        mysql_file_write(file, buf, size, MYF(MY_WME | MY_NABP))))
+    return 0;
+  if (mysql_file_chsize(file, end, 0, MYF(0)))
+    share->crashed= TRUE;
+  return -1;
+}
+
+
+/*
+  This is an INSERT.  The row is appended to the end of the data file.
+  share->mutex is held from the write of the row to its count, so that
+  CHECK TABLE reads a row count and a file length that agree.
 */
 int ha_tina::write_row(const uchar * buf)
 {
@@ -1039,16 +1111,17 @@ int ha_tina::write_row(const uchar * buf)
     if (init_tina_writer())
       DBUG_RETURN(-1);
 
-   /* use pwrite, as concurrent reader could have changed the position */
-  if (mysql_file_write(share->tina_write_filedes, (uchar*)buffer.ptr(), size,
-                       MYF(MY_WME | MY_NABP)))
+  mysql_mutex_lock(&share->mutex);
+  if (append_row(share, (uchar*) buffer.ptr(), size))
+  {
+    mysql_mutex_unlock(&share->mutex);
     DBUG_RETURN(-1);
+  }
 
   /* update local copy of the max position to see our own changes */
-  local_saved_data_file_length+= size;
+  *saved_length+= size;
 
   /* update shared info */
-  mysql_mutex_lock(&share->mutex);
   share->rows_recorded++;
   /* update status for the log tables */
   if (share->is_log_table)
@@ -1080,6 +1153,43 @@ int ha_tina::open_update_temp_file_if_needed()
 }
 
 /*
+  Keep the old version of a row whose new version could not be written to
+  the temp file.  The old version is already a hole in the chain, so the
+  data file written at the end of the scan would hold neither version.
+  chain_count and last_end are the number of holes and the end of the last
+  hole before the row was added.  A failed write can also leave part of the
+  new version in the temp file after temp_file_length.  The next write to
+  the temp file starts at temp_file_length and replaces those bytes, and
+  the end of the scan cuts off the ones that the rest of the table does not
+  replace.
+*/
+void ha_tina::undo_update_row(size_t chain_count, my_off_t last_end)
+{
+  chain_ptr= chain + chain_count;
+  if (chain_count)
+    chain_ptr[-1].end= last_end;
+
+  if (!share->update_file_opened)
+    return;
+
+  if (chain_count &&
+      mysql_file_seek(update_temp_file, temp_file_length, MY_SEEK_SET,
+                      MYF(0)) != MY_FILEPOS_ERROR)
+    return;
+
+  /*
+    Either no row of this scan was updated, and the end of the scan
+    neither rewrites the data file nor closes the temp file, or the
+    position of the temp file could not be moved back to temp_file_length.
+    Drop the temp file and the holes.
+  */
+  chain_ptr= chain;
+  (void) mysql_file_close(update_temp_file, MYF(0));
+  share->update_file_opened= FALSE;
+}
+
+
+/*
   This is called for an update.
   Make sure you put in code to increment the auto increment.
   Currently auto increment is not being
@@ -1091,6 +1201,9 @@ int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
 {
   int size;
   int rc= -1;
+  /* Adding a hole can move the chain to new memory, so keep an index */
+  size_t chain_count= (size_t) (chain_ptr - chain);
+  my_off_t last_end= chain_count ? chain_ptr[-1].end : 0;
   DBUG_ENTER("ha_tina::update_row");
 
   size= encode_quote(new_data);
@@ -1105,12 +1218,17 @@ int ha_tina::update_row(const uchar * old_data, const uchar * new_data)
   if (chain_append())
     goto err;
 
-  if (open_update_temp_file_if_needed())
+  if (open_update_temp_file_if_needed() ||
+      (DBUG_IF("tina_update_row_short_write") ?
+       short_write(update_temp_file, (uchar*) buffer.ptr(), 1) :
+       DBUG_IF("tina_update_row_full_write_error") ?
+       short_write(update_temp_file, (uchar*) buffer.ptr(), size) :
+       mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
+                        MYF(MY_WME | MY_NABP))))
+  {
+    undo_update_row(chain_count, last_end);
     goto err;
-
-  if (mysql_file_write(update_temp_file, (uchar*)buffer.ptr(), size,
-                       MYF(MY_WME | MY_NABP)))
-    goto err;
+  }
   temp_file_length+= size;
   rc= 0;
 
@@ -1259,7 +1377,7 @@ int ha_tina::rnd_next(uchar *buf)
   current_position= next_position;
 
   /* don't scan an empty file */
-  if (!local_saved_data_file_length)
+  if (!*saved_length)
   {
     rc= HA_ERR_END_OF_FILE;
     goto end;
@@ -1443,6 +1561,14 @@ int ha_tina::rnd_end()
 
     }
 
+    /*
+      A failed write of a new row version can leave bytes after
+      temp_file_length that the rest of the table did not replace.
+    */
+    if (mysql_file_chsize(update_temp_file, temp_file_length, 0,
+                          MYF(MY_WME)))
+      goto error;
+
     if (mysql_file_sync(update_temp_file, MYF(MY_WME)) ||
         mysql_file_close(update_temp_file, MYF(0)))
       DBUG_RETURN(-1);
@@ -1493,11 +1619,8 @@ int ha_tina::rnd_end()
       Here we record this fact to the meta-file.
     */
     (void)write_meta_file(share->meta_file, share->rows_recorded, FALSE);
-    /* 
-      Update local_saved_data_file_length with the real length of the 
-      data file.
-    */
-    local_saved_data_file_length= temp_file_length;
+    /* Set the data file length of this handler to that of the new file. */
+    *saved_length= temp_file_length;
   }
 
   DBUG_RETURN(0);
@@ -1534,11 +1657,10 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   int rc;
   ha_rows rows_repaired= 0;
   my_off_t write_begin= 0, write_end;
+  MY_STAT file_stat;
+  my_off_t file_length;
+  my_off_t *locked_length= saved_length;
   DBUG_ENTER("ha_tina::repair");
-
-  /* empty file */
-  if (!share->saved_data_file_length)
-    goto end;
 
   /* Don't assert in field::val() functions */
   table->use_all_columns();
@@ -1547,15 +1669,25 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
   if (init_data_file())
     DBUG_RETURN(HA_ERR_CRASHED_ON_REPAIR);
 
+  if (mysql_file_fstat(data_file, &file_stat, MYF(0)))
+    DBUG_RETURN(HA_ERR_CRASHED_ON_REPAIR);
+  file_length= (my_off_t) file_stat.st_size;
+
+  /* empty file */
+  if (!file_length)
+    goto end;
+
   if (!(buf= (uchar*) my_malloc(csv_key_memory_row, table->s->reclength,
                                 MYF(MY_WME))))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   /*
-    Local_saved_data_file_length is initialized during the lock phase.
-    Sometimes this is not getting executed before ::repair (e.g. for
-    the log tables). We set it manually here.
+    Scan to the end of the data file, as CHECK TABLE does, so that REPAIR
+    TABLE removes the bad rows that CHECK TABLE reports.  The length in the
+    share misses the rows written under LOCK TABLES until unlock, and
+    neither it nor the length of this handler covers bytes that another
+    program appended to the file.
   */
-  local_saved_data_file_length= share->saved_data_file_length;
+  saved_length= &file_length;
   /* set current position to the beginning of the file */
   current_position= next_position= 0;
 
@@ -1568,6 +1700,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
     current_position= next_position;
   }
 
+  saved_length= locked_length;
   free_root(&blobroot, MYF(0));
 
   my_free(buf);
@@ -1580,6 +1713,7 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
       to the current amount of rows.
     */
     share->rows_recorded= rows_repaired;
+    *saved_length= file_length;
     goto end;
   }
 
@@ -1646,8 +1780,12 @@ int ha_tina::repair(THD* thd, HA_CHECK_OPT* check_opt)
                                   MYF(MY_WME))) == -1)
      DBUG_RETURN(my_errno ? my_errno : -1);
 
-  /* Set new file size. The file size will be updated by ::update_status() */
-  local_saved_data_file_length= (size_t) current_position;
+  /*
+    Set the new length.  Unlocking stores it in the share.  A repair at
+    open runs without a lock, but closing the table after the repair frees
+    the share, and the next open takes the length of the repaired file.
+  */
+  *saved_length= (size_t) current_position;
 
 end:
   share->crashed= FALSE;
@@ -1678,7 +1816,7 @@ int ha_tina::delete_all_rows()
   mysql_mutex_lock(&share->mutex);
   share->rows_recorded= 0;
   mysql_mutex_unlock(&share->mutex);
-  local_saved_data_file_length= 0;
+  *saved_length= 0;
   DBUG_RETURN(rc);
 }
 
@@ -1686,6 +1824,17 @@ int ha_tina::external_lock(THD *thd __attribute__((unused)), int lock_type)
 {
   if (lock_type==F_UNLCK && curr_lock_type == F_WRLCK)
     update_status();
+  /*
+    The handler whose length this one uses can be closed after unlock.
+    For a lock, get_status() or copy_status() chooses the length when
+    thr_lock grants the lock.  A lock wait that fails unlocks without that
+    grant, and update_status() must not store a length that was never
+    loaded.
+  */
+  if (lock_type == F_UNLCK)
+    saved_length= &local_saved_data_file_length;
+  else
+    saved_length= &share->saved_data_file_length;
   curr_lock_type= lock_type;
   return 0;
 }
@@ -1754,7 +1903,10 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
   int rc= 0;
   uchar *buf;
   const char *old_proc_info;
-  ha_rows count= share->rows_recorded;
+  ha_rows count;
+  MY_STAT file_stat;
+  my_off_t file_length;
+  my_off_t *locked_length= saved_length;
   DBUG_ENTER("ha_tina::check");
 
   old_proc_info= thd_proc_info(thd, "Checking table");
@@ -1763,16 +1915,32 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
    if (init_data_file())
      DBUG_RETURN(HA_ERR_CRASHED);
 
+  /*
+    An insert appends and counts its row under share->mutex, so the row
+    count and the file length read under the mutex agree.
+  */
+  mysql_mutex_lock(&share->mutex);
+  count= share->rows_recorded;
+  DEBUG_SYNC(thd, "tina_check_counted");
+  rc= mysql_file_fstat(data_file, &file_stat, MYF(0));
+  mysql_mutex_unlock(&share->mutex);
+  if (rc)
+    DBUG_RETURN(HA_ERR_CRASHED);
+
   if (!(buf= (uchar*) my_malloc(csv_key_memory_row, table->s->reclength,
                                 MYF(MY_WME))))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /*
-    Local_saved_data_file_length is initialized during the lock phase.
-    Check does not use store_lock in certain cases. So, we set it
-    manually here.
+    Scan to the end of the data file, because the row count includes every
+    row written so far.  The length of a handler locked for reading misses
+    the rows that another connection inserted after the lock, and the
+    length in the share misses the rows written under LOCK TABLES until
+    unlock.  The handler keeps its own length for the statements that
+    follow under the same lock.
   */
-  local_saved_data_file_length= share->saved_data_file_length;
+  file_length= (my_off_t) file_stat.st_size;
+  saved_length= &file_length;
   /* set current position to the beginning of the file */
   current_position= next_position= 0;
 
@@ -1784,6 +1952,7 @@ int ha_tina::check(THD* thd, HA_CHECK_OPT* check_opt)
     current_position= next_position;
   }
 
+  saved_length= locked_length;
   free_root(&blobroot, MYF(0));
 
   my_free(buf);
