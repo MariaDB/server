@@ -419,4 +419,21 @@ select hex(json_extract(@opt_context, '$.tables[0].indexes[0].rec_per_key[1]') +
 set optimizer_replay_context='';
 drop table t1;
 
+--echo #
+--echo # rec_per_key out of range
+--echo #
+create table t1 (a int, b int, key(a));
+insert into t1 select seq%10, seq from seq_1_to_100;
+select count(*) from t1 where a=3;
+--source include/opt_context_save_in_var.inc
+set @opt_context_rpk= json_replace(@opt_context,
+  '$.tables[0].indexes[0].rec_per_key[0]', -1);
+set optimizer_replay_context='opt_context_rpk';
+select count(*) from t1 where a=3;
+set @opt_context_rpk= json_replace(@opt_context,
+  '$.tables[0].indexes[0].rec_per_key[0]', 1e300);
+select count(*) from t1 where a=3;
+set optimizer_replay_context='';
+drop table t1;
+
 --echo # End of 13.1 tests

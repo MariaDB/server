@@ -1352,6 +1352,14 @@ public:
       if (read_double(je , name, err_buf, val))
         return 1;
 
+      /* Index_statistics stores it multiplied by 100000 in a ulonglong */
+      if (val < 0 || val > 1e14)
+      {
+        err_buf->append(name, strlen(name));
+        err_buf->append(STRING_WITH_LEN(" value is out of range"));
+        return 1;
+      }
+
       if (list_values->append(val) || json_scan_next(je))
         return 1;
     }
