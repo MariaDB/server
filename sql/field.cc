@@ -9428,6 +9428,12 @@ sql_mode_t Field_enum::can_handle_sql_mode_dependency_on_store() const
 }
 
 
+const Type_handler *Field_enum::type_handler() const
+{
+  return &type_handler_enum;
+}
+
+
 enum ha_base_keytype Field_enum::key_type() const
 {
   switch (packlength) {
@@ -9742,6 +9748,11 @@ void Field_set::sql_type(String &res) const
     flag= 1;
   }
   res.append(')');
+}
+
+const Type_handler *Field_set::type_handler() const
+{
+  return &type_handler_set;
 }
 
 Binlog_type_info Field_set::binlog_type_info() const

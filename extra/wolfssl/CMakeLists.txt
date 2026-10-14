@@ -102,6 +102,12 @@ if(WOLFSSL_INTELASM)
       ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.asm
       ${WOLFCRYPT_SRCDIR}/sp_x86_64_asm.asm
     )
+    set_source_files_properties(
+      ${WOLFCRYPT_SRCDIR}/aes_asm.asm
+      ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.asm
+      ${WOLFCRYPT_SRCDIR}/sp_x86_64_asm.asm
+      PROPERTIES LANGUAGE ASM_MASM
+    )
     target_compile_options(wolfssl PRIVATE
       $<$<COMPILE_LANG_AND_ID:C,Clang>:-maes -msse4.2 -mpclmul -mrdrnd -mrdseed>
       $<$<COMPILE_LANGUAGE:ASM_MASM>:/Zi>

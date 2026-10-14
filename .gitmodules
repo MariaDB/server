@@ -19,3 +19,12 @@
 [submodule "storage/duckdb/third_parties/duckdb"]
 	path = storage/duckdb/third_parties/duckdb
 	url = https://github.com/duckdb/duckdb.git
+[submodule "extra/groonga"]
+	path = extra/groonga
+	url = https://github.com/groonga/groonga.git
+[submodule "extra/groonga-normalizer-mysql"]
+	path = extra/groonga-normalizer-mysql
+	url = https://github.com/groonga/groonga-normalizer-mysql.git
+[submodule "storage/mroonga"]
+	path = storage/mroonga
+	url = https://github.com/mroonga/mroonga.git

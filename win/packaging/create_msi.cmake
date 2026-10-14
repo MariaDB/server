@@ -45,6 +45,30 @@ SET(ENV{VS_UNICODE_OUTPUT})
 
 INCLUDE(${TOP_BINDIR}/CPackConfig.cmake)
 
+# Install the component to testinstall/${comp} and set ${empty} to TRUE
+# if it installs nothing. This is also used by CPACK_WIX_CONFIG.
+FUNCTION(TEST_INSTALL_COMPONENT comp empty)
+  IF(CMAKE_INSTALL_CONFIG_NAME)
+    SET(config_param "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_INSTALL_CONFIG_NAME}")
+  ENDIF()
+  SET(ENV{DESTDIR} testinstall/${comp})
+  EXECUTE_PROCESS(
+    COMMAND ${CMAKE_COMMAND} ${config_param} -DCMAKE_INSTALL_COMPONENT=${comp}
+     -DCMAKE_INSTALL_PREFIX=  -P ${TOP_BINDIR}/cmake_install.cmake
+    OUTPUT_QUIET
+  )
+  SET(is_empty FALSE)
+  SET(manifest_filename "${TOP_BINDIR}/install_manifest_${comp}.txt")
+  IF(EXISTS ${manifest_filename})
+    FILE(READ ${manifest_filename} content)
+    STRING(LENGTH "${content}" content_length)
+    IF(content_length EQUAL 0)
+      SET(is_empty TRUE)
+    ENDIF()
+  ENDIF()
+  SET(${empty} ${is_empty} PARENT_SCOPE)
+ENDFUNCTION()
+
 IF(CPACK_WIX_CONFIG)
   INCLUDE(${CPACK_WIX_CONFIG})
 ENDIF()
@@ -56,30 +80,14 @@ ENDIF()
 IF(CMAKE_INSTALL_CONFIG_NAME)
   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "${CMAKE_INSTALL_CONFIG_NAME}" 
     WIXCA_LOCATION "${WIXCA_LOCATION}")
-  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_INSTALL_CONFIG_NAME}")
 ENDIF()
 
 SET(COMPONENTS_ALL "${CPACK_COMPONENTS_ALL}")
 FOREACH(comp ${COMPONENTS_ALL})
- SET(ENV{DESTDIR} testinstall/${comp})
- EXECUTE_PROCESS(
-  COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM} -DCMAKE_INSTALL_COMPONENT=${comp}  
-   -DCMAKE_INSTALL_PREFIX=  -P ${TOP_BINDIR}/cmake_install.cmake
-   OUTPUT_QUIET
-
-  )
+  TEST_INSTALL_COMPONENT(${comp} empty)
   # Exclude empty install components
-  SET(INCLUDE_THIS_COMPONENT 1)
-  SET(MANIFEST_FILENAME "${TOP_BINDIR}/install_manifest_${comp}.txt")
-  IF(EXISTS ${MANIFEST_FILENAME})
-    FILE(READ ${MANIFEST_FILENAME} content)
-    STRING(LENGTH "${content}" content_length)
-    IF (content_length EQUAL 0)
-      MESSAGE(STATUS "Excluding empty component ${comp}")
-      SET(INCLUDE_THIS_COMPONENT 0)
-    ENDIF()
-  ENDIF()
-  IF(NOT INCLUDE_THIS_COMPONENT)
+  IF(empty)
+    MESSAGE(STATUS "Excluding empty component ${comp}")
     LIST(REMOVE_ITEM CPACK_COMPONENTS_ALL "${comp}")
   ELSE()
     SET(DIRS ${DIRS} testinstall/${comp})

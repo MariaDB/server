@@ -72,6 +72,12 @@ include(${CMAKE_CURRENT_LIST_DIR}/ComponentsIgnore.cmake)
 set(KNOWN_COMPONENTS ${COMPONENTS_IGNORE} ${COMPONENTS_INSTALL})
 foreach(c ${CPACK_COMPONENTS_ALL})
   if(NOT (${c} IN_LIST KNOWN_COMPONENTS))
+    # Bundled third party libraries may register empty components.
+    test_install_component(${c} empty)
+    if(empty)
+      message(STATUS "Ignoring empty unknown component ${c}")
+      continue()
+    endif()
     message(FATAL_ERROR "Component ${c} is not known. Either install it using add_component() macro \
      or add to COMPONENTS_IGNORE list")
   endif()
