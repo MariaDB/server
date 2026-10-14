@@ -19,7 +19,7 @@ closedir($h);
 die "no $d/ib_*.log\n" unless $f;
 my $end= hex(substr($f, 3, 16)) + (-s "$d/$f") - 12288;
 open(my $o, '>', "$ENV{MYSQL_TMP_DIR}/end.inc") or die;
-print $o "--let \$end= $end\n";
+print $o "--let OLD_LOG= $f\n--let \$end= $end\n";
 close $o;
 EOF
 --source $MYSQL_TMP_DIR/end.inc
@@ -68,6 +68,11 @@ SET GLOBAL debug_dbug= @save_dbug;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t;
 SET GLOBAL innodb_log_archive=@save_archive;
+# Windows cannot remove write-protected files
+--perl
+my $log= "$ENV{MYSQL_TMP_DIR}/backup_log_track/$ENV{OLD_LOG}";
+chmod 0644, $log or die "Unable to chmod 644 $log\n";
+EOF
 --rmdir $MYSQL_TMP_DIR/backup_log_track
 if (`select @save_archive='OFF'`) {
 --remove_files_wildcard $MARIADB_DATADIR ib_0*.log
