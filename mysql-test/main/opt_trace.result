@@ -11156,4 +11156,25 @@ valid_json	json_detailed(json_extract(trace,'$**.expanded_query'))
 1	["Error: failed to escape query string for JSON output"]
 SET NAMES DEFAULT;
 set optimizer_trace=@saved_optimizer_trace;
+#
+# MDEV-24658: Optimizer trace reads a column not marked for read
+#
+set @saved_optimizer_trace=@@optimizer_trace;
+set optimizer_trace='enabled=on';
+create table t1 (i int);
+create table t2 (c int);
+insert into t2 values (1);
+select 1 from (select 1 in (select 1 from t1 where (select 1 from t2 having c)) from t2) as z;
+1
+1
+select json_valid(trace) as valid_json,
+json_detailed(json_extract(trace, '$**.original_condition')) as original_condition
+from information_schema.optimizer_trace;
+valid_json	original_condition
+1	[
+    "(/* select#4 */ select 1 from t2 having 1 <> 0)",
+    "1 <> 0"
+]
+drop table t1, t2;
+set optimizer_trace=@saved_optimizer_trace;
 # End of 10.11 tests
