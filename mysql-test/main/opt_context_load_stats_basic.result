@@ -507,4 +507,34 @@ Warning	4270	Failed to match the stats from replay context with the optimizer st
 Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.t1 with key_number:0, records:10, eq_ref:0 doesn't exist in cost_for_index_read_calls
 set optimizer_replay_context='';
 drop table t1;
+#
+# rec_per_key out of range
+#
+create table t1 (a int, b int, key(a));
+insert into t1 select seq%10, seq from seq_1_to_100;
+select count(*) from t1 where a=3;
+count(*)
+10
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @opt_context_rpk= json_replace(@opt_context,
+'$.tables[0].indexes[0].rec_per_key[0]', -1);
+set optimizer_replay_context='opt_context_rpk';
+select count(*) from t1 where a=3;
+count(*)
+10
+Warnings:
+Warning	4269	Failed to parse saved optimizer context: rec_per_key value is out of range at offset 229.
+set @opt_context_rpk= json_replace(@opt_context,
+'$.tables[0].indexes[0].rec_per_key[0]', 1e300);
+select count(*) from t1 where a=3;
+count(*)
+10
+Warnings:
+Warning	4269	Failed to parse saved optimizer context: rec_per_key value is out of range at offset 232.
+set optimizer_replay_context='';
+drop table t1;
 # End of 13.1 tests
