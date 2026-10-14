@@ -225,3 +225,10 @@ SELECT JSON_ARRAY(1,2) MEMBER OF ('[[1,2],[3,4]]');
 SELECT 1 AS MEMBER;
 SELECT 1 AS `member`;
 
+
+--echo #
+--echo # MDEV-41404: Window function as MEMBER OF candidate
+CREATE TABLE t_wf (a INT, j JSON);
+INSERT INTO t_wf VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
+SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t_wf) dt;
+DROP TABLE t_wf;
