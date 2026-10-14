@@ -326,3 +326,12 @@ MEMBER
 SELECT 1 AS `member`;
 member
 1
+#
+# MDEV-41404: Window function as MEMBER OF candidate
+CREATE TABLE t_wf (a INT, j JSON);
+INSERT INTO t_wf VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
+SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t_wf) dt;
+a	j	a MEMBER OF (j)
+3	[1,2,3]	1
+3	[2,3,4]	1
+DROP TABLE t_wf;
