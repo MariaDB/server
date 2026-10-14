@@ -1366,11 +1366,23 @@ public:
   (should only happen during the rollback of CREATE...SELECT) */
   dict_table_t *acquire_temporary_table(table_id_t id) const noexcept;
 
-  /** Look up a persistent table.
+  /** Look up a persistent table, including one whose definition is
+  still being loaded (dict_table_t::loading()). Of such a table, only
+  the name, id and hash pointers may be accessed.
   @param id     table ID
   @return table
   @retval nullptr if not cached */
-  dict_table_t *find_table(table_id_t id) const noexcept;
+  dict_table_t *find_table_any(table_id_t id) const noexcept;
+
+  /** Look up a persistent table, waiting for a concurrent load of it
+  to finish if necessary.
+  @param id     table ID
+  @param excl   whether the caller holds dict_sys.latch in exclusive
+                mode (lock()/unlock()); if false, the caller holds it
+                in shared mode (freeze()/unfreeze())
+  @return table
+  @retval nullptr if not cached, or a concurrent load of it failed */
+  dict_table_t *find_table(table_id_t id, bool excl) noexcept;
 
   bool is_initialised() const noexcept { return m_initialised; }
 
@@ -1416,13 +1428,27 @@ public:
   /** Move a table to the non-LRU list from the LRU list. */
   void prevent_eviction(dict_table_t *table)
   {
-    ut_d(locked());
+    ut_ad(locked());
     ut_ad(find(table));
     if (!table->can_be_evicted)
       return;
     table->can_be_evicted= false;
     UT_LIST_REMOVE(table_LRU, table);
     UT_LIST_ADD_LAST(table_non_LRU, table);
+  }
+
+  /** Move a table to the LRU list from the non-LRU list.
+  This is the inverse of prevent_eviction(), invoked by
+  dict_load_table_one() when a fully loaded table replaces
+  its non-evictable loading stub. */
+  void allow_eviction(dict_table_t *table)
+  {
+    ut_ad(locked());
+    ut_ad(find(table));
+    ut_ad(!table->can_be_evicted);
+    table->can_be_evicted= true;
+    UT_LIST_REMOVE(table_non_LRU, table);
+    UT_LIST_ADD_FIRST(table_LRU, table);
   }
 
 #ifdef UNIV_DEBUG
@@ -1488,17 +1514,62 @@ public:
   @return number of tables evicted */
   ulint evict_table_LRU(bool half) noexcept;
 
-  /** Look up a table in the dictionary cache.
+  /** Look up a table in the dictionary cache, including tables whose
+  definition is still being loaded (dict_table_t::loading()). Of such
+  a table, only the name, id and hash pointers may be accessed.
   @param name   table name
   @return table handle
   @retval nullptr if not found */
-  dict_table_t *find_table(const span<const char> &name) const noexcept;
+  dict_table_t *find_table_any(const span<const char> &name) const noexcept;
 
-  /** Look up or load a table definition
+  /** Look up a table in the dictionary cache, waiting for a
+  concurrent load of it to finish if necessary.
+  @param name   table name
+  @param excl   whether the caller holds dict_sys.latch in exclusive
+                mode (lock()/unlock()); if false, the caller holds it
+                in shared mode (freeze()/unfreeze())
+  @return table handle
+  @retval nullptr if not found, or a concurrent load of it failed */
+  dict_table_t *find_table(const span<const char> &name, bool excl) noexcept;
+
+  /** Look up a table for FOREIGN KEY constraint linkage.
+  Like find_table(), except that a table whose definition is complete
+  and that is only waiting for the tables related to it by FOREIGN KEY
+  constraints to be loaded (dict_table_t::LOADING_FK) is visible:
+  linking constraints into such a table is protected by the exclusive
+  latch, which both the linking thread and the loading thread hold
+  while modifying foreign_set/referenced_set.
+  @param name   table name
+  @return table handle
+  @retval nullptr if not found */
+  dict_table_t *find_table_fk(const span<const char> &name) const noexcept;
+
+  /** Wait for a concurrent dict_load_table_one() of a specific table
+  to finish. To be invoked with the latch held in the given mode,
+  after observing a table with dict_table_t::loading() set; releases
+  and reacquires the latch, in that same mode, around the wait.
+  @param table   a table observed to be loading; must not be nullptr
+  @param excl    whether the caller holds the latch in exclusive mode
+                 (lock()/unlock()); if false, the caller holds it in
+                 shared mode (freeze()/unfreeze())
+  @return whether the load succeeded; the latch is held on return
+  either way, in the mode the caller held it in, so on success table
+  is still valid and usable
+  @retval false if the load failed; table may already have been freed */
+  bool wait_for_load(dict_table_t *table, bool excl) noexcept;
+
+  /** Look up or load a table definition. The table and any tables
+  that were loaded because they are related to it by FOREIGN KEY
+  constraints become visible to other threads atomically, only after
+  all of them have been loaded.
   @param name   table name
   @param ignore errors to ignore when loading the table definition
   @return table handle
-  @retval nullptr if not found */
+  @retval nullptr if not found
+  @note The exclusive latch may be temporarily released and reacquired,
+  both while waiting for a concurrent load of the same table and during
+  the I/O phases of loading; any pointers into the cache that the
+  caller obtained earlier may be stale on return. */
   dict_table_t *load_table(const span<const char> &name,
                            dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE)
     noexcept;
