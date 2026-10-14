@@ -1239,7 +1239,7 @@ static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf)
 class index_context_for_replay : public Sql_alloc
 {
 public:
-  index_context_for_replay() : rec_per_key(current_thd->mem_root) {}
+  index_context_for_replay(MEM_ROOT *mem_root) : rec_per_key(mem_root) {}
   char *idx_name= NULL;
   Mem_root_dynamic_array<double> rec_per_key;
   static index_context_for_replay *parse(MEM_ROOT *mem_root,
@@ -1439,7 +1439,7 @@ index_context_for_replay*
 index_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
                                 String *err_buf)
 {
-  auto index_ctx= new (mem_root) index_context_for_replay;
+  auto index_ctx= new (mem_root) index_context_for_replay(mem_root);
   if (!index_ctx)
     return NULL;
 
@@ -1472,7 +1472,7 @@ Multi_range_read_const_call_record *
 Multi_range_read_const_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
                                           String *err_buf)
 {
-  auto out= new Multi_range_read_const_call_record;
+  auto out= new (mem_root) Multi_range_read_const_call_record;
   if (!out)
     return NULL;
 
@@ -1623,7 +1623,8 @@ records_in_range_call_record::parse(MEM_ROOT *mem_root,
   return out;
 }
 
-Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
+Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg)
+    : thd(thd_arg), mem_root(thd_arg->mem_root)
 {
   parse(); // TODO: error handling?
 }
@@ -1640,6 +1641,17 @@ static bool sql_command_uses_opt_context(enum_sql_command sql_command)
 
 void init_optimizer_context_replay_if_needed(THD *thd)
 {
+  /*
+    Sub-statements use the replay object of the top-level statement, which
+    restores the infused statistics of all their tables and frees it.
+    Statements of a stored procedure are not replayed.
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+    return;
+
+  // Replay is cleaned up after query in THD::cleanup_after_query()
+  DBUG_ASSERT(!thd->opt_ctx_replay);
+
   /* If @@optimizer_replay_context is not empty, start the replay  */
   if (thd->variables.optimizer_replay_context &&
       strlen(thd->variables.optimizer_replay_context) > 0 &&
@@ -1888,14 +1900,14 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   if (!has_records() || !is_base_table(table->pos_in_table_list))
     return;
 
-  Saved_table_stats *saved_ts= new Saved_table_stats();
+  Saved_table_stats *saved_ts= new (mem_root) Saved_table_stats();
 
   if (unlikely(!saved_ts))
     return; // OOM
 
   saved_ts->table= table;
 
-  if (saved_table_stats.push_front(saved_ts))
+  if (saved_table_stats.push_front(saved_ts, mem_root))
     return;
 
   KEY *key_info, *key_info_end;
@@ -1908,7 +1920,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     if (!index_freq_list || !index_freq_list->size())
       continue;
 
-    Saved_index_stats *saved_is= new Saved_index_stats();
+    Saved_index_stats *saved_is= new (mem_root) Saved_index_stats();
 
     if (unlikely(!saved_is))
       return; // OOM
@@ -1917,16 +1929,18 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     Index_statistics *original_read_stats= key_info->read_stats;
     bool original_is_statistics_from_stat_tables=
         key_info->is_statistics_from_stat_tables;
-    Index_statistics *new_read_stats= new Index_statistics();
+    Index_statistics *new_read_stats= new (mem_root) Index_statistics();
 
     if (unlikely(!new_read_stats))
       return; // OOM
 
+    size_t frequencies_size= sizeof(ulonglong) * num_key_parts;
     ulonglong *frequencies=
-        (ulonglong *) thd->calloc(sizeof(ulonglong) * num_key_parts);
+        (ulonglong *) alloc_root(mem_root, frequencies_size);
 
     if (unlikely(!frequencies))
       return; // OOM
+    bzero(frequencies, frequencies_size);
 
     new_read_stats->init_avg_frequency(frequencies);
     key_info->read_stats= new_read_stats;
@@ -1944,7 +1958,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     saved_is->original_is_statistics_from_stat_tables=
         original_is_statistics_from_stat_tables;
     saved_is->original_read_stats= original_read_stats;
-    saved_ts->saved_index_stats.push_back(saved_is);
+    saved_ts->saved_index_stats.push_back(saved_is, mem_root);
   }
 }
 
@@ -2010,6 +2024,7 @@ void Optimizer_context_replay::restore_modified_table_stats()
       key->read_stats= saved_is->original_read_stats;
     }
   }
+  saved_table_stats.empty();
 }
 
 /*
@@ -2040,7 +2055,7 @@ bool Optimizer_context_replay::parse()
   Read_named_member members[]=
   {
     {"tables",
-      Read_object_array<table_context_for_replay>(thd->mem_root, &ctx_list,
+      Read_object_array<table_context_for_replay>(mem_root, &ctx_list,
                                                  table_context_for_replay::parse),
       false
     },

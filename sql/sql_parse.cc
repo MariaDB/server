@@ -5928,7 +5928,7 @@ finish:
   if (!thd->is_error() && !res)
     res= store_optimizer_context(thd);
 
-  if (thd->opt_ctx_replay)
+  if (thd->opt_ctx_replay && !thd->spcont && !thd->in_sub_stmt)
     thd->opt_ctx_replay->restore_modified_table_stats();
 
   if (res || thd->is_error())
