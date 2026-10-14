@@ -75,3 +75,83 @@ DROP TABLE t1, t2;
 #
 # End of 10.1 tests
 #
+
+--echo #
+--echo # MDEV-41434 Missing DBUG_RETURN on error exits of
+--echo # DML_prelocking_strategy::handle_table() and prepare_fk_prelocking_list()
+--echo #
+--echo # A failure to read the foreign keys that reference a table fails
+--echo # the statement that modifies the table
+--echo #
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+                 ON DELETE CASCADE ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+CREATE TABLE t_log (a INT, b INT) ENGINE=InnoDB;
+CREATE TRIGGER p_bu BEFORE UPDATE ON p FOR EACH ROW
+  INSERT INTO t_log VALUES (OLD.a, NEW.b);
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (2), (3);
+CREATE PROCEDURE p_upd(x INT) UPDATE p SET b = x WHERE a = 2;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval SELECT a + 5, b * 3 INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' FROM p WHERE a < 3
+
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug= '+d,fk_list_fail';
+--error ER_OUT_OF_RESOURCES
+DELETE FROM p WHERE a = 1;
+--error ER_OUT_OF_RESOURCES
+UPDATE p SET b = b + 1;
+--error ER_OUT_OF_RESOURCES
+INSERT INTO p VALUES (4, 40);
+--error ER_OUT_OF_RESOURCES
+INSERT INTO p VALUES (2, 21) ON DUPLICATE KEY UPDATE b = 21;
+--error ER_OUT_OF_RESOURCES
+REPLACE INTO p VALUES (5, 50);
+--error ER_OUT_OF_RESOURCES
+DELETE p FROM p JOIN c2 ON p.a = c2.a;
+--error ER_OUT_OF_RESOURCES
+UPDATE p JOIN c2 ON p.a = c2.a SET p.b = 0;
+--error ER_OUT_OF_RESOURCES
+INSERT INTO p SELECT a + 10, b FROM p;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_OUT_OF_RESOURCES
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' INTO TABLE p
+--error ER_OUT_OF_RESOURCES
+LOCK TABLES p WRITE;
+UNLOCK TABLES;
+--error ER_OUT_OF_RESOURCES
+PREPARE s FROM 'UPDATE p SET b = ? WHERE a = 2';
+--echo # The list is read on the statement arena of a stored procedure
+--error ER_OUT_OF_RESOURCES
+CALL p_upd(21);
+SET debug_dbug= @save_dbug;
+
+--echo # Nothing was modified by the failed statements
+SELECT * FROM p ORDER BY a;
+SELECT * FROM c1 ORDER BY a;
+SELECT * FROM c2 ORDER BY a;
+SELECT * FROM t_log ORDER BY a;
+
+--echo # Statements that modify the table succeed once the failure is gone
+CALL p_upd(22);
+PREPARE s FROM 'UPDATE p SET b = ? WHERE a = 3';
+EXECUTE s USING 33;
+DEALLOCATE PREPARE s;
+DELETE FROM p WHERE a = 1;
+UPDATE p SET b = b + 1 WHERE a = 3;
+INSERT INTO p VALUES (4, 40);
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' INTO TABLE p
+--remove_file $MYSQLTEST_VARDIR/tmp/fk_list_fail.txt
+SELECT * FROM p ORDER BY a;
+SELECT * FROM c1 ORDER BY a;
+SELECT * FROM c2 ORDER BY a;
+SELECT * FROM t_log ORDER BY a;
+DROP PROCEDURE p_upd;
+DROP TABLE t_log, c2, c1, p;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

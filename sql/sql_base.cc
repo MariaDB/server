@@ -5160,11 +5160,12 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
+  DBUG_EXECUTE_IF("fk_list_fail", my_error(ER_OUT_OF_RESOURCES, MYF(0)););
   if (unlikely(thd->is_error()))
   {
     if (arena)
       thd->restore_active_arena(arena, &backup);
-    return TRUE;
+    DBUG_RETURN(TRUE);
   }
 
   *need_prelocking= TRUE;
@@ -5273,20 +5274,20 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
       if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
 
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->trg_event_map))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
   else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->slave_fk_event_map))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
 
   /* Open any tables used by DEFAULT (like sequence tables) */
