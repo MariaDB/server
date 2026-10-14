@@ -164,4 +164,6 @@ DROP TABLE t1;
 #
 connection node_2;
 connection node_1;
+connection node_2;
 # gtid_binlog_pos domain 1 matches on both nodes
+# The binlogs of both nodes have the same replicated GTIDs

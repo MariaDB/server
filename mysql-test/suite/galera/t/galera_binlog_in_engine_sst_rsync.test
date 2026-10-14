@@ -1,0 +1,27 @@
+#
+# State transfers (IST and rsync SST) with the binlog implemented in InnoDB
+# (--binlog-storage-engine=innodb): the joiner is shut down, has its data
+# directory removed, or is killed, while the cluster keeps committing
+# transactions. After each state transfer, the joiner must have the same
+# data and binlog the same GTIDs as the donor.
+#
+--source include/have_innodb_binlog.inc
+--source include/galera_cluster.inc
+--connection node_1
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+--connection node_2
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--source suite/galera/include/galera_binlog_in_engine_check_gtid_history.inc
+
+--source include/auto_increment_offset_restore.inc

@@ -5926,7 +5926,7 @@ static int init_server_components()
       unireg_abort(1);
   }
 
-  if (!binlog_engine_used && unlikely(init_binlog_cache_dir()))
+  if (unlikely(init_binlog_cache_dir()))
     unireg_abort(1);
 
 #ifdef HAVE_REPLICATION

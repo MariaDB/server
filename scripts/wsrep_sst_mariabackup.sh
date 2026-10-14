@@ -1563,10 +1563,18 @@ else # joiner
             # from which IST resumes, which keeps the joiner's binary log in
             # lockstep with the rest of the cluster.
             #
+            # The binlog files of --binlog-storage-engine=innodb
+            # (binlog-NNNNNN.ibb) are not removed: mariabackup copies them
+            # consistently with the InnoDB data, and the InnoDB redo log
+            # refers to them.
+            #
             binlogs=()
             if [ -f 'mariadb_backup_binlog_info' ]; then
                 while read bin_string || [ -n "$bin_string" ]; do
                     bin_file=$(echo "$bin_string" | cut -f1)
+                    case "$bin_file" in
+                    binlog-[0-9]*.ibb) continue ;;
+                    esac
                     if [ -n "$bin_file" -a -f "$bin_file" ]; then
                         binlogs+=("$bin_file")
                     fi
