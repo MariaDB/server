@@ -161,3 +161,23 @@ set session debug_dbug=@save_dbug;
 show create table tp2;
 select * from tp2;
 drop table tp2;
+
+--echo #
+--echo # MDEV-41545 Unchecked get_clone() in ALTER of partitioned table
+--echo #            crashes on out-of-memory
+--echo #
+create table t1 (x int) partition by range (x)
+(partition p0 values less than (10));
+insert t1 values (1);
+lock tables t1 write;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,prep_alter_part_table_get_clone_oom';
+--error ER_OUT_OF_RESOURCES
+alter table t1 add partition (partition p1 values less than (20));
+set debug_dbug= @save_dbug;
+select * from t1;
+unlock tables;
+show create table t1;
+drop table t1;
+
+--echo # End of 10.11 tests
