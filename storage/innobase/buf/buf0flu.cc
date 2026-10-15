@@ -2033,8 +2033,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
             checkpoint quickly enough. Automatically adjust
             innodb_log_file_size to a larger size. */
             resize_target= (offset + 4095) & ~off_t{4095};
-            sql_print_warning("InnoDB: Adjusting innodb_log_file_size="
-                              LSN_PF "k", resize_target >> 10);
+            innodb_backup_archive_extend(first_lsn);
             ut_a(os_file_set_size(get_archive_path().c_str(), log.m_file,
                                   resize_target, false));
           }

@@ -69,7 +69,14 @@ bool innodb_backup_log_tracking() noexcept;
    @param lsn       first_lsn of log_sys.log
    @param file_size size of log_sys.log
 */
+ATTRIBUTE_COLD
 void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept;
+
+/**
+   Notify that log_sys.log was extended to log_sys.resize_target.
+   @param lsn       first_lsn of log_sys.log
+*/
+ATTRIBUTE_COLD void innodb_backup_archive_extend(lsn_t lsn) noexcept;
 
 #ifdef HAVE_PMEM
 /** Complete the first checkpoint in a new memory-mapped archive log file. */

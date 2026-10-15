@@ -188,8 +188,8 @@ private:
     };
     /** the LSN at log_sys.START_OFFSET */
     const lsn_t first_lsn{};
-    /** the file size */
-    const lsn_t file_size{};
+    /** the file size; protected by innodb_backup.mutex */
+    lsn_t file_size{};
 
     /** Constructor */
     tracked_log(os_file_t file, lsn_t first_lsn, lsn_t file_size) :
@@ -243,6 +243,17 @@ private:
 
     /** @return whether we are copying the log in real time */
     bool is_log_tracking() const noexcept { return log_dst != OS_FILE_CLOSED; }
+
+    /** @return pointer to last tracked log */
+    tracked_log *log_track_last() const noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(tracked);
+      tracked_log *t= tracked;
+      while (tracked_log *next= t->next)
+        t= next;
+      return t;
+    }
 
     /** @return reference to the pointer to the end of the tracked log list */
     tracked_log *&log_track_tail() noexcept
@@ -1297,8 +1308,7 @@ public:
           */
           ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
                 !!ctx.is_log_tracking(log_sys.log.m_file));
-          ut_ad(!ctx.tracked || ctx.tracked->first_lsn >= lsn);
-          const bool disown{ctx.tracked && ctx.tracked->first_lsn == lsn};
+          const bool disown{ctx.tracked && ctx.tracked->first_lsn <= lsn};
           ut_ad(disown == !!ctx.is_log_tracking(log_sys.resize_log.m_file));
 
           if (disown)
@@ -1359,7 +1369,7 @@ public:
      @param lsn         first_lsn of log_sys.log
      @param file_size   size of log_sys.log
   */
-  void archive_create(lsn_t lsn, lsn_t file_size) noexcept
+  ATTRIBUTE_COLD void archive_create(lsn_t lsn, lsn_t file_size) noexcept
   {
     ut_ad(log_sys.latch_have_any());
     if (ctx.state == PROCESSING &&
@@ -1383,6 +1393,39 @@ public:
       }
       mutex.wr_unlock();
     }
+  }
+
+  /**
+     Notify that log_sys.log was extended to log_sys.resize_target
+     @param lsn         first_lsn of log_sys.log
+  */
+  ATTRIBUTE_COLD void archive_extend(lsn_t lsn) noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    const lsn_t size{log_sys.resize_target};
+
+    if (ctx.state == PROCESSING &&
+#ifdef HAVE_PMEM
+        !log_sys.is_mmap() &&
+#endif
+        true)
+    {
+      mutex.wr_lock();
+      if (ctx.state == PROCESSING && ctx.last_lsn > lsn &&
+          ctx.is_log_tracking())
+      {
+        tracked_log *last{ctx.log_track_last()};
+        ut_ad(last);
+        ut_ad(last->first_lsn == lsn);
+        ut_ad(last->file == log_sys.log.m_file);
+        ut_ad(last->file_size < size);
+        ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
+        last->file_size= size;
+      }
+      mutex.wr_unlock();
+    }
+    sql_print_warning("InnoDB: Adjusting innodb_log_file_size=" LSN_PF "k",
+                      size >> 10);
   }
 
   /** @return whether log-tracking backup is in progress */
@@ -2635,9 +2678,15 @@ bool innodb_backup_log_tracking() noexcept
   return innodb_backup.is_log_tracking();
 }
 
+ATTRIBUTE_COLD
 void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept
 {
   innodb_backup.archive_create(lsn, file_size);
+}
+
+ATTRIBUTE_COLD void innodb_backup_archive_extend(lsn_t lsn) noexcept
+{
+  innodb_backup.archive_extend(lsn);
 }
 
 #ifdef HAVE_PMEM
