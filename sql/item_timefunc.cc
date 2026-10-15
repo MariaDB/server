@@ -1766,10 +1766,10 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
   collation.set(cs, arg1->collation.derivation, repertoire);
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
   String *str;
-  if (args[1]->basic_const_item() && (str= args[1]->val_str(&buffer)))
+  if (args[1]->can_eval_in_optimize() && (str= args[1]->val_str(&buffer)))
   {						// Optimize the normal case
     fixed_length=1;
-    max_length= format_length(str) * collation.collation->mbmaxlen;
+    fix_char_length(format_length(str));
   }
   else
   {
@@ -1814,20 +1814,32 @@ bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
 
 uint Item_func_date_format::format_length(const String *format)
 {
+  bool is_time= is_time_format ||
+                args[0]->type_handler()->mysql_timestamp_type() ==
+                MYSQL_TIMESTAMP_TIME;
   /* A negative TIME value adds a leading minus sign. */
-  uint size= (is_time_format ||
-              args[0]->type_handler()->mysql_timestamp_type() ==
-              MYSQL_TIMESTAMP_TIME) ? 1 : 0;
-  const char *ptr=format->ptr();
-  const char *end=ptr+format->length();
+  uint size= is_time ? 1 : 0;
+  const uchar *ptr= (const uchar *) format->ptr();
+  const uchar *end= ptr + format->length();
 
-  for (; ptr != end ; ptr++)
+  for ( ; ; )
   {
-    if (*ptr != '%' || ptr == end-1)
+    my_wc_t wc;
+    int mblen= format->charset()->cset->mb_wc(format->charset(), &wc, ptr, end);
+    if (mblen < 1)
+      break;
+    ptr+= mblen;
+
+    if (wc != '%' || ptr >= end)
       size++;
     else
     {
-      switch(*++ptr) {
+      mblen= format->charset()->cset->mb_wc(format->charset(), &wc, ptr, end);
+      if (mblen < 1)
+        break;
+      ptr+= mblen;
+
+      switch (wc) {
       case 'M': /* month, textual */
       case 'W': /* day (of the week), textual */
 	size += 64; /* large for UTF8 locale data */
@@ -1870,8 +1882,8 @@ uint Item_func_date_format::format_length(const String *format)
       case 'r': /* time, 12-hour (hh:mm:ss [AP]M) */
 	size += 11;
 	break;
-      case 'T': /* time, 24-hour (hh:mm:ss) */
-	size += 8;
+      case 'T': /* time, 24-hour (hh:mm:ss or hhh:mm:ss) */
+        size+= is_time ? 9 : 8;
 	break;
       case 'f': /* microseconds */
 	size += 6;
@@ -1912,7 +1924,8 @@ String *Item_func_date_format::val_str(String *str)
   if (fixed_length)
     size=max_length;
   else
-    size=format_length(format);
+    size= char_to_byte_length_safe(format_length(format),
+                                   collation.collation->mbmaxlen);
 
   if (size < MAX_DATE_STRING_REP_LENGTH)
     size= MAX_DATE_STRING_REP_LENGTH;
