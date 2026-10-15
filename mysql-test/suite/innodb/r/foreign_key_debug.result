@@ -58,3 +58,212 @@ SHOW OPEN TABLES FROM test;
 Database	Table	In_use	Name_locked
 test	t2	0	0
 DROP TABLE t1, t2;
+#
+# MDEV-41434 Missing DBUG_RETURN on error exits of
+# DML_prelocking_strategy::handle_table() and prepare_fk_prelocking_list()
+#
+# A failure to read the foreign keys that reference a table fails
+# the statement that modifies the table
+#
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON DELETE CASCADE ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+CREATE TABLE t_log (a INT, b INT) ENGINE=InnoDB;
+CREATE TRIGGER p_bu BEFORE UPDATE ON p FOR EACH ROW
+INSERT INTO t_log VALUES (OLD.a, NEW.b);
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (2), (3);
+CREATE PROCEDURE p_upd(x INT) UPDATE p SET b = x WHERE a = 2;
+SELECT a + 5, b * 3 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' FROM p WHERE a < 3;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug= '+d,fk_list_fail';
+DELETE FROM p WHERE a = 1;
+ERROR HY000: Out of memory.
+UPDATE p SET b = b + 1;
+ERROR HY000: Out of memory.
+INSERT INTO p VALUES (4, 40);
+ERROR HY000: Out of memory.
+INSERT INTO p VALUES (2, 21) ON DUPLICATE KEY UPDATE b = 21;
+ERROR HY000: Out of memory.
+REPLACE INTO p VALUES (5, 50);
+ERROR HY000: Out of memory.
+DELETE p FROM p JOIN c2 ON p.a = c2.a;
+ERROR HY000: Out of memory.
+UPDATE p JOIN c2 ON p.a = c2.a SET p.b = 0;
+ERROR HY000: Out of memory.
+INSERT INTO p SELECT a + 10, b FROM p;
+ERROR HY000: Out of memory.
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' INTO TABLE p;
+ERROR HY000: Out of memory.
+LOCK TABLES p WRITE;
+ERROR HY000: Out of memory.
+UNLOCK TABLES;
+PREPARE s FROM 'UPDATE p SET b = ? WHERE a = 2';
+ERROR HY000: Out of memory.
+# The list is read on the statement arena of a stored procedure
+CALL p_upd(21);
+ERROR HY000: Out of memory.
+SET debug_dbug= @save_dbug;
+# Nothing was modified by the failed statements
+SELECT * FROM p ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+SELECT * FROM c1 ORDER BY a;
+a
+1
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+SELECT * FROM t_log ORDER BY a;
+a	b
+# Statements that modify the table succeed once the failure is gone
+CALL p_upd(22);
+PREPARE s FROM 'UPDATE p SET b = ? WHERE a = 3';
+EXECUTE s USING 33;
+DEALLOCATE PREPARE s;
+DELETE FROM p WHERE a = 1;
+UPDATE p SET b = b + 1 WHERE a = 3;
+INSERT INTO p VALUES (4, 40);
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/fk_list_fail.txt' INTO TABLE p;
+SELECT * FROM p ORDER BY a;
+a	b
+2	22
+3	34
+4	40
+6	30
+7	60
+SELECT * FROM c1 ORDER BY a;
+a
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+SELECT * FROM t_log ORDER BY a;
+a	b
+2	22
+3	33
+3	34
+DROP PROCEDURE p_upd;
+DROP TABLE t_log, c2, c1, p;
+#
+# MDEV-41538 A stored procedure statement whose foreign key prelocking
+# failed once never locks the referencing tables again
+#
+# A stored procedure statement whose foreign key prelocking failed
+# locks the referencing tables on its next execution
+#
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON UPDATE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+CREATE TABLE t_log (a INT) ENGINE=InnoDB;
+CREATE TRIGGER p_bu BEFORE UPDATE ON p FOR EACH ROW
+INSERT INTO t_log VALUES (OLD.a);
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (1), (3);
+# Updating a column that no foreign key uses keeps InnoDB from
+# locking the referencing tables on its own
+CREATE PROCEDURE p_upd(x INT) UPDATE p SET b = b + 1 WHERE a = x;
+SET debug_dbug= '+d,fk_list_fail';
+CALL p_upd(2);
+ERROR HY000: Out of memory.
+SET debug_dbug= @save_dbug;
+BEGIN;
+CALL p_upd(2);
+connect con1, localhost, root;
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t_log NOWAIT COMMENT 't_log';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+COMMIT;
+SELECT * FROM p ORDER BY a;
+a	b
+1	10
+2	21
+3	30
+SELECT * FROM c1 ORDER BY a;
+a
+1
+2
+SELECT * FROM c2 ORDER BY a;
+a
+1
+3
+SELECT * FROM t_log ORDER BY a;
+a
+2
+# The locks are released at the end of the transaction
+connection con1;
+ALTER TABLE c1 NOWAIT COMMENT 'c1';
+ALTER TABLE c2 NOWAIT COMMENT 'c2';
+disconnect con1;
+connection default;
+DROP PROCEDURE p_upd;
+DROP TABLE t_log, c2, c1, p;
+#
+# MDEV-41539 Server crashes in prepare_fk_prelocking_list() when
+# allocating a TABLE_LIST for a referencing table fails
+#
+# A failure to allocate a referencing table for the prelocking set
+# fails the statement that modifies the table
+#
+CREATE TABLE p (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)) ENGINE=InnoDB;
+INSERT INTO p VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO c1 VALUES (1), (2);
+INSERT INTO c2 VALUES (2), (3);
+CREATE PROCEDURE p_upd() UPDATE p SET b = b + 1;
+SET debug_dbug= '+d,fk_prelocking_alloc_fail';
+DELETE FROM p WHERE a = 1;
+ERROR HY000: Out of memory.
+UPDATE p SET b = b + 1;
+ERROR HY000: Out of memory.
+# The list is built on the statement arena of a stored procedure
+CALL p_upd();
+ERROR HY000: Out of memory.
+SET debug_dbug= @save_dbug;
+SELECT * FROM p ORDER BY a;
+a	b
+1	10
+2	20
+3	30
+SELECT * FROM c1 ORDER BY a;
+a
+1
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+DELETE FROM p WHERE a = 1;
+UPDATE p SET b = b + 1;
+CALL p_upd();
+SELECT * FROM p ORDER BY a;
+a	b
+2	22
+3	32
+SELECT * FROM c1 ORDER BY a;
+a
+2
+SELECT * FROM c2 ORDER BY a;
+a
+2
+3
+DROP PROCEDURE p_upd;
+DROP TABLE c2, c1, p;
+#
+# End of 10.11 tests
+#

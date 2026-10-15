@@ -1,0 +1,89 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-41434 Missing DBUG_RETURN on error exits of
+# DML_prelocking_strategy::handle_table() and prepare_fk_prelocking_list()
+#
+# A replica that fails to read the foreign keys that reference a
+# table stops with an error when it applies a row event for that
+# table, and applies the event once the failure is gone. This is
+# checked both with and without slave_run_triggers_for_rbr, which
+# take different paths to the foreign key list.
+#
+connection slave;
+call mtr.add_suppression("Slave( SQL)?: .*Out of memory");
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @save_run_triggers= @@GLOBAL.slave_run_triggers_for_rbr;
+connection master;
+CREATE TABLE p (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+ON DELETE SET NULL) ENGINE=InnoDB;
+INSERT INTO p VALUES (1), (2), (3), (4);
+INSERT INTO c1 VALUES (1), (2), (3);
+INSERT INTO c2 VALUES (1), (2), (3);
+connection slave;
+# slave_run_triggers_for_rbr= NO
+SET GLOBAL slave_run_triggers_for_rbr= NO;
+SET GLOBAL debug_dbug= '+d,fk_list_fail';
+connection master;
+DELETE FROM p WHERE a = 1;
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1041]
+SELECT * FROM p ORDER BY a;
+a
+1
+2
+3
+4
+SET GLOBAL debug_dbug= @save_dbug;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT * FROM p ORDER BY a;
+a
+2
+3
+4
+SELECT * FROM c1 ORDER BY a;
+a
+2
+3
+SELECT * FROM c2 ORDER BY a;
+a
+NULL
+2
+3
+# slave_run_triggers_for_rbr= YES
+SET GLOBAL slave_run_triggers_for_rbr= YES;
+SET GLOBAL debug_dbug= '+d,fk_list_fail';
+connection master;
+DELETE FROM p WHERE a = 2;
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1041]
+SELECT * FROM p ORDER BY a;
+a
+2
+3
+4
+SET GLOBAL debug_dbug= @save_dbug;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT * FROM p ORDER BY a;
+a
+3
+4
+SELECT * FROM c1 ORDER BY a;
+a
+3
+SELECT * FROM c2 ORDER BY a;
+a
+NULL
+NULL
+3
+SET GLOBAL slave_run_triggers_for_rbr= @save_run_triggers;
+connection master;
+DROP TABLE c2, c1, p;
+include/rpl_end.inc
