@@ -11812,10 +11812,26 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   it.rewind();
   while ((item=it++))
   {
+    /*
+      Unwrapping in place would make the pushed condition share field items
+      with the SELECT list. Those items are later bound to the GROUP BY
+      temporary table, and evaluating the condition (e.g. for "Range checked
+      for each record") would then read the not yet filled temporary table.
+      A clone gets its own field items.
+
+      Some items (e.g. subqueries) cannot be cloned but we don't want
+      to abandon the pushdown, so we unwrap the original item in place.
+      The risk is low: the problem above needs "Range checked for each
+      record", which is unlikely for conditions containing such items.
+    */
+    Item *cloned_item= item->deep_copy_with_checks(thd);
+    if (cloned_item)
+      item= cloned_item;
+
     item= item->transform(thd,
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
-
+    it.replace(item);
     if (item->walk(&Item::cleanup_excluding_immutables_processor, 0,
                    STOP_PTR) ||
         item->fix_fields(thd, it.ref()))

@@ -6609,3 +6609,56 @@ a
 0
 DROP TABLE t1;
 # End of 10.11 tests
+#
+# MDEV-38819: Wrong result of "Range checked for each record" after pushdown from HAVING
+#
+CREATE TABLE t1(a INT, b INT UNIQUE);
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (1, 2);
+INSERT INTO t2 VALUES (3, 4);
+INSERT INTO t2 VALUES (5, 6);
+SELECT t2.b, t1.a, t1.b
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+HAVING t1.b < t2.b;
+b	a	b
+4	1	2
+6	1	2
+explain SELECT t2.b, t1.a, t1.b
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+HAVING t1.b < t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	b	b	5	NULL	2	Using index; Using temporary; Using filesort
+1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	1	Range checked for each record (index map: 0x1)
+SELECT b, a, b1
+FROM (
+SELECT
+t2.b AS b,
+t1.a AS a,
+t1.b AS b1,
+t1.b < t2.b AS ref1
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+) AS s
+WHERE ref1;
+b	a	b1
+4	1	2
+6	1	2
+explain SELECT b, a, b1
+FROM (
+SELECT
+t2.b AS b,
+t1.a AS a,
+t1.b AS b1,
+t1.b < t2.b AS ref1
+FROM t2 STRAIGHT_JOIN t1
+GROUP BY t2.b, t1.a, t1.b
+) AS s
+WHERE ref1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DERIVED	t2	index	NULL	b	5	NULL	2	Using index; Using temporary; Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
+drop table t1, t2;
+# End of 11.4 tests
