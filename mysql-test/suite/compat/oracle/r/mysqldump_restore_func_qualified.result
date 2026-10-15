@@ -25,62 +25,58 @@ CREATE VIEW v2 AS SELECT
 LTRIM(now()) AS a0,
 LPAD(now(),10) AS b0;
 /*M!999999\- enable the sandbox mode */ 
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t1` (
   `a0` varchar(64) NOT NULL DEFAULT ltrim(current_timestamp()),
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad(`b0`,10)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t2` (
   `a0` varchar(64) NOT NULL DEFAULT ltrim_oracle(current_timestamp()),
   `a1` varchar(64) GENERATED ALWAYS AS (ltrim_oracle(`a0`)) STORED,
   `b0` varchar(64) NOT NULL DEFAULT lpad_oracle(current_timestamp(),10),
   `b1` varchar(64) GENERATED ALWAYS AS (lpad_oracle(`b0`,10)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v1` AS SELECT
- NULL AS `a0`,
- NULL AS `b0` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v2` AS SELECT
+CREATE VIEW `v1` AS SELECT
  NULL AS `a0`,
- NULL AS `b0` */;
+ NULL AS `b0`;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP VIEW IF EXISTS `v1`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1` AS select ltrim(current_timestamp()) AS `a0`,lpad(current_timestamp(),10) AS `b0` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP VIEW IF EXISTS `v2`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v2` AS select oracle_schema.ltrim(current_timestamp()) AS `a0`,oracle_schema.lpad(current_timestamp(),10) AS `b0` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
+CREATE VIEW `v2` AS SELECT
+ NULL AS `a0`,
+ NULL AS `b0`;
+SET character_set_client = @saved_cs_client;
+DROP VIEW IF EXISTS `v1`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select ltrim(current_timestamp()) AS `a0`,lpad(current_timestamp(),10) AS `b0`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
+DROP VIEW IF EXISTS `v2`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select oracle_schema.ltrim(current_timestamp()) AS `a0`,oracle_schema.lpad(current_timestamp(),10) AS `b0`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
 DROP TABLE t1,t2;
 DROP VIEW v1,v2;
 SET sql_mode=DEFAULT;
