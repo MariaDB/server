@@ -452,7 +452,7 @@ options\&.
 .\" compatible option: mariadb-dump
 \fB\-\-compatible=\fR\fB\fIname\fR\fR
 .sp
-Produce output that is more compatible with other database systems or with older MySQL servers\&. The value of
+Produce output that is more compatible with other database systems\&. The value of
 \fIname\fR
 can be
 ansi,
@@ -465,11 +465,30 @@ db2,
 maxdb,
 no_key_options,
 no_table_options, or
-no_field_options\&. To use several values, separate them by commas\&. These values have the same meaning as the corresponding options for setting the server SQL mode\&.
+no_field_options\&. To use several values, separate them by commas\&. Except for
+mysql323
+and
+mysql40,
+these values have the same meaning as the corresponding options for setting the server SQL mode\&.
 .sp
 This option does not guarantee compatibility with other servers\&. It only enables those SQL mode values that are currently available for making dump output more compatible\&. For example,
 \fB\-\-compatible=oracle\fR
 does not map data types to Oracle types or use Oracle comment syntax\&.
+.sp
+The values
+mysql323
+and
+mysql40
+are accepted but do nothing\&. With any of the other values, some
+SET
+and
+ALTER TABLE \&... KEYS
+statements are written as
+/*!40101 \&... */
+comments, which systems other than MariaDB and MySQL skip\&. These values also imply
+\fB\-\-skip\-set\-charset\fR
+and
+\fB\-\-quote\-names\fR\&.
 .sp
 .RE
 .sp
@@ -767,9 +786,9 @@ options that \fB\-\-tab\fR supports are also supported by \fB\-\-dir\fR, in part
 For each table, surround the
 INSERT
 statements with
-/*!40000 ALTER TABLE \fItbl_name\fR DISABLE KEYS */;
+ALTER TABLE \fItbl_name\fR DISABLE KEYS;
 and
-/*!40000 ALTER TABLE \fItbl_name\fR ENABLE KEYS */;
+ALTER TABLE \fItbl_name\fR ENABLE KEYS;
 statements\&. This makes loading the dump file faster because the indexes are created after all rows are inserted\&. This option is effective only for nonunique indexes of
 MyISAM
 tables\&.

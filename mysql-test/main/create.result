@@ -706,7 +706,7 @@ Warnings:
 Note	1007	Can't create database 'mysqltest'; database exists
 show create database mysqltest;
 Database	Create Database
-mysqltest	CREATE DATABASE `mysqltest` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */
+mysqltest	CREATE DATABASE `mysqltest` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci
 drop database mysqltest;
 use test;
 create table t1 (a int);

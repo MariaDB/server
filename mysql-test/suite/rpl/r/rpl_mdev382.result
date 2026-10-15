@@ -171,9 +171,9 @@ master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000001	#	Begin_load_query	1	#	;file_id=#;block_len=14
 master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f\'le.txt' INTO TABLE `db1``; select 'oops!'`.`t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, `b``2`) SET `c``3`= concat('|', "b""a'z", "!") ;file_id=#
 master-bin.000001	#	Query	1	#	COMMIT
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_delayed_threads=0*/;
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `db1``; select 'oops!'`/*!*/;
@@ -212,8 +212,8 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
+SET @@SESSION.PSEUDO_SLAVE_MODE=0;
 connection slave;
 connection slave;
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
@@ -271,9 +271,9 @@ master-bin.000001	#	User var	1	#	@```c`=-123450123456789012345678901234567890123
 master-bin.000001	#	User var	1	#	@```d```=_utf8mb4 X'78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878' COLLATE utf8mb4_uca1400_ai_ci
 master-bin.000001	#	Query	1	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98))
 master-bin.000001	#	Query	1	#	COMMIT
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_delayed_threads=0*/;
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 use `db1``; select 'oops!'`/*!*/;
@@ -314,8 +314,8 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
+SET @@SESSION.PSEUDO_SLAVE_MODE=0;
 connection slave;
 connection slave;
 SELECT * FROM `db1``; select 'oops!'`.t1 ORDER BY a1;
@@ -378,9 +378,9 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
 master-bin.000002	#	Query	1	#	use `test`; INSERT INTO t1 VALUES(1)
 master-bin.000002	#	Query	1	#	COMMIT
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
-/*!40019 SET @@session.max_delayed_threads=0*/;
-/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
 START TRANSACTION
@@ -403,7 +403,7 @@ COMMIT
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;
-/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
-/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;
+SET @@SESSION.PSEUDO_SLAVE_MODE=0;
 DROP TABLE t1;
 include/rpl_end.inc
