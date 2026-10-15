@@ -73,48 +73,7 @@ using tpool::pwrite;
 # include <sys/types.h>
 # include <dirent.h>
 # include <sys/mman.h>
-/**
-   Copy a file using a memory mapping.
-   @tparam stream true=write to a stream, false=pwrite to a file
-   @param p       map to source file
-   @param out_fd  destination
-   @param o       start offset
-   @param end     last offset (exclusive)
-   @return error code
-   @retval 0  on success
-   @retval 1  if a memory mapping failed
-*/
-template<bool stream>
-static ssize_t mmap_copy(const void *p, int out_fd, uint64_t o, uint64_t end)
-{
-  size_t c= size_t(end - o);
-  ssize_t ret;
-  for (const char *b= static_cast<const char*>(p) + o;;
-       b+= ret, o+= uint64_t(ret))
-  {
-    const size_t size{std::min(c, size_t(INT_MAX >> 20 << 20))};
-    if (stream)
-    {
-      if ((ret= backup_stream_write(out_fd, b, size)))
-        break;
-      ret= size;
-    }
-    else if ((ret= pwrite(out_fd, b, size, off_t(o))) < 0)
-      break;
-    c-= ret;
-    if (!c)
-    {
-      ret= 0;
-      break;
-    }
-    if (!ret)
-    {
-      ret= -1;
-      break;
-    }
-  }
-  return ret;
-}
+
 #endif
 
 /**
@@ -198,20 +157,7 @@ int copy_entire_file(int src, int dst) noexcept
   ret= int(copy_file_shortcut(src, dst, 0, end));
   if (ret == 1)
 # endif
-  {
-# ifdef copy_file_mmap
-    void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
-    if (p != MAP_FAILED)
-    {
-      ret= int(copy_file_mmap(p, dst, 0, end));
-      munmap(p, size_t{end});
-    }
-    else
-# endif
-    {
-      ret= backup::copy(src, dst, 0, end);
-    }
-  }
+    ret= backup::copy(src, dst, 0, end);
 #ifdef POSIX_FADV_DONTNEED
   std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
 #endif
@@ -424,9 +370,15 @@ int append(handle src, backup_fd stream, uint64_t start, uint64_t end) noexcept
     that the receiving end of the pipe has consumed everything before
     our caller re-enables writes to this src region.
 
-    On Linux, even for MAP_PRIVATE, the following has been documented:
+    For Linux mmap(2), even for MAP_PRIVATE, the following is documented:
     It is unspecified whether changes made to the file after the
-    mmap() call are visible in the mapped region.
+    mmap(2) call are visible in the mapped region.
+
+    Similarly, for Linux sendfile(2): If out_fd refers to a socket or
+    pipe with zero-copy support, callers must ensure the transferred
+    portions of the file referred to by in_fd remain unmodified until
+    the reader on the other end of out_fd has consumed the
+    transferred data.
   */
 # ifdef __linux__
   const int pipe_size{fcntl(stream, F_GETPIPE_SZ)};
@@ -483,7 +435,7 @@ int backup_stream_zeropad(backup_fd stream, size_t written) noexcept
    @param end   last offset to copy (exclusive)
    @return error code (non-positive)
    @retval 0   on success
-   @retval 1   if a fallback to copy_mmap() or backup::copy() is needed
+   @retval 1   if a fallback to backup::copy() is needed
 */
 int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
   noexcept
@@ -494,22 +446,6 @@ int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
   if (ret && (errno == EOPNOTSUPP || errno == EXDEV))
     return 1;
   return int(ret);
-}
-#endif
-
-#ifdef copy_file_mmap
-/**
-   Copy from a memory mapping to a file.
-   @param map   source file mapping
-   @param dst   target to append map to
-   @param start first offset to copy
-   @param end   last offset to copy (exclusive)
-   @return error code (non-positive)
-   @retval 0   on success
-*/
-int copy_mmap(const void *map, int dst, uint64_t start, uint64_t end) noexcept
-{
-  return int(mmap_copy<false>(map, dst, start, end));
 }
 #endif
 
@@ -1698,15 +1634,6 @@ int backup_stream_append_async(int src, int stream,
 # ifdef __linux__
   return int(stepwise<send_step,true>(src, stream, off_t(start), off_t(end)));
 # else
-#  if SIZEOF_SIZE_T > 4
-  void *p= mmap(nullptr, size_t{end}, PROT_READ, MAP_SHARED, src, 0);
-  if (p != MAP_FAILED)
-  {
-    ssize_t ret= mmap_copy<true>(p, stream, start, end);
-    munmap(p, size_t{end});
-    return int(ret);
-  }
-#  endif
   return int(pread_write<true>(src, stream, start, end));
 # endif
 }

@@ -800,6 +800,37 @@ public:
     return res;
   }
 
+#ifdef HAVE_PMEM
+  /**
+     Copy a file using a memory mapping.
+     @param p    map to source file
+     @param dst  destination
+     @param o    start offset
+     @param end  last offset (exclusive)
+     @return error code (non-positive)
+     @retval 0  on success
+  */
+  static int mmap_copy(const void *p, int dst, uint64_t o, uint64_t end)
+    noexcept
+  {
+    size_t c= size_t(end - o);
+    ssize_t ret;
+    for (const char *b= static_cast<const char*>(p) + o;;
+         b+= ret, o+= uint64_t(ret))
+    {
+      const size_t size{std::min(c, size_t(INT_MAX >> 20 << 20))};
+      if ((ret= pwrite(dst, b, size, off_t(o))) < 0)
+        return int(ret);
+      c-= ret;
+      if (!c)
+        break;
+      if (!ret)
+        return -1;
+    }
+    return 0;
+  }
+#endif
+
   /**
      Copy the log in real time.
      @return error code (never positive)
@@ -874,7 +905,7 @@ public:
       const uint64_t begin{prev - first}, end{lsn - first};
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
-        err= copy_file_mmap(tracked.buf, ctx.log_dst, begin, end);
+        err= mmap_copy(tracked.buf, ctx.log_dst, begin, end);
       else
 #endif
       {
@@ -2305,84 +2336,41 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
 #endif
     {
       const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
-#ifdef copy_file_mmap
-      const size_t c{size_t{final_limit ? final_limit : limit} * page_size};
-      void *p= mmap(nullptr, c, PROT_READ, MAP_SHARED, node->handle, 0);
-      if (p != MAP_FAILED)
+      for (uint32_t page{0};;)
       {
-        for (uint32_t page{0};;)
+        while (page < limit)
         {
-          while (page < limit)
+          start+= BACKUP_BATCH_SIZE;
+          buf_page_t **end= backup_batch_start(blocks, node->space, start);
+          if (end)
           {
-            start+= BACKUP_BATCH_SIZE;
-            buf_page_t **end= backup_batch_start(blocks, node->space, start);
-            if (end)
-            {
-              const uint64_t o{uint64_t{page} * page_size};
-              page= std::min(limit, page + BACKUP_BATCH_SIZE);
-              /* TODO: avoid copying freed page ranges, or pages that were
-              allocated after the backup started */
-              err= copy_file_mmap(p, f, o, uint64_t{page} * page_size);
-            }
-            else
-            {
-              end= blocks;
-              err= 2;
-            }
-            backup_batch_stop(node->space, blocks, end);
-            if (err)
-              break;
-          }
-
-          if (final_limit != 0 && !err && page == buf_dblwr.begin())
-          {
-            /* Copy the rest after the doublewrite buffer. */
-            ut_ad(start == page);
-            limit= final_limit;
-            start= page+= buf_dblwr.size();
+            const uint64_t o{uint64_t{page} * page_size};
+            page= std::min(limit, page + BACKUP_BATCH_SIZE);
+            /* TODO: avoid copying freed page ranges, or pages that were
+            allocated after the backup started */
+            err=
+              backup::copy(node->handle, f, o, uint64_t{page} * page_size);
           }
           else
+          {
+            end= blocks;
+            err= 2;
+          }
+          backup_batch_stop(node->space, blocks, end);
+          if (err)
             break;
         }
-        munmap(p, c);
+
+        if (final_limit != 0 && !err && page == buf_dblwr.begin())
+        {
+          /* Copy the rest after the doublewrite buffer. */
+          ut_ad(start == page);
+          limit= final_limit;
+          start= page+= buf_dblwr.size();
+        }
+        else
+          break;
       }
-      else
-#endif
-        for (uint32_t page{0};;)
-        {
-          while (page < limit)
-          {
-            start+= BACKUP_BATCH_SIZE;
-            buf_page_t **end= backup_batch_start(blocks, node->space, start);
-            if (end)
-            {
-              const uint64_t o{uint64_t{page} * page_size};
-              page= std::min(limit, page + BACKUP_BATCH_SIZE);
-              /* TODO: avoid copying freed page ranges, or pages that were
-              allocated after the backup started */
-              err=
-                backup::copy(node->handle, f, o, uint64_t{page} * page_size);
-            }
-            else
-            {
-              end= blocks;
-              err= 2;
-            }
-            backup_batch_stop(node->space, blocks, end);
-            if (err)
-              break;
-          }
-
-          if (final_limit != 0 && !err && page == buf_dblwr.begin())
-          {
-            /* Copy the rest after the doublewrite buffer. */
-            ut_ad(start == page);
-            limit= final_limit;
-            start= page+= buf_dblwr.size();
-          }
-          else
-            break;
-        }
     }
 
     if (IF_WIN(!CloseHandle,close)(f) | err)
