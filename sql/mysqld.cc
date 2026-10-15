@@ -294,7 +294,7 @@ const char *show_comp_option_name[]= {"YES", "NO", "DISABLED"};
 
 static const char *tc_heuristic_recover_names[]=
 {
-  "OFF", "COMMIT", "ROLLBACK", NullS
+  "OFF", "COMMIT", "ROLLBACK", "AUTO", NullS
 };
 static TYPELIB tc_heuristic_recover_typelib=
 {
@@ -7027,7 +7027,7 @@ struct my_option my_long_options[]=
   {"tc-heuristic-recover", 0,
    "Decision to use in heuristic recover process",
    &tc_heuristic_recover, &tc_heuristic_recover,
-   &tc_heuristic_recover_typelib, GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &tc_heuristic_recover_typelib, GET_ENUM, REQUIRED_ARG, 3, 0, 0, 0, 0, 0},
   {"temp-pool", 0,
 #if (ENABLE_TEMP_POOL)
    "Using this option will cause most temporary files created to use a small "

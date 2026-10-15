@@ -1,0 +1,70 @@
+### MDEV-36025 backup taken from a slave with optimistic parallel replication fails to restore most of the time
+### Test provisioning a slave from an existing server running optimistic
+### parallel replication so that prepared transactions are left in the
+### backup when the restored server is started.
+RESET MASTER;
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+INSERT INTO t1 VALUES(2, NULL);
+INSERT INTO t1 VALUES(3, NULL);
+connect  server2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+SET STATEMENT sql_log_bin=0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= '';
+CHANGE MASTER TO
+master_port=PORT, master_host='127.0.0.1', master_user='root',
+master_use_gtid= slave_pos;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL slave_parallel_mode=optimistic;
+START SLAVE;
+connection default;
+include/save_master_gtid.inc
+connection server2;
+include/sync_with_master_gtid.inc
+connect  server2a,127.0.0.1,root,,,$SERVER_MYPORT_2;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a	b
+1	NULL
+connection default;
+UPDATE t1 SET b='xyzzy' WHERE a=1;
+INSERT INTO t1 VALUES (4, NULL);
+UPDATE t1 SET b='foobar' WHERE a=2;
+include/save_master_gtid.inc
+*** Doing backup...
+*** Doing prepare...
+connection server2a;
+ROLLBACK;
+include/sync_with_master_gtid.inc
+connection server2;
+*** Provision a new slave from the backup
+*** Stopping provisioned server
+*** Removing old datadir for provisioned server
+*** Provision new server from backup
+disconnect server2a;
+# restart
+CHANGE MASTER TO
+master_port=PORT, master_host='127.0.0.1', master_user='root',
+master_use_gtid= slave_pos;
+START SLAVE;
+connection default;
+include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	xyzzy
+2	foobar
+3	NULL
+4	NULL
+connection server2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	xyzzy
+2	foobar
+3	NULL
+4	NULL
+STOP SLAVE;
+RESET SLAVE ALL;
+DROP TABLE t1;
+connection default;
+DROP TABLE t1;
