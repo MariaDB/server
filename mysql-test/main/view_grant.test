@@ -2346,5 +2346,57 @@ suid=1'@localhost;
 
 --echo # End of 10.6 tests
 
+--echo #
+--echo # MDEV-22374: VIEW with security definer require FILE privilege from
+--echo # definer not invoker in case of INTO OUTFILE
+--echo #
+
+create user test@localhost;
+grant select on test.* to test@localhost;
+create table t1 (a int);
+insert into t1 values (1),(2);
+create definer=test@localhost sql security definer view v1 as select * from t1;
+
+--echo # FILE privilege should be checked for the invoker, not the view definer
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from t1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev22374.txt
+select * from v1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select count(*) from v1) as dv1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev22374.txt
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select * from v1) as dv1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev22374.txt
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from v1
+--remove_file $MYSQLTEST_VARDIR/tmp/mdev22374.txt
+drop view v1;
+
+--echo # Invoker without FILE privilege can not use the definer's one
+create definer=root@localhost sql security definer view v1 as select * from t1;
+connect con1, localhost, test;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from t1
+select * from v1;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select count(*) from v1) as dv1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select * from v1) as dv1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval select * into outfile '$MYSQLTEST_VARDIR/tmp/mdev22374.txt' from v1
+disconnect con1;
+connection default;
+
+drop view v1;
+drop table t1;
+drop user test@localhost;
+
+--echo # End of 10.11 tests
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
