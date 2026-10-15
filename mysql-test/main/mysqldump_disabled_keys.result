@@ -1,0 +1,94 @@
+# MDEV-40747 mariadb-dump does not preserve disabled indexes
+# Default dump preserves disabled keys
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	disabled
+# DISABLE KEYS is written under the table lock
+FOUND 1 /LOCK TABLES .t1. WRITE;\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS \*/;/ in mysqldump_disabled_keys.sql
+# and nothing enables the keys again
+NOT FOUND /ENABLE KEYS/ in mysqldump_disabled_keys.sql
+DROP TABLE t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	disabled
+DROP TABLE t1;
+# Default dump leaves enabled keys enabled
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+DROP TABLE t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	
+DROP TABLE t1;
+# --skip-disable-keys still preserves the source state
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+DROP TABLE t1;
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	disabled
+DROP TABLE t1;
+# --no-data preserves disabled keys without restoring rows
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+NOT FOUND /LOCK TABLES/ in mysqldump_disabled_keys.sql
+FOUND 1 /CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS/ in mysqldump_disabled_keys.sql
+DROP TABLE t1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	disabled
+DROP TABLE t1;
+# --no-create-info restores the state after its loading optimization
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+DELETE FROM t1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	disabled
+DROP TABLE t1;
+# A data-only dump without key optimization leaves the target state alone
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+DELETE FROM t1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+SELECT INDEX_NAME, COMMENT FROM INFORMATION_SCHEMA.STATISTICS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INDEX_NAME	COMMENT
+a	
+DROP TABLE t1;
+# --tab records the state in the table SQL file
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+FOUND 1 /CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS/ in t1.sql
+DROP TABLE t1;
+# A table whose data is not dumped gets the state with its structure
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+ALTER TABLE t1 DISABLE KEYS;
+NOT FOUND /LOCK TABLES/ in mysqldump_disabled_keys.sql
+FOUND 1 /CREATE TABLE .t1.(.*?)\n/\*M!40000 ALTER TABLE .t1. DISABLE KEYS/ in mysqldump_disabled_keys.sql
+DROP TABLE t1;
+# End of 10.11 tests

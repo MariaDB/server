@@ -3064,6 +3064,59 @@ static void get_sequence_structure(const char *seq, const char *db)
   }
   DBUG_VOID_RETURN;
 }
+
+
+static my_bool table_has_disabled_keys(const char *quoted_table)
+{
+  char query[QUERY_LENGTH];
+  MYSQL_RES *result;
+  my_bool disabled;
+
+  /*
+    The statement is wrapped in a MariaDB version comment. Any other server
+    answers it with an empty query error, and then the dump simply does not
+    preserve the disabled keys of its tables.
+  */
+  my_snprintf(query, sizeof(query),
+              "/*M! SHOW KEYS FROM %s WHERE Comment='disabled' */",
+              quoted_table);
+  if (mysql_query(mysql, query) ||
+      !(result= mysql_store_result(mysql)))
+  {
+    if (mysql_errno(mysql) != ER_EMPTY_QUERY)
+      maybe_die(EX_MYSQLERR,
+                "Couldn't get the state of the keys of table %s: %s (%d)",
+                quoted_table, mysql_error(mysql), mysql_errno(mysql));
+    return 0;
+  }
+
+  disabled= mysql_num_rows(result) != 0;
+  mysql_free_result(result);
+  return disabled;
+}
+
+
+/*
+  A table that had disabled keys has to have them disabled after the dump is
+  loaded. The exception is a data-only dump that was told not to touch the
+  keys (--no-create-info --skip-disable-keys).
+*/
+static my_bool preserve_disabled_keys(my_bool keys_disabled)
+{
+  return keys_disabled && (!opt_no_create_info || opt_disable_keys);
+}
+
+
+static void print_disable_keys(FILE *file, const char *table)
+{
+  char table_buff[NAME_LEN*2+3];
+
+  fprintf(file, "/*M!40000 ALTER TABLE %s DISABLE KEYS */;\n",
+          quote_name(table, table_buff, 0));
+  check_io(file);
+}
+
+
 /*
   get_table_structure -- retrieves database structure, prints out corresponding
   CREATE statement and fills out insert_pat if the table is the type we will
@@ -3074,13 +3127,19 @@ static void get_sequence_structure(const char *seq, const char *db)
     db          - db name
     table_type  - table type, e.g. "MyISAM" or "InnoDB", but also "VIEW"
     ignore_flag - what we must particularly ignore - see IGNORE_ defines above
+    keys_disabled - set if the source table has disabled keys
+    defer_disable_keys - the caller dumps the data of the table too, and
+                 prints DISABLE KEYS itself, under the table lock. If not
+                 set, it is printed after the table structure.
 
   RETURN
     number of fields in table, 0 if error
 */
 
 static uint get_table_structure(const char *table, const char *db, char *table_type,
-                                char *ignore_flag, my_bool *versioned)
+                                char *ignore_flag, my_bool *versioned,
+                                my_bool *keys_disabled,
+                                my_bool defer_disable_keys)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
   my_ulonglong num_fields;
@@ -3102,6 +3161,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
   *ignore_flag= check_if_ignore_table(table, table_type);
+  *keys_disabled= 0;
 
   if (!opt_copy_s3_tables && *ignore_flag == IGNORE_S3_TABLE)
     DBUG_RETURN(0);
@@ -3706,6 +3766,14 @@ continue_xml:
     if (!extended_insert)
       dynstr_append_checked(&insert_pat, "(");
   }
+  if (!opt_xml && strcmp(table_type, "VIEW"))
+    *keys_disabled= table_has_disabled_keys(result_table);
+  /*
+    With --tab the data goes to a separate file, so there is no table lock
+    to put DISABLE KEYS under: it goes with the structure.
+  */
+  if (preserve_disabled_keys(*keys_disabled) && (!defer_disable_keys || path))
+    print_disable_keys(sql_file, table);
   if (sql_file != md_result_file)
   {
     fputs("\n", sql_file);
@@ -4095,7 +4163,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   ulong         rownr, row_break;
   uint num_fields;
   size_t total_length, init_length;
-  my_bool versioned= 0;
+  my_bool versioned= 0, keys_disabled= 0;
 
   MYSQL_RES     *res= NULL;
   MYSQL_FIELD   *field;
@@ -4106,7 +4174,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     Make sure you get the create table info before the following check for
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
-  num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
+  num_fields= get_table_structure(table, db, table_type, &ignore_flag,
+                                  &versioned, &keys_disabled, 1);
 
   /*
     The "table" could be a view.  If so, we don't do anything here.
@@ -4127,7 +4196,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   {
     verbose_msg("-- Skipping dump data for table '%s', --no-data was used\n",
                 table);
-    DBUG_VOID_RETURN;
+    goto skip_data;
   }
 
   DBUG_PRINT("info",
@@ -4141,7 +4210,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   {
     verbose_msg("-- Warning: Skipping data for table '%s' because " \
                 "it's of type %s\n", table, table_type);
-    DBUG_VOID_RETURN;
+    goto skip_data;
   }
   /* Check that there are any fields in the table */
   if (num_fields == 0)
@@ -4160,7 +4229,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       !my_strcasecmp(&my_charset_latin1, table, "event"))
   {
     verbose_msg("-- Skipping data table mysql.event, --skip-events was used\n");
-    DBUG_VOID_RETURN;
+    goto skip_data;
   }
 
   result_table= quote_name(table,table_buff, 1);
@@ -4326,7 +4395,13 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
       check_io(md_result_file);
     }
     /* Moved disable keys to after lock per bug 15977 */
-    if (opt_disable_keys)
+    if (keys_disabled)
+    {
+      /* They stay disabled: nothing enables them at the end */
+      if (preserve_disabled_keys(keys_disabled))
+        print_disable_keys(md_result_file, table);
+    }
+    else if (opt_disable_keys)
     {
       fprintf(md_result_file, "/*!40000 ALTER TABLE %s DISABLE KEYS */;\n",
 	      opt_quoted_table);
@@ -4596,7 +4671,7 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
 
     /* Moved enable keys to before unlock per bug 15977 */
-    if (opt_disable_keys)
+    if (opt_disable_keys && !keys_disabled)
     {
       fprintf(md_result_file,"/*!40000 ALTER TABLE %s ENABLE KEYS */;\n",
               opt_quoted_table);
@@ -4626,6 +4701,15 @@ err:
   dynstr_free(&query_string);
   maybe_exit(error);
   mysql_free_result(res);
+  DBUG_VOID_RETURN;
+
+skip_data:
+  /*
+    No data is dumped, so there is no table lock to put DISABLE KEYS under.
+    It goes right after the table structure (with --tab it is already there).
+  */
+  if (!path && preserve_disabled_keys(keys_disabled))
+    print_disable_keys(md_result_file, table);
   DBUG_VOID_RETURN;
 } /* dump_table */
 
@@ -5544,14 +5628,17 @@ static void dump_first_mysql_tables(char *database)
 {
   char table_type[NAME_LEN];
   char ignore_flag;
+  my_bool keys_disabled;
   DBUG_ENTER("dump_first_mysql_tables");
 
   if (!get_table_structure((char *) "general_log",
-                           database, table_type, &ignore_flag, NULL) )
+                           database, table_type, &ignore_flag, NULL,
+                           &keys_disabled, 0) )
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'general_log' table\n");
   if (!get_table_structure((char *) "slow_log",
-                           database, table_type, &ignore_flag, NULL) )
+                           database, table_type, &ignore_flag, NULL,
+                           &keys_disabled, 0) )
     verbose_msg("-- Warning: get_table_structure() failed with some internal "
                 "error for 'slow_log' table\n");
   /* general and slow query logs exist now */
@@ -5810,8 +5897,10 @@ static int dump_all_tables_in_db(char *database)
     {
        char table_type[NAME_LEN];
        char ignore_flag;
+       my_bool keys_disabled;
       if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag, NULL) )
+                               database, table_type, &ignore_flag, NULL,
+                               &keys_disabled, 0) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
