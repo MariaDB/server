@@ -10,6 +10,7 @@
 #   3. Verify the server is still usable: a normal CHANGE MASTER for a
 #      new, short-named channel succeeds.
 #
+--source include/not_windows.inc
 --source include/master-slave.inc
 
 --connection slave
