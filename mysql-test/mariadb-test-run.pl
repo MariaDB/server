@@ -4978,6 +4978,36 @@ sub after_failure ($) {
 }
 
 
+#
+# A server that is running but has not created its pid file never
+# finished starting up. Instead of just killing such a hung server,
+# make it dump core and write a stack trace to its error log,
+# so that it can be seen where it got stuck.
+#
+sub dump_core_for_hung_servers ($) {
+  my ($tinfo)= @_;
+
+  # Do not disturb a server that is run under a debugger
+  return if My::Debugger::used();
+
+  my $timeout= $ENV{MTR_DUMP_CORE_TIMEOUT} || 120;
+  foreach my $mysqld (mysqlds())
+  {
+    my $proc= $mysqld->{proc};
+    my $pid_file= $mysqld->if_exist('pid-file');
+    next unless defined $proc && defined $pid_file && !-e $pid_file;
+    next unless $proc->wait_one(0, 1);    # still running
+
+    mtr_print("Dumping core for ", $mysqld->name(), ", it hung in startup");
+    $proc->dump_core();
+    $proc->wait_one($timeout, 1);
+    $tinfo->{comment}.= "Server " . $mysqld->name() .
+      " hung in startup, it was aborted to get a core dump\n" .
+      get_log_from_proc($proc, $tinfo->{name});
+  }
+}
+
+
 sub report_failure_and_restart ($) {
   my $tinfo= shift;
 
@@ -4987,6 +5017,8 @@ sub report_failure_and_restart ($) {
     # In these cases we may want valgrind report from normal termination
     $tinfo->{'dont_kill_server'}= 1;
   }
+  dump_core_for_hung_servers($tinfo) unless $tinfo->{'dont_kill_server'};
+
   # Shutdown properly if not to be killed (for valgrind)
   stop_all_servers($tinfo->{'dont_kill_server'} ? $opt_shutdown_timeout : 0);
 
