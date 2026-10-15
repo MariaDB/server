@@ -1,0 +1,66 @@
+--source include/have_udf.inc
+
+CREATE TABLE t (id INT PRIMARY KEY, g INT, v INT);
+INSERT INTO t VALUES (1,1,10),(2,1,20),(3,2,30),(4,2,NULL),(5,3,50);
+CREATE TABLE t2 (x INT);
+INSERT INTO t2 VALUES (20),(50);
+
+--echo # prepared statement, executed twice
+PREPARE s FROM 'SELECT test_plugin_count(v) FILTER (WHERE v > ?) FROM t';
+SET @a=15;
+EXECUTE s USING @a;
+SET @a=25;
+EXECUTE s USING @a;
+DEALLOCATE PREPARE s;
+
+--echo # stored procedure called twice
+DELIMITER |;
+CREATE PROCEDURE p()
+BEGIN
+  SELECT g, test_plugin_count(v) FILTER (WHERE v > 15),
+         test_plugin_first(v) FILTER (WHERE v > 15) FROM t GROUP BY g ORDER BY g;
+END|
+DELIMITER ;|
+CALL p();
+CALL p();
+DROP PROCEDURE p;
+
+--echo # subquery in filter
+SELECT test_plugin_count(v) FILTER (WHERE v IN (SELECT x FROM t2)) FROM t;
+SELECT count(v) FILTER (WHERE v IN (SELECT x FROM t2)) FROM t;
+
+--echo # outer reference in filter of subquery aggregate
+SELECT id, (SELECT test_plugin_count(x) FILTER (WHERE x > t.v) FROM t2) AS pc,
+           (SELECT count(x) FILTER (WHERE x > t.v) FROM t2) AS c
+FROM t ORDER BY id;
+
+--echo # window function in filter -> error
+--error ER_WRONG_USAGE
+SELECT test_plugin_count(v) FILTER (WHERE row_number() OVER () > 1) FROM t;
+
+--echo # unknown column in filter -> error
+--error ER_BAD_FIELD_ERROR
+SELECT test_plugin_count(v) FILTER (WHERE nosuch > 1) FROM t;
+
+--echo # HAVING and ORDER BY referencing filtered plugin aggregate
+SELECT g, test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t GROUP BY g
+HAVING test_plugin_count(v) FILTER (WHERE v > 15) > 0 ORDER BY pc DESC, g;
+
+--echo # window, filtered first over sliding frame
+SELECT id, test_plugin_first(v) FILTER (WHERE v > 15) OVER (ORDER BY id) AS pf,
+           test_plugin_count(v) FILTER (WHERE id <> 3) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS pc,
+           count(v) FILTER (WHERE id <> 3) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS c
+FROM t ORDER BY id;
+
+--echo # ROLLUP
+SELECT g, test_plugin_count(v) FILTER (WHERE v > 15) AS pc, count(v) FILTER (WHERE v > 15) AS c FROM t GROUP BY g WITH ROLLUP;
+
+--echo # CREATE TABLE ... SELECT
+CREATE TABLE t3 AS SELECT test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t;
+SELECT * FROM t3;
+DROP TABLE t3;
+
+--echo # filter always false / empty
+SELECT test_plugin_count(v) FILTER (WHERE 0), test_plugin_first(v) FILTER (WHERE 0) FROM t;
+
+DROP TABLE t, t2;

@@ -531,6 +531,10 @@ bool Item_sum_plugin::fix_fields(THD *thd, Item **ref)
       return true;
     with_flags|= args[i]->with_flags & ~item_with_t::FIELD;
   }
+
+  if (fix_filter(thd))
+    return true;
+
   result_field= NULL;
   if (fix_length_and_dec(thd) || check_sum_func(thd, ref))
     return true;
