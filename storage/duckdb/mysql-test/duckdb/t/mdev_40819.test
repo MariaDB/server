@@ -1,0 +1,53 @@
+--source ../include/have_duckdb.inc
+--source include/not_msan.inc
+--disable_warnings
+
+#
+# MDEV-40819 DuckDB TIME values beyond 24 hours
+#
+
+--disable_query_log
+SET @saved_duckdb_dml_in_batch = @@GLOBAL.duckdb_dml_in_batch;
+--enable_query_log
+
+--echo # SQL insert path (dml_in_batch=OFF)
+SET GLOBAL duckdb_dml_in_batch = OFF;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, t TIME) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1, '25:00:00');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, t TIME, t6 TIME(6)) ENGINE=DuckDB;
+INSERT INTO t1 VALUES
+(1, '00:00:00', '00:00:00.000000'),
+(2, '23:59:59', '23:59:59.123456'),
+(3, '24:00:00', '24:00:00.000000'),
+(4, '25:00:00', '25:00:00.123456'),
+(5, '838:59:59', '838:59:59.000000'),
+(6, '-25:00:00', '-25:00:00.123456');
+SELECT * FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--echo # Appender path (dml_in_batch=ON)
+SET GLOBAL duckdb_dml_in_batch = ON;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, t TIME) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1, '25:00:00');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, t TIME, t6 TIME(6)) ENGINE=DuckDB;
+INSERT INTO t1 VALUES
+(1, '00:00:00', '00:00:00.000000'),
+(2, '23:59:59', '23:59:59.123456'),
+(3, '24:00:00', '24:00:00.000000'),
+(4, '25:00:00', '25:00:00.123456'),
+(5, '838:59:59', '838:59:59.000000'),
+(6, '-25:00:00', '-25:00:00.123456');
+SELECT * FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+--disable_query_log
+SET GLOBAL duckdb_dml_in_batch = @saved_duckdb_dml_in_batch;
+--enable_query_log
