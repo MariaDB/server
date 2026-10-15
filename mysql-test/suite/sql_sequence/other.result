@@ -417,3 +417,62 @@ create or replace sequence s;
 insert into t values (default);
 drop sequence s;
 # End of 10.11 tests
+#
+# MDEV-35867 mariadb-check --repair does not repair sequences, only
+# changes the status to OK
+#
+create table t1 (next_not_cached_value bigint(21) NOT NULL,
+minimum_value bigint(21) NOT NULL, maximum_value bigint(21) NOT NULL,
+start_value bigint(21) NOT NULL, increment bigint(21) NOT NULL,
+cache_size bigint(21) unsigned NOT NULL,
+cycle_option tinyint(1) unsigned NOT NULL,
+cycle_count bigint(21) NOT NULL) engine=myisam;
+insert into t1 values (1,1,9223372036854775806,1,1,1000,0,0),
+(2,1,9223372036854775806,1,1,1000,0,0);
+create sequence s1 engine=myisam;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	status	OK
+flush tables;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	Error	Internal error: More than one row in the table
+test.s1	repair	error	Corrupt
+repair table s1 extended;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	Error	Internal error: More than one row in the table
+test.s1	repair	error	Corrupt
+repair table s1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	Error	Internal error: More than one row in the table
+test.s1	repair	error	Corrupt
+select next value for s1;
+next value for s1
+1
+delete from t1;
+flush tables;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	Error	Internal error: Fewer than one row in the table
+test.s1	repair	error	Corrupt
+drop table t1;
+drop sequence s1;
+create table t1 (next_not_cached_value bigint(21) NOT NULL,
+minimum_value bigint(21) NOT NULL, maximum_value bigint(21) NOT NULL,
+start_value bigint(21) NOT NULL, increment bigint(21) NOT NULL,
+cache_size bigint(21) unsigned NOT NULL,
+cycle_option tinyint(1) unsigned NOT NULL,
+cycle_count bigint(21) NOT NULL) engine=innodb;
+insert into t1 values (1,1,9223372036854775806,1,1,1000,0,0),
+(2,1,9223372036854775806,1,1,1000,0,0);
+create sequence s1 engine=innodb;
+alter table s1 discard tablespace;
+flush tables t1 for export;
+unlock tables;
+alter table s1 import tablespace;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	note	The storage engine for the table doesn't support repair
+drop table t1;
+drop sequence s1;
+# End of 11.4 tests
