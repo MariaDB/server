@@ -246,8 +246,12 @@ select * from t1 where a > 10;
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].multi_range_read_info_const_calls[0]');
 select * from t1 where a > 10;
 
+set character_set_results=utf8mb4;
+set lc_messages=hi_IN;
 set @opt_context=json_replace(@saved_opt_context_1, '$.tables[0].name', 'db2.t1');
 select * from t1 where a > 10;
+set lc_messages=default;
+set character_set_results=default;
 
 set optimizer_replay_context="";
 

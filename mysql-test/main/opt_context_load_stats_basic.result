@@ -348,18 +348,22 @@ a	b
 Warnings:
 Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
 Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+set character_set_results=utf8mb4;
+set lc_messages=hi_IN;
 set @opt_context=json_replace(@saved_opt_context_1, '$.tables[0].name', 'db2.t1');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_b doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in list of range contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of table contexts में db1.t1 मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of index contexts में db1.t1.t1_idx_a मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of index contexts में db1.t1.t1_idx_b मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of index contexts में db1.t1.t1_idx_ab मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of table contexts में db1.t1 मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of range contexts में db1.t1.t1_idx_a मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of range contexts में db1.t1.t1_idx_ab मौजूद नहीं है
+Warning	4270	रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: list of table contexts में db1.t1 मौजूद नहीं है
+set lc_messages=default;
+set character_set_results=default;
 set optimizer_replay_context="";
 explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

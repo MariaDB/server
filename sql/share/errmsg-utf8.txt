@@ -12418,3 +12418,4 @@ ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
         eng "Failed to parse saved optimizer context: %s at offset %d."
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
         eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+        hindi "रीप्ले कॉन्टेक्स्ट के आँकड़ों का ऑप्टिमाइज़र के आँकड़ों से मिलान नहीं हो सका: %2$s में %1$s मौजूद नहीं है"
