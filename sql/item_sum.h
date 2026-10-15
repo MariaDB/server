@@ -653,12 +653,14 @@ public:
 /**
   Base class for native aggregate function plugins.
 
-  Derived classes implement clear(), add(), result accessors and copy methods.
-  aggregation_arg() must be used instead of args[] while consuming rows, so
-  DISTINCT replay can substitute values from its internal temporary storage.
-  DISTINCT replay order is unspecified; order-sensitive implementations must
-  override supports_distinct(). Implement supports_removal() and remove() when
-  the state is invertible.
+  Derived classes implement clear(), add_row(), result accessors and copy
+  methods. aggregation_arg() must be used instead of args[] while consuming
+  rows, so DISTINCT replay can substitute values from its internal temporary
+  storage. DISTINCT replay order is unspecified; order-sensitive
+  implementations must override supports_distinct(). Implement
+  supports_removal() and remove_row() when the state is invertible.
+  FILTER (WHERE ...) is applied by add() and remove(): add_row() and
+  remove_row() are called only for rows that passed the filter.
 */
 class Item_sum_plugin : public Item_sum
 {
@@ -673,8 +675,17 @@ public:
   bool fix_fields(THD *thd, Item **ref) override;
   Item *aggregation_arg(uint i) { return aggr->arg_item(i); }
   virtual bool supports_distinct() const { return true; }
+  bool add() override final { return filter_passed() ? add_row() : false; }
+  void remove() override final
+  {
+    if (filter_passed())
+      remove_row();
+  }
   void reset_field() override { DBUG_ASSERT(0); }
   void update_field() override { DBUG_ASSERT(0); }
+protected:
+  virtual bool add_row()= 0;
+  virtual void remove_row() { DBUG_ASSERT(0); }
 };
 
 

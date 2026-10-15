@@ -320,7 +320,7 @@ public:
     value->set_null();
     null_value= true;
   }
-  bool add() override
+  bool add_row() override
   {
     if (!null_value)
       return false;
@@ -479,14 +479,14 @@ public:
     count= 0;
     null_value= false;
   }
-  bool add() override
+  bool add_row() override
   {
     if (!aggr->arg_is_null(false))
       count++;
     return false;
   }
   bool supports_removal() const override { return true; }
-  void remove() override
+  void remove_row() override
   {
     if (aggr->arg_is_null(false))
       return;
