@@ -786,7 +786,8 @@ enum class item_base_t : item_flags_t
                                    // Must be evaluated using val_bool().
                                    // Note, not all items used as a search
                                    // condition set this flag yet.
-  AT_TOP_LEVEL=          (1<<6)    // At top (AND) level of item tree
+  AT_TOP_LEVEL=          (1<<6),   // At top (AND) level of item tree
+  VISITED=               (1<<7)    // Visited by the current Dedup_traversal
 };
 
 
@@ -1090,6 +1091,11 @@ public:
     corresponding JOIN_TAB.
   */
   uint8 join_tab_idx;
+  /*
+    Reached by a reference, e.g. an expression of a merged derived table or
+    view column, so may be shared by many paths, see Dedup_traversal
+  */
+  bool ref_target= false;
 
   inline bool maybe_null() const
   { return (bool) (base_flags & item_base_t::MAYBE_NULL); }
@@ -2299,6 +2305,20 @@ public:
   virtual bool register_field_in_read_map(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
   virtual bool register_field_in_bitmap(void *arg) { return 0; }
+  /*
+    Processors which give the same result when called again for the same
+    item and argument, so walk() can skip the items visited already
+  */
+  static bool is_idempotent_processor(Item_processor processor)
+  {
+    return processor == &Item::register_field_in_read_map ||
+           processor == &Item::register_field_in_write_map ||
+           processor == &Item::register_field_in_bitmap ||
+           processor == &Item::add_field_to_set_processor ||
+           processor == &Item::collect_item_field_processor ||
+           processor == &Item::is_expensive_processor ||
+           processor == &Item::cleanup_is_expensive_cache_processor;
+  }
   virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
 
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
@@ -5709,6 +5729,67 @@ public:
 };
 
 
+/*
+  A traversal of an item tree which visits every item only once.
+
+  The same item can be reachable by many paths, e.g. an expression of a
+  merged derived table or view column referred to several times. Nested
+  derived tables/views make the number of paths exponential (MDEV-31130).
+
+  walk() and update_used_tables() of functions and conditions create an
+  Dedup_traversal on the stack and return if check_and_mark() says the item
+  was visited already. Only items reached by a reference (ref_target) take
+  part, the others cost one flag test. The outermost one owns the traversal
+  and clears the marks at the end, the nested ones join it.
+
+  Only traversals which give the same result when called again for the same
+  item and arguments are deduplicated, see Item::is_idempotent_processor().
+  Nested traversals of a different kind are not deduplicated.
+*/
+class Dedup_traversal
+{
+public:
+  enum Kind { WALK, UPDATE_USED_TABLES };
+private:
+  /* The outermost traversal, NULL if not deduplicated */
+  Dedup_traversal *owner= nullptr;
+  Kind kind;
+  bool flag;
+  bool oom;                               // Not deduplicating anymore
+  Item_processor processor;
+  void *arg;
+  /* Items marked visited, only in the outermost traversal */
+  Item **visited;
+  size_t visited_count, visited_size;
+  void init(Kind kind, Item_processor processor, bool flag, void *arg);
+  void finish();
+  bool mark(Item *item);
+public:
+  /* For walk() */
+  Dedup_traversal(const Item *item, Item_processor processor,
+                  bool walk_subquery, void *arg)
+  {
+    if (item->ref_target && Item::is_idempotent_processor(processor))
+      init(WALK, processor, walk_subquery, arg);
+  }
+  /* For update_used_tables() */
+  Dedup_traversal(const Item *item, Kind kind)
+  {
+    if (item->ref_target)
+      init(kind, nullptr, false, nullptr);
+  }
+  Dedup_traversal(const Dedup_traversal &)= delete;
+  Dedup_traversal &operator=(const Dedup_traversal &)= delete;
+  ~Dedup_traversal()
+  {
+    if (owner == this)
+      finish();
+  }
+  /* Return true if the item was visited already, mark it visited otherwise */
+  bool check_and_mark(Item *item) { return owner && mark(item); }
+};
+
+
 /**
   An abstract class representing common features of
   regular functions and aggregate functions.
@@ -5831,9 +5912,11 @@ public:
     Item_result_field(thd), Item_args(thd, list) { }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
-    if (walk_args(processor, walk_subquery, arg))
-      return true;
-    return (this->*processor)(arg);
+    Dedup_traversal traversal(this, processor, walk_subquery, arg);
+    if (traversal.check_and_mark(this))
+      return false;
+    return walk_args(processor, walk_subquery, arg) ||
+           (this->*processor)(arg);
   }
   /*
     Built-in schema, e.g. mariadb_schema, oracle_schema, maxdb_schema
@@ -6056,8 +6139,11 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
     if (ref && *ref)
+    {
+      (*ref)->ref_target= true;
       return (*ref)->walk(processor, walk_subquery, arg) ||
-             (this->*processor)(arg); 
+             (this->*processor)(arg);
+    }
     else
       return FALSE;
   }
@@ -6454,6 +6540,7 @@ public:
   TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
+    (*ref)->ref_target= true;
     return (*ref)->walk(processor, walk_subquery, arg) ||
            (this->*processor)(arg);
   }

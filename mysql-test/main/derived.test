@@ -1318,4 +1318,107 @@ eval $q;
 
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-31130 INSERT-SELECT with many when/case/if conditions running forever
+--echo #
+
+--echo # Every column reference walks the expression of the derived table
+--echo # column it refers to. Without the fix the queries below take
+--echo # exponential time, i.e. they never finish.
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='derived_merge=on';
+create table t1 (f1 int, f2 int, f3 int, f4 int, f5 int);
+
+--disable_query_log
+let $i= 1;
+let $case= case when f3 > f4 then f4 when f3 > f5 then f5 when f4 > f5 then f3 end s1 from t1;
+let $q_case= select $case;
+eval create view v1 as select $case;
+let $q_or= select f1 or f2 as s1 from t1;
+let $q_nullif= select nullif(f1, f2) as s1 from t1;
+let $q_like= select f1 like f2 as s1 from t1;
+while ($i < 20)
+{
+  let $j= $i;
+  inc $j;
+  let $s= s$i;
+  let $q_or= select $s or $s or $s as s$j from ($q_or) dt$i;
+  let $q_nullif= select nullif(nullif($s, $s), $s) as s$j from ($q_nullif) dt$i;
+  let $q_like= select ($s like $s) like $s as s$j from ($q_like) dt$i;
+  if ($i < 15)
+  {
+    let $case= case when $s > $s then $s when $s > $s then $s when $s > $s then $s end s$j;
+    let $q_case= select $case from ($q_case) dt$i;
+    eval create view v$j as select $case from v$i;
+  }
+  inc $i;
+}
+--enable_query_log
+
+--echo # CASE, 15 levels
+--disable_query_log
+eval $q_case;
+eval prepare stmt from "$q_case";
+--enable_query_log
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # CASE, 15 levels of views
+select * from v15;
+prepare stmt from "select * from v15";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+drop view v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, v1;
+
+--echo # OR, NULLIF, LIKE, 20 levels
+--disable_query_log
+eval $q_or;
+eval $q_nullif;
+eval $q_like;
+--enable_query_log
+
+--echo # GROUP BY, DISTINCT, ORDER BY, 20 levels
+insert into t1 (f1) values (1), (2);
+--disable_query_log
+eval select count(*) from ($q_or) dt group by s20;
+eval select distinct s20 from ($q_or) dt;
+eval select 1 as o from ($q_or) dt order by s20;
+--enable_query_log
+delete from t1;
+
+--echo # Column marking through the derived columns must stay complete
+
+insert into t1 values (1,2,3,4,5), (5,4,3,2,1), (3,3,3,3,3), (2,4,6,8,10);
+
+let $q= select a, s3 from
+(select a, s2 + s2 as s3 from
+  (select a, case when s1 > 3 then s1 else -s1 end s2 from
+    (select f1 as a, f2 + f3 as s1 from t1) dt1) dt2) dt3
+order by s3 + s3, a;
+eval $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+select f1, (select s3 from
+             (select a, s2 + s2 as s3 from
+               (select f1 as a, f2 + f3 as s2 from t1 t2) dt1) dt2
+            where dt2.a = t1.f1 order by s3 limit 1) as s
+from t1 order by f1;
+
+create table t2 (a int, b int, v int as (a + b) virtual);
+insert into t2 (a, b) values (1, 10), (2, 20);
+select * from (select v + v as s2, a from (select v, a from t2) dt1) dt2
+order by s2 + s2;
+update t1, (select s1 + s1 as s2, a from (select v + v as s1, a from t2) dt1) dt2
+set t1.f5= dt2.s2 where t1.f1 = dt2.a;
+select * from t1 order by f1;
+
+drop table t1, t2;
+set optimizer_switch= @save_optimizer_switch;
+
 --echo # End of 10.11 tests
