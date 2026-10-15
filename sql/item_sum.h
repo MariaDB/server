@@ -1975,12 +1975,8 @@ public:
 C_MODE_START
 int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
                                        const void *key2);
-int group_concat_key_cmp_with_distinct_with_nulls(void *arg, const void *key1,
-                                                  const void *key2);
 int group_concat_key_cmp_with_order(void *arg, const void *key1,
                                     const void *key2);
-int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
-                                               const void *key2);
 int dump_leaf_key(void* key_arg,
                   element_count count __attribute__((unused)),
                   void* item_arg);
@@ -2043,14 +2039,8 @@ protected:
 
   friend int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
                                                 const void *key2);
-  friend int group_concat_key_cmp_with_distinct_with_nulls(void *arg,
-                                                           const void *key1,
-                                                           const void *key2);
   friend int group_concat_key_cmp_with_order(void *arg, const void *key1,
                                              const void *key2);
-  friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
-                                                        const void *key1,
-                                                        const void *key2);
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
@@ -2147,10 +2137,6 @@ public:
   void print(String *str, enum_query_type query_type) override;
   bool change_context_processor(void *cntx) override
     { context= (Name_resolution_context *)cntx; return FALSE; }
-  qsort_cmp2 get_comparator_function_for_distinct();
-  qsort_cmp2 get_comparator_function_for_order_by();
-  uchar* get_record_pointer();
-  uint get_null_bytes();
 
 protected:
   Item *shallow_copy(THD *thd) const override
