@@ -1,0 +1,91 @@
+CREATE TABLE t (id INT PRIMARY KEY, g INT, v INT);
+INSERT INTO t VALUES (1,1,10),(2,1,20),(3,2,30),(4,2,NULL),(5,3,50);
+CREATE TABLE t2 (x INT);
+INSERT INTO t2 VALUES (20),(50);
+# prepared statement, executed twice
+PREPARE s FROM 'SELECT test_plugin_count(v) FILTER (WHERE v > ?) FROM t';
+SET @a=15;
+EXECUTE s USING @a;
+test_plugin_count(v) FILTER (WHERE v > ?)
+3
+SET @a=25;
+EXECUTE s USING @a;
+test_plugin_count(v) FILTER (WHERE v > ?)
+2
+DEALLOCATE PREPARE s;
+# stored procedure called twice
+CREATE PROCEDURE p()
+BEGIN
+SELECT g, test_plugin_count(v) FILTER (WHERE v > 15),
+test_plugin_first(v) FILTER (WHERE v > 15) FROM t GROUP BY g ORDER BY g;
+END|
+CALL p();
+g	test_plugin_count(v) FILTER (WHERE v > 15)	test_plugin_first(v) FILTER (WHERE v > 15)
+1	1	20
+2	1	30
+3	1	50
+CALL p();
+g	test_plugin_count(v) FILTER (WHERE v > 15)	test_plugin_first(v) FILTER (WHERE v > 15)
+1	1	20
+2	1	30
+3	1	50
+DROP PROCEDURE p;
+# subquery in filter
+SELECT test_plugin_count(v) FILTER (WHERE v IN (SELECT x FROM t2)) FROM t;
+test_plugin_count(v) FILTER (WHERE v IN (SELECT x FROM t2))
+2
+SELECT count(v) FILTER (WHERE v IN (SELECT x FROM t2)) FROM t;
+count(v) FILTER (WHERE v IN (SELECT x FROM t2))
+2
+# outer reference in filter of subquery aggregate
+SELECT id, (SELECT test_plugin_count(x) FILTER (WHERE x > t.v) FROM t2) AS pc,
+(SELECT count(x) FILTER (WHERE x > t.v) FROM t2) AS c
+FROM t ORDER BY id;
+id	pc	c
+1	2	2
+2	1	1
+3	1	1
+4	0	0
+5	0	0
+# window function in filter -> error
+SELECT test_plugin_count(v) FILTER (WHERE row_number() OVER () > 1) FROM t;
+ERROR HY000: Incorrect usage of window function and FILTER
+# unknown column in filter -> error
+SELECT test_plugin_count(v) FILTER (WHERE nosuch > 1) FROM t;
+ERROR 42S22: Unknown column 'nosuch' in 'SELECT'
+# HAVING and ORDER BY referencing filtered plugin aggregate
+SELECT g, test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t GROUP BY g
+HAVING test_plugin_count(v) FILTER (WHERE v > 15) > 0 ORDER BY pc DESC, g;
+g	pc
+1	1
+2	1
+3	1
+# window, filtered first over sliding frame
+SELECT id, test_plugin_first(v) FILTER (WHERE v > 15) OVER (ORDER BY id) AS pf,
+test_plugin_count(v) FILTER (WHERE id <> 3) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS pc,
+count(v) FILTER (WHERE id <> 3) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS c
+FROM t ORDER BY id;
+id	pf	pc	c
+1	NULL	1	1
+2	20	2	2
+3	20	2	2
+4	20	1	1
+5	20	1	1
+# ROLLUP
+SELECT g, test_plugin_count(v) FILTER (WHERE v > 15) AS pc, count(v) FILTER (WHERE v > 15) AS c FROM t GROUP BY g WITH ROLLUP;
+g	pc	c
+1	1	1
+2	1	1
+3	1	1
+NULL	3	3
+# CREATE TABLE ... SELECT
+CREATE TABLE t3 AS SELECT test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t;
+SELECT * FROM t3;
+pc
+3
+DROP TABLE t3;
+# filter always false / empty
+SELECT test_plugin_count(v) FILTER (WHERE 0), test_plugin_first(v) FILTER (WHERE 0) FROM t;
+test_plugin_count(v) FILTER (WHERE 0)	test_plugin_first(v) FILTER (WHERE 0)
+0	NULL
+DROP TABLE t, t2;
