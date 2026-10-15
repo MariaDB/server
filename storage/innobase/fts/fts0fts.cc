@@ -2040,6 +2040,10 @@ fts_create_one_index_table(
 	dict_table_add_system_columns(new_table, heap);
 	error = row_create_table_for_mysql(new_table, trx);
 
+	DBUG_EXECUTE_IF("fts_index_table_fail",
+			trx->rollback();
+			error = DB_FAIL;);
+
 	if (error == DB_SUCCESS) {
 		dict_index_t*	index = dict_mem_index_create(
 			new_table, "FTS_INDEX_TABLE_IND",

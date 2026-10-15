@@ -25,11 +25,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 #include <winreg.h>
 #include <msi.h>
 #include <msiquery.h>
-#include <wcautil.h>
-#include <strutil.h>
 #include <string.h>
 #include <strsafe.h>
 #include <assert.h>
+#include <stdarg.h>
 #include <shellapi.h>
 #include <stdlib.h>
 #include <winservice.h>
@@ -44,17 +43,45 @@ using namespace std;
 
 
 #define ONE_MB 1048576
-UINT ExecRemoveDataDirectory(wchar_t *dir)
+
+/*
+  Limits of property values. Values that go to fixed size APIs, or have
+  natural limits elsewhere, are rejected if they are longer, instead of
+  being silently truncated.
+*/
+/* The longest service name accepted by CreateService() */
+static const size_t MAX_SERVICENAME_LEN= 256;
+/* TCP port has 5 digits at most */
+static const size_t MAX_PORT_LEN= 5;
+/* Innodb buffer pool size is a number of megabytes */
+static const size_t MAX_BUFFERPOOLSIZE_LEN= 15;
+/* Directory is listed with FindFirstFile(), "*.*" has to fit into MAX_PATH */
+static const size_t MAX_DIRECTORY_LEN= MAX_PATH - 4;
+/*
+  The password ends up in a command line, which is limited to 32767
+  characters, and escaping at most doubles it.
+*/
+static const size_t MAX_PASSWORD_LEN= 8192;
+
+UINT ExecRemoveDataDirectory(std::wstring dir)
 {
-   /* Strip stray backslash */
-  DWORD len = (DWORD)wcslen(dir);
-  if(len > 0 && dir[len-1]==L'\\')
-    dir[len-1] = 0;
+  /* Strip stray backslash */
+  if (!dir.empty() && dir.back() == L'\\')
+    dir.pop_back();
+  if (dir.empty())
+    return ERROR_INVALID_PARAMETER;
+
+  /*
+    pFrom is a list of names, every name ends with NUL, and the list ends
+    with one more. The explicit NUL, together with the one that string
+    always has, makes it a list of a single name.
+  */
+  dir.push_back(L'\0');
 
   SHFILEOPSTRUCTW fileop;
   fileop.hwnd= NULL;    /* no status display */
   fileop.wFunc= FO_DELETE;  /* delete operation */
-  fileop.pFrom= dir;  /* source file name as double null terminated string */
+  fileop.pFrom= dir.c_str();  /* source file name, double null terminated */
   fileop.pTo= NULL;    /* no destination needed */
   fileop.fFlags= FOF_NOCONFIRMATION|FOF_SILENT;  /* do not prompt the user */
 
@@ -65,111 +92,143 @@ UINT ExecRemoveDataDirectory(wchar_t *dir)
   return SHFileOperationW(&fileop);
 }
 
+// Write a message to the MSI log
+static void WriteMsiLog(MSIHANDLE hInstall, const wchar_t *str)
+{
+  PMSIHANDLE hRecord= MsiCreateRecord(1);
+  if (hRecord)
+  {
+    MsiRecordSetStringW(hRecord, 0, str);
+    MsiProcessMessage(hInstall, INSTALLMESSAGE_INFO, hRecord);
+  }
+}
+
+// Log a formatted message, prefixed with the function name, to the MSI log.
+static void LogMessage(MSIHANDLE hInstall, const char *function,
+                       const wchar_t *format, ...)
+{
+  wchar_t buf[1024];
+  int prefix_len= _snwprintf_s(buf, _TRUNCATE, L"MariaDB_CA %S:", function);
+  if (prefix_len < 0)
+    prefix_len= 0;
+  va_list args;
+  va_start(args, format);
+  _vsnwprintf_s(buf + prefix_len, ARRAYSIZE(buf) - prefix_len, _TRUNCATE,
+                format, args);
+  va_end(args);
+  WriteMsiLog(hInstall, buf);
+}
+
+/* Needs hInstall in scope, the format has to be a wide string literal. */
+#define Log(...) LogMessage(hInstall, __FUNCTION__, __VA_ARGS__)
+
+/*
+  Get the value of an MSI property, whatever its length is.
+  A property that is not set has an empty value.
+
+  Returns false (and logs) if the value can't be retrieved. Callers must not
+  use the property then, a truncated value, e.g path, is worse than no value.
+*/
+static bool GetProperty(MSIHANDLE hInstall, const wchar_t *name,
+                        std::wstring &value)
+{
+  wchar_t buf[MAX_PATH];
+  DWORD len= MAX_PATH;
+  UINT er= MsiGetPropertyW(hInstall, name, buf, &len);
+  if (er == ERROR_SUCCESS)
+  {
+    value.assign(buf, len);
+    return true;
+  }
+  if (er == ERROR_MORE_DATA)
+  {
+    /* len is the required length, without the terminating NUL */
+    std::wstring tmp(len + 1, L'\0');
+    len++;
+    er= MsiGetPropertyW(hInstall, name, &tmp[0], &len);
+    if (er == ERROR_SUCCESS)
+    {
+      tmp.resize(len);
+      value.swap(tmp);
+      return true;
+    }
+  }
+  Log(L"Cannot get property %s, error %u", name, er);
+  value.clear();
+  return false;
+}
 
 extern "C" UINT __stdcall RemoveDataDirectory(MSIHANDLE hInstall)
 {
-  HRESULT hr = S_OK;
-  UINT er = ERROR_SUCCESS;
-  wchar_t dir[MAX_PATH];
-  DWORD len = MAX_PATH;
+  std::wstring dir;
+  UINT er;
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  Log(L"Initialized.");
 
-  MsiGetPropertyW(hInstall, L"CustomActionData", dir, &len);
+  /* Never delete, if the directory is not known for sure. */
+  if (!GetProperty(hInstall, L"CustomActionData", dir) || dir.empty())
+  {
+    Log(L"Directory to remove is not known, nothing is removed");
+    return ERROR_INSTALL_FAILURE;
+  }
 
   er= ExecRemoveDataDirectory(dir);
-  WcaLog(LOGMSG_STANDARD, "SHFileOperation returned %d", er);
-LExit:
-  return WcaFinalize(er);
+  Log(L"Removing %s returned %u", dir.c_str(), er);
+  return er;
 }
 
 /*
-  Escape command line parameter fpr pass to CreateProcess().
+  Escape command line parameter for pass to CreateProcess().
 
-  We assume out has enough space to include encoded string
-  2*wcslen(in) is enough.
-
-  It is assumed that called will add double quotation marks before and after
-  the string.
+  The caller adds double quotation marks before and after the string, so
+  the backslashes at the end of the string are always escaped, the
+  closing quotation mark would be taken as escaped otherwise.
 */
-static void EscapeCommandLine(const wchar_t *in, wchar_t *out, size_t buflen)
+static std::wstring EscapeCommandLine(const std::wstring &in)
 {
-  const wchar_t special_chars[]=L" \t\n\v\"";
-  bool needs_escaping= false;
-  size_t pos;
-
-  for(size_t i=0; i< sizeof(special_chars) -1; i++)
+  std::wstring out;
+  for (size_t i= 0;; i++)
   {
-    if (wcschr(in, special_chars[i]))
-    {
-      needs_escaping = true;
-      break;
-    }
-  }
-
-  if(!needs_escaping)
-  {
-    wcscpy_s(out, buflen, in);
-    return;
-  }
-
-  pos= 0;
-  for(int i = 0 ; ; i++)
-  {
-    size_t n_backslashes = 0;
-    wchar_t c;
-    while (in[i] == L'\\')
+    size_t n_backslashes= 0;
+    while (i < in.length() && in[i] == L'\\')
     {
       i++;
       n_backslashes++;
     }
 
-    c= in[i];
-    if (c == 0)
+    if (i == in.length())
     {
       /*
         Escape all backslashes, but let the terminating double quotation mark
         that caller adds be interpreted as a metacharacter.
       */
-      for(size_t j= 0; j < 2*n_backslashes;j++)
-      {
-        out[pos++]=L'\\';
-      }
+      out.append(2*n_backslashes, L'\\');
       break;
     }
-    else if (c == L'"')
+
+    if (in[i] == L'"')
     {
       /*
         Escape all backslashes and the following double quotation mark.
       */
-      for(size_t j= 0; j < 2*n_backslashes + 1; j++)
-      {
-        out[pos++]=L'\\';
-      }
-      out[pos++]= L'"';
+      out.append(2*n_backslashes + 1, L'\\');
+      out.push_back(L'"');
     }
     else
     {
       /* Backslashes aren't special here. */
-      for (size_t j=0; j < n_backslashes; j++)
-        out[pos++] = L'\\';
-
-      out[pos++]= c;
+      out.append(n_backslashes, L'\\');
+      out.push_back(in[i]);
     }
   }
-  out[pos++]= 0;
+  return out;
 }
 
-bool IsDirectoryEmptyOrNonExisting(const wchar_t *dir) {
-  wchar_t wildcard[MAX_PATH+3];
+bool IsDirectoryEmptyOrNonExisting(const std::wstring &dir) {
   WIN32_FIND_DATAW data;
   HANDLE h;
-  wcscpy_s(wildcard, MAX_PATH, dir);
-  wcscat_s(wildcard, MAX_PATH, L"*.*");
   bool empty= true;
-  h= FindFirstFile(wildcard, &data);
+  h= FindFirstFileW((dir + L"*.*").c_str(), &data);
   if (h != INVALID_HANDLE_VALUE)
   {
     for (;;)
@@ -179,7 +238,7 @@ bool IsDirectoryEmptyOrNonExisting(const wchar_t *dir) {
         empty= false;
         break;
       }
-      if (!FindNextFile(h, &data))
+      if (!FindNextFileW(h, &data))
         break;
     }
     FindClose(h);
@@ -189,27 +248,28 @@ bool IsDirectoryEmptyOrNonExisting(const wchar_t *dir) {
 
 extern "C" UINT __stdcall CheckInstallDirectory(MSIHANDLE hInstall)
 {
-  HRESULT hr= S_OK;
-  UINT er= ERROR_SUCCESS;
-  wchar_t *path= 0;
+  std::wstring path;
 
-  hr= WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaGetFormattedString(L"[INSTALLDIR]", &path);
-  if (!IsDirectoryEmptyOrNonExisting(path))
+  if (!GetProperty(hInstall, L"INSTALLDIR", path))
+    return ERROR_INSTALL_FAILURE;
+
+  if (path.length() > MAX_DIRECTORY_LEN)
+  {
+    MsiSetPropertyW(hInstall, L"INSTALLDIRERROR",
+                    L"Installation directory path is too long");
+  }
+  else if (!IsDirectoryEmptyOrNonExisting(path))
   {
     wchar_t msg[2*MAX_PATH];
-    swprintf(msg,countof(msg), L"Installation directory '%s' exists and is not empty. Choose a "
-                  "different install directory",path);
-    WcaSetProperty(L"INSTALLDIRERROR", msg);
-    goto LExit;
+    swprintf(msg,ARRAYSIZE(msg), L"Installation directory '%s' exists and is not empty. Choose a "
+                  "different install directory",path.c_str());
+    MsiSetPropertyW(hInstall,L"INSTALLDIRERROR", msg);
   }
-
-  WcaSetProperty(L"INSTALLDIRERROR", L"");
-
-LExit:
-  ReleaseStr(path);
-  return WcaFinalize(er);
+  else
+  {
+    MsiSetPropertyW(hInstall, L"INSTALLDIRERROR", L"");
+  }
+  return ERROR_SUCCESS;
 }
 
 /*
@@ -223,61 +283,53 @@ LExit:
 */
 extern "C" UINT __stdcall CheckDataDirectory(MSIHANDLE hInstall)
 {
-  HRESULT hr= S_OK;
-  UINT er= ERROR_SUCCESS;
-  wchar_t datadir[MAX_PATH];
-  DWORD len= MAX_PATH;
-  bool empty;
-  wchar_t *path= 0;
+  std::wstring datadir;
+  std::wstring installdir;
 
-  MsiGetPropertyW(hInstall, L"DATADIR", datadir, &len);
-  hr= WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  if (!GetProperty(hInstall, L"DATADIR", datadir) ||
+      !GetProperty(hInstall, L"INSTALLDIR", installdir))
+    return ERROR_INSTALL_FAILURE;
 
-  WcaLog(LOGMSG_STANDARD, "Checking files in %S", datadir);
-  empty= IsDirectoryEmptyOrNonExisting(datadir);
-  if (empty)
-    WcaLog(LOGMSG_STANDARD, "DATADIR is empty or non-existent");
-  else
-    WcaLog(LOGMSG_STANDARD, "DATADIR is NOT empty");
-
-  if (!empty)
+  Log(L"Checking files in %s", datadir.c_str());
+  if (datadir.length() > MAX_DIRECTORY_LEN)
   {
-    WcaSetProperty(L"DATADIRERROR", L"data directory exist and not empty");
-    goto LExit;
+    MsiSetPropertyW(hInstall, L"DATADIRERROR",
+                    L"data directory path is too long");
+    return ERROR_SUCCESS;
   }
-  WcaSetProperty(L"DATADIRERROR", L"");
 
-
-  WcaGetFormattedString(L"[INSTALLDIR]",&path);
-  if (path && !wcsicmp(datadir, path))
+  if (!IsDirectoryEmptyOrNonExisting(datadir))
   {
-    WcaSetProperty(L"DATADIRERROR", L"data directory can not be "
+    Log(L"DATADIR is NOT empty");
+    MsiSetPropertyW(hInstall, L"DATADIRERROR",
+                    L"data directory exists and is not empty");
+    return ERROR_SUCCESS;
+  }
+  Log(L"DATADIR is empty or non-existent");
+  MsiSetPropertyW(hInstall, L"DATADIRERROR", L"");
+  Log(L"INSTALLDIR check");
+
+  if (!_wcsicmp(datadir.c_str(), installdir.c_str()))
+  {
+    MsiSetPropertyW(hInstall, L"DATADIRERROR", L"data directory can not be "
                                     L"installation root directory");
-    ReleaseStr(path);
-    goto LExit;
+    return ERROR_SUCCESS;
   }
   for (auto dir :
-       {L"[INSTALLDIR]bin\\", L"[INSTALLDIR]include\\",
-        L"[INSTALLDIR]lib\\", L"[INSTALLDIR]share\\"})
+       {L"bin\\", L"include\\",
+        L"lib\\", L"share\\"})
   {
-    WcaGetFormattedString(dir, &path);
-    if (path && !wcsnicmp(datadir, path, wcslen(path)))
+    std::wstring localpath= installdir + dir;
+    if (!_wcsnicmp(datadir.c_str(), localpath.c_str(), localpath.length()))
     {
-      const wchar_t *subdir= dir + sizeof("[INSTALLDIR]") - 1;
       wchar_t msg[MAX_PATH]= L"data directory conflicts with '";
-      wcsncat_s(msg, subdir, wcslen(subdir) - 1);
+      wcsncat_s(msg, dir, wcslen(dir) - 1);
       wcscat_s(msg, L"' directory, which is part of this installation");
-      WcaSetProperty(L"DATADIRERROR", msg);
-      ReleaseStr(path);
-      goto LExit;
+      MsiSetPropertyW(hInstall, L"DATADIRERROR", msg);
+      return ERROR_SUCCESS;
     }
-    ReleaseStr(path);
-    path= 0;
   }
-LExit:
-  return WcaFinalize(er);
+  return ERROR_SUCCESS;
 }
 
 
@@ -317,7 +369,9 @@ bool ExecRemoveService(const wchar_t *name)
    {
      ret= false;
    }
+   DWORD error= GetLastError();
    CloseServiceHandle(manager);
+   SetLastError(error);
    return ret;
 }
 
@@ -425,6 +479,13 @@ wchar_t *strip_quotes(wchar_t *s)
 }
 
 
+/* Uninstall does not touch the service and the data directory then */
+static void KeepServiceAndData(MSIHANDLE hInstall)
+{
+  MsiSetPropertyW(hInstall, L"SERVICENAME", L"");
+  MsiSetPropertyW(hInstall, L"CLEANUPDATA", L"");
+}
+
 /*
   Checks  for consistency of service configuration.
 
@@ -449,10 +510,11 @@ wchar_t *strip_quotes(wchar_t *s)
 */
 
 void CheckServiceConfig(
-  wchar_t *my_servicename,    /* SERVICENAME property in this installation*/
-  wchar_t *datadir,           /* DATADIR property in this installation*/
-  wchar_t *bindir,            /* INSTALLDIR\bin */
-  wchar_t *other_servicename, /* Service to check against */
+  MSIHANDLE hInstall,         /* MSI handle */
+  const wchar_t *my_servicename,    /* SERVICENAME property in this installation*/
+  const wchar_t *datadir,           /* DATADIR property in this installation*/
+  const wchar_t *bindir,            /* INSTALLDIR\bin */
+  const wchar_t *other_servicename, /* Service to check against */
   QUERY_SERVICE_CONFIGW * config /* Other service's config */
   )
 {
@@ -462,29 +524,29 @@ void CheckServiceConfig(
   int numargs;
   wchar_t **argv= CommandLineToArgvW(commandline, &numargs);
   wchar_t current_datadir_buf[MAX_PATH]={0};
-  wchar_t normalized_current_datadir[MAX_PATH+1];
+  wchar_t normalized_current_datadir[MAX_PATH+1]= {0};
   wchar_t *current_datadir;
   wchar_t *defaults_file;
   bool is_my_service;
 
-  WcaLog(LOGMSG_VERBOSE, "CommandLine= %S", commandline);
+  Log(L"CommandLine= %s", commandline);
   if(!argv  ||  !argv[0]  || ! wcsstr(argv[0], L"mysqld"))
   {
     goto end;
   }
 
-  WcaLog(LOGMSG_STANDARD, "MySQL/MariaDB service %S found: CommandLine= %S",
+  Log(L"MySQL/MariaDB service %s found: CommandLine= %s",
     other_servicename, commandline);
   if (wcsstr(argv[0], bindir))
   {
-    WcaLog(LOGMSG_STANDARD, "executable under bin directory");
+   Log(L"executable under bin directory");
     same_bindir = true;
   }
 
   is_my_service = (_wcsicmp(my_servicename, other_servicename) == 0);
   if(!is_my_service)
   {
-    WcaLog(LOGMSG_STANDARD, "service does not match current service");
+    Log(L"service does not match current service");
     /*
       TODO probably the best thing possible would be to add temporary
       row to MSI ServiceConfig table with remove on uninstall
@@ -492,10 +554,9 @@ void CheckServiceConfig(
   }
   else if (!same_bindir)
   {
-    WcaLog(LOGMSG_STANDARD,
-      "Service name matches, but not the executable path directory, mine is %S",
+    Log(L"Service name matches, but not the executable path directory, mine is %s",
       bindir);
-    WcaSetProperty(L"SERVICENAME", L"");
+    MsiSetPropertyW(hInstall,L"SERVICENAME", L"");
   }
 
   /* Check if data directory is used */
@@ -508,17 +569,16 @@ void CheckServiceConfig(
   defaults_file= argv[1]+16;
   defaults_file= strip_quotes(defaults_file);
 
-  WcaLog(LOGMSG_STANDARD, "parsed defaults file is %S", defaults_file);
+  Log(L"parsed defaults file is %s", defaults_file);
 
   if (GetPrivateProfileStringW(L"mysqld", L"datadir", NULL, current_datadir,
     MAX_PATH, defaults_file) == 0)
   {
-    WcaLog(LOGMSG_STANDARD,
-      "Cannot find datadir in ini file '%S'", defaults_file);
+    Log(L"Cannot find datadir in ini file '%s'", defaults_file);
     goto end;
   }
 
-  WcaLog(LOGMSG_STANDARD, "datadir from defaults-file is %S", current_datadir);
+  Log(L"datadir from defaults-file is %s", current_datadir);
   strip_quotes(current_datadir);
 
   /* Convert to Windows path */
@@ -526,16 +586,15 @@ void CheckServiceConfig(
     NULL))
   {
     /* Add backslash to be compatible with directory formats in MSI */
-    wcsncat(normalized_current_datadir, L"\\", MAX_PATH+1);
-    WcaLog(LOGMSG_STANDARD, "normalized current datadir is '%S'",
+    wcscat_s(normalized_current_datadir, L"\\");
+    Log(L"normalized current datadir is '%s'",
       normalized_current_datadir);
   }
 
   if (_wcsicmp(datadir, normalized_current_datadir) == 0 && !same_bindir)
   {
-    WcaLog(LOGMSG_STANDARD,
-      "database directory from current installation, but different mysqld.exe");
-    WcaSetProperty(L"CLEANUPDATA", L"");
+    Log(L"database directory from current installation, but different mysqld.exe");
+    MsiSetPropertyW(hInstall,L"CLEANUPDATA", L"");
   }
 
 end:
@@ -565,12 +624,11 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
 {
   static BYTE buf[256*1024]; /* largest possible buffer for EnumServices */
   static char config_buffer[8*1024]; /*largest buffer for QueryServiceConfig */
-  HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
-  wchar_t *servicename= NULL;
-  wchar_t *datadir= NULL;
-  wchar_t *bindir=NULL;
-
+  std::wstring servicename;
+  std::wstring datadir;
+  std::wstring installdir;
+  std::wstring bindir;
   SC_HANDLE scm    = NULL;
   ULONG  bufsize   = sizeof(buf);
   ULONG  bufneed   = 0x00;
@@ -578,22 +636,34 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   LPENUM_SERVICE_STATUS_PROCESS info = NULL;
   BOOL ok;
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  Log(L"Initialized.");
+  /*
+    Do not guess. Without INSTALLDIR, bindir would be just "bin\", which
+    would match services of other installations.
+  */
+  if (!GetProperty(hInstall, L"SERVICENAME", servicename) ||
+      !GetProperty(hInstall, L"DATADIR", datadir) ||
+      !GetProperty(hInstall, L"INSTALLDIR", installdir) ||
+      installdir.empty())
+  {
+    Log(L"SERVICENAME, DATADIR or INSTALLDIR is not known, service and data "
+        L"are kept");
+    KeepServiceAndData(hInstall);
+    return ERROR_INSTALL_FAILURE;
+  }
+  /* INSTALLDIR ends with backslash */
+  bindir= installdir + L"bin\\";
 
-  WcaGetProperty(L"SERVICENAME", &servicename);
-  WcaGetProperty(L"DATADIR", &datadir);
-  WcaGetFormattedString(L"[INSTALLDIR]bin\\", &bindir);
-
-  WcaLog(LOGMSG_STANDARD,"SERVICENAME=%S, DATADIR=%S, bindir=%S",
-    servicename, datadir, bindir);
+  Log(L"SERVICENAME=%s, DATADIR=%s, bindir=%s", servicename.c_str(),
+      datadir.c_str(), bindir.c_str());
 
   scm = OpenSCManager(NULL, NULL,
     SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
   if (scm == NULL)
   {
-    ExitOnFailure(E_FAIL, "OpenSCManager failed");
+    Log(L"OpenSCManager failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
   }
 
   ok = EnumServicesStatusExW(  scm,
@@ -608,8 +678,9 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
     NULL);
   if(!ok)
   {
-    WcaLog(LOGMSG_STANDARD, "last error %d", GetLastError());
-    ExitOnFailure(E_FAIL, "EnumServicesStatusExW failed");
+    Log(L"EnumServicesStatusExW failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
   }
   info = (LPENUM_SERVICE_STATUS_PROCESS)buf;
   for (ULONG i=0; i < num_services; i++)
@@ -618,7 +689,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
       SERVICE_QUERY_CONFIG);
     if (!service)
       continue;
-    WcaLog(LOGMSG_VERBOSE, "Checking Service %S", info[i].lpServiceName);
+    Log(L"Checking Service %s", info[i].lpServiceName);
     QUERY_SERVICE_CONFIGW *config=
       (QUERY_SERVICE_CONFIGW *)(void *)config_buffer;
     DWORD needed;
@@ -627,19 +698,17 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
     CloseServiceHandle(service);
     if (ok)
     {
-       CheckServiceConfig(servicename, datadir, bindir, info[i].lpServiceName,
-         config);
+       CheckServiceConfig(hInstall, servicename.c_str(), datadir.c_str(),
+         bindir.c_str(), info[i].lpServiceName, config);
     }
   }
 
 LExit:
+  if(er)
+    KeepServiceAndData(hInstall);
   if(scm)
     CloseServiceHandle(scm);
-
-  ReleaseStr(servicename);
-  ReleaseStr(datadir);
-  ReleaseStr(bindir);
-  return WcaFinalize(er);
+  return er;
 }
 
 /*
@@ -678,48 +747,48 @@ static constexpr unsigned long long minBufferpoolMB= 20;
 */
 extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
 {
-  wchar_t ServiceName[MAX_PATH]={0};
-  wchar_t SkipNetworking[MAX_PATH]={0};
-  wchar_t QuickConfig[MAX_PATH]={0};
-  wchar_t Password[MAX_PATH]={0};
-  wchar_t EscapedPassword[2*MAX_PATH+2];
-  wchar_t Port[6];
-  wchar_t BufferPoolSize[16];
-  DWORD PortLen=6;
-  bool haveInvalidPort=false;
+  std::wstring ServiceName;
+  std::wstring SkipNetworking;
+  std::wstring QuickConfig;
+  std::wstring Password;
+  std::wstring EscapedPassword;
+  std::wstring Port;
+  std::wstring BufferPoolSize;
+  wchar_t invalidValueMsg[256];
   const wchar_t *ErrorMsg=0;
-  HRESULT hr= S_OK;
+  bool tooLong= false;
   UINT er= ERROR_SUCCESS;
-  DWORD ServiceNameLen = MAX_PATH;
-  DWORD QuickConfigLen = MAX_PATH;
-  DWORD PasswordLen= MAX_PATH;
-  DWORD SkipNetworkingLen= MAX_PATH;
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  Log(L"Initialized.");
 
-
-  MsiGetPropertyW (hInstall, L"SERVICENAME", ServiceName, &ServiceNameLen);
-  if(ServiceName[0])
+  if (!GetProperty(hInstall, L"SERVICENAME", ServiceName) ||
+      !GetProperty(hInstall, L"PASSWORD", Password) ||
+      !GetProperty(hInstall, L"SKIPNETWORKING", SkipNetworking) ||
+      !GetProperty(hInstall, L"PORT", Port) ||
+      !GetProperty(hInstall, L"STDCONFIG", QuickConfig) ||
+      !GetProperty(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize))
   {
-    if(ServiceNameLen > 256)
+    er= ERROR_INSTALL_FAILURE;
+    ErrorMsg= L"Internal error, can't read installation properties.";
+    goto LExit;
+  }
+
+  if(!ServiceName.empty())
+  {
+    if(ServiceName.length() > MAX_SERVICENAME_LEN)
     {
       ErrorMsg= L"Invalid service name. The maximum length is 256 characters.";
+      tooLong= true;
       goto LExit;
     }
-    for(DWORD i=0; i< ServiceNameLen;i++)
+    if(ServiceName.find_first_of(L"\\/'\"") != std::wstring::npos)
     {
-      if(ServiceName[i] == L'\\' || ServiceName[i] == L'/'
-        || ServiceName[i]=='\'' || ServiceName[i] ==L'"')
-      {
-        ErrorMsg =
-          L"Invalid service name. Forward slash and back slash are forbidden."
-          L"Single and double quotes are also not permitted.";
-        goto LExit;
-      }
+      ErrorMsg =
+        L"Invalid service name. Forward slash and back slash are forbidden. "
+        L"Single and double quotes are also not permitted.";
+      goto LExit;
     }
-    if(CheckServiceExists(ServiceName))
+    if(CheckServiceExists(ServiceName.c_str()))
     {
       ErrorMsg=
         L"A service with the same name already exists. "
@@ -728,37 +797,38 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
     }
   }
 
-  MsiGetPropertyW (hInstall, L"PASSWORD", Password, &PasswordLen);
-  EscapeCommandLine(Password, EscapedPassword,
-    sizeof(EscapedPassword)/sizeof(EscapedPassword[0]));
-  MsiSetPropertyW(hInstall,L"ESCAPEDPASSWORD",EscapedPassword);
-
-  MsiGetPropertyW(hInstall, L"SKIPNETWORKING", SkipNetworking,
-    &SkipNetworkingLen);
-  MsiGetPropertyW(hInstall, L"PORT", Port, &PortLen);
-
-  if(SkipNetworking[0]==0 && Port[0] != 0)
+  if(Password.length() > MAX_PASSWORD_LEN)
   {
-    /* Strip spaces */
-    for(DWORD i=PortLen-1; i > 0; i--)
-    {
-      if(Port[i]== ' ')
-        Port[i] = 0;
-    }
+    ErrorMsg= L"The password is too long. The maximum length is 8192 characters.";
+    tooLong= true;
+    goto LExit;
+  }
+  EscapedPassword= EscapeCommandLine(Password);
+  MsiSetPropertyW(hInstall,L"ESCAPEDPASSWORD",EscapedPassword.c_str());
 
-    if(PortLen > 5 || PortLen <= 3)
+  if(SkipNetworking.empty() && !Port.empty())
+  {
+    bool haveInvalidPort= false;
+
+    /* Strip trailing spaces */
+    while(!Port.empty() && Port.back() == L' ')
+      Port.pop_back();
+
+    if(Port.length() > MAX_PORT_LEN || Port.length() < 4)
       haveInvalidPort = true;
     else
     {
-      for (DWORD i=0; i< PortLen && Port[i] != 0;i++)
+      for (wchar_t c : Port)
       {
-        if(Port[i] < '0' || Port[i] >'9')
+        if(c < L'0' || c > L'9')
         {
           haveInvalidPort=true;
           break;
         }
       }
     }
+    if(!haveInvalidPort && _wtoi(Port.c_str()) > 65535)
+      haveInvalidPort= true;
     if (haveInvalidPort)
     {
       ErrorMsg =
@@ -766,7 +836,7 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
       goto LExit;
     }
 
-    unsigned short port = (unsigned short)_wtoi(Port);
+    unsigned short port = (unsigned short)_wtoi(Port.c_str());
     if (!IsPortFree(port))
     {
       ErrorMsg =
@@ -776,43 +846,35 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
     }
   }
 
-  MsiGetPropertyW (hInstall, L"STDCONFIG", QuickConfig, &QuickConfigLen);
-  if(QuickConfig[0] !=0)
+  if(!QuickConfig.empty())
   {
      MEMORYSTATUSEX memstatus;
      memstatus.dwLength =sizeof(memstatus);
-     wchar_t invalidValueMsg[256];
 
      if (!GlobalMemoryStatusEx(&memstatus))
      {
-        WcaLog(LOGMSG_STANDARD, "Error %u from GlobalMemoryStatusEx",
-          GetLastError());
-        er= ERROR_INSTALL_FAILURE;
-        goto LExit;
+       Log(L"Error %u from GlobalMemoryStatusEx", GetLastError());
+       er= ERROR_INSTALL_FAILURE;
+       goto LExit;
      }
-     DWORD BufferPoolSizeLen= 16;
-     MsiGetPropertyW(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize, &BufferPoolSizeLen);
-     /* Strip spaces */
-     for(DWORD i=BufferPoolSizeLen-1; i > 0; i--)
-     {
-      if(BufferPoolSize[i]== ' ')
-        BufferPoolSize[i] = 0;
-     }
+     /* Strip trailing spaces */
+     while(!BufferPoolSize.empty() && BufferPoolSize.back() == L' ')
+       BufferPoolSize.pop_back();
+
      unsigned long long availableMemory=
        GetMaxBufferSize(memstatus.ullTotalPhys)/ONE_MB;
      swprintf_s(invalidValueMsg,
         L"Invalid buffer pool size. Please use a number between %llu and %llu",
          minBufferpoolMB, availableMemory);
-     if (BufferPoolSizeLen == 0 || BufferPoolSizeLen > 15 || !BufferPoolSize[0])
+     if (BufferPoolSize.empty() || BufferPoolSize.length() > MAX_BUFFERPOOLSIZE_LEN)
      {
        ErrorMsg= invalidValueMsg;
        goto LExit;
      }
 
-     BufferPoolSize[BufferPoolSizeLen]=0;
-     MsiSetPropertyW(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize);
+     MsiSetPropertyW(hInstall, L"BUFFERPOOLSIZE", BufferPoolSize.c_str());
      wchar_t *end;
-     unsigned long long sz = wcstoull(BufferPoolSize, &end, 10);
+     unsigned long long sz = wcstoull(BufferPoolSize.c_str(), &end, 10);
      if (sz > availableMemory || sz < minBufferpoolMB || *end)
      {
        if (*end == 0)
@@ -839,7 +901,17 @@ extern "C" UINT  __stdcall CheckDatabaseProperties (MSIHANDLE hInstall)
   }
 LExit:
   MsiSetPropertyW (hInstall, L"WarningText", ErrorMsg);
-  return WcaFinalize(er);
+  /*
+    Only the full UI shows the message. Without it, do not go on with a value
+    that was not accepted, e.g an empty password instead of a too long one.
+  */
+  if (ErrorMsg && tooLong &&
+      MsiEvaluateConditionW(hInstall, L"UILevel < 5") == MSICONDITION_TRUE)
+  {
+    Log(L"%s", ErrorMsg);
+    er= ERROR_INSTALL_FAILURE;
+  }
+  return er;
 }
 
 /*
@@ -851,30 +923,41 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
 {
   unsigned long long InnodbBufferPoolSize= 256;
   unsigned long long InnodbLogFileSize= 100;
-  wchar_t buff[MAX_PATH];
+  std::wstring BufferPoolSizeParam;
+  wchar_t buff[32];
   UINT er = ERROR_SUCCESS;
-  HRESULT hr= S_OK;
   MEMORYSTATUSEX memstatus;
-  DWORD BufferPoolsizeParamLen = MAX_PATH;
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  Log(L"Initialized.");
 
   /* Check if bufferpoolsize parameter was given on the command line*/
-  MsiGetPropertyW(hInstall, L"BUFFERPOOLSIZE", buff, &BufferPoolsizeParamLen);
-
-  if (BufferPoolsizeParamLen && buff[0])
+  if (!GetProperty(hInstall, L"BUFFERPOOLSIZE", BufferPoolSizeParam))
   {
-    WcaLog(LOGMSG_STANDARD, "BUFFERPOOLSIZE=%S, len=%u",buff, BufferPoolsizeParamLen);
-    InnodbBufferPoolSize= _wtoi64(buff);
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
+  }
+
+  while (!BufferPoolSizeParam.empty() && BufferPoolSizeParam.back() == L' ')
+    BufferPoolSizeParam.pop_back();
+  if (BufferPoolSizeParam.length() > MAX_BUFFERPOOLSIZE_LEN ||
+      BufferPoolSizeParam.find_first_not_of(L"0123456789") != std::wstring::npos)
+  {
+    Log(L"Invalid BUFFERPOOLSIZE %s is ignored, the default is used",
+        BufferPoolSizeParam.c_str());
+    BufferPoolSizeParam.clear();
+  }
+
+  if (!BufferPoolSizeParam.empty())
+  {
+    Log(L"BUFFERPOOLSIZE=%s, len=%u", BufferPoolSizeParam.c_str(),
+        (unsigned)BufferPoolSizeParam.length());
+    InnodbBufferPoolSize= _wtoi64(BufferPoolSizeParam.c_str());
   }
   else
   {
     memstatus.dwLength = sizeof(memstatus);
     if (!GlobalMemoryStatusEx(&memstatus))
     {
-       WcaLog(LOGMSG_STANDARD, "Error %u from GlobalMemoryStatusEx",
-         GetLastError());
+       Log(L"Error %u from GlobalMemoryStatusEx",GetLastError());
        er= ERROR_INSTALL_FAILURE;
        goto LExit;
     }
@@ -898,37 +981,30 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
   MsiSetPropertyW(hInstall, L"LOGFILESIZE", buff);
 
 LExit:
-  return WcaFinalize(er);
+  return er;
 }
 
-static BOOL FindErrorLog(const wchar_t *dir, wchar_t * ErrorLogFile, size_t ErrorLogLen)
+static bool FindErrorLog(const std::wstring &dir, std::wstring &ErrorLogFile)
 {
-  WIN32_FIND_DATA FindFileData;
-  HANDLE hFind;
-  wchar_t name[MAX_PATH];
-  wcsncpy_s(name,dir, MAX_PATH);
-  wcsncat_s(name,L"\\*.err", MAX_PATH);
-  hFind = FindFirstFileW(name,&FindFileData);
-  if (hFind != INVALID_HANDLE_VALUE)
-  {
-    _snwprintf(ErrorLogFile, ErrorLogLen,
-      L"%s\\%s",dir, FindFileData.cFileName);
-    FindClose(hFind);
-    return TRUE;
-  }
-  return FALSE;
+  WIN32_FIND_DATAW FindFileData;
+  HANDLE hFind= FindFirstFileW((dir + L"\\*.err").c_str(), &FindFileData);
+  if (hFind == INVALID_HANDLE_VALUE)
+    return false;
+  ErrorLogFile= dir + L"\\" + FindFileData.cFileName;
+  FindClose(hFind);
+  return true;
 }
 
-static void DumpErrorLog(const wchar_t *dir)
+static void DumpErrorLog(MSIHANDLE hInstall, const std::wstring &dir)
 {
-  wchar_t filepath[MAX_PATH];
-  if (!FindErrorLog(dir, filepath, MAX_PATH))
+  std::wstring filepath;
+  if (!FindErrorLog(dir, filepath))
     return;
-  FILE *f= _wfopen(filepath, L"r");
+  FILE *f= _wfopen(filepath.c_str(), L"r");
   if (!f)
     return;
   char buf[2048];
-  WcaLog(LOGMSG_STANDARD,"=== dumping error log %S === ",filepath);
+  Log(L"=== dumping error log %s === ",filepath.c_str());
   while (fgets(buf, sizeof(buf), f))
   {
      /* Strip off EOL chars. */
@@ -937,55 +1013,46 @@ static void DumpErrorLog(const wchar_t *dir)
        buf[--len]= 0;
      if (len > 0 && buf[len-1] == '\r')
        buf[--len]= 0;
-     WcaLog(LOGMSG_STANDARD,"%s",buf);
+     Log(L"%S",buf);
   }
   fclose(f);
-  WcaLog(LOGMSG_STANDARD,"=== end of error log ===");
+  Log(L"=== end of error log ===");
 }
 
 /* Remove service and data directory created by CreateDatabase operation */
 extern "C" UINT __stdcall CreateDatabaseRollback(MSIHANDLE hInstall)
 {
-  HRESULT hr = S_OK;
-  UINT er = ERROR_SUCCESS;
-  wchar_t* service= 0;
-  wchar_t* dir= 0;
-  wchar_t data[2*MAX_PATH];
-  DWORD len= MAX_PATH;
+  std::wstring data;
+  std::wstring service;
+  std::wstring dir;
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  ExitOnFailure(hr, "Failed to initialize");
-  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  Log(L"Initialized.");
 
-  MsiGetPropertyW(hInstall, L"CustomActionData", data, &len);
+  if (!GetProperty(hInstall, L"CustomActionData", data))
+    return ERROR_INSTALL_FAILURE;
 
   /* Property is encoded as [SERVICENAME]\[DBLOCATION] */
-  if(data[0] == L'\\')
+  size_t pos= data.find(L'\\');
+  if (pos == std::wstring::npos)
   {
-    dir= data+1;
+    service= data;
   }
   else
   {
-    service= data;
-    dir= wcschr(data, '\\');
-    if (dir)
-    {
-     *dir=0;
-     dir++;
-    }
+    service= data.substr(0, pos);
+    dir= data.substr(pos + 1);
   }
 
-  if(service)
+  if(!service.empty() && !ExecRemoveService(service.c_str()))
+    Log(L"Cannot remove service %s, error %u", service.c_str(), GetLastError());
+  if(!dir.empty())
   {
-    ExecRemoveService(service);
+    DumpErrorLog(hInstall,dir);
+    UINT rc= ExecRemoveDataDirectory(dir);
+    if (rc)
+      Log(L"Cannot remove directory %s, error %u", dir.c_str(), rc);
   }
-  if(dir)
-  {
-    DumpErrorLog(dir);
-    ExecRemoveDataDirectory(dir);
-  }
-LExit:
-  return WcaFinalize(er);
+  return ERROR_SUCCESS;
 }
 
 
@@ -993,15 +1060,12 @@ LExit:
   Enables/disables optional "Launch upgrade wizard" checkbox at the end of
   installation
 */
-#define MAX_VERSION_PROPERTY_SIZE 64
-
 extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
 {
-  HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
-  wchar_t installerVersion[MAX_VERSION_PROPERTY_SIZE];
-  char installDir[MAX_PATH];
-  DWORD size =MAX_VERSION_PROPERTY_SIZE;
+  std::wstring installerVersion;
+  std::wstring installDirW;
+  char installDir[MAX_PATH]= "";
   int installerMajorVersion, installerMinorVersion, installerPatchVersion;
   bool upgradableServiceFound=false;
   LPENUM_SERVICE_STATUS_PROCESSW info;
@@ -1010,35 +1074,29 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
   BOOL ok;
   SC_HANDLE scm = NULL;
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-   WcaLog(LOGMSG_STANDARD, "Initialized.");
-  if (MsiGetPropertyW(hInstall, L"ProductVersion", installerVersion, &size)
-    != ERROR_SUCCESS)
+  Log(L"Initialized.");
+  if (!GetProperty(hInstall, L"ProductVersion", installerVersion) ||
+      !GetProperty(hInstall, L"INSTALLDIR", installDirW))
   {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    ExitOnFailure(hr, "MsiGetPropertyW failed");
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
   }
-   if (swscanf(installerVersion,L"%d.%d.%d",
+  if (swscanf(installerVersion.c_str(),L"%d.%d.%d",
     &installerMajorVersion, &installerMinorVersion, &installerPatchVersion) !=3)
   {
     assert(FALSE);
   }
-
-  size= MAX_PATH;
-  if (MsiGetPropertyA(hInstall,"INSTALLDIR", installDir, &size)
-    != ERROR_SUCCESS)
-  {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    ExitOnFailure(hr, "MsiGetPropertyW failed");
-  }
+  /* Same conversion as for mysqld_exe in winservice.c, to compare with it */
+  wcstombs(installDir, installDirW.c_str(), MAX_PATH - 1);
 
 
   scm = OpenSCManager(NULL, NULL,
     SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
   if (scm == NULL)
   {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    ExitOnFailure(hr,"OpenSCManager failed");
+    Log(L"OpenSCManager failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
   }
 
   static BYTE buf[64*1024];
@@ -1051,8 +1109,9 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
     SERVICE_STATE_ALL,  buf, bufsize,  &bufneed, &num_services, NULL, NULL);
   if(!ok)
   {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    ExitOnFailure(hr,"EnumServicesStatusEx failed");
+    Log(L"EnumServicesStatusEx failed with %u", GetLastError());
+    er= ERROR_INSTALL_FAILURE;
+    goto LExit;
   }
   info =
     (LPENUM_SERVICE_STATUS_PROCESSW)buf;
@@ -1078,9 +1137,9 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
           Only look for services that have mysqld.exe outside of the current
           installation directory.
         */
-       if(installDir[0] == 0 || strstr(props.mysqld_exe,installDir) == 0)
+       if(installDir[0] == 0 || strstr(props.mysqld_exe, installDir) == 0)
         {
-           WcaLog(LOGMSG_STANDARD, "found service %S, major=%d, minor=%d",
+           Log(L"found service %s, major=%d, minor=%d",
             info[i].lpServiceName, props.version_major, props.version_minor);
           if(props.version_major < installerMajorVersion
             || (props.version_major == installerMajorVersion &&
@@ -1107,28 +1166,12 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
 LExit:
   if(scm)
     CloseServiceHandle(scm);
-  return WcaFinalize(er);
+  return er;
 }
 
-
-/* DllMain - Initialize and cleanup WiX custom action utils */
-extern "C" BOOL WINAPI DllMain(
-  __in HINSTANCE hInst,
-  __in ULONG ulReason,
-  __in LPVOID
-  )
+/* Fail on purpose, to test rollback. Scheduled with TESTFAIL=1 in msiexec */
+extern "C" UINT __stdcall FakeFailure(MSIHANDLE hInstall)
 {
-  switch(ulReason)
-  {
-  case DLL_PROCESS_ATTACH:
-    WcaGlobalInitialize(hInst);
-    break;
-
-  case DLL_PROCESS_DETACH:
-    WcaGlobalFinalize();
-    break;
-  }
-
-  return TRUE;
+  Log(L"Failing on purpose");
+  return ERROR_INSTALL_FAILURE;
 }
-

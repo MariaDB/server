@@ -61,6 +61,8 @@
 #include "sql_base.h"                           // insert_fields
 #include "sql_select.h"
 #include "transaction.h"
+#include "sql_acl.h"                            // check_grant_all_columns
+#include "sql_parse.h"                          // check_table_access
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation				// gcc: Class implementation
@@ -345,8 +347,17 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     open_ltable() or open_table() because we would like to be able
     to open a temporary table.
   */
-  error= (thd->open_temporary_tables(tables) ||
-          open_tables(thd, &tables, &counter, 0));
+  error= thd->open_temporary_tables(tables);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    Privileges could have changed since HANDLER OPEN. They are checked
+    again only when the table is reopened (e.g. after FLUSH TABLES or
+    ALTER TABLE); an open handler is not affected by REVOKE.
+  */
+  if (!error && reopen && !tables->table)
+    error= check_table_access(thd, SELECT_ACL, tables, FALSE, 1, FALSE);
+#endif
+  error= error || open_tables(thd, &tables, &counter, 0);
 
   if (unlikely(error))
     goto err;
@@ -360,6 +371,25 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
              table->s->db.str, table->s->table_name.str);
     goto err;
   }
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    HANDLER READ returns all columns, so with only column-level grants
+    SELECT is required on each of them (as for SELECT *). On reopen the
+    table could have got new columns. Temporary tables need no grants
+    (and are not checked on reopen). INVISIBLE_SYSTEM and INVISIBLE_FULL
+    columns are skipped: they need no column grant for SELECT either
+    (MDEV-14853) and the long unique hash is computed from columns that
+    are checked.
+  */
+  if (!table->s->tmp_table && !(table->grant.privilege & SELECT_ACL))
+  {
+    Field_iterator_table_ref field_it;
+    field_it.set(tables);
+    if (check_grant_all_columns(thd, SELECT_ACL, &field_it))
+      goto err;
+  }
+#endif
 
   DBUG_PRINT("info",("clone_tickets start"));
   for (TABLE_LIST *table_list= tables; table_list;

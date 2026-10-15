@@ -699,6 +699,26 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   */
   suspended_wfc= thd->suspend_subsequent_commits();
   thd->lex->reset_n_backup_query_tables_list(&lex_backup);
+
+  /*
+    Clear OPTION_NOT_AUTOCOMMIT/OPTION_BEGIN *before* opening the table below,
+    not after. A storage engine may register itself into the "all"
+    transaction as part of the table open/lock (e.g. InnoDB's
+    external_lock()), depending on those bits. Clearing them only after the
+    table is open is too late: the engine has already registered into "all"
+    using the still-set bits, and since this is meant to be a standalone
+    autocommit-style write, nothing will later issue the matching "all"-level
+    commit to clear that registration and the performance-schema transaction
+    handle, and it leaks into whatever runs on this THD next.
+  */
+  if (!in_transaction)
+  {
+    DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
+    thd->variables.option_bits&=
+      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT |OPTION_BEGIN |OPTION_BIN_LOG |
+                   OPTION_GTID_BEGIN);
+  }
+
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &gtid_pos_table_name, NULL, TL_WRITE);
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
@@ -714,14 +734,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   thd->wsrep_ignore_table= true; // Do not replicate mysql.gtid_slave_pos table
 #endif
 
-  if (!in_transaction)
-  {
-    DBUG_PRINT("info", ("resetting OPTION_BEGIN"));
-    thd->variables.option_bits&=
-      ~(ulonglong)(OPTION_NOT_AUTOCOMMIT |OPTION_BEGIN |OPTION_BIN_LOG |
-                   OPTION_GTID_BEGIN);
-  }
-  else
+  if (in_transaction)
     thd->variables.option_bits&= ~(ulonglong)OPTION_BIN_LOG;
 
   bitmap_set_all(table->write_set);

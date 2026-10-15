@@ -861,7 +861,7 @@ public:
   {
     m_num_fds= 0;
 
-    if (my_use_large_pages)
+    if (my_large_pages_flag)
       return false;
 
     static_assert(array_elements(m_fds) == (array_elements(m_triggers) + 1),
@@ -1078,8 +1078,12 @@ inline void buf_pool_t::garbage_collect() noexcept
 
   do
   {
-    if (shrink(size))
-    {
+    switch (shrink(size)) {
+    case SHRINK_IN_PROGRESS:
+      continue;
+    case SHRINK_ABORT:
+      goto aborted;
+    case SHRINK_DONE:
       const size_t old_blocks{n_blocks};
       n_blocks= n_blocks_new;
 
@@ -1106,6 +1110,7 @@ inline void buf_pool_t::garbage_collect() noexcept
   }
   while (time(nullptr) - start < 15);
 
+ aborted:
   ut_ad(size_in_bytes > size_in_bytes_requested);
   n_blocks_to_withdraw= 0;
   first_to_withdraw= nullptr;
@@ -1122,7 +1127,7 @@ inline void buf_pool_t::garbage_collect() noexcept
 
   mysql_mutex_unlock(&mutex);
   sql_print_information("InnoDB: Memory pressure event failed to shrink"
-                        " innodb_buffer_pool_size=%zum", old_size);
+                        " innodb_buffer_pool_size=%zum", old_size >> 20);
   ut_d(validate());
 }
 #endif
@@ -1351,7 +1356,7 @@ bool buf_pool_t::create() noexcept
  retry:
   {
     NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
-    memory_unaligned= my_virtual_mem_reserve(&size);
+    memory_unaligned= my_virtual_mem_reserve(&size, my_large_pages_flag);
     if (memory_unaligned);
 #if defined __aarch64__ || defined __riscv || defined __mips__ || defined __loongarch64
     else if (size_in_bytes_max_default != 0 &&
@@ -1410,7 +1415,7 @@ bool buf_pool_t::create() noexcept
   PSI_MEMORY_CALL(memory_alloc)(mem_key_buf_buf_pool, actual_size, &owner);
 #endif
 #ifndef _AIX
-  if (!my_virtual_mem_commit(memory, actual_size))
+  if (!my_virtual_mem_commit(memory, actual_size, my_large_pages_flag))
   {
     my_virtual_mem_release(memory_unaligned, size_unaligned);
     memory= nullptr;
@@ -1587,7 +1592,7 @@ void buf_pool_t::close() noexcept
     owner= nullptr;
 #endif
     os_total_large_mem_allocated-= size;
-    my_virtual_mem_decommit(memory, size);
+    my_virtual_mem_decommit(memory, size, my_large_pages_flag);
     my_virtual_mem_release(memory_unaligned, size_unaligned);
     memory= nullptr;
     memory_unaligned= nullptr;
@@ -1904,7 +1909,7 @@ inline void buf_pool_t::shrunk(size_t size, size_t reduced) noexcept
     guess before we invoke my_virtual_mem_decommit() below. */
     latch.unlock();
   }
-  my_virtual_mem_decommit(memory + size, reduced);
+  my_virtual_mem_decommit(memory + size, reduced, my_large_pages_flag);
 #ifdef UNIV_PFS_MEMORY
   PSI_MEMORY_CALL(memory_free)(mem_key_buf_buf_pool, reduced, owner);
 #endif
@@ -1915,7 +1920,7 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
   ut_ad(this == &buf_pool);
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
   ut_ad(size <= size_in_bytes_max);
-  if (my_use_large_pages)
+  if (my_large_pages_flag)
   {
     my_error(ER_VARIABLE_IS_READONLY, MYF(0), "InnoDB",
              "innodb_buffer_pool_size", "large_pages=0");
@@ -1962,7 +1967,8 @@ ATTRIBUTE_COLD void buf_pool_t::resize(size_t size, THD *thd) noexcept
 
   if (n_blocks_removed <= 0)
   {
-    if (!my_virtual_mem_commit(memory + old_size, size - old_size))
+    if (!my_virtual_mem_commit(memory + old_size, size - old_size,
+                               my_large_pages_flag))
     {
       mysql_mutex_unlock(&mutex);
       sql_print_error("InnoDB: Cannot commit innodb_buffer_pool_size=%zum;"
