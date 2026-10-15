@@ -3004,5 +3004,13 @@ drop event e1;
 drop table t1;
 
 --echo #
+--echo # MDEV-36268 mariadb-dump used wrong quoting character
+--echo #
+create table t1 (a int);
+create view `v'1"2` as select * from t1 with check option; # "'
+--exec $MYSQL_DUMP --compact test
+drop view `v'1"2`; # "'
+drop table t1;
+--echo #
 --echo # End of 10.4 tests
 --echo #

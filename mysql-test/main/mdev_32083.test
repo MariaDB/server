@@ -1,0 +1,10 @@
+--echo # MDEV-32083 / CVE-2023-52969: INSERT..SELECT crashes if target table
+--echo # appears in a derived table within the SELECT clause (JIRA duplicate of
+--echo # MDEV-32086; fixed by the same part-1 commit, 9b313d2de). Oleg Smirnov's
+--echo # simplified repro from the JIRA: unpatched 10.4.34 crashes with signal 11
+--echo # and an empty backtrace (matching the CVE wording "can sometimes crash
+--echo # with an empty backtrace log"); passes on the patched build.
+
+CREATE TABLE t1(i int);
+EXPLAIN INSERT INTO t1 SELECT (SELECT min(dt.a) FROM (SELECT 1 as a FROM t1) dt ORDER BY i, dt.a) FROM t1 tb;
+DROP TABLE t1;

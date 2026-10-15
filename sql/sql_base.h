@@ -72,6 +72,7 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 #define CHECK_DUP_ALLOW_DIFFERENT_ALIAS 1
 #define CHECK_DUP_FOR_CREATE 2
 #define CHECK_DUP_SKIP_TEMP_TABLE 4
+#define CHECK_DUP_FOR_INSERT_SELECT 8
 
 uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
