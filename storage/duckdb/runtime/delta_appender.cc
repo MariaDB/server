@@ -412,9 +412,12 @@ int DeltaAppender::append_mysql_field(const Field *field_arg,
   case MYSQL_TYPE_TIME2: {
     MYSQL_TIME tm;
     field->get_date(&tm, date_mode_t(0));
-    appender->Append<duckdb::dtime_t>(static_cast<duckdb::dtime_t>(
+    int64_t micros=
         (tm.hour * 3600LL + tm.minute * 60LL + tm.second) * 1000000LL +
-        tm.second_part));
+        tm.second_part;
+    if (tm.neg)
+      micros= -micros;
+    appender->Append<duckdb::dtime_t>(static_cast<duckdb::dtime_t>(micros));
     break;
   }
   case MYSQL_TYPE_TIMESTAMP:

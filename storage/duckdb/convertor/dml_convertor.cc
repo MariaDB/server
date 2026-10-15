@@ -25,6 +25,7 @@
 #include <string>
 
 #include "sql_table.h" /* primary_key_name */
+#include "sql_time.h"
 #include "my_decimal.h"
 
 namespace myduck { extern my_bool use_double_for_decimal; }
@@ -117,13 +118,26 @@ void append_field_value_to_sql(String &target_str, Field *field)
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_DATETIME2:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2: {
+  case MYSQL_TYPE_YEAR: {
     target_str.append(STRING_WITH_LEN("'"));
     field->val_str(&field_value);
     target_str.append(field_value);
     target_str.append(STRING_WITH_LEN("'"));
+    break;
+  }
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2: {
+    MYSQL_TIME tm;
+    field->get_date(&tm, date_mode_t(0));
+    int64_t micros=
+        (tm.hour * 3600LL + tm.minute * 60LL + tm.second) * 1000000LL +
+        tm.second_part;
+    if (tm.neg)
+      micros= -micros;
+    char buf[64];
+    int len= snprintf(buf, sizeof(buf), "mariadb_time(%lld)",
+                      (long long) micros);
+    target_str.append(buf, len);
     break;
   }
   case MYSQL_TYPE_TIMESTAMP:

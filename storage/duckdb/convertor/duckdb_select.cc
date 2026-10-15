@@ -42,6 +42,45 @@ static void store_field_temporal_value(Field *field, MYSQL_TIME *ltime)
 }
 
 /**
+  Convert a DuckDB TIME value to MYSQL_TIME without DuckDB's string cast.
+  physical INT64 and build MYSQL_TIME here instead.
+*/
+static void store_duckdb_time_in_mysql_format(Field *field, duckdb::Value &value)
+{
+  MYSQL_TIME tm;
+  set_zero_time(&tm, MYSQL_TIMESTAMP_TIME);
+
+  const duckdb::LogicalTypeId type_id= value.type().id();
+  if (type_id == duckdb::LogicalTypeId::TIME ||
+      type_id == duckdb::LogicalTypeId::TIME_NS)
+  {
+    int64_t micros;
+    if (type_id == duckdb::LogicalTypeId::TIME_NS)
+      micros= value.GetValueUnsafe<duckdb::dtime_ns_t>().time().micros;
+    else
+      micros= value.GetValueUnsafe<duckdb::dtime_t>().micros;
+    if (micros < 0)
+    {
+      tm.neg= 1;
+      micros= (micros == LONGLONG_MIN) ? LONGLONG_MAX : -micros;
+    }
+    const int64_t max_micros=
+        (int64_t) TIME_MAX_VALUE_SECONDS * 1000000LL + TIME_MAX_SECOND_PART;
+    if (micros > max_micros)
+      micros= max_micros;
+    calc_time_from_sec(&tm, (ulong) (micros / 1000000LL), (ulong) (micros % 1000000LL));
+  }
+  else
+  {
+    auto str= value.GetValue<duckdb::string>();
+    MYSQL_TIME_STATUS status;
+    my_time_status_init(&status);
+    str_to_DDhhmmssff(str.c_str(), str.size(), &tm, TIME_MAX_HOUR, &status);
+  }
+  store_field_temporal_value(field, &tm);
+}
+
+/**
   Store a duckdb value in a field of mysql format.
   @param field            the field to store value
   @param value            the value to be stored
@@ -186,15 +225,9 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
       break;
     }
     case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_TIME2: {
-      auto str= value.GetValue<duckdb::string>();
-      MYSQL_TIME tm;
-      MYSQL_TIME_STATUS status;
-      my_time_status_init(&status);
-      str_to_DDhhmmssff(str.c_str(), str.size(), &tm, TIME_MAX_HOUR, &status);
-      store_field_temporal_value(field, &tm);
+    case MYSQL_TYPE_TIME2:
+      store_duckdb_time_in_mysql_format(field, value);
       break;
-    }
     default:
       /* TODO: no support */
       DBUG_ASSERT(0);
