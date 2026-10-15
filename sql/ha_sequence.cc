@@ -418,6 +418,41 @@ void ha_sequence::print_error(int error, myf errflag)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Repair the underlying table, then check that exactly one row is left.
+  Removing extra rows is not supported, so report the sequence as corrupt
+  instead of OK.
+*/
+
+int ha_sequence::repair(THD *thd, HA_CHECK_OPT *check_opt)
+{
+  int error;
+  ha_rows rows= 0;
+  DBUG_ENTER("ha_sequence::repair");
+  if ((error= file->repair(thd, check_opt)))
+    DBUG_RETURN(error);
+
+  if (file->ha_rnd_init_with_error(1))
+    DBUG_RETURN(HA_ADMIN_FAILED);
+  while (rows < 2 && !(error= file->ha_rnd_next(table->record[0])))
+    rows++;
+  file->ha_rnd_end();
+  if (error && error != HA_ERR_END_OF_FILE)
+  {
+    file->print_error(error, MYF(0));
+    DBUG_RETURN(HA_ADMIN_FAILED);
+  }
+  if (rows != 1)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             rows ? "More than one row in the table" :
+                    "Fewer than one row in the table");
+    DBUG_RETURN(HA_ADMIN_CORRUPT);
+  }
+  DBUG_RETURN(HA_ADMIN_OK);
+}
+
 /*****************************************************************************
   Sequence plugin interface
 *****************************************************************************/
