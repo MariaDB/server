@@ -551,22 +551,23 @@ int backup_config_append(IF_WIN(const char*, int) target,
 #else
   int dst= openat(target, "backup.cnf",
                   O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
-  if (dst < 0)
-    return dst;
-  ssize_t ret;
-  for (; (ret= write(dst, config, size)) >= 0; config+= ret, size -= ret)
+  if (dst >= 0)
   {
-    assert(size_t(ret) <= size);
-    if (!(size-= size_t(ret)))
+    ssize_t ret;
+    for (; (ret= write(dst, config, size)) >= 0; config+= ret, size -= ret)
     {
-      ret= 0;
-      break;
+      assert(size_t(ret) <= size);
+      if (!(size-= size_t(ret)))
+      {
+        ret= 0;
+        break;
+      }
     }
+    if (!(close(dst) | ret))
+      return 0;
   }
-  if (!(close(dst) | ret))
-    return 0;
 #endif
-  my_error(ER_CANT_CREATE_FILE, MYF(0), "backup.cnf", errno);
+  my_error(ER_CANT_CREATE_FILE, MYF(ME_ERROR_LOG), "backup.cnf", errno);
   return -1;
 }
 
