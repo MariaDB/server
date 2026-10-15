@@ -675,7 +675,7 @@ bool store_optimizer_context(THD *thd)
   {
     return false;
   }
-  String sql_script;
+  StringBuffer<1024> sql_script;
   res= thd->opt_ctx_recorder->dump_sql_script(thd, sql_script);
   clean_captured_ctx(thd);
 
@@ -712,8 +712,8 @@ bool store_optimizer_context(THD *thd)
 
 bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
 {
-  String qry_ctx_script;
-  String sys_vars_script;
+  StringBuffer<1024> qry_ctx_script;
+  StringBuffer<1024> sys_vars_script;
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "tables");
@@ -754,7 +754,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   List_iterator li(tables_list);
   for (TABLE_LIST *tbl= li++; !res && tbl; tbl= li++)
   {
-    String ddl;
+    StringBuffer<1024> ddl;
     StringBuffer<256> full_tbl_name;
     LEX_CSTRING *tbl_name_key;
     append_table_or_view_name(tbl, &full_tbl_name);
@@ -978,7 +978,7 @@ end:
 table_context_for_store *
 Optimizer_context_recorder::get_table_context(const TABLE *table)
 {
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(table, &tbl_name);
   table_context_for_store *table_ctx=
       search((uchar *) tbl_name.c_ptr_safe(), tbl_name.length());
@@ -1137,8 +1137,8 @@ void Optimizer_context_recorder::record_records_in_range(
     return; // OOM
 
   rec_in_range_ctx->keynr= keynr;
-  String min_key;
-  String max_key;
+  StringBuffer<256> min_key;
+  StringBuffer<256> max_key;
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
   print_key_value(&max_key, key_part, max_range->key, max_range->length);
 
@@ -1714,7 +1714,7 @@ bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -1761,7 +1761,7 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
   range_seq_t seq_it;
   List<Multi_range_read_const_call_record> mrr_const_calls;
   store_range_contexts(table, idx_name, &mrr_const_calls);
-  String act_ranges;
+  StringBuffer<256> act_ranges;
   seq_it= seq_if->init((void *) seq, 0, 0);
   act_ranges.append(STRING_WITH_LEN("["));
   List<char> text_ranges;
@@ -1817,7 +1817,7 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
       }
     }
 
-    String tbl_name;
+    StringBuffer<128> tbl_name;
     append_base_table_name(table, &tbl_name);
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
@@ -1846,7 +1846,7 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
   KEY *keyinfo= tbl->key_info + keynr;
   const char *idx_name= keyinfo->name.str;
@@ -1955,9 +1955,9 @@ bool Optimizer_context_replay::infuse_records_in_range(
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String min_key;
-  String max_key;
-  String tbl_name;
+  StringBuffer<256> min_key;
+  StringBuffer<256> max_key;
+  StringBuffer<128> tbl_name;
   print_key_value(&min_key, key_part, min_range->key, min_range->length);
   print_key_value(&max_key, key_part, max_range->key, max_range->length);
   append_base_table_name(tbl, &tbl_name);
@@ -2025,9 +2025,9 @@ bool Optimizer_context_replay::parse()
 {
   json_engine_t je;
   char *context= NULL;
-  String str;
+  StringBuffer<256> str;
   String *value;
-  String err_buf;
+  StringBuffer<256> err_buf;
   user_var_entry *var;
   char *var_name= thd->variables.optimizer_replay_context;
   LEX_CSTRING varname= {var_name, strlen(var_name)};
@@ -2213,7 +2213,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -2247,8 +2247,8 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return NULL;
 
-  String tbl_name;
-    append_base_table_name(tbl, &tbl_name);
+  StringBuffer<128> tbl_name;
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -2263,7 +2263,7 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
     }
   }
 
-  String name;
+  StringBuffer<256> name;
   name.append(tbl_name);
   name.append(STRING_WITH_LEN("."));
   name.append(idx_name, strlen(idx_name));
@@ -2288,7 +2288,7 @@ void Optimizer_context_replay::store_range_contexts(
   if (!has_records() || !out)
     return;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -2305,7 +2305,7 @@ void Optimizer_context_replay::store_range_contexts(
 
   if (out->is_empty())
   {
-    String name;
+    StringBuffer<256> name;
     name.append(tbl_name);
     name.append(STRING_WITH_LEN("."));
     name.append(idx_name, strlen(idx_name));
