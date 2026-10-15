@@ -246,6 +246,8 @@ search:
     pfs->m_schema_name_length= schema_name_length;
     pfs->m_enabled= is_enabled;
     pfs->m_timed= is_timed;
+    pfs->m_stmt_stat.reset();
+    pfs->m_sp_stat.reset();
 
     /* Insert this record. */
     pfs->m_lock.dirty_to_allocated(& dirty_state);
@@ -276,6 +278,51 @@ search:
 
   return NULL;
 }
+
+/**
+  Drops records of the routines of a package body.
+  They are named "<package>.<routine>" in the package schema.
+  Names are compared in the lower-cased form of PFS_program_key.
+*/
+class Proc_drop_package_routines
+  : public PFS_buffer_processor<PFS_program>
+{
+public:
+  Proc_drop_package_routines(LF_PINS *pins,
+                             const char *name, uint name_length,
+                             const char *schema, uint schema_length)
+    : m_pins(pins), m_name(name), m_name_length(name_length),
+      m_schema(schema), m_schema_length(schema_length)
+  {}
+
+  void operator()(PFS_program *pfs) override
+  {
+    if ((pfs->m_type != OBJECT_TYPE_PROCEDURE &&
+         pfs->m_type != OBJECT_TYPE_FUNCTION) ||
+        uint(pfs->m_object_name_length) <= m_name_length ||
+        pfs->m_object_name[m_name_length] != '.' ||
+        memcmp(pfs->m_object_name, m_name, m_name_length) ||
+        uint(pfs->m_schema_name_length) != m_schema_length ||
+        memcmp(pfs->m_schema_name, m_schema, m_schema_length))
+      return;
+
+    /*
+      Not in the hash yet means find_or_create_program() still owns it.
+      Concurrent creation of the same key is not possible: routines of
+      the package are loaded under MDL of the package body.
+    */
+    if (!lf_hash_delete(&program_hash, m_pins,
+                        pfs->m_key.m_hash_key, pfs->m_key.m_key_length))
+      global_program_container.deallocate(pfs);
+  }
+
+private:
+  LF_PINS *m_pins;
+  const char *m_name;
+  uint m_name_length;
+  const char *m_schema;
+  uint m_schema_length;
+};
 
 void drop_program(PFS_thread *thread,
                  enum_object_type object_type,
@@ -310,7 +357,15 @@ void drop_program(PFS_thread *thread,
   }
 
   lf_hash_search_unpin(pins);
-  return;
+
+  if (object_type == OBJECT_TYPE_PACKAGE_BODY)
+  {
+    const char *name= key.m_hash_key + 1;
+    Proc_drop_package_routines proc(pins, name, object_name_length,
+                                    name + object_name_length + 1,
+                                    schema_name_length);
+    global_program_container.apply(proc);
+  }
 }
 
 void PFS_program::refresh_setup_object_flags(PFS_thread *thread)
