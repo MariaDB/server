@@ -2013,7 +2013,13 @@ int JOIN::optimize()
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+    bool first_optimization= select_lex->first_cond_optimization;
     res= optimize_inner();
+    if (unlikely(res) && first_optimization)
+    {
+      /* A failed first optimization may leave the statement half-done */
+      thd->lex->needs_reprepare= true;
+    }
   }
   if (!with_two_phase_optimization)
   {
@@ -2361,6 +2367,12 @@ JOIN::optimize_inner()
     if (thd->is_error() ||
         (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
+      /*
+        If there was an error above, the data structures may have been left in
+        some undefined state. If this is a PS/SP statement, it might not be
+        safe to run it again. Note that it needs to be re-prepared.
+      */
+      thd->lex->needs_reprepare= true;
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
