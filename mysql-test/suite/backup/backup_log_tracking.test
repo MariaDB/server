@@ -2,6 +2,8 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
+# rmdir on Windows cannot remove read-only files
+--source include/not_windows.inc
 
 CREATE TABLE t (a LONGBLOB) ENGINE=InnoDB;
 SET @save_archive= @@GLOBAL.innodb_log_archive;
@@ -68,10 +70,6 @@ SET GLOBAL debug_dbug= @save_dbug;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t;
 SET GLOBAL innodb_log_archive=@save_archive;
-if ($MARIADB_UPGRADE_EXE) {
-# Windows cannot remove write-protected files
---exec attrib -r $MYSQL_TMP_DIR/backup_log_track/ib_*.log
-}
 --rmdir $MYSQL_TMP_DIR/backup_log_track
 if (`select @save_archive='OFF'`) {
 --remove_files_wildcard $MARIADB_DATADIR ib_0*.log
