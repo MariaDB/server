@@ -2024,7 +2024,6 @@ fil_ibd_create(
 	fil_node_t* node = space->add(path, OS_FILE_CLOSED, size, false, true);
 	space->set_stopped();
 	mysql_mutex_unlock(&fil_system.mutex);
-	fil_crypt_threads_signal();
 
 	buf_block_t *header[2];
 	{
@@ -2134,6 +2133,7 @@ func_exit:
 		space->release();
 	}
 	mysql_mutex_unlock(&fil_system.mutex);
+	fil_crypt_threads_signal();
 	goto func_exit;
 }
 

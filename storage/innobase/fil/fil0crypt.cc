@@ -57,7 +57,7 @@ static uint32_t fil_crypt_settings_version;
 uint srv_n_fil_crypt_threads;
 
 /** No of key rotation threads started */
-uint srv_n_fil_crypt_threads_started;
+Atomic_relaxed<uint> srv_n_fil_crypt_threads_started;
 
 /** At this age or older a space/page will be rotated */
 uint srv_fil_crypt_rotate_key_age;
@@ -104,7 +104,7 @@ static mysql_mutex_t crypt_stat_mutex;
 /** Wake up the encryption threads */
 void fil_crypt_threads_signal(bool broadcast)
 {
-  if (!fil_crypt_threads_inited)
+  if (!fil_crypt_threads_inited || !srv_n_fil_crypt_threads_started)
     return;
   mysql_mutex_lock(&fil_crypt_threads_mutex);
   if (broadcast)
@@ -2185,7 +2185,7 @@ static void fil_crypt_thread()
 	pfs_register_thread(page_encrypt_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
-	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
+	rotate_thread_t thr(srv_n_fil_crypt_threads_started.fetch_add(1));
 	pthread_cond_broadcast(&fil_crypt_cond);
 
 	if (!thr.should_shutdown()) {
@@ -2319,7 +2319,7 @@ restart_iteration:
 		}
 	}
 func_exit:
-	srv_n_fil_crypt_threads_started--;
+	srv_n_fil_crypt_threads_started.fetch_sub(1);
 	pthread_cond_broadcast(&fil_crypt_cond);
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
