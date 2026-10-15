@@ -1,0 +1,25 @@
+--source include/not_embedded.inc
+
+# MDEV-40296: SELECT @@GLOBAL.replicate_do_db ignores default_master_connection
+
+# Setup
+SET @saved_replicate_do_db= @@GLOBAL.replicate_do_db;
+SET @saved_default_master_connection= @@SESSION.default_master_connection;
+
+CHANGE MASTER 'name' TO master_host='127.0.0.1', master_user='root';
+
+SET @@GLOBAL.replicate_do_db= 'unnamed';
+SET @@SESSION.default_master_connection= 'name';
+SET @@GLOBAL.replicate_do_db= 'named';
+
+SELECT @@GLOBAL.name.replicate_do_db;
+SELECT @@GLOBAL.replicate_do_db;
+# MDEV-40297: Explicit empty connection name
+SELECT @@GLOBAL.``.replicate_do_db;
+
+# Cleanup
+RESET SLAVE ALL;
+SET @@SESSION.default_master_connection= @saved_default_master_connection;
+SET @@GLOBAL.replicate_do_db= @saved_replicate_do_db;
+
+--echo # End of 10.11 tests

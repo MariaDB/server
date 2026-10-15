@@ -1415,6 +1415,9 @@ int main(int argc,char *argv[])
             mysql_thread_id(&mysql), server_version_string(&mysql));
     put_info((char*) glob_buffer.ptr(),INFO_INFO);
     put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+    put_info("Help others discover MariaDB."
+             " Star it on GitHub: https://github.com/MariaDB/server\n",
+             INFO_INFO);
   }
 
 #ifdef HAVE_READLINE
@@ -4505,6 +4508,8 @@ print_tab_data(MYSQL_RES *result)
   }
   while ((cur = fetch_row(result)))
   {
+    if (interrupted_query)
+      break;
     lengths=mysql_fetch_lengths(result);
     field= mysql_fetch_fields(result);
     if (opt_binhex && is_binary_field(&field[0]))

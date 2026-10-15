@@ -12043,9 +12043,11 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
       /*
         Handle possible rounding errors when
         partial_join_cost==pos->read_time*fraction:
+        The rounding error grows with the cost, so the tolerance is taken
+        in proportion to it.
         Catch larger negatives, proceed with non-negative cost.
       */
-      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON);
+      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON*pos->read_time*fraction);
       if (partial_join_cost < 0.0)
         partial_join_cost= 0.0;
 
@@ -18020,6 +18022,10 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
   {
     join->thd->limit_found_rows= 0;
   }
+  else
+  {
+    join->thd->limit_found_rows= send_row ? 1 : 0;
+  }
 
   if (!(result->send_result_set_metadata(*fields,
                               Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
@@ -22350,6 +22356,8 @@ bool Create_tmp_table::add_fields(THD *thd,
     if (type == Item::SUM_FUNC_ITEM && !m_group && !m_save_sum_fields)
     {						/* Can't calc group yet */
       Item_sum *sum_item= (Item_sum *) item;
+      /* There is actually no need to clear result_field */
+      DBUG_ASSERT(!sum_item->result_field);
       sum_item->result_field=0;
       for (uint i= 0 ; i < sum_item->get_arg_count() ; i++)
       {
@@ -22436,26 +22444,25 @@ bool Create_tmp_table::add_fields(THD *thd,
       {
         Item_sum *agg_item= (Item_sum *) item;
         /*
-          Update the result field only if it has never been set, or if the
-          created temporary table is not to be used for subquery
-          materialization.
+          Set agg_item->result_field to point to its image in the temporary
+          table. Do this only when this temporary table is created without
+          TMP_TABLE_ALL_COLUMNS flag (and so not_all_columns=true).
 
-          The reason is that for subqueries that require
-          materialization as part of their plan, we create the
-          'external' temporary table needed for IN execution, after
-          the 'internal' temporary table needed for grouping.  Since
-          both the external and the internal temporary tables are
-          created for the same list of SELECT fields of the subquery,
-          setting 'result_field' for each invocation of
-          create_tmp_table overrides the previous value of
-          'result_field'.
+          In this case, the temporary table will be read by going through the
+          select list and its item->result_field pointers. The most common
+          examples of this are GROUP BY operation and buffering for
+          SQL_BUFFER_RESULT).
 
-          The condition below prevents the creation of the external
-          temp table to override the 'result_field' that was set for
-          the internal temp table.
+          Note that SELECT has one "select list" but may be processed with
+          multiple temporary tables. It is therefore important to only set
+          result_field to point to the right temporary table.
+          That's why we assert here that we don't set it twice.
         */
-        if (!agg_item->result_field || !param->materialized_subquery)
+        if (not_all_columns)
+        {
+          DBUG_ASSERT(!agg_item->result_field);
           agg_item->result_field= new_field;
+        }
       }
       tmp_from_field++;
 
@@ -26090,6 +26097,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     join->fields.
   */
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_send_group");
 
   if (!join->items3.is_null() && join->current_ref_ptrs != join->items3)
@@ -26101,7 +26109,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 
     if (!join->group_sent &&
         (join->first_record ||
-         (end_of_records && !join->group && !join->group_optimized_away)))
+         join->need_empty_set_row(end_of_records,
+                                  &empty_set_send_rollup_total)))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -26157,7 +26166,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	    join->send_records++;
             join->group_sent= true;
 	  }
-	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE && error <= 0))
+	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                 !empty_set_send_rollup_total && error <= 0))
 	  {
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
@@ -26477,13 +26487,15 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 {
   TABLE *table= join_tab->table;
   int	  idx= -1;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_write_group");
 
   join->accepted_rows++;
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
-    if (join->first_record || (end_of_records && !join->group))
+    if (join->first_record ||
+        join->need_empty_set_row(end_of_records, &empty_set_send_rollup_total))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -26508,7 +26520,8 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                                                    error, 0, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
-        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
+        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                     !empty_set_send_rollup_total))
 	{
           if (unlikely(join->rollup_write_data((uint) (idx+1),
                                                join_tab->tmp_table_param,

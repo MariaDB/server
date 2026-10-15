@@ -468,6 +468,9 @@ Gtid_Slave_Pos
 Master_last_event_time	NULL
 Slave_last_event_time	NULL
 Master_Slave_time_diff	NULL
+#
+# MDEV-40996: the connection name may be given as a variable
+#
 stop all slaves;
 Warnings:
 Note	1938	SLAVE 'slave2' stopped

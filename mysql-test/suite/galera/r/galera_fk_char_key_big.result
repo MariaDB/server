@@ -1,0 +1,19 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 2;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SET SESSION wsrep_sync_wait = 0;
+# Shape 1: CHAR(36) utf8mb4
+# Shape 2: CHAR(36) utf8mb3
+# Shape 3: CHAR(36) utf8mb4, four byte characters
+# Shape 4: CHAR(36) utf8mb4_bin
+# Shape 5: CHAR(36) utf8mb4, ROW_FORMAT=REDUNDANT
+# Shape 6: CHAR(36) utf16
+# Shape 7: CHAR(36) ucs2
+# Shape 8: CHAR(36) latin1
+# Shape 9: CHAR(36) utf8mb4, ASCII value
+# Shape 10: VARCHAR(36) utf8mb4
+connection node_2;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+disconnect node_2a;

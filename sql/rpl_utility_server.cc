@@ -775,9 +775,8 @@ static void show_sql_type(const Conv_source &src, const Field &dst,
    acceptable according to the current settings.
 
    @param order  The computed order of the conversion needed.
-   @param rli    The relay log info data structure: for error reporting.
  */
-static bool is_conversion_ok(enum_conv_type type, const Relay_log_info *rli,
+static bool is_conversion_ok(enum_conv_type type,
                              ulonglong type_conversion_options)
 {
   DBUG_ENTER("is_conversion_ok");
@@ -948,12 +947,10 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       return false;
     }
 
-    if (!h)
-      return false; // An unknown data type found in the binary log
     Conv_source source(h, field_metadata(col), field->charset());
     enum_conv_type convtype= can_convert_field_to(field, source, rli,
                                                   Conv_param(m_flags));
-    if (is_conversion_ok(convtype, rli, slave_type_conversions_options))
+    if (is_conversion_ok(convtype, slave_type_conversions_options))
     {
       DBUG_PRINT("debug", ("Checking column %d -"
                            " field '%s' can be converted - order: %d",
