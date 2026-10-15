@@ -52,13 +52,22 @@ if (`SELECT "$master_file" != "" OR
 --source include/stop_slave.inc
 
 # Create a relay-log.info file with a position value > 2^31
---let $MYSQLD_DATADIR= `select @@datadir`
---remove_file $MYSQLD_DATADIR/relay-log.info
---write_file $MYSQLD_DATADIR/relay-log.info
-./slave-relay-bin.000001
-2147483648
+--let MYSQLD_DATADIR= `select @@datadir`
+perl;
+my $file = "$ENV{MYSQLD_DATADIR}/relay-log.info";
+my $newpos = '2147483648';
 
-0
+open(my $in, "<", $file) or die "Cannot open $file: $!";
+binmode($in); # To preserve line endings
+my @lines = <$in>;
+close($in);
+
+$lines[1] = "$newpos\n";
+
+open(my $out, ">", $file) or die "Cannot write to $file: $!";
+binmode($out); # To preserve line endings
+print $out @lines;
+close($out) or die "Error closing $file: $!";
 EOF
 
 --let $rpl_server_number= 2
