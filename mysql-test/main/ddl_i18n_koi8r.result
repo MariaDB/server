@@ -1269,7 +1269,7 @@ END	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	#
 
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg1	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1281,7 +1281,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg2	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1293,12 +1293,12 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 
 use mysqltest2|
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg3	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1310,7 +1310,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg4	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1322,7 +1322,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 use mysqltest1|
 
 
@@ -1541,7 +1541,7 @@ END	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	#
 
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg1	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1553,7 +1553,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg2	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1565,12 +1565,12 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 
 use mysqltest2|
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg3	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1582,7 +1582,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg4	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1594,7 +1594,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 use mysqltest1|
 
 
@@ -1987,7 +1987,7 @@ END	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	#
 
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg1	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -1999,7 +1999,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg2	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -2011,12 +2011,12 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 
 use mysqltest2|
 
 SHOW TRIGGERS|
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg3	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10);
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -2028,7 +2028,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @a1 = 'текст';
 SET @a1 =     'текст';
 SET @a2 =  'текст';
-END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	BEFORE	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 trg4	INSERT	t1	BEGIN
 DECLARE перем1 CHAR(10) CHARACTER SET utf8;
 INSERT INTO log VALUES(COLLATION(перем1));
@@ -2040,7 +2040,7 @@ INSERT INTO log VALUES(@@character_set_client);
 SET @b1 = 'текст';
 SET @b1 =     'текст';
 SET @b2 =  'текст';
-END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci
+END	AFTER	#		root@localhost	koi8r	koi8r_general_ci	utf8mb4_unicode_ci	ROW
 use mysqltest1|
 
 

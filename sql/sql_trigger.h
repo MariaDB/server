@@ -31,16 +31,9 @@ class Query_tables_list;
 typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 #include <sql_list.h>
+#include "sql_basic_types.h"                   // enum trg_event_type
 
 static const uint8 TRG_EVENT_UNKNOWN= 0;
-/** Event on which trigger is invoked. */
-enum trg_event_type
-{
-  TRG_EVENT_INSERT= 0,
-  TRG_EVENT_UPDATE= 1,
-  TRG_EVENT_DELETE= 2,
-  TRG_EVENT_MAX
-};
 
 typedef uint8 trg_event_set;
 
@@ -89,6 +82,31 @@ enum trg_action_time_type
 {
   TRG_ACTION_BEFORE= 0, TRG_ACTION_AFTER= 1, TRG_ACTION_MAX
 };
+
+/*
+  How often the trigger fires: once per row (the only granularity before
+  this change), once per statement after its last row, or once per
+  transaction at the commit boundary (optionally also before every
+  SAVEPOINT).  FOR EACH STATEMENT and BEFORE COMMIT triggers are
+  AFTER-only.
+
+  TRG_GRANULARITY_ROW must stay 0: lex_start() zeroes st_trg_chistics.
+*/
+enum trg_granularity_type
+{
+  TRG_GRANULARITY_ROW= 0,
+  TRG_GRANULARITY_STATEMENT= 1,
+  TRG_GRANULARITY_COMMIT= 2,
+  TRG_GRANULARITY_MAX
+};
+
+extern const LEX_CSTRING trg_granularity_type_names[];
+
+/* The clause that gives a multi-row trigger its granularity */
+static inline const char *trg_granularity_clause(trg_granularity_type g)
+{
+  return g == TRG_GRANULARITY_COMMIT ? "BEFORE COMMIT" : "FOR EACH STATEMENT";
+}
 
 enum trigger_order_type
 {
@@ -163,7 +181,13 @@ public:
     sql_path{STRING_WITH_LEN("")},
     events{0},
     action_time{TRG_ACTION_MAX},
-    updatable_columns{nullptr}
+    granularity{TRG_GRANULARITY_ROW},
+    fires_on_savepoint{false},
+    updatable_columns{nullptr},
+    capture_columns{nullptr},
+    capture_columns_except{false},
+    next_commit{nullptr},
+    commit_order{0}
   {
     bzero((char *)&subject_table_grants, sizeof(subject_table_grants));
     bzero(next, sizeof(next));
@@ -197,12 +221,33 @@ public:
   /* Set of events this trigger object assigned to */
   trg_event_set events;
   trg_action_time_type action_time;
+  /*
+    Neither is stored in the .TRG file: both are re-derived from the
+    stored CREATE TRIGGER text every time the trigger is loaded.
+  */
+  trg_granularity_type granularity;
+  /* BEFORE COMMIT OR SAVEPOINT: also fire before every SAVEPOINT */
+  bool fires_on_savepoint;
 
   /**
     action order of the trigger for every of supplied event type
   */
   uint action_order[TRG_EVENT_MAX];
   List<LEX_CSTRING> *updatable_columns;
+  /*
+    FOR EACH STATEMENT and BEFORE COMMIT triggers: the OF or EXCEPT list
+    of captured columns, without duplicates; nullptr when all columns are
+    captured.
+    Re-derived from the stored CREATE TRIGGER text like the two above.
+  */
+  List<LEX_CSTRING> *capture_columns;
+  bool capture_columns_except;
+  /*
+    BEFORE COMMIT triggers: the next one in the table's single list of
+    them, the order they fire in, and the 1-based position in that list
+  */
+  Trigger *next_commit;
+  uint commit_order;
 
   void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
                         LEX_STRING *definer);
@@ -224,8 +269,18 @@ class Table_triggers_list: public Sql_alloc
 {
   friend class Trigger;
 
-  /* Points to first trigger for a certain type */
-  Trigger *triggers[TRG_EVENT_MAX][TRG_ACTION_MAX];
+  /*
+    Points to first trigger for a certain type.  The BEFORE slots of the
+    FOR EACH STATEMENT and BEFORE COMMIT granularities are always empty.
+  */
+  Trigger *triggers[TRG_GRANULARITY_MAX][TRG_EVENT_MAX][TRG_ACTION_MAX];
+  /*
+    All BEFORE COMMIT triggers, whatever their events, in the order they
+    fire at the commit: creation order, or as FOLLOWS/PRECEDES places them.
+    They are also in the per-event slots above, which only tell which
+    events are captured; the order of those slots means nothing for them.
+  */
+  Trigger *commit_triggers;
   /**
     Copy of TABLE::Field array which all fields made nullable
     (using extra_null_bitmap, if needed). Used for NEW values in
@@ -240,9 +295,23 @@ class Table_triggers_list: public Sql_alloc
   */
   Field             **record1_field;
   /**
+    Copy of TABLE::Field array with every field being NULL. A trigger
+    defined for several events uses it for OLD values when it is run for
+    an INSERT event and for NEW values when it is run for a DELETE event,
+    so that every way of reading such a value sees the NULL. Only allocated
+    if the table has such a trigger, since only it can read OLD or NEW
+    there. The fields are never written to: OLD is always read-only, SET
+    NEW is refused in a trigger defined for a DELETE event, and NEW as an
+    OUT or INOUT routine argument is refused when the trigger is run for a
+    DELETE event (see Item_trigger_field::check_settable()).
+  */
+  Field             **null_row_field;
+  /**
     During execution of trigger new_field and old_field should point to the
     array of fields representing new or old version of row correspondingly
-    (so it can point to TABLE::field or to Tale_triggers_list::record1_field)
+    (so it can point to TABLE::field, to Tale_triggers_list::record1_field
+    or, for OLD on an INSERT event and NEW on a DELETE event, to
+    null_row_field)
   */
   Field             **new_field;
   Field             **old_field;
@@ -301,8 +370,9 @@ public:
   List<LEX_CSTRING>  sql_paths;
 
   Table_triggers_list(TABLE *table_arg)
-    :record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),
-    record1_field(0), trigger_table(table_arg),
+    :commit_triggers(nullptr),
+    record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),
+    record1_field(0), null_row_field(0), trigger_table(table_arg),
     m_has_unparseable_trigger(false), count(0)
   {
     bzero((char *) triggers, sizeof(triggers));
@@ -359,10 +429,11 @@ public:
                                   const LEX_CSTRING *new_db,
                                   const LEX_CSTRING *new_tab,
                                   uint flags);
+  /* Row triggers; all pre-existing callers mean these */
   Trigger *get_trigger(trg_event_type event_type, 
                        trg_action_time_type action_time)
   {
-    return triggers[event_type][action_time];
+    return triggers[TRG_GRANULARITY_ROW][event_type][action_time];
   }
   /* Simpler version of the above, to avoid casts in the code */
   Trigger *get_trigger(uint event_type, uint action_time)
@@ -370,12 +441,40 @@ public:
     return get_trigger((trg_event_type) event_type,
                        (trg_action_time_type) action_time);
   }
+  Trigger *get_trigger(trg_granularity_type granularity,
+                       trg_event_type event_type,
+                       trg_action_time_type action_time)
+  {
+    return triggers[granularity][event_type][action_time];
+  }
+  bool has_multi_row_triggers(trg_event_type event_type)
+  {
+    return get_trigger(TRG_GRANULARITY_STATEMENT, event_type,
+                       TRG_ACTION_AFTER) ||
+           get_trigger(TRG_GRANULARITY_COMMIT, event_type, TRG_ACTION_AFTER);
+  }
+  Trigger *get_commit_triggers() { return commit_triggers; }
+  bool has_commit_triggers() { return commit_triggers != nullptr; }
 
+  /*
+    A FOR EACH STATEMENT or BEFORE COMMIT trigger counts as an AFTER
+    trigger here.  Every caller uses this to switch off a path that
+    bypasses the per-row trigger calls (direct update/delete,
+    delete_all_rows, REPLACE as an update, batched update/delete), and the
+    per-row AFTER call is where the rows for those triggers are captured.
+  */
   bool has_triggers(trg_event_type event_type, 
                     trg_action_time_type action_time)
   {
-    return get_trigger(event_type,action_time) != 0;
+    return get_trigger(event_type,action_time) != 0 ||
+           (action_time == TRG_ACTION_AFTER &&
+            has_multi_row_triggers(event_type));
   }
+  bool capture_row_for_multi_row_triggers(THD *thd, trg_event_type event,
+                                          bool old_row_is_record1);
+  bool get_capture_columns(trg_granularity_type granularity, MY_BITMAP *set,
+                           bool report_errors);
+  void print_capture_columns(const MY_BITMAP *set, String *out);
   bool has_delete_triggers()
   {
     return (has_triggers(TRG_EVENT_DELETE,TRG_ACTION_BEFORE) ||
@@ -411,6 +510,11 @@ public:
   Trigger* for_all_triggers(Triggers_processor func, void *arg);
 
 private:
+  void add_commit_trigger(trigger_order_type ordering_clause,
+                          const Lex_ident_trigger &anchor_trigger_name,
+                          Trigger *trigger);
+  void remove_commit_trigger(Trigger *trigger);
+  void renumber_commit_triggers();
   bool prepare_record_accessors(TABLE *table);
   Trigger *change_table_name_in_trignames(const LEX_CSTRING *old_db_name,
                                           const LEX_CSTRING *new_db_name,
@@ -456,6 +560,49 @@ bool load_table_name_for_trigger(THD *thd,
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
 bool rm_trigname_file(char *path, const LEX_CSTRING *db,
                       const LEX_CSTRING *trigger_name, myf MyFlags);
+
+/*
+  Hookup sketch for FOR EACH STATEMENT and BEFORE COMMIT [OR SAVEPOINT]
+  triggers (sql_trigger_commit.cc).  No trigger body is executed: every hook
+  reports what it would do with one trg_hook_trace() line in the error log,
+  in debug builds only.
+*/
+void trg_hook_trace(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+
+bool trg_capture_columns_resolve(TABLE *table, List<LEX_CSTRING> *names,
+                                 bool except, MY_BITMAP *set,
+                                 bool report_errors);
+bool trg_commit_fire_at_commit(THD *thd, const char *kind);
+bool trg_commit_fire_at_autocommit_end(THD *thd);
+bool trg_commit_boundary_failed(THD *thd);
+bool trg_commit_fire_at_xa_end(THD *thd);
+bool trg_commit_fire_at_savepoint(THD *thd);
+void trg_commit_savepoint_failed(THD *thd);
+void trg_commit_savepoint_set(THD *thd, struct st_savepoint *sv);
+void trg_commit_savepoint_rollback(THD *thd, struct st_savepoint *sv);
+void trg_commit_savepoint_release(THD *thd, struct st_savepoint *sv);
+void trg_commit_statement_commit(THD *thd);
+void trg_commit_rollback(THD *thd, bool is_real_trans);
+bool trg_commit_body_refuses(THD *thd, const char *statement);
+void trg_commit_check_body_at_create(THD *thd, LEX *lex);
+bool trg_chain_check_write(THD *thd, TABLE_LIST *tables);
+
+bool trg_activate_statement_events(THD *thd);
+bool trg_fire_statement_triggers(THD *thd, bool statement_failed,
+                                 bool row_events= false);
+
+/*
+  One BEFORE COMMIT firing in progress: the table whose triggers are
+  running.  THD::trg_firing_chain points to the innermost one; a firing
+  nested under it (a body wrote a table whose triggers fire at the same
+  boundary) links to it through prev.  Lives on the stack of the firing
+  function.
+*/
+struct Trg_firing_link
+{
+  Trg_firing_link *prev;
+  LEX_CSTRING db, name;
+};
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;

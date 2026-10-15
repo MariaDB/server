@@ -2686,21 +2686,21 @@ end if;
 end|
 set sql_mode=default|
 show triggers like "t1";
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg1	INSERT	t1	begin
 if new.a > 10 then
 set new.a := 10;
 set new.a := 11;
 end if;
-end	BEFORE	0000-00-00 00:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	BEFORE	0000-00-00 00:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 trg2	UPDATE	t1	begin
 if old.a % 2 = 0 then set new.b := 12; end if;
-end	BEFORE	0000-00-00 00:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	BEFORE	0000-00-00 00:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 trg3	UPDATE	t1	begin
 if new.a = -1 then
 set @fired:= "Yes";
 end if;
-end	AFTER	0000-00-00 00:00:00	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	AFTER	0000-00-00 00:00:00	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 INSERT INTO t1 (a) VALUES (1),(2),(3),(22);
 update t1 set a = 4 where a=3;
 /*M!999999\- enable the sandbox mode */ 
@@ -2915,26 +2915,26 @@ Tables_in_test
 t1
 t2
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trg1	INSERT	t1	begin
 if new.a > 10 then
 set new.a := 10;
 set new.a := 11;
 end if;
-end	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 trg2	UPDATE	t1	begin
 if old.a % 2 = 0 then set new.b := 12; end if;
-end	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 trg3	UPDATE	t1	begin
 if new.a = -1 then
 set @fired:= "Yes";
 end if;
-end	AFTER	#	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	AFTER	#	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 trg4	INSERT	t2	begin
 if new.a > 10 then
 set @fired:= "No";
 end if;
-end	BEFORE	#	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	BEFORE	#	STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 DROP TABLE t1, t2;
 #
 # Bug#9136  my_print_defaults changed behaviour between 4.1.7 and 4.1.10a
@@ -2965,9 +2965,9 @@ SELECT * FROM `test2`;
 a2
 1
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 testref	INSERT	test1	BEGIN
-INSERT INTO test2 SET a2 = NEW.a1; END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+INSERT INTO test2 SET a2 = NEW.a1; END	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 SELECT * FROM `test1`;
 a1
 1
@@ -3692,12 +3692,12 @@ drop trigger tr1;
 drop trigger tr2;
 drop table t1, t2;
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 tr1	INSERT	t1	set
-new.created=now()	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+new.created=now()	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 tr2	INSERT	t1	begin
 insert into t2 set b=new.a and created=new.created;
-end	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+end	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 drop trigger tr1;
 drop trigger tr2;
 drop table t1, t2;
@@ -4971,8 +4971,8 @@ Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci	ROW
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test	ev1	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -4990,8 +4990,8 @@ DROP PROCEDURE pr1;
 
 reload table; this should restore table and trigger
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci	ROW
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 SELECT name,body FROM mysql.proc WHERE NAME = 'pr1';
@@ -4999,8 +4999,8 @@ name	body
 
 reload db; this should restore routines and events
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+tr1	UPDATE	t1	SET @f1 = 1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci	ROW
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test	ev1	root@localhost	SYSTEM	ONE TIME	2030-01-01 00:00:00	NULL	NULL	NULL	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -5791,10 +5791,10 @@ one
 view
 one
 SHOW TRIGGERS FROM bug25717383;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb4	utf8mb4_uca1400_ai_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb4	utf8mb4_uca1400_ai_ci	latin1_swedish_ci	ROW
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event
@@ -5814,10 +5814,10 @@ one
 view
 one
 SHOW TRIGGERS FROM bug25717383;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb4	utf8mb4_uca1400_ai_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb4	utf8mb4_uca1400_ai_ci	latin1_swedish_ci	ROW
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event

@@ -4992,6 +4992,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (thd->variables.option_bits & OPTION_TABLE_LOCK)
     {
       res= trans_commit_implicit(thd);
+      /* A failing BEFORE COMMIT body: the statement does not run */
+      if (res && trg_commit_boundary_failed(thd))
+        goto error;
       if (thd->locked_tables_list.unlock_locked_tables(thd))
         res= 1;
       thd->release_transactional_locks();
@@ -5008,6 +5011,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_LOCK_TABLES:
     /* We must end the transaction first, regardless of anything */
     res= trans_commit_implicit(thd);
+    /* ... except a failing BEFORE COMMIT body: the statement does not run */
+    if (res && trg_commit_boundary_failed(thd))
+      goto error;
     if (thd->locked_tables_list.unlock_locked_tables(thd))
       res= 1;
     /* Release transactional metadata locks. */
@@ -5976,6 +5982,29 @@ finish:
 
   if (res || thd->is_error())
     clean_captured_ctx(thd);
+
+  /*
+    FOR EACH STATEMENT triggers fire here, at the end of every DML
+    statement including those inside routines and trigger bodies: the
+    tables are still open and locked (prelocked), the statement
+    transaction is not yet committed or rolled back, and the statement's
+    max_statement_time still applies, as it does to ROW bodies.  A successful
+    statement first activates the events it is for on the tables it
+    writes, so that their triggers fire even if no row changed.  A failing
+    body fails the statement like a failing AFTER ROW trigger: the
+    statement transaction is rolled back below.  The OK status may already
+    be set, so the body's error has to overwrite it the way a failing
+    commit does below.
+  */
+  {
+    bool can_overwrite= thd->get_stmt_da()->can_overwrite_status();
+    thd->get_stmt_da()->set_overwrite_status(true);
+    if (!thd->is_error() && !res && trg_activate_statement_events(thd))
+      res= 1;
+    if (trg_fire_statement_triggers(thd, thd->is_error() || res))
+      res= 1;
+    thd->get_stmt_da()->set_overwrite_status(can_overwrite);
+  }
 
   thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||

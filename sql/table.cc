@@ -10623,11 +10623,13 @@ bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
 
         my_hrtime_t hr_stmt_prepare= thd->hr_prepare_time;
         if (hr_stmt_prepare.val)
+          for (uint g= 0; g < TRG_GRANULARITY_MAX; g++)
           for(uint i= 0; i < TRG_EVENT_MAX; i++)
             for (uint j= 0; j < TRG_ACTION_MAX; j++)
             {
               Trigger *tr=
-                table->triggers->get_trigger((trg_event_type)i,
+                table->triggers->get_trigger((trg_granularity_type) g,
+                                             (trg_event_type)i,
                                              (trg_action_time_type)j);
               if (tr)
                 if (hr_stmt_prepare.val <= tr->hr_create_time.val)

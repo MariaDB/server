@@ -1,0 +1,265 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+INSERT INTO t2 VALUES (1, 1), (2, 2);
+connection slave;
+# On the replica only
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+CREATE TRIGGER t1_stmt AFTER UPDATE ON t1 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t2_stmt AFTER UPDATE OR DELETE ON t2 FOR EACH STATEMENT
+SET @x= 1;
+# slave_run_triggers_for_rbr=NO: no capture, nothing fires
+connection master;
+UPDATE t1 SET b= b + 10 WHERE a = 1;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= YES;
+include/start_slave.inc
+# One statement, two tables, two row events: each table fires once
+connection master;
+UPDATE t1 JOIN t2 USING (a) SET t1.b= t1.b + 10, t2.b= t2.b + 10;
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t1 through t1 (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t1 through t1 (OLD=record[1] NEW=record[0]) into the statement set, now 2 UPDATE rows
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t2 created, columns: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t2 through t2 (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t2 through t2 (OLD=record[1] NEW=record[0]) into the statement set, now 2 UPDATE rows
+# end of statement: FIRE test.t1_stmt (AFTER UPDATE FOR EACH STATEMENT) over 0 INSERT, 2 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# end of statement: FIRE test.t2_stmt (AFTER UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 2 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# Several rows of one table in one statement
+connection master;
+DELETE FROM t2;
+connection slave;
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t2 created, columns: a, b, + __op_order, __op, __state
+# capture DELETE row of test.t2 through t2 (OLD=record[0]) into the statement set, now 1 DELETE rows
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t2: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture DELETE row of test.t2 through t2 (OLD=record[0]) into the statement set, now 2 DELETE rows
+# end of statement: FIRE test.t2_stmt (AFTER UPDATE,DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 2 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# A statement that matches no row sends no row event
+connection master;
+UPDATE t1 SET b= 0 WHERE a > 100;
+connection slave;
+# One table's rows span several row events: INSERT ... ON DUPLICATE
+# KEY UPDATE that alternates inserted and updated rows starts a new
+# event at every change of kind.  The triggers fire once, after the
+# last of them.
+CREATE TRIGGER t1_iu AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+SET @x= 1;
+# CREATE TRIGGER test.t1_iu: AFTER INSERT,UPDATE ON t1 FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+connection master;
+INSERT INTO t1 VALUES (1, 0), (4, 4), (2, 0), (5, 5)
+ON DUPLICATE KEY UPDATE b= b + 100;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, 0), (4, 4), (2, 0), (5, 5)
+ON DUPLICATE KEY UPDATE b= b + 100
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: #
+master-bin.000001	#	Write_rows_v1	#	#	table_id: #
+master-bin.000001	#	Update_rows_v1	#	#	table_id: #
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t1 through t1 (OLD=record[1] NEW=record[0]) into the statement set, now 1 UPDATE rows
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture UPDATE row of test.t1 through t1 (OLD=record[1] NEW=record[0]) into the statement set, now 2 UPDATE rows
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t1_iu (AFTER INSERT,UPDATE FOR EACH STATEMENT) over 2 INSERT, 2 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# end of statement: FIRE test.t1_stmt (AFTER UPDATE FOR EACH STATEMENT) over 0 INSERT, 2 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+DROP TRIGGER t1_iu;
+SELECT a, b FROM t1 ORDER BY a;
+a	b
+1	121
+2	112
+3	3
+4	4
+5	5
+# The rows that a trigger body writes arrive in the row events of the
+# statement that fired it: on the replica a statement trigger on their
+# table fires once over all of them.  t3 had a trigger on the primary,
+# so the replica runs none on t3.
+connection master;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t3_row AFTER INSERT ON t3 FOR EACH ROW
+INSERT INTO t4 VALUES (NEW.a);
+connection slave;
+CREATE TRIGGER t4_stmt AFTER INSERT ON t4 FOR EACH STATEMENT SET @x= 1;
+# CREATE TRIGGER test.t4_stmt: AFTER INSERT ON t4 FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+connection master;
+INSERT INTO t3 VALUES (1), (2);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t3 VALUES (1), (2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t4)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: #
+master-bin.000001	#	Write_rows_v1	#	#	table_id: #
+master-bin.000001	#	Write_rows_v1	#	#	table_id: #
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+connection slave;
+# column marking for test.t4: captured columns marked for read: a, + __op_order, __op, __state
+# statement set: entry for test.t4 created, columns: a, + __op_order, __op, __state
+# capture INSERT row of test.t4 through t4 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# column marking for test.t4: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t4 through t4 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t4_stmt (AFTER INSERT FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+SELECT a FROM t4 ORDER BY a;
+a
+1
+2
+# With YES the replica runs no trigger on a table that had any trigger
+# on the primary, whatever its kind and events: a BEFORE COMMIT
+# trigger on the primary keeps the replica's statement trigger from
+# firing.  With ENFORCE it fires.
+connection master;
+CREATE TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin= 0;
+CREATE TRIGGER t5_commit AFTER INSERT ON t5 BEFORE COMMIT SET @x= 1;
+SET sql_log_bin= 1;
+connection slave;
+CREATE TRIGGER t5_stmt AFTER INSERT ON t5 FOR EACH STATEMENT SET @x= 1;
+# CREATE TRIGGER test.t5_stmt: AFTER INSERT ON t5 FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+connection master;
+INSERT INTO t5 VALUES (1), (2);
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= ENFORCE;
+include/start_slave.inc
+connection master;
+INSERT INTO t5 VALUES (3), (4);
+connection slave;
+# column marking for test.t5: captured columns marked for read: a, + __op_order, __op, __state
+# statement set: entry for test.t5 created, columns: a, + __op_order, __op, __state
+# capture INSERT row of test.t5 through t5 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# column marking for test.t5: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t5 through t5 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t5_stmt (AFTER INSERT FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+SELECT a FROM t5 ORDER BY a;
+a
+1
+2
+3
+4
+# The replica fires only the events whose rows arrive: a REPLACE that
+# replaces no row fires the INSERT and DELETE statement triggers on
+# the primary, and only the INSERT ones on the replica, which gets a
+# Write_rows event alone.
+connection master;
+CREATE TABLE t6 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t6_ins AFTER INSERT ON t6 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t6_del AFTER DELETE ON t6 FOR EACH STATEMENT SET @x= 1;
+connection slave;
+# CREATE TRIGGER test.t6_ins: AFTER INSERT ON t6 FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+# CREATE TRIGGER test.t6_del: AFTER DELETE ON t6 FOR EACH STATEMENT, body compiled, added to the STATEMENT list of the table
+connection master;
+REPLACE INTO t6 VALUES (1), (2);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t6 VALUES (1), (2)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t6)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+# Primary
+# column marking for test.t6: captured columns marked for read: a, + __op_order, __op, __state
+# statement set: entry for test.t6 created, columns: a, + __op_order, __op, __state
+# capture INSERT row of test.t6 through t6 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# capture INSERT row of test.t6 through t6 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# statement set: DELETE activated on test.t6 by a statement that changed no DELETE row of it
+# end of statement: FIRE test.t6_ins (AFTER INSERT FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# end of statement: FIRE test.t6_del (AFTER DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+connection slave;
+# Replica
+# column marking for test.t6: captured columns marked for read: a, + __op_order, __op, __state
+# statement set: entry for test.t6 created, columns: a, + __op_order, __op, __state
+# capture INSERT row of test.t6 through t6 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# column marking for test.t6: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t6 through t6 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t6_ins (AFTER INSERT FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+SELECT a FROM t6 ORDER BY a;
+a
+1
+2
+# A BEFORE COMMIT body on the replica that times out waiting for a lock
+# fails the commit with 40004, the timeout after it: the replica
+# retries the transaction, as after a lock wait timeout of its own
+connection master;
+CREATE TABLE t7 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connection slave;
+CREATE TRIGGER t7_commit AFTER INSERT ON t7 BEFORE COMMIT SET @x= 1;
+include/stop_slave.inc
+SET @save_debug_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,trg_commit_body_lock_wait_timeout_once';
+include/start_slave.inc
+# CREATE TRIGGER test.t7_commit: AFTER INSERT ON t7 BEFORE COMMIT, body compiled, added to the BEFORE COMMIT list of the table
+connection master;
+INSERT INTO t7 VALUES (1), (2);
+include/sync_slave_sql_with_master.inc
+# prelocking for test.t7: INSERT BEFORE COMMIT triggers are NOT prelocked by this statement
+# column marking for test.t7: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t7, columns: a, + __op_order, __op, __state; fixed from triggers t7_commit; has OR SAVEPOINT triggers: no
+# capture INSERT row of test.t7 (NEW=record[0]) into the transaction accumulator at position 0
+# column marking for test.t7: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t7 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# COMMIT of a multi-statement transaction (statement: ): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: ): test.t7 enters the firing chain at depth 1; it is closed, transactional MDL_SHARED_WRITE held: yes; re-opening it to reach its triggers
+# COMMIT of a multi-statement transaction (statement: ): FIRE test.t7_commit (AFTER INSERT BEFORE COMMIT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# COMMIT of a multi-statement transaction (statement: ): a body failed; the transaction is rolled back, and the statement that caused the commit fails
+# ROLLBACK of the transaction: 2 captured rows discarded; BEFORE COMMIT triggers had ALREADY FIRED, their writes roll back with the transaction
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+# prelocking for test.t7: INSERT BEFORE COMMIT triggers are NOT prelocked by this statement
+# column marking for test.t7: captured columns marked for read: a, + __op_order, __op, __state
+# accumulator attached to thd->transaction (transaction mem_root)
+# accumulator: new (transaction, table) entry for test.t7, columns: a, + __op_order, __op, __state; fixed from triggers t7_commit; has OR SAVEPOINT triggers: no
+# capture INSERT row of test.t7 (NEW=record[0]) into the transaction accumulator at position 0
+# column marking for test.t7: captured columns marked for read: a, + __op_order, __op, __state
+# capture INSERT row of test.t7 (NEW=record[0]) into the transaction accumulator at position 1
+# statement committed inside the transaction: statement mark moves from 0 to 2
+# COMMIT of a multi-statement transaction (statement: ): boundary reached, accumulator holds 2 rows, in_sub_stmt=0, open tables in THD: none
+# COMMIT of a multi-statement transaction (statement: ): test.t7 enters the firing chain at depth 1; it is closed, transactional MDL_SHARED_WRITE held: yes; re-opening it to reach its triggers
+# COMMIT of a multi-statement transaction (statement: ): FIRE test.t7_commit (AFTER INSERT BEFORE COMMIT, order 1) over positions [0, 2): 2 INSERT, 0 UPDATE, 0 DELETE rows; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# transaction end: accumulator of 2 rows freed with the transaction mem_root
+SELECT a FROM t7 ORDER BY a;
+a
+1
+2
+include/assert.inc [The replica retried the transaction once]
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @save_debug_dbug;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+include/start_slave.inc
+DROP TRIGGER t1_stmt;
+DROP TRIGGER t2_stmt;
+connection master;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7;
+connection slave;
+include/rpl_end.inc

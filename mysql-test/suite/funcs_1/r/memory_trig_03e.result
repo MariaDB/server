@@ -285,7 +285,7 @@ select current_user;
 current_user
 root@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 grant  select, insert, update on priv_db.t1 to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
@@ -321,7 +321,7 @@ select current_user;
 current_user
 root@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 show tables;
 Tables_in_priv_db
 t1
@@ -343,7 +343,7 @@ select current_user;
 current_user
 test_yesprivs@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 create trigger trg1_2 before INSERT  on t1 for each row
 set new.f1 = 'trig 1_2-yes';
 connection no_privs;
@@ -489,9 +489,9 @@ ERROR 42000: TRIGGER command denied to user 'test_yesprivs'@'localhost' for tabl
 create trigger trg1_4 before UPDATE  on t1 for each row
 set new.f1 = 'trig 1_4-yes';
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1_3	INSERT	t1	set new.f1 = 'trig 1_3-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
-trg1_4	UPDATE	t1	set new.f1 = 'trig 1_4-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+trg1_3	INSERT	t1	set new.f1 = 'trig 1_3-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
+trg1_4	UPDATE	t1	set new.f1 = 'trig 1_4-yes'	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	test_yesprivs@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 connection no_privs;
 select current_user;
 current_user
@@ -615,8 +615,8 @@ current_user
 test_yesprivs@localhost
 use priv_db;
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1_1	INSERT	t1	NULL	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+trg1_1	INSERT	t1	NULL	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	ROW
 select * from information_schema.triggers;
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 def	mtr	gs_insert	INSERT	def	mtr	global_suppressions	1	NULL	NULL	ROW	BEFORE	NULL	NULL	OLD	NEW	#		NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
@@ -930,7 +930,7 @@ select current_user;
 current_user
 root@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 grant TRIGGER on priv1_db.t1 to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
@@ -946,7 +946,7 @@ select current_user;
 current_user
 test_yesprivs@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 create trigger trg1_2 before INSERT  on t1 for each row
 set new.f1 = 'trig 1_2-yes';
 create trigger trg2_1 before INSERT  on t2 for each row
@@ -1068,7 +1068,7 @@ select current_user;
 current_user
 root@localhost
 show triggers;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 grant  select, insert, update ,trigger
 on priv_db.t1 to test_yesprivs@localhost
 with grant option;

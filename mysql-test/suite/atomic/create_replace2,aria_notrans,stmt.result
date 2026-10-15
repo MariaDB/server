@@ -20,8 +20,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_frm
 t1.DATA1
 t1.DATA2
@@ -31,8 +31,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_table
 t1.DATA1
 t1.DATA2
@@ -42,8 +42,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_create_table
 t1.DATA1
 t1.DATA2
@@ -53,8 +53,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_send_data
 # No crash!
 t1.DATA1
@@ -65,7 +65,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_before_binlog
 t1.DATA1
 t1.DATA2
@@ -75,8 +75,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_prepare_eof
 # No crash!
 t1.DATA1
@@ -87,7 +87,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_prepare_eof
 # No crash!
 t1.DATA1
@@ -98,7 +98,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_binlog
 t1.DATA1
 t1.DATA2
@@ -108,7 +108,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_revert
 t1.DATA1
 t1.DATA2
@@ -118,7 +118,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_middle_complete
 t1.DATA1
 t1.DATA2
@@ -128,7 +128,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_complete
 t1.DATA1
 t1.DATA2
@@ -138,7 +138,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # QUERY: CREATE OR REPLACE TABLE t1 LIKE const_table
 # CRASH POINT: ddl_log_finalize_create
 t1.DATA1
@@ -149,8 +149,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_frm
 t1.DATA1
 t1.DATA2
@@ -160,8 +160,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_table
 t1.DATA1
 t1.DATA2
@@ -171,8 +171,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_create_table
 t1.DATA1
 t1.DATA2
@@ -182,8 +182,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_send_data
 # No crash!
 t1.DATA1
@@ -195,7 +195,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_before_binlog
 t1.DATA1
 t1.DATA2
@@ -205,8 +205,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_prepare_eof
 # No crash!
 t1.DATA1
@@ -218,7 +218,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_prepare_eof
 # No crash!
 t1.DATA1
@@ -230,7 +230,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_binlog
 t1.DATA1
 t1.DATA2
@@ -241,7 +241,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_revert
 t1.DATA1
 t1.DATA2
@@ -252,7 +252,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_middle_complete
 t1.DATA1
 t1.DATA2
@@ -263,7 +263,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_complete
 t1.DATA1
 t1.DATA2
@@ -274,7 +274,7 @@ t1	CREATE TABLE `t1` (
   `new` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # QUERY: CREATE OR REPLACE TABLE t1 engine=aria,transactional=0 SELECT * from const_table
 # CRASH POINT: ddl_log_finalize_create
 t1.DATA1
@@ -286,8 +286,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_frm
 t1.DATA1
 t1.DATA2
@@ -298,8 +298,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_create_table
 t1.DATA1
 t1.DATA2
@@ -310,8 +310,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_create_table
 t1.DATA1
 t1.DATA2
@@ -322,8 +322,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_send_data
 t1.DATA1
 t1.DATA2
@@ -334,8 +334,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_binlog
 t1.DATA1
 t1.DATA2
@@ -346,8 +346,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_before_prepare_eof
 t1.DATA1
 t1.DATA2
@@ -358,8 +358,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_prepare_eof
 t1.DATA1
 t1.DATA2
@@ -370,8 +370,8 @@ t1	CREATE TABLE `t1` (
   `old` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 old
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-a	INSERT	t1	set @s= 1	BEFORE						
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
+a	INSERT	t1	set @s= 1	BEFORE							ROW
 # CRASH POINT: ddl_log_create_after_binlog
 t1.DATA1
 t1.DATA2
@@ -385,7 +385,7 @@ t1	CREATE TABLE `t1` (
 new	b
 1	1
 2	2
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_after_revert
 t1.DATA1
 t1.DATA2
@@ -399,7 +399,7 @@ t1	CREATE TABLE `t1` (
 new	b
 1	1
 2	2
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_middle_complete
 t1.DATA1
 t1.DATA2
@@ -413,7 +413,7 @@ t1	CREATE TABLE `t1` (
 new	b
 1	1
 2	2
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 # CRASH POINT: ddl_log_create_complete
 t1.DATA1
 t1.DATA2
@@ -427,6 +427,6 @@ t1	CREATE TABLE `t1` (
 new	b
 1	1
 2	2
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 Warnings:
 Note	1051	Unknown table 'test.t1'

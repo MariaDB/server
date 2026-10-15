@@ -18,6 +18,6 @@ SET DEBUG_SYNC = 'RESET';
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 connection node_2;
 SHOW TRIGGERS;
-Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation	Orientation
 DROP TABLE t1;
 DROP TABLE t2;

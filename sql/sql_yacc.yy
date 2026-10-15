@@ -1483,6 +1483,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <simple_string>
         remember_name remember_end
+        trg_granularity
         remember_tok_start
         remember_cpp_ptr
         wild_and_where
@@ -4938,6 +4939,105 @@ trg_event:
 trg_events:
             trg_event
           | trg_events OR_SYM trg_event
+          ;
+
+/*
+  FOR EACH ROW | FOR EACH STATEMENT | BEFORE COMMIT [OR SAVEPOINT], after
+  ON table_name.  FOR EACH STATEMENT and BEFORE COMMIT triggers are
+  AFTER-only, have no UPDATE OF column list, and may be followed by the
+  list of columns they capture.
+
+  Returns the position of the clause's first token: the text of
+  ON table_name ends there, which is what RENAME TABLE rewrites.
+*/
+trg_granularity:
+            FOR_SYM remember_name
+            {
+              Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
+            }
+            EACH_SYM trg_for_each
+            { $$= $2; }
+          | BEFORE_SYM remember_name
+            {
+              Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
+            }
+            COMMIT_SYM opt_trg_or_savepoint
+            {
+              Lex->trg_chistics.granularity= TRG_GRANULARITY_COMMIT;
+              if (unlikely(Lex->check_multi_row_trigger_chistics()))
+                MYSQL_YYABORT;
+            }
+            opt_trg_capture_cols
+            { $$= $2; }
+          ;
+
+trg_for_each:
+            ROW_SYM
+            { Lex->trg_chistics.granularity= TRG_GRANULARITY_ROW; }
+          | STATEMENT_SYM
+            {
+              Lex->trg_chistics.granularity= TRG_GRANULARITY_STATEMENT;
+              if (unlikely(Lex->check_multi_row_trigger_chistics()))
+                MYSQL_YYABORT;
+            }
+            opt_trg_capture_cols
+          ;
+
+opt_trg_or_savepoint:
+            /* empty */ { Lex->trg_chistics.fires_on_savepoint= false; }
+          | OR_SYM SAVEPOINT_SYM
+            { Lex->trg_chistics.fires_on_savepoint= true; }
+          ;
+
+/*
+  The columns a FOR EACH STATEMENT or BEFORE COMMIT trigger captures: OF
+  names the only ones, EXCEPT names the ones left out, no list means all
+  of them.  This is
+  not the UPDATE OF firing filter of row triggers.
+
+  OF is not reserved, so a trigger body could start with it as a label.
+  The %prec makes OF here always start the column list: a body labeled
+  "of" has to quote the label.
+*/
+opt_trg_capture_cols:
+            /* empty */      %prec PREC_BELOW_CONTRACTION_TOKEN2
+            { Lex->trg_chistics.capture_col_names= NULL; }
+          | OF_SYM
+            { Lex->trg_chistics.capture_cols_except= false; }
+            trg_capture_cols
+          | EXCEPT_SYM
+            { Lex->trg_chistics.capture_cols_except= true; }
+            trg_capture_cols
+          ;
+
+trg_capture_cols:
+            ident
+            {
+              List<LEX_CSTRING> *col_names_list;
+              LEX_CSTRING *col_name;
+
+              col_names_list= new (thd->mem_root) List<LEX_CSTRING>;
+              col_name= (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+
+              if (unlikely(col_names_list == NULL) ||
+                  unlikely(col_name == NULL) ||
+                  unlikely(col_names_list->push_back(col_name,
+                                                     thd->mem_root)))
+                MYSQL_YYABORT;
+
+              Lex->trg_chistics.capture_col_names= col_names_list;
+            }
+          | trg_capture_cols ',' ident
+            {
+              LEX_CSTRING *col_name;
+
+              col_name= (LEX_CSTRING *) thd->memdup(&$3, sizeof(LEX_CSTRING));
+
+              if (unlikely(col_name == NULL) ||
+                  unlikely(Lex->trg_chistics.capture_col_names->push_back
+                    (col_name, thd->mem_root)))
+                MYSQL_YYABORT;
+            }
           ;
 
 create_body:
@@ -19270,18 +19370,20 @@ trigger_tail:
             Lex->raw_trg_on_table_name_begin= YYLIP->get_tok_start();
           }
           table_ident /* $11 */
-          FOR_SYM
-          remember_name /* $13 */
-          { /* $14 */
-            Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start();
+          trg_granularity /* $12 */
+          { /* $13 */
+            /*
+              Telling whether OR SAVEPOINT or a capture column list follows
+              reads one token ahead, which may already be FOLLOWS/PRECEDES.
+            */
+            if (yychar == YYEMPTY)
+              Lex->trg_chistics.ordering_clause_begin= YYLIP->get_cpp_ptr();
+            else
+              Lex->trg_chistics.ordering_clause_begin=
+                YYLIP->get_cpp_tok_start();
           }
-          EACH_SYM
-          ROW_SYM
-          {
-            Lex->trg_chistics.ordering_clause_begin= YYLIP->get_cpp_ptr();
-          }
-          trigger_follows_precedes_clause /* $18 */
-          { /* $19 */
+          trigger_follows_precedes_clause /* $14 */
+          { /* $15 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
@@ -19290,9 +19392,9 @@ trigger_tail:
 
             lex->stmt_definition_begin= $1;
             lex->ident.str= $9;
-            lex->ident.length= $13 - $9;
+            lex->ident.length= $12 - $9;
             lex->spname= $4;
-            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($18);
+            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($14);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
             if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
@@ -19301,8 +19403,8 @@ trigger_tail:
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $20 */ force_lookahead /* $21 */
-          { /* $22 */
+          sp_proc_stmt /* $16 */ force_lookahead /* $17 */
+          { /* $18 */
             LEX *lex= Lex;
 
             lex->sql_command= SQLCOM_CREATE_TRIGGER;

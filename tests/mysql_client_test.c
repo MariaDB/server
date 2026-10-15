@@ -21477,7 +21477,146 @@ static void test_bulk_delete_returning()
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
 }
+
+
+/*
+  A prepared statement executed with an array of parameter sets fires
+  FOR EACH STATEMENT triggers once for INSERT and REPLACE, which run all
+  the sets as one statement, and once per set for UPDATE and DELETE,
+  which run as one statement per set.  The server traces the firings in
+  its error log; main.trigger_statement_array_binding runs this test
+  alone and prints them.
+*/
+static void test_bulk_statement_trigger()
+{
+  int rc, i;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  int id[]= {1, 2, 3}, count= sizeof(id)/sizeof(id[0]);
+  const char *queries[]= {
+    "INSERT INTO t_bulk_trg (a) VALUES (?)",
+    "REPLACE INTO t_bulk_trg (a) VALUES (?)",
+    "UPDATE t_bulk_trg SET v= v + 1 WHERE a = ?",
+    "DELETE FROM t_bulk_trg WHERE a = ?"
+  };
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+
+  myheader("test_bulk_statement_trigger");
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t_bulk_trg");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t_bulk_trg (a INT PRIMARY KEY, "
+                         "v INT DEFAULT 0) ENGINE=InnoDB");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t_bulk_trg_stmt AFTER INSERT OR "
+                         "UPDATE OR DELETE ON t_bulk_trg FOR EACH STATEMENT "
+                         "SET @x= 1");
+  myquery(rc);
+
+  for (i= 0; i < (int) (sizeof(queries)/sizeof(queries[0])); i++)
+  {
+    stmt= mysql_stmt_init(mysql);
+    rc= mysql_stmt_prepare(stmt, queries[i], -1);
+    check_execute(stmt, rc);
+
+    memset(bind, 0, sizeof(bind));
+    bind[0].buffer_type= MYSQL_TYPE_LONG;
+    bind[0].buffer= (void *) id;
+
+    mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*) &count);
+    rc= mysql_stmt_bind_param(stmt, bind);
+    check_execute(stmt, rc);
+    rc= mysql_stmt_execute(stmt);
+    check_execute(stmt, rc);
+    mysql_stmt_close(stmt);
+  }
+
+  /* The UPDATE changed each row once, and the DELETE removed them all */
+  rc= mysql_query(mysql, "SELECT COUNT(*) FROM t_bulk_trg");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_IF(atoi(row[0]) != 0);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t_bulk_trg");
+  myquery(rc);
+}
 #endif
+
+
+/*
+  mysql_refresh() commits the transaction implicitly, outside any
+  statement.  When a BEFORE COMMIT trigger fails there, the call fails
+  with SQLSTATE 40004 and the transaction is rolled back at once: the
+  session can go on, the row is gone, and a later COMMIT has nothing to
+  commit.  main.trigger_commit_refresh runs this test alone.
+*/
+static void test_refresh_commit_trigger()
+{
+  int rc;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+
+  myheader("test_refresh_commit_trigger");
+  /* The failure is injected, which only a debug server can do */
+  if (!strstr(mysql_get_server_info(mysql), "-debug"))
+    return;
+  /* A BEFORE COMMIT trigger needs a transactional table */
+  rc= mysql_query(mysql, "SELECT COUNT(*) FROM information_schema.ENGINES "
+                         "WHERE ENGINE = 'InnoDB' AND "
+                         "SUPPORT IN ('YES', 'DEFAULT')");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  rc= atoi(row[0]);
+  mysql_free_result(result);
+  if (!rc)
+    return;
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t_refresh_trg");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t_refresh_trg (a INT PRIMARY KEY) "
+                         "ENGINE=InnoDB");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t_refresh_trg_commit AFTER INSERT "
+                         "ON t_refresh_trg BEFORE COMMIT SET @x= 1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "BEGIN");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t_refresh_trg VALUES (1), (2)");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET debug_dbug= '+d,trg_commit_body_fails'");
+  myquery(rc);
+  rc= mysql_refresh(mysql, REFRESH_TABLES);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(strcmp(mysql_sqlstate(mysql), "40004") == 0);
+  rc= mysql_query(mysql, "SET debug_dbug= ''");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "SELECT @@in_transaction");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_IF(atoi(row[0]) != 0);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "COMMIT");
+  myquery(rc);
+  rc= mysql_query(mysql, "SELECT COUNT(*) FROM t_refresh_trg");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_IF(atoi(row[0]) != 0);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t_refresh_trg");
+  myquery(rc);
+}
 
 
 static void test_ps_params_in_ctes()
@@ -24006,7 +24145,9 @@ static struct my_tests_st my_tests[]= {
   { "test_bulk_replace", test_bulk_replace },
   { "test_bulk_insert_returning", test_bulk_insert_returning },
   { "test_bulk_delete_returning", test_bulk_delete_returning },
+  { "test_bulk_statement_trigger", test_bulk_statement_trigger },
 #endif
+  { "test_refresh_commit_trigger", test_refresh_commit_trigger },
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
 #ifndef EMBEDDED_LIBRARY

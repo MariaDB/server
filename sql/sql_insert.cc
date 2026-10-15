@@ -762,7 +762,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   unsigned char *readbuff= NULL;
-  Running_stmt_guard guard(thd, active_dml_stmt::INSERTING_STMT);
 
   List<List_item> insert_values_cache;
   bool cache_insert_values= FALSE;

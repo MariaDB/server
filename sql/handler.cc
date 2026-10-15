@@ -36,6 +36,7 @@
 #include "create_options.h"
 #include <myisampack.h>
 #include "transaction.h"
+#include "sql_trigger.h"                     // trg_commit_*
 #include "myisam.h"
 #include "probes_mysql.h"
 #include <mysql/psi/mysql_table.h>
@@ -1876,6 +1877,27 @@ int ha_commit_trans(THD *thd, bool all)
   if (is_real_trans)                          /* not a statement commit */
     thd->stmt_map.close_transient_cursors();
 
+  /*
+    BEFORE COMMIT triggers of a multi-statement transaction have fired
+    already, in trans_commit(), trans_commit_implicit() or trans_begin(),
+    before those started to end the transaction; an XA transaction's at
+    XA END.  The end of an autocommit statement fires them here: the
+    transaction is still active, nothing is in the binary log yet, and the
+    read-only coalescing below has not run, so engines that trigger bodies
+    write to are counted when choosing one-phase vs two-phase commit.  The
+    statement is the whole transaction, so a failing body fails it and
+    rolls it back.
+  */
+  if (thd->transaction->trg_commit && is_real_trans)
+  {
+    if (!all && trg_commit_fire_at_autocommit_end(thd))
+    {
+      ha_rollback_trans(thd, all);
+      DBUG_RETURN(1);
+    }
+    ha_info= trans->ha_list;      // trigger bodies may have added engines
+  }
+
   bool no_rollback;
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all,
                                                         &no_rollback);
@@ -1918,6 +1940,14 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans && thd->check_read_only_with_error())
     goto err;
+
+  /* A statement commit inside a transaction with captured rows fails */
+  DBUG_EXECUTE_IF("trg_stmt_commit_fails",
+                  if (!is_real_trans && thd->transaction->trg_commit)
+                  {
+                    my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+                    goto err;
+                  });
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
@@ -2112,6 +2142,15 @@ done:
   {
     MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi);
     thd->m_transaction_psi= NULL;
+  }
+  else if (thd->transaction->trg_commit)
+  {
+    /*
+      The statement's captured rows stay with the transaction.  Not
+      before: a statement commit that fails is rolled back at err:, and
+      that truncates the accumulator to the previous statement's mark.
+    */
+    trg_commit_statement_commit(thd);
   }
 
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
@@ -2346,6 +2385,15 @@ int ha_rollback_trans(THD *thd, bool all)
   */
   DBUG_ASSERT(thd->transaction->stmt.ha_list == NULL ||
               trans == &thd->transaction->stmt);
+
+  /*
+    Statement rollback drops the failed statement's rows from the BEFORE
+    COMMIT trigger accumulator; transaction rollback (ROLLBACK, deadlock, a
+    failed commit, including one whose BEFORE COMMIT trigger failed,
+    disconnect) drops all of it.
+  */
+  if (thd->transaction->trg_commit)
+    trg_commit_rollback(thd, is_real_trans);
 
 #ifdef HAVE_REPLICATION
   if (is_real_trans)

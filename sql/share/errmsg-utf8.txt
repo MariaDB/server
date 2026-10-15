@@ -12423,3 +12423,7 @@ ER_RESULT_CUT_BY_LIMIT
         eng "Result was cut by %s) because of %s limit"
 ER_CUT_VALUES_WHILE_PROCESSING
         eng "Some values were cut while processing %s). Increase %s if you want to avoid the cut"
+ER_TRG_BEFORE_COMMIT_ROLLBACK 40004
+        eng "Transaction rolled back: BEFORE COMMIT trigger %sQ.%sQ failed"
+ER_TRG_BEFORE_COMMIT_NOT_FIRED 40000
+        eng "Transaction rolled back: BEFORE COMMIT triggers on %sQ.%sQ could not fire"
