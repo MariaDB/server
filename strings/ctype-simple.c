@@ -1693,6 +1693,8 @@ my_strntoull10rnd_8bit(CHARSET_INFO *cs __attribute__((unused)),
   uchar ch;
   int shift= 0, digits= 0, negative, addon;
 
+  *error= 0;
+
   /* Skip leading spaces and tabs */
   for ( ; str < end && my_isspace(&my_charset_latin1, *str) ; )
     str++;

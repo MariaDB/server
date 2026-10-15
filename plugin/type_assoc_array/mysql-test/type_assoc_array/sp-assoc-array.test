@@ -3561,4 +3561,22 @@ DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP PROCEDURE p_inout;
 
+
+--echo #
+--echo # MDEV-41556 Unexpected error: Incorrect ASSOCIATIVE ARRAY KEY value
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+DECLARE
+  TYPE t IS TABLE OF INT INDEX BY BIGINT;
+  a t;
+BEGIN
+  a(-9223372036854775807-1):= 10;   -- key is LONGLONG_MIN
+  SELECT a(-9223372036854775807-1) AS c1;
+END;
+$$
+DELIMITER ;$$
+
+
 --echo # End of 12.3 tests
