@@ -2491,8 +2491,11 @@ JOIN::optimize_inner()
       optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING) &&
       cond_value != Item::COND_FALSE)
   {
-    having=
-      select_lex->pushdown_from_having_into_where(thd, having);
+    if (select_lex->pushdown_from_having_into_where(thd, &having))
+    {
+      error= 1;
+      DBUG_RETURN(1);
+    }
     if (select_lex->attach_to_conds.elements != 0)
     {
       conds= and_new_conditions_to_optimized_cond(thd, conds, &cond_equal,
