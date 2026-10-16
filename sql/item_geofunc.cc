@@ -2541,6 +2541,20 @@ longlong Item_func_srid::val_int()
   return (longlong) (uint4korr(swkb->ptr()));
 }
 
+static void update_distance(const Gcalc_heap::Info *ea,
+                            const Gcalc_heap::Info *eb,
+                            const Gcalc_heap::Info *v,
+                            double &distance)
+{
+  double t, cur_distance, ex, ey, vx, vy, e_sqrlen;
+  t= count_edge_t(ea, eb, v, ex, ey, vx, vy, e_sqrlen);
+  if ((t>0.0) && (t<1.0))
+  {
+    cur_distance= distance_to_line(ex, ey, vx, vy, e_sqrlen);
+    if (distance > cur_distance)
+      distance= cur_distance;
+  }
+}
 
 double Item_func_distance::val_real()
 {
@@ -2548,9 +2562,9 @@ double Item_func_distance::val_real()
   const Gcalc_scan_iterator::point *evpos;
   const Gcalc_heap::Info *cur_point, *dist_point;
   const Gcalc_scan_iterator::event_point *ev;
-  double t, distance, cur_distance;
+  double distance, cur_distance;
   double x1, x2, y1, y2;
-  double ex, ey, vx, vy, e_sqrlen;
+  double ex, ey;
   uint obj2_si;
   Gcalc_operation_transporter trn(&func, &collector);
 
@@ -2670,27 +2684,26 @@ count_distance:
           dist_point->node.shape.shape < obj2_si)
         continue;
 
-      /* if we have an edge to check */
+      /* if we have an edge to check on the left */
       if (dist_point->node.shape.left)
       {
-        t= count_edge_t(dist_point, dist_point->node.shape.left, cur_point,
-                        ex, ey, vx, vy, e_sqrlen);
-        if ((t>0.0) && (t<1.0))
-        {
-          cur_distance= distance_to_line(ex, ey, vx, vy, e_sqrlen);
-          if (distance > cur_distance)
-            distance= cur_distance;
-        }
+        update_distance(dist_point, dist_point->node.shape.left, cur_point, distance);
       }
+      /* if we have an edge to check on the right */
+      if (dist_point->node.shape.right)
+      {
+        update_distance(dist_point, dist_point->node.shape.right, cur_point, distance);
+      }
+
       if (cur_point_edge)
       {
-        t= count_edge_t(cur_point, cur_point->node.shape.left, dist_point,
-                        ex, ey, vx, vy, e_sqrlen);
-        if ((t>0.0) && (t<1.0))
+        /* check the cur_point edge on the left */
+        update_distance(cur_point, cur_point->node.shape.left, dist_point, distance);
+
+        /* check the cur_point edge on the right */
+        if (cur_point->node.shape.right)
         {
-          cur_distance= distance_to_line(ex, ey, vx, vy, e_sqrlen);
-          if (distance > cur_distance)
-            distance= cur_distance;
+          update_distance(cur_point, cur_point->node.shape.right, dist_point, distance);
         }
       }
       cur_distance= distance_points(cur_point, dist_point);
