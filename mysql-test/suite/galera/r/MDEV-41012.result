@@ -1,0 +1,104 @@
+connection node_2;
+connection node_1;
+#
+# UUID
+#
+connection node_1;
+CREATE TABLE p (id UUID PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (id INT AUTO_INCREMENT PRIMARY KEY, p_id UUID NOT NULL, KEY k (p_id), FOREIGN KEY (p_id) REFERENCES p (id)) ENGINE=InnoDB;
+INSERT INTO p VALUES ('c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+INSERT INTO c (p_id) VALUES ('c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b');
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p SET v = v + 1 WHERE id = 'c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b';
+connection node_2;
+SELECT COUNT(*) = 0 AS no_row_modified_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+no_row_modified_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT v FROM p;
+v
+1
+SELECT COUNT(*) FROM c;
+COUNT(*)
+1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE c, p;
+#
+# INET6
+#
+connection node_1;
+CREATE TABLE p (id INET6 PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (id INT AUTO_INCREMENT PRIMARY KEY, p_id INET6 NOT NULL, KEY k (p_id), FOREIGN KEY (p_id) REFERENCES p (id)) ENGINE=InnoDB;
+INSERT INTO p VALUES ('2001:db8::c0a8:16b', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+INSERT INTO c (p_id) VALUES ('2001:db8::c0a8:16b');
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p SET v = v + 1 WHERE id = '2001:db8::c0a8:16b';
+connection node_2;
+SELECT COUNT(*) = 0 AS no_row_modified_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+no_row_modified_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT v FROM p;
+v
+1
+SELECT COUNT(*) FROM c;
+COUNT(*)
+1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE c, p;
+#
+# INET4
+#
+connection node_1;
+CREATE TABLE p (id INET4 PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (id INT AUTO_INCREMENT PRIMARY KEY, p_id INET4 NOT NULL, KEY k (p_id), FOREIGN KEY (p_id) REFERENCES p (id)) ENGINE=InnoDB;
+INSERT INTO p VALUES ('192.168.1.107', 0);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+INSERT INTO c (p_id) VALUES ('192.168.1.107');
+connection node_2;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p SET v = v + 1 WHERE id = '192.168.1.107';
+connection node_2;
+SELECT COUNT(*) = 0 AS no_row_modified_in_parallel FROM INFORMATION_SCHEMA.INNODB_TRX WHERE trx_rows_modified > 0;
+no_row_modified_in_parallel
+1
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SELECT v FROM p;
+v
+1
+SELECT COUNT(*) FROM c;
+COUNT(*)
+1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_1;
+DROP TABLE c, p;

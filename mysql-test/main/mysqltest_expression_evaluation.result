@@ -55,13 +55,18 @@ Multiple variables: 10 * 20 / 10 = 20
 # ----------------------------------------------------------------------------
 # Overflow edge cases
 # ----------------------------------------------------------------------------
--9223372036854775808 / -1 -> -9223372036854775808
+-9223372036854775808 / -1 -> error
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '/'
 -9223372036854775808 % -1 -> 0
--(-9223372036854775808) -> -9223372036854775808
+-(-9223372036854775808) -> error
+mysqltest: At line 1: Evaluation error: Signed integer overflow in unary '-'
 -4611686018427387904 * 2 -> -9223372036854775808
--4611686018427387904 * 2 / -1 -> -9223372036854775808
--4611686018427387904 * -2 / -1 -> -9223372036854775808
-18446744073709551615 / 2 / -1 -> 0
+-4611686018427387904 * 2 / -1 -> error
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '/'
+-4611686018427387904 * -2 / -1 -> error
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '*'
+18446744073709551615 / 2 / -1 -> error
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '/'
 # ----------------------------------------------------------------------------
 # Comparison operators
 # ----------------------------------------------------------------------------
@@ -505,6 +510,15 @@ mysqltest: At line 1: Evaluation error: Modulo by zero
 # Test case: Overflow
 mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
 mysqltest: At line 1: Range error: 18446744073709551616 value out of range for Integer type
+# Signed arithmetic overflow
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '+'
+mysqltest: At line 1: Evaluation error: Signed integer overflow in operator '-'
+mysqltest: At line 1: Evaluation error: Signed integer overflow in abs()
+# Unsigned overflow
+mysqltest: At line 1: Evaluation error: Unsigned integer overflow in operator '+'
+mysqltest: At line 1: Evaluation error: Unsigned integer overflow in operator '*'
+mysqltest: At line 1: Evaluation error: Unsigned integer overflow in operator '*'
+mysqltest: At line 1: Evaluation error: Unsigned integer overflow in operator '+'
 #
 # MDEV-37865: IF() function is returning incorrect error
 #

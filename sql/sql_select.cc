@@ -7375,7 +7375,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
         MDEV-24931: For materialized derived tables, don't add hash-join
         KEYUSE entries beyond max_key_parts(). Excess entries would cause
         generate_derived_keys_for_table() to build a key with more parts
-        than key_part_map (64 bits) or Bitmap<64> can represent.
+        than key_part_map can represent.
       */
       if (form->pos_in_table_list &&
           form->pos_in_table_list->is_materialized_derived())
@@ -11461,8 +11461,8 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     */
     if (!is_hash_join_key_no(key) && table->opt_range_keys.is_set(key))
     {
-      key_part_map quick_key_map= (key_part_map(1) <<
-                                   table->opt_range[key].key_parts) - 1;
+      key_part_map quick_key_map=
+                       make_prev_keypart_map(table->opt_range[key].key_parts);
       if (s->type == JT_RANGE ||
           (table->opt_range[key].rows && (table->const_key_parts[key] & 1)))
       {
@@ -13713,8 +13713,9 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
-        if (curr == keyuse)
-           key_parts++;
+        if (curr == keyuse &&
+            ++key_parts >= MAX_REF_PARTS)
+          break;
       }
     }
     first_keyuse= FALSE;
@@ -13767,6 +13768,13 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
             break;
           }
         }
+      }
+      if (add_key_part &&
+          (uint) (key_part_info - keyinfo->key_part) >= key_parts)
+      {
+        /* Key is full (capped at MAX_REF_PARTS above); not used by ref */
+        keyuse->keypart= NO_KEYPART;
+        add_key_part= FALSE;
       }
       if (add_key_part)
       {
@@ -13879,6 +13887,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       }
       keyuse++;
     } while (keyuse->table == table && keyuse->key == key);
+    DBUG_ASSERT(keyparts <= MAX_REF_PARTS);
 
     if (!keyparts && allow_full_scan)
     {
@@ -13957,7 +13966,10 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       Item *real= (keyuse->val)->real_item();
       if (keyuse->null_rejecting && (real->type() == Item::FIELD_ITEM) &&
           ((Item_field*)real)->field->maybe_null())
+      {
+        DBUG_ASSERT(i < MAX_REF_PARTS);
         j->ref.null_rejecting|= (key_part_map)1 << i;
+      }
 
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
       j->ref.uses_splitting |= (keyuse->validity_ref != NULL);
@@ -14172,6 +14184,7 @@ static void add_not_null_conds(JOIN *join)
     {
       for (uint keypart= 0; keypart < tab->ref.key_parts; keypart++)
       {
+        DBUG_ASSERT(keypart < MAX_REF_PARTS);
         if (tab->ref.null_rejecting & ((key_part_map)1 << keypart))
         {
           Item *item= tab->ref.items[keypart];
@@ -17989,6 +18002,10 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
   if (!join->send_row_on_empty_set())
   {
     join->thd->limit_found_rows= 0;
+  }
+  else
+  {
+    join->thd->limit_found_rows= send_row ? 1 : 0;
   }
 
   if (!(result->send_result_set_metadata(*fields,
@@ -22322,6 +22339,8 @@ bool Create_tmp_table::add_fields(THD *thd,
     if (type == Item::SUM_FUNC_ITEM && !m_group && !m_save_sum_fields)
     {						/* Can't calc group yet */
       Item_sum *sum_item= (Item_sum *) item;
+      /* There is actually no need to clear result_field */
+      DBUG_ASSERT(!sum_item->result_field);
       sum_item->result_field=0;
       for (uint i= 0 ; i < sum_item->get_arg_count() ; i++)
       {
@@ -22408,26 +22427,25 @@ bool Create_tmp_table::add_fields(THD *thd,
       {
         Item_sum *agg_item= (Item_sum *) item;
         /*
-          Update the result field only if it has never been set, or if the
-          created temporary table is not to be used for subquery
-          materialization.
+          Set agg_item->result_field to point to its image in the temporary
+          table. Do this only when this temporary table is created without
+          TMP_TABLE_ALL_COLUMNS flag (and so not_all_columns=true).
 
-          The reason is that for subqueries that require
-          materialization as part of their plan, we create the
-          'external' temporary table needed for IN execution, after
-          the 'internal' temporary table needed for grouping.  Since
-          both the external and the internal temporary tables are
-          created for the same list of SELECT fields of the subquery,
-          setting 'result_field' for each invocation of
-          create_tmp_table overrides the previous value of
-          'result_field'.
+          In this case, the temporary table will be read by going through the
+          select list and its item->result_field pointers. The most common
+          examples of this are GROUP BY operation and buffering for
+          SQL_BUFFER_RESULT).
 
-          The condition below prevents the creation of the external
-          temp table to override the 'result_field' that was set for
-          the internal temp table.
+          Note that SELECT has one "select list" but may be processed with
+          multiple temporary tables. It is therefore important to only set
+          result_field to point to the right temporary table.
+          That's why we assert here that we don't set it twice.
         */
-        if (!agg_item->result_field || !param->materialized_subquery)
+        if (not_all_columns)
+        {
+          DBUG_ASSERT(!agg_item->result_field);
           agg_item->result_field= new_field;
+        }
       }
       tmp_from_field++;
 
@@ -26027,6 +26045,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     join->fields.
   */
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_send_group");
 
   if (!join->items3.is_null() && join->current_ref_ptrs != join->items3)
@@ -26038,7 +26057,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 
     if (!join->group_sent &&
         (join->first_record ||
-         (end_of_records && !join->group && !join->group_optimized_away)))
+         join->need_empty_set_row(end_of_records,
+                                  &empty_set_send_rollup_total)))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -26094,7 +26114,8 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	    join->send_records++;
             join->group_sent= true;
 	  }
-	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE && error <= 0))
+	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                 !empty_set_send_rollup_total && error <= 0))
 	  {
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
@@ -26414,13 +26435,15 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 {
   TABLE *table= join_tab->table;
   int	  idx= -1;
+  bool empty_set_send_rollup_total= false;
   DBUG_ENTER("end_write_group");
 
   join->accepted_rows++;
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
-    if (join->first_record || (end_of_records && !join->group))
+    if (join->first_record ||
+        join->need_empty_set_row(end_of_records, &empty_set_send_rollup_total))
     {
       table_map cleared_tables= (table_map) 0;
       if (join->procedure)
@@ -26445,7 +26468,8 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                                                    error, 0, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
-        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
+        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE &&
+                     !empty_set_send_rollup_total))
 	{
           if (unlikely(join->rollup_write_data((uint) (idx+1),
                                                join_tab->tmp_table_param,
@@ -31166,6 +31190,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       store_key **key_ref= ref.key_copy;
       for (uint kp= 0; kp < ref.key_parts; kp++)
       {
+        DBUG_ASSERT(kp < MAX_REF_PARTS);
         if ((key_part_map(1) << kp) & ref.const_ref_part_map)
         {
           if (!(eta->ref_list.append_str(thd->mem_root, "const")))
@@ -34253,9 +34278,9 @@ void JOIN::init_join_cache_and_keyread()
           depends on are automatically added to the read_set - because they're
           needed to calculate the vcol.
           But if we're doing keyread, vcol is taken
-          from the index, not calculated, and base columns do not need to  be
-          in the read set. To ensure this we try to set the read_set to only
-          the key-parts of the indexes.
+          from the index, not calculated. The below call adds the key-parts
+          to the read_set, and for virtual columns also adds any base columns
+          they depend on.
 
           Another side effect of this is
             Lets say you have a query
@@ -34266,7 +34291,8 @@ void JOIN::init_join_cache_and_keyread()
           c, which is not a problem as we read all the columns from the index
           tuple.
       */
-      table->mark_index_columns(table->file->keyread, table->read_set);
+      bitmap_clear_all(table->read_set);
+      table->mark_index_columns_for_read(table->file->keyread);
     }
     bool init_for_explain= false;
 
