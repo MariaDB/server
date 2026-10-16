@@ -1,0 +1,92 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+set sql_log_bin= 0;
+call mtr.add_suppression("Encryption key id 1 version 1 is loaded but is missing from or different in the key file");
+call mtr.add_suppression("Slave SQL: Error 'Encryption key id 1 version 1");
+call mtr.add_suppression("Slave: Encryption key id 1 version 1");
+set sql_log_bin= 1;
+connection server_1;
+create table t1 (a int primary key, b varchar(64)) engine=innodb;
+insert into t1 select seq, md5(seq) from seq_1_to_10000;
+connection server_2;
+# 1. FLUSH on the primary is written to the binary log, so the replica
+#    re-reads its own, unchanged key file
+connection server_1;
+flush file_key_management_keys;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; flush file_key_management_keys
+select key_id, key_version, is_latest
+from information_schema.file_key_management_keys order by key_id, key_version;
+key_id	key_version	is_latest
+1	1	NO
+1	3	YES
+2	1	YES
+select name, min_key_version from information_schema.innodb_tablespaces_encryption
+where name = 'test/t1';
+name	min_key_version
+test/t1	3
+connection server_2;
+select key_id, key_version, is_latest
+from information_schema.file_key_management_keys order by key_id, key_version;
+key_id	key_version	is_latest
+1	1	YES
+2	1	YES
+select name, min_key_version from information_schema.innodb_tablespaces_encryption
+where name = 'test/t1';
+name	min_key_version
+test/t1	1
+# 2. A replicated FLUSH that the replica's key file does not allow
+#    stops the replica's SQL thread
+connection server_2;
+connection server_1;
+flush file_key_management_keys;
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=4275]
+# Fixing the replica's key file lets replication continue
+include/start_slave.inc
+connection server_1;
+connection server_2;
+# 3. FLUSH LOCAL is not written to the binary log
+connection server_1;
+flush local file_key_management_keys;
+include/show_binlog_events.inc
+insert into t1 values (10001, 'after flush local');
+connection server_2;
+select count(*) from t1;
+count(*)
+10001
+# 4. Switch over while the primary is re-encrypting t1
+connection server_1;
+set global debug_dbug= '+d,fil_crypt_rotate_page_slow';
+flush local file_key_management_keys;
+connection server_2;
+include/stop_slave.inc
+flush binary logs;
+include/rpl_change_topology.inc [new topology=2->1]
+include/rpl_start_slaves.inc
+connection server_2;
+insert into t1 values (10002, 'on the new primary');
+connection server_1;
+select min_key_version < 5 as still_rotating
+from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+still_rotating
+1
+set global debug_dbug= '-d,fil_crypt_rotate_page_slow';
+# The old primary finished its rotation as a replica
+select name, min_key_version from information_schema.innodb_tablespaces_encryption
+where name = 'test/t1';
+name	min_key_version
+test/t1	5
+include/diff_tables.inc [server_1:t1, server_2:t1]
+# Back to the original topology
+connection server_1;
+include/stop_slave.inc
+flush binary logs;
+include/rpl_change_topology.inc [new topology=1->2]
+include/rpl_start_slaves.inc
+connection server_1;
+drop table t1;
+connection server_2;
+include/rpl_end.inc

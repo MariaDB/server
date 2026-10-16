@@ -1,0 +1,21 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
+loose-file-key-management-filename= @ENV.MYSQLTEST_VARDIR/tmp/keys_rpl_1.txt
+innodb-encrypt-tables= ON
+innodb-encrypt-log= ON
+innodb-encryption-threads= 4
+innodb-encryption-rotate-key-age= 1
+innodb-tablespaces-encryption
+encrypt-binlog
+
+[mysqld.2]
+plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
+loose-file-key-management-filename= @ENV.MYSQLTEST_VARDIR/tmp/keys_rpl_2.txt
+innodb-encrypt-tables= ON
+innodb-encrypt-log= ON
+innodb-encryption-threads= 4
+innodb-encryption-rotate-key-age= 1
+innodb-tablespaces-encryption
+encrypt-binlog

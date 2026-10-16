@@ -12423,3 +12423,7 @@ ER_RESULT_CUT_BY_LIMIT
         eng "Result was cut by %s) because of %s limit"
 ER_CUT_VALUES_WHILE_PROCESSING
         eng "Some values were cut while processing %s). Increase %s if you want to avoid the cut"
+ER_ENCRYPTION_KEY_RELOAD_FAILED
+        eng "Could not reload encryption keys from '%-.192s', see the error log. The loaded keys stay in use"
+ER_ENCRYPTION_KEY_IN_USE
+        eng "Encryption key id %u version %u is loaded but is missing from or different in the key file. The loaded keys stay in use"
