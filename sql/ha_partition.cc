@@ -7527,13 +7527,19 @@ bool ha_partition::can_skip_merging_scans()
       }
       else /* (m_index_scan_type == partition_read_multi_range) */
       {
-        return
-          (m_mrr_range_current->key_multi_range.start_key.keypart_map &
-           prefix) == prefix &&
-          (m_mrr_range_current->key_multi_range.end_key.keypart_map &
-           prefix) == prefix &&
-          !memcmp(m_mrr_range_current->key[0], m_mrr_range_current->key[1],
-                  m_unordered_prefix_len);
+        PARTITION_KEY_MULTI_RANGE *range= m_mrr_range_first;
+        const uchar *prefix_key= m_mrr_range_first->key[0];
+        /* Check that the prefix is constant for all ranges. */
+        for (uint n= 0; n < m_mrr_range_length; n++, range= range->next)
+        {
+          KEY_MULTI_RANGE *kmr= &range->key_multi_range;
+          if ((kmr->start_key.keypart_map & prefix) != prefix ||
+              (kmr->end_key.keypart_map & prefix) != prefix ||
+              memcmp(range->key[0], prefix_key, m_unordered_prefix_len) ||
+              memcmp(range->key[1], prefix_key, m_unordered_prefix_len))
+            return false;
+        }
+        return true;
       }
     }
   }
