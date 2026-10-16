@@ -4721,6 +4721,14 @@ bool Item_func_user_var::check_vcol_func_processor(void *arg)
   return mark_unsupported_function("@", name.str, arg, VCOL_NON_DETERMINISTIC);
 }
 
+Item *Item_func_user_var::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+{
+  if (const_item())
+    return Item::safe_charset_converter(thd, tocs);
+  /* always convert, ignore 'conv->safe' as we don't know the charset yet  */
+  return new (thd->mem_root) Item_func_conv_charset(thd, this, tocs, 0);
+}
+
 #define extra_size sizeof(double)
 
 user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,

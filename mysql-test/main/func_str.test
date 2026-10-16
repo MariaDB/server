@@ -2633,4 +2633,22 @@ insert t1 values (1,1),(2,3);
 select * from t1 left join t1 t2 on (t1.a=t2.b) where quote(t2.b)>'';
 drop table t1;
 
+--echo #
+--echo # MDEV-41496 OOB write with RPAD() crash and multi-byte charsets
+--echo #
+
+SET @p=_latin1'x';
+SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
+ WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+
+# charset convertor if @p is assigned to, no convertor otherwise
+EXPLAIN EXTENDED SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
+ WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+EXPLAIN EXTENDED SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
+ WHERE (@p = CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+
+SET @p=_utf16'x';
+SELECT RPAD(_utf16'a', 766, @p)>'' FROM DUAL
+ WHERE (@p := CONCAT(_latin1'ab', _latin1 0xD800, REPEAT(_latin1'z',1000))) IS NOT NULL;
+
 --echo # End of 10.11 tests
