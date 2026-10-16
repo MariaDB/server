@@ -5696,4 +5696,34 @@ a	b	a	b
 1	1	1	1
 2	3	NULL	NULL
 drop table t1;
+#
+# MDEV-41496 OOB write with RPAD() crash and multi-byte charsets
+#
+SET @p=_latin1'x';
+SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+LENGTH(RPAD(_latin1'a', 766, @p))
+766
+EXPLAIN EXTENDED SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select octet_length(rpad('a',766,convert(@`p` using ucs2))) AS `LENGTH(RPAD(_latin1'a', 766, @p))` where 1
+EXPLAIN EXTENDED SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+WHERE (@p = CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select octet_length(rpad('a',766,@`p`)) AS `LENGTH(RPAD(_latin1'a', 766, @p))` where 1
+SET @p=_utf16'x';
+SELECT LENGTH(RPAD(_utf16'a', 766, @p)) FROM DUAL
+WHERE (@p := CONCAT(_latin1'ab', _latin1 0xD800, REPEAT(_latin1'z',1000))) IS NOT NULL;
+LENGTH(RPAD(_utf16'a', 766, @p))
+1532
+SET @p= _utf8mb3'b';
+SELECT HEX(CONCAT(_utf8mb3'a', @p)) FROM DUAL
+WHERE (@p := _ucs2 0x00FF) IS NOT NULL;
+HEX(CONCAT(_utf8mb3'a', @p))
+61C3BF
 # End of 10.11 tests
