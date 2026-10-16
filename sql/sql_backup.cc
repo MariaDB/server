@@ -90,12 +90,15 @@ template<bool stream>
 static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
                            uint64_t o, uint64_t end) noexcept
 {
+#ifdef POSIX_FADV_SEQUENTIAL
+  std::ignore= posix_fadvise(in_fd, o, end - o, POSIX_FADV_SEQUENTIAL);
+#endif
   assert(end >= o);
   uint64_t count{end - o};
 #if SIZEOF_SIZE_T < 8
   size_t size{65536};
 #else
-  constexpr size_t max_size{1 << 20};
+  constexpr size_t max_size{16 << 20};
   /* An integer multiple of 4096 bytes, up to max_size */
   size_t size{count >= max_size ? max_size : (size_t(count) + 4095) & ~4095};
 #endif
@@ -110,6 +113,9 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     ret= pread(in_fd, b, ssize_t(size), o);
     if (ret > 0)
     {
+#ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
+#endif
       if (!stream)
         ret= pwrite(out_fd, b, size_t(ret), o);
       else if (backup_stream_write(out_fd, b, size_t(ret)))
@@ -149,9 +155,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 int copy_entire_file(int src, int dst) noexcept
 {
   uint64_t end(lseek(src, 0, SEEK_END));
-#ifdef POSIX_FADV_SEQUENTIAL
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif
 #ifdef POSIX_FADV_DONTNEED
   std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_DONTNEED);
 #endif
@@ -161,9 +164,6 @@ int copy_entire_file(int src, int dst) noexcept
   if (ret == 1)
 # endif
     ret= backup::copy(src, dst, 0, end);
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
-#endif
   return ret;
 }
 #endif
@@ -448,6 +448,9 @@ int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
   assert(ret <= 0);
   if (ret && (errno == EOPNOTSUPP || errno == EXDEV))
     return 1;
+#ifdef POSIX_FADV_DONTNEED
+  std::ignore= posix_fadvise(src, start, end - start, POSIX_FADV_DONTNEED);
+#endif
   return int(ret);
 }
 #endif

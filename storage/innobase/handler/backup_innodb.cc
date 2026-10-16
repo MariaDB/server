@@ -458,17 +458,10 @@ private:
       {
         const uint64_t begin= log_sys.START_OFFSET +
           (hl == first_lsn) * (checkpoint - hl);
-#ifdef POSIX_FADV_SEQUENTIAL
-        std::ignore= posix_fadvise(s, begin, end - begin,
-                                   POSIX_FADV_SEQUENTIAL);
-#endif
 #ifdef copy_file_shortcut
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
         f= backup::copy(s, d, begin, end);
-#ifdef POSIX_FADV_DONTNEED
-        std::ignore= posix_fadvise(s, 0, 0, POSIX_FADV_DONTNEED);
-#endif
         if (!f && hl == first_lsn)
         {
           uint64_t cp_buf[8]{};
@@ -927,19 +920,11 @@ public:
       {
         ut_ad(!(uint(begin) & bs_1));
         ut_ad(!(uint(end) & bs_1));
-#ifdef POSIX_FADV_SEQUENTIAL
-        std::ignore= posix_fadvise(tracked.file, begin, end - begin,
-                                   POSIX_FADV_SEQUENTIAL);
-#endif
 #ifdef copy_file_shortcut
         if (1 == (err= copy_file_shortcut(tracked.file,
                                           ctx.log_dst, begin, end)))
 #endif
           err= backup::copy(tracked.file, ctx.log_dst, begin, end);
-#ifdef POSIX_FADV_DONTNEED
-        std::ignore= posix_fadvise(tracked.file, begin, end - begin,
-                                   POSIX_FADV_DONTNEED);
-#endif
       }
       ut_ad(err <= 0);
 
@@ -1622,9 +1607,6 @@ private:
         for (;;)
         {
           res= (*method)(fd, node, name, start, limit);
-#ifdef POSIX_FADV_DONTNEED
-          std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
-#endif
           if (res)
             break;
           fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
@@ -2123,9 +2105,6 @@ public:
 #endif
       /* Omit the checkpoint header from the stream. */
       chunk[-1].length= chunk->offset - log_sys.START_OFFSET;
-# ifdef POSIX_FADV_SEQUENTIAL
-      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_SEQUENTIAL);
-# endif
       goto stream_file;
     }
     else
@@ -2136,10 +2115,6 @@ public:
       ut_ad(chunk[-1].length == ctx.last_lsn - lsn);
       chunk->offset= chunk[-1].length;
     pad_size:
-#ifdef POSIX_FADV_SEQUENTIAL
-      std::ignore= posix_fadvise(src, chunk[-1].offset, chunk[-1].length,
-                                 POSIX_FADV_SEQUENTIAL);
-#endif
       /* Set the logical size of the file. */
       chunk->offset=
         std::max<uint64_t>(log_sys.FILE_SIZE_MIN,
@@ -2317,7 +2292,13 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
     }
 # endif
     f= openat(target, name, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
-    if (f < 0)
+    if (f >= 0)
+    {
+# ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_DONTNEED);
+# endif
+    }
+    else
     {
       if (errno == ENOENT)
       {
@@ -2339,18 +2320,11 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       }
       goto fail;
     }
-# ifdef POSIX_FADV_DONTNEED
-    std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_DONTNEED);
-# endif
 #endif
     const uint32_t page_size{node->space->physical_size()};
     int err{0};
     if (node->size < limit)
       limit= node->size;
-#ifdef POSIX_FADV_SEQUENTIAL
-    std::ignore= posix_fadvise(node->handle, 0, off_t(limit) * page_size,
-                               POSIX_FADV_SEQUENTIAL);
-#endif
     /*
       Set the logical size to at least the current file size.
 
@@ -2430,10 +2404,6 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       }
     }
 
-#ifdef POSIX_FADV_DONTNEED
-    std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
-#endif
-
     if (IF_WIN(!CloseHandle,close)(f) | err)
     {
       if (err != 2)
@@ -2474,11 +2444,6 @@ int InnoDB_backup::stream(backup_fd stream, fil_node_t *node, const char *name,
     limit= file_size;
     physical_size= chunk[0].length= chunk[1].offset;
   }
-
-#ifdef POSIX_FADV_SEQUENTIAL
-  std::ignore= posix_fadvise(node->handle, 0, chunk[0].length,
-                             POSIX_FADV_SEQUENTIAL);
-#endif
 
   if (node == fil_system.sys_space->chain.start &&
       buf_dblwr.end() &&
