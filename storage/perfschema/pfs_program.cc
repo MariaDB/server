@@ -178,6 +178,24 @@ static LF_PINS* get_program_hash_pins(PFS_thread *thread)
   return thread->m_program_hash_pins;
 }
 
+/**
+  Package routines differ from standalone routines only by the object type
+  in PFS_program_key. Everywhere else, e.g. in SETUP_OBJECTS and in the
+  OBJECT_TYPE columns, they are FUNCTION and PROCEDURE.
+*/
+static enum_object_type program_public_type(enum_object_type object_type)
+{
+  switch (object_type)
+  {
+  case OBJECT_TYPE_PACKAGE_FUNCTION:
+    return OBJECT_TYPE_FUNCTION;
+  case OBJECT_TYPE_PACKAGE_PROCEDURE:
+    return OBJECT_TYPE_PROCEDURE;
+  default:
+    return object_type;
+  }
+}
+
 PFS_program*
 find_or_create_program(PFS_thread *thread,
                       enum_object_type object_type,
@@ -187,6 +205,7 @@ find_or_create_program(PFS_thread *thread,
                       uint schema_name_length)
 {
   bool is_enabled, is_timed;
+  enum_object_type public_type= program_public_type(object_type);
 
   LF_PINS *pins= get_program_hash_pins(thread);
   if (unlikely(pins == NULL))
@@ -226,7 +245,7 @@ search:
     First time while inserting this record to program array we need to
     find out if it is enabled and timed.
   */
-  lookup_setup_object(thread, object_type,
+  lookup_setup_object(thread, public_type,
                       schema_name, schema_name_length,
                       object_name, object_name_length,
                       &is_enabled, &is_timed);
@@ -238,7 +257,7 @@ search:
     /* Do the assignments. */
     memcpy(pfs->m_key.m_hash_key, key.m_hash_key, key.m_key_length);
     pfs->m_key.m_key_length= key.m_key_length;
-    pfs->m_type= object_type;
+    pfs->m_type= public_type;
 
     pfs->m_object_name= pfs->m_key.m_hash_key + 1;
     pfs->m_object_name_length= object_name_length;
@@ -281,7 +300,9 @@ search:
 
 /**
   Drops records of the routines of a package body.
-  They are named "<package>.<routine>" in the package schema.
+  They have package routine types in the key and are named
+  "<package>.<routine>" in the package schema, or just "<package>"
+  if the name is truncated to COL_OBJECT_NAME_SIZE.
   Names are compared in the lower-cased form of PFS_program_key.
 */
 class Proc_drop_package_routines
@@ -297,10 +318,13 @@ public:
 
   void operator()(PFS_program *pfs) override
   {
-    if ((pfs->m_type != OBJECT_TYPE_PROCEDURE &&
-         pfs->m_type != OBJECT_TYPE_FUNCTION) ||
-        uint(pfs->m_object_name_length) <= m_name_length ||
-        pfs->m_object_name[m_name_length] != '.' ||
+    uint type= (uchar) pfs->m_key.m_hash_key[0];
+    uint length= pfs->m_object_name_length;
+    if ((type != OBJECT_TYPE_PACKAGE_PROCEDURE &&
+         type != OBJECT_TYPE_PACKAGE_FUNCTION) ||
+        length < m_name_length ||
+        (length > m_name_length ? pfs->m_object_name[m_name_length] != '.' :
+                                  length != COL_OBJECT_NAME_SIZE) ||
         memcmp(pfs->m_object_name, m_name, m_name_length) ||
         uint(pfs->m_schema_name_length) != m_schema_length ||
         memcmp(pfs->m_schema_name, m_schema, m_schema_length))
