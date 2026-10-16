@@ -2655,4 +2655,18 @@ SET @p= _utf8mb3'b';
 SELECT HEX(CONCAT(_utf8mb3'a', @p)) FROM DUAL
 WHERE (@p := _ucs2 0x00FF) IS NOT NULL;
 
+--echo #
+--echo # RPAD(), LPAD(), INSERT() should not mangle their arguments
+--echo #
+
+create table t1 (c varchar(10) charset utf8mb4);
+insert t1 values (_utf8mb4 0xD0B4), (_utf8mb4 0x61);
+select hex(max(c)) as h, max(c) as m from t1
+  having rpad(m, 3, cast('x' as binary)) <> '' and char_length(m) = 1;
+select hex(max(c)) as h, max(c) as m from t1
+  having lpad(m, 3, cast('x' as binary)) <> '' and char_length(m) = 1;
+select hex(max(c)) as h, max(c) as m from t1
+  having insert(m, 1, 0, cast('x' as binary)) <> '' and char_length(m) = 1;
+drop table t1;
+
 --echo # End of 10.11 tests
