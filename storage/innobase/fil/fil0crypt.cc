@@ -1868,6 +1868,11 @@ fil_crypt_rotate_page(
 		return;
 	}
 
+	/* lets tests interrupt a rotation that is in progress */
+	DBUG_EXECUTE_IF("fil_crypt_rotate_page_slow",
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(5)););
+
 	uint32_t retry_count= 0;
 retry_page:
 	mtr_t mtr{nullptr};

@@ -12429,3 +12429,7 @@ ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK
         eng "'%s' entry '%s' ignored, the host is not a valid ip/netmask"
 ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE
         eng "This operation leaves replication connection '%s' with an invalid configuration: %s"
+ER_ENCRYPTION_KEY_RELOAD_FAILED
+        eng "Could not reload encryption keys from '%-.192s', see the error log. The loaded keys stay in use"
+ER_ENCRYPTION_KEY_IN_USE
+        eng "Encryption key id %u version %u is loaded but is missing from or different in the key file. The loaded keys stay in use"

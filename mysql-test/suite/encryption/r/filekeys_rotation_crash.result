@@ -1,0 +1,46 @@
+create table t1 (a int primary key, b varchar(200)) engine=innodb;
+insert into t1 select seq, repeat(md5(seq), 6) from seq_1_to_20000;
+checksum table t1;
+Table	Checksum
+test.t1	3628919206
+# Start a slow rotation to version 3 and kill the server in the middle
+set global debug_dbug= '+d,fil_crypt_rotate_page_slow';
+flush file_key_management_keys;
+# Kill the server
+# Restart without encryption threads: the interrupted tablespace still
+# has min_key_version 1, and pages of both versions can be read
+# restart: --innodb-encryption-threads=0
+select name, current_key_version, min_key_version
+from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+name	current_key_version	min_key_version
+test/t1	3	1
+checksum table t1;
+Table	Checksum
+test.t1	3628919206
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# The rotation resumes
+set global innodb_encryption_threads= 4;
+select name, current_key_version, min_key_version
+from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+name	current_key_version	min_key_version
+test/t1	3	3
+checksum table t1;
+Table	Checksum
+test.t1	3628919206
+# The redo log still uses version 1. Changing its size makes InnoDB
+# create a new one with the latest key version, then version 1 is retired
+# restart: --innodb-log-file-size=24M
+# restart: --innodb-log-file-size=24M
+select * from information_schema.file_key_management_keys order by key_id, key_version;
+KEY_ID	KEY_VERSION	KEY_LENGTH	IS_LATEST
+1	3	256	YES
+2	1	256	YES
+checksum table t1;
+Table	Checksum
+test.t1	3628919206
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
