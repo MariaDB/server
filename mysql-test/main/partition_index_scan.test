@@ -1,5 +1,6 @@
 --source include/have_partition.inc
 --source include/have_sequence.inc
+--source include/have_innodb.inc
 --source include/no_view_protocol.inc
 --disable_ps2_protocol
 --disable_cursor_protocol
@@ -572,5 +573,46 @@ SELECT c FROM t1 WHERE b = 1 ORDER BY c $opposite_direction;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-41322 Regression: descending primary-key range scan on a partitioned InnoDB table fails with ERROR 1032
+--echo #
+
+--echo # index_prev: without conversion of ER_KEY_NOT_FOUND, the
+--echo # SELECT queries would fail with this error code
+eval
+CREATE TABLE t1 (
+    id INT NOT NULL, PRIMARY KEY (id $direction)
+) ENGINE=InnoDB
+PARTITION BY RANGE(id) (
+    PARTITION p0 VALUES LESS THAN (100),
+    PARTITION p1 VALUES LESS THAN (200),
+    PARTITION p2 VALUES LESS THAN (300)
+);
+
+INSERT INTO t1 VALUES (101), (102), (103);
+
+--replace_column 9 #
+eval
+explain
+SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id $opposite_direction LIMIT 512;
+eval
+SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id $opposite_direction LIMIT 512;
+
+DROP TABLE t1;
+
+--echo # index_next_same: the error conversion is guarded by an assertion
+
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY k(b,c)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+                       PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,2,15);
+let $q= SELECT * FROM t1 FORCE INDEX(k) WHERE b=1;
+--replace_column 9 #
+eval EXPLAIN $q;
+eval $q;
+let $out=`analyze format=json $q`;
+evalp set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+DROP TABLE t1;
 --enable_cursor_protocol
 --enable_ps2_protocol

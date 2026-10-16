@@ -1217,3 +1217,43 @@ c
 11
 6
 DROP TABLE t1;
+#
+# MDEV-41322 Regression: descending primary-key range scan on a partitioned InnoDB table fails with ERROR 1032
+#
+# index_prev: without conversion of ER_KEY_NOT_FOUND, the
+# SELECT queries would fail with this error code
+CREATE TABLE t1 (
+id INT NOT NULL, PRIMARY KEY (id )
+) ENGINE=InnoDB
+PARTITION BY RANGE(id) (
+PARTITION p0 VALUES LESS THAN (100),
+PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300)
+);
+INSERT INTO t1 VALUES (101), (102), (103);
+explain
+SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id desc LIMIT 512;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	#	Using where
+SELECT * FROM t1 WHERE id >= 0 AND id <= 300 ORDER BY id desc LIMIT 512;
+id
+103
+102
+101
+DROP TABLE t1;
+# index_next_same: the error conversion is guarded by an assertion
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,c), KEY k(b,c)) ENGINE=InnoDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20));
+INSERT INTO t1 VALUES (1,1,5),(2,2,15);
+EXPLAIN SELECT * FROM t1 FORCE INDEX(k) WHERE b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	k	k	5	const	#	Using index
+SELECT * FROM t1 FORCE INDEX(k) WHERE b=1;
+a	b	c
+1	1	5
+set @js='$out';
+select json_extract(@js,'$**.partitions_index_scan_method');
+json_extract(@js,'$**.partitions_index_scan_method')
+["iterate_over_partitions"]
+DROP TABLE t1;
