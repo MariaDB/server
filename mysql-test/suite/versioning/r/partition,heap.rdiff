@@ -221,14 +221,7 @@
  # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
  set timestamp= unix_timestamp('2000-01-01 00:00:00');
  create or replace table t1 (x int primary key) with system versioning
-@@ -3657,13 +3450,13 @@
- delete from t1 where id = 1;
- select * from t1;
- id
--0
- 2
-+0
- # Below there should be: Select tables optimized away
+@@ -3663,7 +3456,7 @@
  # (except heap combination)
  explain extended select max(id) from t1;
  id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
