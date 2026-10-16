@@ -3729,15 +3729,19 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
                   m_colcnt= (1 << 20););
 
   /*
-    m_colcnt is a 64-bit packed integer from the event, but below it is
-    truncated to 32 bits for the m_coltype allocation (my_multi_malloc
-    reads the size with va_arg(args, uint)) while the memcpy() length and
-    the (ptr + m_colcnt) range check use the full 64-bit value. A huge
-    m_colcnt both shrinks the allocation and wraps the range check
-    around, turning the memcpy() into a heap overflow. The column type
-    array lives inside the event, so a count larger than the event itself
-    is always invalid. Reject it before allocating, so is_valid() returns
-    false and the event is refused gracefully.
+    m_colcnt comes from net_field_length(). Most encodings cap out at
+    UINT_MAX, but a first byte of 251 returns NULL_LENGTH, i.e. ULONG_MAX
+    (2^64-1) on LP64. Below, m_colcnt is truncated to 32 bits for the
+    m_coltype allocation (my_multi_malloc reads the size with
+    va_arg(args, uint)), while the memcpy() length and the
+    (ptr + m_colcnt) range check use the full 64-bit value. With
+    m_colcnt == ULONG_MAX the range check wraps (ptr + m_colcnt == ptr - 1)
+    and passes, and the memcpy() then copies 2^64-1 bytes past the event
+    buffer. The column type array lives inside the event, so a count
+    larger than the event itself is always invalid. Reject it before
+    allocating, so is_valid() returns false and the event is refused
+    gracefully. This also avoids allocating up to ~4 GB for any
+    m_colcnt in (event_len, UINT_MAX] before the old check ran.
   */
   if (unlikely(m_colcnt > event_len))
     DBUG_VOID_RETURN;
