@@ -2594,8 +2594,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               share->mysql_version >= 50700)
           {
             share->incompatible_version|= HA_CREATE_USED_ENGINE;
-            const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
-            handler= Type_handler::handler_by_name_or_error(thd, mysql_json);
+            handler= Type_handler::handler_by_name_or_error(
+                thd, MYSQL_JSON_PLUGIN_NAME);
           }
 
           if (!handler)

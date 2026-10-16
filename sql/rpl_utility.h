@@ -44,6 +44,16 @@
 */
 #define MYSQL_TYPE_JSON_MYSQL 245
 
+/*
+  Name of the data type plugin (plugin/type_mysql_json) that decodes
+  MYSQL_TYPE_JSON_MYSQL columns, as registered with
+  MariaDB_DATA_TYPE_INTERFACE_VERSION.  Shared so the three lookup sites
+  (table.cc's .frm unpacking, and table_def::field_type_handler()'s two
+  uses in rpl_utility_server.cc) don't each spell it out separately.
+*/
+static const LEX_CSTRING MYSQL_JSON_PLUGIN_NAME=
+  {STRING_WITH_LEN("MYSQL_JSON")};
+
 class Relay_log_info;
 class Log_event;
 class Rows_log_event;
@@ -320,7 +330,8 @@ struct RPL_TABLE_LIST : public TABLE_LIST
                  const Copy_field *online_alter_copy_fields_end);
   void create_column_mapping(rpl_group_info *rgi);
   bool give_compatibility_error(rpl_group_info *rgi, uint col);
-  bool check_wrong_column_usage(rpl_group_info *rgi, MY_BITMAP *m_cols);
+  bool check_wrong_column_usage(rpl_group_info *rgi, MY_BITMAP *m_cols,
+                                MY_BITMAP *m_cols_ai= NULL);
 };
 
 

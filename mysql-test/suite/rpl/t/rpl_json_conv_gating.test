@@ -1,0 +1,62 @@
+# MDEV-39143: a MySQL binary JSON source replicating into a plain
+# VARCHAR/TEXT target (not native JSON) must be classified by the target's
+# actual declared capacity, not assumed to always fit - see
+# Field_longstr::rpl_conv_type_from()'s mysql_json branch in
+# sql/rpl_utility_server.cc.  Before that fix, this exact scenario was
+# hardcoded as CONV_TYPE_SUBSET_TO_SUPERSET regardless of size, so
+# slave_type_conversions=ALL_NON_LOSSY alone was wrongly enough to let a
+# too-small target silently truncate the document.  With the fix, a
+# document that does not fit is CONV_TYPE_SUPERSET_TO_SUBSET, which needs
+# ALL_LOSSY - so with only ALL_NON_LOSSY set, replication must refuse the
+# table definition rather than apply anything.
+#
+# Reuses the mdev39143_partial_json.000001 fixture also used by
+# rpl_json_partial_update.test (see its header for how the injection
+# works), but starts replication at position 799 - right after that
+# fixture's own "CREATE TABLE tj (id INT PRIMARY KEY, j JSON)" - so this
+# test's own, deliberately too-small VARCHAR(10) definition is what the
+# slave actually has, instead of the fixture's JSON column.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_type_mysql_json.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_partial_json.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
+
+--connection slave
+CREATE DATABASE testdb;
+CREATE TABLE testdb.tj (id INT PRIMARY KEY, j VARCHAR(10));
+SET GLOBAL slave_type_conversions= 'ALL_NON_LOSSY';
+# Position 799 is the start of the BEGIN preceding the full-document INSERT
+# into tj - i.e. right after the fixture's own CREATE TABLE tj completes.
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=799, Master_use_gtid=No;
+call mtr.add_suppression("Column .* of table .* cannot be converted");
+call mtr.add_suppression("Slave SQL.*Error executing row event");
+START SLAVE;
+
+# The slave must refuse the table definition rather than truncate the
+# document into the too-small VARCHAR(10).
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+--let $err= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--echo # Slave stopped, Last_SQL_Error matches the expected refusal:
+--echo # $err
+
+--echo #
+--echo # Nothing was applied - the table is still empty, not holding a
+--echo # silently truncated value.
+SELECT * FROM testdb.tj;
+
+# Cleanup.
+--connection slave
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+SET GLOBAL slave_type_conversions= DEFAULT;
+--let $mdev39143_cleanup_db= testdb
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
+--source include/rpl_end.inc

@@ -536,17 +536,35 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
   /*
     A MySQL binary JSON source (mysql_json plugin), replicated from a MySQL
     master.  The conversion-table field decodes the binary JSON into text.
-      - target native JSON: same logical type, only the storage format differs,
-        so this is lossless -> CONV_TYPE_VARIANT (allowed without
-        slave_type_conversions).
-      - target plain string/blob: a genuine cross-type conversion ->
-        CONV_TYPE_SUBSET_TO_SUPERSET (requires slave_type_conversions).
+      - target native JSON: same logical type, only the storage format
+        differs -> CONV_TYPE_VARIANT (allowed without slave_type_conversions,
+        i.e. treated as policy-safe by default).  This is not quite lossless:
+        a MySQL JSONB OPAQUE value tagged as a temporal or DECIMAL type is
+        decoded to a plain quoted JSON string (see
+        plugin/type_mysql_json/mysql_json.cc print_mysql_datetime_value()
+        and the JSONB_TYPE_OPAQUE case), so the document's content survives
+        but that original type tag does not; MariaDB's native JSON has no
+        typed-scalar concept to preserve it in either representation, so
+        treating this as policy-safe is still the right default, just not
+        for the "nothing is lost" reason the old wording implied.
+      - target plain string/blob: a genuine cross-type conversion.  Classify
+        it by actual declared capacity, the same way the parallel
+        blob/string-source branch below does, rather than assume it always
+        fits: Type_handler_mysql_json derives from Type_handler_blob and
+        inherits its max_display_length_for_field(), which reads the pack
+        length MYSQL_JSON stores in the same metadata slot an ordinary blob
+        would (see Type_handler_mysql_json::make_conversion_table_field()),
+        so compare_lengths() works on it unchanged.
   */
   {
-    const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
-    if (source.type_handler()->name().eq(mysql_json))
-      return Type_handler_json_common::is_json_type_handler(type_handler()) ?
-             CONV_TYPE_VARIANT : CONV_TYPE_SUBSET_TO_SUPERSET;
+    if (source.type_handler()->name().eq(MYSQL_JSON_PLUGIN_NAME))
+    {
+      if (Type_handler_json_common::is_json_type_handler(type_handler()))
+        return CONV_TYPE_VARIANT;
+      return compare_lengths(source.type_handler(),
+                             max_display_length_for_field(source),
+                             type_handler(), max_display_length());
+    }
   }
   /**
     @todo
@@ -920,8 +938,7 @@ const Type_handler *table_def::field_type_handler(uint col) const
   */
   if (typecode == MYSQL_TYPE_JSON_MYSQL)
   {
-    const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
-    return Type_handler::handler_by_name(current_thd, mysql_json);
+    return Type_handler::handler_by_name(current_thd, MYSQL_JSON_PLUGIN_NAME);
   }
   return Type_handler::get_handler_by_real_type(typecode);
 }
@@ -1056,17 +1073,27 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
 
 
 /*
-  Check if there are any not supported columns are used
+  Check if there are any not supported columns are used.
+
+  m_cols_ai, when given, is an Update_rows_log_event's after-image bitmap.
+  Under binlog_row_image=MINIMAL, a changed column can appear only in the
+  after-image and not in the before-image m_cols; without checking it here
+  too, an incompatible column visible only there (e.g. a MySQL binary JSON
+  column with the decoding plugin not installed) was never reported and was
+  just silently excluded from the write set instead, leaving its slave-side
+  value stale with no error raised.
 */
 
 bool RPL_TABLE_LIST::check_wrong_column_usage(rpl_group_info *rgi,
-                                              MY_BITMAP *m_cols)
+                                              MY_BITMAP *m_cols,
+                                              MY_BITMAP *m_cols_ai)
 {
   DBUG_ENTER("RPL_TABLE_LIST::check_wrong_column_usage");
   bool has_err= false;
   for (uint col= 0 ; col < m_tabledef.size() ; col++)
   {
-    if (!bitmap_is_set(m_cols, col))
+    if (!bitmap_is_set(m_cols, col) &&
+        !(m_cols_ai && bitmap_is_set(m_cols_ai, col)))
       continue;
     if (m_tabledef.master_to_slave_error[col])
       has_err|= give_compatibility_error(rgi, col);

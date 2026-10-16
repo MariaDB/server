@@ -14,10 +14,12 @@
 # MySQL logs the first as an INSERT diff on an object-member path and the
 # next two as INSERT diffs on array-cell paths; its own mysqlbinlog renders
 # them as JSON_INSERT, JSON_ARRAY_INSERT and JSON_ARRAY_INSERT respectively.
-# The slave must make the same distinction: id=3 is the discriminating case,
-# where the path resolves before the start of the array so the value is
-# prepended and the existing elements shift right.  JSON_INSERT would leave
-# the document untouched there, silently.
+# The slave makes the same function choice in apply_partial_json_column()
+# (see json_diff_path_is_array_cell()).  That choice is not what makes id=3
+# special, though - id=2 and id=3 both correctly resolve to JSON_ARRAY_INSERT.
+# What's special about id=3 is its path, '$.arr[last-9]': it is the only one
+# here that resolves from the end of the array, which is exactly where
+# MariaDB's JSON_ARRAY_INSERT disagrees with MySQL (see below).
 #
 # MySQL's own contents after those updates, read from the source table:
 #   id=1 arr [1, 2, 3]     newkey "added"
@@ -44,23 +46,22 @@
 
 --source include/have_innodb.inc
 --source include/have_binlog_format_row.inc
+--source include/have_type_mysql_json.inc
 --source include/master-slave.inc
 
+# The slave decodes MySQL binary JSON with the read-only mysql_json plugin,
+# loaded on the slave only via rpl_json_partial_insert-slave.opt (it never
+# needs to be active on the master, which only ever serves the injected
+# fixture's raw bytes).
 --connection slave
-INSTALL SONAME 'type_mysql_json';
 --source include/stop_slave.inc
 
---connection master
---let $datadir= `SELECT @@datadir`
---let $rpl_server_number= 1
---source include/rpl_stop_server.inc
---remove_file $datadir/master-bin.000001
---copy_file $MYSQL_TEST_DIR/std_data/mdev39143_partial_json_insert.000001 $datadir/master-bin.000001
---source include/rpl_start_server.inc
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_partial_json_insert.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
 
 --connection slave
 CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
-call mtr.add_suppression("MDEV-39143: cannot apply a partial JSON update");
+call mtr.add_suppression("Could not apply a partial JSON update");
 call mtr.add_suppression("Slave SQL.*Error executing row event");
 START SLAVE;
 
@@ -84,12 +85,6 @@ SELECT id, JSON_QUERY(j,'$.arr') AS arr, JSON_VALUE(j,'$.newkey') AS newkey
 --connection slave
 STOP SLAVE IO_THREAD;
 --source include/wait_for_slave_io_to_stop.inc
-DROP DATABASE jsontest;
-CHANGE MASTER TO Master_log_file='master-bin.000002', Master_log_pos=4, Master_use_gtid=No;
-START SLAVE;
---connection master
---save_master_pos
---connection slave
---sync_with_master
-UNINSTALL SONAME 'type_mysql_json';
+--let $mdev39143_cleanup_db= jsontest
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
 --source include/rpl_end.inc

@@ -6521,6 +6521,15 @@ dbug_gtid_accept:
   case WRITE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
   case DELETE_ROWS_EVENT:
+  /*
+    MySQL 8.0+ partial JSON update (MDEV-39143); same row-event header shape
+    as UPDATE_ROWS_EVENT, including STMT_END_F, so it is tracked the same
+    way. Omitted here, a statement ending in this event type instead of a
+    plain UPDATE_ROWS_EVENT would leave stmt_end_seen false, causing a
+    false-positive "did not receive an expected Rows-log end-of-statement"
+    error on the next tracked statement.
+  */
+  case PARTIAL_UPDATE_ROWS_EVENT:
     {
       is_rows_event= true;
       mi->rows_event_tracker.update(mi->master_log_name,

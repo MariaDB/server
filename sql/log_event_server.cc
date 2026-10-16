@@ -5421,7 +5421,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
       }
 
-      if ((error= rpl_table->check_wrong_column_usage(rgi, &m_cols)))
+      if ((error= rpl_table->check_wrong_column_usage(
+               rgi, &m_cols, type == UPDATE_ROWS_EVENT ? &m_cols_ai : NULL)))
         goto err;
 
       table->mark_columns_per_binlog_row_image();
@@ -8690,10 +8691,14 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   {
     /*
       We need to read the second image in the event of error to be
-      able to skip to the next pair of updates
+      able to skip to the next pair of updates.  find_row() failed, so
+      record[1] does not hold this row - only_seek=true tells
+      unpack_current_row() (and, for a partial JSON column,
+      apply_partial_json_column()) to advance past the image without
+      reading record[1] or applying anything to it.
     */
     if ((m_curr_row= m_curr_row_end))
-      unpack_current_row(rgi, &m_cols_ai);
+      unpack_current_row(rgi, &m_cols_ai, true);
     return error;
   }
 
@@ -8716,7 +8721,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   m_curr_row= m_curr_row_end;
   /* this also updates m_curr_row_end */
   thd_proc_info(thd, "Update_rows_log_event::unpack_current_row()");
-  if (unlikely((error= unpack_current_row(rgi, &m_cols_ai))))
+  if (unlikely((error= unpack_current_row(rgi, &m_cols_ai, false))))
     goto err;
   if (m_table->s->long_unique_table)
     m_table->update_virtual_fields(m_table->file, VCOL_UPDATE_FOR_WRITE);
