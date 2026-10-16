@@ -131,3 +131,12 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t1 ADD FULLTEXT(f2);
 DROP TABLE t1;
 }
+
+--echo #
+--echo #  MDEV-40324 use-of-uninitialized-value after creation of
+--echo #                FULLTEXT table failure
+--echo #
+call mtr.add_suppression("InnoDB: Failed to create FTS index table");
+--error ER_CANT_CREATE_TABLE
+SET STATEMENT DEBUG_DBUG="+d,fts_index_table_fail" FOR
+CREATE TABLE t1(f1 TEXT, FULLTEXT(f1))ENGINE=InnoDB;

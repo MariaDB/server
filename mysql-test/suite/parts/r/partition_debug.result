@@ -5184,3 +5184,29 @@ select * from tp2;
 x
 12
 drop table tp2;
+#
+# MDEV-41545 Unchecked get_clone() in ALTER of partitioned table
+#            crashes on out-of-memory
+#
+create table t1 (x int) partition by range (x)
+(partition p0 values less than (10));
+insert t1 values (1);
+lock tables t1 write;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,prep_alter_part_table_get_clone_oom';
+alter table t1 add partition (partition p1 values less than (20));
+ERROR HY000: Out of memory.
+set debug_dbug= @save_dbug;
+select * from t1;
+x
+1
+unlock tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY RANGE (`x`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM)
+drop table t1;
+# End of 10.11 tests

@@ -1668,7 +1668,6 @@ void THD::cleanup(void)
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
     wsrep_cs().cleanup();
-  wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
   DEBUG_SYNC(this, "THD_cleanup_after_set_killed");

@@ -2730,6 +2730,47 @@ SELECT JSON_OVERLAPS(@json1, @json2);
 JSON_OVERLAPS(@json1, @json2)
 0
 #
+# MDEV-41067: Empty and nonempty nested JSON arrays
+#
+SELECT JSON_OVERLAPS('[[1]]', '[[]]') AS forward,
+JSON_OVERLAPS('[[]]', '[[1]]') AS reverse;
+forward	reverse
+0	0
+SELECT JSON_OVERLAPS('[[1],[2]]', '[[],[2]]') AS forward,
+JSON_OVERLAPS('[[],[2]]', '[[1],[2]]') AS reverse;
+forward	reverse
+1	1
+SELECT JSON_OVERLAPS('[[1]]', '[[1,2]]') AS forward,
+JSON_OVERLAPS('[[1,2]]', '[[1]]') AS reverse;
+forward	reverse
+0	0
+SELECT JSON_OVERLAPS('[[]]', '[[]]') AS r;
+r
+1
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],2]]') AS r;
+r
+1
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],3]]') AS forward,
+JSON_OVERLAPS('[[[1],3]]', '[[[1],2]]') AS reverse;
+forward	reverse
+0	0
+SELECT JSON_OVERLAPS('[[[],1],[4]]', '[[{},1],[4]]') AS forward,
+JSON_OVERLAPS('[[{},1],[4]]', '[[[],1],[4]]') AS reverse;
+forward	reverse
+1	1
+SELECT JSON_OVERLAPS('[[true]]', '[[1]]') AS forward,
+JSON_OVERLAPS('[[1]]', '[[true]]') AS reverse;
+forward	reverse
+0	0
+SELECT JSON_OVERLAPS('[[1,2]]', '[[2,1]]') AS forward,
+JSON_OVERLAPS('[[2,1]]', '[[1,2]]') AS reverse;
+forward	reverse
+0	0
+SELECT JSON_OVERLAPS('{"a":[1],"b":2}', '{"a":[],"b":2}') AS forward,
+JSON_OVERLAPS('{"a":[],"b":2}', '{"a":[1],"b":2}') AS reverse;
+forward	reverse
+1	1
+#
 # MDEV-30304: Json Range only affects first row of the result set
 #
 CREATE TABLE t1 ( j JSON );
@@ -3101,6 +3142,20 @@ NULL	["a", "b"]	NULL
 {"r": 1}	NULL	NULL
 [{"a": 3}, {"d": [1, 2, 3]}]	[{"d": [1E0, 2E0, 3E0]}, {"a":3E0}]	1
 DROP TABLE t;
+#
+# MDEV-39049: Memory corruption & crash in check_key_in_list upon
+# using JSON_KEYS after modifying character set name/collation
+#
+SET SESSION character_set_database=utf32;
+SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
+JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 25
+SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
+JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }')
+["", "k2"]
+SET SESSION character_set_database= default;
 # End of 10.11 Test
 #
 # MDEV-32007: JSON_VALUE and JSON_EXTRACT doesn't handle dash (-)

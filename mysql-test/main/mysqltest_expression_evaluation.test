@@ -112,13 +112,23 @@ let $multi_var = $($var_a * $var_b / $var_a);
 --echo # Overflow edge cases
 --echo # ----------------------------------------------------------------------------
 
---echo -9223372036854775808 / -1 -> $(-9223372036854775808 / -1)
+--echo -9223372036854775808 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-9223372036854775808 / -1);" | $MYSQL_TEST 2>&1
 --echo -9223372036854775808 % -1 -> $(-9223372036854775808 % -1)
---echo -(-9223372036854775808) -> $(-(-9223372036854775808))
+--echo -(-9223372036854775808) -> error
+--error 1
+--exec echo "let \$a = \$(-(-9223372036854775808));" | $MYSQL_TEST 2>&1
 --echo -4611686018427387904 * 2 -> $(-4611686018427387904 * 2)
---echo -4611686018427387904 * 2 / -1 -> $(-4611686018427387904 * 2 / -1)
---echo -4611686018427387904 * -2 / -1 -> $(-4611686018427387904 * -2 / -1)
---echo 18446744073709551615 / 2 / -1 -> $(18446744073709551615 / 2 / -1)
+--echo -4611686018427387904 * 2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-4611686018427387904 * 2 / -1);" | $MYSQL_TEST 2>&1
+--echo -4611686018427387904 * -2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(-4611686018427387904 * -2 / -1);" | $MYSQL_TEST 2>&1
+--echo 18446744073709551615 / 2 / -1 -> error
+--error 1
+--exec echo "let \$a = \$(18446744073709551615 / 2 / -1);" | $MYSQL_TEST 2>&1
 
 --echo # ----------------------------------------------------------------------------
 --echo # Comparison operators
@@ -893,6 +903,29 @@ let $large_xor = $(0x7FFFFFFFFFFFFFFF ^ 0x7FFFFFFFFFFFFFFE);
 
 --error 1
 --exec echo "let \$a = \$(-18446744073709551616);" | $MYSQL_TEST 2>&1
+
+--echo # Signed arithmetic overflow
+--error 1
+--exec echo "let \$a = \$(9223372036854775807 + 1);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(-9223372036854775807 - 2);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(abs(-9223372036854775808));" | $MYSQL_TEST 2>&1
+
+--echo # Unsigned overflow
+--error 1
+--exec echo "let \$a = \$(18446744073709551615 + 1);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(0x8000000000000000 * 2);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$(18446744073709551615 * 2);" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "let \$a = \$((0xFFFFFFFFFFFFFFFF & 0xFFFFFFFFFFFFFFFF) + 1);" | $MYSQL_TEST 2>&1
 
 --echo #
 --echo # MDEV-37865: IF() function is returning incorrect error

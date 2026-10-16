@@ -33,8 +33,6 @@ INSERT INTO t1 VALUES (2);
 
 --source include/kill_galera.inc
 
---sleep 1
-
 --connection node_1
 --let $galera_wsrep_recover_server_id=1
 --source suite/galera/include/galera_wsrep_recover.inc
