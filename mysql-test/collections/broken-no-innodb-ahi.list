@@ -1,0 +1,54 @@
+# Tests that fail in a build with cmake -DWITH_INNODB_AHI=OFF. Pass this
+# file to mariadb-test-run.pl with --skip-test-list for such a build.
+#
+# Without the adaptive hash index, its system variables and its
+# INFORMATION_SCHEMA.INNODB_METRICS counters do not exist, and
+# INFORMATION_SCHEMA.INNODB_BUFFER_PAGE and INNODB_BUFFER_PAGE_LRU have no
+# IS_HASHED column. The sys schema views innodb_buffer_stats_by_schema,
+# innodb_buffer_stats_by_table and schema_table_statistics_with_buffer read
+# that column, so they are not created.
+#
+# A test marked "only turns the adaptive hash index off" tests nothing of it,
+# and can run in such a build once it changes the setting only where the
+# setting exists.
+encryption.innochecksum : needs the adaptive hash index
+innodb.import_bugs : needs the adaptive hash index
+innodb.innodb_buffer_pool_resize : needs the adaptive hash index
+innodb.innodb_buffer_pool_resize_temporary : needs the adaptive hash index
+innodb.insert_into_empty : needs the adaptive hash index
+innodb.msan_failure : needs the adaptive hash index
+innodb.monitor : needs the adaptive hash index counters
+innodb.innodb_skip_innodb_is_tables : needs the adaptive hash index counters
+sys_vars.innodb_adaptive_hash_index_basic : needs the adaptive hash index
+sys_vars.innodb_adaptive_hash_index_parts_basic : needs the adaptive hash index
+sys_vars.sysvars_innodb : lists the adaptive hash index variables
+innodb.lock_memory : only turns the adaptive hash index off
+innodb.innodb_bug30113362 : only turns the adaptive hash index off
+main.rowid_filter_innodb : its normal combination only turns the adaptive hash index off
+main.ctype_upgrade : no IS_HASHED without the adaptive hash index
+main.information_schema : no IS_HASHED without the adaptive hash index
+main.log_tables_upgrade : no IS_HASHED without the adaptive hash index
+main.lowercase_fs_off : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade-20228 : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade-28915 : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade-34014 : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade-6984 : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade_mysql_json : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade_mysql_json_datatype : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade_mysql_json_with_plugin_loaded : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade_ssl : no IS_HASHED without the adaptive hash index
+main.mysql_upgrade_view : no IS_HASHED without the adaptive hash index
+main.sp-group : no IS_HASHED without the adaptive hash index
+main.upgrade_MDEV-19650 : no IS_HASHED without the adaptive hash index
+main.upgrade_MDEV-23102-1 : no IS_HASHED without the adaptive hash index
+main.upgrade_MDEV-23102-2 : no IS_HASHED without the adaptive hash index
+main.upgrade_geometrycolumn_procedure_definer : no IS_HASHED without the adaptive hash index
+main.upgrade_mdev_24363 : no IS_HASHED without the adaptive hash index
+innodb.innodb_information_schema_buffer : no IS_HASHED without the adaptive hash index
+innodb_i_s.innodb_buffer_page : no IS_HASHED without the adaptive hash index
+innodb_i_s.innodb_buffer_page_lru : no IS_HASHED without the adaptive hash index
+sysschema.all_sys_objects_exist : no IS_HASHED without the adaptive hash index
+sysschema.v_innodb_buffer_stats_by_schema : no IS_HASHED without the adaptive hash index
+sysschema.v_innodb_buffer_stats_by_table : no IS_HASHED without the adaptive hash index
+sysschema.v_schema_table_statistics_with_buffer : no IS_HASHED without the adaptive hash index
