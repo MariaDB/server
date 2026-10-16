@@ -86,6 +86,9 @@ public:
   int index_prev(uchar * buf) override;
   int index_first(uchar * buf) override;
   int index_last(uchar * buf) override;
+  int ft_init() override { return 0; }
+  FT_INFO *ft_init_ext(uint flags, uint inx, String *key) override;
+  int ft_read(uchar *) override { return HA_ERR_END_OF_FILE; }
   void position(const uchar *record) override;
   int info(uint flag) override;
   int external_lock(THD *thd, int lock_type) override;
