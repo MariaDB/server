@@ -339,7 +339,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     }
     if (memory_available < min_sort_memory)
     {
-      my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR_LOG + ME_FATAL));
+      my_error(ER_OUT_OF_SORTMEMORY, MYF(0));
       goto err;
     }
     tracker->report_sort_buffer_size(sort->sort_buffer_size());
