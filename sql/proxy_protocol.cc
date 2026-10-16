@@ -129,14 +129,14 @@ static int parse_v2_header(uchar *hdr, size_t len,proxy_peer_info *peer_info)
   switch (fam)
   {
     case 0x11:  /* TCPv4 */
-      if (len < 25)
+      if (len < 28)
         return -1;
       sin->sin_family= AF_INET;
       memcpy(&(sin->sin_addr), hdr + 16, 4);
       peer_info->port= (hdr[24] << 8) + hdr[25];
       break;
     case 0x21:  /* TCPv6 */
-      if (len < 49)
+      if (len < 52)
         return -1;
       sin6->sin6_family= AF_INET6;
       memcpy(&(sin6->sin6_addr), hdr + 16, 16);
@@ -201,8 +201,8 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
     /* Read until end of header (newline character)*/
     while(pos < sizeof(hdr) - 1)
     {
-      long len= (long)vio_read(vio, hdr + pos, 1);
-      if (len < 0)
+      ssize_t len= vio_read(vio, hdr + pos, 1);
+      if (len != 1)
         return -1;
       pos++;
       if (hdr[pos-1] == '\n')
@@ -219,7 +219,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
 #define PROXY_V2_HEADER_LEN 16
     /* read off 16 bytes of the header.*/
     ssize_t len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
-    if (len < 0)
+    if (len != PROXY_V2_HEADER_LEN - ssize_t(pos))
       return -1;
     // 2 last bytes are the length in network byte order of the part following header
     ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] << 8) + hdr[PROXY_V2_HEADER_LEN-1];
@@ -228,7 +228,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
     if (trail_len > 0)
     {
       len= vio_read(vio,  hdr + PROXY_V2_HEADER_LEN, trail_len);
-      if (len < 0)
+      if (len != trail_len)
         return -1;
     }
     pos= PROXY_V2_HEADER_LEN + trail_len;
