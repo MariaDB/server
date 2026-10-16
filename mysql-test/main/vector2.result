@@ -715,4 +715,38 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 values (vec_fromtext('[1]'));
 DROP TABLE t1, t2;
+#
+# MDEV-39293 Assertion `res->length() > 0 && res->length() % 4 == 0' failed in int mhnsw_insert(TABLE *, KEY *)
+#
+create table t1 (id int, c varbinary(16));
+insert t1 values (1, ''), (2, vec_fromtext('[1]')),
+(3, x'ffffffffffffffffffffffffffffffff'), (4, vec_fromtext('[1,2,3,4]'));
+create table t2 (v vector(4) not null, vector index (v));
+insert t2 select c from t1 where id = 1;
+ERROR 22007: Incorrect vector value: '' for column `test`.`t2`.`v` at row 1
+insert t2 select c from t1 where id = 2;
+ERROR 22007: Incorrect vector value: '\x00\x00\x80?' for column `test`.`t2`.`v` at row 2
+insert t2 select c from t1 where id = 3;
+ERROR 22007: Incorrect vector value: '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF' for column `test`.`t2`.`v` at row 3
+insert t2 select c from t1 where id = 4;
+insert ignore t2 select c from t1 where id = 1;
+Warnings:
+Warning	1292	Incorrect vector value: '' for column `test`.`t2`.`v` at row 1
+select vec_totext(v) from t2 order by 1;
+vec_totext(v)
+[0,0,0,0]
+[1,2,3,4]
+# same without a vector index, nothing must be stored silently
+create table t3 (v vector(4) not null);
+insert t3 select c from t1 where id = 2;
+ERROR 22007: Incorrect vector value: '\x00\x00\x80?' for column `test`.`t3`.`v` at row 2
+# vector to vector copy still works
+insert t3 select v from t2;
+update t3, t1 set t3.v= t1.c where t1.id = 3;
+ERROR 22007: Incorrect vector value: '\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF' for column `test`.`t3`.`v` at row 3
+select vec_totext(v) from t3 order by 1;
+vec_totext(v)
+[0,0,0,0]
+[1,2,3,4]
+drop table t1, t2, t3;
 # End of 11.8 tests
