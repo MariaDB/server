@@ -2498,7 +2498,7 @@ int InnoDB_backup::stream(backup_fd stream, fil_node_t *node, const char *name,
   uint32_t page{0};
   const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
 loop:
-  while (page < limit)
+  do
   {
     buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX], **end= blocks;
     {
@@ -2548,6 +2548,7 @@ loop:
     if (err)
       goto fail;
   }
+  while (page < limit);
 
   if (err)
   fail:
@@ -2560,7 +2561,8 @@ loop:
     ut_ad(start == page);
     start= page+= buf_dblwr.size();
     limit= page + uint32_t(chunk[1].length >> srv_page_size_shift);
-    goto loop;
+    if (page < limit)
+      goto loop;
   }
 
   return err;
