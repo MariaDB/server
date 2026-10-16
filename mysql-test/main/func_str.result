@@ -5721,4 +5721,22 @@ SELECT RPAD(_utf16'a', 766, @p)>'' FROM DUAL
 WHERE (@p := CONCAT(_latin1'ab', _latin1 0xD800, REPEAT(_latin1'z',1000))) IS NOT NULL;
 RPAD(_utf16'a', 766, @p)>''
 1
+#
+# RPAD(), LPAD(), INSERT() should not mangle their arguments
+#
+create table t1 (c varchar(10) charset utf8mb4);
+insert t1 values (_utf8mb4 0xD0B4), (_utf8mb4 0x61);
+select hex(max(c)) as h, max(c) as m from t1
+having rpad(m, 3, cast('x' as binary)) <> '' and char_length(m) = 1;
+h	m
+D0B4	д
+select hex(max(c)) as h, max(c) as m from t1
+having lpad(m, 3, cast('x' as binary)) <> '' and char_length(m) = 1;
+h	m
+D0B4	д
+select hex(max(c)) as h, max(c) as m from t1
+having insert(m, 1, 0, cast('x' as binary)) <> '' and char_length(m) = 1;
+h	m
+D0B4	д
+drop table t1;
 # End of 10.11 tests
