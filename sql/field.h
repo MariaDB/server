@@ -1776,7 +1776,41 @@ public:
                                       const Data_type_compatibility reason)
                                       const;
   void raise_note_key_become_unused(THD *thd, const String &expr) const;
+  bool is_supertype(Item *item) const;
+  /*
+    Check that the constant `item` has a value which lies STRICTLY
+    inside the domain of this field's data type:
+
+    - the value is stored into the field without any data loss, and
+    - it is not an extreme value of the domain.
+
+    Field::store() truncates out-of-domain values to the extreme
+    values of the domain: numbers are clamped, strings are truncated.
+    So a comparison against the constant survives such a conversion
+    only if no other value can be mapped onto the constant, that is,
+    only if the constant lies strictly inside the domain.
+
+    Note, the method stores into the field's record buffer, so it can
+    only be called at the optimization stage, before any row has been
+    read.
+
+    The method has 100% precision, except for Field_longstr with PAD
+    SPACE collations (see comments in
+    stored_value_is_strictly_inside_domain). Otherwise it may return
+    false negatives.
+  */
+  bool is_const_strictly_inside_domain(Item *item);
 protected:
+  /*
+    Check that the value currently stored in the field is not an
+    extreme value of the domain of the field's data type. Only called
+    from is_const_strictly_inside_domain(), after the constant has
+    been stored into the field without any data loss. The default
+    implementation makes is_const_strictly_inside_domain() always
+    return false, for the data types whose domain has not been
+    examined yet.
+  */
+  virtual bool stored_value_is_strictly_inside_domain() { return false; }
   bool set_warning(unsigned int code, int cuted_increment) const
   {
     return set_warning(Sql_condition::WARN_LEVEL_WARN, code, cuted_increment);
@@ -2383,6 +2417,17 @@ protected:
                CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length) const;
+  /*
+    The capacity limit of the data type, and the length of `value`, both
+    expressed in the unit in which the data type declares its capacity:
+    characters for CHAR/VARCHAR/BINARY/VARBINARY, octets for BLOB/TEXT.
+    Compare with Type_handler_longstr::capacity_limit_is_in_characters().
+  */
+  virtual uint32 capacity_limit() const { return char_length(); }
+  virtual uint32 capacity_needed_to_exceed_truncation(const String &value)
+    const
+  { return (uint32) value.numchars() + 1; }
+  bool stored_value_is_strictly_inside_domain() override;
 public:
   Field_longstr(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
                 uchar null_bit_arg, utype unireg_check_arg,
@@ -2637,6 +2682,7 @@ class Field_int :public Field_num
 protected:
   String *val_str_from_long(String *val_buffer, uint max_char_length,
                             int radix, long nr);
+  bool stored_value_is_strictly_inside_domain() override;
 public:
   Field_int(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
             uchar null_bit_arg, enum utype unireg_check_arg,
@@ -4187,6 +4233,17 @@ class Field_string final :public Field_longstr {
            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
   }
   LEX_CSTRING to_lex_cstring() const;
+  bool stored_value_is_strictly_inside_domain() override
+  {
+    /*
+      CHAR pads the value with spaces on store, so a value with trailing
+      spaces and the same value without them are indistinguishable in the
+      field.
+    */
+    if (charset()->state & MY_CS_NOPAD)
+      return false;
+    return Field_longstr::stored_value_is_strictly_inside_domain();
+  }
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -4547,6 +4604,11 @@ protected:
   static void do_copy_blob(const Copy_field *copy);
   static void do_conv_blob(const Copy_field *copy);
   uint get_key_image_itRAW(const uchar *ptr_arg, uchar *buff, uint length) const;
+  /* BLOB/TEXT declare their capacity limit in octets */
+  uint32 capacity_limit() const override { return character_octet_length(); }
+  uint32 capacity_needed_to_exceed_truncation(const String &value)
+    const override
+  { return (uint32) value.length() + mbmaxlen(); }
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
