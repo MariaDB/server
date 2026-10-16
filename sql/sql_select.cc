@@ -989,6 +989,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
+  from_sysvar= (type != SYSTEM_TIME_UNSPECIFIED);
   delete_history= false;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
@@ -1310,6 +1311,21 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
     }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    partition_info *part_info= table->table->part_info;
+    if (part_info && part_info->vers_info &&
+        !table->partition_names &&
+        !vers_conditions.was_set() &&
+        !vers_conditions.from_sysvar)
+    {
+      /*
+        No row_end condition: prune_partitions() restricts read_partitions
+        to now_part on each execution, with the same conditions.
+      */
+      vers_conditions.set_all();
+    }
+#endif
 
     if (vers_conditions.is_set())
     {
