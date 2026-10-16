@@ -25,6 +25,89 @@
 #include "transaction.h"
 
 extern handlerton *binlog_hton;
+
+/*
+  Callback for binlog_oob_read(), which counts the data passed through it,
+  to check that all of the spilled data was read back.
+*/
+struct wsrep_engine_cache_reader
+{
+  bool (*callback)(void *arg, const uchar *data, size_t len);
+  void *arg;
+  size_t len;
+
+  static bool read(void *reader_arg, const uchar *data, size_t len)
+  {
+    wsrep_engine_cache_reader *r=
+      static_cast<wsrep_engine_cache_reader *>(reader_arg);
+    r->len+= len;
+    return r->callback(r->arg, data, len);
+  }
+};
+
+/*
+  Read the binlog cache contents of thd from log_position to the end of the
+  cache, when the binlog is implemented in a storage engine
+  (--binlog-storage-engine).
+
+  Such a cache has no temporary file. When it fills up, its contents are
+  spilled into the engine binlog as out-of-band data, and those are read
+  back from the engine. The rest is taken directly from the in-memory
+  cache buffer: the cache must not be switched to READ_CACHE and back with
+  reinit_io_cache(), as that would replace the write function which does
+  the spilling.
+
+  @param thd           thread which owns the cache
+  @param cache         binlog cache, in WRITE_CACHE mode
+  @param log_position  position to start from
+  @param callback      function to pass the data to, in one or more pieces;
+                       returns true on error
+  @param arg           argument for the callback
+
+  @return 0 on success, 1 on error
+*/
+int wsrep_read_engine_cache(THD *thd, IO_CACHE *cache, my_off_t log_position,
+                            bool (*callback)(void *arg, const uchar *data,
+                                             size_t len),
+                            void *arg)
+{
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  DBUG_ASSERT(cache->type == WRITE_CACHE);
+  DBUG_ASSERT(log_position <= my_b_tell(cache));
+
+  my_off_t oob_len;
+  void *engine_data= wsrep_binlog_cache_oob(thd, cache, &oob_len);
+  if (log_position < oob_len)
+  {
+    WSREP_DEBUG("Reading back %llu bytes of spilled transaction data from "
+                "the binlog storage engine, from position %llu",
+                (ulonglong) (oob_len - log_position), (ulonglong) log_position);
+    wsrep_engine_cache_reader reader= { callback, arg, 0 };
+    if ((*opt_binlog_engine_hton->binlog_oob_read)
+          (engine_data, log_position, wsrep_engine_cache_reader::read,
+           &reader))
+    {
+      WSREP_WARN("Failed to replicate transaction data spilled to the "
+                 "binlog storage engine");
+      return 1;
+    }
+    if (reader.len != oob_len - log_position)
+    {
+      WSREP_ERROR("Read back %zu bytes of transaction data from the binlog "
+                  "storage engine, expected %llu",
+                  reader.len, (ulonglong) (oob_len - log_position));
+      return 1;
+    }
+  }
+
+  my_off_t const start= std::max(log_position, cache->pos_in_file);
+  const uchar *data= cache->request_pos + (start - cache->pos_in_file);
+  size_t const len= (size_t) (cache->write_pos - data);
+  if (len && callback(arg, data, len))
+    return 1;
+  return 0;
+}
+
 /*
   Write the contents of a cache to a memory buffer.
 
@@ -37,6 +120,41 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
   *buf_len= 0;
   my_off_t const saved_pos(my_b_tell(cache));
   DBUG_ENTER("wsrep_write_cache_buf");
+
+  if (opt_binlog_engine_hton && cache->file < 0)
+  {
+    /*
+      Binlog cache in engine, see wsrep_read_engine_cache(). Only the data
+      still in the in-memory buffer can be written here.
+    */
+    DBUG_ASSERT(cache->type == WRITE_CACHE);
+    if (cache->pos_in_file > 0)
+    {
+      WSREP_WARN("binlog cache data spilled to the binlog storage engine "
+                 "is not included (%llu bytes)",
+                 (ulonglong) cache->pos_in_file);
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+    const uchar *data= cache->request_pos;
+    size_t length= (size_t) (cache->write_pos - data);
+    if (length > wsrep_max_ws_size)
+    {
+      WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
+                 wsrep_max_ws_size, length);
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+    }
+    if (length)
+    {
+      if (!(*buf= (uchar *) my_malloc(PSI_INSTRUMENT_ME, length, MYF(0))))
+      {
+        WSREP_ERROR("could not allocate buffer: %zu", length);
+        DBUG_RETURN(ER_ERROR_ON_WRITE);
+      }
+      memcpy(*buf, data, length);
+      *buf_len= length;
+    }
+    DBUG_RETURN(0);
+  }
 
   if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
   {
@@ -123,6 +241,32 @@ static int wsrep_write_cache_inc(THD*      const thd,
 {
   DBUG_ENTER("wsrep_write_cache_inc");
   my_off_t const saved_pos(my_b_tell(cache));
+
+  if (opt_binlog_engine_hton)
+  {
+    struct append_arg
+    {
+      THD *thd;
+      size_t total_length;
+      static bool append(void *arg, const uchar *data, size_t length)
+      {
+        append_arg *a= static_cast<append_arg *>(arg);
+        a->total_length+= length;
+        if (unlikely(a->total_length > wsrep_max_ws_size))
+        {
+          WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
+                     wsrep_max_ws_size, a->total_length);
+          return true;
+        }
+        return a->thd->wsrep_cs().append_data(
+          wsrep::const_buffer(data, length)) != 0;
+      }
+    } a= { thd, 0 };
+    int ret= wsrep_read_engine_cache(thd, cache, log_position,
+                                     append_arg::append, &a);
+    *len= a.total_length;
+    DBUG_RETURN(ret);
+  }
 
   if (reinit_io_cache(cache, READ_CACHE, log_position, 0, 0))
   {

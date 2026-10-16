@@ -15147,6 +15147,27 @@ IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
   return NULL;
 }
 
+/*
+  get the engine context of the out-of-band data spilled into the engine binlog
+  from a binlog cache of thd, and the amount of spilled data.
+  The spilled data is the start of the cache contents, 
+  up to the current start of the in-memory cache buffer.
+*/
+void *wsrep_binlog_cache_oob(THD *thd, IO_CACHE *cache, my_off_t *oob_len)
+{
+  DBUG_ASSERT(opt_binlog_engine_hton);
+  binlog_cache_mngr *cache_mngr= thd->binlog_get_cache_mngr();
+  DBUG_ASSERT(cache_mngr);
+  binlog_cache_data *cache_data=
+    cache == &cache_mngr->trx_cache.cache_log ? &cache_mngr->trx_cache :
+                                                &cache_mngr->stmt_cache;
+  DBUG_ASSERT(cache == &cache_data->cache_log);
+  DBUG_ASSERT(cache_data->engine_binlog_info.out_of_band_offset ==
+              cache->pos_in_file);
+  *oob_len= cache_data->engine_binlog_info.out_of_band_offset;
+  return cache_data->engine_binlog_info.engine_ptr;
+}
+
 bool wsrep_is_binlog_cache_empty(THD *thd)
 {
   binlog_cache_mngr *cache_mngr=
