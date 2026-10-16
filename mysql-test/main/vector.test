@@ -170,7 +170,7 @@ if ($MTR_COMBINATION_MYISAM) {
 }
 if ($MTR_COMBINATION_ARIA) {
 --replace_result $datadir datadir
---exec $MARIA_CHK -d $datadir/test/t1#i#01
+--exec $MARIA_CHK -h $datadir --ignore-control-file -d $datadir/test/t1#i#01
 }
 insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
@@ -180,7 +180,7 @@ if ($MTR_COMBINATION_MYISAM) {
 }
 if ($MTR_COMBINATION_ARIA) {
 --replace_result $datadir datadir
---exec $MARIA_CHK -d $datadir/test/t1#i#01
+--exec $MARIA_CHK -h $datadir --ignore-control-file -d $datadir/test/t1#i#01
 }
 insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 select id, hex(v) from t1;
