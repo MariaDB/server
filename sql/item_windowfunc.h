@@ -150,6 +150,8 @@ public:
     return name;
   }
 
+  inline bool is_streamable() const override { return true; }
+
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_sum_row_number>(thd, this); }
@@ -214,6 +216,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("rank") };
     return name;
   }
+
+  inline bool is_streamable() const override { return true; }
 
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
@@ -289,6 +293,8 @@ class Item_sum_dense_rank: public Item_sum_int
     static LEX_CSTRING name= {STRING_WITH_LEN("dense_rank") };
     return name;
   }
+
+  inline bool is_streamable() const override { return true; }
 
   void setup_window_func(THD *thd, Window_spec *window_spec) override;
 
