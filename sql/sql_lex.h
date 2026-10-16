@@ -3278,7 +3278,87 @@ public:
 class sp_lex_local;
 class sp_lex_cursor;
 
-struct LEX: public Query_tables_list
+/*
+  Members of LEX that are only used while the statement is being parsed
+  (by the grammar and by the LEX::* helpers it calls). They carry no
+  information needed after the parse has finished.
+*/
+struct LEX_Parser_state
+{
+  /* current with clause in parsing if any, otherwise 0*/
+  With_clause *curr_with_clause;
+  /*
+    (*with_clauses_list_last_next) contains a pointer to the last
+     with clause in the current statement
+  */
+  With_clause **with_clauses_list_last_next;
+
+  List<Key_part_spec> ref_list;
+  Key *last_key;
+  Column_definition *last_field;
+  Table_function_json_table *json_table;
+  SQL_I_List<TABLE_LIST> save_list;
+
+  SELECT_LEX *select_stack[MAX_SELECT_NESTING + 1];
+  /*
+    Usually this is set to 0, but for INSERT/REPLACE SELECT it is set to 1.
+    When parsing such statements the pointer to the most outer select is placed
+    into the second element of select_stack rather than into the first.
+  */
+  uint select_stack_outer_barrier;
+
+  /* Bit fields, reset for every query */
+  bool selects_allow_procedure:1;
+
+  enum Foreign_key::fk_match_opt fk_match_option;
+  enum_fk_option fk_update_opt;
+  enum_fk_option fk_delete_opt;
+  st_parsing_options parsing_options;
+  uint8 lex_options; // see OPTION_LEX_*
+
+  /**
+    Collects create options for KEY
+  */
+  engine_option_value *option_list;
+
+  /**
+    Helper pointer to the end of the list when parsing options for
+      LEX::create_info.option_list (for table)
+      LEX::last_field->option_list (for fields)
+      LEX::option_list             (for indexes)
+  */
+  engine_option_value *option_list_last;
+
+  /* Scratch state for parsing window specifications */
+  LEX_CSTRING *win_ref;
+  Window_frame *win_frame;
+  Window_frame_bound *frame_top_bound;
+  Window_frame_bound *frame_bottom_bound;
+  Window_spec *win_spec;
+
+  /*
+    Usually `expr` rule of yacc is quite reused but some commands better
+    not support subqueries which comes standard with this rule, like
+    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
+    clause name to get an error.
+
+    Note: see also LEX::table_or_sp_used().
+  */
+  const char *clause_that_disallows_subselect;
+
+  LEX_Parser_state() { reset_parser_state(); }
+
+  /*
+    Reset everything above to its "start of a new statement" value.
+    This must initialize *every* member: parse_sql() trashes the whole
+    structure after parsing, and the next LEX::start() relies on this
+    method to bring it back to a usable state.
+  */
+  void reset_parser_state();
+};
+
+
+struct LEX: public Query_tables_list, public LEX_Parser_state
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
   SELECT_LEX *first_select_lex() { return unit.first_select(); }
@@ -3292,15 +3372,8 @@ public:
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-  /* current with clause in parsing if any, otherwise 0*/
-  With_clause *curr_with_clause;
   /* pointer to the first with clause in the current statement */
   With_clause *with_clauses_list;
-  /*
-    (*with_clauses_list_last_next) contains a pointer to the last
-     with clause in the current statement
-  */
-  With_clause **with_clauses_list_last_next;
   /*
     When a copy of a with element is parsed this is set to the offset of
     the with element in the input string, otherwise it's set to 0
@@ -3330,7 +3403,6 @@ public:
 
   LEX_CSTRING name;
   const char *help_arg;
-  const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
@@ -3347,9 +3419,6 @@ public:
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
-
-  /** SELECT of CREATE VIEW statement */
-  LEX_STRING create_view_select;
 
   /** Start of 'ON table', in trigger statements.  */
   const char* raw_trg_on_table_name_begin;
@@ -3369,7 +3438,6 @@ public:
   Account_options account_options;
 
   Table_type table_type;                        /* Used for SHOW CREATE */
-  List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<Item>          *insert_list= nullptr,field_list,value_list,update_list;
   List<List_item>     many_values;
@@ -3429,24 +3497,13 @@ public:
     required a local context, the parser pops the top-most context.
   */
   List<Name_resolution_context> context_stack;
-  SELECT_LEX *select_stack[MAX_SELECT_NESTING + 1];
   uint select_stack_top;
-  /*
-    Usually this is set to 0, but for INSERT/REPLACE SELECT it is set to 1.
-    When parsing such statements the pointer to the most outer select is placed
-    into the second element of select_stack rather than into the first.
-  */
-  uint select_stack_outer_barrier;
-
   SQL_I_List<ORDER> proc_list;
-  SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
-  Column_definition *last_field;
-  Table_function_json_table *json_table;
+  SQL_I_List<TABLE_LIST> auxiliary_table_list;
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;                        // check/repair options
   Table_specification_st create_info;
-  Key *last_key;
   LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
@@ -3467,7 +3524,6 @@ public:
 
   /* Bit fields, reset for every query */
   bool is_shutdown_wait_for_slaves:1;
-  bool selects_allow_procedure:1;
   /*
     A special command "PARSE_VCOL_EXPR" is defined for the parser
     to translate a defining expression of a virtual column into an
@@ -3497,8 +3553,6 @@ public:
   bool verbose:1, no_write_to_binlog:1;
   bool safe_to_cache_query:1;
   bool ignore:1;
-  bool next_is_main:1; // use "main" SELECT_LEX for nrxt allocation;
-  bool next_is_down:1; // use "main" SELECT_LEX for nrxt allocation;
   /*
     field_list was created for view and should be removed before PS/SP
     rexecuton
@@ -3511,7 +3565,6 @@ public:
     (see Item_field::fix_fields()).
   */
   bool use_only_table_context:1;
-  bool escape_used:1;
   bool default_used:1;    /* using default() function */
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
@@ -3530,16 +3583,6 @@ public:
 
   Sql_cmd *m_sql_cmd;
 
-  /*
-    Usually `expr` rule of yacc is quite reused but some commands better
-    not support subqueries which comes standard with this rule, like
-    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
-    clause name to get an error.
-
-    Note: see also table_or_sp_used().
-  */
-  const char *clause_that_disallows_subselect;
-
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
@@ -3553,11 +3596,7 @@ public:
   enum enum_drop_mode drop_mode;
 
   enum backup_stages backup_stage;
-  enum Foreign_key::fk_match_opt fk_match_option;
-  enum_fk_option fk_update_opt;
-  enum_fk_option fk_delete_opt;
   enum enum_yes_no_unknown tx_chain, tx_release;
-  st_parsing_options parsing_options;
   /*
     In sql_cache we store SQL_CACHE flag as specified by user to be
     able to restore SELECT statement from internal structures.
@@ -3585,7 +3624,6 @@ public:
   */
   uint8 derived_tables;
   uint8 context_analysis_only;
-  uint8 lex_options; // see OPTION_LEX_*
 
   Alter_info alter_info;
   Lex_prepared_stmt prepared_stmt;
@@ -3632,20 +3670,6 @@ public:
     const char *stmt_definition_end;
     uint keyword_delayed_end_offset;
   };
-
-  /**
-    Collects create options for KEY
-  */
-  engine_option_value *option_list;
-
-  /**
-    Helper pointer to the end of the list when parsing options for
-      LEX::create_info.option_list (for table)
-      LEX::last_field->option_list (for fields)
-      LEX::option_list             (for indexes)
-  */
-  engine_option_value *option_list_last;
-
 
   /*
     The set of those tables whose fields are referenced in all subqueries
@@ -3699,11 +3723,6 @@ public:
     return was_activated;
   }
 
-  LEX_CSTRING *win_ref;
-  Window_frame *win_frame;
-  Window_frame_bound *frame_top_bound;
-  Window_frame_bound *frame_bottom_bound;
-  Window_spec *win_spec;
   List<Item_window_func> clause_winfuncs;
 
   Item *upd_del_where;

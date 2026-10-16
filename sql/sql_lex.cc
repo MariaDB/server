@@ -1224,6 +1224,38 @@ void lex_start(THD *thd)
 
 
 /*
+  Reset the parser-only part of LEX. Called from LEX::start().
+*/
+
+void LEX_Parser_state::reset_parser_state()
+{
+  /* Undo the effect of the TRASH_FREE() done in parse_sql() */
+  MEM_MAKE_ADDRESSABLE(this, sizeof(*this));
+  lex_options= 0;
+  select_stack_outer_barrier= 0;
+  curr_with_clause= 0;
+  parsing_options.reset();
+  clause_that_disallows_subselect= NULL;
+  selects_allow_procedure= 0;
+  win_ref= NULL;
+  win_frame= NULL;
+  frame_top_bound= NULL;
+  frame_bottom_bound= NULL;
+  win_spec= NULL;
+  ref_list.empty();
+  save_list.empty();
+  last_key= NULL;
+  last_field= NULL;
+  json_table= NULL;
+  option_list= NULL;
+  option_list_last= NULL;
+  fk_match_option= Foreign_key::FK_MATCH_UNDEF;
+  fk_update_opt= FK_OPTION_UNDEF;
+  fk_delete_opt= FK_OPTION_UNDEF;
+}
+
+
+/*
   This is called before every query that is to be parsed.
   Because of this, it's critical to not do too much things here.
   (We already do too much here)
@@ -1240,14 +1272,12 @@ void LEX::start(THD *thd_arg)
   DBUG_ASSERT(!explain);
 
   builtin_select.lex_start(this);
-  lex_options= 0;
+  reset_parser_state();
   context_stack.empty();
   //empty select_stack
   select_stack_top= 0;
-  select_stack_outer_barrier= 0;
   unit.init_query();
   current_select_number= 0;
-  curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
   clone_spec_offset= 0;
@@ -1272,7 +1302,6 @@ void LEX::start(THD *thd_arg)
   derived_tables= 0;
   with_cte_resolution= false;
   only_cte_resolution= false;
-  parsing_options.reset();
   part_info= 0;
   m_sql_cmd= NULL;
   duplicates= DUP_ERROR;
@@ -1281,11 +1310,9 @@ void LEX::start(THD *thd_arg)
   proc_list.first= 0;
   query_tables= 0;
   reset_query_tables_list(FALSE);
-  clause_that_disallows_subselect= NULL;
 
   /* reset bool variables */
   is_shutdown_wait_for_slaves= 0;
-  selects_allow_procedure= 0;
   parse_vcol_expr= 0;
   analyze_stmt= 0;
   explain_json= 0;
@@ -1294,11 +1321,8 @@ void LEX::start(THD *thd_arg)
   verbose= 0;
   safe_to_cache_query= 1;
   ignore= 0;
-  next_is_main= 0;
-  next_is_down= 0;
   empty_field_list_on_rset= 0;
   use_only_table_context= 0;
-  escape_used= 0;
   default_used= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
@@ -1321,12 +1345,6 @@ void LEX::start(THD *thd_arg)
   var_list.empty();
   stmt_var_list.empty();
   proc_list.elements=0;
-
-  win_ref= NULL;
-  win_frame= NULL;
-  frame_top_bound= NULL;
-  frame_bottom_bound= NULL;
-  win_spec= NULL;
 
   upd_del_where= NULL;
 
@@ -4102,7 +4120,7 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
-    mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
+    mem_root_for_set_stmt(0), analyze_stmt(0),
     default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
