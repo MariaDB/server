@@ -221,6 +221,8 @@ private:
     const uint64_t old_size{};
     /** the start LSN of the last hard-linked file, or 0 */
     std::atomic<lsn_t> last_hardlink{};
+    /** a log file to remove on the next checkpoint when old_size!=0 */
+    Atomic_relaxed<lsn_t> garbage_lsn{};
     /** the last copied LSN, or LSN_MAX if !is_tracking() */
     lsn_t last_track_lsn{};
     /** state of the operation */
@@ -526,8 +528,9 @@ private:
   /** mutex protecting queue, non_log, and non-const ctx members */
   srw_mutex mutex;
 
-  /** collection of files and sizes, followed by any log files to be copied */
+  /** collection of files and sizes, followed by log to replicate() */
   std::vector<uint64_t> queue;
+
   /** number of non-log files at the start of the queue */
   Atomic_relaxed<size_t> non_log;
 
@@ -639,7 +642,7 @@ public:
     {
       new (&ctx) context{
         first_lsn, LSN_MAX, LSN_MAX, start, start_end,
-        log_sys.file_size, old_size, 0, last_track_lsn, PROCESSING,
+        log_sys.file_size, old_size, 0, 0, last_track_lsn, PROCESSING,
         fil_space_t::backup_batch_size(),
         log_dst, log_dst, tracked, &target
       };
@@ -763,6 +766,11 @@ public:
       if (UNIV_UNLIKELY(id_limit > first))
         /* Wait for checkpoint_complete(). */
         buf_flush_sync_batch(id_limit, true);
+      /*
+        This may be invoked also when ctx.is_log_tracking()
+        if (log_sys.last_checkpoint_lsn < log_sys.first_lsn)
+        held in checkpoint_complete().
+      */
       if (replicate(id_limit, target, sink, id_limit < first))
         res= -1;
     }
@@ -930,24 +938,26 @@ public:
       log_sys.latch.rd_lock();
       const lsn_t log_first_lsn{log_sys.first_lsn};
       mutex.wr_lock();
-      log_sys.latch.rd_unlock();
       ut_ad(ctx.tracked == &tracked);
       ut_ad(tracked.first_lsn == first + log_sys.START_OFFSET);
 
       if (err)
       {
+        log_sys.latch.rd_unlock();
       flag_error:
         ctx.last_lsn= 0;
         goto err_exit;
       }
 
-      if (end != tracked.file_size);
+      if (end != tracked.file_size)
+        log_sys.latch.rd_unlock();
       else if (tracked_log *tail= tracked.next)
       {
         ut_ad(tail->first_lsn > tracked.first_lsn);
 #ifdef HAVE_PMEM
         if (log_sys.is_mmap())
         {
+          log_sys.latch.rd_unlock();
           /*
             Tracked memory-mapped buffers can only be added by init()
             or checkpoint_complete_pmem(). In both cases, the
@@ -966,11 +976,13 @@ public:
 #endif
         {
           const bool owned_by_us{tracked.first_lsn < log_first_lsn};
-          ut_ad(tail->file != tracked.file);
-          ut_ad(owned_by_us == (tracked.file != log_sys.resize_log.m_file));
+          os_file_t file{tracked.file};
+          ut_ad(tail->file != file);
 
           if (!owned_by_us)
           {
+            ut_ad(file == log_sys.resize_log.m_file ||
+                  file == log_sys.log.m_file);
             /*
               We copied a previous log before the first checkpoint had
               been completed in the current log_sys.log file, which had
@@ -980,13 +992,23 @@ public:
             ut_ad(tracked.first_lsn == log_first_lsn);
             /* At most two innodb_log_archive=ON files can be active. */
             ut_ad(!tail->next);
+            file= OS_FILE_CLOSED;
           }
-          else if (tracked.file == log_sys.log.m_file)
-            /* The log file from init() was not disowned by log_sys. */
-            ut_ad(tracked.first_lsn == ctx.first_lsn);
           else
+          {
+            ut_ad(file != log_sys.resize_log.m_file);
+            if (tracked.file == log_sys.log.m_file)
+            {
+              /* The log file from init() was not disowned by log_sys. */
+              ut_ad(tracked.first_lsn == ctx.first_lsn);
+              file= OS_FILE_CLOSED;
+            }
+          }
+
+          log_sys.latch.rd_unlock();
+          if (file != OS_FILE_CLOSED)
             /* Close the file, because we owned it. */
-            err= IF_WIN(-!CloseHandle,close)(tracked.file);
+            err= IF_WIN(-!CloseHandle,close)(file);
         }
         /* Move to the next file */
         delete ctx.tracked;
@@ -1307,64 +1329,63 @@ public:
     const os_file_t log{log_sys.resize_log.m_file};
     ut_ad(log != OS_FILE_CLOSED);
     uint64_t delete_file{0};
-
-    if (ctx.state == PROCESSING)
-    {
-      mutex.wr_lock();
-      if (ctx.state != PROCESSING);
-      else if (lsn > ctx.last_lsn)
-        /*
-          We got commit() or an error (ctx.last_lsn==0). Delete if we
-          had innodb_log_archive=OFF at the start of BACKUP SERVER.
-        */
-        delete_file= ctx.old_size;
-      else if (!ctx.is_log_tracking())
-      {
-        if (ctx.last_lsn == LSN_MAX)
-          /* commit() was not invoked yet */
-          queue.emplace_back(lsn);
-      }
-      else
-      {
-        ut_ad(ctx.last_track_lsn < LSN_MAX);
-        delete_file= ctx.old_size;
-# ifdef HAVE_PMEM
-        if (!log_sys.is_mmap())
-# endif
-        {
-          /*
-            archive_create() filters out log files created after the
-            logical end time of a backup, or after the backup has been
-            aborted (ctx.last_lsn == 0).
-          */
-          ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
-                !!ctx.is_log_tracking(log_sys.log.m_file));
-          const bool disown{ctx.tracked && ctx.tracked->first_lsn <= lsn};
-          ut_ad(disown == !!ctx.is_log_tracking(log_sys.resize_log.m_file));
-
-          if (disown)
-            /*
-              Detach the file handle from log_sys and make it
-              exclusively owned by ctx.tracked, to be closed by
-              log_track() or context::destroy().
-            */
-            log_sys.resize_log.m_file= OS_FILE_CLOSED;
-
-          /*
-            If !disown, archive_create() registered and log_track()
-            already copied this log; checkpoint_complete() will
-            exclusively own the log and must close the handle.
-          */
-        }
-      }
-      mutex.wr_unlock();
-    }
-
     int error_on_close{0};
-    if (delete_file)
-      context::delete_log(lsn);
-    else
+
+    mutex.wr_lock();
+    if (ctx.state != PROCESSING)
     {
+      if ((lsn= ctx.garbage_lsn))
+      {
+        ut_ad(ctx.state == CLEANUP);
+        goto unlink_old;
+      }
+    }
+    else if (lsn > ctx.last_lsn)
+      /*
+        We got commit() or an error (ctx.last_lsn==0). Delete if we
+        had innodb_log_archive=OFF at the start of BACKUP SERVER.
+      */
+      delete_file= ctx.old_size;
+    else if (ctx.is_log_tracking())
+    {
+      ut_ad(ctx.last_track_lsn < LSN_MAX);
+      delete_file= ctx.old_size;
+# ifdef HAVE_PMEM
+      if (!log_sys.is_mmap())
+# endif
+      {
+        /*
+          archive_create() filters out log files created after the
+          logical end time of a backup, or after the backup has been
+          aborted (ctx.last_lsn == 0).
+        */
+        ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
+              !!ctx.is_log_tracking(log_sys.log.m_file));
+        const bool disown{ctx.tracked && ctx.tracked->first_lsn <= lsn};
+        ut_ad(disown == !!ctx.is_log_tracking(log_sys.resize_log.m_file));
+
+        if (disown)
+          /*
+            Detach the file handle from log_sys and make it
+            exclusively owned by ctx.tracked, to be closed by
+            log_track() or context::destroy().
+          */
+          log_sys.resize_log.m_file= OS_FILE_CLOSED;
+
+        /*
+          If !disown, archive_create() registered and log_track()
+          already copied this log; checkpoint_complete() will
+          exclusively own the log and must close the handle.
+        */
+      }
+    }
+    else if (ctx.last_lsn == LSN_MAX)
+      /* commit() was not invoked yet */
+      queue.emplace_back(lsn);
+
+    if (!delete_file)
+    {
+      mutex.wr_unlock();
       /* Make the previous archived log file read-only */
 #ifdef _WIN32
       try {
@@ -1379,6 +1400,28 @@ public:
         st.st_mode= 0444;
       error_on_close= fchmod(log, st.st_mode);
 #endif
+    }
+    else if (log_sys.last_checkpoint_lsn < log_sys.first_lsn)
+    {
+      const lsn_t l{ctx.garbage_lsn};
+      ctx.garbage_lsn= lsn;
+      /*
+        Our ctx.garbage_lsn will be processed by a subsequent
+        unlink_old: or context::destroy().
+      */
+      if (l)
+      {
+        lsn= l;
+        goto unlink_old;
+      }
+      mutex.wr_unlock();
+    }
+    else
+    {
+    unlink_old:
+      ut_ad(lsn < log_sys.first_lsn);
+      mutex.wr_unlock();
+      context::delete_log(lsn);
     }
 
     if (UNIV_LIKELY(log_sys.resize_log.m_file != OS_FILE_CLOSED))
@@ -2507,7 +2550,24 @@ loop:
 
 void InnoDB_backup::context::destroy() noexcept
 {
-  innodb_backup.mutex.wr_lock();
+  if (innodb_backup.ctx.garbage_lsn)
+  {
+    log_sys.latch.rd_lock();
+    innodb_backup.mutex.wr_lock();
+    lsn_t garbage= innodb_backup.ctx.garbage_lsn;
+    if (garbage)
+    {
+      innodb_backup.ctx.garbage_lsn= 0;
+      if (garbage == log_sys.get_first_lsn())
+        garbage= 0;
+    }
+    log_sys.latch.rd_unlock();
+    if (garbage)
+      delete_log(garbage);
+  }
+  else
+    innodb_backup.mutex.wr_lock();
+  ut_ad(innodb_backup.queue.empty());
   const os_file_t first_log_dst{innodb_backup.ctx.first_log_dst};
   if (first_log_dst != OS_FILE_CLOSED)
   {
