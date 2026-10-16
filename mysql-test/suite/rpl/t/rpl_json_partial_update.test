@@ -1,0 +1,56 @@
+# MDEV-39143: replicate MySQL binary JSON (full documents and partial diffs)
+# from a MySQL master to a MariaDB slave.
+#
+# No MySQL server runs here.  Both servers started by master-slave.inc below
+# are MariaDB; the MySQL side is supplied by a binlog recorded once on a real
+# MySQL 9.2 server and checked in as
+# std_data/mdev39143_partial_json.000001.  The test stops the MariaDB master,
+# replaces the master's own master-bin.000001 with that file, and restarts it.
+# The master is then only a file server for those bytes, and the slave pulls
+# them over the ordinary replication protocol.  What is under test is the
+# slave apply path: PARTIAL_UPDATE_ROWS_EVENT (39) parsing, Json_diff
+# decoding, and diff application - see unpack_row() in sql/rpl_record.cc.
+#
+# Important points:
+#  - The recorded events are fixed.  The SQL the MySQL master ran is not
+#    visible in this file, only its effect (described at the SELECT below);
+#    extending coverage needs a MySQL server, a re-recording, and a new file.
+#  - The Json_diff encoding exercised is MySQL 9.2's specifically.
+#  - have_binlog_format_row.inc constrains the MariaDB master's own binlog
+#    format; the injected events are row events regardless of it.
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_type_mysql_json.inc
+--source include/master-slave.inc
+
+# The slave decodes MySQL binary JSON with the read-only mysql_json plugin,
+# loaded on the slave only via rpl_json_partial_update-slave.opt (it never
+# needs to be active on the master, which only ever serves the injected
+# fixture's raw bytes).
+--connection slave
+--source include/stop_slave.inc
+
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_partial_json.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+
+# Wait until the last partial JSON update has been applied to id=1.
+# (LIKE avoids '$' which mysqltest would interpolate inside --let.)
+--let $wait_condition= SELECT COUNT(*)=1 FROM testdb.tj WHERE id=1 AND j LIKE '%"a": "zzzz"%' AND j LIKE '%"n": 44%'
+--source include/wait_condition.inc
+
+--echo # id=1: inserted as a full document, then modified by four partial-JSON
+--echo # events (REPLACE of members a and n twice, REMOVE of arr element 2).
+SELECT id, JSON_VALUE(j,'$.a') AS a, JSON_VALUE(j,'$.n') AS n,
+       JSON_QUERY(j,'$.arr') AS arr FROM testdb.tj ORDER BY id;
+
+# Cleanup.
+--connection slave
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+--let $mdev39143_cleanup_db= testdb
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
+--source include/rpl_end.inc

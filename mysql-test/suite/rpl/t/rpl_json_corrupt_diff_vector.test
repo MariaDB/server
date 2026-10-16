@@ -1,0 +1,57 @@
+# MDEV-39143: a structurally corrupt Json_diff vector in a
+# PARTIAL_UPDATE_ROWS_EVENT must stop replication with a clear error, not
+# crash the slave - see read_mysql_json_diff_vector()'s NULL-cursor checks
+# and apply_partial_json_column()'s corrupt-vector report in
+# sql/rpl_record.cc.
+#
+# The fixture, std_data/mdev39143_corrupt_diff_vector.000001, is a byte-level
+# corrupted copy of mdev39143_partial_json_insert.000001 (also used by
+# rpl_json_partial_insert.test): the first PARTIAL_UPDATE_ROWS_EVENT's one
+# diff - an INSERT of '$.newkey' on id=1 - has its path_length byte (a
+# single-byte net_field_length encoding, originally 0x08) overwritten with
+# 0xFE, the net_field_length prefix for an 8-byte length value, and that
+# event's trailing CRC32 recomputed so the corruption is only in the
+# content read_mysql_json_diff_vector() parses, not something the
+# replication protocol itself would catch first.  safe_net_field_length_ll()
+# (sql-common/pack.c) then reads 8 bytes of what is actually path text as a
+# bogus 64-bit length, which read_mysql_json_diff_vector()'s bounds check
+# must reject as corrupt - this exercises the same "trust nothing
+# safe_net_field_length_ll() hands back" defense that also protects against
+# it returning a NULL cursor on a plain truncation.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_type_mysql_json.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_corrupt_diff_vector.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+call mtr.add_suppression("the diff vector is truncated or corrupt");
+call mtr.add_suppression("Slave SQL.*Error executing row event");
+START SLAVE;
+
+# The slave must refuse the corrupt vector rather than crash.
+--let $slave_sql_errno= 1105
+--source include/wait_for_slave_sql_error.inc
+--let $err= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--echo # Slave stopped, Last_SQL_Error matches the expected refusal:
+--echo # $err
+
+--echo #
+--echo # The server is still alive and responsive - the corrupt vector did
+--echo # not crash it.
+SELECT 1;
+
+# Cleanup.
+--connection slave
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+--let $mdev39143_cleanup_db= jsontest
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
+--source include/rpl_end.inc
