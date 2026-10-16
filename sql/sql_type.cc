@@ -4513,7 +4513,7 @@ set_comparator_func(THD *thd, Arg_comparator *cmp) const
 /*************************************************************************/
 
 bool Type_handler_temporal_result::
-       can_change_cond_ref_to_const(Item_bool_func2 *target,
+       can_change_cond_ref_to_const(Item_bool_func *target,
                                     Item *target_expr, Item *target_value,
                                     Item_bool_func2 *source,
                                     Item *source_expr, Item *source_const)
@@ -4543,7 +4543,7 @@ bool Type_handler_temporal_result::
 
 
 bool Type_handler_string_result::
-       can_change_cond_ref_to_const(Item_bool_func2 *target,
+       can_change_cond_ref_to_const(Item_bool_func *target,
                                     Item *target_expr, Item *target_value,
                                     Item_bool_func2 *source,
                                     Item *source_expr, Item *source_const)
@@ -4589,7 +4589,7 @@ bool Type_handler_string_result::
 
 
 bool Type_handler_numeric::
-       can_change_cond_ref_to_const(Item_bool_func2 *target,
+       can_change_cond_ref_to_const(Item_bool_func *target,
                                     Item *target_expr, Item *target_value,
                                     Item_bool_func2 *source,
                                     Item *source_expr, Item *source_const)
