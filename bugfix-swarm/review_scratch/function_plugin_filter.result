@@ -1,0 +1,56 @@
+#
+# MDEV-41352 SIGSEGV in Item_field::used_tables on a plugin aggregate
+#            with FILTER
+#
+CREATE TABLE t (c INT);
+SELECT test_plugin_count(1) FILTER (WHERE c) FROM t;
+test_plugin_count(1) FILTER (WHERE c)
+0
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, g INT, v INT);
+INSERT INTO t VALUES (1,1,10),(2,1,20),(3,2,30),(4,2,NULL),(5,3,50);
+SELECT test_plugin_count(v) FILTER (WHERE v > 15) FROM t;
+test_plugin_count(v) FILTER (WHERE v > 15)
+3
+SELECT count(v) FILTER (WHERE v > 15) AS c,
+test_plugin_count(v) FILTER (WHERE v > 15) AS pc,
+test_plugin_first(v) FILTER (WHERE v > 15) AS pf
+FROM t;
+c	pc	pf
+3	3	20
+SELECT g, count(v) FILTER (WHERE id > 1) AS c,
+test_plugin_count(v) FILTER (WHERE id > 1) AS pc,
+test_plugin_first(v) FILTER (WHERE id > 1) AS pf
+FROM t GROUP BY g ORDER BY g;
+g	c	pc	pf
+1	1	1	20
+2	1	1	30
+3	1	1	50
+SELECT count(DISTINCT g) FILTER (WHERE v > 15) AS c,
+test_plugin_count(DISTINCT g) FILTER (WHERE v > 15) AS pc
+FROM t;
+c	pc
+3	3
+SELECT id, count(v) FILTER (WHERE v > 15) OVER w AS c,
+test_plugin_count(v) FILTER (WHERE v > 15) OVER w AS pc
+FROM t
+WINDOW w AS (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+ORDER BY id;
+id	c	pc
+1	1	1
+2	2	2
+3	2	2
+4	2	2
+5	1	1
+SELECT test_plugin_count(v) FILTER (WHERE count(v) > 1) FROM t;
+ERROR HY000: Incorrect usage of aggregate function and FILTER
+CREATE VIEW v1 AS
+SELECT test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select test_plugin_count(`t`.`v`) FILTER(WHERE `t`.`v` > 15) AS `pc` from `t`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+pc
+3
+DROP VIEW v1;
+DROP TABLE t;
