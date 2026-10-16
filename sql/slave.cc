@@ -2725,7 +2725,8 @@ after_set_capability:
             "The slave I/O thread stops because a fatal out-of-memory error "
             "is encountered when it tries to set "
             "@slave_gtid_until_before_gtids.";
-        sprintf(err_buff, "%s Error: Out of memory", errmsg);
+        snprintf(err_buff, sizeof(err_buff), "%s Error: Out of memory",
+                 errmsg);
         goto err;
       }
 
@@ -2745,7 +2746,8 @@ after_set_capability:
           /* Fatal error */
           errmsg= "The slave I/O thread stops because a fatal error is "
             "encountered when it tries to set @slave_gtid_until_before_gtids.";
-          sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+          snprintf(err_buff, sizeof(err_buff), "%s Error: %s", errmsg,
+                   mysql_error(mysql));
           goto err;
         }
       }
