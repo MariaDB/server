@@ -349,7 +349,12 @@ private:
         int log= openat(target.fd, path.c_str(),
                         O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
         if (log >= 0)
+        {
+# ifdef POSIX_FADV_DONTNEED
+          std::ignore= posix_fadvise(log, 0, 0, POSIX_FADV_DONTNEED);
+# endif
           return log;
+        }
 #else
         std::string path{target.path};
         path.push_back('/');
@@ -443,6 +448,9 @@ private:
       d= openat(target->fd, d_, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
       if (d < 0)
         goto error_return;
+# ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(d, 0, 0, POSIX_FADV_DONTNEED);
+# endif
 #endif
       const uint64_t end{log_sys.START_OFFSET + last_lsn - hl};
       int f= extend_log(d, end);
@@ -2107,9 +2115,6 @@ public:
       chunk->offset= os_file_get_size(src);
 #else
       chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
-# ifdef POSIX_FADV_SEQUENTIAL
-      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_SEQUENTIAL);
-# endif
       if (dst != sink.stream)
       {
         err= copy_entire_file(src, dst);
@@ -2118,6 +2123,9 @@ public:
 #endif
       /* Omit the checkpoint header from the stream. */
       chunk[-1].length= chunk->offset - log_sys.START_OFFSET;
+# ifdef POSIX_FADV_SEQUENTIAL
+      std::ignore= posix_fadvise(src, 0, chunk->offset, POSIX_FADV_SEQUENTIAL);
+# endif
       goto stream_file;
     }
     else
@@ -2162,6 +2170,9 @@ public:
     }
     else
     {
+# ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_DONTNEED);
+# endif
       err= extend(dst, chunk->offset) ||
         backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
                      chunk[-1].length) ||
@@ -2328,6 +2339,9 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       }
       goto fail;
     }
+# ifdef POSIX_FADV_DONTNEED
+    std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_DONTNEED);
+# endif
 #endif
     const uint32_t page_size{node->space->physical_size()};
     int err{0};
@@ -2415,6 +2429,10 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
           break;
       }
     }
+
+#ifdef POSIX_FADV_DONTNEED
+    std::ignore= posix_fadvise(node->handle, 0, 0, POSIX_FADV_DONTNEED);
+#endif
 
     if (IF_WIN(!CloseHandle,close)(f) | err)
     {

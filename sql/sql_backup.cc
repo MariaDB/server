@@ -152,6 +152,9 @@ int copy_entire_file(int src, int dst) noexcept
 #ifdef POSIX_FADV_SEQUENTIAL
   std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
+#ifdef POSIX_FADV_DONTNEED
+  std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_DONTNEED);
+#endif
   int ret;
 # ifdef copy_file_shortcut
   ret= int(copy_file_shortcut(src, dst, 0, end));
