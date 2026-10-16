@@ -417,6 +417,7 @@ Active_tranx::is_thd_waiter(THD *thd_to_check, const char *log_file_name,
 Repl_semi_sync_master::Repl_semi_sync_master()
   : m_active_tranxs(NULL),
     m_init_done(false),
+    m_slaves_replicating_skip_events(0),
     m_reply_file_name_inited(false),
     m_reply_file_pos(0L),
     m_wait_file_name_inited(false),
@@ -565,14 +566,23 @@ void Repl_semi_sync_master::unlock()
   mysql_mutex_unlock(&LOCK_binlog);
 }
 
-void Repl_semi_sync_master::add_slave()
+void Repl_semi_sync_master::add_slave(bool filters_skip_events)
 {
+  /*
+    Count the slave as a receiver of skip_replication events before it is
+    counted as a client, and stop counting it as a receiver only after it has
+    stopped being a client (see remove_slave()). This way
+    no_slave_receives_skip_replication_events() never claims that nobody
+    receives such events while a slave which does is still connected.
+  */
+  if (!filters_skip_events)
+    m_slaves_replicating_skip_events++;
   lock();
   rpl_semi_sync_master_clients++;
   unlock();
 }
 
-void Repl_semi_sync_master::remove_slave()
+void Repl_semi_sync_master::remove_slave(bool filters_skip_events)
 {
   lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
@@ -588,6 +598,29 @@ void Repl_semi_sync_master::remove_slave()
                                               signal_waiting_transaction);
   }
   unlock();
+
+  if (!filters_skip_events)
+  {
+    DBUG_ASSERT(m_slaves_replicating_skip_events > 0);
+    m_slaves_replicating_skip_events--;
+  }
+}
+
+
+bool Repl_semi_sync_master::no_slave_receives_skip_replication_events()
+{
+  return rpl_semi_sync_master_clients > 0 &&
+         m_slaves_replicating_skip_events == 0;
+}
+
+
+void Repl_semi_sync_master::skip_ack_wait(THD *trans_thd)
+{
+  if (Trans_binlog_info *log_info= trans_thd->semisync_info)
+  {
+    log_info->log_file[0]= 0;
+    log_info->log_pos= 0;
+  }
 }
 
 
@@ -841,7 +874,15 @@ int Repl_semi_sync_master::dump_start(THD* thd,
     return 1;
   }
 
-  add_slave();
+  /*
+    A slave running with --replicate-events-marked-for-skip=FILTER_ON_MASTER
+    asks the master to filter away @@skip_replication events by issuing
+    "SET skip_replication=1" on the dump connection, which sets
+    OPTION_SKIP_REPLICATION on this dump thread. Remember that here, so the
+    commit path can tell whether any connected slave would actually receive
+    (and thus ACK) a skip_replication transaction.
+  */
+  add_slave((thd->variables.option_bits & OPTION_SKIP_REPLICATION) != 0);
   report_reply_binlog(thd->variables.server_id,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
@@ -862,7 +903,7 @@ void Repl_semi_sync_master::dump_end(THD* thd)
   sql_print_information("Stop semi-sync binlog_dump to slave (server_id: %ld)",
                         (long) thd->variables.server_id);
 
-  remove_slave();
+  remove_slave((thd->variables.option_bits & OPTION_SKIP_REPLICATION) != 0);
   ack_receiver.remove_slave(thd);
 }
 
