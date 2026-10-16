@@ -3496,6 +3496,17 @@ public:
     if (first_successful_insert_id_in_cur_stmt == 0)
       first_successful_insert_id_in_cur_stmt= id_arg;
   }
+  void set_last_insert_id_from_cur_stmt()
+  {
+    if (first_successful_insert_id_in_cur_stmt > 0)
+    {
+      /* set what LAST_INSERT_ID() will return */
+      first_successful_insert_id_in_prev_stmt=
+        first_successful_insert_id_in_cur_stmt;
+      first_successful_insert_id_in_cur_stmt= 0;
+      substitute_null_with_insert_id= TRUE;
+    }
+  }
   inline ulonglong read_first_successful_insert_id_in_prev_stmt(void)
   {
     if (!stmt_depends_on_first_successful_insert_id_in_prev_stmt)
