@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1782,6 +1782,7 @@ String *Item_func_insert::val_str(String *str)
   DBUG_ASSERT(fixed());
   String *res,*res2;
   longlong start, length;  /* must be longlong to avoid truncation */
+  CHARSET_INFO *cs= collation.collation;
 
   null_value=0;
   res=args[0]->val_str(str);
@@ -1799,23 +1800,9 @@ String *Item_func_insert::val_str(String *str)
     length= res->length();
   start--;
 
-  /*
-    There is one exception not handled (intentionally) by the character set
-    aggregation code. If one string is strong side and is binary, and
-    another one is weak side and is a multi-byte character string,
-    then we need to operate on the second string in terms on bytes when
-    calling ::numchars() and ::charpos(), rather than in terms of characters.
-    Lets substitute its character set to binary.
-  */
-  if (collation.collation == &my_charset_bin)
-  {
-    res->set_charset(&my_charset_bin);
-    res2->set_charset(&my_charset_bin);
-  }
-
   /* start and length are now sufficiently valid to pass to charpos function */
-   start= res->charpos((int) start);
-   length= res->charpos((int) length, (uint32) start);
+  start= cs->charpos(res->ptr(), res->end(), (size_t) start);
+  length= cs->charpos(res->ptr() + start, res->end(), (size_t) length);
 
   /* Re-testing with corrected params */
   if (start + 1 > res->length()) // remember, start = args[1].val_int() - 1
@@ -1837,6 +1824,7 @@ String *Item_func_insert::val_str(String *str)
   }
   res=copy_if_not_alloced(str,res,res->length());
   res->replace((uint32) start,(uint32) length,*res2);
+  res->set_charset(cs);
   return res;
 null:
   null_value=1;
@@ -3618,7 +3606,7 @@ Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 String *Item_func_rpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  uint32 res_byte_length,res_char_length,pad_char_length,pad_byte_length;
+  size_t res_byte_length,res_char_length,pad_char_length,pad_byte_length;
   char *to;
   const char *ptr_pad;
   /* must be longlong to avoid truncation */
@@ -3626,6 +3614,7 @@ String *Item_func_rpad::val_str(String *str)
   longlong byte_count;
   String *res= args[0]->val_str(str);
   String *rpad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
+  CHARSET_INFO *cs= collation.collation;
 
   if (!res || args[1]->null_value || !rpad || 
       ((count < 0) && !args[1]->unsigned_flag))
@@ -3640,29 +3629,18 @@ String *Item_func_rpad::val_str(String *str)
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
-  /*
-    There is one exception not handled (intentionally) by the character set
-    aggregation code. If one string is strong side and is binary, and
-    another one is weak side and is a multi-byte character string,
-    then we need to operate on the second string in terms on bytes when
-    calling ::numchars() and ::charpos(), rather than in terms of characters.
-    Lets substitute its character set to binary.
-  */
-  if (collation.collation == &my_charset_bin)
-  {
-    res->set_charset(&my_charset_bin);
-    rpad->set_charset(&my_charset_bin);
-  }
 
-  if (count <= (res_char_length= res->numchars()))
+  res_char_length= cs->numchars(res->ptr(), res->end());
+  if (count <= static_cast<longlong>(res_char_length))
   {                                             // String to pad is big enough
-    int len= res->charpos((int) count);
+    size_t len= cs->charpos(res->ptr(), res->end(), (size_t) count);
     res= copy_if_not_alloced(str, res, len);
     res->length(len);                           // Shorten result if longer
-    return (res);
+    res->set_charset(cs);
+    return res;
   }
 
-  byte_count= count * collation.collation->mbmaxlen;
+  byte_count= count * cs->mbmaxlen;
   {
     THD *thd= current_thd;
     if ((ulonglong) byte_count > thd->variables.max_allowed_packet)
@@ -3677,7 +3655,8 @@ String *Item_func_rpad::val_str(String *str)
 
   if (arg_count == 3)
   {
-    if (args[2]->null_value || !(pad_char_length= rpad->numchars()))
+    if (args[2]->null_value ||
+        !(pad_char_length= cs->numchars(rpad->ptr(), rpad->end())))
       goto err;
   }
   else
@@ -3698,12 +3677,13 @@ String *Item_func_rpad::val_str(String *str)
   }
   if (count)
   {
-    pad_byte_length= rpad->charpos((int) count);
+    pad_byte_length= cs->charpos(rpad->ptr(), rpad->end(), (size_t) count);
     memcpy(to,ptr_pad,(size_t) pad_byte_length);
     to+= pad_byte_length;
   }
   res->length((uint) (to- (char*) res->ptr()));
-  return (res);
+  res->set_charset(cs);
+  return res;
 
  err:
   null_value=1;
@@ -3714,16 +3694,17 @@ String *Item_func_rpad::val_str(String *str)
 String *Item_func_lpad::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  uint32 res_char_length,pad_char_length;
+  size_t res_char_length,pad_char_length;
   /* must be longlong to avoid truncation */
   longlong count= args[1]->val_int();
   longlong byte_count;
   String *res= args[0]->val_str(&tmp_value);
   String *pad= arg_count == 2 ? &pad_str : args[2]->val_str(&pad_str);
+  CHARSET_INFO *cs= collation.collation;
 
-  if (!res || args[1]->null_value || !pad ||  
+  if (!res || args[1]->null_value || !pad ||
       ((count < 0) && !args[1]->unsigned_flag))
-    goto err;  
+    goto err;
 
   null_value=0;
 
@@ -3735,32 +3716,17 @@ String *Item_func_lpad::val_str(String *str)
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
 
-  /*
-    There is one exception not handled (intentionally) by the character set
-    aggregation code. If one string is strong side and is binary, and
-    another one is weak side and is a multi-byte character string,
-    then we need to operate on the second string in terms on bytes when
-    calling ::numchars() and ::charpos(), rather than in terms of characters.
-    Lets substitute its character set to binary.
-  */
-  if (collation.collation == &my_charset_bin)
+  res_char_length= cs->numchars(res->ptr(), res->end());
+  if (count <= static_cast<longlong>(res_char_length))
   {
-    res->set_charset(&my_charset_bin);
-    pad->set_charset(&my_charset_bin);
-  }
-
-  res_char_length= res->numchars();
-
-  if (count <= res_char_length)
-  {
-    int len= res->charpos((int) count);
+    size_t len= cs->charpos(res->ptr(), res->end(), (size_t) count);
     res= copy_if_not_alloced(str, res, len);
     res->length(len);
+    res->set_charset(cs);
     return res;
   }
-  
-  byte_count= count * collation.collation->mbmaxlen;
-  
+
+  byte_count= count * cs->mbmaxlen;
   {
     THD *thd= current_thd;
     if ((ulonglong) byte_count > thd->variables.max_allowed_packet)
@@ -3778,22 +3744,24 @@ String *Item_func_lpad::val_str(String *str)
 
   if (arg_count == 3)
   {
-    if (args[2]->null_value || !(pad_char_length= pad->numchars()))
+    if (args[2]->null_value ||
+        !(pad_char_length= cs->numchars(pad->ptr(), pad->end())))
       goto err;
   }
   else
     pad_char_length= 1; // Implicit space
-  
+
   str->length(0);
-  str->set_charset(collation.collation);
+  str->set_charset(cs);
   count-= res_char_length;
-  while (count >= pad_char_length)
+  while (count >= static_cast<longlong>(pad_char_length))
   {
     str->append(*pad);
     count-= pad_char_length;
   }
   if (count > 0)
-    str->append(pad->ptr(), pad->charpos((int) count), collation.collation);
+    str->append(pad->ptr(), cs->charpos(pad->ptr(), pad->end(), (size_t) count),
+                cs);
 
   str->append(*res);
   null_value= 0;
