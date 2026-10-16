@@ -1,0 +1,86 @@
+-- source include/not_embedded.inc
+-- source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39275 XA RECOVER doesn't require any privileges
+--echo #
+--disable_service_connection
+
+create table t1 (a int) engine=innodb;
+
+CREATE USER foo@localhost;
+GRANT USAGE ON *.* TO foo@localhost;
+
+--echo #
+--echo # XA RECOVER is denied without XA RECOVER ADMIN
+--echo #
+--connect (foo,localhost,foo,,)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+XA RECOVER;
+--connection default
+--disconnect foo
+
+--echo #
+--echo # XA COMMIT/XA ROLLBACK of one's own prepared transaction still
+--echo # work without any XA privilege (unchanged, scoped-down fix)
+--echo #
+GRANT INSERT ON test.t1 TO foo@localhost;
+--connect (foo,localhost,foo,,)
+XA START 'foo1';
+INSERT INTO t1 VALUES (1);
+XA END 'foo1';
+XA PREPARE 'foo1';
+XA COMMIT 'foo1';
+
+XA START 'foo2';
+INSERT INTO t1 VALUES (2);
+XA END 'foo2';
+XA PREPARE 'foo2';
+XA ROLLBACK 'foo2';
+--connection default
+--disconnect foo
+select * from t1;
+
+--echo #
+--echo # Granting XA RECOVER ADMIN allows XA RECOVER
+--echo #
+GRANT XA RECOVER ADMIN ON *.* TO foo@localhost;
+--connect (foo,localhost,foo,,)
+XA RECOVER;
+--connection default
+--disconnect foo
+
+--echo #
+--echo # Revoking XA RECOVER ADMIN denies XA RECOVER again
+--echo #
+REVOKE XA RECOVER ADMIN ON *.* FROM foo@localhost;
+--connect (foo,localhost,foo,,)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+XA RECOVER;
+--connection default
+--disconnect foo
+
+--echo #
+--echo # SHOW GRANTS / SHOW PRIVILEGES plumbing
+--echo #
+GRANT XA RECOVER ADMIN ON *.* TO foo@localhost;
+SHOW GRANTS FOR foo@localhost;
+SHOW PRIVILEGES;
+
+--echo #
+--echo # GRANT ALL PRIVILEGES implies XA RECOVER ADMIN
+--echo #
+CREATE USER bar@localhost;
+GRANT ALL PRIVILEGES ON *.* TO bar@localhost;
+--connect (bar,localhost,bar,,)
+XA RECOVER;
+--connection default
+--disconnect bar
+
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+DROP TABLE t1;
+
+--enable_service_connection
+
+--echo # End of 13.2 tests
