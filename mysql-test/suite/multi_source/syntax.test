@@ -22,6 +22,16 @@ show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
 --error ER_WRONG_ARGUMENTS
 change master 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' to master_host='dummy';
 
+# Forbidden characters
+--error ER_WRONG_ARGUMENTS
+show slave 'A\0Z' status;
+--error ER_WRONG_ARGUMENTS
+show slave 'A\nZ' status;
+--error ER_WRONG_ARGUMENTS
+change master 'A\0Z' to master_host='dummy';
+--error ER_WRONG_ARGUMENTS
+change master 'A\nZ' to master_host='dummy';
+
 --error WARN_NO_MASTER_INFO
 start slave 'qqq';
 --error WARN_NO_MASTER_INFO
@@ -51,6 +61,10 @@ select @@global.default_master_connection;
 set @@global.default_master_connection='qqq';
 --error 1231
 set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+--error ER_WRONG_VALUE_FOR_VAR
+set @@default_master_connection = 'A\0Z'; # MDEV-40271
+--error ER_WRONG_VALUE_FOR_VAR
+set @@default_master_connection = 'A\nZ';
 select @@default_master_connection;
 set @@default_master_connection='qqq';
 select @@default_master_connection;

@@ -475,7 +475,7 @@ public:
 
 Master_info *get_master_info(const LEX_CSTRING *connection_name,
                              Sql_condition::enum_warning_level warning);
-bool check_master_connection_name(LEX_CSTRING *name);
+bool check_master_connection_name(const LEX_CSTRING *name);
 void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, 
                              bool append,
