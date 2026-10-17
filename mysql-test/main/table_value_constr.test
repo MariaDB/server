@@ -1837,3 +1837,145 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-35747 Prepared statement with WITH ... AS (VALUES ... ) returns
+--echo #            wrong result
+--echo #
+
+--echo # The simplest form: a bare VALUES TVC as the prepared statement, no
+--echo # CTE.  The column takes its type from the bound value, so a later
+--echo # EXECUTE with a different type must report that new type.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+execute stmt using @v;
+set @v= 'abc';
+execute stmt using @v;
+deallocate prepare stmt;
+
+--echo # CTE whose body is a TVC with a parameter marker and an explicit column.
+prepare stmt from 'with t(id) as (values (?)) select t.id from t';
+set @v= 1;
+execute stmt using @v;
+execute stmt using @v;
+set @v= 'abc';
+execute stmt using @v;
+deallocate prepare stmt;
+
+--echo # Multi row VALUES with several parameter markers.
+prepare stmt from 'with t(id) as (values (?), (?)) select t.id from t order by id';
+set @v1= 10, @v2= 20;
+execute stmt using @v1, @v2;
+execute stmt using @v1, @v2;
+set @v1= 'aa', @v2= 'bb';
+execute stmt using @v1, @v2;
+deallocate prepare stmt;
+
+--echo # One row of several columns, so that each column has its own type
+--echo # holder.  The two columns swap types between the executions.
+prepare stmt from 'with t(a,b) as (values (?,?)) select t.a, t.b from t';
+set @v1= 1, @v2= 'abc';
+execute stmt using @v1, @v2;
+set @v1= 'xyz', @v2= 2;
+execute stmt using @v1, @v2;
+deallocate prepare stmt;
+
+--echo # The column type below is computed again on each execution and
+--echo # follows the value bound by that execution, so it reads as an
+--echo # integer, then as NULL, then as an integer again.  Nullability
+--echo # follows the same rule.  The execution that binds NULL reports the
+--echo # column as nullable and the one after it, binding an integer again,
+--echo # does not, so Is_null goes N, Y, N.
+prepare stmt from 'values (?)';
+--enable_metadata
+set @v= 1;
+execute stmt using @v;
+set @v= NULL;
+execute stmt using @v;
+set @v= 2;
+execute stmt using @v;
+--disable_metadata
+deallocate prepare stmt;
+
+--echo # A failure while collecting the types leaves the SELECT list of
+--echo # Item_type_holder instances unbuilt.  The next call has to build it
+--echo # rather than treat it as already there.
+set @a= _latin1 'a';
+set @b= _latin2 'b';
+create procedure p() values (@a),(@b);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+call p;
+set @b= _latin1 'b';
+call p;
+drop procedure p;
+
+--echo # Values of two collations in a prepared statement.  Every execution
+--echo # produces the same rows.
+prepare stmt from "values (_latin1'x'),(_utf8mb3'y')";
+execute stmt;
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # The reported column type does not change between executions.
+prepare stmt from "values (_latin1'x'),(_utf8mb3'y')";
+--enable_metadata
+execute stmt;
+execute stmt;
+--disable_metadata
+deallocate prepare stmt;
+
+--echo # The same constructor in a stored procedure.
+create procedure p() values (_latin1'x'),(_utf8mb3'y');
+call p;
+call p;
+call p;
+drop procedure p;
+
+--echo # A column value and a parameter marker that carries its own
+--echo # collation.  The marker has no type until EXECUTE binds one.
+create table t1 (e varchar(10));
+insert into t1 values ('a');
+prepare stmt from 'with cte as (values ((select e from t1)),(?)) select * from cte';
+set @v= NULL;
+execute stmt using @v;
+set @v= _utf8mb3'b';
+execute stmt using @v;
+execute stmt using @v;
+deallocate prepare stmt;
+drop table t1;
+
+--echo # An IN list that the IN predicate conversion turns into a TVC on the
+--echo # first execution.  The conversion refuses an IN list holding a
+--echo # parameter marker at PREPARE, so the values are user variables, whose
+--echo # types can also change between executions.  The executions bind
+--echo # integers, then a NULL, then decimals, which match no row unless the
+--echo # TVC column keeps the INT type of the first execution.
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold= 2;
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(4);
+set @v1= 1, @v2= 2, @v3= 3;
+prepare stmt from 'explain extended select a from t1 where a in (@v1,@v2,@v3)';
+execute stmt;
+deallocate prepare stmt;
+prepare stmt from 'select a from t1 where a in (@v1,@v2,@v3)';
+--sorted_result
+execute stmt;
+set @v3= NULL;
+--sorted_result
+execute stmt;
+set @v1= 2.5, @v2= 3.5, @v3= 4.5;
+--sorted_result
+execute stmt;
+set @v1= 1, @v2= 2, @v3= 3;
+--sorted_result
+execute stmt;
+deallocate prepare stmt;
+drop table t1;
+set in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
