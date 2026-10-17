@@ -1815,3 +1815,8 @@ enable_view_protocol;
 disable_metadata;
 
 --echo # End of 10.11 tests
+--echo # MDEV-40779 Evaluate HAVING using completed groups
+CREATE TABLE t1 (a INT,b INT,c INT);
+INSERT INTO t1 VALUES (2,-1,12),(2,-1,NULL),(42,100,0);
+SELECT DISTINCT a,CAST(AVG(a) AS SIGNED) FROM t1 GROUP BY a,c HAVING AVG(b)<=a;
+DROP TABLE t1;
