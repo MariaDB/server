@@ -381,6 +381,8 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
+  bool json_value_eq(json_engine_t *a, json_engine_t *b);
+  bool json_array_eq(json_engine_t *a, json_engine_t *b);
   int check_contains(json_engine_t *je, json_engine_t *ve);
 };
 

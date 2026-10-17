@@ -232,3 +232,14 @@ CREATE TABLE t_wf (a INT, j JSON);
 INSERT INTO t_wf VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
 SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t_wf) dt;
 DROP TABLE t_wf;
+
+--echo #
+--echo # MDEV-41563: ZEROFILL columns in JSON_QUOTE and MEMBER OF
+CREATE TABLE t_zf (id INT(5) ZEROFILL);
+INSERT INTO t_zf VALUES (1);
+SELECT id, JSON_QUOTE(id), id MEMBER OF ('[1]') FROM t_zf;
+DROP TABLE t_zf;
+CREATE TABLE t_zf2 (id DECIMAL(10,2) ZEROFILL);
+INSERT INTO t_zf2 VALUES (1.5);
+SELECT id, JSON_QUOTE(id), id MEMBER OF ('[1.5]') FROM t_zf2;
+DROP TABLE t_zf2;
