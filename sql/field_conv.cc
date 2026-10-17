@@ -357,7 +357,11 @@ static void do_save_blob(Copy_field *copy)
   char buff[MAX_FIELD_WIDTH];
   String res(buff,sizeof(buff),copy->tmp.charset());
   copy->from_field->val_str(&res);
-  copy->tmp.copy(res);
+  if (copy->tmp.copy(res))
+  {
+    copy->to_field->reset();                    // OOM, error already raised
+    return;
+  }
   ((Field_blob *) copy->to_field)->store(copy->tmp.ptr(),
 					 copy->tmp.length(),
 					 copy->tmp.charset());
