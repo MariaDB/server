@@ -1670,10 +1670,10 @@ id	a	b
 11	bbbbbb	60
 SELECT id, a, b FROM t1 WHERE a BETWEEN 'aaaa' AND 'bbbbbb';
 id	a	b
+11	bbbbbb	60
+6	bbbbbb	40
 8	aaaa	10
 9	aaaa	50
-6	bbbbbb	40
-11	bbbbbb	60
 SELECT id, a FROM t1 WHERE a='bbbbbb';
 id	a
 6	bbbbbb
@@ -4396,4 +4396,18 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 #
 # End of 10.11 tests
+#
+# MDEV-39193 Truncated upper range bounds with expanding collations
+#
+CREATE TABLE t1 (x VARCHAR(1) COLLATE utf8mb4_0900_ai_ci, KEY(x)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('ß');
+SELECT COUNT(*) FROM t1 WHERE x BETWEEN 'r' AND 'ss';
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 WHERE x < 'st';
+COUNT(*)
+1
+DROP TABLE t1;
+#
+# End of 11.4 tests
 #
