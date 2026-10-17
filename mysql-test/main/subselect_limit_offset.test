@@ -1,0 +1,266 @@
+--echo #
+--echo # MDEV-40565: Preserve the empty set when reducing table-less subqueries
+--echo #
+SELECT (SELECT 1 LIMIT 0) AS scalar_result,
+       (SELECT 1 LIMIT 1 OFFSET 1) AS offset_result,
+       (SELECT 1 LIMIT 10 OFFSET 5) AS larger_offset,
+       (SELECT 1 LIMIT 1 OFFSET 1) IS NULL AS is_null,
+       (SELECT 1 LIMIT 1 OFFSET 1)+100 AS arithmetic_result;
+SELECT (SELECT 1 LIMIT 1) AS positive_limit,
+       (SELECT 1 LIMIT 10 OFFSET 0) AS zero_offset;
+
+# A zero-row scalar subquery must also store NULL in DML.
+CREATE TABLE t1 (id INT, a INT);
+INSERT INTO t1 VALUES (1,(SELECT 1 LIMIT 0)),
+                     (2,(SELECT 2 LIMIT 1 OFFSET 1)),
+                     (3,(SELECT 3 LIMIT 1 OFFSET 0));
+SELECT * FROM t1 ORDER BY id;
+UPDATE t1 SET a=(SELECT 2 LIMIT 0);
+SELECT * FROM t1 ORDER BY id;
+DROP TABLE t1;
+
+SELECT 1 IN (SELECT 1 OFFSET 0 ROWS) AS in_result,
+       1 = ANY (SELECT 1 OFFSET 0 ROWS) AS any_result,
+       1 = ALL (SELECT 2 OFFSET 0 ROWS) AS all_result;
+SELECT 1 IN (SELECT 1 OFFSET 1 ROWS) AS in_result,
+       1 = ANY (SELECT 1 OFFSET 1 ROWS) AS any_result,
+       1 = ALL (SELECT 2 OFFSET 1 ROWS) AS all_result;
+SELECT NULL IN (SELECT NULL OFFSET 0 ROWS) AS in_result,
+       NULL = ANY (SELECT NULL OFFSET 0 ROWS) AS any_result,
+       NULL = ALL (SELECT NULL OFFSET 0 ROWS) AS all_result;
+SELECT NULL IN (SELECT NULL OFFSET 1 ROWS) AS in_result,
+       NULL = ANY (SELECT NULL OFFSET 1 ROWS) AS any_result,
+       NULL = ALL (SELECT NULL OFFSET 1 ROWS) AS all_result;
+SELECT 1 IN (SELECT NULL OFFSET 1 ROWS) AS in_result,
+       1 NOT IN (SELECT NULL OFFSET 1 ROWS) AS not_in_result,
+       1 < ANY (SELECT 2 OFFSET 1 ROWS) AS any_result,
+       1 > ALL (SELECT 2 OFFSET 1 ROWS) AS all_result;
+SELECT 1 AS r WHERE NULL IN (SELECT NULL OFFSET 1 ROWS);
+SELECT 1 AS r WHERE NULL = ALL (SELECT NULL OFFSET 1 ROWS);
+
+# Root conditions must remain valid after prepared statement cleanup.
+PREPARE stmt FROM
+  'SELECT 1 AS r WHERE NULL IN (SELECT NULL OFFSET 1 ROWS)';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM
+  'SELECT 1 AS r HAVING NULL IN (SELECT NULL OFFSET 1 ROWS)';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+# An empty set must still validate comparison operands before reduction.
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (_utf8mb4'a' COLLATE utf8mb4_bin) IN
+       (SELECT _utf8mb4'a' COLLATE utf8mb4_general_ci OFFSET 0 ROWS);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT (_utf8mb4'a' COLLATE utf8mb4_bin) IN
+       (SELECT _utf8mb4'a' COLLATE utf8mb4_general_ci OFFSET 1 ROWS);
+--error ER_OPERAND_COLUMNS
+SELECT (1,2) IN (SELECT 1 OFFSET 0 ROWS);
+--error ER_OPERAND_COLUMNS
+SELECT (1,2) IN (SELECT 1 OFFSET 1 ROWS);
+--error ER_OPERAND_COLUMNS
+SELECT 1 IN (SELECT 1,2 OFFSET 0 ROWS);
+--error ER_OPERAND_COLUMNS
+SELECT 1 IN (SELECT 1,2 OFFSET 1 ROWS);
+
+# Literal folding must validate new comparison parameter types on EXECUTE.
+PREPARE stmt FROM 'SELECT ? IN (SELECT ? OFFSET 1 ROWS) AS r';
+EXECUTE stmt USING 1, 1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt USING ST_GeomFromText('POINT(1 1)'), 1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+EXECUTE stmt USING 1, ST_GeomFromText('POINT(1 1)');
+EXECUTE stmt USING 1, 1;
+DEALLOCATE PREPARE stmt;
+
+# Reduction must preserve the boolean type and metadata of comparisons.
+SELECT JSON_ARRAY(1 IN (SELECT 1 OFFSET 0 ROWS),
+                  1 = ANY (SELECT 1 OFFSET 1 ROWS),
+                  1 = ALL (SELECT 2 OFFSET 1 ROWS)) AS booleans;
+SELECT JSON_OBJECT('b', 1 IN (SELECT 1 OFFSET 0 ROWS)) AS boolean_object;
+PREPARE metadata_stmt FROM 'CREATE TABLE t1 AS
+SELECT (SELECT 1 LIMIT 1 OFFSET 0) AS scalar_result,
+       1 IN (SELECT 1 OFFSET 0 ROWS) AS in_result,
+       1 = ANY (SELECT 1 OFFSET 0 ROWS) AS any_result,
+       NULL IN (SELECT NULL OFFSET 1 ROWS) AS empty_in,
+       NULL = ANY (SELECT NULL OFFSET 1 ROWS) AS empty_any,
+       NULL = ALL (SELECT NULL OFFSET 1 ROWS) AS empty_all';
+EXECUTE metadata_stmt;
+DEALLOCATE PREPARE metadata_stmt;
+--replace_column 6 #
+SHOW COLUMNS FROM t1;
+DROP TABLE t1;
+
+# An empty set must not evaluate the selected expression.
+SET @evaluated= 0;
+SELECT 1 IN (SELECT (@evaluated:=@evaluated+1) OFFSET 1 ROWS) AS r;
+SELECT @evaluated;
+PREPARE stmt FROM
+  'SELECT 1 IN (SELECT (@evaluated:=@evaluated+1) OFFSET ? ROWS) AS r';
+SET @off= 1;
+EXECUTE stmt USING @off;
+SELECT @evaluated;
+SET @off= 0;
+EXECUTE stmt USING @off;
+SELECT @evaluated;
+SET @off= 1;
+EXECUTE stmt USING @off;
+SELECT @evaluated;
+DEALLOCATE PREPARE stmt;
+
+# Scalar and quantified parameters must survive repeated execution and cloning.
+PREPARE stmt FROM 'SELECT (SELECT 7 LIMIT ? OFFSET ?) AS r';
+SET @lim= 1, @off= 0;
+EXECUTE stmt USING @lim, @off;
+SET @lim= 0;
+EXECUTE stmt USING @lim, @off;
+SET @lim= 1, @off= 1;
+EXECUTE stmt USING @lim, @off;
+SET @off= 0;
+EXECUTE stmt USING @lim, @off;
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'WITH c AS
+  (SELECT (SELECT 7 LIMIT 1 OFFSET ?) AS s,
+          NULL IN (SELECT 1 OFFSET ? ROWS) AS n,
+          1 = ANY (SELECT 1 OFFSET ? ROWS) AS a,
+          1 = ALL (SELECT 2 OFFSET ? ROWS) AS b)
+  SELECT * FROM c UNION ALL SELECT * FROM c';
+SET @off= 0;
+EXECUTE stmt USING @off, @off, @off, @off;
+SET @off= 1;
+EXECUTE stmt USING @off, @off, @off, @off;
+SET @off= 18446744073709551615;
+EXECUTE stmt USING @off, @off, @off, @off;
+SET @off= NULL;
+EXECUTE stmt USING @off, @off, @off, @off;
+SET @off= 0;
+EXECUTE stmt USING @off, @off, @off, @off;
+DEALLOCATE PREPARE stmt;
+
+# A persisted VIEW must keep OFFSET-only clauses when its SQL is printed.
+CREATE VIEW v1 AS
+SELECT (SELECT 1 OFFSET 1 ROWS) AS scalar_result,
+       1 IN (SELECT 1 OFFSET 1 ROWS) AS in_result,
+       1 = ANY (SELECT 1 OFFSET 1 ROWS) AS any_result,
+       1 = ALL (SELECT 2 OFFSET 1 ROWS) AS all_result;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(1),(2);
+# An empty ON condition must also survive prepared statement cleanup.
+PREPARE stmt FROM
+  'SELECT t1.a, t2.a FROM t1 LEFT JOIN t2
+   ON t2.a IN (SELECT 1 OFFSET 1 ROWS) ORDER BY t1.a';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+--echo #
+--echo # A literal OFFSET is applied when the subquery is reduced
+--echo #
+# OFFSET 0 preserves the comparison and permits outer join simplification.
+--disable_ps_protocol
+EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE t2.a IN (SELECT 1 OFFSET 0 ROWS);
+--enable_ps_protocol
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE t2.a IN (SELECT 1 OFFSET 0 ROWS);
+# OFFSET 1 is an empty set.  Its negation preserves NULL-extended rows.
+--disable_ps_protocol
+EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE t2.a IN (SELECT 1 OFFSET 1 ROWS);
+--enable_ps_protocol
+SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE t2.a IN (SELECT 1 OFFSET 1 ROWS);
+--disable_ps_protocol
+EXPLAIN EXTENDED SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE NOT (t2.a IN (SELECT 1 OFFSET 1 ROWS));
+--enable_ps_protocol
+--sorted_result
+SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+WHERE NOT (t2.a IN (SELECT 1 OFFSET 1 ROWS));
+
+# Dynamic offsets must keep outer joins valid across reuse and reprepare.
+PREPARE stmt FROM
+  'SELECT ''not_in'' AS kind, t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+   WHERE NOT (t2.a IN (SELECT 1 OFFSET ? ROWS))
+   UNION ALL
+   SELECT ''all'', t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a
+   WHERE t2.a = ALL (SELECT 2 OFFSET ? ROWS) ORDER BY kind, a';
+SET @off= 0;
+EXECUTE stmt USING @off, @off;
+SET @off= 1;
+EXECUTE stmt USING @off, @off;
+ALTER TABLE t2 ADD COLUMN b INT;
+SET @off= 0;
+EXECUTE stmt USING @off, @off;
+ALTER TABLE t2 DROP COLUMN b;
+SET @off= 1;
+EXECUTE stmt USING @off, @off;
+SET @off= 0;
+EXECUTE stmt USING @off, @off;
+DEALLOCATE PREPARE stmt;
+SET @saved_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch= 'exists_to_in=on';
+# Keep the original EXISTS conversion boundary across parameter bindings.
+PREPARE stmt FROM 'SELECT a FROM t1 WHERE EXISTS
+  (SELECT 1 FROM t2 WHERE t2.a=t1.a LIMIT 1 OFFSET ?) ORDER BY a';
+SET @off= 0;
+EXECUTE stmt USING @off;
+SET @off= 1;
+EXECUTE stmt USING @off;
+SET @off= 2;
+EXECUTE stmt USING @off;
+SET @off= 0;
+EXECUTE stmt USING @off;
+DEALLOCATE PREPARE stmt;
+
+# Stored parameters and local variables change across CALLs.
+delimiter |;
+CREATE PROCEDURE p1(lim BIGINT UNSIGNED, off BIGINT UNSIGNED)
+BEGIN
+  DECLARE l BIGINT UNSIGNED;
+  DECLARE o BIGINT UNSIGNED;
+  SET l= lim, o= off;
+  SELECT (SELECT 7 LIMIT l OFFSET o) AS scalar_result,
+         NULL IN (SELECT 1 OFFSET o ROWS) AS in_result,
+         1 = ANY (SELECT 1 OFFSET o ROWS) AS any_result,
+         1 = ALL (SELECT 2 OFFSET o ROWS) AS all_result;
+  WITH c AS (SELECT (SELECT 7 LIMIT l OFFSET o) AS s)
+  SELECT * FROM c UNION ALL SELECT * FROM c;
+  SELECT a FROM t1 WHERE EXISTS
+    (SELECT 1 FROM t2 WHERE t2.a=t1.a LIMIT 1 OFFSET off) ORDER BY a;
+END|
+delimiter ;|
+CALL p1(1, 0);
+CALL p1(1, 1);
+CALL p1(0, 0);
+CALL p1(1, 2);
+CALL p1(1, 0);
+DROP PROCEDURE p1;
+
+# Reusing one stored instruction must reset each cloned OFFSET conversion.
+delimiter |;
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE o INT DEFAULT 0;
+  DECLARE i INT DEFAULT 0;
+  WHILE i < 3 DO
+    WITH c AS
+      (SELECT o AS off, NULL IN (SELECT 1 OFFSET o ROWS) AS n,
+              1 = ALL (SELECT 2 OFFSET o ROWS) AS a)
+    SELECT * FROM c UNION ALL SELECT * FROM c;
+    SET o= 1-o, i= i+1;
+  END WHILE;
+END|
+delimiter ;|
+CALL p2();
+CALL p2();
+DROP PROCEDURE p2;
+SET optimizer_switch= @saved_optimizer_switch;
+DROP TABLE t1,t2;

@@ -19915,6 +19915,339 @@ static void test_bug13001491()
   myquery(rc);
 }
 
+/* OFFSET must use integer conversion even for streamed string parameters. */
+static void test_subquery_offset_long_data()
+{
+  static const struct {
+    const char *query;
+    int nonempty, empty; /* -1 denotes SQL NULL. */
+    uint rows;
+  } queries[]= {
+    { "SELECT 1 IN (SELECT 1 OFFSET ? ROWS)", 1, 0, 1 },
+    { "SELECT NULL IN (SELECT 1 OFFSET ? ROWS)", -1, 0, 1 },
+    { "SELECT 1 = ALL (SELECT 2 OFFSET ? ROWS)", 0, 1, 1 },
+    { "SELECT 1 = ANY (SELECT 1 OFFSET ? ROWS)", 1, 0, 1 },
+    { "SELECT 1 NOT IN (SELECT 1 OFFSET ? ROWS)", 0, 1, 1 },
+    { "SELECT 1 IN (SELECT NULL OFFSET ? ROWS)", -1, 0, 1 },
+    { "WITH c AS (SELECT 1 IN (SELECT 1 OFFSET ? ROWS) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 1, 0, 2 },
+    { "WITH c AS (SELECT (SELECT a FROM offset_warning_reset "
+      "LIMIT 1 OFFSET ?) AS r) "
+      "SELECT r FROM c UNION ALL SELECT r FROM c", 1, -1, 2 }
+  };
+  static const struct {
+    const char *text;
+    my_bool zero, truncated;
+  } values[]= {
+    { "0.1", 1, 1 }, { "0.5", 1, 1 }, { "0.9", 1, 1 },
+    { "1", 0, 0 }, { "0", 1, 0 }, { "1.1", 0, 1 },
+    { "-1", 0, 0 }, { "-0.9", 1, 1 },
+    { "18446744073709551615", 0, 0 },
+    { "18446744073709551616", 0, 1 },
+    { "-9223372036854775809", 0, 1 },
+    { "0abc", 1, 1 }, { "", 1, 1 }, { "abc", 1, 1 },
+    { " 0.1", 1, 1 }, { "1e2", 0, 1 }, { "0.1", 1, 1 }
+  };
+  MYSQL_STMT *stmt= NULL;
+  MYSQL_BIND in, out;
+  MYSQL_RES *warnings;
+  MYSQL_ROW warning;
+  longlong result;
+  ulonglong offset;
+  ulong split;
+  my_bool is_null;
+  uint q, v, mode, row, warning_count;
+  int rc, expected;
+  char message[128];
+
+  myheader("test_subquery_offset_long_data");
+  rc= mysql_query(mysql,
+                  "CREATE TEMPORARY TABLE offset_warning_reset (a INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO offset_warning_reset VALUES(1)");
+  myquery(rc);
+  for (q= 0; q < array_elements(queries); q++)
+  {
+    /*
+      Reuse streamed values, then test ordinary integer/NULL/string binds
+      on a fresh statement.  Returning to streaming after logged short binds
+      would exercise a separate, pre-existing send_long_data issue.
+    */
+    for (mode= 0; mode < 5; mode++)
+    {
+      if (mode == 0 || mode == 2)
+      {
+        if (mode == 2)
+        {
+          rc= mysql_stmt_close(stmt);
+          check_execute(stmt, rc);
+        }
+        stmt= mysql_stmt_init(mysql);
+        check_stmt(stmt);
+        rc= mysql_stmt_prepare(stmt, queries[q].query,
+                               strlen(queries[q].query));
+        check_execute(stmt, rc);
+        memset(&out, 0, sizeof(out));
+        out.buffer_type= MYSQL_TYPE_LONGLONG;
+        out.buffer= &result;
+        out.is_null= &is_null;
+        rc= mysql_stmt_bind_result(stmt, &out);
+        check_execute(stmt, rc);
+      }
+      for (v= 0; v < (mode < 2 ? array_elements(values) : 1); v++)
+      {
+        /* A table access clears retained diagnostics from the last execute. */
+        rc= mysql_query(mysql, "SELECT a FROM offset_warning_reset");
+        myquery(rc);
+        warnings= mysql_store_result(mysql);
+        mysql_free_result(warnings);
+        memset(&in, 0, sizeof(in));
+        in.buffer_type= MYSQL_TYPE_STRING;
+        if (mode == 2)
+        {
+          offset= ULONGLONG_MAX;
+          in.buffer_type= MYSQL_TYPE_LONGLONG;
+          in.buffer= &offset;
+          in.is_unsigned= 1;
+        }
+        else if (mode == 3)
+          in.buffer_type= MYSQL_TYPE_NULL;
+        else if (mode == 4)
+        {
+          in.buffer= (void *) "0";
+          in.buffer_length= 1;
+        }
+        rc= mysql_stmt_bind_param(stmt, &in);
+        check_execute(stmt, rc);
+        if (mode < 2)
+        {
+          /* Send the value in two chunks, including empty chunks. */
+          split= *values[v].text != 0;
+          rc= mysql_stmt_send_long_data(stmt, 0, values[v].text, split);
+          check_execute(stmt, rc);
+          rc= mysql_stmt_send_long_data(stmt, 0,
+                values[v].text + split, strlen(values[v].text) - split);
+          check_execute(stmt, rc);
+        }
+        rc= mysql_stmt_execute(stmt);
+        check_execute(stmt, rc);
+        rc= mysql_stmt_store_result(stmt);
+        check_execute(stmt, rc);
+        warnings= mysql_stmt_result_metadata(stmt);
+        DIE_UNLESS(warnings != NULL);
+        DIE_UNLESS(mysql_fetch_field(warnings)->type == MYSQL_TYPE_LONG);
+        mysql_free_result(warnings);
+        expected= mode == 2 ? queries[q].empty :
+          mode == 3 || mode == 4 || values[v].zero ?
+          queries[q].nonempty : queries[q].empty;
+        for (row= 0; row < queries[q].rows; row++)
+        {
+          rc= mysql_stmt_fetch(stmt);
+          check_execute(stmt, rc);
+          if (is_null != (expected == -1) || (!is_null && result != expected))
+            fprintf(stderr, "OFFSET query %u, mode %u, value %u: "
+                    "expected %d, got %lld (NULL %d)\n",
+                    q, mode, v, expected, result, (int) is_null);
+          DIE_UNLESS(is_null == (expected == -1));
+          DIE_UNLESS(is_null || result == expected);
+        }
+        DIE_UNLESS(mysql_stmt_fetch(stmt) == MYSQL_NO_DATA);
+        warning_count= mysql_warning_count(mysql);
+        rc= mysql_stmt_free_result(stmt);
+        check_execute(stmt, rc);
+        if (mode < 2 && values[v].truncated)
+        {
+          DIE_UNLESS(warning_count > 0);
+          my_snprintf(message, sizeof(message),
+                      "Truncated incorrect INTEGER value: '%s'",
+                      values[v].text);
+          rc= mysql_query(mysql, "SHOW WARNINGS");
+          myquery(rc);
+          warnings= mysql_store_result(mysql);
+          DIE_UNLESS(mysql_num_rows(warnings) > 0);
+          while ((warning= mysql_fetch_row(warnings)))
+          {
+            DIE_UNLESS(strcmp(warning[0], "Warning") == 0);
+            DIE_UNLESS(atoi(warning[1]) == ER_TRUNCATED_WRONG_VALUE);
+            DIE_UNLESS(strcmp(warning[2], message) == 0);
+          }
+          mysql_free_result(warnings);
+        }
+        else
+          DIE_UNLESS(warning_count == 0);
+      }
+    }
+    rc= mysql_stmt_close(stmt);
+    check_execute(stmt, rc);
+  }
+  rc= mysql_query(mysql, "DROP TEMPORARY TABLE offset_warning_reset");
+  myquery(rc);
+}
+
+/*
+  Convert an OFFSET once per execution, even for an empty outer table or a
+  comparison that is never evaluated.  Rebinding must clear the cached value.
+*/
+static void test_subquery_offset_one_warning()
+{
+  static const struct {
+    const char *query;
+    int first, rest, empty;
+    my_bool no_rows, normal_path;
+  } queries[]= {
+    { "SELECT a IN (SELECT 1 OFFSET ? ROWS) "
+      "FROM offset_warning_rows ORDER BY a", 1, 0, 0, 0, 0 },
+    { "SELECT a = ANY (SELECT 1 OFFSET ? ROWS) "
+      "FROM offset_warning_rows ORDER BY a", 1, 0, 0, 0, 0 },
+    { "SELECT a = ALL (SELECT 1 OFFSET ? ROWS) "
+      "FROM offset_warning_rows ORDER BY a", 1, 0, 1, 0, 0 },
+    { "SELECT a IN (SELECT 1 OFFSET ? ROWS) "
+      "FROM offset_warning_rows WHERE 0", 1, 0, 0, 1, 0 },
+    { "SELECT a IN (SELECT 1 OFFSET ? ROWS) "
+      "FROM offset_warning_rows WHERE a < 0", 1, 0, 0, 1, 0 },
+    { "SELECT 0 AND (a IN (SELECT 1 OFFSET ? ROWS)) "
+      "FROM offset_warning_rows ORDER BY a", 0, 0, 0, 0, 0 },
+    { "SELECT (a < 0) AND (a IN (SELECT 1 OFFSET ? ROWS)) "
+      "FROM offset_warning_rows ORDER BY a", 0, 0, 0, 0, 0 },
+    { "SELECT a IN (SELECT 1 FROM DUAL WHERE a > 0 OFFSET ? ROWS) "
+      "FROM offset_warning_rows ORDER BY a", 1, 0, 0, 0, 1 }
+  };
+  static const struct {
+    const char *text;
+    my_bool empty, truncated;
+  } values[]= {
+    { "0.5", 0, 1 }, { "1.5", 1, 1 },
+    { "0", 0, 0 }, { "0.5", 0, 1 }
+  };
+  static const uint row_counts[]= { 0, 1, 5 };
+  MYSQL_STMT *stmt;
+  MYSQL_BIND in, out;
+  MYSQL_RES *warnings;
+  MYSQL_ROW warning;
+  longlong result, offset;
+  my_bool is_null, empty;
+  uint q, mode, r, v, row, rows, warning_count, expected_warnings;
+  int rc, expected;
+  char message[128];
+
+  myheader("test_subquery_offset_one_warning");
+  rc= mysql_query(mysql, "CREATE TEMPORARY TABLE offset_warning_rows (a INT)");
+  myquery(rc);
+  for (q= 0; q < array_elements(queries); q++)
+  {
+    stmt= mysql_simple_prepare(mysql, queries[q].query);
+    check_stmt(stmt);
+    memset(&out, 0, sizeof(out));
+    out.buffer_type= MYSQL_TYPE_LONGLONG;
+    out.buffer= &result;
+    out.is_null= &is_null;
+    rc= mysql_stmt_bind_result(stmt, &out);
+    check_execute(stmt, rc);
+    /* Finish streaming before ordinary binds on the same statement. */
+    for (mode= 0; mode < 2; mode++)
+    {
+      for (r= 0; r < array_elements(row_counts); r++)
+      {
+        rc= mysql_query(mysql, "DELETE FROM offset_warning_rows");
+        myquery(rc);
+        if (row_counts[r])
+        {
+          rc= mysql_query(mysql, row_counts[r] == 1 ?
+              "INSERT INTO offset_warning_rows VALUES (1)" :
+              "INSERT INTO offset_warning_rows VALUES (1),(2),(3),(4),(5)");
+          myquery(rc);
+        }
+        for (v= 0; v < (mode ? 6 : array_elements(values)); v++)
+        {
+          memset(&in, 0, sizeof(in));
+          in.buffer_type= MYSQL_TYPE_STRING;
+          empty= mode ? v == 0 || v == 4 : values[v].empty;
+          /*
+            The normal path is a diagnostic control for OFFSET zero only.
+            Positive offsets have an independent, known result-value bug.
+          */
+          if (queries[q].normal_path && empty)
+            continue;
+          if (mode)
+          {
+            if (v == 2)
+              in.buffer_type= MYSQL_TYPE_NULL;
+            else if (v == 3)
+            {
+              in.buffer= (void *) "0";
+              in.buffer_length= 1;
+            }
+            else
+            {
+              offset= empty;
+              in.buffer_type= MYSQL_TYPE_LONGLONG;
+              in.buffer= &offset;
+            }
+          }
+          rc= mysql_stmt_bind_param(stmt, &in);
+          check_execute(stmt, rc);
+          if (!mode)
+          {
+            rc= mysql_stmt_send_long_data(stmt, 0, values[v].text,
+                                         strlen(values[v].text));
+            check_execute(stmt, rc);
+          }
+          rc= mysql_stmt_execute(stmt);
+          check_execute(stmt, rc);
+          rc= mysql_stmt_store_result(stmt);
+          check_execute(stmt, rc);
+          rows= queries[q].no_rows ? 0 : row_counts[r];
+          for (row= 0; row < rows; row++)
+          {
+            rc= mysql_stmt_fetch(stmt);
+            check_execute(stmt, rc);
+            expected= empty ? queries[q].empty :
+                      row ? queries[q].rest : queries[q].first;
+            if (is_null || result != expected)
+              fprintf(stderr, "OFFSET query %u, mode %u, rows %u, "
+                      "value %u, row %u: expected %d, got %lld (NULL %d)\n",
+                      q, mode, row_counts[r], v, row, expected,
+                      result, (int) is_null);
+            DIE_UNLESS(!is_null && result == expected);
+          }
+          DIE_UNLESS(mysql_stmt_fetch(stmt) == MYSQL_NO_DATA);
+          /* Read the final result status before any other statement. */
+          warning_count= mysql_warning_count(mysql);
+          expected_warnings= !mode && values[v].truncated;
+          if (warning_count != expected_warnings)
+            fprintf(stderr, "OFFSET query %u, mode %u, rows %u, value %u: "
+                    "expected %u warnings, got %u\n",
+                    q, mode, row_counts[r], v,
+                    expected_warnings, warning_count);
+          DIE_UNLESS(warning_count == expected_warnings);
+          rc= mysql_stmt_free_result(stmt);
+          check_execute(stmt, rc);
+          if (expected_warnings)
+          {
+            rc= mysql_query(mysql, "SHOW WARNINGS");
+            myquery(rc);
+            warnings= mysql_store_result(mysql);
+            DIE_UNLESS(warnings != NULL);
+            DIE_UNLESS(mysql_num_rows(warnings) == 1);
+            warning= mysql_fetch_row(warnings);
+            my_snprintf(message, sizeof(message),
+                        "Truncated incorrect INTEGER value: '%s'",
+                        values[v].text);
+            DIE_UNLESS(strcmp(warning[0], "Warning") == 0);
+            DIE_UNLESS(atoi(warning[1]) == ER_TRUNCATED_WRONG_VALUE);
+            DIE_UNLESS(strcmp(warning[2], message) == 0);
+            mysql_free_result(warnings);
+          }
+        }
+      }
+    }
+    rc= mysql_stmt_close(stmt);
+    check_execute(stmt, rc);
+  }
+  rc= mysql_query(mysql, "DROP TEMPORARY TABLE offset_warning_rows");
+  myquery(rc);
+}
+
 static void test_mdev4326()
 {
   MYSQL_STMT   *stmt;
@@ -21384,6 +21717,120 @@ static void test_bulk_replace()
   myquery(rc);
 }
 
+
+
+/*
+  Bulk INSERT and REPLACE change parameters while evaluating the VALUES list.
+  A cached OFFSET must not reuse the first array element for later rows.
+*/
+static void test_subquery_offset_bulk()
+{
+  static const char *commands[]= { "INSERT", "REPLACE" };
+  static const char *predicates[]= {
+    "1 IN (SELECT 1 OFFSET ? ROWS)",
+    "1 = ANY (SELECT 1 OFFSET ? ROWS)",
+    "1 = ALL (SELECT 2 OFFSET ? ROWS)",
+    "1 NOT IN (SELECT 1 OFFSET ? ROWS)"
+  };
+  int offsets[2][4]= { { 0, 1, 0, 1 }, { 1, 0, 1, 0 } };
+  const char *strings[2][4]= {
+    { "0.5", "1.5", "0", "1" }, { "1.5", "0.5", "1", "0" }
+  };
+  ulong lengths[]= { 3, 3, 1, 1 };
+  char indicators[]= { STMT_INDICATOR_NONE, STMT_INDICATOR_NONE,
+                       STMT_INDICATOR_NONE, STMT_INDICATOR_NONE };
+  MYSQL_STMT *stmt;
+  MYSQL_BIND in;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  uint count= 4, command, q, mode, repeat, i;
+  int rc, expected;
+  char query[256], message[128];
+
+  myheader("test_subquery_offset_bulk");
+  rc= mysql_query(mysql,
+                  "SET @bulk_offset_sql_mode= @@sql_mode, sql_mode= ''");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TEMPORARY TABLE bulk_offset_values "
+                         "(seq INT AUTO_INCREMENT PRIMARY KEY, result INT)");
+  myquery(rc);
+  for (command= 0; command < array_elements(commands); command++)
+  {
+    for (q= 0; q < array_elements(predicates); q++)
+    {
+      my_snprintf(query, sizeof(query),
+                  "%s INTO bulk_offset_values(result) VALUES (%s)",
+                  commands[command], predicates[q]);
+      stmt= mysql_simple_prepare(mysql, query);
+      check_stmt(stmt);
+      rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &count);
+      check_execute(stmt, rc);
+      for (mode= 0; mode < 2; mode++)
+      {
+        for (repeat= 0; repeat < 2; repeat++)
+        {
+          rc= mysql_query(mysql, "TRUNCATE bulk_offset_values");
+          myquery(rc);
+          memset(&in, 0, sizeof(in));
+          in.buffer_type= mode ? MYSQL_TYPE_STRING : MYSQL_TYPE_LONG;
+          in.buffer= mode ? (void *) strings[repeat] :
+                            (void *) offsets[repeat];
+          in.length= mode ? lengths : NULL;
+          in.u.indicator= indicators;
+          rc= mysql_stmt_bind_param(stmt, &in);
+          check_execute(stmt, rc);
+          rc= mysql_stmt_execute(stmt);
+          check_execute(stmt, rc);
+          DIE_UNLESS(mysql_stmt_affected_rows(stmt) == count);
+          DIE_UNLESS(mysql_warning_count(mysql) == (mode ? 2 : 0));
+          if (mode)
+          {
+            rc= mysql_query(mysql, "SHOW WARNINGS");
+            myquery(rc);
+            result= mysql_store_result(mysql);
+            DIE_UNLESS(result != NULL);
+            DIE_UNLESS(mysql_num_rows(result) == 2);
+            for (i= 0; i < 2; i++)
+            {
+              row= mysql_fetch_row(result);
+              my_snprintf(message, sizeof(message),
+                          "Truncated incorrect INTEGER value: '%s'",
+                          strings[repeat][i]);
+              DIE_UNLESS(strcmp(row[0], "Warning") == 0);
+              DIE_UNLESS(atoi(row[1]) == ER_TRUNCATED_WRONG_VALUE);
+              DIE_UNLESS(strcmp(row[2], message) == 0);
+            }
+            mysql_free_result(result);
+          }
+          rc= mysql_query(mysql, "SELECT result FROM bulk_offset_values "
+                                 "ORDER BY seq");
+          myquery(rc);
+          result= mysql_store_result(mysql);
+          DIE_UNLESS(result != NULL);
+          DIE_UNLESS(mysql_num_rows(result) == count);
+          for (i= 0; i < count; i++)
+          {
+            row= mysql_fetch_row(result);
+            expected= q < 2 ? !offsets[repeat][i] : offsets[repeat][i];
+            if (!row[0] || atoi(row[0]) != expected)
+              fprintf(stderr, "Bulk OFFSET command %u, query %u, mode %u, "
+                      "repeat %u, row %u: expected %d, got %s\n",
+                      command, q, mode, repeat, i, expected,
+                      row[0] ? row[0] : "NULL");
+            DIE_UNLESS(row[0] && atoi(row[0]) == expected);
+          }
+          mysql_free_result(result);
+        }
+      }
+      rc= mysql_stmt_close(stmt);
+      check_execute(stmt, rc);
+    }
+  }
+  rc= mysql_query(mysql, "DROP TEMPORARY TABLE bulk_offset_values");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET sql_mode= @bulk_offset_sql_mode");
+  myquery(rc);
+}
 
 static void test_bulk_insert_returning()
 {
@@ -23988,6 +24435,8 @@ static struct my_tests_st my_tests[]= {
   { "test_bug11754979", test_bug11754979 },
   { "test_bug13001491", test_bug13001491 },
   { "test_mdev4326", test_mdev4326 },
+  { "test_subquery_offset_long_data", test_subquery_offset_long_data },
+  { "test_subquery_offset_one_warning", test_subquery_offset_one_warning },
   { "test_ps_sp_out_params", test_ps_sp_out_params },
 #ifndef _WIN32
   { "test_bug17512527", test_bug17512527},
@@ -24004,6 +24453,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bulk_autoinc", test_bulk_autoinc},
   { "test_bulk_delete", test_bulk_delete },
   { "test_bulk_replace", test_bulk_replace },
+  { "test_subquery_offset_bulk", test_subquery_offset_bulk },
   { "test_bulk_insert_returning", test_bulk_insert_returning },
   { "test_bulk_delete_returning", test_bulk_delete_returning },
 #endif

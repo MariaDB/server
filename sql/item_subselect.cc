@@ -1250,6 +1250,28 @@ void Item_singlerow_subselect::reset()
 }
 
 
+/*
+  Scalar pullout discards LIMIT and OFFSET, so it must preserve the selected
+  row on every execution.  Bound parameters can be basic constants, but their
+  values are not immutable across executions of a prepared statement.
+*/
+static bool scalar_subquery_preserves_row(st_select_lex *select_lex)
+{
+  Lex_select_limit *lim= &select_lex->limit_params;
+  if (lim->select_limit &&
+      (!lim->select_limit->basic_const_item() ||
+       lim->select_limit->is_stored_routine_parameter() ||
+       lim->select_limit->val_uint() == 0))
+    return false;
+  if (lim->offset_limit &&
+      (!lim->offset_limit->basic_const_item() ||
+       lim->offset_limit->is_stored_routine_parameter() ||
+       lim->offset_limit->val_uint() != 0))
+    return false;
+  return true;
+}
+
+
 /**
   @todo
   - We can't change name of Item_field or Item_ref, because it will
@@ -1303,6 +1325,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
+      scalar_subquery_preserves_row(select_lex) &&
       !join->conds && !join->having &&
       need_to_pull_out_item(
         join->select_lex->outer_select()->context_analysis_place,
@@ -2082,6 +2105,89 @@ value_is_ready:
 }
 
 
+/*
+  OFFSET can remove the only row of a table-less IN/ANY subquery.  Test it
+  before evaluating the comparison: an empty set is FALSE even if an operand
+  is NULL.  ALL already uses an inverted comparison and an outer NOT.
+
+  Keep the result boolean and use the integer conversion of get_offset(),
+  including for string parameters supplied with COM_STMT_SEND_LONG_DATA.
+*/
+class Item_func_tableless_in_offset :public Item_bool_func
+{
+  bool offset_is_zero;
+  bool offset_evaluated;
+  bool bulk_rebinding;
+  const bool constant_empty;
+public:
+  Item_func_tableless_in_offset(THD *thd, Item *offset, Item *comparison,
+                               bool constant_empty_arg)
+    :Item_bool_func(thd, offset, comparison),
+     offset_is_zero(false), offset_evaluated(false), bulk_rebinding(false),
+     constant_empty(constant_empty_arg) {}
+  /* Keep comparison validation while exposing an immutable empty set. */
+  bool const_item() const override
+  { return constant_empty || Item_bool_func::const_item(); }
+  table_map used_tables() const override
+  { return constant_empty ? 0 : Item_bool_func::used_tables(); }
+  bool val_bool() override
+  {
+    DBUG_ASSERT(fixed());
+    DBUG_ASSERT(offset_evaluated || bulk_rebinding);
+    null_value= false;
+    if (bulk_rebinding)
+      offset_is_zero= args[0]->val_uint() == 0;
+    if (!offset_is_zero)
+      return false;
+    bool value= args[1]->val_bool();
+    null_value= args[1]->null_value;
+    return value;
+  }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    if (Item_bool_func::fix_length_and_dec(thd))
+      return true;
+    set_maybe_null(!constant_empty && args[1]->maybe_null());
+    /*
+      Convert once per execution, even if no outer row evaluates this Item.
+      Analysis must not read an unbound parameter.  The comparison remains
+      row-dependent and is evaluated only when OFFSET preserves the row.
+    */
+    /* Optimized bulk INSERT and REPLACE rebind without fixing Items again. */
+    bulk_rebinding= !constant_empty && thd->is_bulk_op() &&
+                   (thd->sql_command_flags() & CF_PS_ARRAY_BINDING_OPTIMIZED);
+    if (constant_empty)
+    {
+      offset_is_zero= false;
+      offset_evaluated= true;
+    }
+    else if (!bulk_rebinding && !offset_evaluated &&
+             !thd->lex->is_ps_or_view_context_analysis())
+    {
+      offset_is_zero= args[0]->val_uint() == 0;
+      offset_evaluated= true;
+    }
+    return thd->is_error();
+  }
+  void cleanup() override
+  {
+    Item_bool_func::cleanup();
+    offset_evaluated= false;
+    bulk_rebinding= false;
+  }
+  /* An empty set under outer NOT must not reject NULL-extended rows. */
+  table_map not_null_tables() const override { return 0; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<tableless_in_offset>")};
+    return name;
+  }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_tableless_in_offset>(thd, this); }
+};
+
+
 /**
   Prepare a single-column IN/ALL/ANY subselect for rewriting.
 
@@ -2143,6 +2249,20 @@ Item_in_subselect::single_value_transformer(JOIN *join)
       can be broken in case of PS.
     */ 
     substitution= func->create(thd, left_expr, where_item);
+    if (!substitution)
+      DBUG_RETURN(true);
+    Item *offset= select_lex->limit_params.offset_limit;
+    if (offset)
+    {
+      /* Bound parameters are not immutable, even if basic_const_item(). */
+      bool immutable= offset->basic_const_item() &&
+                      !offset->is_stored_routine_parameter();
+      if (!immutable || offset->val_uint() != 0)
+        substitution= new (thd->mem_root)
+          Item_func_tableless_in_offset(thd, offset, substitution, immutable);
+      if (!substitution)
+        DBUG_RETURN(true);
+    }
     have_to_be_excluded= 1;
     if (thd->lex->describe)
     {
