@@ -1059,19 +1059,63 @@ eval:
     return str;
 
   case INT_RESULT:
-  case REAL_RESULT:
-  case DECIMAL_RESULT:
+  {
     /*
-      Numeric input: the text representation is already valid JSON —
-      copy it unquoted and unescaped.
+      MDEV-41563: Use val_int() / append_longlong() directly to avoid the
+      ZEROFILL zero-padding that val_str() applies for display.
+      append_longlong() / append_ulonglong() format as a plain JSON integer
+      with no leading zeros.
     */
-    if (str->append(tmp_s))
+    longlong ival= args[0]->val_int();
+    if (args[0]->null_value) { null_value= 1; return 0; }
+    if (args[0]->unsigned_flag ? str->append_ulonglong((ulonglong)ival)
+                               : str->append_longlong(ival))
     {
       null_value= 1;
       return 0;
     }
     null_value= 0;
     return str;
+  }
+
+  case DECIMAL_RESULT:
+  {
+    /*
+      MDEV-41563: Use val_decimal() directly so ZEROFILL display attributes
+      don't leak into the JSON number.  my_decimal::to_string() produces a
+      canonical decimal representation (e.g. "1.50" not "0001.50").
+    */
+    my_decimal dec_buf;
+    my_decimal *dec= args[0]->val_decimal(&dec_buf);
+    if (args[0]->null_value) { null_value= 1; return 0; }
+    if (!dec || !dec->to_string(&tmp_s) || str->append(tmp_s))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+  }
+
+  case REAL_RESULT:
+  {
+    /*
+      MDEV-41563: Use val_real() directly to avoid ZEROFILL distortion.
+      my_gcvt() produces a shortest-round-trip float representation.
+    */
+    char rbuf[MY_GCVT_MAX_FIELD_WIDTH + 4];
+    double rval= args[0]->val_real();
+    if (args[0]->null_value) { null_value= 1; return 0; }
+    size_t rlen= my_gcvt(rval, MY_GCVT_ARG_DOUBLE,
+                         MY_GCVT_MAX_FIELD_WIDTH, rbuf, NULL);
+    if (str->append(rbuf, rlen))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+  }
 
   case TIME_RESULT:
     /*
@@ -1704,6 +1748,62 @@ static int find_key_in_object(json_engine_t *j, json_string_t *key)
 }
 
 
+bool Item_func_json_contains::json_array_eq(json_engine_t *a, json_engine_t *b)
+{
+  json_engine_t loc_a= *a, loc_b= *b;
+  while (json_scan_next(&loc_a) == 0 && json_scan_next(&loc_b) == 0)
+  {
+    if (loc_a.state == JST_ARRAY_END && loc_b.state == JST_ARRAY_END)
+      return true;
+    if (loc_a.state != JST_VALUE || loc_b.state != JST_VALUE)
+      return false;
+    if (json_read_value(&loc_a) || json_read_value(&loc_b))
+      return false;
+    if (!json_value_eq(&loc_a, &loc_b))
+      return false;
+    if (!json_value_scalar(&loc_a))
+      json_skip_level(&loc_a);
+    if (!json_value_scalar(&loc_b))
+      json_skip_level(&loc_b);
+  }
+  return (loc_a.state == JST_ARRAY_END && loc_b.state == JST_ARRAY_END);
+}
+
+bool Item_func_json_contains::json_value_eq(json_engine_t *a, json_engine_t *b)
+{
+  if (a->value_type != b->value_type)
+    return false;
+
+  switch (a->value_type)
+  {
+  case JSON_VALUE_STRING:
+    return json_string_compare(a->s.cs,
+                               a->value, a->value_len, a->value_escaped,
+                               b->value, b->value_len, b->value_escaped) == 0;
+  case JSON_VALUE_NUMBER:
+  {
+    double d_a, d_b;
+    char *end;
+    int err;
+    d_a= a->s.cs->strntod((char *) a->value, a->value_len, &end, &err);
+    d_b= b->s.cs->strntod((char *) b->value, b->value_len, &end, &err);
+    return (fabs(d_a - d_b) < 1e-12);
+  }
+  case JSON_VALUE_ARRAY:
+    return json_array_eq(a, b);
+  case JSON_VALUE_OBJECT:
+    return check_contains(a, b);
+  case JSON_VALUE_TRUE:
+  case JSON_VALUE_FALSE:
+  case JSON_VALUE_NULL:
+    return true;
+  default:
+    break;
+  }
+  return false;
+}
+
+
 int Item_func_json_contains::check_contains(json_engine_t *js,
                                             json_engine_t *value)
 {
@@ -1767,7 +1867,7 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
     return value->state == JST_OBJ_END && !json_skip_level(js);
   }
   case JSON_VALUE_ARRAY:
-    if (value->value_type != JSON_VALUE_ARRAY)
+    if (value->value_type != JSON_VALUE_ARRAY || member_of)
     {
       loc_js= *value;
       set_js= FALSE;
@@ -1788,7 +1888,7 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
         else
           set_js= TRUE;
 
-        if (check_contains(js, value))
+        if (member_of ? json_value_eq(js, value) : check_contains(js, value))
         {
           if (json_skip_level(js))
           {

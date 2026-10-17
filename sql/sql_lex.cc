@@ -1443,6 +1443,57 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       }
     }
 
+    if (symbol->tok == MEMBER_SYM)
+    {
+      const char *ptr= m_ptr;
+      const char *end= m_end_of_query;
+      CHARSET_INFO *cs= m_thd->charset();
+      const uchar *const ident_map= cs->ident_map;
+
+      for (;;)
+      {
+        while (ptr < end && my_isspace(cs, *ptr))
+          ptr++;
+
+        if (ptr + 1 < end && *ptr == '/' && *(ptr + 1) == '*')
+        {
+          ptr += 2;
+          while (ptr + 1 < end && !(*ptr == '*' && *(ptr + 1) == '/'))
+            ptr++;
+          if (ptr + 1 < end)
+            ptr += 2;
+          continue;
+        }
+
+        if (ptr + 2 < end && *ptr == '-' && *(ptr + 1) == '-' && my_isspace(cs, *(ptr + 2)))
+        {
+          ptr += 3;
+          while (ptr < end && *ptr != 10)
+            ptr++;
+          continue;
+        }
+
+        if (ptr < end && *ptr == '#')
+        {
+          ptr++;
+          while (ptr < end && *ptr != 10)
+            ptr++;
+          continue;
+        }
+
+        break;
+      }
+
+      if (ptr + 2 <= end &&
+          (ptr[0] == 'o' || ptr[0] == 'O') &&
+          (ptr[1] == 'f' || ptr[1] == 'F') &&
+          (ptr + 2 == end || !ident_map[(uchar) ptr[2]]))
+      {
+        return MEMBER_SYM;
+      }
+      return 0;
+    }
+
     if ((symbol->tok == NOT_SYM) &&
         (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
       return NOT2_SYM;
