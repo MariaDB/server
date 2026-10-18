@@ -1,0 +1,136 @@
+#
+# A wide VARCHAR in a user MEMORY table keeps its payload outside the
+# record, the way one in an internal temporary table does.  The record
+# holds the column's length prefix and a pointer, so the width the
+# engine works in stops following the declared width.
+#
+--source include/have_sequence.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2, t3, t_below, t_above;
+--enable_warnings
+
+--echo #
+--echo # The record is reshaped, and only above the threshold.
+--echo #
+--echo # AVG_ROW_LENGTH is the width the engine lays a row out in.  A
+--echo # column left inline reserves what it was declared as; one moved
+--echo # out of the record reserves a length prefix and a pointer, so a
+--echo # table whose declared width dwarfs its row width is one whose
+--echo # payload is not in the row.
+--echo #
+
+CREATE TABLE t_below (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_above (a VARCHAR(3000)) ENGINE=MEMORY CHARACTER SET latin1;
+
+SELECT TABLE_NAME,
+       AVG_ROW_LENGTH >= 32 AS at_least_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_below';
+
+SELECT TABLE_NAME,
+       AVG_ROW_LENGTH < 100 AS far_below_declared_width
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't_above';
+
+DROP TABLE t_below, t_above;
+
+--echo #
+--echo # Every column after a promoted one moves, so each of these reads
+--echo # the wrong bytes if the record was reshaped and the column was
+--echo # not told.  Two promoted columns with narrow ones between and
+--echo # after them is the arrangement that catches a single delta
+--echo # applied where a running one was needed.
+--echo #
+
+CREATE TABLE t1 (
+  a INT,
+  b VARCHAR(2000),
+  c INT,
+  d VARCHAR(3000),
+  e CHAR(10),
+  f INT
+) ENGINE=MEMORY CHARACTER SET latin1;
+
+INSERT INTO t1 VALUES (1, REPEAT('b',100), 2, REPEAT('d',200), 'tail', 3);
+INSERT INTO t1 VALUES (4, '',             5, NULL,             '',     6);
+INSERT INTO t1 VALUES (7, REPEAT('x',1999), 8, REPEAT('y',3000), 'z',  9);
+
+SELECT a, LENGTH(b), LEFT(b,1), c, LENGTH(d), LEFT(d,1), e, f
+FROM t1 ORDER BY a;
+
+--echo #
+--echo # A row read while another is being read: the second read must not
+--echo # take the first row's payload with it.
+--echo #
+SELECT x.a, LENGTH(x.b), y.a, LENGTH(y.b)
+FROM t1 AS x, t1 AS y WHERE x.a < y.a ORDER BY x.a, y.a;
+
+UPDATE t1 SET b = b, d = CONCAT(d, d) WHERE a = 1;
+SELECT a, LENGTH(b), LENGTH(d) FROM t1 WHERE a = 1;
+
+DELETE FROM t1 WHERE a = 4;
+SELECT a, LENGTH(b), LENGTH(d), f FROM t1 ORDER BY a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # A DEFAULT is stored inline in the frm, where the slot now holds
+--echo # a pointer, so it has to be moved somewhere the slot can point.
+--echo #
+
+CREATE TABLE t2 (
+  a INT DEFAULT 7,
+  b VARCHAR(2000) DEFAULT 'a default wider than the threshold',
+  c VARCHAR(2000) DEFAULT '',
+  d VARCHAR(2000),
+  e INT DEFAULT 9
+) ENGINE=MEMORY CHARACTER SET latin1;
+
+SHOW CREATE TABLE t2;
+
+INSERT INTO t2 () VALUES ();
+INSERT INTO t2 () VALUES ();
+SELECT a, b, LENGTH(c), d IS NULL AS d_is_null, e FROM t2;
+
+--echo # The default outlives the statement that first read it, and is
+--echo # not disturbed by a row that stores over the column.
+UPDATE t2 SET b = 'stored' WHERE a = 7 LIMIT 1;
+INSERT INTO t2 () VALUES ();
+SELECT b, COUNT(*) FROM t2 GROUP BY b ORDER BY b;
+
+DROP TABLE t2;
+
+--echo #
+--echo # A key over a promoted column reads it through the pointer.
+--echo #
+
+CREATE TABLE t3 (
+  a VARCHAR(2000),
+  b INT,
+  KEY USING BTREE (a(200)),
+  KEY (b)
+) ENGINE=MEMORY CHARACTER SET latin1;
+
+INSERT INTO t3 SELECT CONCAT(REPEAT('k', 300), seq), seq FROM seq_1_to_20;
+SELECT COUNT(*), COUNT(DISTINCT a) FROM t3;
+SELECT b, LENGTH(a) FROM t3 WHERE a = CONCAT(REPEAT('k',300), 7);
+SELECT b FROM t3 WHERE a > CONCAT(REPEAT('k',300), 8) ORDER BY a LIMIT 3;
+
+DROP TABLE t3;
+
+--echo #
+--echo # A promoted column still fills the table by bytes, not by its
+--echo # declared width: inline a VARCHAR(60000) row reserves 60000
+--echo # bytes whether or not it holds any.
+--echo #
+
+SET @save_max_heap_table_size = @@max_heap_table_size;
+SET @@max_heap_table_size = 1024*1024;
+
+CREATE TABLE t_cap (a VARCHAR(60000)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_cap SELECT '' FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_cap;
+DROP TABLE t_cap;
+
+SET @@max_heap_table_size = @save_max_heap_table_size;
