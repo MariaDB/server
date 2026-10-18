@@ -1,0 +1,7 @@
+CHANGE MASTER TO master_host='127.0.0.1\0hulu', master_user='root\0bulu';
+SET @@GLOBAL.replicate_do_db= 'A\0Z';
+SELECT @@GLOBAL.replicate_do_db;
+@@GLOBAL.replicate_do_db
+A
+SET @@GLOBAL.replicate_do_db= DEFAULT;
+RESET SLAVE ALL;
