@@ -1285,6 +1285,7 @@ void LEX::start(THD *thd_arg)
   save_list.empty();
   reset_query_tables_list(FALSE);
   clause_that_disallows_subselect= NULL;
+  trg_stmt_set= NULL;
 
   /* reset bool variables */
   is_shutdown_wait_for_slaves= 0;
@@ -8482,6 +8483,30 @@ bool LEX::sp_body_finalize_trigger(THD *thd)
 }
 
 
+/*
+  FOR EACH STATEMENT and BEFORE COMMIT triggers are AFTER-only, and UPDATE
+  takes no OF column list with them.
+*/
+bool LEX::check_multi_row_trigger_chistics()
+{
+  const char *granularity= trg_granularity_clause(trg_chistics.granularity);
+  char buff[64];
+  if (trg_chistics.action_time != TRG_ACTION_AFTER)
+  {
+    my_snprintf(buff, sizeof(buff), "BEFORE <event> ... %s", granularity);
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), buff);
+    return true;
+  }
+  if (trg_chistics.on_update_col_names)
+  {
+    my_snprintf(buff, sizeof(buff), "UPDATE OF ... %s", granularity);
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), buff);
+    return true;
+  }
+  return false;
+}
+
+
 bool LEX::sp_body_finalize_event(THD *thd)
 {
   event_parse_data->body_changed= true;
@@ -8910,6 +8935,14 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
                                               bool new_row)
 {
   Item_trigger_field *trg_fld;
+
+  /* A FOR EACH STATEMENT or BEFORE COMMIT trigger is not about one row */
+  if (unlikely(trg_chistics.granularity != TRG_GRANULARITY_ROW))
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), new_row ? "NEW" : "OLD",
+             trg_granularity_clause(trg_chistics.granularity));
+    return NULL;
+  }
 
   if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) &&
                !new_row &&
@@ -9553,37 +9586,32 @@ Item *LEX::create_item_ident(THD *thd,
 
 
 Item *LEX::create_item_ident_trigger_specific(THD *thd,
-                                              active_dml_stmt stmt_type,
+                                              trg_event_type event,
                                               bool *throw_error)
 {
-  if (stmt_type == active_dml_stmt::INSERTING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
+  /*
+    They name the statement that fired the trigger.  One BEFORE COMMIT
+    firing covers the rows of every statement of the transaction, of
+    every kind, so there is no such statement.
+  */
+  if (trg_chistics.granularity == TRG_GRANULARITY_COMMIT)
   {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
+    my_error(ER_NOT_ALLOWED_IN_THIS_CONTEXT, MYF(0),
+             Item_trigger_type_of_statement::clause_name(event).str);
+    *throw_error= true;
+    return nullptr;
+  }
+
+  if (!is_trg_event_on(trg_chistics.events, event))
+  {
+    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0),
+             Item_trigger_type_of_statement::clause_name(event).str,
              trg_event_type_names[trg_chistics.events].str);
     *throw_error= true;
     return nullptr;
   }
 
-  if (stmt_type == active_dml_stmt::UPDATING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
-  {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
-             trg_event_type_names[trg_chistics.events].str);
-    *throw_error= true;
-    return nullptr;
-  }
-
-  if (stmt_type == active_dml_stmt::DELETING_STMT &&
-      !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
-  {
-    my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
-             trg_event_type_names[trg_chistics.events].str);
-    *throw_error= true;
-    return nullptr;
-  }
-
-  return new (thd->mem_root) Item_trigger_type_of_statement(thd, stmt_type);
+  return new (thd->mem_root) Item_trigger_type_of_statement(thd, event);
 }
 
 
@@ -9943,6 +9971,13 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                             Item *val, const LEX_CSTRING &expr_str)
 {
   DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
+  if (unlikely(trg_chistics.granularity != TRG_GRANULARITY_ROW))
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0),
+             (name1->str[0]=='O' || name1->str[0]=='o') ? "OLD" : "NEW",
+             trg_granularity_clause(trg_chistics.granularity));
+    return true;
+  }
   if (unlikely(name1->str[0]=='O' || name1->str[0]=='o'))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");

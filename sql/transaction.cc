@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "transaction.h"
+#include "sql_trigger.h"                     // trg_commit_*
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
 #include "semisync_master.h"
@@ -105,6 +106,16 @@ bool trans_begin(THD *thd, uint flags)
   DBUG_ENTER("trans_begin");
 
   if (trans_check(thd))
+    DBUG_RETURN(TRUE);
+
+  /*
+    As in trans_commit(): the BEGIN fails, the transaction is rolled back,
+    and LOCK TABLES, which the BEGIN ends, stays: the triggers fire before,
+    on the locked tables.
+  */
+  if ((thd->in_multi_stmt_transaction_mode() ||
+       (thd->variables.option_bits & OPTION_TABLE_LOCK)) &&
+      trg_commit_fire_at_commit(thd, "implicit COMMIT"))
     DBUG_RETURN(TRUE);
 
   if (thd->locked_tables_list.unlock_locked_tables(thd))
@@ -262,6 +273,19 @@ bool trans_commit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
+  /*
+    BEFORE COMMIT triggers fire before anything below starts to end the
+    transaction.  A failing body fails COMMIT and rolls back the whole
+    transaction.  Firing here is what lets
+    the statement that caused a commit not run when a body fails: below,
+    the transaction state is cleared whatever happens, and the callers of
+    trans_commit_implicit() and trans_begin() go on with their statement
+    once the commit has succeeded.
+  */
+  if (trg_commit_fire_at_commit(thd, "COMMIT of a multi-statement "
+                                     "transaction"))
+    DBUG_RETURN(TRUE);
+
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_commit);
 
@@ -326,6 +350,14 @@ bool trans_commit_implicit(THD *thd)
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
+    /*
+      As in trans_commit(): a failing BEFORE COMMIT body fails the
+      statement that commits implicitly, before it does anything, and the
+      transaction is rolled back.
+    */
+    if (trg_commit_fire_at_commit(thd, "implicit COMMIT"))
+      DBUG_RETURN(TRUE);
+
     PSI_stage_info org_stage;
     thd->backup_stage(&org_stage);
     THD_STAGE_INFO(thd, stage_commit_implicit);
@@ -675,12 +707,29 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(1);
   }
 
+  /* A BEFORE COMMIT body does not manage the savepoints under it */
+  if (thd->trg_firing_chain && trg_commit_body_refuses(thd, "SAVEPOINT"))
+    DBUG_RETURN(TRUE);
+
+  /*
+    BEFORE COMMIT OR SAVEPOINT triggers fire before the savepoint exists,
+    and before an old savepoint of the same name is released, so their
+    writes and the MDL they take land before the new savepoint's MDL
+    marker and are not undone by ROLLBACK TO this savepoint.
+  */
+  if (trg_commit_fire_at_savepoint(thd))
+    DBUG_RETURN(TRUE);
+
   SAVEPOINT *newsv= savepoint_add(thd, Lex_ident_savepoint(name),
                                   &thd->transaction->savepoints,
                                   ha_release_savepoint);
 
+  /* The triggers that fired above fire again at the next boundary */
   if (newsv == NULL)
+  {
+    trg_commit_savepoint_failed(thd);
     DBUG_RETURN(TRUE);
+  }
 
   /*
     if we'll get an error here, don't add new savepoint to the list.
@@ -688,7 +737,10 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     be free'd when transaction ends anyway
   */
   if (unlikely(ha_savepoint(thd, newsv)))
+  {
+    trg_commit_savepoint_failed(thd);
     DBUG_RETURN(TRUE);
+  }
 
   newsv->prev= thd->transaction->savepoints;
   thd->transaction->savepoints= newsv;
@@ -703,6 +755,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     locks acquired during LOCK TABLES.
   */
   newsv->mdl_savepoint= thd->mdl_context.mdl_savepoint();
+  trg_commit_savepoint_set(thd, newsv);
 
   DBUG_RETURN(FALSE);
 }
@@ -745,6 +798,10 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(1);
   }
 
+  if (thd->trg_firing_chain &&
+      trg_commit_body_refuses(thd, "ROLLBACK TO SAVEPOINT"))
+    DBUG_RETURN(TRUE);
+
   if ((sv= *find_savepoint(thd, Lex_ident_savepoint(name))) == NULL)
   {
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SAVEPOINT", name.str);
@@ -762,6 +819,9 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
+
+  if (!res)
+    trg_commit_savepoint_rollback(thd, sv);
 
   thd->transaction->savepoints= sv;
 
@@ -801,6 +861,10 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
   SAVEPOINT *sv= *find_savepoint(thd, Lex_ident_savepoint(name));
   DBUG_ENTER("trans_release_savepoint");
 
+  if (thd->trg_firing_chain &&
+      trg_commit_body_refuses(thd, "RELEASE SAVEPOINT"))
+    DBUG_RETURN(TRUE);
+
   if (sv == NULL)
   {
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SAVEPOINT", name.str);
@@ -812,6 +876,7 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
   {
     if (ha_release_savepoint(thd, p))
       res= TRUE;
+    trg_commit_savepoint_release(thd, p);
     if (p == sv)
     {
       thd->transaction->savepoints= sv->prev;

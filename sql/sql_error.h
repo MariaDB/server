@@ -1038,6 +1038,7 @@ public:
 
   void set_overwrite_status(bool can_overwrite_status)
   { m_can_overwrite_status= can_overwrite_status; }
+  bool can_overwrite_status() const { return m_can_overwrite_status; }
 
   /** True if status information is sent to the client. */
   bool is_sent() const { return m_is_sent; }

@@ -452,6 +452,20 @@ public:
   virtual void set_required_privilege(bool rw) {};
 
   /*
+    Check that the parameter can be set in the current context, before the
+    routine that sets it runs.
+
+    SYNOPSIS
+      check_settable()
+        thd       thread handle
+
+    RETURN
+      FALSE if the parameter can be set,
+      TRUE if it cannot; an error has been raised.
+  */
+  virtual bool check_settable(THD *thd) { return false; }
+
+  /*
     Set parameter value.
 
     SYNOPSIS
@@ -7856,9 +7870,10 @@ class Table_triggers_list;
   Note: For this item main part of actual binding to Field object happens
         not during fix_fields() call (like for Item_field) but right after
         parsing of trigger definition, when table is opened, with special
-        setup_field() call. On fix_fields() stage we simply choose one of
-        two Field instances representing either OLD or NEW version of this
-        field.
+        setup_field() call. On fix_fields() stage we simply choose the
+        Field instance representing either OLD or NEW version of this
+        field, or one that is always NULL for OLD in a firing for the
+        INSERT event and for NEW in a firing for the DELETE event.
 */
 class Item_trigger_field : public Item_field,
                            private Settable_routine_parameter
@@ -7934,9 +7949,9 @@ protected:
 
 private:
   void set_required_privilege(bool rw) override;
+  bool check_settable(THD *thd) override;
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
-  void check_new_old_qulifiers_comform_with_trg_event(THD *thd);
 public:
   Settable_routine_parameter *get_settable_routine_parameter() override
   {
@@ -7951,38 +7966,6 @@ public:
 public:
   bool unknown_splocal_processor(void *) override { return false; }
   bool check_vcol_func_processor(void *arg) override;
-
-  int save_in_field(Field *to, bool no_conversions) override;
-  double val_real() override;
-  longlong val_int() override;
-  bool val_bool() override;
-  my_decimal *val_decimal(my_decimal *) override;
-  String *val_str(String*) override;
-};
-
-
-/**
-  This item is instantiated in case one of the clauses
-    INSERTING, UPDATING, DELETING
-  encountered in trigger's body. The method val_bool() of this class returns
-  true if currently running DML statement matches the type of DML
-  activity (insert, update, delete) describing by the one of the clauses
-  INSERTING, UPDATING, DELETING
-*/
-
-class Item_trigger_type_of_statement : public Item_int
-{
-public:
-  Item_trigger_type_of_statement(THD *thd,
-                                 active_dml_stmt stmt_type)
-  : Item_int(thd, 0), m_thd{thd}, m_trigger_stmt_type{stmt_type}
-  {}
-
-  bool val_bool() override;
-
-private:
-  THD *m_thd;
-  active_dml_stmt m_trigger_stmt_type;
 };
 
 

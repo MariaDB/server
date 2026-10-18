@@ -368,6 +368,11 @@ sp_get_flags_for_command(LEX *lex)
       flags= sp_head::MULTI_RESULTS; 
     break;
   }
+  case SQLCOM_SAVEPOINT:
+  case SQLCOM_ROLLBACK_TO_SAVEPOINT:
+  case SQLCOM_RELEASE_SAVEPOINT:
+    flags= sp_head::HAS_SAVEPOINT_STMT;
+    break;
   default:
     flags= 0;
     break;
@@ -2518,6 +2523,9 @@ sp_head::bind_input_param(THD *thd,
       my_error(ER_SP_NOT_VAR_ARG, MYF(0), arg_no+1, ErrConvDQName(this).ptr());
       DBUG_RETURN(TRUE);
     }
+
+    if (srp->check_settable(thd))
+      DBUG_RETURN(TRUE);
 
     if (is_function)
     {

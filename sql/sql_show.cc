@@ -138,6 +138,20 @@ const LEX_CSTRING trg_event_type_names[]=
   { STRING_WITH_LEN("INSERT,UPDATE,DELETE") } // 0x07
 };
 
+/*
+  Also the INFORMATION_SCHEMA.TRIGGERS.ACTION_ORIENTATION values, which name
+  the clause that follows ON table_name in the trigger header.
+*/
+const LEX_CSTRING trg_granularity_type_names[]=
+{
+  { STRING_WITH_LEN("ROW") },
+  { STRING_WITH_LEN("STATEMENT") },
+  { STRING_WITH_LEN("BEFORE COMMIT") }
+};
+
+static const LEX_CSTRING trg_commit_or_savepoint_name=
+  { STRING_WITH_LEN("BEFORE COMMIT OR SAVEPOINT") };
+
 static const LEX_CSTRING sp_data_access_name[]=
 {
   { STRING_WITH_LEN("") },
@@ -5694,7 +5708,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
               continue;
           }
           else if ((schema_table_idx == SCH_TRIGGERS ||
-                   schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS) &&
+                   schema_table_idx == SCH_TRIGGERED_UPDATE_COLUMNS ||
+                   schema_table_idx == SCH_TRIGGERED_CAPTURE_COLUMNS) &&
                    db_name == &INFORMATION_SCHEMA_NAME)
           {
             continue;
@@ -7869,6 +7884,16 @@ static bool store_trigger(THD *thd, Trigger *trigger, TABLE *table,
   table->field[6]->store(table_name->str, table_name->length, cs);
 
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buff;
+  /*
+    A BEFORE COMMIT trigger has one position whatever its events: the
+    order in which it fires at the commit.
+  */
+  if (trigger->granularity == TRG_GRANULARITY_COMMIT)
+  {
+    buff.append_longlong(trigger->commit_order);
+    table->field[7]->store(buff.ptr(), buff.length(), cs);
+  }
+  else
   for (int i=0;i < TRG_EVENT_MAX; i++)
   {
     if (trigger->action_order[i])
@@ -7894,11 +7919,28 @@ static bool store_trigger(THD *thd, Trigger *trigger, TABLE *table,
     table->field[18]->set_null();
   }
 
-  table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
+  const LEX_CSTRING *orientation= trigger->fires_on_savepoint ?
+    &trg_commit_or_savepoint_name :
+    &trg_granularity_type_names[trigger->granularity];
+  table->field[10]->store(orientation, cs);
+  if (trigger->granularity != TRG_GRANULARITY_ROW)
+    trg_hook_trace("I_S.TRIGGERS row for %s.%s: ACTION_ORIENTATION=%s",
+                   db_name->str, trigger->name.str, orientation->str);
   table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
                           trg_action_time_type_names[trigger->action_time].length, cs);
-  table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
-  table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
+  /* Only a ROW trigger has the OLD and NEW row variables */
+  if (trigger->granularity == TRG_GRANULARITY_ROW)
+  {
+    table->field[14]->set_notnull();
+    table->field[15]->set_notnull();
+    table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
+    table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
+  }
+  else
+  {
+    table->field[14]->set_null();
+    table->field[15]->set_null();
+  }
 
   if (trigger->hr_create_time.val)
   {
@@ -7947,13 +7989,16 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     bool trigger_priv= true;
 #endif
 
+    for (int granularity= 0; granularity < (int) TRG_GRANULARITY_COMMIT;
+         granularity++)
     for (event= 0; event < (int)TRG_EVENT_MAX; event++)
     {
       for (timing= 0; timing < (int)TRG_ACTION_MAX; timing++)
       {
         Trigger *trigger;
         for (trigger= triggers->
-               get_trigger((enum trg_event_type) event,
+               get_trigger((enum trg_granularity_type) granularity,
+                           (enum trg_event_type) event,
                            (enum trg_action_time_type) timing) ;
              trigger;
              trigger= trigger->next[event])
@@ -7965,16 +8010,30 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
         }
       }
     }
+    /*
+      BEFORE COMMIT triggers form one list in firing order, whatever their
+      events; mysqldump creates them in the order listed here
+    */
+    for (Trigger *trigger= triggers->get_commit_triggers(); trigger;
+         trigger= trigger->next_commit)
+      if (store_trigger(thd, trigger, table, db_name, table_name,
+                        trigger_priv))
+        DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
 
 
+/*
+  @param columns  the trigger's UPDATE OF list, or the capture column list
+                  of a FOR EACH STATEMENT or BEFORE COMMIT trigger
+*/
 static bool
 store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
                                Trigger *trigger, TABLE *table,
                                const LEX_CSTRING *db_name,
-                               const LEX_CSTRING *table_name)
+                               const LEX_CSTRING *table_name,
+                               List<LEX_CSTRING> *columns)
 {
   bool error= 0;
   CHARSET_INFO *cs= system_charset_info;
@@ -7983,7 +8042,7 @@ store_triggered_update_columns(THD *thd, TABLE_LIST *tbl,
   LEX_CSTRING trigger_stmt, trigger_body;
   definer_buffer.str= definer_holder;
   trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
-  List_iterator_fast<LEX_CSTRING> it(*trigger->updatable_columns);
+  List_iterator_fast<LEX_CSTRING> it(*columns);
 
   /*
     For TRIGGERED_UPDATE_COLUMNS table, the SQL standard requires the user to
@@ -8050,12 +8109,81 @@ get_schema_triggered_update_columns_record(THD *thd, TABLE_LIST *tables,
       {
         if (trigger->updatable_columns &&
             store_triggered_update_columns(thd, tables, trigger,
-                                           table, db_name, table_name))
+                                           table, db_name, table_name,
+                                           trigger->updatable_columns))
           DBUG_RETURN(1);
       }
     }
   }
   DBUG_RETURN(0);
+}
+
+
+/*
+  INFORMATION_SCHEMA.TRIGGERED_CAPTURE_COLUMNS: one row per column that a
+  FOR EACH STATEMENT or BEFORE COMMIT trigger captures, the result of
+  evaluating its OF or EXCEPT list against the table's current definition
+  (every column when there is no list).  This needs the table's columns, so the table is
+  opened in full.  A list that no longer resolves after ALTER TABLE gives
+  a warning and no rows for that trigger.
+*/
+
+static int
+get_schema_triggered_capture_columns_record(THD *thd, TABLE_LIST *tables,
+                                            TABLE *table, bool res,
+                                            const LEX_CSTRING *db_name,
+                                            const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_schema_triggered_capture_columns_record");
+  if (res)
+  {
+    if (thd->is_error())
+      convert_error_to_warning(thd);
+    thd->clear_error();
+    DBUG_RETURN(0);
+  }
+  if (tables->view || !tables->table->triggers)
+    DBUG_RETURN(0);
+
+  TABLE *subject= tables->table;
+  Table_triggers_list *triggers= subject->triggers;
+  MY_BITMAP captured;
+  if (my_bitmap_init(&captured, nullptr, subject->s->fields))
+    DBUG_RETURN(1);
+  int error= 0;
+  for (uint g= TRG_GRANULARITY_STATEMENT;
+       !error && g < (uint) TRG_GRANULARITY_MAX; g++)
+    for (uint e= 0; !error && e < (uint) TRG_EVENT_MAX; e++)
+      for (Trigger *trigger=
+             triggers->get_trigger((trg_granularity_type) g,
+                                   (trg_event_type) e, TRG_ACTION_AFTER);
+           !error && trigger;
+           trigger= trigger->next[e])
+      {
+        if (!is_the_right_most_event_bit(trigger->events, e) ||
+            !trigger->body)
+          continue;
+        bitmap_clear_all(&captured);
+        if (trg_capture_columns_resolve(subject, trigger->capture_columns,
+                                        trigger->capture_columns_except,
+                                        &captured, true))
+        {
+          convert_error_to_warning(thd);
+          continue;
+        }
+        List<LEX_CSTRING> columns;
+        for (uint i= 0; !error && i < subject->s->fields; i++)
+          if (bitmap_is_set(&captured, i) &&
+              columns.push_back(&subject->field[i]->field_name,
+                                thd->mem_root))
+            error= 1;
+        if (!error)
+          error= store_triggered_update_columns(thd, tables, trigger,
+                                                table, db_name, table_name,
+                                                &columns);
+      }
+  my_bitmap_free(&captured);
+  DBUG_RETURN(error);
 }
 
 static int
@@ -9309,6 +9437,31 @@ static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     }
   }
   return 0;
+}
+
+
+/*
+  SHOW TRIGGERS: the columns it has always had, then Orientation.  It goes
+  last so that clients reading the result by column position keep working;
+  in INFORMATION_SCHEMA.TRIGGERS, ACTION_ORIENTATION keeps its standard
+  place.
+*/
+
+static int make_triggers_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
+{
+  static const LEX_CSTRING orientation_column=
+    { STRING_WITH_LEN("ACTION_ORIENTATION") };
+  static const LEX_CSTRING orientation_name= { STRING_WITH_LEN("Orientation") };
+
+  if (make_old_format(thd, schema_table))
+    return 1;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
+  Item_field *field= new (thd->mem_root)
+    Item_field(thd, context, orientation_column);
+  if (!field)
+    return 1;
+  field->set_name(thd, orientation_name);
+  return add_item_to_list(thd, field);
 }
 
 
@@ -10587,12 +10740,12 @@ ST_FIELD_INFO triggers_fields_info[]=
   Column("ACTION_ORDER",        SLonglong(4), NOT_NULL,             OPEN_FRM_ONLY),
   Column("ACTION_CONDITION", Longtext(65535), NULLABLE,             OPEN_FRM_ONLY),
   Column("ACTION_STATEMENT", Longtext(65535), NULLABLE, "Statement",OPEN_FRM_ONLY),
-  Column("ACTION_ORIENTATION",    Varchar(9), NOT_NULL,             OPEN_FRM_ONLY),
+  Column("ACTION_ORIENTATION",   Varchar(26), NOT_NULL,             OPEN_FRM_ONLY),
   Column("ACTION_TIMING",         Varchar(6), NOT_NULL, "Timing",   OPEN_FRM_ONLY),
   Column("ACTION_REFERENCE_OLD_TABLE",Name(), NULLABLE,             OPEN_FRM_ONLY),
   Column("ACTION_REFERENCE_NEW_TABLE",Name(), NULLABLE,             OPEN_FRM_ONLY),
-  Column("ACTION_REFERENCE_OLD_ROW",Varchar(3),NOT_NULL,            OPEN_FRM_ONLY),
-  Column("ACTION_REFERENCE_NEW_ROW",Varchar(3),NOT_NULL,            OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_OLD_ROW",Varchar(3),NULLABLE,            OPEN_FRM_ONLY),
+  Column("ACTION_REFERENCE_NEW_ROW",Varchar(3),NULLABLE,            OPEN_FRM_ONLY),
   /* 2 here indicates 2 decimals */
   Column("CREATED",              Datetime(2), NULLABLE, "Created",  OPEN_FRM_ONLY),
   Column("SQL_MODE",               SQLMode(), NOT_NULL, "sql_mode", OPEN_FRM_ONLY),
@@ -10958,6 +11111,23 @@ ST_FIELD_INFO triggered_update_columns_info[]=
   CEnd()
 };
 
+/*
+  The columns of TRIGGERED_UPDATE_COLUMNS.  Every one needs the table
+  opened in full: its rows come from evaluating the capture lists against
+  the table's columns.
+*/
+ST_FIELD_INFO triggered_capture_columns_info[]=
+{
+  Column("TRIGGER_CATALOG",       Catalog(), NOT_NULL,          OPEN_FULL_TABLE),
+  Column("TRIGGER_SCHEMA",        Name(), NOT_NULL,             OPEN_FULL_TABLE),
+  Column("TRIGGER_NAME",          Name(), NOT_NULL, "Trigger",  OPEN_FULL_TABLE),
+  Column("EVENT_OBJECT_CATALOG",  Catalog(), NOT_NULL,          OPEN_FULL_TABLE),
+  Column("EVENT_OBJECT_SCHEMA",   Name(), NOT_NULL,             OPEN_FULL_TABLE),
+  Column("EVENT_OBJECT_TABLE",    Name(), NOT_NULL, "Table",    OPEN_FULL_TABLE),
+  Column("EVENT_OBJECT_COLUMN",   Name(), NOT_NULL, "Column",   OPEN_FULL_TABLE),
+  CEnd()
+};
+
 
 #ifdef HAVE_REPLICATION
 ST_FIELD_INFO slave_status_info[]=
@@ -11173,12 +11343,16 @@ ST_SCHEMA_TABLE schema_tables[]=
    Show::table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
   {"TRIGGERS"_Lex_ident_i_s_table, Show::triggers_fields_info, 0,
-   get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
-   OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+   get_all_tables, make_triggers_old_format, get_schema_triggers_record,
+   5, 6, 0, OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
   {"TRIGGERED_UPDATE_COLUMNS"_Lex_ident_i_s_table,
    Show::triggered_update_columns_info, 0, get_all_tables, 0,
    get_schema_triggered_update_columns_record, 4, 5, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
+  {"TRIGGERED_CAPTURE_COLUMNS"_Lex_ident_i_s_table,
+   Show::triggered_capture_columns_info, 0, get_all_tables, 0,
+   get_schema_triggered_capture_columns_record, 4, 5, 0,
+   OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
   {"USERS"_Lex_ident_i_s_table, Show::users_fields_info, 0, fill_users_schema_table,
    0, 0, -1, -1, 0, 0},
   {"USER_PRIVILEGES"_Lex_ident_i_s_table,

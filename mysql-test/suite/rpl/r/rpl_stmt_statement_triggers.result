@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TRIGGER t1_stmt AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+SET @x= 1;
+connection slave;
+# On the replica only
+CREATE TRIGGER t1_del_stmt AFTER DELETE ON t1 FOR EACH STATEMENT SET @x= 1;
+# The replica runs the statement and fires the trigger it got from
+# the primary
+connection master;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 1 INSERT rows
+# capture INSERT row of test.t1 through t1 (NEW=record[0]) into the statement set, now 2 INSERT rows
+# end of statement: FIRE test.t1_stmt (AFTER INSERT,UPDATE FOR EACH STATEMENT) over 2 INSERT, 0 UPDATE, 0 DELETE rows; true: INSERTING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# A statement that changes no row fires it too
+connection master;
+UPDATE t1 SET b= 0 WHERE a > 100;
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# statement set: UPDATE activated on test.t1 by a statement that changed no UPDATE row of it
+# end of statement: FIRE test.t1_stmt (AFTER INSERT,UPDATE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 0 DELETE rows; true: UPDATING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+# The trigger created on the replica alone fires as well
+connection master;
+DELETE FROM t1 WHERE a = 1;
+connection slave;
+# column marking for test.t1: captured columns marked for read: a, b, + __op_order, __op, __state
+# statement set: entry for test.t1 created, columns: a, b, + __op_order, __op, __state
+# capture DELETE row of test.t1 through t1 (OLD=record[0]) into the statement set, now 1 DELETE rows
+# end of statement: FIRE test.t1_del_stmt (AFTER DELETE FOR EACH STATEMENT) over 0 INSERT, 0 UPDATE, 1 DELETE rows; true: DELETING; subject TABLE open and locked: yes; body would run here: execute_trigger() as root@localhost, SUB_STMT_TRIGGER
+SELECT a, b FROM t1 ORDER BY a;
+a	b
+2	2
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

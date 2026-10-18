@@ -1,0 +1,195 @@
+#
+# FOR EACH STATEMENT triggers on a replica applying row events with
+# slave_run_triggers_for_rbr: the rows of one replicated statement arrive
+# in row events that each hold rows of one table and one kind of change;
+# one table's rows may span several of them, interleaved with other
+# tables' events.  The triggers fire once per table after the last event
+# of the statement, the one flagged STMT_END_F, has been applied.  A
+# statement that changes no row writes no row event, so the replica fires
+# nothing for it, and of the events a statement activates, the replica
+# fires only those whose rows arrive.  Without slave_run_triggers_for_rbr
+# nothing is captured on the replica.
+#
+# No trigger body is executed yet.  The replica writes one
+# "Trigger hook:" line per hook to its error log, and
+# main/trigger_hook_trace.inc prints them.
+#
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+INSERT INTO t2 VALUES (1, 1), (2, 2);
+--sync_slave_with_master
+
+--echo # On the replica only
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+CREATE TRIGGER t1_stmt AFTER UPDATE ON t1 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t2_stmt AFTER UPDATE OR DELETE ON t2 FOR EACH STATEMENT
+  SET @x= 1;
+--let $trg_hook_server= 2
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+
+--echo # slave_run_triggers_for_rbr=NO: no capture, nothing fires
+--connection master
+UPDATE t1 SET b= b + 10 WHERE a = 1;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--source include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= YES;
+--source include/start_slave.inc
+
+--echo # One statement, two tables, two row events: each table fires once
+--connection master
+UPDATE t1 JOIN t2 USING (a) SET t1.b= t1.b + 10, t2.b= t2.b + 10;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # Several rows of one table in one statement
+--connection master
+DELETE FROM t2;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # A statement that matches no row sends no row event
+--connection master
+UPDATE t1 SET b= 0 WHERE a > 100;
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+
+--echo # One table's rows span several row events: INSERT ... ON DUPLICATE
+--echo # KEY UPDATE that alternates inserted and updated rows starts a new
+--echo # event at every change of kind.  The triggers fire once, after the
+--echo # last of them.
+CREATE TRIGGER t1_iu AFTER INSERT OR UPDATE ON t1 FOR EACH STATEMENT
+  SET @x= 1;
+--source main/trigger_hook_trace.inc
+--connection master
+--let $binlog_file= LAST
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 VALUES (1, 0), (4, 4), (2, 0), (5, 5)
+  ON DUPLICATE KEY UPDATE b= b + 100;
+--source include/show_binlog_events.inc
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+DROP TRIGGER t1_iu;
+
+SELECT a, b FROM t1 ORDER BY a;
+
+--echo # The rows that a trigger body writes arrive in the row events of the
+--echo # statement that fired it: on the replica a statement trigger on their
+--echo # table fires once over all of them.  t3 had a trigger on the primary,
+--echo # so the replica runs none on t3.
+--connection master
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t3_row AFTER INSERT ON t3 FOR EACH ROW
+  INSERT INTO t4 VALUES (NEW.a);
+--sync_slave_with_master
+CREATE TRIGGER t4_stmt AFTER INSERT ON t4 FOR EACH STATEMENT SET @x= 1;
+--source main/trigger_hook_trace.inc
+--connection master
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t3 VALUES (1), (2);
+--source include/show_binlog_events.inc
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+SELECT a FROM t4 ORDER BY a;
+
+--echo # With YES the replica runs no trigger on a table that had any trigger
+--echo # on the primary, whatever its kind and events: a BEFORE COMMIT
+--echo # trigger on the primary keeps the replica's statement trigger from
+--echo # firing.  With ENFORCE it fires.
+--connection master
+CREATE TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin= 0;
+CREATE TRIGGER t5_commit AFTER INSERT ON t5 BEFORE COMMIT SET @x= 1;
+SET sql_log_bin= 1;
+--sync_slave_with_master
+CREATE TRIGGER t5_stmt AFTER INSERT ON t5 FOR EACH STATEMENT SET @x= 1;
+--source main/trigger_hook_trace.inc
+--connection master
+INSERT INTO t5 VALUES (1), (2);
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+--source include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= ENFORCE;
+--source include/start_slave.inc
+--connection master
+INSERT INTO t5 VALUES (3), (4);
+--sync_slave_with_master
+--source main/trigger_hook_trace.inc
+SELECT a FROM t5 ORDER BY a;
+
+--echo # The replica fires only the events whose rows arrive: a REPLACE that
+--echo # replaces no row fires the INSERT and DELETE statement triggers on
+--echo # the primary, and only the INSERT ones on the replica, which gets a
+--echo # Write_rows event alone.
+--connection master
+CREATE TABLE t6 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER t6_ins AFTER INSERT ON t6 FOR EACH STATEMENT SET @x= 1;
+CREATE TRIGGER t6_del AFTER DELETE ON t6 FOR EACH STATEMENT SET @x= 1;
+--let $trg_hook_server= 1
+--let $trg_hook_reset= 1
+--source main/trigger_hook_trace.inc
+--sync_slave_with_master
+--let $trg_hook_server= 2
+--source main/trigger_hook_trace.inc
+--connection master
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+REPLACE INTO t6 VALUES (1), (2);
+--source include/show_binlog_events.inc
+--echo # Primary
+--let $trg_hook_server= 1
+--source main/trigger_hook_trace.inc
+--sync_slave_with_master
+--echo # Replica
+--let $trg_hook_server= 2
+--source main/trigger_hook_trace.inc
+SELECT a FROM t6 ORDER BY a;
+
+--echo # A BEFORE COMMIT body on the replica that times out waiting for a lock
+--echo # fails the commit with 40004, the timeout after it: the replica
+--echo # retries the transaction, as after a lock wait timeout of its own
+--connection master
+CREATE TABLE t7 (a INT PRIMARY KEY) ENGINE=InnoDB;
+--sync_slave_with_master
+CREATE TRIGGER t7_commit AFTER INSERT ON t7 BEFORE COMMIT SET @x= 1;
+--let $retried= query_get_value(SHOW GLOBAL STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/stop_slave.inc
+SET @save_debug_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,trg_commit_body_lock_wait_timeout_once';
+--source include/start_slave.inc
+--source main/trigger_hook_trace.inc
+--connection master
+INSERT INTO t7 VALUES (1), (2);
+--let $slave_timeout= 30
+--source include/sync_slave_sql_with_master.inc
+--source main/trigger_hook_trace.inc
+SELECT a FROM t7 ORDER BY a;
+--let $assert_text= The replica retried the transaction once
+--let $assert_cond= [SHOW GLOBAL STATUS LIKE "Slave_retried_transactions", Value, 1] = $retried + 1
+--source include/assert.inc
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug= @save_debug_dbug;
+--source include/start_slave.inc
+
+--source include/stop_slave.inc
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+--source include/start_slave.inc
+DROP TRIGGER t1_stmt;
+DROP TRIGGER t2_stmt;
+
+--connection master
+DROP TABLE t1, t2, t3, t4, t5, t6, t7;
+--sync_slave_with_master
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.1.pos
+--remove_file $MYSQLTEST_VARDIR/tmp/trigger_hook_trace.2.pos
+
+--source include/rpl_end.inc
