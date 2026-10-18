@@ -614,6 +614,8 @@ public:
     */
     return this;
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_string_xml_non_const)
 };
 
 
