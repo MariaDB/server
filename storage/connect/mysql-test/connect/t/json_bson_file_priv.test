@@ -6,6 +6,10 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 
 --copy_file $MTR_SUITE_DIR/std_data/bib0.json $MYSQL_TMP_DIR/bib0.json
 --copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQL_TMP_DIR/biblio.json
+--write_file $MYSQL_TMP_DIR/secret.json
+["secret"]
+EOF
+--copy_file $MYSQL_TMP_DIR/secret.json $MYSQLD_DATADIR/secret.json
 
 --echo #
 --echo # Test FILE privilege and secure_file_priv enforcement for JSON/BSON file UDFs
@@ -40,6 +44,21 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NOT NULL AS ok
 --remove_file $MYSQL_TMP_DIR/out.json
 
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jsonget_string('$MYSQL_TMP_DIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bsonget_string('$MYSQL_TMP_DIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json', 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_make('$MYSQL_TMP_DIR/secret.json', '$MYSQL_TMP_DIR/out.json')
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_test('["test"]', '$MYSQL_TMP_DIR/out.json')
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+
 --echo # Privileged user: path outside secure_file_priv
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval select json_file('$MYSQLD_DATADIR/bib0.json') IS NULL AS denied
@@ -71,6 +90,22 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQLD_DATADIR/out.json', 0) IS NULL AS denied
 --replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQLD_DATADIR/out.json', 1024) IS NULL AS denied
+
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select jsonget_string('$MYSQLD_DATADIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bsonget_string('$MYSQLD_DATADIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_array_add('$MYSQLD_DATADIR/secret.json', 1)
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select json_array_add('$MYSQLD_DATADIR/secret.json' as jfile_x, 1)
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_array_add('$MYSQLD_DATADIR/secret.json' as bfile_x, 1)
+--cat_file $MYSQLD_DATADIR/secret.json
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_make('$MYSQLD_DATADIR/secret.json', '$MYSQL_TMP_DIR/out.json')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_test('["test"]', '$MYSQLD_DATADIR/out.json')
 
 --echo # NULL argument: no "access denied", UDF reports its own error
 select json_file(NULL) IS NULL AS ok;
@@ -171,11 +206,27 @@ grant select ON *.* TO unprivileged@localhost;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
 
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jsonget_string('$MYSQL_TMP_DIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bsonget_string('$MYSQL_TMP_DIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json', 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select json_array_add('$MYSQL_TMP_DIR/secret.json' as jfile_x, 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json' as bfile_x, 1)
+--cat_file $MYSQL_TMP_DIR/secret.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_test('["test"]', '$MYSQL_TMP_DIR/out.json')
+
 --disconnect unprivileged
 --connection default
 
 --remove_file $MYSQL_TMP_DIR/bib0.json
 --remove_file $MYSQL_TMP_DIR/biblio.json
+--remove_file $MYSQL_TMP_DIR/secret.json
+--remove_file $MYSQLD_DATADIR/secret.json
 
 drop user unprivileged@localhost;
 

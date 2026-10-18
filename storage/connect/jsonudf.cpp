@@ -1430,6 +1430,7 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 	if (IsJson(args, 0) == 2) {
 		// Make the change in the json file
 		int pretty = 2;
+		PSZ fn = MakePSZ(g, args, 0);
 
 		for (uint i = n; i < args->arg_count; i++)
 			if (args->arg_type[i] == INT_RESULT) {
@@ -1437,7 +1438,9 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 				break;
 			} // endif type
 
-		if (!Serialize(g, top, MakePSZ(g, args, 0), pretty))
+		if (fn && !connect_can_access_file(fn))
+			PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		else if (!Serialize(g, top, fn, pretty))
 			PUSH_WARNING(g->Message);
 
 		str = NULL;
@@ -1446,7 +1449,9 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 
 		if (bsp->Filename) {
 			// Make the change in the json file
-			if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
+			if (!connect_can_access_file(bsp->Filename))
+				PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+			else if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
 				PUSH_WARNING(g->Message);
 
 			str = bsp->Filename;
@@ -1591,6 +1596,9 @@ static long GetFileLength(char *fn)
 {
 	int  h;
 	long len;
+
+	if (!connect_can_access_file(fn))
+		return 0;
 
 	h= open(fn, _O_RDONLY);
 
@@ -1908,6 +1916,11 @@ char *GetJsonFile(PGLOBAL g, char *fn)
 {
 	char   *str;
 	int     h, n, len;
+
+	if (!connect_can_access_file(fn)) {
+		snprintf(g->Message, sizeof(g->Message), "Access denied: FILE privilege or secure_file_priv violation");
+		return NULL;
+	} // endif fn
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 	h= open(fn, O_RDONLY);

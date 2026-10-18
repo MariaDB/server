@@ -1691,7 +1691,9 @@ char *BJNX::MakeResult(UDF_ARGS *args, PBVAL top, uint n)
 					break;
 				} // endif type
 
-			if (!Serialize(g, top, fn, pretty))
+			if (fn && !connect_can_access_file(fn))
+				PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+			else if (!Serialize(g, top, fn, pretty))
 				PUSH_WARNING(g->Message);
 
 			Changed = false;
@@ -1704,7 +1706,9 @@ char *BJNX::MakeResult(UDF_ARGS *args, PBVAL top, uint n)
 		if (bsp->Filename) {
 			if (Changed) {
 				// Make the change in the json file
-				if (!Serialize(g, (PBVAL)top, bsp->Filename, bsp->Pretty))
+				if (!connect_can_access_file(bsp->Filename))
+					PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+				else if (!Serialize(g, (PBVAL)top, bsp->Filename, bsp->Pretty))
 					PUSH_WARNING(g->Message);
 
 				Changed = false;
@@ -1944,6 +1948,9 @@ static long GetFileLength(char *fn)
 {
 	int  h;
 	long len;
+
+	if (!connect_can_access_file(fn))
+		return 0;
 
 	h= open(fn, _O_RDONLY);
 
@@ -3090,9 +3097,14 @@ char* bson_test(UDF_INIT* initid, UDF_ARGS* args, char* result,
 
 		for (uint i = 1; i < args->arg_count; i++)
 			if (args->arg_type[i] == STRING_RESULT)
-				fn = args->args[i];
+				fn = MakePSZ(g, args, i);
 			else if (args->arg_type[i] == INT_RESULT)
 				pretty = (int)*(longlong*)args->args[i];
+
+		if (fn && !connect_can_access_file(fn)) {
+			PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+			goto err;
+		} // endif fn
 
 		// Serialize the parse tree
 		str = bnx.Serialize(g, bvp, fn, pretty);
