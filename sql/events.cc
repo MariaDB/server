@@ -83,7 +83,6 @@ Event_queue *Events::event_queue;
 Event_scheduler *Events::scheduler;
 Event_db_repository *Events::db_repository;
 ulong Events::opt_event_scheduler= Events::EVENTS_OFF;
-ulong Events::startup_state= Events::EVENTS_OFF;
 ulong Events::inited;
 
 
@@ -111,6 +110,20 @@ int sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
 
 
 /**
+  Return true for any sql command except SHOW EVENTS and SHOW CREATE EVENT
+  statement; for SHOW EVENTS and SHOW CREATE EVENT commands return false.
+
+  @param sql_command  command id
+*/
+
+static inline bool is_not_show_event_related_cmd(enum_sql_command sql_command)
+{
+  return sql_command != SQLCOM_SHOW_EVENTS &&
+         sql_command != SQLCOM_SHOW_CREATE_EVENT;
+}
+
+
+/**
   Push an error into the error stack if the system tables are
   not up to date.
 */
@@ -119,7 +132,15 @@ bool Events::check_if_system_tables_error()
 {
   DBUG_ENTER("Events::check_if_system_tables_error");
 
-  if (opt_noacl)
+  /*
+    check_if_system_tables_error() is called for every DDL, DML event-related
+    commands (CREATE, ALTER, DROP, SHOW) including regular select from the
+    table information_schema.events. In case server is run with the option
+     --skip-grant-tables, any of events-related statements should be failed
+     except SHOW EVENTS/SHOW CREATE EVENT that is read-only statements
+     by its nature.
+  */
+  if (opt_noacl && is_not_show_event_related_cmd(current_thd->lex->sql_command))
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
              opt_bootstrap ? "--bootstrap" : "--skip-grant-tables");
@@ -264,42 +285,6 @@ common_1_lev_code:
   buf->append(tmp_buff, (uint) (end- tmp_buff));
   if (close_quote)
     buf->append('\'');
-
-  return 0;
-}
-
-
-/**
-  Create a new query string for removing executable comments
-  for avoiding leak and keeping consistency of the execution
-  on master and slave.
-
-  @param[in] thd                 Thread handler
-  @param[in] buf                 Query string
-
-  @return
-             0           ok
-             1           error
-*/
-static int
-create_query_string(THD *thd, String *buf)
-{
-  buf->length(0);
-  /* Append the "CREATE" part of the query */
-  if (thd->lex->create_info.or_replace())
-  {
-    if (buf->append(STRING_WITH_LEN("CREATE OR REPLACE ")))
-      return 1;
-  }
-  else if (buf->append(STRING_WITH_LEN("CREATE ")))
-    return 1;
-  /* Append definer */
-  append_definer(thd, buf, &(thd->lex->definer->user), &(thd->lex->definer->host));
-  /* Append the left part of thd->query after "DEFINER" part */
-  if (buf->append(thd->lex->stmt_definition_begin,
-                  thd->lex->stmt_definition_end -
-                  thd->lex->stmt_definition_begin))
-    return 1;
 
   return 0;
 }
@@ -822,10 +807,10 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   DBUG_ENTER("Events::fill_schema_events");
 
   /*
-    If we didn't start events because of --skip-grant-tables, return an
-    empty set
+    If we didn't start events because of --skip-grant-tables and
+    the current statement is not SHOW EVENTS, return an empty set
   */
-  if (opt_noacl)
+  if (opt_noacl && thd->lex->sql_command != SQLCOM_SHOW_EVENTS)
     DBUG_RETURN(0);
 
   if (unlikely(check_if_system_tables_error()))
@@ -1178,7 +1163,9 @@ Events::load_events_from_db(THD *thd)
   bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;
 
-  ret= db_repository->open_event_table(thd, TL_WRITE, &table);
+  bool sys_triggers_enabled;
+  ret= db_repository->open_event_table(thd, TL_WRITE, &table,
+                                       &sys_triggers_enabled);
 
   thd->tx_read_only= save_tx_read_only;
   thd->security_ctx->master_access= saved_master_access;
@@ -1207,7 +1194,7 @@ Events::load_events_from_db(THD *thd)
 
     DBUG_PRINT("info", ("Loading event from row."));
 
-    if (et->load_from_row(thd, table))
+    if (et->load_from_row(thd, table, sys_triggers_enabled))
     {
       my_message(ER_STARTUP,
                  "Event Scheduler: "
@@ -1218,6 +1205,14 @@ Events::load_events_from_db(THD *thd)
       goto end;
     }
 
+    if (et->trigger_event)
+    {
+      /*
+        Skip records of the table mysql.event for entries representing triggers
+      */
+      delete et;
+      continue;
+    }
 #ifdef WITH_WSREP
     /**
       If SST is done from a galera node that is also acting as MASTER

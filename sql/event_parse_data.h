@@ -54,6 +54,12 @@ public:
     ON_COMPLETION_PRESERVE
   };
 
+  enum enum_kind
+  {
+    SCHEDULE_EVENT= 0x01, SYS_TRG_ON_STARTUP= 0x02, SYS_TRG_ON_SHUTDOWN= 0x04,
+    SYS_TRG_ON_LOGON= 0x08, SYS_TRG_ON_LOGOFF= 0x10, SYS_TRG_ON_DDL= 0x20
+  };
+
   int on_completion;
   int status;
   bool status_changed;
