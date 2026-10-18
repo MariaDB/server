@@ -1,5 +1,7 @@
 source include/not_embedded.inc;
 source include/have_debug.inc;
+# IO::Socket::UNIX in MDEV-25176
+source include/not_windows.inc;
 -- source include/no_view_protocol.inc
 
 --echo #
@@ -15,3 +17,65 @@ exec $MYSQL -e "select sleep(3600)" >/dev/null 2>&1 &;
 let $wait_condition= select variable_value>@cons from information_schema.global_status where variable_name='connections';
 source include/wait_condition.inc;
 source include/restart_mysqld.inc;
+
+--echo #
+--echo # MDEV-25176 Shutdown hangs if event scheduler is started during shutdown
+--echo #
+
+# How it works: the test starts the scheduler, then con1 sets
+# only_kill_system_threads and does SHUTDOWN, so kill phase 1 of
+# close_connections() leaves default connection alive. When the
+# scheduler is gone from processlist, Events::stop() is done and default
+# connection tries to start it again by setting event_scheduler= 1.
+#
+# With the bug Events::stop() works normally, so wait_condition does not
+# halt, but the scheduler starts again (count 1) and shutdown would wait
+# for it forever, so default connection stops it by setting
+# event_scheduler= 0 before disconnecting. Then the test waits for the
+# server to restart.
+
+set global event_scheduler= 1;
+let $wait_condition= select count(*) = 1 from information_schema.processlist
+  where user = 'event_scheduler';
+source include/wait_condition.inc;
+
+let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`;
+let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect;
+write_line wait $_expect_file_name;
+
+# Kill phase 1 of close_connections() skips client threads.
+connect con1, localhost, root;
+set global debug_dbug= '+d,only_kill_system_threads';
+# shutdown_mysqld.inc cannot be used from con1 as it deadlocks: it waits
+# for the server to exit, while the server waits for default connection
+# to disconnect. The deadlock ends with the server killed by timeout and
+# the bug is never checked.
+shutdown;
+disconnect con1;
+
+# close_connections() did Events::stop()
+connection default;
+let $wait_condition= select count(*) = 0 from information_schema.processlist
+  where user = 'event_scheduler';
+source include/wait_condition.inc;
+set global event_scheduler= 1;
+--echo # Must be 0: the scheduler is not started after Events::stop()
+select count(*) as scheduler_started from information_schema.processlist
+  where user = 'event_scheduler';
+--echo # ON: the skipped start reports no error
+select @@global.event_scheduler;
+set global event_scheduler= 0;
+write_line restart $_expect_file_name;
+disconnect default;
+
+# Restart failure or hang is caught by --start-timeout or --testcase-timeout
+perl;
+  use IO::Socket::UNIX;
+  until (IO::Socket::UNIX->new(Peer => $ENV{MASTER_MYSOCK}))
+  {
+    select(undef, undef, undef, 0.1);
+  }
+EOF
+connect default, localhost, root;
+
+--echo # End of 10.11 tests
