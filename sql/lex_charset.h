@@ -17,6 +17,7 @@
 #define LEX_CHARSET_INCLUDED
 
 #include "charset_collations.h"
+#include "m_ctype.h"
 
 /*
   An extention for Charset_loader_mysys,
@@ -215,6 +216,10 @@ public:
   bool is_contextually_typed_binary_style() const
   {
     return m_ci == &my_collation_contextually_typed_binary;
+  }
+  bool is_contextually_typed_any_cs() const
+  {
+    return m_ci == &my_collation_contextually_typed_any_cs;
   }
   bool raise_if_not_equal(const Lex_context_collation &cl) const;
   /*
@@ -463,7 +468,8 @@ public:
     TYPE_CHARACTER_SET= 1,
     TYPE_COLLATE_EXACT= 2,
     TYPE_CHARACTER_SET_COLLATE_EXACT= 3,
-    TYPE_COLLATE_CONTEXTUALLY_TYPED= 4
+    TYPE_COLLATE_CONTEXTUALLY_TYPED= 4,
+    TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS= 5
   };
 
 // Number of bits required to store enum Type values
@@ -559,6 +565,15 @@ public:
     m_ci= &my_collation_contextually_typed_binary;
     m_type= TYPE_COLLATE_CONTEXTUALLY_TYPED;
   }
+  void set_collation_contextually_typed_any_cs()
+  {
+    m_ci= &my_collation_contextually_typed_any_cs;
+    m_type= TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS;
+  }
+  bool is_contextually_typed_collate_any_cs() const
+  {
+    return Lex_context_collation(m_ci).is_contextually_typed_any_cs();
+  }
   bool is_contextually_typed_collate_default() const
   {
     return Lex_context_collation(m_ci).is_contextually_typed_collate_default();
@@ -578,6 +593,7 @@ public:
     case TYPE_CHARACTER_SET_COLLATE_EXACT:
     case TYPE_COLLATE_CONTEXTUALLY_TYPED:
     case TYPE_COLLATE_EXACT:
+    case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
       break;
     }
     return m_ci;
@@ -588,7 +604,8 @@ public:
   }
   bool is_contextually_typed_collation() const
   {
-    return m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED;
+    return m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED ||
+           m_type == TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS;
   }
   CHARSET_INFO *resolved_to_character_set(Sql_used *used,
                                           const Charset_collation_map_st &map,
@@ -614,6 +631,7 @@ public:
       return merge_context_collation(used, map, Lex_context_collation(cl.m_ci));
     case TYPE_CHARACTER_SET:
     case TYPE_CHARACTER_SET_COLLATE_EXACT:
+    case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
       break;
     }
     DBUG_ASSERT(0);
@@ -640,6 +658,7 @@ public:
       return merge_context_collation(used, map, Lex_context_collation(cl.m_ci));
     case TYPE_CHARACTER_SET:
     case TYPE_CHARACTER_SET_COLLATE_EXACT:
+    case TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS:
       break;
     }
     DBUG_ASSERT(0);
@@ -798,7 +817,10 @@ public:
   explicit
   Lex_exact_charset_extended_collation_attrs(const Lex_context_collation &cl)
   {
-    init(cl.charset_info(), TYPE_COLLATE_CONTEXTUALLY_TYPED);
+    init(cl.charset_info(),
+         cl.is_contextually_typed_any_cs() ?
+         TYPE_COLLATE_CONTEXTUALLY_TYPED_ANY_CS :
+         TYPE_COLLATE_CONTEXTUALLY_TYPED);
   }
   explicit
   Lex_exact_charset_extended_collation_attrs(
