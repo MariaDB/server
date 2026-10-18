@@ -27,6 +27,15 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NOT NULL AS ok
 
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NOT NULL AS ok
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NOT NULL AS ok
+
 --echo # Privileged user: path outside secure_file_priv
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval select json_file('$MYSQLD_DATADIR/bib0.json') IS NULL AS denied
@@ -40,6 +49,24 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --eval select jbin_file('$MYSQLD_DATADIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval select bbin_file('$MYSQLD_DATADIR/biblio.json') IS NULL AS denied
+
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQLD_DATADIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQLD_DATADIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQLD_DATADIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQLD_DATADIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQLD_DATADIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQLD_DATADIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQLD_DATADIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQLD_DATADIR/out.json', 1024) IS NULL AS denied
 
 --echo # NULL argument: no "access denied", UDF reports its own error
 select json_file(NULL) IS NULL AS ok;
@@ -86,6 +113,15 @@ grant select ON *.* TO unprivileged@localhost;
 --eval select jbin_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
 
 --disconnect unprivileged
 --connection default
