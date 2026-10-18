@@ -5981,7 +5981,11 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
 
-	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
 		return NULL;
@@ -6055,7 +6059,11 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	else
 		lrecl = 1024;
 
-	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
 		return NULL;
