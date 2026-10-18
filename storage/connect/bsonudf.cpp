@@ -4701,6 +4701,12 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
 
+	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*is_null = 1;
+		return NULL;
+	}
+
 	if (!g->Xchk) {
 		JUP* jup = new(g) JUP(g);
 
@@ -4747,11 +4753,11 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	CalcLen(args, false, reslen, memlen);
 	memlen = memlen * M;
 	memlen += (args->arg_count == 3) ? (ulong)*(longlong*)args->args[2] : 1024;
-	return JsonInit(initid, args, message, false, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of bfile_bjson_init
 
 char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, uchar *, uchar *error) {
+	unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *buf, *str = NULL, fn[_MAX_PATH], ofn[_MAX_PATH];
 	bool    loop;
 	ssize_t len, newloc;
@@ -4767,6 +4773,12 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		lrecl = (size_t)*(longlong*)args->args[2];
 	else
 		lrecl = 1024;
+
+	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*is_null = 1;
+		return NULL;
+	}
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
