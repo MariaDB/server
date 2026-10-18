@@ -978,6 +978,10 @@ public:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_schema_valid>(thd, this); }
   void cleanup() override;
+protected:
+  /* Shared: cleanup() of a copy would free the parsed schema */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 class Item_func_json_key_value: public Item_json_func,
@@ -1059,6 +1063,10 @@ public:
     share with the original: not clonable.
   */
   Item *deep_copy(THD *thd) const override { return NULL; }
+protected:
+  /* Shared: cleanup() of a copy would free its hash */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 class Item_func_json_object_filter_keys: public Item_str_func
@@ -1100,6 +1108,10 @@ public:
     share with the original: not clonable.
   */
   Item *deep_copy(THD *thd) const override { return NULL; }
+protected:
+  /* Shared: cleanup() of a copy would free its hash */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
