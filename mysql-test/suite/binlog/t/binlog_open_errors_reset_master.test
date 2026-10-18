@@ -1,0 +1,145 @@
+#
+# Binlog-open error injection scenarios triggered by RESET MASTER, which
+# deletes all logs and re-creates #1 + index.
+#
+# STEPS:
+#   - for each DBUG knob: inject it, then RESET MASTER
+#   - record the client error, warnings and post-state via
+#     binlog_open_error_scenario.inc
+#   - restart between scenarios that turn logging off
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("Recovering after a crash .*");
+call mtr.add_suppression("Aborted .* during recovery .*");
+#
+# RESET MASTER's error path never calls my_error() on these knobs (see
+# scenario comments below), which trips DBUG_ASSERT(0) in
+# Protocol::end_statement -- a real bug this test is designed to surface,
+# not an artifact of the test itself.
+call mtr.add_suppression("protocol.cc.*Assertion .0. failed");
+call mtr.add_suppression("got signal 6");
+call mtr.add_suppression("Attempting backtrace");
+
+# Sanity baseline.
+RESET MASTER;
+--source include/binlog_open_error_show_binary_logs.inc
+
+#
+# Scenario: error_unique_log_filename via RESET MASTER
+#
+# RESET MASTER takes the binlog number back to 1 so the unique-filename
+# generator does not normally trip.  This scenario is included for
+# completeness but is expected to be a no-op trigger; we still check that
+# the server stays consistent.
+#
+--let $scn_id= reset_master.find_uniq_filename
+--let $scn_kind= error_inject
+--let $scn_dbug= error_unique_log_filename
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= find_uniq_filename
+--let $scn_skip_reason= RESET MASTER resets log number to 1 so error_unique_log_filename does not fire here
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_registering_index via RESET MASTER
+#
+# reset_master() (sql_repl.cc) returns reset_logs()'s raw error code
+# without ever calling my_error() -- sql_reload.cc even comments "NOTE:
+# my_error() has been already called by reset_master()", but it hasn't
+# been for this path. No error reaches the client and the missing
+# diagnostics-area report trips DBUG_ASSERT(0) in Protocol::end_statement,
+# crashing the server. Recorded here as a crash scenario since that is
+# the actual observed behaviour.
+#
+RESET MASTER;
+--let $scn_id= reset_master.registering_index
+--let $scn_kind= crash
+--let $scn_dbug= fault_injection_registering_index
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.purge_index_register
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_openning_index via RESET MASTER
+#
+# reset_logs()'s "if (create_new_log && !open_index_file(...)) if
+# (unlikely(error= open(...))) goto err;" never sets `error` when
+# open_index_file() itself fails (the outer condition is simply false) --
+# RESET MASTER reports success though the log was never reopened.
+#
+RESET MASTER;
+--let $scn_id= reset_master.openning_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_openning_index
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_poststate_crashes= 1
+--let $scn_mdev36606_row= open_index_file.open
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_recovering_index via RESET MASTER
+# Same unchecked-open_index_file() path as openning_index above.
+#
+RESET MASTER;
+--let $scn_id= reset_master.recovering_index
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_recovering_index
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_poststate_crashes= 1
+--let $scn_mdev36606_row= open_index_file.recover
+--source include/binlog_open_error_scenario.inc
+
+#
+# Scenario: fault_injection_updating_index via RESET MASTER
+# Fails inside open() itself (like registering_index above), so the same
+# missing-my_error() crash is expected.
+#
+RESET MASTER;
+--let $scn_id= reset_master.updating_index
+--let $scn_kind= crash
+--let $scn_dbug= fault_injection_updating_index
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= open.update_index
+--source include/binlog_open_error_scenario.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+#
+# Scenario: fault_injection_new_file_rotate_event via RESET MASTER
+# RESET MASTER does not call new_file_impl, so this knob does not fire.
+#
+RESET MASTER;
+--let $scn_id= reset_master.new_file_rotate_event
+--let $scn_kind= error_inject
+--let $scn_dbug= fault_injection_new_file_rotate_event
+--let $scn_trigger= reset_master
+--let $scn_expected_client_error=
+--let $scn_expected_logging_off= 0
+--let $scn_mdev36606_row= new_file_impl.rotate_event
+--let $scn_skip_reason= RESET MASTER does not invoke new_file_impl, so the rotate-event knob is unreachable here
+--source include/binlog_open_error_scenario.inc
+
+# Final cleanup
+RESET MASTER;

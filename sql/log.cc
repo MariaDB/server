@@ -2969,7 +2969,10 @@ static int find_uniq_filename(char *name, size_t name_size,
     max_found= *last_used_log_number;
   else
   {
-    if (unlikely(!(dir_info= my_dir(buff, MYF(MY_DONT_SORT)))))
+    dir_info= my_dir(buff, MYF(MY_DONT_SORT));
+    DBUG_EXECUTE_IF("fail_find_uniq_filename_dir_enum",
+                    if (dir_info) { my_dirend(dir_info); dir_info= NULL; });
+    if (unlikely(!dir_info))
     {						// This shouldn't happen
       strmov(end,".1");				// use name+1
       DBUG_RETURN(1);
@@ -2988,7 +2991,8 @@ static int find_uniq_filename(char *name, size_t name_size,
   }
 
   /* check if reached the maximum possible extension number */
-  if (max_found >= MAX_LOG_UNIQUE_FN_EXT)
+  if (max_found >= MAX_LOG_UNIQUE_FN_EXT ||
+      DBUG_IF("fail_find_uniq_filename_max_exceeded"))
   {
     sql_print_error("Log filename extension number exhausted: %06lu. \
 Please fix this by archiving old logs and \
@@ -2998,7 +3002,8 @@ updating the index files.", max_found);
   }
 
   next= max_found + 1;
-  if (snprintf(ext_buf, sizeof(ext_buf), "%06lu", next)<0)
+  if (snprintf(ext_buf, sizeof(ext_buf), "%06lu", next)<0 ||
+      DBUG_IF("fail_find_uniq_filename_snprintf1"))
   {
     error= 1;
     goto end;
@@ -3010,7 +3015,8 @@ updating the index files.", max_found);
     buffer size used. If one did not check this, then the filename might be
     truncated, resulting in error.
    */
-  if (((strlen(ext_buf) + (end - name)) >= FN_REFLEN))
+  if (((strlen(ext_buf) + (end - name)) >= FN_REFLEN) ||
+      DBUG_IF("fail_find_uniq_filename_too_long"))
   {
     sql_print_error("Log filename too large: %s%s (%zu). \
 Please fix this by archiving old logs and updating the \
@@ -3019,7 +3025,8 @@ index files.", name, ext_buf, (strlen(ext_buf) + (end - name)));
     goto end;
   }
 
-  if (snprintf(end, name + name_size - end, "%06lu", next)<0)
+  if (snprintf(end, name + name_size - end, "%06lu", next)<0 ||
+      DBUG_IF("fail_find_uniq_filename_snprintf2"))
   {
     error= 1;
     goto end;
@@ -3043,6 +3050,10 @@ bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
                                            enum_log_type log_type_arg,
                                            enum cache_type io_cache_type_arg)
 {
+  /* Binlog only: this function also serves the slow and general query logs. */
+  if (log_type_arg == LOG_BIN)
+    DBUG_EXECUTE_IF("fail_init_log_file_name", return TRUE;);
+
   log_type= log_type_arg;
   io_cache_type= io_cache_type_arg;
 
@@ -3134,7 +3145,8 @@ bool MYSQL_LOG::open(
 #endif
 
   if ((file= mysql_file_open(log_file_key, log_file_name, open_flags,
-                             MYF(MY_WME))) < 0)
+                             MYF(MY_WME))) < 0 ||
+      DBUG_IF("fail_mysql_log_open"))
     goto err;
 
   if (is_fifo)
@@ -4045,7 +4057,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 	In this case we write a standard header to it.
       */
       if (my_b_safe_write(&log_file, BINLOG_MAGIC,
-			  BIN_LOG_HEADER_SIZE))
+			  BIN_LOG_HEADER_SIZE) ||
+          DBUG_IF("fail_write_binlog_magic"))
         goto err;
       bytes_written+= BIN_LOG_HEADER_SIZE;
       write_file_name_to_index_file= 1;
@@ -4078,16 +4091,18 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
       crypto.scheme = 0;
       DBUG_ASSERT(s.checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-      if (!s.is_valid())
+      if (!s.is_valid() || DBUG_IF("fail_fde_invalid"))
         goto err;
       s.dont_set_created= null_created_arg;
-      if (write_event(&s))
+      if (write_event(&s) || DBUG_IF("fail_write_initial_fde"))
         goto err;
       bytes_written+= s.data_written;
 
       if (encrypt_binlog)
       {
         uint key_version= encryption_key_get_latest_version(ENCRYPTION_KEY_SYSTEM_DATA);
+        DBUG_EXECUTE_IF("fail_encryption_key_lookup",
+                        key_version= ENCRYPTION_KEY_VERSION_INVALID;);
         if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
         {
           sql_print_error("Failed to enable encryption of binary logs");
@@ -4096,16 +4111,18 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
         if (key_version != ENCRYPTION_KEY_NOT_ENCRYPTED)
         {
-          if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)))
+          if (my_random_bytes(crypto.nonce, sizeof(crypto.nonce)) ||
+              DBUG_IF("fail_my_random_bytes"))
             goto err;
 
           Start_encryption_log_event sele(1, key_version, crypto.nonce);
           sele.checksum_alg= s.checksum_alg;
-          if (write_event(&sele))
+          if (write_event(&sele) || DBUG_IF("fail_write_sele"))
             goto err;
 
           // Start_encryption_log_event is written, enable the encryption
-          if (crypto.init(sele.crypto_scheme, key_version))
+          if (crypto.init(sele.crypto_scheme, key_version) ||
+              DBUG_IF("fail_crypto_init"))
             goto err;
         }
       }
@@ -4149,7 +4166,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         */
 
         Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
-        if (write_event(&gl_ev))
+        if (write_event(&gl_ev) || DBUG_IF("fail_write_glle"))
           goto err;
 
         /* Output a binlog checkpoint event at the start of the binlog file. */
@@ -4168,6 +4185,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         size_t off= dirname_length(log_file_name);
         uint len= static_cast<uint>(strlen(log_file_name) - off);
         new_xid_list_entry= new xid_count_per_binlog(log_file_name+off, len);
+        DBUG_EXECUTE_IF("fail_alloc_xid_list_entry",
+                        { delete new_xid_list_entry; new_xid_list_entry= NULL; });
         if (!new_xid_list_entry)
           goto err;
 
@@ -4186,7 +4205,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         mysql_mutex_unlock(&LOCK_xid_list);
         if (!b)
           b= new_xid_list_entry;
-        if (b->binlog_name)
+        if (b->binlog_name && !DBUG_IF("fail_b_binlog_name"))
           strmake(buf, b->binlog_name, b->binlog_name_len);
         else
           goto err;
@@ -4195,7 +4214,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                         flush_io_cache(&log_file);
                         mysql_file_sync(log_file.file, MYF(MY_WME));
                         DBUG_SUICIDE(););
-        if (write_event(&ev))
+        if (write_event(&ev) || DBUG_IF("fail_write_checkpoint_event"))
           goto err;
         bytes_written+= ev.data_written;
       }
@@ -4232,7 +4251,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       bytes_written+= description_event_for_queue->data_written;
     }
     if (flush_io_cache(&log_file) ||
-        mysql_file_sync(log_file.file, MYF(MY_WME)))
+        mysql_file_sync(log_file.file, MYF(MY_WME)) ||
+        DBUG_IF("fail_flush_or_sync_log_file"))
       goto err;
 
     my_off_t offset= my_b_tell(&log_file);
@@ -4316,6 +4336,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
       char buf[FN_REFLEN];
       fn_format(buf, opt_bin_logname, mysql_data_home, ".state",
                 MY_UNPACK_FILENAME);
+      DBUG_EXECUTE_IF("fail_state_file_delete",
+                      strmov(buf, "/nonexistent-dir/mdev37015.state"););
       my_delete(buf, MY_SYNC_DIR);
       state_file_deleted= true;
     }
@@ -5187,6 +5209,7 @@ int MYSQL_BIN_LOG::close_purge_index_file()
   {
     end_io_cache(&purge_index_file);
     error= my_close(purge_index_file.file, MYF(0));
+    DBUG_EXECUTE_IF("fail_close_purge_index_file", error= 1;);
   }
   my_delete(purge_index_file_name, MYF(0));
   bzero((char*) &purge_index_file, sizeof(purge_index_file));
@@ -5703,7 +5726,9 @@ int MYSQL_BIN_LOG::new_file_impl()
     log rotation should give the waiting thread a signal to
     discover EOF and move on to the next log.
   */
-  if (unlikely((error= flush_io_cache(&log_file))))
+  error= flush_io_cache(&log_file);
+  DBUG_EXECUTE_IF("fail_flush_after_rotate_event", error= 1;);
+  if (unlikely(error))
   {
     close_on_error= TRUE;
     goto end;
