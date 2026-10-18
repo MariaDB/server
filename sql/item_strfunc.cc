@@ -580,15 +580,16 @@ String *Item_func_decode_histogram::val_str(String *str)
     return 0;
   }
 
-  if (type == DOUBLE_PREC_HB && res->length() % 2 != 0)
-    res->length(res->length() - 1); // one byte is unused
+  size_t length= res->length();
+  if (type == DOUBLE_PREC_HB)
+    length&= ~1U;
 
   double prev= 0.0;
   uint i;
   str->length(0);
   char numbuf[32];
   const uchar *p= (uchar*)res->c_ptr_safe();
-  for (i= 0; i < res->length(); i++)
+  for (i= 0; i < length; i++)
   {
     double val;
     switch (type)

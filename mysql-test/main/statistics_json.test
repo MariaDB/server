@@ -686,4 +686,7 @@ drop table t1;
 --echo #
 SELECT DECODE_HISTOGRAM('JSON_HB', REPEAT('A',80));
 
+--echo # Item_func_decode_histogram::val_str shouldn't modify its arguments
+SELECT DECODE_HISTOGRAM('DOUBLE_PREC_HB',x), x from (select '123' x from seq_1_to_2) y;
+
 --echo # End of 10.11 tests
