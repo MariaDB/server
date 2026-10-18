@@ -4701,7 +4701,11 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
 
-	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
 		return NULL;
@@ -4758,7 +4762,7 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 
 char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, uchar *is_null, uchar *error) {
-	char   *buf, *str = NULL, fn[_MAX_PATH], ofn[_MAX_PATH];
+	char   *fn, *ofn, *buf, *str = NULL;
 	bool    loop;
 	ssize_t len, newloc;
 	size_t  lrecl, binszp;
@@ -4766,15 +4770,19 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	BDOC    doc(g);
 
-	snprintf(fn, sizeof(fn), "%s",  MakePSZ(g, args, 0));
-	snprintf(ofn, sizeof(ofn), "%s", MakePSZ(g, args, 1));
+	fn = MakePSZ(g, args, 0);
+	ofn = MakePSZ(g, args, 1);
 
 	if (args->arg_count == 3)
 		lrecl = (size_t)*(longlong*)args->args[2];
 	else
 		lrecl = 1024;
 
-	if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
 		return NULL;
