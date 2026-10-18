@@ -624,6 +624,20 @@ typedef uint64 my_thread_id;
 */
 #define MY_THREAD_ID_MAX UINT32_MAX
 
+#ifdef _WIN32
+#define MAX_THREAD_NAME 256
+#elif defined(__linux__)
+#define MAX_THREAD_NAME 16
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+#define MAX_THREAD_NAME 19
+#include <pthread_np.h>
+#elif defined(__apple_build_version__)
+#include <sys/proc_info.h>
+#define MAX_THREAD_NAME MAXTHREADNAMESIZE
+#else
+#define MAX_THREAD_NAME 16
+#endif
+
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
 extern void my_thread_set_name(const char *);
