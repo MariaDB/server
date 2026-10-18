@@ -71,22 +71,21 @@ select bbin_file(@fname) IS NOT NULL AS ok;
 create user unprivileged@localhost;
 grant select ON *.* TO unprivileged@localhost;
 
---connect(unprivileged,localhost,unprivileged,,)
---connection unprivileged
+--connect unprivileged,localhost,unprivileged
 
 --echo # inside secure_file_priv: denied without FILE privilege
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select json_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;
+--eval select json_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bson_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;
+--eval select bson_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select jfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;
+--eval select jfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;
+--eval select bfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select jbin_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;
+--eval select jbin_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;
+--eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied
 
 --disconnect unprivileged
 --connection default
