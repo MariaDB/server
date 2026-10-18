@@ -1,0 +1,282 @@
+#
+# Pluggable data type HLL
+#
+SELECT plugin_name, plugin_type, plugin_status FROM information_schema.plugins
+WHERE plugin_name='hll';
+plugin_name	plugin_type	plugin_status
+hll	DATA TYPE	ACTIVE
+#
+# Column definition
+#
+CREATE TABLE t1 (h HLL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT column_type, data_type, character_set_name
+FROM information_schema.columns WHERE table_name='t1';
+column_type	data_type	character_set_name
+hll	hll	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (h HLL(10));
+ERROR HY000: Data type 'HLL' doesn't support LENGTH attribute.
+CREATE TABLE t1 (h HLL CHARACTER SET latin1);
+ERROR HY000: Data type 'HLL' doesn't support CHARACTER SET attribute.
+#
+# Keys are not supported
+#
+CREATE TABLE t1 (h HLL, KEY(h(10)));
+ERROR HY000: Illegal parameter data type hll for operation 'KEY'
+CREATE TABLE t1 (h HLL, UNIQUE(h));
+ERROR HY000: Illegal parameter data type hll for operation 'KEY'
+CREATE TABLE t1 (h HLL, PRIMARY KEY(h(10)));
+ERROR HY000: Illegal parameter data type hll for operation 'KEY'
+CREATE TABLE t1 (h HLL, FULLTEXT(h));
+ERROR HY000: Column 'h' cannot be part of FULLTEXT index
+CREATE TABLE t1 (id INT, h HLL);
+ALTER TABLE t1 ADD KEY(h(10));
+ERROR HY000: Illegal parameter data type hll for operation 'KEY'
+DROP TABLE t1;
+#
+# Valid values: EMPTY, EXPLICIT, FULL; binary round trip
+#
+CREATE TABLE t1 (id INT, h HLL);
+INSERT INTO t1 VALUES (1, 0x11);
+INSERT INTO t1 VALUES (2, 0x1200000000000000010000000000000002);
+INSERT INTO t1 VALUES (3, CONCAT(0x13, REPEAT(0x00, 12288)));
+INSERT INTO t1 VALUES (4, CONCAT(0x13, 0x732000, REPEAT(0x00, 12284), 0xcc));
+INSERT INTO t1 VALUES (5, NULL);
+SELECT id, LENGTH(h), LEFT(HEX(h), 40) FROM t1 ORDER BY id;
+id	LENGTH(h)	LEFT(HEX(h), 40)
+1	1	11
+2	17	1200000000000000010000000000000002
+3	12289	1300000000000000000000000000000000000000
+4	12289	1373200000000000000000000000000000000000
+5	NULL	NULL
+SELECT id, MD5(h) FROM t1 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	534b21d57af2db19fc57025681881be9
+4	25e5db9ccc990f008c702023ff28bdad
+5	NULL
+#
+# Malformed values are rejected
+#
+INSERT INTO t1 VALUES (10, '');
+ERROR HY000: Incorrect HLL value: ''
+INSERT INTO t1 VALUES (10, 0x21);
+ERROR HY000: Incorrect HLL value: '!'
+INSERT INTO t1 VALUES (10, 0x10);
+ERROR HY000: Incorrect HLL value: '\x10'
+INSERT INTO t1 VALUES (10, 0x14);
+ERROR HY000: Incorrect HLL value: '\x14'
+INSERT INTO t1 VALUES (10, 0x1100);
+ERROR HY000: Incorrect HLL value: '\x11\x00'
+INSERT INTO t1 VALUES (10, 0x12);
+ERROR HY000: Incorrect HLL value: '\x12'
+INSERT INTO t1 VALUES (10, 0x1200000000000001);
+ERROR HY000: Incorrect HLL value: '\x12\x00\x00\x00\x00\x00\x00\x01'
+INSERT INTO t1 VALUES (10, 0x1200000000000000050000000000000005);
+ERROR HY000: Incorrect HLL value: '\x12\x00\x00\x00\x00\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x05'
+INSERT INTO t1 VALUES (10, 0x1200000000000000060000000000000005);
+ERROR HY000: Incorrect HLL value: '\x12\x00\x00\x00\x00\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\x05'
+INSERT INTO t1 VALUES (10, CONCAT(0x13, REPEAT(0x00, 12287)));
+ERROR HY000: Incorrect HLL value: '\x13\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\...'
+INSERT INTO t1 VALUES (10, CONCAT(0x13, 0x34, REPEAT(0x00, 12287)));
+ERROR HY000: Incorrect HLL value: '\x134\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00...'
+INSERT INTO t1 VALUES (10, 'text');
+ERROR HY000: Incorrect HLL value: 'text'
+UPDATE t1 SET h=0x21 WHERE id=1;
+ERROR HY000: Incorrect HLL value: '!'
+# Non-strict mode does not turn the error into a warning
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode='';
+INSERT INTO t1 VALUES (10, 0x21);
+ERROR HY000: Incorrect HLL value: '!'
+SET sql_mode=@save_sql_mode;
+SELECT COUNT(*) FROM t1 WHERE id=10;
+COUNT(*)
+0
+# INSERT ... SELECT, LOAD DATA and ALTER from BLOB go through validation
+CREATE TABLE t2 (id INT, b LONGBLOB);
+INSERT INTO t2 VALUES (20, 0x11), (21, 0x21);
+INSERT INTO t1 SELECT * FROM t2;
+ERROR HY000: Incorrect HLL value: '!'
+INSERT INTO t1 SELECT * FROM t2 WHERE id=20;
+ALTER TABLE t2 MODIFY b HLL;
+ERROR HY000: Incorrect HLL value: '!'
+DELETE FROM t2 WHERE id=21;
+ALTER TABLE t2 MODIFY b HLL;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `b` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 (id INT, b LONGBLOB);
+INSERT INTO t2 VALUES (30, 0x11), (31, 0x21);
+LOAD DATA INFILE '/git/BuildOf_mdb-13/mysql-test/var/tmp/hll.txt' INTO TABLE t1;
+ERROR HY000: Incorrect HLL value: '!'
+DROP TABLE t2;
+# MyISAM keeps rows written before the failing row; no invalid value is stored
+SELECT id, HEX(h) FROM t1 WHERE id >= 10 ORDER BY id;
+id	HEX(h)
+20	11
+20	11
+30	11
+#
+# CAST AS HLL
+#
+SELECT HEX(CAST(0x11 AS HLL));
+HEX(CAST(0x11 AS HLL))
+11
+SELECT CAST(0x21 AS HLL);
+ERROR HY000: Incorrect HLL value: '!'
+CREATE TABLE t2 AS SELECT CAST(0x11 AS HLL) AS c;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+EXPLAIN EXTENDED SELECT CAST(h AS HLL) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	
+Warnings:
+Note	1003	select cast(`test`.`t1`.`h` as hll) AS `CAST(h AS HLL)` from `test`.`t1`
+#
+# Comparison and numeric operations are not supported
+#
+SELECT * FROM t1 WHERE h = h;
+ERROR HY000: Illegal parameter data types hll and hll for operation '='
+SELECT * FROM t1 WHERE h = 0x11;
+ERROR HY000: Illegal parameter data types hll and hex_hybrid for operation '='
+SELECT * FROM t1 WHERE h < h;
+ERROR HY000: Illegal parameter data types hll and hll for operation '<'
+SELECT h + 1 FROM t1;
+ERROR HY000: Illegal parameter data types hll and int for operation '+'
+SELECT -h FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation '-'
+SELECT ABS(h) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'abs'
+SELECT SUM(h) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'sum'
+SELECT CAST(h AS SIGNED) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'cast_as_signed'
+SELECT CAST(h AS DOUBLE) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'double_typecast'
+SELECT MAX(h) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'max('
+SELECT MIN(h) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'min('
+SELECT GREATEST(h, h) FROM t1;
+ERROR HY000: Illegal parameter data types hll and hll for operation 'greatest'
+SELECT h IS NULL FROM t1 ORDER BY id;
+h IS NULL
+0
+0
+0
+0
+1
+0
+0
+0
+#
+# CTAS, temporary, derived tables, views, prepared statements
+#
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT id, MD5(h) FROM t2 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	534b21d57af2db19fc57025681881be9
+4	25e5db9ccc990f008c702023ff28bdad
+5	NULL
+20	47ed733b8d10be225eceba344d533586
+20	47ed733b8d10be225eceba344d533586
+30	47ed733b8d10be225eceba344d533586
+DROP TABLE t2;
+CREATE TEMPORARY TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT id, MD5(h) FROM t2 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	534b21d57af2db19fc57025681881be9
+4	25e5db9ccc990f008c702023ff28bdad
+5	NULL
+20	47ed733b8d10be225eceba344d533586
+20	47ed733b8d10be225eceba344d533586
+30	47ed733b8d10be225eceba344d533586
+DROP TEMPORARY TABLE t2;
+SELECT id, MD5(h) FROM (SELECT * FROM t1) d ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	534b21d57af2db19fc57025681881be9
+4	25e5db9ccc990f008c702023ff28bdad
+5	NULL
+20	47ed733b8d10be225eceba344d533586
+20	47ed733b8d10be225eceba344d533586
+30	47ed733b8d10be225eceba344d533586
+CREATE VIEW v1 AS SELECT id, h FROM t1;
+SELECT id, MD5(h) FROM v1 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	534b21d57af2db19fc57025681881be9
+4	25e5db9ccc990f008c702023ff28bdad
+5	NULL
+20	47ed733b8d10be225eceba344d533586
+20	47ed733b8d10be225eceba344d533586
+30	47ed733b8d10be225eceba344d533586
+CREATE TABLE t2 AS SELECT * FROM v1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+DROP VIEW v1;
+CREATE TABLE t2 AS SELECT COALESCE(h, h) AS c FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT h FROM t1 UNION ALL SELECT h FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?, ?)';
+SET @v= 0x11;
+EXECUTE stmt USING 40, @v;
+EXECUTE stmt USING 41, @v;
+SET @v= 0x21;
+EXECUTE stmt USING 42, @v;
+ERROR HY000: Incorrect HLL value: '!'
+DEALLOCATE PREPARE stmt;
+SELECT id, HEX(h) FROM t1 WHERE id >= 40 ORDER BY id;
+id	HEX(h)
+40	11
+41	11
+DROP TABLE t1;
