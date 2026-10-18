@@ -176,6 +176,53 @@ ok
 1
 Warnings:
 Warning	1105	Missing file name
+select jfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select jfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select bfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select bfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select jfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select jfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select bfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+select bfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+ok
+1
+Warnings:
+Warning	1105	Missing LRECL
+# Non-constant LRECL (args->args[2] is NULL at init time)
+select jfile_bjson('MYSQL_TMP_DIR/bib0.json', 'MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok;
+ok
+1
+select bfile_bjson('MYSQL_TMP_DIR/bib0.json', 'MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok;
+ok
+1
 # Privileged user: relative path resolving outside secure_file_priv
 select json_file('../../bib0.json') IS NULL AS denied;
 denied

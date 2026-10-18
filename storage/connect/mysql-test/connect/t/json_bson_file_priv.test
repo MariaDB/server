@@ -87,6 +87,22 @@ select bfile_bjson(NULL, 'out.json', 0) IS NULL AS ok;
 select bfile_bjson('bib0.json', NULL, 0) IS NULL AS ok;
 select bfile_convert(NULL, 'out.json', 1024) IS NULL AS ok;
 select bfile_convert('biblio.json', NULL, 1024) IS NULL AS ok;
+select jfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select jfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select bfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select bfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select jfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select jfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select bfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select bfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+
+--echo # Non-constant LRECL (args->args[2] is NULL at init time)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
 
 --echo # Privileged user: relative path resolving outside secure_file_priv
 select json_file('../../bib0.json') IS NULL AS denied;
