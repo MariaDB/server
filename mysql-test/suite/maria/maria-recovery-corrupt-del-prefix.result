@@ -1,0 +1,27 @@
+call mtr.add_suppression("File '.*aria_log.000.*' not found");
+drop database if exists mysqltest;
+create database mysqltest;
+connect  admin, localhost, root,,mysqltest,,;
+connection default;
+use mysqltest;
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+create table t1 (a int, b varchar(200), key(b))
+transactional=1 row_format=page engine=aria;
+insert into t1 (a,b)
+select seq, concat('k',lpad(seq*7919%100003,6,'0'),repeat('q',150))
+from seq_1_to_2000;
+set session debug_dbug="+d,corrupt_del_prefix";
+delete from t1 where a % 4 <> 0;
+select count(*) from t1;
+count(*)
+500
+set session debug_dbug="+d,maria_flush_whole_log,maria_crash";
+set global aria_checkpoint_interval=1;
+ERROR HY000: Lost connection to server during query
+# Recovery must refuse the record, not apply it and crash on the bmove.
+FOUND 1 /Aria engine: Redo phase failed/ in mdev40494.err
+NOT FOUND /AddressSanitizer|got signal 11/ in mdev40494.err
+drop database mysqltest;

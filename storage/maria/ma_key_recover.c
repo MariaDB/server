@@ -346,7 +346,9 @@ my_bool _ma_log_prefix(MARIA_PAGE *ma_page, uint changed_length,
   {
     /* Delete prefix */
     log_pos[0]= KEY_OP_DEL_PREFIX;
-    int2store(log_pos+1, -move_length);
+    int2store(log_pos+1,
+              DBUG_IF("corrupt_del_prefix") ? ma_page->org_size
+                                            : (uint) -move_length);
     log_pos+= 3;
     if (changed_length)
     {
@@ -1046,7 +1048,12 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       uint length= uint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_del_prefix: %u", length));
-      DBUG_ASSERT(length <= page_length - keypage_header);
+      if (unlikely(keypage_header + length > page_length))
+      {
+        DBUG_ASSERT(!maria_assert_if_crashed_table);
+        result= mark_crashed= 1;
+        goto err;
+      }
 
       bmove(buff + keypage_header, buff + keypage_header +
             length, page_length - keypage_header - length);
