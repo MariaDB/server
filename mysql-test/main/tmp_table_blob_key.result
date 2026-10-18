@@ -1,0 +1,91 @@
+#
+# A constant compared against a blob key part of a materialized
+# derived table.  The key holds a pointer to the value rather than
+# the value itself, so the value has to stay alive for as long as
+# the key is used.
+#
+CREATE TABLE t1 (f1 TEXT) CHARSET=latin1;
+CREATE TABLE t2 (f2 TEXT) CHARSET=latin1;
+INSERT INTO t1 VALUES (REPEAT('x',100));
+INSERT INTO t2 VALUES (REPEAT('x',100)), (REPEAT('y',100)), (REPEAT('z',100));
+SELECT t1.f1 = sq.f2 AS matched FROM t1
+LEFT JOIN (SELECT DISTINCT f2 FROM t2) sq ON sq.f2 = t1.f1;
+matched
+1
+DROP TABLE t1, t2;
+#
+# A blob column of a derived table that is materialized on disk.
+# Only the HEAP temporary table can key on a blob, so no key may be
+# built here.
+#
+CREATE TABLE t4 (c1 TEXT, c2 INT NOT NULL) CHARSET=latin1;
+CREATE TABLE t5 (d1 TEXT, d2 INT NOT NULL) CHARSET=latin1;
+INSERT INTO t5 SELECT CONCAT('v', LPAD(seq,10,'0')), seq FROM seq_1_to_300;
+INSERT INTO t4 VALUES ('v0000000007', 7), ('v0000000009', 9);
+set @sw=@@optimizer_switch;
+set @tms=@@tmp_memory_table_size;
+set optimizer_switch='derived_merge=off,condition_pushdown_for_derived=off';
+# In memory: the blob key part is available.
+EXPLAIN
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	13	test.t4.c1	10	
+2	DERIVED	t5	ALL	NULL	NULL	NULL	NULL	300	
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+c2
+7
+9
+# On disk: it is not, and the join has to fall back to a scan.
+set tmp_memory_table_size=0;
+EXPLAIN
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	300	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t5	ALL	NULL	NULL	NULL	NULL	300	
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+c2
+7
+9
+set tmp_memory_table_size=@tms;
+set optimizer_switch=@sw;
+DROP TABLE t4, t5;
+#
+# A blob column that passes through an internal temporary table must
+# still report the table it originates from, and the same flags it
+# would report without one.
+#
+CREATE TABLE t1 (a TEXT, b INT) CHARSET=latin1;
+INSERT INTO t1 VALUES ('aa', 1), ('bb', 2), ('aa', 3);
+SELECT a, b FROM t1 GROUP BY a, b;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	252	65535	2	Y	32788	0	8
+def	test	t1	t1	b	b	3	11	1	Y	32772	0	63
+a	b
+aa	1
+aa	3
+bb	2
+# The same columns, with no temporary table, for comparison.
+SELECT a, b FROM t1 ORDER BY a, b;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	252	65535	2	Y	16	0	8
+def	test	t1	t1	b	b	3	11	1	Y	32768	0	63
+a	b
+aa	1
+aa	3
+bb	2
+DROP TABLE t1;
+CREATE TABLE t2 (a LONGTEXT NOT NULL, b INT) CHARSET=latin1;
+CREATE TABLE t3 (a VARCHAR(10) NOT NULL, b INT) CHARSET=latin1;
+INSERT INTO t2 VALUES ('x', 1), ('z', 3);
+INSERT INTO t3 VALUES ('y', 2), ('w', 4);
+SELECT a FROM t2 UNION SELECT a FROM t3 ORDER BY a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				a	a	252	4294967295	1	N	16405	0	8
+a
+w
+x
+y
+z
+DROP TABLE t2, t3;
