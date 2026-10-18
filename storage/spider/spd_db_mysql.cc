@@ -6742,7 +6742,8 @@ int spider_mbase_share::append_column_name_with_alias(
     column_name_str[field_index].length() +
     /* SPIDER_SQL_NAME_QUOTE_LEN */ 2))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  str->q_append(alias, alias_length);
+  if (alias)
+    str->q_append(alias, alias_length);
   append_column_name(str, field_index);
   DBUG_RETURN(0);
 }
@@ -6762,9 +6763,11 @@ int spider_mbase_share::append_table_name(
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
-  spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
+  if (db_nm_len)
+    spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
-  spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
+  if (table_nm_len)
+    spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
   DBUG_RETURN(0);
 }
 
@@ -6780,9 +6783,11 @@ int spider_mbase_share::append_table_name_with_adjusting(
   uint table_nm_max_len = table_nm_max_length;
   DBUG_ENTER("spider_mbase_share::append_table_name_with_adjusting");
   DBUG_PRINT("info",("spider this=%p", this));
-  spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
+  if (db_nm_len)
+    spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
-  spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
+  if (table_nm_len)
+    spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
   uint length =
     db_nm_max_len - db_nm_len +
     table_nm_max_len - table_nm_len;
@@ -10697,13 +10702,15 @@ int spider_mbase_handler::append_key_order_with_alias(
           if (str->reserve(alias_length + key_name_length +
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
         } else {
           if (str->reserve(alias_length + key_name_length +
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_DESC_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
           str->q_append(SPIDER_SQL_DESC_STR, SPIDER_SQL_DESC_LEN);
         }
@@ -10733,7 +10740,8 @@ int spider_mbase_handler::append_key_order_with_alias(
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
             SPIDER_SQL_DESC_LEN + SPIDER_SQL_COMMA_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
           str->q_append(SPIDER_SQL_DESC_STR, SPIDER_SQL_DESC_LEN);
           str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -10741,7 +10749,8 @@ int spider_mbase_handler::append_key_order_with_alias(
           if (str->reserve(alias_length + key_name_length +
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_COMMA_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
           str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
         }
@@ -10765,14 +10774,16 @@ int spider_mbase_handler::append_key_order_with_alias(
           if (str->reserve(alias_length + key_name_length +
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_DESC_LEN))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
           str->q_append(SPIDER_SQL_DESC_STR, SPIDER_SQL_DESC_LEN);
         } else {
           if (str->reserve(alias_length + key_name_length +
             /* SPIDER_SQL_NAME_QUOTE_LEN */ 2))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(alias, alias_length);
+	  if (alias)
+            str->q_append(alias, alias_length);
           mysql_share->append_column_name(str, field->field_index);
         }
       }
