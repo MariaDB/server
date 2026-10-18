@@ -1,0 +1,330 @@
+--echo MariaDB frm parser test - Sequence Default Expressions
+--echo Testing sequence integration in DEFAULT expressions and various contexts
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+# Test basic sequence defaults
+CREATE SEQUENCE seq_basic START WITH 1000 INCREMENT BY 1;
+CREATE TABLE t_basic_sequence (
+  id INT DEFAULT NEXTVAL(seq_basic) PRIMARY KEY,
+  name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_basic_sequence.frm
+DROP TABLE t_basic_sequence;
+DROP SEQUENCE seq_basic;
+
+# Test sequence with custom increment and start values
+CREATE SEQUENCE seq_custom START WITH 5000 INCREMENT BY 10 MINVALUE 1000 MAXVALUE 999999;
+CREATE TABLE t_custom_sequence (
+  order_id INT DEFAULT NEXTVAL(seq_custom),
+  batch_id INT DEFAULT NEXTVAL(seq_custom),
+  item_code VARCHAR(50),
+  quantity INT DEFAULT 1
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_custom_sequence.frm
+DROP TABLE t_custom_sequence;
+DROP SEQUENCE seq_custom;
+
+# Test multiple sequences in same table
+CREATE SEQUENCE seq_orders START WITH 10000 INCREMENT BY 1;
+CREATE SEQUENCE seq_items START WITH 50000 INCREMENT BY 5;
+CREATE SEQUENCE seq_batches START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_multiple_sequences (
+  order_id INT DEFAULT NEXTVAL(seq_orders),
+  item_id INT DEFAULT NEXTVAL(seq_items),
+  batch_id INT DEFAULT NEXTVAL(seq_batches),
+  description TEXT,
+  price DECIMAL(10,2) DEFAULT 0.00
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_multiple_sequences.frm
+DROP TABLE t_multiple_sequences;
+DROP SEQUENCE seq_orders;
+DROP SEQUENCE seq_items;
+DROP SEQUENCE seq_batches;
+
+# Test sequence in computed expressions
+CREATE SEQUENCE seq_computed START WITH 100 INCREMENT BY 2;
+CREATE TABLE t_computed_sequence (
+  id INT,
+  base_number INT DEFAULT NEXTVAL(seq_computed),
+  doubled_value INT AS (base_number * 2) VIRTUAL,
+  formatted_id VARCHAR(20) AS (CONCAT('ID-', LPAD(base_number, 6, '0'))) STORED,
+  is_even BOOLEAN AS (base_number % 2 = 0) VIRTUAL,
+  range_category VARCHAR(20) AS (
+    CASE 
+      WHEN base_number < 200 THEN 'LOW'
+      WHEN base_number < 500 THEN 'MEDIUM'
+      ELSE 'HIGH'
+    END
+  ) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_computed_sequence.frm
+DROP TABLE t_computed_sequence;
+DROP SEQUENCE seq_computed;
+
+# Test sequence with cycle option
+CREATE SEQUENCE seq_cycle START WITH 1 INCREMENT BY 1 MAXVALUE 5 CYCLE;
+CREATE TABLE t_cycle_sequence (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  cycle_value INT DEFAULT NEXTVAL(seq_cycle),
+  data VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_cycle_sequence.frm
+DROP TABLE t_cycle_sequence;
+DROP SEQUENCE seq_cycle;
+
+# Test sequence with cache option
+CREATE SEQUENCE seq_cached START WITH 1000 INCREMENT BY 1 CACHE 20;
+CREATE TABLE t_cached_sequence (
+  transaction_id INT DEFAULT NEXTVAL(seq_cached),
+  reference_id INT DEFAULT NEXTVAL(seq_cached),
+  amount DECIMAL(15,2),
+  currency VARCHAR(3) DEFAULT 'USD'
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_cached_sequence.frm
+DROP TABLE t_cached_sequence;
+DROP SEQUENCE seq_cached;
+
+# Test sequence combined with other default expressions
+CREATE SEQUENCE seq_mixed START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_mixed_sequence_defaults (
+  id INT DEFAULT NEXTVAL(seq_mixed),
+  uuid_val VARCHAR(36) DEFAULT (UUID()),
+  random_val INT DEFAULT (FLOOR(RAND() * 1000)),
+  timestamp_val TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  computed_val INT AS (id * 100 + random_val) STORED,
+  formatted_key VARCHAR(50) AS (CONCAT('KEY-', id, '-', SUBSTRING(uuid_val, 1, 8))) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_mixed_sequence_defaults.frm
+DROP TABLE t_mixed_sequence_defaults;
+DROP SEQUENCE seq_mixed;
+
+# Test sequences with different data types and constraints
+CREATE SEQUENCE seq_bigint START WITH 9223372036854775800 INCREMENT BY 1;
+CREATE TABLE t_sequence_datatypes (
+  tiny_seq TINYINT DEFAULT (NEXTVAL(seq_bigint) % 127),
+  small_seq SMALLINT DEFAULT (NEXTVAL(seq_bigint) % 32767),
+  int_seq INT DEFAULT (NEXTVAL(seq_bigint) % 2147483647),
+  bigint_seq BIGINT DEFAULT NEXTVAL(seq_bigint),
+  decimal_seq DECIMAL(20,2) DEFAULT (NEXTVAL(seq_bigint) / 100.0),
+  float_seq FLOAT DEFAULT (NEXTVAL(seq_bigint) * 0.001)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence_datatypes.frm
+DROP TABLE t_sequence_datatypes;
+DROP SEQUENCE seq_bigint;
+
+# Test sequence in conditional expressions
+CREATE SEQUENCE seq_conditional START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_conditional_sequence (
+  id INT,
+  priority INT DEFAULT (
+    CASE 
+      WHEN NEXTVAL(seq_conditional) % 10 = 0 THEN 3
+      WHEN NEXTVAL(seq_conditional) % 5 = 0 THEN 2
+      ELSE 1
+    END
+  ),
+  sequence_val INT DEFAULT NEXTVAL(seq_conditional),
+  status VARCHAR(20) DEFAULT (
+    CASE 
+      WHEN sequence_val % 3 = 0 THEN 'APPROVED'
+      WHEN sequence_val % 3 = 1 THEN 'PENDING'
+      ELSE 'REJECTED'
+    END
+  )
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_conditional_sequence.frm
+DROP TABLE t_conditional_sequence;
+DROP SEQUENCE seq_conditional;
+
+# Test sequence with mathematical operations
+CREATE SEQUENCE seq_math START WITH 10 INCREMENT BY 3;
+CREATE TABLE t_sequence_math (
+  base_val INT DEFAULT NEXTVAL(seq_math),
+  squared_val BIGINT AS (base_val * base_val) VIRTUAL,
+  cubed_val BIGINT AS (base_val * base_val * base_val) STORED,
+  factorial_approx DOUBLE AS (
+    CASE 
+      WHEN base_val <= 1 THEN 1
+      WHEN base_val <= 10 THEN POWER(base_val, base_val/2)
+      ELSE POWER(base_val, LOG(base_val))
+    END
+  ) VIRTUAL,
+  fibonacci_approx INT AS (
+    CASE 
+      WHEN base_val <= 2 THEN 1
+      ELSE FLOOR(POWER(((1 + SQRT(5))/2), base_val) / SQRT(5) + 0.5)
+    END
+  ) VIRTUAL,
+  prime_check BOOLEAN AS (
+    base_val > 1 AND (
+      base_val = 2 OR base_val = 3 OR base_val = 5 OR base_val = 7 OR
+      (base_val % 2 != 0 AND base_val % 3 != 0 AND base_val % 5 != 0 AND base_val % 7 != 0)
+    )
+  ) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence_math.frm
+DROP TABLE t_sequence_math;
+DROP SEQUENCE seq_math;
+
+# Test sequences with string operations
+CREATE SEQUENCE seq_string START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_sequence_string (
+  id INT DEFAULT NEXTVAL(seq_string),
+  padded_id VARCHAR(10) AS (LPAD(id, 8, '0')) VIRTUAL,
+  hex_id VARCHAR(20) AS (CONCAT('0x', HEX(id))) VIRTUAL,
+  binary_id VARCHAR(64) AS (BIN(id)) VIRTUAL,
+  encoded_id VARCHAR(50) AS (TO_BASE64(CONCAT('ID:', id))) STORED,
+  checksum_id VARCHAR(50) AS (SHA2(CONCAT('prefix:', id, ':suffix'), 256)) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence_string.frm
+DROP TABLE t_sequence_string;
+DROP SEQUENCE seq_string;
+
+# Test sequence with date/time operations
+CREATE SEQUENCE seq_datetime START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_sequence_datetime (
+  seq_id INT DEFAULT NEXTVAL(seq_datetime),
+  base_date DATE DEFAULT CURRENT_DATE,
+  computed_date DATE AS (DATE_ADD(base_date, INTERVAL seq_id DAY)) VIRTUAL,
+  computed_timestamp DATETIME AS (DATE_ADD(NOW(), INTERVAL seq_id MINUTE)) VIRTUAL,
+  week_offset DATE AS (DATE_ADD(base_date, INTERVAL seq_id WEEK)) STORED,
+  year_offset YEAR AS (YEAR(DATE_ADD(base_date, INTERVAL seq_id YEAR))) VIRTUAL,
+  time_based VARCHAR(20) AS (
+    CASE (seq_id % 4)
+      WHEN 0 THEN 'MORNING'
+      WHEN 1 THEN 'AFTERNOON'  
+      WHEN 2 THEN 'EVENING'
+      ELSE 'NIGHT'
+    END
+  ) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence_datetime.frm
+DROP TABLE t_sequence_datetime;
+DROP SEQUENCE seq_datetime;
+
+# Test sequence with complex nested expressions
+CREATE SEQUENCE seq_nested START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_nested_sequence_expressions (
+  primary_seq INT DEFAULT NEXTVAL(seq_nested),
+  nested_calc INT AS (
+    CASE 
+      WHEN primary_seq <= 10 THEN primary_seq * 2
+      WHEN primary_seq <= 100 THEN (
+        CASE 
+          WHEN primary_seq % 10 = 0 THEN primary_seq / 10
+          ELSE primary_seq
+        END
+      )
+      ELSE FLOOR(SQRT(primary_seq))
+    END
+  ) STORED,
+  multi_level_check BOOLEAN AS (
+    (primary_seq > 0) AND 
+    (nested_calc > 0) AND
+    (CASE 
+      WHEN primary_seq < 50 THEN (nested_calc < primary_seq)
+      ELSE (nested_calc > primary_seq)
+    END)
+  ) VIRTUAL,
+  formatted_result VARCHAR(100) AS (
+    CONCAT(
+      'SEQ:', primary_seq, 
+      '|CALC:', nested_calc,
+      '|RATIO:', ROUND(nested_calc/primary_seq, 2),
+      '|VALID:', IF(multi_level_check, 'YES', 'NO')
+    )
+  ) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_nested_sequence_expressions.frm
+DROP TABLE t_nested_sequence_expressions;
+DROP SEQUENCE seq_nested;
+
+# Test sequences with JSON integration
+CREATE SEQUENCE seq_json START WITH 1 INCREMENT BY 1 MAXVALUE 1000;
+CREATE TABLE t_sequence_json (
+  id INT DEFAULT NEXTVAL(seq_json),
+  metadata JSON DEFAULT (JSON_OBJECT(
+    'seq_id', NEXTVAL(seq_json),
+    'created_at', NOW(),
+    'version', 1
+  )),
+  extracted_seq INT AS (JSON_EXTRACT(metadata, '$.seq_id')) VIRTUAL,
+  seq_diff INT AS (id - JSON_EXTRACT(metadata, '$.seq_id')) STORED,
+  enhanced_metadata JSON AS (
+    JSON_SET(
+      metadata,
+      '$.computed.id_sum', id + JSON_EXTRACT(metadata, '$.seq_id'),
+      '$.computed.id_product', id * JSON_EXTRACT(metadata, '$.seq_id'),
+      '$.computed.relationship', 
+      CASE 
+        WHEN id > JSON_EXTRACT(metadata, '$.seq_id') THEN 'GREATER'
+        WHEN id < JSON_EXTRACT(metadata, '$.seq_id') THEN 'LESS'
+        ELSE 'EQUAL'
+      END
+    )
+  ) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_sequence_json.frm
+DROP TABLE t_sequence_json;
+DROP SEQUENCE seq_json;
+
+
+# Test sequences with negative increments
+CREATE SEQUENCE seq_negative START WITH 1000 INCREMENT BY -1 MINVALUE 1 MAXVALUE 1000;
+CREATE TABLE t_negative_sequence (
+  countdown INT DEFAULT NEXTVAL(seq_negative),
+  remaining_pct DECIMAL(5,2) AS ((countdown / 1000.0) * 100) VIRTUAL,
+  status_level VARCHAR(10) AS (
+    CASE 
+      WHEN countdown > 800 THEN 'HIGH'
+      WHEN countdown > 500 THEN 'MEDIUM'
+      WHEN countdown > 200 THEN 'LOW'
+      ELSE 'CRITICAL'
+    END
+  ) STORED,
+  is_milestone BOOLEAN AS (countdown % 100 = 0) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_negative_sequence.frm
+DROP TABLE t_negative_sequence;
+DROP SEQUENCE seq_negative;
+
+# Test edge case: sequence with complex mathematical functions
+CREATE SEQUENCE seq_complex_math START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_complex_sequence_math (
+  n INT DEFAULT NEXTVAL(seq_complex_math),
+  harmonic_series DOUBLE AS (1.0/n) VIRTUAL,
+  geometric_series DOUBLE AS (POWER(0.5, n)) VIRTUAL,
+  log_series DOUBLE AS (CASE WHEN n > 0 THEN LOG(n) ELSE NULL END) VIRTUAL,
+  trig_approx DOUBLE AS (SIN(n * PI()/180)) STORED,
+  exponential_decay DOUBLE AS (EXP(-n/10.0)) VIRTUAL,
+  polynomial_val DOUBLE AS (n*n*n - 3*n*n + 2*n + 1) VIRTUAL,
+  modular_arithmetic INT AS ((n * n + 7*n + 12) % 1000) VIRTUAL
+);
+--error 5
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_complex_sequence_math.frm
+DROP TABLE t_complex_sequence_math;
+DROP SEQUENCE seq_complex_math;
+
+--echo Sequence default expressions test completed
