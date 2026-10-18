@@ -1979,6 +1979,12 @@ public:
   bool check_deep_copy(THD *thd, Item *clone, const char *what);
   /* walk() processor used by check_deep_copy() */
   bool deep_copy_check_processor(void *arg);
+  /*
+    Check, once per dynamic type, that shallow_copy() creates an object of
+    the same class as this item, i.e. that the class did not inherit
+    shallow_copy() from a concrete parent.
+  */
+  void dbug_check_shallow_copy_type(THD *thd) const;
 #endif
 
   /*
@@ -2921,6 +2927,15 @@ inline T* get_item_copy (THD *thd, const T* item)
     copy->register_in(thd);
   return copy;
 }
+
+/*
+  Every instantiable Item class must declare its own shallow_copy(): one
+  inherited from a concrete parent creates an object of the parent class.
+  Item::dbug_check_shallow_copy_type() asserts that in debug builds.
+*/
+#define ITEM_SHALLOW_COPY(CLASS)                                  \
+  Item *shallow_copy(THD *thd) const override                     \
+  { return get_item_copy<CLASS>(thd, this); }
 
 
 #ifndef DBUG_OFF
@@ -4223,6 +4238,8 @@ public:
 
 private:
   uchar *saved_row_ref;
+protected:
+  ITEM_SHALLOW_COPY(Item_old_field)
 };
 
 /**
@@ -4339,6 +4356,8 @@ public:
     str->append("(+)"_LEX_CSTRING);
   }
   static List<Item> *make_as_item_list(THD *thd);
+protected:
+  ITEM_SHALLOW_COPY(Item_join_operator_plus)
 };
 
 
@@ -4369,6 +4388,8 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_null_result)
 };
 
 /*
@@ -5054,6 +5075,8 @@ public:
     return false;
   }
   void print(String *str, enum_query_type query_type) override;
+protected:
+  ITEM_SHALLOW_COPY(Item_datetime)
 };
 
 
@@ -5465,6 +5488,8 @@ public:
                                     length * cs->mbmaxlen, cs)
   { }
   void make_send_field(THD *thd, Send_field *field) override;
+protected:
+  ITEM_SHALLOW_COPY(Item_empty_string)
 };
 
 
@@ -5484,6 +5509,8 @@ public:
       Type_handler::get_handler_by_field_type(int_field_type);
     return unsigned_flag ? h->type_handler_unsigned() : h;
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_return_int)
 };
 
 
@@ -7989,6 +8016,8 @@ public:
 private:
   THD *m_thd;
   active_dml_stmt m_trigger_stmt_type;
+protected:
+  ITEM_SHALLOW_COPY(Item_trigger_type_of_statement)
 };
 
 

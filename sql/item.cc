@@ -12303,3 +12303,40 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
   }
   return false;
 }
+
+
+#ifndef DBUG_OFF
+#include <typeindex>
+#include <unordered_set>
+#include <mutex>
+
+void Item::dbug_check_shallow_copy_type(THD *thd) const
+{
+  static std::unordered_set<std::type_index> checked;
+  static std::mutex checked_mutex;
+  {
+    std::lock_guard<std::mutex> lock(checked_mutex);
+    if (!checked.insert(typeid(*this)).second)
+      return;
+  }
+  Item *copy= shallow_copy(thd);
+  if (!copy)
+    return;
+  /*
+    get_item_copy() registered the copy in thd->free_list. Unlink it: it is
+    only inspected, and destroying a copy that shares pointers with the
+    original could free them twice. So the copy is never destroyed: its
+    destructor is not run, and its memory is released when the MEM_ROOT it
+    was allocated on, the current thd->mem_root, is freed. At most one copy
+    is made per Item class.
+  */
+  if (thd->free_list == copy)
+    thd->free_list= copy->next;
+  if (typeid(*copy) != typeid(*this))
+  {
+    fprintf(stderr, "SHALLOW_COPY_TYPE_MISMATCH: %s copied as %s\n",
+            typeid(*this).name(), typeid(*copy).name());
+    DBUG_ASSERT(0);
+  }
+}
+#endif
