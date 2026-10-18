@@ -1971,6 +1971,38 @@ public:
     return clone;
   }
 
+  /*
+    Creates a copy of the item for use in the same SELECT_LEX as the
+    original, for instance to take the place of the original after a
+    rewrite.
+
+    Nodes that the caller may want to modify, i.e. functions, conditions and
+    rows, are copied. Everything else is shared with the original: fields,
+    references, constants, parameters, caches, subqueries, aggregate and
+    window functions, and functions that own resources which a copy would
+    free twice (see the overrides of same_select_copy()). Within one
+    SELECT_LEX a shared item evaluates exactly as its copy would.
+
+    Every copied node is returned cleaned up, so the caller must call
+    fix_fields() on the copy before using it. That re-fixes the copied nodes
+    only, as shared nodes are still fixed.
+
+    Return value:
+    - pointer to the copy, or to this item if it is shared as a whole
+    - nullptr only on out of memory
+  */
+  Item *same_select_copy_with_checks(THD *thd) const
+  {
+    Item *copy= same_select_copy(thd);
+    if (copy && copy != this)
+    {
+      // Make sure the copy is of same type as this item
+      DBUG_ASSERT(typeid(*copy) == typeid(*this));
+      copy->cleanup();
+    }
+    return copy;
+  }
+
 #ifndef DBUG_OFF
   /*
     Check, once per dynamic type, that shallow_copy() creates an object of
@@ -2908,6 +2940,15 @@ protected:
     to create deep copies (clones) of the item where possible
   */
   virtual Item *deep_copy(THD *thd) const = 0;
+
+  /*
+    Service function for public method same_select_copy_with_checks(). See
+    comments for same_select_copy_with_checks() above. By default the item
+    is shared. Override this method in classes whose nodes are copied, and
+    in their subclasses that must be shared after all.
+  */
+  virtual Item *same_select_copy(THD *thd) const
+  { return const_cast<Item*>(this); }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);

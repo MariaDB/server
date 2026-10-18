@@ -493,6 +493,9 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_in_optimizer>(thd, this); }
+  /* Shared: its cache is owned by the subquery predicate */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -680,6 +683,15 @@ public:
     return clone;
   }
   Item* vcol_subst_transformer(THD *thd, uchar *arg) override;
+protected:
+  Item *same_select_copy(THD *thd) const override
+  {
+    Item_bool_rowready_func2 *copy=
+      (Item_bool_rowready_func2 *) Item_func::same_select_copy(thd);
+    if (copy)
+      copy->cmp.comparators= 0;
+    return copy;
+  }
 };
 
 /**
@@ -1616,6 +1628,9 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nullif>(thd, this); }
+  /* Shared: args[2] aliases args[0], and fix_fields() hides it */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -2611,6 +2626,16 @@ protected:
       return NULL;
     return clone;
   }
+  Item *same_select_copy(THD *thd) const override
+  {
+    Item_func_case_simple *copy= (Item_func_case_simple *)
+                                 Item_func_case::same_select_copy(thd);
+    if (copy && copy->Predicant_to_list_comparator::init_clone(thd,
+                                                               when_count()))
+      return nullptr;
+    return copy;
+  }
+public:
 
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_case_simple>(thd, this); }
@@ -2817,6 +2842,19 @@ public:
     }
     return clone;
   }
+protected:
+  Item *same_select_copy(THD *thd) const override
+  {
+    Item_func_in *copy= (Item_func_in *) Item_func::same_select_copy(thd);
+    if (copy)
+    {
+      copy->array= 0;
+      if (copy->Predicant_to_list_comparator::init_clone(thd, arg_count - 1))
+        return nullptr;
+    }
+    return copy;
+  }
+public:
   void mark_as_condition_AND_part(TABLE_LIST *embedding) override;
   bool to_be_transformed_into_in_subq(THD *thd);
   bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
@@ -3316,6 +3354,9 @@ public:
   { return cmp_collation.collation; }
 protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
+  /* Shared: cleanup() of a copy would free the compiled regex */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -3354,6 +3395,9 @@ public:
   }
 protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
+  /* Shared: cleanup() of a copy would free the compiled regex */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 
 
@@ -3456,6 +3500,9 @@ public:
   Item *deep_copy(THD *thd) const override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
+
+protected:
+  Item *same_select_copy(THD *thd) const override;
 
 private:
   void merge_sub_condition(List_iterator<Item>& li);
@@ -3672,6 +3719,10 @@ public:
                                     Item_equal *item_equal);
   friend bool setup_sj_materialization_part1(struct st_join_table *tab);
   friend bool setup_sj_materialization_part2(struct st_join_table *tab);
+protected:
+  /* Shared: it belongs to a COND_EQUAL of its SELECT_LEX */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 }; 
 
 class COND_EQUAL: public Sql_alloc
