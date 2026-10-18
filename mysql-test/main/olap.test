@@ -533,3 +533,19 @@ SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WIT
 DROP TABLE t1;
 
 --echo # End of 10.3 Tests
+
+--echo #
+--echo # MDEV-41146: WHERE is not checked when every table is const and
+--echo # the query needs a temporary table
+--echo #
+
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+
+--echo # rand() < 0 is never true, so only the ROLLUP total row is returned.
+select distinct a from t1 where a=1 and rand() < 0 group by a with rollup;
+select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
+
+drop table t1;
+
+--echo # End of 11.4 tests

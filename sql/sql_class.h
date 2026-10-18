@@ -205,11 +205,12 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE        (1 << 0)
 #define OLD_MODE_NO_PROGRESS_INFO                       (1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
-#define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
-#define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
-#define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
-#define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
-#define OLD_MODE_LOCK_ALTER_TABLE_COPY  (1 << 7)
+#define OLD_MODE_UTF8_IS_UTF8MB3                        (1 << 3)
+#define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN             (1 << 4)
+#define OLD_MODE_COMPAT_5_1_CHECKSUM                    (1 << 5)
+#define OLD_MODE_NO_NULL_COLLATION_IDS                  (1 << 6)
+#define OLD_MODE_LOCK_ALTER_TABLE_COPY                  (1 << 7)
+#define OLD_MODE_X509_LENIENT_COMPARE                   (1 << 8)
 
 #define OLD_MODE_DEFAULT_VALUE          OLD_MODE_UTF8_IS_UTF8MB3
 
@@ -6803,8 +6804,6 @@ public:
   bool  using_outer_summary_function;
   CHARSET_INFO *table_charset;
   bool schema_table;
-  /* TRUE if the temp table is created for subquery materialization. */
-  bool materialized_subquery;
   /* TRUE if all columns of the table are guaranteed to be non-nullable */
   bool force_not_null_cols;
   /*
@@ -6832,7 +6831,7 @@ public:
     :copy_field(0), group_parts(0),
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
-     schema_table(0), materialized_subquery(0), force_not_null_cols(0),
+     schema_table(0), force_not_null_cols(0),
      precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {

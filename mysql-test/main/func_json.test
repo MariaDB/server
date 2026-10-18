@@ -1908,6 +1908,28 @@ SELECT JSON_OVERLAPS(@json2, @json1);
 SELECT JSON_OVERLAPS(@json1, @json2);
 
 --echo #
+--echo # MDEV-41067: Empty and nonempty nested JSON arrays
+--echo #
+SELECT JSON_OVERLAPS('[[1]]', '[[]]') AS forward,
+       JSON_OVERLAPS('[[]]', '[[1]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1],[2]]', '[[],[2]]') AS forward,
+       JSON_OVERLAPS('[[],[2]]', '[[1],[2]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1]]', '[[1,2]]') AS forward,
+       JSON_OVERLAPS('[[1,2]]', '[[1]]') AS reverse;
+SELECT JSON_OVERLAPS('[[]]', '[[]]') AS r;
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],2]]') AS r;
+SELECT JSON_OVERLAPS('[[[1],2]]', '[[[1],3]]') AS forward,
+       JSON_OVERLAPS('[[[1],3]]', '[[[1],2]]') AS reverse;
+SELECT JSON_OVERLAPS('[[[],1],[4]]', '[[{},1],[4]]') AS forward,
+       JSON_OVERLAPS('[[{},1],[4]]', '[[[],1],[4]]') AS reverse;
+SELECT JSON_OVERLAPS('[[true]]', '[[1]]') AS forward,
+       JSON_OVERLAPS('[[1]]', '[[true]]') AS reverse;
+SELECT JSON_OVERLAPS('[[1,2]]', '[[2,1]]') AS forward,
+       JSON_OVERLAPS('[[2,1]]', '[[1,2]]') AS reverse;
+SELECT JSON_OVERLAPS('{"a":[1],"b":2}', '{"a":[],"b":2}') AS forward,
+       JSON_OVERLAPS('{"a":[],"b":2}', '{"a":[1],"b":2}') AS reverse;
+
+--echo #
 --echo # MDEV-30304: Json Range only affects first row of the result set
 --echo #
 
@@ -2159,6 +2181,14 @@ SELECT c1, JSON_OVERLAPS(c1, '{"r": 1E0}') AS jo_c1_const FROM t;
 SELECT c1, c2, JSON_OVERLAPS(c1, c2) AS jo_c1_c2 FROM t;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-39049: Memory corruption & crash in check_key_in_list upon
+--echo # using JSON_KEYS after modifying character set name/collation
+--echo #
+SET SESSION character_set_database=utf32;
+SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
+SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
+SET SESSION character_set_database= default;
 --echo # End of 10.11 Test
 
 --echo #

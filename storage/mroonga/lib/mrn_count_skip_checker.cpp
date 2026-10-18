@@ -283,7 +283,7 @@ namespace mrn {
         } else {
           GRN_LOG(ctx_, GRN_LOG_DEBUG,
                   "[mroonga][count-skip][false] "
-                  "field's index are out of key part map: %u:%lu: <%s>:<%s>",
+                  "field's index are out of key part map: %u:%u: <%s>:<%s>",
                   i,
                   target_key_part_map_,
                   *(field->table_name),

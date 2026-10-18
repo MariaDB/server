@@ -222,3 +222,12 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-30297 Server crash / assertion failure in Compare_identifiers::operator upon dropping period with empty name
+#
+create table t (a int);
+alter table t drop period if exists for ``;
+Warnings:
+Note	1091	Can't DROP PERIOD ``; check that it exists
+drop table t;
+# End of 10.11 tests

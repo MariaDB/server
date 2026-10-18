@@ -368,44 +368,144 @@ CONFIGURE_FILE(${SRCDIR}/mysql_server.wxs.in
 CONFIGURE_FILE(${SRCDIR}/extra.wxs.in
   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs)
 
-SET(EXTRA_CANDLE_ARGS "$ENV{EXTRA_CANDLE_ARGS}")
+# Stop, if a WiX command failed. "what" tells which one.
+FUNCTION(CHECK_WIX_RESULT result what)
+  IF(NOT "${result}" STREQUAL "0")
+    MESSAGE(FATAL_ERROR "${what} failed, exit code ${result}")
+  ENDIF()
+ENDFUNCTION()
 
-SET(EXTRA_LIGHT_ARGS -cc . -reusecab)
-IF("$ENV{EXTRA_LIGHT_ARGS}")
-  SET(EXTRA_LIGHT_ARGS "$ENV{EXTRA_LIGHT_ARGS}")
-ENDIF()
-
-FILE(REMOVE mysql_server.wixobj extra.wixobj)
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
-EXECUTE_PROCESS(
- COMMAND ${CANDLE_EXECUTABLE} 
- ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- ${CANDLE_ARCH} 
- -ext WixUtilExtension 
- -ext WixFirewallExtension   
- mysql_server.wxs 
- ${EXTRA_CANDLE_ARGS}
-)
 
-EXECUTE_PROCESS(
- COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
- ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- -ext WixUtilExtension 
- -ext WixFirewallExtension  
- ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs 
- ${EXTRA_CANDLE_ARGS}
-)
+IF(WIX_EXECUTABLE)
+  # WiX with the EULA check (7 and later) fails every command with WIX7015
+  # until the EULA is accepted. Accept it only if asked to (WIX_ACCEPT_EULA)
+  # and only if WiX complains, "extension list" is the first command to try.
+  SET(WIX_EULA_ARGS)
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} extension list --global
+    OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST
+    RESULT_VARIABLE res)
+  IF(WIX_EXTENSION_LIST MATCHES "WIX7015")
+    IF(NOT WIX_ACCEPT_EULA)
+      MESSAGE(FATAL_ERROR "${WIX_EXECUTABLE} requires its EULA to be accepted, "
+        "see https://wixtoolset.org/osmf/ . Use -DWIX_ACCEPT_EULA=ON to accept it")
+    ENDIF()
+    STRING(REGEX MATCH "^[0-9]+" WIX_MAJOR_VERSION "${WIX_VERSION}")
+    SET(WIX_EULA_ARGS -acceptEula wix${WIX_MAJOR_VERSION})
+    EXECUTE_PROCESS(
+      COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension list --global
+      OUTPUT_VARIABLE WIX_EXTENSION_LIST ERROR_VARIABLE WIX_EXTENSION_LIST
+      RESULT_VARIABLE res)
+  ENDIF()
+  # With no extensions yet, "extension list" prints nothing and exits with 2.
+  # A failure that prints something is a real one, e.g missing .NET runtime.
+  IF(NOT "${res}" STREQUAL "0" AND NOT "${WIX_EXTENSION_LIST}" STREQUAL "")
+    MESSAGE(FATAL_ERROR
+      "wix extension list failed, exit code ${res}\n${WIX_EXTENSION_LIST}")
+  ENDIF()
 
-IF(VCRedist_MSM)
-  SET(SILENCE_VCREDIST_MSM_WARNINGS  -sice:ICE82 -sice:ICE03)
+  # Modern WiX. Convert wxs sources from v3 to the current XML schema first.
+  # Conversion messages are noisy, only show them if conversion fails.
+  SET(WIX_CONVERT_FILES mysql_server.wxs extra.wxs)
+  FOREACH(third_party ${WITH_THIRD_PARTY})
+    LIST(APPEND WIX_CONVERT_FILES ${third_party}.wxi ${third_party}_feature.wxi)
+  ENDFOREACH()
+  # Note: "wix convert" exit code is the number of messages, not an error
+  # indicator. Look for real errors in the output instead. WIX0070 is a
+  # harmless advisory about removed TARGETDIR DirectoryRef (standard
+  # directories referenced from it are just promoted to top level).
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} convert ${WIX_CONVERT_FILES}
+    OUTPUT_VARIABLE convert_output ERROR_VARIABLE convert_output
+    RESULT_VARIABLE res)
+  STRING(REGEX REPLACE "[^\n]*WIX0070[^\n]*" "" convert_errors "${convert_output}")
+  IF(convert_errors MATCHES "error WIX"
+     OR (res AND NOT convert_output MATCHES "\\[Converted\\]"))
+    MESSAGE(FATAL_ERROR "wix convert failed: ${res}\n${convert_output}")
+  ENDIF()
+
+  # Extensions are versioned, must match the toolset version, and need
+  # to be added (downloaded from nuget.org) before first use.
+  SET(WIX_EXTENSIONS
+    WixToolset.UI.wixext
+    WixToolset.Util.wixext
+    WixToolset.Firewall.wixext)
+  SET(WIX_EXTENSION_ARGS)
+  FOREACH(ext ${WIX_EXTENSIONS})
+    IF(NOT WIX_EXTENSION_LIST MATCHES "${ext}[/ ]+${WIX_VERSION}")
+      EXECUTE_PROCESS(
+        COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} extension add --global ${ext}/${WIX_VERSION}
+        RESULT_VARIABLE res)
+      CHECK_WIX_RESULT("${res}" "wix extension add ${ext}/${WIX_VERSION}")
+    ENDIF()
+    LIST(APPEND WIX_EXTENSION_ARGS -ext "${ext}/${WIX_VERSION}")
+  ENDFOREACH()
+
+  # wix.exe needs the -d flag and the definition as separate arguments
+  SET(WIX_DEFINE_ARGS)
+  FOREACH(flag ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST})
+    STRING(REGEX REPLACE "^-d" "" def "${flag}")
+    LIST(APPEND WIX_DEFINE_ARGS -d "${def}")
+  ENDFOREACH()
+
+  EXECUTE_PROCESS(
+    COMMAND ${WIX_EXECUTABLE} ${WIX_EULA_ARGS} build
+    -arch ${Platform}
+    ${WIX_DEFINE_ARGS}
+    ${WIX_EXTENSION_ARGS}
+    -sw1103
+    -cabcache .
+    mysql_server.wxs extra.wxs
+    -out ${CPACK_PACKAGE_FILE_NAME}.msi
+    RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT("${res}" "wix build")
+ELSE()
+  SET(EXTRA_CANDLE_ARGS "$ENV{EXTRA_CANDLE_ARGS}")
+
+  SET(EXTRA_LIGHT_ARGS -cc . -reusecab)
+  IF("$ENV{EXTRA_LIGHT_ARGS}")
+    SET(EXTRA_LIGHT_ARGS "$ENV{EXTRA_LIGHT_ARGS}")
+  ENDIF()
+
+  FILE(REMOVE mysql_server.wixobj extra.wixobj)
+  EXECUTE_PROCESS(
+   COMMAND ${CANDLE_EXECUTABLE}
+   ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
+   ${CANDLE_ARCH}
+   -ext WixUtilExtension
+   -ext WixFirewallExtension
+   mysql_server.wxs
+   ${EXTRA_CANDLE_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT("${res}" "candle mysql_server.wxs")
+
+  EXECUTE_PROCESS(
+   COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
+   ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
+   -ext WixUtilExtension
+   -ext WixFirewallExtension
+   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs
+   ${EXTRA_CANDLE_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT("${res}" "candle extra.wxs")
+
+  IF(VCRedist_MSM)
+    SET(SILENCE_VCREDIST_MSM_WARNINGS  -sice:ICE82 -sice:ICE03)
+  ENDIF()
+
+  EXECUTE_PROCESS(
+   COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
+    -ext WixFirewallExtension -sice:ICE61 -sw1103 ${SILENCE_VCREDIST_MSM_WARNINGS}
+    mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
+    ${EXTRA_LIGHT_ARGS}
+   RESULT_VARIABLE res
+  )
+  CHECK_WIX_RESULT("${res}" "light")
 ENDIF()
-
-EXECUTE_PROCESS(
- COMMAND ${LIGHT_EXECUTABLE} -v -ext WixUIExtension -ext WixUtilExtension
-  -ext WixFirewallExtension -sice:ICE61 -sw1103 ${SILENCE_VCREDIST_MSM_WARNINGS}
-  mysql_server.wixobj  extra.wixobj -out  ${CPACK_PACKAGE_FILE_NAME}.msi
-  ${EXTRA_LIGHT_ARGS}
-)
 
 IF(SIGNCODE)
   SEPARATE_ARGUMENTS(SIGNTOOL_PARAMETERS WINDOWS_COMMAND "${SIGNTOOL_PARAMETERS}")

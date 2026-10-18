@@ -17,6 +17,12 @@ call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm
 call mtr.add_suppression(" IP address .* could not be resolved");
 call mtr.add_suppression("Aborted connection .* host: '192.0.2.50'");
 call mtr.add_suppression("Aborted connection .* host: 'santa.claus.ipv6.example.com'");
+call mtr.add_suppression("Failed to parse proxy header");
+call mtr.add_suppression("Proxy header is not accepted from ");
+call mtr.add_suppression("Host '192.0.2.50' is blocked because of many connection errors");
+call mtr.add_suppression("Host '2001:db8::6:6' is blocked because of many connection errors");
+call mtr.add_suppression("Host '192.0.2.22[234]' is not allowed to connect to this MariaDB server");
+call mtr.add_suppression("Host '1.2.3.4' is not allowed to connect to this MariaDB server");
 
 # We run with different binaries for normal and --embedded-server
 #
@@ -27,6 +33,12 @@ call mtr.add_suppression("Aborted connection .* host: 'santa.claus.ipv6.example.
 
 --write_line "$MYSQL_CLIENT_TEST" $MYSQLTEST_VARDIR/log/mysql_client_test.out.log
 --exec $MYSQL_CLIENT_TEST --getopt-ll-test=25600M >> $MYSQLTEST_VARDIR/log/mysql_client_test.out.log 2>&1
+
+# MDEV-40967: test_proxy_header_host_denied() must have caused this to be
+# logged (log_warnings defaults to 2).
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= Host '192\.0\.2\.222' is not allowed to connect to this MariaDB server
+--source include/search_pattern_in_file.inc
 
 # End of 4.1 tests
 echo ok;

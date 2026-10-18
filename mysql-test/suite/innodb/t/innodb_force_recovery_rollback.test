@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/maybe_debug.inc
 
 # We will kill and restart the server.
 --source include/not_embedded.inc
@@ -33,3 +34,42 @@ connection default;
 # The LIMIT 0 works around MDEV-22889 InnoDB occasionally breaks ACID
 SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
 DROP TABLE t0,t1;
+
+--echo #
+--echo # MDEV-38942 i_s_dict_fill_sys_tables() aborts when reading
+--echo #   INNODB_SYS_TABLES after innodb_force_recovery
+--echo #
+
+if ($have_debug)
+{
+--disable_query_log
+--disable_result_log
+--let $restart_noprint=2
+
+connect (con1,localhost,root,,,);
+SET DEBUG_SYNC='create_table_inserted SIGNAL created WAIT_FOR ever';
+send CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR created';
+SET GLOBAL innodb_log_checkpoint_now=ON;
+
+--let $restart_parameters= --innodb-force-recovery=4
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--let $shutdown_timeout=
+--disable_result_log
+--disable_query_log
+
+disconnect con1;
+connection default;
+SELECT name FROM information_schema.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
+
+--source include/restart_mysqld.inc
+--disable_query_log
+
+--let $restart_noprint=
+--enable_result_log
+--enable_query_log
+}
