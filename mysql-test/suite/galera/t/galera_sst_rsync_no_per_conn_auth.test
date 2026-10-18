@@ -1,0 +1,74 @@
+#
+# rsync SST joiner refuses an unauthenticated push outside ssl-mode VERIFY*,
+# while the real donor's own push still lands.
+#
+# STEPS:
+#   1. Force a full SST on node_2 by removing its grastate.
+#   2. Signal the restart without waiting for it, so node_2's rsync
+#      daemon comes up while this script keeps running.
+#   3. Race a plain, credential-less rsync push of a uniquely-named
+#      file into node_2's datadir while it is joining.
+#   4. Once node_2 rejoins the cluster, confirm the planted file never
+#      landed and the real data replicated correctly.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) SELECT REPEAT('a', 200) FROM seq_1_to_20000;
+
+--connection node_2
+--let $datadir = `SELECT @@datadir`
+--source include/shutdown_mysqld.inc
+
+# Removing grastate forces a full SST (rsync), not an IST.
+--remove_file $datadir/grastate.dat
+
+--let ATTACK_SCRIPT = $MYSQL_TMP_DIR/galera_sst_rsync_attack.sh
+--write_file $ATTACK_SCRIPT
+errlog=$1
+target=$2
+end=$(( $(date +%s) + 30 ))
+
+# The rsync daemon's port is derived from the Galera provider's own base
+# port, not the mariadbd client port, so read it back from the joiner's own
+# log line rather than guessing it.
+port=
+while [ -z "$port" ] && [ "$(date +%s)" -lt "$end" ]; do
+  port=$(grep -o "role 'joiner' --address '[^']*'" "$errlog" 2>/dev/null | \
+         tail -n1 | sed "s/.*:\([0-9]*\)'/\1/")
+  [ -z "$port" ] && sleep 0.05
+done
+[ -z "$port" ] && exit 0
+
+while [ "$(date +%s)" -lt "$end" ]; do
+  printf 'attacker\n' > "$target.src"
+  RSYNC_PASSWORD= rsync --port="$port" "$target.src" \
+      "rsync://127.0.0.1/rsync_sst/$(basename "$target")" >/dev/null 2>&1
+  [ -e "$target" ] && break
+done
+rm -f "$target.src"
+EOF
+--chmod 0755 $ATTACK_SCRIPT
+
+# Signal the restart without waiting for it (unlike start_mysqld.inc), so
+# the attack below races the real donor while node_2 is joining.
+--write_line "restart" $_expect_file_name
+--exec sh $ATTACK_SCRIPT $MYSQLTEST_VARDIR/log/mysqld.2.err $datadir/attacker_planted
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--exec test ! -e $datadir/attacker_planted
+
+SELECT COUNT(*) AS cnt FROM t1;
+
+--connection node_1
+DROP TABLE t1;
