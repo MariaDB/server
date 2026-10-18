@@ -948,8 +948,12 @@ Event_queue_element::compute_next_execution_time()
   /* If one-time, no need to do computation */
   if (!expression)
   {
-    /* Let's check whether it was executed */
-    if (last_executed)
+    /*
+      Check whether the event was already executed for the current schedule.
+      If execute_at was changed (via ALTER EVENT) to a time after
+      last_executed, the event should still be considered pending (MDEV-38632).
+    */
+    if (last_executed && last_executed >= execute_at)
     {
       DBUG_PRINT("info",("One-time event %s.%s of was already executed",
                          dbname.str, name.str));
