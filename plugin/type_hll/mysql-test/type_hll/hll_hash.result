@@ -1,0 +1,126 @@
+#
+# Hash contract v1 vectors: HLL_BUILD_AGG of one value is
+# EXPLICIT 0x12 + XXH3_64(seed 0, tag + canonical bytes), big-endian.
+# Expected hashes were computed from hand-built canonical bytes.
+#
+CREATE FUNCTION expect(h HLL, hash VARCHAR(16)) RETURNS VARCHAR(64)
+RETURN IF(HEX(h) = CONCAT('12', hash), 'ok', CONCAT('MISMATCH ', HEX(h)))$$
+# Integers: one domain, width and signedness are not part of the input
+SELECT expect(HLL_BUILD_AGG(5), 'BCB8704B29266F0F') AS int_literal;
+int_literal
+ok
+CREATE TABLE t1 (ti TINYINT, i INT, bu BIGINT UNSIGNED, b BOOLEAN);
+INSERT INTO t1 VALUES (5, 5, 5, TRUE);
+SELECT expect(HLL_BUILD_AGG(ti), 'BCB8704B29266F0F') AS tinyint_col,
+expect(HLL_BUILD_AGG(i), 'BCB8704B29266F0F') AS int_col,
+expect(HLL_BUILD_AGG(bu), 'BCB8704B29266F0F') AS bigint_unsigned_col
+FROM t1;
+tinyint_col	int_col	bigint_unsigned_col
+ok	ok	ok
+SELECT expect(HLL_BUILD_AGG(b), expect_bool.h) AS boolean_col
+FROM t1, (SELECT SUBSTR(HEX(HLL_BUILD_AGG(1)), 3) AS h) expect_bool;
+boolean_col
+ok
+SELECT expect(HLL_BUILD_AGG(5 > 1), SUBSTR(HEX(HLL_BUILD_AGG(1)), 3))
+AS boolean_expression;
+boolean_expression
+ok
+DROP TABLE t1;
+SELECT expect(HLL_BUILD_AGG(-1), '51957C455B8E6C65') AS negative;
+negative
+ok
+SELECT expect(HLL_BUILD_AGG(18446744073709551615), '53A5F4BC2FC0168C')
+AS bigint_unsigned_max;
+bigint_unsigned_max
+ok
+# Binary strings
+SELECT expect(HLL_BUILD_AGG(CAST('abc' AS BINARY)), '1172A754F34AE086') AS bin;
+bin
+ok
+SELECT expect(HLL_BUILD_AGG(0x616263), '1172A754F34AE086') AS hex_literal;
+hex_literal
+ok
+# FLOAT / DOUBLE, -0 is +0
+SELECT expect(HLL_BUILD_AGG(CAST(1.5 AS DOUBLE)), 'DE46A476A7E31852') AS dbl;
+dbl
+ok
+SELECT expect(HLL_BUILD_AGG(CAST(1.5 AS FLOAT)), '20985A80809F23C5') AS flt;
+flt
+ok
+SELECT expect(HLL_BUILD_AGG(-CAST(0 AS DOUBLE)), 'F910C9B2637410D1')
+AS negative_zero;
+negative_zero
+ok
+# Temporal values
+SELECT expect(HLL_BUILD_AGG(DATE'2020-01-02'), '96F9B3A0E42E0E90') AS d;
+d
+ok
+SELECT expect(HLL_BUILD_AGG(TIME'-838:59:59'), 'C2DFD74ADF0E7AC8') AS t;
+t
+ok
+SELECT expect(HLL_BUILD_AGG(TIME'-34 22:59:59'), 'C2DFD74ADF0E7AC8')
+AS t_days;
+t_days
+ok
+SELECT expect(HLL_BUILD_AGG(TIMESTAMP'2020-01-02 03:04:05.000006'),
+'9CE0453AA896AFCF') AS dt;
+dt
+ok
+SELECT expect(HLL_BUILD_AGG(CAST('2020-01-02 03:04:05.000006'
+                                 AS DATETIME(6))), '9CE0453AA896AFCF')
+AS dt_precision;
+dt_precision
+ok
+CREATE TABLE t1 (ts TIMESTAMP, ts6 TIMESTAMP(6), y YEAR, d DATE);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES ('2020-01-02 03:04:05', '2020-01-02 03:04:05', 2021,
+'2020-01-02');
+SELECT expect(HLL_BUILD_AGG(ts), '5570215E5722BF06') AS ts,
+expect(HLL_BUILD_AGG(ts6), '5570215E5722BF06') AS ts_precision,
+expect(HLL_BUILD_AGG(y), 'C41EF731E5C9ADA6') AS y
+FROM t1;
+ts	ts_precision	y
+ok	ok	ok
+# TIMESTAMP does not depend on @@time_zone
+SET time_zone='+05:00';
+SELECT expect(HLL_BUILD_AGG(ts), '5570215E5722BF06') AS ts_other_zone FROM t1;
+ts_other_zone
+ok
+SET time_zone=DEFAULT;
+# Zero date is an ordinary value, independent of sql_mode
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='';
+INSERT INTO t1 (d) VALUES ('0000-00-00');
+SELECT expect(HLL_BUILD_AGG(d), 'AC41D725BA329D30') AS zero_date
+FROM t1 WHERE d = '0000-00-00';
+zero_date
+ok
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT expect(HLL_BUILD_AGG(d), 'AC41D725BA329D30') AS zero_date_strict
+FROM t1 WHERE ts IS NULL;
+zero_date_strict
+ok
+SET sql_mode=@save_sql_mode;
+DROP TABLE t1;
+# Pluggable types with an adapter
+SELECT expect(HLL_BUILD_AGG(CAST('123e4567-e89b-12d3-a456-426614174000' AS UUID)),
+'A2F054E6AF5C7FBB') AS uuid;
+uuid
+ok
+SELECT expect(HLL_BUILD_AGG(CAST('1.2.3.4' AS INET4)), '0EABF60BE1B83C5E') AS inet4;
+inet4
+ok
+SELECT expect(HLL_BUILD_AGG(CAST('::1' AS INET6)), 'B8ED09CB1D6FE3BC') AS inet6;
+inet6
+ok
+# INET4 and IPv4-mapped INET6 are different domains
+SELECT HEX(HLL_BUILD_AGG(CAST('1.2.3.4' AS INET4))) =
+HEX(HLL_BUILD_AGG(CAST('::ffff:1.2.3.4' AS INET6))) AS same;
+same
+0
+# Same SQL value in different domains gives different elements
+SELECT HLL_CARDINALITY(HLL_UNION(HLL_BUILD_AGG(5),
+HLL_BUILD_AGG(CAST(5 AS DOUBLE)))) AS c;
+c
+2
+DROP FUNCTION expect;
