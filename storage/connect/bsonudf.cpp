@@ -4694,7 +4694,7 @@ my_bool bfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *str, *fn, *ofn;
-	int     lrecl = (int)*(longlong*)args->args[2];
+	int     lrecl;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
 	PlugSubSet(g->Sarea, g->Sarea_Size);
@@ -4705,11 +4705,17 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		PUSH_WARNING("Missing file name");
 		*is_null = 1;
 		return NULL;
+	} else if (!args->args[2]) {
+		PUSH_WARNING("Missing LRECL");
+		*is_null = 1;
+		return NULL;
 	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
 		return NULL;
 	}
+
+	lrecl = (int)*(longlong*)args->args[2];
 
 	if (!g->Xchk) {
 		JUP* jup = new(g) JUP(g);
@@ -4756,7 +4762,7 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 
 	CalcLen(args, false, reslen, memlen);
 	memlen = memlen * M;
-	memlen += (args->arg_count == 3) ? (ulong)*(longlong*)args->args[2] : 1024;
+	memlen += (args->arg_count == 3 && args->args[2]) ? (ulong)*(longlong*)args->args[2] : 1024;
 	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of bfile_bjson_init
 
@@ -4773,13 +4779,17 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
 
-	if (args->arg_count == 3)
+	if (args->arg_count == 3 && args->args[2])
 		lrecl = (size_t)*(longlong*)args->args[2];
 	else
 		lrecl = 1024;
 
 	if (!fn || !ofn) {
 		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (args->arg_count == 3 && !args->args[2]) {
+		PUSH_WARNING("Missing LRECL");
 		*is_null = 1;
 		return NULL;
 	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
