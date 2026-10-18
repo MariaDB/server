@@ -150,8 +150,6 @@ connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
-SET DEBUG_SYNC= 'RESET';
 connection server_1;
 DROP TABLE t1,t2;
-SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc
