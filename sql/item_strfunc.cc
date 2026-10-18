@@ -3887,11 +3887,18 @@ String *Item_func_conv_charset::val_str(String *str)
     return null_value ? 0 : &str_value;
   String *arg= args[0]->val_str(&tmp_value);
   String_copier_for_item copier(current_thd);
-  return ((null_value= args[0]->null_value ||
-                       copier.copy_with_warn(collation.collation, str,
-                                             arg->charset(), arg->ptr(),
-                                             arg->length(), arg->length()))) ?
-    0 : str;
+  if ((null_value= args[0]->null_value))
+    return 0;
+  if (arg->length() == 0)
+  {
+    static const char empty[MY_CS_MBMAXLEN]= {0}; /* comparison */
+    str->set(empty, 0, collation.collation);
+    return str;
+  }
+  return (null_value= copier.copy_with_warn(collation.collation, str,
+                                            arg->charset(), arg->ptr(),
+                                            arg->length(), arg->length())
+          ? 0 : str;
 }
 
 bool Item_func_conv_charset::fix_length_and_dec(THD *thd)

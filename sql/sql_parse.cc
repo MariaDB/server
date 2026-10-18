@@ -1708,7 +1708,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   {
     LEX_CSTRING tmp;
     status_var_increment(thd->status_var.com_stat[SQLCOM_CHANGE_DB]);
-    if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
+    if (unlikely(!packet_length))
+      /* copy_with_error, is an expensive way to convert an empty string */
+      tmp= {STRING_WITH_LEN("")};
+    else if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
                                       thd->charset(), packet, packet_length)))
       break;
     if (!mysql_change_db(thd, &tmp, FALSE))
