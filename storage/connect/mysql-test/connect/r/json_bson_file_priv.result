@@ -245,6 +245,54 @@ denied
 1
 Warnings:
 Warning	1105	Access denied: FILE privilege or secure_file_priv violation
+# File name argument that does not fit in the work area
+select jbin_set_item(repeat('x', 4000) as jfile_x, '$.a', 1);
+jbin_set_item(repeat('x', 4000) as jfile_x, '$.a', 1)
+Not enough memory in Work area for request of 4008 (used=# free=#)
+Warnings:
+Warning	1105	Error 36 opening xxx
+Warning	1105	Not enough memory in Work area for request of 4008 (used=# free=#)
+# Overlong file name argument in *_init
+select json_get_item(repeat('x', 10000) as jfile_x, '$');
+json_get_item(repeat('x', 10000) as jfile_x, '$')
+NULL
+Warnings:
+Warning	1105	Error 36 opening xxx
+select jsonget_string(repeat('x', 10000) as jfile_x, '$');
+jsonget_string(repeat('x', 10000) as jfile_x, '$')
+NULL
+Warnings:
+Warning	1105	Error 36 opening xxx
+select json_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+json_set_item(repeat('x', 10000) as jfile_x, '$.a', 1)
+NULL
+Warnings:
+Warning	1105	Error 36 opening xxx
+Warning	1105	Not enough memory in Work area for request of 10008 (used=# free=#)
+Warning	1105	Not enough memory in Work area for request of 10008 (used=# free=#)
+select jbin_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+jbin_set_item(repeat('x', 10000) as jfile_x, '$.a', 1)
+Not enough memory in Work area for request of 10008 (used=# free=#)
+Warnings:
+Warning	1105	Error 36 opening xxx
+Warning	1105	Not enough memory in Work area for request of 10008 (used=# free=#)
+select bson_get_item(repeat('x', 10000) as bfile_x, '$');
+bson_get_item(repeat('x', 10000) as bfile_x, '$')
+NULL
+Warnings:
+Warning	1105	Error 36 opening xxx
+Warning	1105	Not a Json item
+select bsonget_string(repeat('x', 10000) as bfile_x, '$');
+bsonget_string(repeat('x', 10000) as bfile_x, '$')
+
+Warnings:
+Warning	1105	Error 36 opening xxx
+select bson_set_item(repeat('x', 10000) as bfile_x, '$.a', 1);
+bson_set_item(repeat('x', 10000) as bfile_x, '$.a', 1)
+xxx
+Warnings:
+Warning	1105	Error 36 opening xxx
+Warning	1105	Invalid target type
 # Non-constant filename expression (args->args[0] is NULL at init time)
 set @fname = 'MYSQL_TMP_DIR/bib0.json';
 select jbin_file(@fname) IS NOT NULL AS ok;

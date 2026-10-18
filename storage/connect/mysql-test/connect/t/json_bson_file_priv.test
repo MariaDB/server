@@ -114,6 +114,26 @@ select bson_file('../../biblio.json') IS NULL AS denied;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bson_file(concat('$MYSQL_TMP_DIR/', repeat('x', 512))) IS NULL AS denied
 
+--echo # File name argument that does not fit in the work area
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jbin_set_item(repeat('x', 4000) as jfile_x, '$.a', 1);
+
+--echo # Overlong file name argument in *_init
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select json_get_item(repeat('x', 10000) as jfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jsonget_string(repeat('x', 10000) as jfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select json_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jbin_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bson_get_item(repeat('x', 10000) as bfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bsonget_string(repeat('x', 10000) as bfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bson_set_item(repeat('x', 10000) as bfile_x, '$.a', 1);
+
 --echo # Non-constant filename expression (args->args[0] is NULL at init time)
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval set @fname = '$MYSQL_TMP_DIR/bib0.json'
