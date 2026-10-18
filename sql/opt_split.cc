@@ -649,19 +649,12 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   */
   THD *thd= in_use;
   Item *left_item= spl_field->producing_item->deep_copy_with_checks(thd);
-  Item *right_item= key_field->val->deep_copy_with_checks(thd);
+  Item *right_item=
+    key_field->val->new_select_copy_with_checks(thd,
+                                    join->select_lex->outer_select());
   Item_bool_func *eq_item= 0;
   if (left_item && right_item)
   {
-    right_item->walk(&Item::set_fields_as_dependent_processor,
-                     join->select_lex, 0);
-    right_item->update_used_tables();
-    /*
-      We've just pushed right_item down into the child select. It may only
-      have references to outside.
-    */
-    DBUG_ASSERT(!(right_item->used_tables() & ~PSEUDO_TABLE_BITS));
-
     //  Item_func::EQUAL_FUNC is null-safe, others can use Item_func_eq()
     if (key_field->cond->type() == Item::FUNC_ITEM &&
         ((Item_func*)key_field->cond)->functype() == Item_func::EQUAL_FUNC)
