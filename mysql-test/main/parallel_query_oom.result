@@ -1,0 +1,21 @@
+#
+# MDEV-39492 Parallel Query: OOM in worker error_to_queue surfaces a
+# single ER_OUTOFMEMORY warning so worker diagnostics aren't silently
+# lost.
+#
+set @save_dbug=@@global.debug_dbug;
+set global debug_dbug="+d,pwt_error_to_queue_oom";
+set session parallel_worker_threads=1;
+# The prototype worker emits either a warning or my_error() depending on the
+# parity of its thread id. Either path runs through error_to_queue; the
+# DBUG injection forces both into the OOM branch, so neither the original
+# warning nor the original error reaches the user. We expect just the
+# manager-surfaced ER_OUTOFMEMORY warning.
+select count(*) from seq_1_to_2;
+count(*)
+2
+show warnings;
+Level	Code	Message
+Warning	1037	Parallel worker diagnostics were dropped due to memory allocation failure
+set global debug_dbug=@save_dbug;
+set session parallel_worker_threads=default;
