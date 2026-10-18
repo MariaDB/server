@@ -63,7 +63,7 @@ case "$1" in
     mariadb_statedir=/usr/share/mariadb
     mariadb_datadir=/var/lib/mysql
     mariadb_logdir=/var/log/mysql
-    mariadb_cfgdir=/etc/mysql
+    mariadb_cfgdir=/etc/mariadb
     mariadb_upgradedir=/var/lib/mysql-upgrade
 
     # If the following symlink exists, it is a preserved copy the old data dir
@@ -190,7 +190,7 @@ EOF
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
-    # mariadb-upgrade, called from the /etc/mysql/debian-start script, will
+    # mariadb-upgrade, called from the /etc/mariadb/debian-start script, will
     # handle things.
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
@@ -206,16 +206,23 @@ EOF
 
     # On new installations root user can connect via unix_socket.
     # But on upgrades, scripts rely on debian-sys-maint user and
-    # credentials in /etc/mysql/debian.cnf
-    # All tools use --defaults-file=/etc/mysql/debian.cnf
+    # credentials in /etc/mariadb/debian.cnf
+    # All tools use --defaults-file=/etc/mariadb/debian.cnf
     # And while it's not needed for new installations, we keep using
     # --defaults-file option for tools (for the sake of upgrades)
-    # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
+    # and thus need /etc/mariadb/debian.cnf to exist, even if it's empty.
     # In the long run the goal is to obsolete this file.
     dc="$mariadb_cfgdir/debian.cnf"
     if [ ! -d "$mariadb_cfgdir" ]
     then
       install -o 0 -g 0 -m 0755 -d $mariadb_cfgdir
+    fi
+
+    # Migrate the file from its pre-/etc/mariadb location on upgrade.
+    if [ ! -e "$dc" ] && [ -e /etc/mysql/debian.cnf ]
+    then
+      mv /etc/mysql/debian.cnf "$dc"
+      echo "Moved /etc/mysql/debian.cnf to $dc"
     fi
 
     if [ ! -e "$dc" ]
@@ -224,7 +231,7 @@ EOF
       {
         echo "# THIS FILE IS OBSOLETE. STOP USING IT IF POSSIBLE.";
         echo "# This file exists only for backwards compatibility for";
-        echo "# tools that run '--defaults-file=/etc/mysql/debian.cnf'";
+        echo "# tools that run '--defaults-file=/etc/mariadb/debian.cnf'";
         echo "# and have root level access to the local filesystem.";
         echo "# With those permissions one can run 'mariadb' directly";
         echo "# anyway thanks to unix socket authentication and hence";
