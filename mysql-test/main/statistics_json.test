@@ -8,9 +8,6 @@ let $histogram_type_override='JSON_HB';
 --source include/have_innodb.inc
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
@@ -683,5 +680,10 @@ analyze select * from t1 where col1 < '"🂡';
 analyze select * from t1 where col1 < '"😺';
 
 drop table t1;
+
+--echo #
+--echo # MDEV-41603 DECODE_HISTOGRAM crashes when decoding JSON_HB
+--echo #
+SELECT DECODE_HISTOGRAM('JSON_HB', REPEAT('A',80));
 
 --echo # End of 10.11 tests

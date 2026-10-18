@@ -566,18 +566,18 @@ String *Item_func_decode_histogram::val_str(String *str)
   }
   type--;
 
+  if (type == JSON_HB)
+  {
+    res= args[1]->val_str(str);
+    null_value= res == 0;
+    return res;
+  }
+
   tmp.length(0);
   if (!(res= args[1]->val_str(&tmp)))
   {
     null_value= 1;
     return 0;
-  }
-
-  if (type == JSON_HB)
-  {
-    // It's a JSON histogram. Return it as-is.
-    null_value= 0;
-    return res;
   }
 
   if (type == DOUBLE_PREC_HB && res->length() % 2 != 0)
