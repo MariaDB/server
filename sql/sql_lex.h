@@ -3389,6 +3389,7 @@ public:
   */
   uint select_stack_outer_barrier;
 
+  TABLE_LIST *prepare_insert_table1;
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
   Column_definition *last_field;
