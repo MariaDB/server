@@ -1482,8 +1482,10 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 		bsnp->Pretty = pretty;
 
 		if ((bsnp->Filename = (char*)args->args[0])) {
-			bsnp->Filename = MakePSZ(g, args, 0);
-			strmake(bsnp->Msg, bsnp->Filename, BMX-1);
+			if ((bsnp->Filename = MakePSZ(g, args, 0)))
+				strmake(bsnp->Msg, bsnp->Filename, BMX-1);
+			else
+				strmake(bsnp->Msg, g->Message, BMX-1);
 		} else
 			strmake(bsnp->Msg, "null filename", BMX-1);
 
@@ -3443,13 +3445,7 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more = fl * 3;
+		more = GetFileLength(args->args[0]) * 3;
 	} else if (n != 3) {
 		more = args->lengths[0] * 3;
 	} else
@@ -3552,13 +3548,7 @@ my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 //memlen += more;
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
@@ -4422,13 +4412,7 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
@@ -5706,13 +5690,7 @@ my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more = fl * 3;
+		more = GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more = args->lengths[0] * 3;
 

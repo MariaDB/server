@@ -3659,13 +3659,7 @@ my_bool bson_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more = fl * 3;
+		more = GetFileLength(args->args[0]) * 3;
 	} else if (n != 3) {
 		more = args->lengths[0] * 3;
 	} else
@@ -3680,7 +3674,7 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	char   *path, *str = NULL;
 	PBVAL   jvp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-	BJNX    bnx(g, NULL, TYPE_STRING, initid->max_length);
+	PBJNX   bxp;
 
 	if (g->N) {
 		str = (char*)g->Activityp;
@@ -3693,7 +3687,8 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING("CheckMemory error");
 			goto fin;
 		} else {
-			bnx.Reset();
+			BJNX bnx(g);
+
 			jvp = bnx.MakeValue(args, 0, true);
 
 			if (g->Mrr) {			 // First argument is a constant
@@ -3707,16 +3702,17 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		jvp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
+	bxp = new(g) BJNX(g, NULL, TYPE_STRING, initid->max_length);
 
-	if (bnx.SetJpath(g, path, true)) {
+	if (bxp->SetJpath(g, path, true)) {
 		goto fin;
 	}	else
-		jvp = bnx.GetRowValue(g, jvp, 0);
+		jvp = bxp->GetRowValue(g, jvp, 0);
 
-	if (!bnx.IsJson(jvp)) {
+	if (!bxp->IsJson(jvp)) {
 		snprintf(g->Message, sizeof(g->Message), "Not a Json item");
 	}	else
-		str = bnx.Serialize(g, jvp, NULL, 0);
+		str = bxp->Serialize(g, jvp, NULL, 0);
 
 	if (initid->const_item)
 		// Keep result of constant function
@@ -3767,13 +3763,7 @@ my_bool bsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	//memlen += more;
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
@@ -4338,13 +4328,7 @@ my_bool bson_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
