@@ -12,7 +12,7 @@ if (`select count(*) from information_schema.system_variables
      where variable_name='have_sanitizer'
      and global_value REGEXP '(A|UB)SAN'`)
 {
---skip Can't be run in UBSAN/ASAN (stack size predictability)
+--skip Cannot be run in UBSAN/ASAN (stack size predictability)
 }
 
 #
@@ -172,3 +172,33 @@ SELECT ExtractValue('<a/>', REPEAT('(', 100000));
 SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-41622 INSERT crashes on deeply nested GeometryCollection
+--echo #
+set @g=concat(0x00000000, 0x0107000000, repeat(0x010000000107000000, 400000), 0x00000000);
+create table t1 (g geometry);
+create table t2 (g polygon);
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+insert t1 values (@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+insert t2 values (@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_astext(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_asgeojson(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_envelope(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_area(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_length(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_dimension(@g);
+--error ER_STACK_OVERRUN_NEED_MORE
+select st_boundary(@g);
+--enable_result_log
+drop table t1, t2;
+
+--echo # End of 10.11 tests

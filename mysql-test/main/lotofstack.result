@@ -116,3 +116,20 @@ ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stac
 SELECT ExtractValue('<a/>', REPEAT('/n', 100000));
 ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 10.6 tests
+#
+# MDEV-41622 INSERT crashes on deeply nested GeometryCollection
+#
+set @g=concat(0x00000000, 0x0107000000, repeat(0x010000000107000000, 400000), 0x00000000);
+create table t1 (g geometry);
+create table t2 (g polygon);
+insert t1 values (@g);
+insert t2 values (@g);
+select st_astext(@g);
+select st_asgeojson(@g);
+select st_envelope(@g);
+select st_area(@g);
+select st_length(@g);
+select st_dimension(@g);
+select st_boundary(@g);
+drop table t1, t2;
+# End of 10.11 tests
