@@ -580,4 +580,86 @@ a	b
 1	1
 drop table t1, t2;
 set sql_mode= @save_sql_mode;
+#
+# MDEV-41493 AFTER UPDATE trigger reads wrong NEW value of BLOB/TEXT
+#            virtual column in system-versioned table
+#
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table log (op varchar(10), id int, new_v text);
+create trigger tr after update on t1 for each row
+insert log values (@op, new.id, new.v);
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer-than-new');
+set @op= 'update';
+update t1 set a= 'new';
+create table t2 (x int);
+insert t2 values (1);
+set @op= 'multi';
+update t1, t2 set t1.a= concat(t1.a, '2');
+set @op= 'odku';
+insert t1 (id, a) values (2, 'x') on duplicate key update a= 'odku';
+select * from log order by op, id;
+op	id	new_v
+multi	1	v-new2
+multi	2	v-new2
+odku	2	v-odku
+update	1	v-new
+update	2	v-new
+drop table t1, t2, log;
+# Virtual GEOMETRY column
+create table t1 (id int primary key, a int, g point as (point(a, a)) virtual)
+with system versioning;
+create table log (op varchar(10), id int, new_g text);
+create trigger tr_upd after update on t1 for each row
+insert log values ('update', new.id, st_astext(new.g));
+create trigger tr_ins after insert on t1 for each row
+insert log values ('replace', new.id, st_astext(new.g));
+insert t1 (id, a) values (1, 1), (2, 2);
+delete from log;
+update t1 set a= a + 10;
+replace t1 (id, a) values (1, 5);
+select * from log order by op, id;
+op	id	new_g
+replace	1	POINT(5 5)
+update	1	POINT(11 11)
+update	2	POINT(12 12)
+drop table t1, log;
+# History row with negative lifetime is not written
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table log (id int, new_v text);
+create trigger tr after update on t1 for each row
+insert log values (new.id, new.v);
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'old-and-longer-than-new');
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+update t1 set a= 'new';
+set timestamp= default;
+select * from log;
+id	new_v
+1	v-new
+select id, a, v from t1 for system_time all;
+id	a	v
+1	new	v-new
+drop table t1, log;
+# Multi-table UPDATE on the fly
+create table t1 (id int, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table t2 (x int) engine=innodb;
+create table log (id int, new_v text);
+create trigger tr after update on t1 for each row
+insert log values (new.id, new.v);
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer-than-new');
+insert t2 values (1);
+flush status;
+update t1 straight_join t2 set t1.a= 'new';
+# Zero: t1 is updated on the fly
+show status like 'Handler_tmp_write';
+Variable_name	Value
+Handler_tmp_write	0
+select * from log order by id;
+id	new_v
+1	v-new
+2	v-new
+drop table t1, t2, log;
 # End of 10.11 tests

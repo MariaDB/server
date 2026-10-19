@@ -205,3 +205,34 @@ UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41493 AFTER UPDATE trigger reads wrong NEW value of BLOB/TEXT
+--echo #            virtual column in system-versioned table
+--echo #
+--echo # AFTER UPDATE trigger reads NEW of a virtual blob over the period
+create table t1 (x int, a text, s date, e date, period for app (s, e),
+  v text as (concat(a, ' ', s, ' ', e)) virtual);
+create table log (new_v text);
+create trigger tr after update on t1 for each row
+  insert log values (new.v);
+insert t1 (x, a, s, e) values (1, 'a', '2000-01-01', '2020-01-01');
+update t1 for portion of app from '2005-01-01' to '2010-01-01' set a= 'b';
+select * from log;
+select x, a, s, e, v from t1 order by s;
+drop table t1, log;
+
+--echo # System-versioned table
+create table t1 (x int, a text, s date, e date, period for app (s, e),
+  v text as (concat(a, ' ', s, ' ', e)) virtual)
+with system versioning;
+create table log (new_v text);
+create trigger tr after update on t1 for each row
+  insert log values (new.v);
+insert t1 (x, a, s, e) values (1, 'a', '2000-01-01', '2020-01-01');
+update t1 for portion of app from '2005-01-01' to '2010-01-01' set a= 'b';
+select * from log;
+select x, a, s, e, v from t1 order by s;
+drop table t1, log;
+
+--echo # End of 10.11 tests
