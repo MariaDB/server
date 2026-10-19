@@ -90,7 +90,8 @@ template<bool stream>
 static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
                            uint64_t o, uint64_t end) noexcept
 {
-#ifdef POSIX_FADV_SEQUENTIAL
+#ifdef __linux__
+#elif defined POSIX_FADV_SEQUENTIAL
   std::ignore= posix_fadvise(in_fd, o, end - o, POSIX_FADV_SEQUENTIAL);
 #endif
   assert(end >= o);
@@ -98,7 +99,7 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 #if SIZEOF_SIZE_T < 8
   size_t size{65536};
 #else
-  constexpr size_t max_size{16 << 20};
+  constexpr size_t max_size{1 << 20};
   /* An integer multiple of 4096 bytes, up to max_size */
   size_t size{count >= max_size ? max_size : (size_t(count) + 4095) & ~4095};
 #endif
@@ -106,15 +107,20 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
   if (!b)
     return -1;
   ssize_t ret;
-  for (;; o+= ret)
+  for (;;)
   {
     if (count < size)
       size= count;
     ret= pread(in_fd, b, ssize_t(size), o);
+    count-= uint64_t(ret);
+    const uint64_t n{o + ret};
     if (ret > 0)
     {
 #ifdef POSIX_FADV_DONTNEED
       std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
+#endif
+#ifdef __linux__
+      readahead(in_fd, n, count);
 #endif
       if (!stream)
         ret= pwrite(out_fd, b, size_t(ret), o);
@@ -126,7 +132,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     }
     if (ret < 0)
       break;
-    count-= uint64_t(ret);
     if (!count)
     {
       ret= 0;
@@ -137,6 +142,7 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
       ret= -1;
       break;
     }
+    o= n;
   }
   aligned_free(b);
   return ret;
