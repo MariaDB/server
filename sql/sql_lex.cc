@@ -1276,6 +1276,7 @@ void LEX::start(THD *thd_arg)
   escape_used= 0;
   default_used= 0;
   subquery_with_placeholder= 0;
+  escape_with_placeholder= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
 
@@ -8215,9 +8216,9 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
 }
 
 
-static bool expr_has_placeholder(LEX *lex, Item *expr)
+bool LEX::expr_has_placeholder(Item *expr)
 {
-  List_iterator_fast<Item_param> it(lex->param_list);
+  List_iterator_fast<Item_param> it(param_list);
   while (Item_param *param= it++)
   {
     if (expr->walk(&Item::find_item_processor, true, param))
@@ -8276,7 +8277,7 @@ bool LEX::subquery_has_placeholder()
   {
     Item_subselect *subq= sl->master_unit()->item;
     Item_in_subselect *in_subq= subq ? subq->get_IN_subquery() : NULL;
-    if (in_subq && expr_has_placeholder(this, in_subq->left_exp()))
+    if (in_subq && expr_has_placeholder(in_subq->left_exp()))
       return true;
   }
   return false;

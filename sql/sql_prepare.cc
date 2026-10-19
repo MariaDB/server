@@ -232,6 +232,11 @@ public:
   my_bool set_bulk_parameters(bool reset);
   bool bulk_iterations() { return iterations; };
   bool is_bulk_optimized() const { return bulk_optimized; }
+  void set_params_changing_value(bool changing)
+  {
+    for (uint i= 0; i < param_count; i++)
+      param_array[i]->set_changing_value(changing);
+  }
   /* Destroy this statement */
   void deallocate();
   bool execute_immediate(const char *query, uint query_length);
@@ -4874,13 +4879,14 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     goto err;
   }
   /*
-    Subqueries are executed once per statement execution, so subqueries
-    depending on parameters need own execution for every set of
+    Subqueries are executed once per statement execution and ESCAPE
+    of LIKE or JSON_SEARCH must be a constant, so if they depend on
+    parameters, they need a separate execution for every set of
     parameters.
   */
   bulk_optimized=
     (sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
-    !lex->subquery_with_placeholder;
+    !lex->subquery_with_placeholder && !lex->escape_with_placeholder;
   /*
      Here second buffer for not optimized commands,
      optimized commands do it inside thier internal loop.
@@ -4953,6 +4959,9 @@ reexecute:
       thd->m_reprepare_observer= &reprepare_observer;
     }
 
+    /* items must not cache values of the parameters of the first row */
+    if (bulk_optimized)
+      set_params_changing_value(true);
     Diagnostics_area::enum_diagnostics_status da_status=
       thd->get_stmt_da()->status();
     error= execute(expanded_query, open_cursor) || thd->is_error();
@@ -4997,20 +5006,18 @@ reexecute:
         goto reexecute;
     }
   }
+  goto end;
+
+err:
+  error= true;
+end:
   reset_stmt_params(this);
   thd->set_bulk_execution(0);
   thd->set_last_insert_id_from_cur_stmt();
+  set_params_changing_value(false);
   if (readbuff)
     my_free(readbuff);
   return error;
-
-err:
-  reset_stmt_params(this);
-  thd->set_bulk_execution(0);
-  thd->set_last_insert_id_from_cur_stmt();
-  if (readbuff)
-    my_free(readbuff);
-  return true;
 }
 
 
