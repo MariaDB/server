@@ -65,4 +65,27 @@ SET SESSION parallel_worker_threads=4;
 SELECT * FROM t6 WHERE LEAST( UTC_TIME(), d ) AND d < DATE'2012-01-05';
 DROP TABLE t6;
 
+--echo #
+--echo # DEFAULT() reads the column's default, never the row a worker is on
+--echo #
+CREATE TABLE t7 (f TIMESTAMP DEFAULT 0, a INT, b INT DEFAULT (a*100))
+  ENGINE=InnoDB;
+INSERT INTO t7 VALUES ('2024-02-29', 1, 5), ('2025-01-01', 2, 6);
+SET SESSION parallel_worker_threads=0;
+SELECT a FROM t7 WHERE CONCAT(DEFAULT(f), '|', f) =
+  '0000-00-00 00:00:00|2024-02-29 00:00:00';
+SELECT a FROM t7 WHERE SUBSTR(1 FROM BIT_LENGTH(f) FOR DEFAULT(f)) IS NULL;
+--sorted_result
+SELECT a, b FROM t7 WHERE DEFAULT(b) + b > 0;
+--echo # same answers with workers enabled, and none of them ran in the workers
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a FROM t7 WHERE CONCAT(DEFAULT(f), '|', f) =
+  '0000-00-00 00:00:00|2024-02-29 00:00:00';
+SELECT a FROM t7 WHERE SUBSTR(1 FROM BIT_LENGTH(f) FOR DEFAULT(f)) IS NULL;
+--sorted_result
+SELECT a, b FROM t7 WHERE DEFAULT(b) + b > 0;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+DROP TABLE t7;
+
 DROP TABLE t1,t2,t3,t4,t5;
