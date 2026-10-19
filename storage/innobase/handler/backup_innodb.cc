@@ -1396,17 +1396,26 @@ public:
     }
     else if (log_sys.last_checkpoint_lsn < log_sys.first_lsn)
     {
-      const lsn_t l{ctx.garbage_lsn};
-      ctx.garbage_lsn= lsn;
-      /*
-        Our ctx.garbage_lsn will be processed by a subsequent
-        unlink_old: or context::destroy().
-      */
-      if (l)
+      for (size_t i{non_log}; i < queue.size(); i++)
+        if (lsn == queue[i])
+          /* context::delete_logs() will clean this up */
+          goto will_unlink;
+
       {
-        lsn= l;
-        goto unlink_old;
+        const lsn_t l{ctx.garbage_lsn};
+        ctx.garbage_lsn= lsn;
+        /*
+          Our ctx.garbage_lsn will be processed by a subsequent
+          unlink_old: or context::destroy().
+        */
+        if (l)
+        {
+          /* Delete the previously buffered garbage log file. */
+          lsn= l;
+          goto unlink_old;
+        }
       }
+    will_unlink:
       mutex.wr_unlock();
     }
     else
