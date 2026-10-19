@@ -1,0 +1,246 @@
+MDEV-37607: WSREP Binlog Transaction Coordinator
+================================================
+
+4. REQUIREMENTS
+===============
+
+Functional requirements
+-----------------------
+
+FR-1: Commit order.
+a. With a binlog, commits of replicated write sets MUST finish in seqno order on every node.
+b. Without a binlog, commits of replicated write sets MUST finish in seqno order on every node.
+
+FR-2: Committed position.
+a. The committed position (committed_position()) MUST move past every seqno that has no commit on
+   this node: a write set that failed certification (a ticket of kind DUMMY), a rolled back write
+   set, a view (a ticket of kind VIEW) and a skipped fragment (a seqno registered as SKIPPED).
+b. The wait for the committed position (wait_committed(seqno)) of a later isolated statement MUST
+   NOT stay blocked on those seqnos once the earlier tickets are removed.
+c. When a commit has finished, its ticket MUST be removed (unregister_ticket) and the committed
+   position MUST move up past it.
+d. A wait for a committed position that has already been reached (wait_committed(seqno) with the
+   seqno at or below the committed position) MUST return success at once.
+e. A wait for a committed position that has already been reached MUST NOT take the commit order
+   mutex (LOCK_wsrep_group_commit); it reads the published position (committed_published).
+
+FR-3: Wait for the earlier commit.
+a. A commit MUST wait while the commit before it is not marked as ordered (the wait
+   wait_ordered(ticket) on the previous ticket prev, flag Provider_ticket::ordered).
+b. The commit MUST NOT enter the binlog group commit queue (binlog on) or the engine's ordered
+   commit step (binlog off) before that wait returns.
+
+FR-4: Handing on the turn. A commit is marked as ordered when its position has been fixed
+(Provider_ticket::ordered, or s_ordered_commit in the wsrep-lib transaction state, or ordered and
+order_failed in group_commit_entry).
+a. With a binlog, the position is fixed when the commit is put into the binlog group commit queue
+   (queue_for_group_commit), and the next commit MUST be allowed to go without waiting for the first
+   one to finish.
+b. Without a binlog, the position is fixed when the commit reaches the engine's ordered commit step
+   (wsrep_commit_ordered), and the next commit MUST be allowed to go without waiting for the first
+   one to finish.
+
+FR-5: Isolated statement (DDL).
+a. The statement of an isolated write set (a ticket of kind ISOLATED) MUST NOT start until every
+   earlier commit has finished (the wait for the committed position, wait_committed(seqno - 1)).
+b. While the statement runs, commits after it MUST NOT complete: its ticket stays registered until
+   the statement ends (it is removed by release_ticket).
+c. A DDL that failed certification (a ticket of kind DUMMY on an isolated write set) MUST still take
+   its turn: it MUST NOT be removed before every earlier commit has finished (wait_committed(seqno -
+   1)), and commits after it MUST NOT complete until it is removed.
+
+FR-6: Non-blocking operation.
+a. The start write set and the end write set MUST each get a ticket of kind NBO, in seqno order.
+b. The start MUST NOT run until every earlier commit has finished (wait_committed(seqno - 1)). Its
+   ticket MUST be removed (release_ticket) when the start statement has finished, so commits between
+   the start and the end are not held back.
+c. The end MUST NOT run until every earlier commit has finished (wait_committed(seqno - 1) for its
+   own seqno). Its ticket MUST stay registered until the end has finished, so later commits do not
+   complete before it.
+d. An end write set that takes no effect (no matching start, a ticket of kind DUMMY) MUST still take
+   its turn in the order and be removed.
+
+FR-7: Write set that does not commit.
+a. The ticket of a write set that does not commit (a rollback, a failed certification, a rollback
+   fragment) MUST be removed only after all earlier commits have finished (the removal
+   release_provider_ticket first waits for them).
+b. Commits after it MUST NOT complete before the commits that came before it.
+
+FR-8: Abort of a waiting commit.
+a. When a commit that waits for the commit before it is aborted (abort_waiter(seqno), possible only
+   if the commit before it is not yet marked as ordered), its wait (wait_ordered) MUST end with an
+   error.
+b. Its ticket MUST stay registered, not yet taken over by a thread, and commits after it MUST keep
+   waiting for it.
+
+FR-9: Replay keeps its position.
+a. A transaction whose commit wait was aborted (FR-8) and that is replayed MUST wait again
+   (wait_ordered) on the same ticket, take it over (bind_ticket), and commit in its original
+   position.
+b. Commits after it MUST keep their order.
+
+FR-10: Abort of a committing write set.
+a. If the commit is already marked as ordered (Provider_ticket::ordered), a brute force abort of a
+   committing write set MUST be refused (WSREP_NOT_ALLOWED).
+b. A non-final fragment MAY be aborted (the transaction state S_MUST_ABORT) at any time.
+
+FR-11: Node failure.
+a. When the node is marked inconsistent, the interrupt of all waits (interrupt_all(error)) MUST give
+   every waiting commit and statement an error: the waits for earlier commits (wait_ordered), the
+   waits for the committed position (wait_committed) and the commits waiting in the server's commit
+   chain. The error is remembered (sticky_error).
+b. Any later wait that would have to wait MUST return that error at once, until the next connection
+   (reset()).
+c. A wait whose condition is already true when it is called (the commit before it is already marked
+   as ordered, or the committed position has already reached the seqno) MUST return success and not
+   the error, even after the node has been marked inconsistent.
+
+FR-12: Ordered commit and normal shutdown.
+a. A commit that is already marked as ordered (Provider_ticket::ordered) MUST NOT be affected by the
+   interrupt of all waits (interrupt_all).
+b. The interrupt of all waits (interrupt_all, called through interrupt_commit_order()) MUST be
+   called only where the library marks the node corrupt (mark_corrupt_and_close), never on a normal
+   shutdown.
+
+FR-13: View change.
+a. A view change that takes a seqno MUST have a ticket of kind VIEW, registered after the drain of
+   the apply monitor (apply_monitor_.drain) and removed after the view is submitted to the
+   application (ViewTicket::release), on every exit.
+b. All earlier commits MUST have finished before the view is submitted.
+c. Commits after the view MUST NOT complete until the ticket of kind VIEW is removed.
+
+FR-14: IST.
+a. The IST receiver MUST register the ticket of every write set and view in the order of the stream
+   (register_commit_order_ticket).
+b. The applier MUST take over the ticket of a view (claim) and remove it (release_ticket) after the
+   view is submitted.
+
+FR-15: Ticket removal on the special commit paths. After each of the following, the ticket of the
+write set MUST be removed (unregister_ticket) and a later commit MUST NOT be blocked:
+a. An applier applies a CREATE TABLE ... AS SELECT with an empty result
+   (Wsrep_high_priority_service::commit).
+b. An applier handles a write set that failed to apply, or a rollback fragment
+   (log_dummy_write_set).
+c. An ordered write set is rolled back (set_position).
+
+FR-16: Blocked commit report.
+a. A commit that stays blocked for max_commit_order_report_time seconds MUST be reported in the
+   log, and again every max_commit_order_report_time seconds while it stays blocked
+   (report_blocker, from the waits wait_ordered and wait_committed), with the blocker's seqno, kind,
+   state, owner thread and age.
+b. The value 0 of max_commit_order_report_time MUST turn the reports off. Its default is 10.
+c. A waiting applier MUST show the state "Waiting for the earlier commits to finish" in the process
+   list.
+
+FR-17: Stuck commit escalation.
+a. If the commit that other commits are waiting for (the blocker) makes no progress for
+   max_commit_order_wait_time seconds, the commit order MUST be treated as stuck: the error is
+   logged and the library marks the node inconsistent (escalate_stuck, which calls the library
+   handler commit_order_stuck). "No progress" means that the blocker's ticket has not changed state
+   (registered, taken over by a thread, marked as ordered) for that long.
+b. This MUST happen only once per connection (the latch stuck_escalated), even if more commits stay
+   stuck afterwards.
+c. A blocker that is expected to take long MUST NOT be treated as stuck while a thread is running
+   it: an isolated statement, a non-blocking operation or a view change (the kinds ISOLATED, NBO and
+   VIEW, long_by_design). If no thread has taken the ticket over yet, it MAY be treated as stuck.
+d. The value 0 of max_commit_order_wait_time MUST turn this off, so only the report remains. This
+   is the default.
+
+FR-18: Service mandatory.
+a. The server MUST refuse to start, with an error in the log, if the Galera library it loaded does
+   not provide the commit order service. The check is the initialization of the service
+   (wsrep_commit_order_service_init), and the error says that the provider does not support the
+   commit order service.
+b. The connect of the library (galera_connect) MUST fail when the service is not available
+   (CommitOrderService::get() is NULL).
+
+FR-19: Deprecated statistics and parameter.
+a. The statistics for out-of-order commits (commit_oooe, commit_oool) MUST be 0 and the statistic
+   for the commit window (commit_window) MUST be 1.
+b. The parameter for the commit order mode (replicator.commit_order) MUST be accepted and ignored,
+   with a warning in the log if its value is not 3.
+
+FR-20: Registration in seqno order.
+a. A ticket MUST be registered with a seqno higher than the highest registered one (seqno >
+   registered_max).
+b. When tickets are registered, the seqno MUST be exactly one more than the highest registered one
+   (seqno == registered_max + 1). Only an empty set of tickets (after a state transfer) MAY jump.
+c. The committed position (committed_bound()) MUST NOT decrease.
+
+FR-21: No ticket left behind.
+a. A ticket MUST NOT stay registered after its commit has finished or been dropped.
+b. At disconnect no ticket MUST be registered (ticket_head is empty).
+c. A ticket still registered when its write set handle (~TrxHandleSlave) or its session (~THD) is
+   destroyed MUST be removed.
+
+Non-functional requirements
+---------------------------
+
+- NFR-1: Durability. With sync_binlog=1 and innodb_flush_log_at_trx_commit=1, every transaction
+  whose commit was acknowledged to the client MUST survive a crash of this node: it MUST be present
+  in the binlog and in the engine after the restart.
+- NFR-2: Binlog and engine consistency. After crash recovery the binlog and the engine MUST contain
+  the same committed transactions: no transaction MUST be in one and missing in the other.
+- NFR-3: Recovery position. Each commit MUST store its seqno as the engine's replication position,
+  and the stored position MUST increase strictly in seqno order. After a restart the recovered
+  position (the result of --wsrep-recover) MUST equal the highest seqno committed in the engine,
+  with no gap.
+- NFR-4: Rejoin. After a crash and restart the node MUST rejoin the cluster and hold the same data
+  as the other nodes.
+- NFR-5: No new lock that reduces performance. No new lock or mutex MUST be introduced in the commit
+  path that reduces performance.
+- NFR-6: Performance Throughput, with or without a binlog, SHOULD NOT regress.
+
+Non-requirements
+----------------
+
+- NR1: No change to GTID assignment or to what is replicated.
+
+Terminology
+-----------
+
++-----------------------------------------+--------------------------------------------------------+
+| Term                                    | Meaning                                                |
++=========================================+========================================================+
+| ticket                                  | The server's record of one commit in progress on this  |
+|                                         | node, one per seqno (Provider_ticket)                  |
++-----------------------------------------+--------------------------------------------------------+
+| registered / removed                    | A ticket is registered when its seqno is certified and |
+|                                         | removed when its commit has finished or been dropped.  |
+|                                         | While a ticket is registered the server treats the     |
+|                                         | seqno as unfinished                                    |
++-----------------------------------------+--------------------------------------------------------+
+| ordered                                 | The commit's position relative to the other commits is |
+|                                         | fixed, so the next commit may go. It does not mean the |
+|                                         | commit has finished. It is marked in three places that |
+|                                         | mean the same thing: the flag                          |
+|                                         | Provider_ticket::ordered, the wsrep-lib transaction    |
+|                                         | state s_ordered_commit, and the field ordered of the   |
+|                                         | group commit entry                                     |
++-----------------------------------------+--------------------------------------------------------+
+| group commit entry (group_commit_entry) | The record of one commit in binlog group commit. It is |
+|                                         | added to the queue, and the leader writes the binlog   |
+|                                         | for the whole queue                                    |
++-----------------------------------------+--------------------------------------------------------+
+| ordered (entry field)                   | Set to true when the commit's order belongs to the     |
+|                                         | provider and has been released in the queue. Group     |
+|                                         | commit then waits for the earlier commit before the    |
+|                                         | leader acts. It replaces the old return code -3 ("this |
+|                                         | commit is the leader"), which was also used to tell    |
+|                                         | group commit that the provider handled the order       |
++-----------------------------------------+--------------------------------------------------------+
+| order_failed (entry field)              | Set to true when that release returned an error. A     |
+|                                         | commit that is not the leader then stops: it wakes the |
+|                                         | commits behind it with an error and returns a failure  |
+|                                         | instead of being written to the binlog. It replaces    |
+|                                         | the old return code -2 ("the commit order failed")     |
++-----------------------------------------+--------------------------------------------------------+
+| committed position                      | The highest seqno such that everything up to it has    |
+|                                         | finished (committed_position())                        |
++-----------------------------------------+--------------------------------------------------------+
+| blocker                                 | The commit that another commit is waiting for          |
++-----------------------------------------+--------------------------------------------------------+
+| commit order mutex                      | The one lock (LOCK_wsrep_group_commit) that protects   |
+|                                         | the tickets, the committed position and the error      |
+|                                         | state                                                  |
++-----------------------------------------+--------------------------------------------------------+
