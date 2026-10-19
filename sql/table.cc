@@ -8423,18 +8423,37 @@ void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
 
 
 /*
-  Store all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Generated blob fields handled by remember_blob_values(),
+  restore_blob_values() and free_blob_values()
 */
 
-void TABLE::remember_blob_values(String *blob_storage)
+static inline bool is_remembered_blob(const Field *field, bool with_stored)
+{
+  return field->flags & BLOB_FLAG &&
+         (with_stored || !field->vcol_info->stored_in_db);
+}
+
+
+/*
+  Move Field_blob::value of generated blob fields into blob_storage,
+  leaving value empty. Computing another row into record[0] then does not
+  overwrite the buffers that a saved record points to.
+
+  Used by InnoDB when it computes virtual fields for its internal records,
+  by handler::check_duplicate_long_entry_key(), TABLE::delete_row(),
+  vers_insert_history_row() and TABLE::period_make_insert().
+
+  @param with_stored  Also move the values of stored generated blob fields.
+                      blob_storage must hold s->virtual_fields values, else
+                      s->virtual_not_stored_blob_fields values.
+*/
+
+void TABLE::remember_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->flags & BLOB_FLAG &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       memcpy((void*) blob_storage, (void*) &blob->value, sizeof(blob->value));
@@ -8446,18 +8465,18 @@ void TABLE::remember_blob_values(String *blob_storage)
 
 
 /*
-  Restore all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Free what was computed into Field_blob::value since
+  remember_blob_values() and move the stored values back
+
+  @param with_stored  Must match remember_blob_values()
 */
 
-void TABLE::restore_blob_values(String *blob_storage)
+void TABLE::restore_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->flags & BLOB_FLAG &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       blob->value.free();
@@ -8469,15 +8488,17 @@ void TABLE::restore_blob_values(String *blob_storage)
 
 
 /*
-  Free blob values stored by remember_blob_values() without restoring them
+  Free the values stored by remember_blob_values() without moving them
+  back: Field_blob::value keeps what was computed since then
+
+  @param with_stored  Must match remember_blob_values()
 */
 
-void TABLE::free_blob_values(String *blob_storage)
+void TABLE::free_blob_values(String *blob_storage, bool with_stored)
 {
   for (Field **vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->flags & BLOB_FLAG &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+    if (is_remembered_blob(*vfield_ptr, with_stored))
       (blob_storage++)->free();
   }
 }
@@ -9488,16 +9509,15 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   String *blob_storage= NULL;
   store_record(this, record[1]);
   /*
-    update_generated_fields() computes virtual blobs into Field_blob::value,
-    which may hold the virtual blobs of the row saved by the caller (the new
-    row of UPDATE FOR PORTION OF in record[2]). Keep them while the inserted
-    row is in record[0].
+    update_generated_fields() computes generated blobs into
+    Field_blob::value, which may hold the generated blobs of the row saved by
+    the caller (the new row of UPDATE FOR PORTION OF in record[2]). Keep them
+    while the inserted row is in record[0].
   */
-  if (s->virtual_not_stored_blob_fields)
+  if (vfield)
   {
-    blob_storage= (String *) alloca(sizeof(String) *
-                                    s->virtual_not_stored_blob_fields);
-    remember_blob_values(blob_storage);
+    blob_storage= (String *) alloca(sizeof(String) * s->virtual_fields);
+    remember_blob_values(blob_storage, true);
   }
   int res= src->save_in_field(dst, true);
 
@@ -9519,7 +9539,7 @@ int TABLE::period_make_insert(Item *src, Field *dst)
                                     TRG_ACTION_AFTER, true);
 
   if (blob_storage)
-    restore_blob_values(blob_storage);
+    restore_blob_values(blob_storage, true);
   restore_record(this, record[1]);
   if (res)
     file->restore_auto_increment(prev_insert_id);

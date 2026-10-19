@@ -346,4 +346,26 @@ x	a	s	e	v
 1	b	2005-01-01	2010-01-01	b 2005-01-01 2010-01-01
 1	a	2010-01-01	2020-01-01	a 2010-01-01 2020-01-01
 drop table t1, log;
+#
+# MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+#            versioned table
+#
+# AFTER UPDATE trigger reads NEW of a stored generated blob over the period
+create table t1 (x int, a text charset latin1, s date, e date,
+period for app (s, e),
+sv text charset utf8mb4 as (concat(a, ' ', s, ' ', e)) stored);
+create table log (new_sv text);
+create trigger tr after update on t1 for each row
+insert log values (new.sv);
+insert t1 (x, a, s, e) values (1, 'a', '2000-01-01', '2020-01-01');
+update t1 for portion of app from '2005-01-01' to '2010-01-01' set a= 'b';
+select * from log;
+new_sv
+b 2005-01-01 2010-01-01
+select x, a, s, e, sv from t1 order by s;
+x	a	s	e	sv
+1	a	2000-01-01	2005-01-01	a 2000-01-01 2005-01-01
+1	b	2005-01-01	2010-01-01	b 2005-01-01 2010-01-01
+1	a	2010-01-01	2020-01-01	a 2010-01-01 2020-01-01
+drop table t1, log;
 # End of 10.11 tests
