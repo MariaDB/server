@@ -37,6 +37,7 @@
 #include "opt_trace.h"
 #include "sql_parallel_workers.h"
 #include "transaction.h"
+#include "debug_sync.h"
 
 
 /*****************************************************************************
@@ -2348,6 +2349,7 @@ int pwt_worker::execute_and_handoff()
   int err= 0;
   uint i;
   bool killed= false;
+  bool result_closed= false;      // see the hand-off below
 
   // the source tables were marked in open_worker_tables; this one is ours
   exec.result.table->use_all_columns();         // we write every result column
@@ -2451,6 +2453,7 @@ int pwt_worker::execute_and_handoff()
   */
   if (manager->row_layout().grouped && exec.result.table)
     exec.result.table->file->ha_index_or_rnd_end();
+  result_closed= true;
 
   /*
     Nothing to flush for a pre-aggregating worker: the rows it aggregated are
@@ -2460,6 +2463,11 @@ int pwt_worker::execute_and_handoff()
   */
   if (!err && !killed)
     sink->flush();
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("pwt_handoff_sync",
+    DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+      "now WAIT_FOR pwt_container_scanning"))););
+#endif
 
 exec_exit:
   if (err == HA_ERR_END_OF_FILE)
@@ -2468,11 +2476,21 @@ exec_exit:
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
   for (i= 1; i < nt; i++)
     exec.jointabs[i].table->file->ha_index_or_rnd_end();
-  /* Again for the paths that reach here without having handed anything over. */
-  if (manager->row_layout().grouped && exec.result.table)
+  /*
+    Again, for the paths that jumped here past the close above. Only for
+    those: once the hand-off has been reached, the container may be the
+    manager's, scanned by the manager's own ha_rnd_init(), and ending it
+    here would end the manager's scan under it.
+  */
+  if (!result_closed && manager->row_layout().grouped && exec.result.table)
     exec.result.table->file->ha_index_or_rnd_end();
   for (i= 0; i < nt; i++)
     exec.tables[i]->file->ha_external_lock(thd, F_UNLCK);
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("pwt_handoff_sync",
+    DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+      "now SIGNAL pwt_worker_tidied"))););
+#endif
 
   DBUG_RETURN(err);
 }

@@ -1118,6 +1118,7 @@ int pwt_tmp_table_source::next_row(uchar *dst)
     }
     cur= next;
     scan_open= true;
+    DEBUG_SYNC(manager->thd, "pwt_manager_scanning_container");
   }
 }
 
