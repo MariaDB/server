@@ -5,6 +5,7 @@
 # making writing tests that depend on reaching
 # the depth hard.
 #
+source include/have_sequence.inc;
 source include/not_embedded.inc;
 # MSAN with debug exceeds the stack early.
 source include/not_msan_with_debug.inc;
@@ -227,5 +228,19 @@ SELECT ST_GeomFromGeoJSON(
     repeat(']}', @len)
   )) as exp;
 --enable_result_log
+
+--echo #
+--echo # MDEV-41630 ST_IsValid crashes on polygons with many rings
+--echo #
+SET SESSION group_concat_max_len = 200000000;
+
+SET @rings = (SELECT GROUP_CONCAT(
+  CONCAT('(', seq, ' 0,', seq+1, ' 0,', seq+1, ' 1,', seq, ' 1,', seq, ' 0)')
+  SEPARATOR ','
+) FROM seq_1_to_100000);
+
+SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
+
+SELECT ST_IsValid(@g);
 
 --echo # End of 12.3 tests
