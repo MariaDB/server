@@ -1,0 +1,34 @@
+# MDEV-40012 Parallel Query: a worker must not touch its container once it has handed it over
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 5 FROM seq_1_to_1000;
+
+--echo # serial answer
+SET SESSION parallel_worker_threads=0;
+--sorted_result
+SELECT b, SUM(a) FROM t1 GROUP BY b ORDER BY NULL;
+
+--echo # the manager is scanning the container while the worker tidies up
+SET @save_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "+d,pwt_handoff_sync";
+SET DEBUG_SYNC= 'pwt_manager_scanning_container SIGNAL pwt_container_scanning WAIT_FOR pwt_worker_tidied';
+SET SESSION parallel_worker_threads=1;
+FLUSH STATUS;
+--disable_ps2_protocol
+--sorted_result
+SELECT b, SUM(a) FROM t1 GROUP BY b ORDER BY NULL;
+--enable_ps2_protocol
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--echo # ran in the workers (expect 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL debug_dbug= @save_dbug;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;

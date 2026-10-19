@@ -1,0 +1,31 @@
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq % 5 FROM seq_1_to_1000;
+# serial answer
+SET SESSION parallel_worker_threads=0;
+SELECT b, SUM(a) FROM t1 GROUP BY b ORDER BY NULL;
+b	SUM(a)
+0	100500
+1	99700
+2	99900
+3	100100
+4	100300
+# the manager is scanning the container while the worker tidies up
+SET @save_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "+d,pwt_handoff_sync";
+SET DEBUG_SYNC= 'pwt_manager_scanning_container SIGNAL pwt_container_scanning WAIT_FOR pwt_worker_tidied';
+SET SESSION parallel_worker_threads=1;
+FLUSH STATUS;
+SELECT b, SUM(a) FROM t1 GROUP BY b ORDER BY NULL;
+b	SUM(a)
+0	100500
+1	99700
+2	99900
+3	100100
+4	100300
+# ran in the workers (expect 1)
+ran_in_the_workers
+1
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL debug_dbug= @save_dbug;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
