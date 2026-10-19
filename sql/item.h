@@ -6796,7 +6796,7 @@ public:
   }
 protected:
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_cache_wrapper>(thd, this); }
+  { return NULL; /* Not supported */ }
   Item *deep_copy(THD *) const override { return nullptr; }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {

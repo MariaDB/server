@@ -1581,7 +1581,7 @@ public:
 
 protected:
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_sum_sp>(thd, this); }
+  { return NULL; /* not supported */ }
 };
 
 /* Items to get the value of a stored sum function */

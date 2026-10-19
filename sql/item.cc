@@ -12310,33 +12310,41 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
 #include <unordered_set>
 #include <mutex>
 
+/*
+  Check that this item has implemented shallow_copy()
+*/
 void Item::dbug_check_shallow_copy_type(THD *thd) const
 {
-  static std::unordered_set<std::type_index> checked;
+  /*
+    Maintain a set of Item_xxx types that were already checked and don't check
+    them again.
+  */
+  static std::unordered_set<std::type_index> checked_types;
   static std::mutex checked_mutex;
   {
     std::lock_guard<std::mutex> lock(checked_mutex);
-    if (!checked.insert(typeid(*this)).second)
+    if (!checked_types.insert(typeid(*this)).second)
       return;
   }
-  Item *copy= shallow_copy(thd);
-  if (!copy)
-    return;
+
+  Item *item_copy= shallow_copy(thd);
+  if (!item_copy)
+    return; /* This item cannot be cloned */
+
   /*
-    get_item_copy() registered the copy in thd->free_list. Unlink it: it is
-    only inspected, and destroying a copy that shares pointers with the
-    original could free them twice. So the copy is never destroyed: its
-    destructor is not run, and its memory is released when the MEM_ROOT it
-    was allocated on, the current thd->mem_root, is freed. At most one copy
-    is made per Item class.
+    We don't want cleanup() to be called for the item_copy, as it is not
+    fixed.
+    To achieve this, unlink it from thd->free_list and delete ourselves.
+    Note that this currently requires that the copy is last in the list (TODO?)
   */
-  if (thd->free_list == copy)
-    thd->free_list= copy->next;
-  if (typeid(*copy) != typeid(*this))
+  if (thd->free_list == item_copy)
+    thd->free_list= item_copy->next;
+  if (typeid(*item_copy) != typeid(*this))
   {
     fprintf(stderr, "SHALLOW_COPY_TYPE_MISMATCH: %s copied as %s\n",
-            typeid(*this).name(), typeid(*copy).name());
+            typeid(*this).name(), typeid(*item_copy).name());
     DBUG_ASSERT(0);
   }
+  delete item_copy;
 }
 #endif
