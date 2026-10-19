@@ -47,6 +47,8 @@
 */
 #define FIRST_SEQUENCE_VERSION 100300
 
+#define FIRST_SYS_TRIGGER_VERSION 130200
+
 #include <my_global.h>
 #include <my_sys.h>
 #include <my_user.h>
@@ -135,7 +137,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_header=0, opt_update_history= 0,
-                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0;
+                opt_drop_trigger= 0, opt_dump_history= 0, opt_wildcards= 0,
+                opt_dump_sys_triggers= 0;
 static my_bool opt_galera_info= 0;
 
 #define OPT_SYSTEM_ALL 1
@@ -612,6 +615,9 @@ static struct my_option my_long_options[] =
   {"triggers", 0, "Dump triggers for each dumped table.",
    &opt_dump_triggers, &opt_dump_triggers, 0, GET_BOOL,
    NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"sys-triggers", 0, "Dump system triggers.",
+    &opt_dump_sys_triggers, &opt_dump_sys_triggers, 0, GET_BOOL,
+    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tz-utc", 0,
    "Set connection time zone to UTC before commencing the dump and add "
    "SET TIME_ZONE=´+00:00´ to the top of the dump file.",
@@ -5471,12 +5477,32 @@ static int dump_all_databases()
   MYSQL_ROW row;
   MYSQL_RES *tableres;
   int result=0;
+  char mysql_db[]= "mysql";
 
   if (mysql_query_with_error_report(mysql, &tableres, "SHOW DATABASES"))
     return 1;
+
+  const bool dump_sys_triggers=
+    opt_dump_sys_triggers &&
+    mysql_get_server_version(mysql) >= FIRST_SYS_TRIGGER_VERSION;
+
+  /*
+    In case it is requested to dump system triggers, first dump
+    the mysql database since it contains the table mysql.event where
+    triggers' metadata stored
+  */
+  if (dump_sys_triggers &&
+      dump_all_tables_in_db(mysql_db))
+    return 1;
+
   while ((row= mysql_fetch_row(tableres)))
   {
-    if (is_IS_or_PS(row[0]) || is_SyS(row[0]))
+    if (is_IS_or_PS(row[0]) || is_SyS(row[0]) ||
+        /*
+          In case system triggers to be dumped, skip the `mysql` database
+          since one is dumped before entering into the while loop
+        */
+        (dump_sys_triggers && !cmp_database(row[0], mysql_db)))
       continue;
 
     if (include_database(row[0]))
@@ -7480,6 +7506,83 @@ free_buf_and_exit:
   DBUG_VOID_RETURN;
 }
 
+static int init_dumping_sys_triggers(char *qdatabase __attribute__((unused)))
+{
+    return 0;
+}
+
+static void dump_sys_triggers()
+{
+  char query_buff[QUERY_LENGTH];
+  MYSQL_RES *triggers_list_rs= nullptr;
+
+  my_snprintf(query_buff, sizeof(query_buff),
+              "SELECT db, name FROM mysql.event WHERE kind IN "
+              "('STARTUP', 'SHUTDOWN')");
+  if (mysql_query_with_error_report(mysql, &triggers_list_rs, query_buff) ||
+      switch_character_set_results(mysql, "binary"))
+  {
+    mysql_free_result(triggers_list_rs);
+    maybe_exit(EX_MYSQLERR);
+
+    return;
+  }
+
+  my_bool opt_databases_saved= opt_databases;
+  opt_databases= true;
+
+  if (mysql_num_rows(triggers_list_rs))
+  {
+    MYSQL_ROW row;
+    while ((row= mysql_fetch_row(triggers_list_rs)))
+    {
+      MYSQL_RES *show_create_trigger_rs;
+      char       name_buff[NAME_LEN*4+3];
+      char       db_cl_name[MY_CS_COLLATION_NAME_SIZE];
+      char      *db_name;
+
+      my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
+                  quote_name(row[1], name_buff, true));
+
+      db_name= row[0];
+
+      if (init_dumping(db_name, init_dumping_sys_triggers) ||
+          fetch_db_collation(db_name, db_cl_name, sizeof (db_cl_name)) ||
+          mysql_query_with_error_report(mysql, &show_create_trigger_rs,
+                                        query_buff))
+      {
+        mysql_free_result(triggers_list_rs);
+
+        (void)switch_character_set_results(mysql, default_charset);
+        opt_databases= opt_databases_saved;
+
+        maybe_exit(EX_MYSQLERR);
+        return;
+      }
+
+      if (dump_trigger(md_result_file, show_create_trigger_rs,
+                       db_name, db_cl_name))
+      {
+        mysql_free_result(triggers_list_rs);
+        mysql_free_result(show_create_trigger_rs);
+
+        (void)switch_character_set_results(mysql, default_charset);
+        opt_databases= opt_databases_saved;
+
+        maybe_exit(EX_MYSQLERR);
+        return;
+      }
+
+      mysql_free_result(show_create_trigger_rs);
+    }
+  }
+
+  (void)switch_character_set_results(mysql, default_charset);
+  opt_databases= opt_databases_saved;
+
+  mysql_free_result(triggers_list_rs);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -7674,6 +7777,13 @@ int main(int argc, char **argv)
         dump_databases(argv);
       }
     }
+  }
+
+  if (opt_dump_sys_triggers &&
+      mysql_get_server_version(mysql) >= FIRST_SYS_TRIGGER_VERSION)
+  {
+    DBUG_PRINT("info", ("Dumping system trigger"));
+    dump_sys_triggers();
   }
 
   if ((opt_system & OPT_SYSTEM_PLUGINS) && dump_all_plugins() && !first_error)

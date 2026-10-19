@@ -119,6 +119,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include "sql_sys_or_ddl_trigger.h"
 #include "sp_head.h"  // init_sp_psi_keys
 #include "log_cache.h"
 #include <mysqld_default_groups.h>
@@ -6184,6 +6185,7 @@ int mysqld_main(int argc, char **argv)
   /* We can't close stdin until we know we're not in bootstrap mode. */
   bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
 #endif
+  bool bootstrap_or_noacl;
 
   /*
     Perform basic thread library and malloc initialization,
@@ -6540,6 +6542,15 @@ int mysqld_main(int argc, char **argv)
 
   disable_log_notes= 0; /* Startup done, now we can give notes again */
 
+  /*
+    Since opt_noacl can be modified between calling the functions
+    run_after_startup_triggers and run_before_shutdown_triggers (on handling
+    the statement FLUSH PRIVILAGES), calculate the flag based on their
+    original values.
+  */
+  bootstrap_or_noacl= (opt_bootstrap || opt_noacl);
+  run_after_startup_triggers(bootstrap_or_noacl);
+
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname, server_version,
                           (systemd_sock_activation ? "Systemd socket activated ports" :
@@ -6575,7 +6586,6 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
-
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
   mysqld_server_started= 1;
@@ -6590,6 +6600,8 @@ int mysqld_main(int argc, char **argv)
   run_main_loop();
 
   /* Shutdown requested */
+  run_before_shutdown_triggers(bootstrap_or_noacl);
+
   {
     char *user= shutdown_user.load(std::memory_order_relaxed);
     sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,

@@ -695,8 +695,6 @@ alter table event MODIFY definer varchar(384) collate utf8mb3_bin NOT NULL DEFAU
 # the tasks MENT-2355, MENT-2291 will be done later
 ALTER TABLE event ADD kind SET ('SCHEDULE', 'STARTUP', 'SHUTDOWN',
                                 'LOGON', 'LOGOFF', 'DDL') NOT NULL DEFAULT 'SCHEDULE';
-# The column `when` is used only for triggers on DDL statements (kind = 'DDL').
-# For other kind of system triggers this column has the value NULL.
 ALTER TABLE event ADD `when` ENUM ('BEFORE', 'AFTER') DEFAULT NULL;
 # The column `ddl_type` is used only for triggers on DDL statements (kind = 'DDL').
 # For other kind of system triggers this column has the value NULL.

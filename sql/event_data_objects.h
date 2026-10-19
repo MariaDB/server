@@ -79,7 +79,7 @@ public:
   virtual ~Event_basic();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table) = 0;
+  load_from_row(THD *thd, TABLE *table, bool sys_triggers_enabled) = 0;
 
 protected:
   bool
@@ -111,13 +111,20 @@ public:
 
   bool dropped;
 
+  /**
+    This flag indicates whether the loaded object represents a record
+    containing trigger or event metadata. True in case the loaded record of
+    the table mysq.event represents trigger, false for the real event.
+  */
+  bool trigger_event= {false};
+
   uint execution_count;
 
   Event_queue_element();
   virtual ~Event_queue_element();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table) override;
+  load_from_row(THD *thd, TABLE *table, bool sys_triggers_enabled) override;
 
   bool
   compute_next_execution_time();
@@ -155,7 +162,7 @@ public:
   init();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table) override;
+  load_from_row(THD *thd, TABLE *table, bool sys_triggers_enabled) override;
 
   int
   get_create_event(THD *thd, String *buf);
@@ -176,7 +183,8 @@ public:
   Event_job_data();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table) override;
+  load_from_row(THD *thd, TABLE *table,
+                bool sys_triggers_enabled __attribute__((unused))) override;
 
   bool
   execute(THD *thd, bool drop);
