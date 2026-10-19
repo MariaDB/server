@@ -125,10 +125,32 @@ static bool pwt_item_reads_a_foreign_table(JOIN *join, Item *item)
 }
 
 
+/**
+  @brief
+    Whether 'item' holds a DEFAULT(col).
+
+  @description
+    Item_default_value is an Item_field whose field is a private copy built by
+    make_default_field(), reading the share's default_values, but with the
+    column's own table. Its copy shares that field, and the rebinder, seeing the
+    manager's table, repoints it at the worker's column. DEFAULT(col) then reads
+    the row the worker is on, and for an expression default calculate() goes
+    further and set_default() writes the default into that row.
+
+    Only reachable when the condition also names the column some other way:
+    alone, DEFAULT(col) depends on no table and is evaluated at optimize time.
+*/
+static bool pwt_item_has_default_value(Item *item)
+{
+  return item->walk(&Item::check_func_default_processor, nullptr, 0);
+}
+
+
 static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 {
   return pwt_item_is_clonable(join->thd, item) &&
-         !pwt_item_reads_a_foreign_table(join, item);
+         !pwt_item_reads_a_foreign_table(join, item) &&
+         !pwt_item_has_default_value(item);
 }
 
 
