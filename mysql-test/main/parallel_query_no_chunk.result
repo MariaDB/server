@@ -1,0 +1,133 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+SET @save_dbug= @@global.debug_dbug;
+# serial answers
+SET SESSION parallel_worker_threads=0;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# the workers end their own scans
+SET GLOBAL debug_dbug= @save_dbug;
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# and again, on the handlers the first runs left behind
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# all four ran in the workers (expect 4)
+ran_in_the_workers
+4
+# the same, in the scan-only path
+SET GLOBAL debug_dbug= "+d,pwt_scan_only";
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# and again, on the handlers the first runs left behind
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# all four ran in the workers (expect 4)
+ran_in_the_workers
+4
+# a worker with no chunk leaves its scan for close() to end
+SET GLOBAL debug_dbug= "+d,pwt_leave_scan_for_close";
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# and again, on the handlers the first runs left behind
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# all four ran in the workers (expect 4)
+ran_in_the_workers
+4
+# the same, in the scan-only path
+SET GLOBAL debug_dbug= "+d,pwt_scan_only,pwt_leave_scan_for_close";
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# and again, on the handlers the first runs left behind
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE b > 0;
+a	b
+1	10
+2	20
+3	30
+FLUSH STATUS;
+SELECT a, b FROM t1 WHERE a BETWEEN 2 AND 3;
+a	b
+2	20
+3	30
+# all four ran in the workers (expect 4)
+ran_in_the_workers
+4
+SET GLOBAL debug_dbug= @save_dbug;
+SET SESSION parallel_worker_threads=default;
+DROP TABLE t1;
