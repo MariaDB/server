@@ -126,4 +126,16 @@ repeat('{"type":"GeometryCollection", "geometries":[', @len),
 '{"type":"Point","coordinates":[0,0]}',
 repeat(']}', @len)
 )) as exp;
+#
+# MDEV-41630 ST_IsValid crashes on polygons with many rings
+#
+SET SESSION group_concat_max_len = 200000000;
+SET @rings = (SELECT GROUP_CONCAT(
+CONCAT('(', seq, ' 0,', seq+1, ' 0,', seq+1, ' 1,', seq, ' 1,', seq, ' 0)')
+SEPARATOR ','
+) FROM seq_1_to_100000);
+SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
+SELECT ST_IsValid(@g);
+ST_IsValid(@g)
+0
 # End of 12.3 tests
