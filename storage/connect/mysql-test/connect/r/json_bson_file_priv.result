@@ -280,6 +280,33 @@ ok
 select bfile_bjson('MYSQL_TMP_DIR/bib0.json', 'MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok;
 ok
 1
+# Input file is not a JSON array
+select jfile_convert('MYSQL_TMP_DIR/people.csv', 'MYSQL_TMP_DIR/out.json', 256);
+jfile_convert('MYSQL_TMP_DIR/people.csv', 'MYSQL_TMP_DIR/out.json', 256)
+NULL
+Warnings:
+Warning	1105	JSON file is not an array
+select bfile_convert('MYSQL_TMP_DIR/people.csv', 'MYSQL_TMP_DIR/out.json', 256);
+bfile_convert('MYSQL_TMP_DIR/people.csv', 'MYSQL_TMP_DIR/out.json', 256)
+NULL
+Warnings:
+Warning	1105	JSON file is not an array
+# JSON array does not start the file
+select jfile_convert('MYSQL_TMP_DIR/array.json', 'MYSQL_TMP_DIR/out.json', 256);
+jfile_convert('MYSQL_TMP_DIR/array.json', 'MYSQL_TMP_DIR/out.json', 256)
+MYSQL_TMP_DIR/out.json
+{"a":1}
+# Non-positive LRECL
+select jfile_convert('MYSQL_TMP_DIR/biblio.json', 'MYSQL_TMP_DIR/out.json', -3);
+jfile_convert('MYSQL_TMP_DIR/biblio.json', 'MYSQL_TMP_DIR/out.json', -3)
+NULL
+Warnings:
+Warning	1105	Invalid LRECL
+select bfile_convert('MYSQL_TMP_DIR/biblio.json', 'MYSQL_TMP_DIR/out.json', 0);
+bfile_convert('MYSQL_TMP_DIR/biblio.json', 'MYSQL_TMP_DIR/out.json', 0)
+NULL
+Warnings:
+Warning	1105	Invalid LRECL
 # Privileged user: relative path resolving outside secure_file_priv
 select json_file('../../bib0.json') IS NULL AS denied;
 denied
