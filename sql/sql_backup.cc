@@ -161,8 +161,8 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 int copy_entire_file(int src, int dst) noexcept
 {
   uint64_t end(lseek(src, 0, SEEK_END));
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_DONTNEED);
+#ifdef POSIX_FADV_NOREUSE
+  std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
 #endif
   int ret;
 # ifdef copy_file_shortcut

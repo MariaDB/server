@@ -350,8 +350,8 @@ private:
                         O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
         if (log >= 0)
         {
-# ifdef POSIX_FADV_DONTNEED
-          std::ignore= posix_fadvise(log, 0, 0, POSIX_FADV_DONTNEED);
+# ifdef POSIX_FADV_NOREUSE
+          std::ignore= posix_fadvise(log, 0, 0, POSIX_FADV_NOREUSE);
 # endif
           return log;
         }
@@ -448,8 +448,8 @@ private:
       d= openat(target->fd, d_, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
       if (d < 0)
         goto error_return;
-# ifdef POSIX_FADV_DONTNEED
-      std::ignore= posix_fadvise(d, 0, 0, POSIX_FADV_DONTNEED);
+# ifdef POSIX_FADV_NOREUSE
+      std::ignore= posix_fadvise(d, 0, 0, POSIX_FADV_NOREUSE);
 # endif
 #endif
       const uint64_t end{log_sys.START_OFFSET + last_lsn - hl};
@@ -2154,8 +2154,8 @@ public:
     }
     else
     {
-# ifdef POSIX_FADV_DONTNEED
-      std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_DONTNEED);
+# ifdef POSIX_FADV_NOREUSE
+      std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
 # endif
       err= extend(dst, chunk->offset) ||
         backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
@@ -2303,8 +2303,8 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
     f= openat(target, name, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
     if (f >= 0)
     {
-# ifdef POSIX_FADV_DONTNEED
-      std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_DONTNEED);
+# ifdef POSIX_FADV_NOREUSE
+      std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_NOREUSE);
 # endif
     }
     else
