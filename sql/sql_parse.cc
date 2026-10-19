@@ -2880,7 +2880,8 @@ bool sp_process_definer(THD *thd)
       SUPER privilege).
     */
     bool curuser= thd->security_ctx->is_priv_user(d->user.str, d->host.str);
-    bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
+    bool currole= !curuser && !d->host.length &&
+                  !strcmp(d->user.str, thd->security_ctx->priv_role);
     if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
