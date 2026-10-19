@@ -139,6 +139,32 @@ select bfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL
 --eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok
 --remove_file $MYSQL_TMP_DIR/out.json
 
+--echo # Input file is not a JSON array
+--copy_file $MTR_SUITE_DIR/std_data/people.csv $MYSQL_TMP_DIR/people.csv
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/people.csv', '$MYSQL_TMP_DIR/out.json', 256)
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/people.csv', '$MYSQL_TMP_DIR/out.json', 256)
+--remove_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/people.csv
+
+--echo # JSON array does not start the file
+--write_file $MYSQL_TMP_DIR/array.json
+x[{"a":1}]
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/array.json', '$MYSQL_TMP_DIR/out.json', 256)
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/array.json
+
+--echo # Non-positive LRECL
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', -3)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 0)
+
 --echo # Privileged user: relative path resolving outside secure_file_priv
 select json_file('../../bib0.json') IS NULL AS denied;
 select bson_file('../../biblio.json') IS NULL AS denied;
