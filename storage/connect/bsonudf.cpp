@@ -4705,6 +4705,10 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		PUSH_WARNING("Missing LRECL");
 		*is_null = 1;
 		return NULL;
+	} else if (*(longlong*)args->args[2] <= 0 || *(longlong*)args->args[2] > INT_MAX32) {
+		PUSH_WARNING("Invalid LRECL");
+		*is_null = 1;
+		return NULL;
 	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
 		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
 		*is_null = 1;
