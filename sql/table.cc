@@ -8433,7 +8433,7 @@ void TABLE::remember_blob_values(String *blob_storage)
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+    if ((*vfield_ptr)->flags & BLOB_FLAG &&
         !(*vfield_ptr)->vcol_info->stored_in_db)
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
@@ -8456,7 +8456,7 @@ void TABLE::restore_blob_values(String *blob_storage)
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+    if ((*vfield_ptr)->flags & BLOB_FLAG &&
         !(*vfield_ptr)->vcol_info->stored_in_db)
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
@@ -8476,7 +8476,7 @@ void TABLE::free_blob_values(String *blob_storage)
 {
   for (Field **vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+    if ((*vfield_ptr)->flags & BLOB_FLAG &&
         !(*vfield_ptr)->vcol_info->stored_in_db)
       (blob_storage++)->free();
   }
@@ -9485,7 +9485,20 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   THD *thd= in_use;
 
   ulonglong prev_insert_id= file->next_insert_id;
+  String *blob_storage= NULL;
   store_record(this, record[1]);
+  /*
+    update_generated_fields() computes virtual blobs into Field_blob::value,
+    which may hold the virtual blobs of the row saved by the caller (the new
+    row of UPDATE FOR PORTION OF in record[2]). Keep them while the inserted
+    row is in record[0].
+  */
+  if (s->virtual_not_stored_blob_fields)
+  {
+    blob_storage= (String *) alloca(sizeof(String) *
+                                    s->virtual_not_stored_blob_fields);
+    remember_blob_values(blob_storage);
+  }
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
@@ -9505,6 +9518,8 @@ int TABLE::period_make_insert(Item *src, Field *dst)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
                                     TRG_ACTION_AFTER, true);
 
+  if (blob_storage)
+    restore_blob_values(blob_storage);
   restore_record(this, record[1]);
   if (res)
     file->restore_auto_increment(prev_insert_id);
