@@ -2232,6 +2232,32 @@ int pwt_worker::emit_scanned_row()
 
 /**
   @brief
+    End this worker's parallel scan of its copy of the driving table.
+
+  @description
+    Called on every way out of a worker, at the exit label, so a failed
+    parallel_init_worker() -- "no chunk left" among its failures -- still
+    has its scan ended while the handler is open. Left for the handler, the
+    scan is ended by ha_innobase::close(), which a debug build asserts the
+    SQL layer never relies on.
+
+    pwt_leave_scan_for_close leaves that to close() for a worker that holds
+    no cursor, which is the worker that was handed no chunk: the shape this
+    function exists for, and the one close() and the destructor have to
+    survive. A worker that did scan still has its cursor open, and unlocking
+    the table with it open would assert first.
+*/
+
+static void pwt_end_worker_scan(TABLE *src)
+{
+  if (src->file->inited == handler::NONE &&
+      DBUG_IF("pwt_leave_scan_for_close"))
+    return;
+  src->file->parallel_end_worker();
+}
+
+/**
+  @brief
     Scan-only PROTOTYPE: read this worker's chunks and ship every row.
 
   @description
@@ -2297,7 +2323,6 @@ int pwt_worker::execute_scan_only()
       break;
     }
   }
-  src->file->parallel_end_worker();
 
   if (!err && !killed)
     sink->flush();
@@ -2311,6 +2336,13 @@ scan_exit:
   */
   if (err == HA_ERR_END_OF_FILE)
     err= 0;
+  /*
+    Ended here, on every way out, rather than after the loop: a failed
+    parallel_init_worker() -- "no chunk left" among its failures -- jumps
+    straight to this label, and the engine may already have set the scan up.
+    Ending one that was never begun is harmless.
+  */
+  pwt_end_worker_scan(src);
   src->file->ha_index_or_rnd_end();
   src->file->ha_external_lock(thd, F_UNLCK);
   DBUG_RETURN(err);
@@ -2441,7 +2473,6 @@ int pwt_worker::execute_and_handoff()
       my_error(ER_QUERY_INTERRUPTED, MYF(0));
     killed= thd->killed;
   }
-  src->file->parallel_end_worker();
 
   /*
     Close the container's index before the transport is told this producer is
@@ -2472,6 +2503,9 @@ int pwt_worker::execute_and_handoff()
 exec_exit:
   if (err == HA_ERR_END_OF_FILE)
     err= 0;
+
+  /* Ended here, on every way out, as in the scan-only path; see there. */
+  pwt_end_worker_scan(src);
 
   // end any open index/rnd scans (no-op for tables left in NONE state), unlock
   for (i= 1; i < nt; i++)
