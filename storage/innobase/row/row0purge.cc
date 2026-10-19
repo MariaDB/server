@@ -722,6 +722,54 @@ nochange_index:
 	}
 }
 
+/** Determines if it is possible to remove a secondary index record
+of an index that has_trx_id(), from the record alone.
+
+A delete-marked record whose DB_TRX_ID is visible in
+purge_sys.view was delete-marked, or un-delete-marked and
+delete-marked again, before every existing and
+every future read view, so no reader can need it. A later
+transaction that re-inserts the same key un-delete-marks
+this very record and restamps it, so the record is then no longer
+delete-marked, or its DB_TRX_ID is not yet purgeable.
+
+@param node   row purge node
+@param index  secondary index, has_trx_id()
+@param rec    the secondary index record, on a latched page
+@return whether the record can be purged
+@retval true  if the record is delete-marked and purgeable,
+	      (or) if it is not delete-marked although it carries
+	      the DB_TRX_ID of the transaction that is being purged */
+static bool row_purge_poss_sec_stamp(const purge_node_t *node,
+                                     const dict_index_t *index,
+                                     const rec_t *rec)
+{
+  ut_ad(index->has_trx_id());
+  mem_heap_t *heap= nullptr;
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs_init(offsets_);
+  const rec_offs *offsets=
+   rec_get_offsets(rec, index, offsets_, index->n_core_fields,
+                   ULINT_UNDEFINED, &heap);
+  const trx_id_t id= rec_get_sec_trx_id(rec, index, offsets);
+  const bool deleted= rec_get_deleted_flag(rec, true);
+  if (UNIV_LIKELY_NULL(heap))
+    mem_heap_free(heap);
+
+  if (!deleted)
+    return id == node->trx_id;
+
+  if (id && UNIV_UNLIKELY(id >= trx_sys.get_max_trx_id()))
+  {
+    ib::warn() << "A transaction id in a record of index "
+	       << index->name << " of table " << index->table->name
+               << " is newer than the system-wide maximum.";
+    return false;
+  }
+
+  return purge_sys.is_purgeable(id);
+}
+
 /** Determines if it is possible to remove a secondary index entry.
 Removal is possible if the secondary index entry does not refer to any
 not delete marked version of a clustered index record where DB_TRX_ID
@@ -738,13 +786,19 @@ page latch.
 @param node   row purge node
 @param index  secondary index
 @param entry  secondary index entry
+@param rec    secondary index record that would be removed
 @param mtr    mini-transaction for looking up clustered index
 @return whether the secondary index record can be purged */
 static bool row_purge_poss_sec(purge_node_t *node, dict_index_t *index,
-			       const dtuple_t *entry, mtr_t *mtr)
+			       const dtuple_t *entry,
+			       const rec_t *rec, mtr_t *mtr)
 {
   ut_ad(mtr->trx == node->trx);
   ut_ad(!index->is_clust());
+
+  if (index->has_trx_id())
+    return row_purge_poss_sec_stamp(node, index, rec);
+
   const auto savepoint= mtr->get_savepoint();
   bool can_delete= !row_purge_reposition_pcur(BTR_SEARCH_LEAF, node, mtr);
 
@@ -833,7 +887,8 @@ static bool row_purge_remove_sec_if_poss_tree(purge_node_t *node,
 
 	if (page_max_trx_id
 	    == page_get_max_trx_id(btr_cur_get_page(&pcur.btr_cur))
-	    || row_purge_poss_sec(node, index, entry, &mtr)) {
+	    || row_purge_poss_sec(node, index, entry,
+                                  btr_pcur_get_rec(&pcur), &mtr)) {
 
 		/* Remove the index record, which should have been
 		marked for deletion. */
@@ -917,11 +972,12 @@ static trx_id_t row_purge_remove_sec_if_poss_leaf(purge_node_t *node,
 		   == DB_SUCCESS
 		   && !btr_pcur_is_before_first_on_page(&pcur)
 		   && btr_pcur_get_low_match(&pcur)
-		   == dtuple_get_n_fields(entry)) {
+		   == dtuple_get_n_fields_cmp(entry)) {
 found:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
-		if (row_purge_poss_sec(node, index, entry, &mtr)) {
+		if (row_purge_poss_sec(node, index, entry,
+				       btr_pcur_get_rec(&pcur), &mtr)) {
 			/* Only delete-marked records should be purged. */
 			if (!rec_get_deleted_flag(btr_pcur_get_rec(&pcur),
 						  index->table

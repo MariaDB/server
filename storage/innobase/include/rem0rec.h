@@ -92,7 +92,8 @@ constexpr size_t REC_OFFS_NORMAL_SIZE= 300;
 constexpr size_t REC_OFFS_SMALL_SIZE= 18;
 constexpr size_t REC_OFFS_SEC_INDEX_SIZE=
     /* PK max key parts */ 16 + /* sec idx max key parts */ 16 +
-    /* child page number for non-leaf pages */ 1;
+    /* child page number for non-leaf pages */ 1 +
+    /* DB_TRX_ID of a DB_SEC_TRX_ID index */ + 1;
 
 /** Get the base address of offsets.  The extra_size is stored at
 this position, and following positions hold the end offsets of
@@ -688,6 +689,49 @@ inline ulint rec_offs_comp(const rec_offs *offsets)
   ut_ad(rec_offs_validate(NULL, NULL, offsets));
   return (*rec_offs_base(offsets) & REC_OFFS_COMPACT);
 }
+
+#ifndef UNIV_INNOCHECKSUM
+/** Get the DB_TRX_ID of a leaf-page record of a secondary index
+that has the DICT_SEC_TRX_ID format.
+@param rec      leaf-page record
+@param index    secondary index, has_trx_id()
+@param offsets  offsets of the secondary index record
+@return the stored transaction identifier or 0 */
+inline trx_id_t rec_get_sec_trx_id(const rec_t *rec, const dict_index_t *index,
+                                   const rec_offs *offsets)
+{
+  ut_ad(index->has_trx_id());
+  ut_ad(rec_offs_validate(rec, index, offsets));
+  ut_ad(rec_offs_n_fields(offsets) == index->n_fields);
+  ulint len;
+  const byte *b= rec_get_nth_field(rec, offsets,
+                                   index->sec_db_trx_id(), &len);
+  ut_ad(len == DATA_TRX_ID_LEN);
+  return mach_read_from_6(b);
+}
+
+/** Set the DB_TRX_ID of a secondary index record in a memory buffer.
+is being built).
+@param rec      record in a memory buffer
+@param index    secondary index, has_trx_id()
+@param offsets  rec_get_offsets(rec, index)
+@param id       the transaction identifier to store */
+inline void rec_set_sec_trx_id(rec_t *rec, const dict_index_t *index,
+                               const rec_offs *offsets, trx_id_t id)
+{
+  ut_ad(index->has_trx_id());
+  ut_ad(rec_offs_validate(rec, index, offsets));
+  ut_ad(rec_offs_n_fields(offsets) == index->n_fields);
+  ut_ad(id <= 0xFFFFFFFFFFFFULL);
+  ulint len;
+  byte *b=
+    const_cast<byte*>(rec_get_nth_field(rec, offsets,
+                                        index->sec_db_trx_id(), &len));
+  ut_ad(len == DATA_TRX_ID_LEN);
+  mach_write_to_6(b, id);
+}
+#endif /* !UNIV_INNOCHECKSUM */
+
 
 /** Determine if the record is the metadata pseudo-record
 in the clustered index for instant ADD COLUMN or ALTER TABLE.
