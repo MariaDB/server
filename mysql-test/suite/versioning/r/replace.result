@@ -231,4 +231,26 @@ id	u	a	v
 1	1	one	v-one
 2	2	two	v-two
 drop table t1;
+#
+# MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+#            versioned table
+#
+create table t1 (id int primary key, a text charset latin1,
+s text charset utf8mb4 as (concat('s-', a)) stored, key (s(10)))
+with system versioning;
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer');
+update t1 set a= 'new';
+replace t1 (id, a) values (2, 'final');
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select id, a, s, s = concat('s-', a) as ok from t1 for system_time all
+order by id, a;
+id	a	s	ok
+1	new	s-new	1
+1	old	s-old	1
+2	final	s-final	1
+2	new	s-new	1
+2	old-and-longer	s-old-and-longer	1
+drop table t1;
 # End of 10.11 tests

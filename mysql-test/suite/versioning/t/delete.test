@@ -225,6 +225,26 @@ delete p from p, c;
 check table p extended;
 select id, a, v from p for system_time all;
 drop table c, p;
+
+--echo #
+--echo # MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+--echo #            versioned table
+--echo #
+--echo # AFTER DELETE trigger reads OLD of a stored generated blob over row_end
+create table t1 (id int primary key, a text charset latin1,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  s text charset utf8mb4 as (concat('s-', a, '-', unix_timestamp(re))) stored)
+with system versioning;
+create table log (id int, ok int);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id,
+                     old.s = concat('s-', old.a, '-', unix_timestamp(old.re)));
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from t1;
+select * from log order by id;
+drop table t1, log;
 --disable_query_log
 eval set default_storage_engine= $default_engine;
 --enable_query_log

@@ -893,7 +893,8 @@ struct TABLE_SHARE
   uint fields;                          /* number of fields */
   /* number of stored fields, purely virtual not included */
   uint stored_fields;
-  uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of generated (virtual and stored) fields, entries of vfield */
+  uint virtual_fields;
   /* number of purely virtual not stored blobs */
   uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
@@ -1805,9 +1806,9 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
-  void remember_blob_values(String *blob_storage);
-  void restore_blob_values(String *blob_storage);
-  void free_blob_values(String *blob_storage);
+  void remember_blob_values(String *blob_storage, bool with_stored= false);
+  void restore_blob_values(String *blob_storage, bool with_stored= false);
+  void free_blob_values(String *blob_storage, bool with_stored);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);

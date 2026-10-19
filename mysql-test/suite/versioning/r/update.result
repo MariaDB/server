@@ -662,4 +662,72 @@ id	new_v
 1	v-new
 2	v-new
 drop table t1, t2, log;
+#
+# MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+#            versioned table
+#
+# AFTER UPDATE trigger reads NEW of a stored generated blob
+create table t1 (id int primary key, a text charset latin1,
+s text charset utf8mb4 as (concat('s-', a)) stored)
+with system versioning;
+create table log (op varchar(10), id int, new_s text);
+create trigger tr after update on t1 for each row
+insert log values (@op, new.id, new.s);
+insert t1 (id, a) values (1, 'old-and-longer-than-new');
+set @op= 'update';
+update t1 set a= 'new';
+create table t2 (x int);
+insert t2 values (1);
+set @op= 'multi';
+update t1, t2 set t1.a= 'new2';
+set @op= 'odku';
+insert t1 (id, a) values (1, 'x') on duplicate key update a= 'odku';
+select * from log order by op, id;
+op	id	new_s
+multi	1	s-new2
+odku	1	s-odku
+update	1	s-new
+drop table t1, t2, log;
+# Several generated columns of different kinds
+create table t1 (id int primary key, a text charset latin1,
+v1 text as (concat('v1-', a)) virtual,
+n int as (length(a)) virtual,
+s text charset utf8mb4 as (concat('s-', a)) stored,
+g point as (point(length(a), length(a))) virtual,
+v2 text as (concat('v2-', a)) virtual,
+unique (a), key (v1(10)), key (v2(10)))
+with system versioning;
+create table log (op varchar(10), id int, v1 text, n int, s text, g text,
+v2 text);
+create trigger tu after update on t1 for each row
+insert log values ('update', new.id, new.v1, new.n, new.s, st_astext(new.g),
+new.v2);
+create trigger ti after insert on t1 for each row
+insert log values ('insert', new.id, new.v1, new.n, new.s, st_astext(new.g),
+new.v2);
+create trigger td after delete on t1 for each row
+insert log values ('delete', old.id, old.v1, old.n, old.s, st_astext(old.g),
+old.v2);
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from log;
+update t1 set a= 'one-upd' where id = 1;
+replace t1 (id, a) values (2, 'rep');
+delete from t1 where id = 1;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from log order by op, id;
+op	id	v1	n	s	g	v2
+delete	1	v1-one-upd	7	s-one-upd	POINT(7 7)	v2-one-upd
+delete	2	v1-two	3	s-two	POINT(3 3)	v2-two
+insert	2	v1-rep	3	s-rep	POINT(3 3)	v2-rep
+update	1	v1-one-upd	7	s-one-upd	POINT(7 7)	v2-one-upd
+select id, a, v1, n, s, st_astext(g), v2 from t1 for system_time all
+order by id, a;
+id	a	v1	n	s	st_astext(g)	v2
+1	one	v1-one	3	s-one	POINT(3 3)	v2-one
+1	one-upd	v1-one-upd	7	s-one-upd	POINT(7 7)	v2-one-upd
+2	rep	v1-rep	3	s-rep	POINT(3 3)	v2-rep
+2	two	v1-two	3	s-two	POINT(3 3)	v2-two
+drop table t1, log;
 # End of 10.11 tests

@@ -328,15 +328,16 @@ int TABLE::delete_row(bool treat_versioned)
       store_record(this, record[1]);
     }
     /*
-      vers_update_end() computes virtual blobs into Field_blob::value, which
-      holds the virtual blobs of the new row in record[2] (REPLACE) or of the
-      old row in record[1] (computed with VCOL_UPDATE_FOR_DELETE)
+      vers_update_end() computes generated blobs into Field_blob::value,
+      which may hold the generated blobs of the new row in record[2]
+      (REPLACE) or of the old row in record[1] (single-table DELETE computes
+      them with VCOL_UPDATE_FOR_DELETE). Keep them while record[0] is the
+      history row.
     */
-    if (s->virtual_not_stored_blob_fields)
+    if (vfield)
     {
-      blob_storage= (String *) alloca(sizeof(String) *
-                                      s->virtual_not_stored_blob_fields);
-      remember_blob_values(blob_storage);
+      blob_storage= (String *) alloca(sizeof(String) * s->virtual_fields);
+      remember_blob_values(blob_storage, true);
     }
     vers_update_end();
 
@@ -348,7 +349,7 @@ int TABLE::delete_row(bool treat_versioned)
     if (likely(!delete_row))
       err= file->ha_update_row(record[1], record[0]);
     if (replace && blob_storage)
-      restore_blob_values(blob_storage);
+      restore_blob_values(blob_storage, true);
     if (unlikely(err))
     {
       /*
@@ -385,7 +386,7 @@ end:
     ha_delete_row() (the ones of record[1] in single-table DELETE).
   */
   if (!replace && blob_storage)
-    free_blob_values(blob_storage);
+    free_blob_values(blob_storage, true);
   return err;
 }
 

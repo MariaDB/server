@@ -4697,11 +4697,17 @@ public:
     does not overwrite the value of the read row.
 
     Code that reads or computes another row into record[0] while a saved
-    record still points into 'value' keeps 'value' with
-    TABLE::remember_blob_values() and TABLE::restore_blob_values(). A read
-    in between swaps the buffers, so it is swapped back after each read:
-    'read_value' then keeps the buffer of the previously read row, and the
-    buffer of the read stays in 'value' for restore_blob_values() to free.
+    record still points into 'value' moves 'value' aside with
+    TABLE::remember_blob_values() and back with
+    TABLE::restore_blob_values() (or drops the moved buffers with
+    TABLE::free_blob_values()). With with_stored this also covers stored
+    generated blobs.
+
+    handler::check_duplicate_long_entry_key() reads rows in between, and
+    each read swaps, so it swaps back after each read: 'read_value' keeps
+    the buffer of the row read before the lookup (the one record[1] points
+    to in UPDATE), and the buffer of the lookup read stays in 'value' for
+    restore_blob_values() to free.
   */
   inline void swap_value_and_read_value()
   {
@@ -4746,8 +4752,10 @@ public:
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 
-  friend void TABLE::remember_blob_values(String *blob_storage);
-  friend void TABLE::restore_blob_values(String *blob_storage);
+  friend void TABLE::remember_blob_values(String *blob_storage,
+                                           bool with_stored);
+  friend void TABLE::restore_blob_values(String *blob_storage,
+                                          bool with_stored);
 };
 
 
