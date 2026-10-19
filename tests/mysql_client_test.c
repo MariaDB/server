@@ -23886,6 +23886,41 @@ static void test_mdev_23864()
   myquery(rc);
 }
 
+/*
+  MDEV-41502 Bulk INSERT: IN list and REGEXP with a parameter use the first
+  parameter set for all rows
+*/
+static void test_mdev_41502()
+{
+  int rc;
+  const int expected[3]= {0, 1, 0};
+
+  myheader("test_mdev_41502");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, 20 IN (?, 5))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, '20' REGEXP CONCAT('^', ?))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("REPLACE INTO t1 (id, val) VALUES (?, 20 IN (?, 5))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, 0) "
+                        "ON DUPLICATE KEY UPDATE val= 20 IN (?, 5)",
+                        "INSERT INTO t1 VALUES (1, 5), (2, 5), (3, 5)",
+                        expected, 6, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, 'a%' LIKE 'a|%' ESCAPE IF(? = 20, '|', '#'))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, JSON_SEARCH('[\"a%\"]', 'one', 'a|%', "
+                        "IF(? = 20, '|', '#')) IS NOT NULL)",
+                        NULL, expected, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -24550,6 +24585,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_32086", test_mdev_32086 },
   { "test_mdev_36678", test_mdev_36678 },
   { "test_mdev_23864", test_mdev_23864 },
+  { "test_mdev_41502", test_mdev_41502 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
   { "test_mdev35953", test_mdev35953 },

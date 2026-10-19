@@ -3467,6 +3467,8 @@ public:
   bool default_used:1;    /* using default() function */
   /* result of a subquery depends on a parameter placeholder */
   bool subquery_with_placeholder:1;
+  /* ESCAPE of LIKE or JSON_SEARCH depends on a parameter placeholder */
+  bool escape_with_placeholder:1;
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
   /*
@@ -4817,6 +4819,12 @@ public:
   }
   bool check_main_unit_semantics();
   bool subquery_has_placeholder();
+  bool expr_has_placeholder(Item *expr);
+  void check_escape_placeholder(Item *escape)
+  {
+    if (expr_has_placeholder(escape))
+      escape_with_placeholder= true;
+  }
 
   SELECT_LEX_UNIT *parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
                                             enum sub_select_type unit_type,

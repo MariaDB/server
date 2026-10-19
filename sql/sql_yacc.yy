@@ -9464,6 +9464,7 @@ predicate:
         | predicate LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
             Lex->escape_used= true;
+            Lex->check_escape_placeholder($5);
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $5, true);
             if (unlikely(!$$))
               MYSQL_YYABORT;
@@ -9478,6 +9479,7 @@ predicate:
         | predicate not LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
             Lex->escape_used= true;
+            Lex->check_escape_placeholder($6);
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $6, true);
             if (unlikely(!item))
               MYSQL_YYABORT;
