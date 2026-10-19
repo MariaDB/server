@@ -6499,6 +6499,14 @@ ha_innobase::close()
 {
 	DBUG_ENTER("ha_innobase::close");
 
+	/* Ending a parallel scan uses m_prebuilt, so it must happen before
+	m_prebuilt is freed. Normally the SQL layer has ended it already and
+	these do nothing; a debug build insists on that for a worker, unless
+	the test that exercises this backstop asked for it to be needed. */
+	DBUG_ASSERT(!m_pscan_worker || DBUG_IF("pwt_leave_scan_for_close"));
+	parallel_end_worker();
+	parallel_end_coordinator();
+
 	row_prebuilt_free(m_prebuilt);
 
 	if (m_upd_buf != NULL) {

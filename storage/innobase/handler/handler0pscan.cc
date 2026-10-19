@@ -645,11 +645,14 @@ int ha_innobase::parallel_end_worker()
 
 void ha_innobase::parallel_scan_free()
 {
-	/* Last resort, for a handler torn down without the SQL layer having
-	ended the scan. The worker is dropped without end(): that restores
-	state in m_prebuilt, which close() has already freed by now, and the
-	worker owns no memory of its own. The coordinator does own memory, and
-	its destructor frees it without touching the handler. */
+	/* Last resort, for a handler destroyed without close(), which ends any
+	scan still open. The worker is dropped without end(): that restores
+	state in m_prebuilt, which may not be there to restore, and the worker
+	owns no memory of its own. The coordinator does own memory, and its
+	destructor frees it without touching the handler.
+	A worker still here after close() is one close() failed to end: the
+	path that used to write through the freed m_prebuilt. */
+	DBUG_ASSERT(!m_pscan_worker);
 	UT_DELETE(m_pscan_worker);
 	m_pscan_worker = nullptr;
 	UT_DELETE(m_pscan_coord);
