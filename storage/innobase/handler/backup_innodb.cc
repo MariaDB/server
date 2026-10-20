@@ -223,7 +223,8 @@ private:
     std::atomic<lsn_t> last_hardlink{};
     /** a log file to remove on the next checkpoint when old_size!=0 */
     Atomic_relaxed<lsn_t> garbage_lsn{};
-    /** the last copied LSN, or LSN_MAX if !is_tracking() */
+    /** if is_tracking(): the last copied LSN;
+    else: the last lsn that InnoDB_backup::enqueue() was invoked with */
     lsn_t last_track_lsn{};
     /** state of the operation */
     Atomic_relaxed<State> state{IDLE};
@@ -569,7 +570,7 @@ public:
     }
 
     const lsn_t first_lsn{log_sys.get_first_lsn()};
-    lsn_t last_track_lsn{LSN_MAX}, start_end;
+    lsn_t last_track_lsn{0}, start_end;
     const lsn_t start=
 #if 1 /* TODO: for incremental backup, allow the start to be specified */
       log_sys.get_latest_checkpoint(start_end);
@@ -1110,35 +1111,33 @@ public:
   void checkpoint_complete_pmem() noexcept
   {
     ut_ad(log_sys.latch_have_wr());
-    ut_ad(log_sys.checkpoint_buf);
     ut_ad(log_sys.is_mmap());
     ut_ad(log_sys.is_mmap_writeable());
+    byte *const c{log_sys.checkpoint_buf};
+    ut_ad(c);
+    log_sys.checkpoint_buf= nullptr;
 
     mutex.wr_lock();
     if (ctx.state != PROCESSING || !ctx.last_lsn || !ctx.is_log_tracking())
     {
     unmap:
       mutex.wr_unlock();
-      my_munmap(log_sys.checkpoint_buf,
-                lseek(log_sys.resize_log.m_file, 0, SEEK_END));
+      my_munmap(c, lseek(log_sys.resize_log.m_file, 0, SEEK_END));
+      return;
     }
-    else
-    {
+
+    try {
       ut_ad(!ctx.is_log_tracking(log_sys.buf));
-      ut_d(const tracked_log *t= ctx.is_log_tracking(log_sys.checkpoint_buf));
+      ut_d(const tracked_log *t= ctx.is_log_tracking(c));
       ut_ad(t);
       ut_ad(t->file_size ==
             lsn_t(lseek(log_sys.resize_log.m_file, 0, SEEK_END)));
 
-      try {
-        ctx.log_track_tail()=
-          new tracked_log{log_sys.buf, log_sys.first_lsn, log_sys.file_size};
-      } catch (std::bad_alloc&) { ctx.last_lsn= 0; goto unmap; }
+      ctx.log_track_tail()=
+        new tracked_log{log_sys.buf, log_sys.first_lsn, log_sys.file_size};
+    } catch (std::bad_alloc&) { ctx.last_lsn= 0; goto unmap; }
 
-      mutex.wr_unlock();
-    }
-
-    log_sys.checkpoint_buf= nullptr;
+    mutex.wr_unlock();
   }
 #endif
 
@@ -1164,16 +1163,13 @@ public:
     lsn_t first{log_sys.get_first_lsn()};
     if (!ctx.is_log_tracking())
     {
-      ut_ad(ctx.last_track_lsn == LSN_MAX);
-      try {
-        /* Schedule the remaining log for copying */
-        queue.emplace_back(first);
-        const lsn_t next_lsn{first + log_sys.capacity()};
-        if (next_lsn < last_lsn)
-          queue.emplace_back(first= next_lsn);
-        goto added;
-      }
-      catch (std::bad_alloc&) { ctx.last_lsn= 0; }
+      ut_ad(ctx.last_track_lsn <= first);
+      /* Schedule the remaining log for copying */
+      enqueue(first);
+      const lsn_t next_lsn{first + log_sys.capacity()};
+      if (next_lsn < last_lsn)
+        enqueue(first= next_lsn);
+      goto added;
     }
     else
     {
@@ -1374,7 +1370,7 @@ public:
     }
     else if (ctx.last_lsn == LSN_MAX)
       /* commit() was not invoked yet */
-      queue.emplace_back(lsn);
+      enqueue(lsn);
 
     if (!delete_file)
     {
@@ -1448,25 +1444,26 @@ public:
   ATTRIBUTE_COLD void archive_create(lsn_t lsn, lsn_t file_size) noexcept
   {
     ut_ad(log_sys.latch_have_any());
-    if (ctx.state == PROCESSING &&
-#ifdef HAVE_PMEM
-        !log_sys.is_mmap() &&
-#endif
-        true)
+    if (ctx.state == PROCESSING)
     {
       mutex.wr_lock();
-      if (ctx.state == PROCESSING && ctx.last_lsn > lsn &&
-          ctx.is_log_tracking())
+      if (ctx.state != PROCESSING || ctx.last_lsn < lsn);
+#ifdef HAVE_PMEM
+      else if (log_sys.is_mmap())
       {
-        ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
-        ut_ad(!ctx.is_log_tracking(log_sys.log.m_file));
-        ut_ad(ctx.tracked->first_lsn < lsn);
+        if (!ctx.is_log_tracking())
+          enqueue(log_sys.first_lsn);
+      }
+#endif
+      else if (ctx.is_log_tracking())
         try {
+          ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
+          ut_ad(!ctx.is_log_tracking(log_sys.log.m_file));
+          ut_ad(ctx.tracked->first_lsn < lsn);
           ctx.log_track_tail()=
             new tracked_log{log_sys.log.m_file, lsn, file_size};
         }
         catch (std::bad_alloc&) { ctx.last_lsn= 0; }
-      }
       mutex.wr_unlock();
     }
   }
@@ -1514,6 +1511,23 @@ public:
   }
 
 private:
+  /**
+     Append a log file to the queue.
+     @param lsn   the first_lsn of the log file
+  */
+  void enqueue(lsn_t lsn) noexcept
+  {
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(ctx.last_lsn);
+    ut_ad(!ctx.is_log_tracking());
+    if (ctx.last_track_lsn < lsn)
+    {
+      ctx.last_track_lsn= lsn;
+      try { queue.emplace_back(lsn); }
+      catch (std::bad_alloc&) { ctx.last_lsn= 0; }
+    }
+  }
+
   /**
      Process a tablespace that was collected at init().
      This may be invoked from multiple concurrent threads.
