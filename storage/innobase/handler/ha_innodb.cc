@@ -4457,7 +4457,7 @@ static int innodb_init(void* p)
 	}
 
 	if (create_new_db && recv_sys.rpo) {
-		sql_print_error("InnoDB: Cannot fulfill"
+		sql_print_error("InnoDB: Cannot fulfil"
 				" innodb_log_recovery_target"
 				" because no database exists!");
 		goto init_abort;
