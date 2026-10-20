@@ -1,6 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_file_key_management.inc
-
+--source include/have_mariabackup_combination.inc
 --echo #
 --echo # MDEV-13416 mariabackup fails with EFAULT "Bad Address"
 --echo #
