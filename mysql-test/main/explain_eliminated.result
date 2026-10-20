@@ -1,0 +1,899 @@
+#
+# MDEV-28869: Eliminated tables are not shown in EXPLAIN [FORMAT=JSON] output
+#
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3);
+create table t2 (a int primary key, b int)
+as select a, a as b from t1 where a in (1,2);
+create table t3 (a int primary key, b int)
+as select a, a as b from t1 where a in (1,3);
+#
+# Elimination of a single table
+#
+explain select t1.a from t1 left join t2 on t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t2	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.a from t1 left join t2 on t2.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "eliminated"
+        }
+      }
+    ]
+  }
+}
+analyze select t1.a from t1 left join t2 on t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+1	SIMPLE	t2	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+#
+# Elimination of multiple tables
+#
+explain select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t3	eliminated	NULL	NULL	NULL	NULL	NULL	
+1	SIMPLE	t2	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "eliminated"
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "eliminated"
+        }
+      }
+    ]
+  }
+}
+#
+# EXPLAIN EXTENDED and EXPLAIN PARTITIONS
+#
+explain extended select t1.a from t1 left join t2 on t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+explain partitions select t1.a from t1 left join t2 on t2.a=t1.a;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t2	NULL	eliminated	NULL	NULL	NULL	NULL	NULL	
+create table t11 (a int not null, b int, key(a));
+insert into t11 select A.a, A.a+B.a from t1 A, t1 B;
+create table t12 (pk int primary key, col1 int);
+insert into t12 select a, a from t1;
+#
+# The whole derived table is eliminated (MDEV-26278)
+#
+explain select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t12	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t12",
+                    "access_type": "eliminated"
+                  }
+                },
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t12	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+analyze format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t12",
+                    "access_type": "eliminated"
+                  }
+                },
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.a=t1.a;
+a
+0
+1
+2
+3
+#
+# Only one table inside the derived table is eliminated
+#
+explain select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.b=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t1.a	1	Using where
+2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	16	Using temporary; Using filesort
+2	DERIVED	t12	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.b=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.011751996,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["b"],
+          "ref": ["test.t1.a"],
+          "loops": 4,
+          "rows": 1,
+          "cost": 0.001090776,
+          "filtered": 100,
+          "attached_condition": "trigcond(v2b.b = t1.a and trigcond(t1.a is not null))",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": 0.022754671,
+              "const_condition": "1",
+              "filesort": {
+                "sort_key": "t11.a",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t11",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 16,
+                        "cost": 0.01253808,
+                        "filtered": 100
+                      }
+                    },
+                    {
+                      "table": {
+                        "table_name": "t12",
+                        "access_type": "eliminated"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.b=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t1.a	1	0.00	100.00	100.00	Using where
+2	DERIVED	t11	ALL	NULL	NULL	NULL	NULL	16	16.00	100.00	100.00	Using temporary; Using filesort
+2	DERIVED	t12	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+analyze format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.b=t1.a;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "8",
+          "used_key_parts": ["b"],
+          "ref": ["test.t1.a"],
+          "loops": 4,
+          "r_loops": 4,
+          "rows": 1,
+          "r_rows": 0,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "trigcond(v2b.b = t1.a and trigcond(t1.a is not null))",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "REPLACED",
+              "r_loops": 1,
+              "r_total_time_ms": "REPLACED",
+              "const_condition": "1",
+              "filesort": {
+                "sort_key": "t11.a",
+                "r_loops": 1,
+                "r_total_time_ms": "REPLACED",
+                "r_used_priority_queue": false,
+                "r_output_rows": 4,
+                "r_buffer_size": "REPLACED",
+                "r_sort_mode": "sort_key,rowid",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t11",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "r_loops": 1,
+                        "rows": 16,
+                        "r_rows": 16,
+                        "cost": "REPLACED",
+                        "r_table_time_ms": "REPLACED",
+                        "r_other_time_ms": "REPLACED",
+                        "r_engine_stats": REPLACED,
+                        "filtered": 100,
+                        "r_filtered": 100
+                      }
+                    },
+                    {
+                      "table": {
+                        "table_name": "t12",
+                        "access_type": "eliminated"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11 left join t12 on t12.pk=t11.b
+group by t11.a) v2b on v2b.b=t1.a;
+a
+0
+1
+2
+3
+#
+# A derived table that is a UNION is never eliminated, see
+# create_unique_pseudo_key_if_needed()
+#
+explain select t1.* from t1 left join
+(select a from t2 union select a from t3) v on v.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t1.a	1	Using where
+2	DERIVED	t2	index	NULL	PRIMARY	4	NULL	2	Using index
+3	UNION	t3	index	NULL	PRIMARY	4	NULL	2	Using index
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+select t1.* from t1 left join
+(select a from t2 union select a from t3) v on v.a=t1.a;
+a
+0
+1
+2
+3
+#
+# A UNION subquery inside an eliminated derived table
+#
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='semijoin=off';
+explain select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12 union select col1 from t12)
+group by t11.a) v on v.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	
+3	DEPENDENT SUBQUERY	t12	eliminated	NULL	NULL	NULL	NULL	NULL	
+4	DEPENDENT UNION	t12	eliminated	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union3,4>	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12 union select col1 from t12)
+group by t11.a) v on v.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                }
+              ],
+              "subqueries": [
+                {
+                  "query_block": {
+                    "union_result": {
+                      "table_name": "<union3,4>",
+                      "access_type": "eliminated",
+                      "query_specifications": [
+                        {
+                          "query_block": {
+                            "select_id": 3,
+                            "eliminated": true,
+                            "nested_loop": [
+                              {
+                                "table": {
+                                  "table_name": "t12",
+                                  "access_type": "eliminated"
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "query_block": {
+                            "select_id": 4,
+                            "eliminated": true,
+                            "nested_loop": [
+                              {
+                                "table": {
+                                  "table_name": "t12",
+                                  "access_type": "eliminated"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12 union select col1 from t12)
+group by t11.a) v on v.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	DEPENDENT SUBQUERY	t12	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	DEPENDENT UNION	t12	eliminated	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union3,4>	eliminated	NULL	NULL	NULL	NULL	NULL	0.00	NULL	NULL	
+analyze format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12 union select col1 from t12)
+group by t11.a) v on v.a=t1.a;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 4,
+          "r_rows": 4,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                }
+              ],
+              "subqueries": [
+                {
+                  "query_block": {
+                    "union_result": {
+                      "table_name": "<union3,4>",
+                      "access_type": "eliminated",
+                      "query_specifications": [
+                        {
+                          "query_block": {
+                            "select_id": 3,
+                            "eliminated": true,
+                            "nested_loop": [
+                              {
+                                "table": {
+                                  "table_name": "t12",
+                                  "access_type": "eliminated"
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "query_block": {
+                            "select_id": 4,
+                            "eliminated": true,
+                            "nested_loop": [
+                              {
+                                "table": {
+                                  "table_name": "t12",
+                                  "access_type": "eliminated"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12 union select col1 from t12)
+group by t11.a) v on v.a=t1.a;
+a
+0
+1
+2
+3
+set optimizer_switch= @save_optimizer_switch;
+#
+# A subquery inside an eliminated derived table
+#
+explain select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12)
+group by t11.a) v on v.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t12	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12)
+group by t11.a) v on v.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                },
+                {
+                  "table": {
+                    "table_name": "t12",
+                    "access_type": "eliminated"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select t1.* from t1 left join
+(select t11.a as a, count(*) as b
+from t11
+where t11.b in (select pk from t12)
+group by t11.a) v on v.a=t1.a;
+a
+0
+1
+2
+3
+#
+# A degenerate eliminated derived table (it has no tables to show)
+#
+explain select t1.* from t1 left join
+(select t11.a as a, count(*) as b from t11 where 1=0 group by t11.a)
+v on v.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+explain format=json select t1.* from t1 left join
+(select t11.a as a, count(*) as b from t11 where 1=0 group by t11.a)
+v on v.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "system",
+          "rows": 0,
+          "filtered": 0,
+          "const_row_not_found": true,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "message": "Impossible WHERE"
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select t1.* from t1 left join
+(select t11.a as a, count(*) as b from t11 where 1=0 group by t11.a)
+v on v.a=t1.a;
+a
+0
+1
+2
+3
+#
+# An eliminated CTE reference
+#
+explain with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.* from t1 left join cte on cte.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	
+explain format=json with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.* from t1 left join cte on cte.a=t1.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01066122,
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 4,
+          "cost": 0.01066122,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "eliminated",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "eliminated": true,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t11",
+                    "access_type": "eliminated"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.* from t1 left join cte on cte.a=t1.a;
+a
+0
+1
+2
+3
+#
+# One CTE reference eliminated, another one used
+#
+explain with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.a, c2.b from t1 left join cte c1 on c1.a=t1.a
+left join cte c2 on c2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	1	Using where
+1	PRIMARY	<derived2>	eliminated	NULL	NULL	NULL	NULL	NULL	
+3	DERIVED	t11	index	a	a	4	NULL	16	Using index; Using temporary; Using filesort
+2	DERIVED	t11	eliminated	NULL	NULL	NULL	NULL	NULL	
+with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.a, c2.b from t1 left join cte c1 on c1.a=t1.a
+left join cte c2 on c2.a=t1.a;
+a	b
+0	4
+1	4
+2	4
+3	4
+drop table t1, t2, t3, t11, t12;
+#
+# End of 11.4 tests
+#
