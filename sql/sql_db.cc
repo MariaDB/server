@@ -671,7 +671,7 @@ err2:
   mysql_file_close(file, MYF(0));
 err1:
   if (!create->default_table_charset)           // In case of error
-    create->default_table_charset= thd->variables.collation_server;
+    create->default_table_charset= default_charset_info;
   DBUG_RETURN(error);
 }
 

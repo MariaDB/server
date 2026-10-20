@@ -1,0 +1,9 @@
+#
+# MDEV-38991: mysql system schema using my.cnf(configuration) character set instead of utf8mb3
+#
+SELECT schema_name, DEFAULT_CHARACTER_SET_NAME, default_collation_name FROM information_schema.schemata WHERE schema_name IN ('sys', 'information_schema', 'mysql', 'performance_schema');
+schema_name	DEFAULT_CHARACTER_SET_NAME	default_collation_name
+sys	utf8mb3	utf8mb3_general_ci
+performance_schema	utf8mb3	utf8mb3_general_ci
+mysql	latin1	latin1_swedish_ci
+information_schema	utf8mb3	utf8mb3_general_ci
