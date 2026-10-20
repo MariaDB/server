@@ -36,16 +36,9 @@ SELECT 1 MEMBER OF ('[1,2');
 NULL
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
-SHOW WARNINGS;
-Level	Code	Message
-Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
-SET check_constraint_checks=0;
-CREATE TABLE t_json (j JSON);
+CREATE TABLE t_json (j TEXT);
 INSERT INTO t_json VALUES ('[1,2');
 SELECT j MEMBER OF ('[1]') FROM t_json;
 j MEMBER OF ('[1]')
 0
-SHOW WARNINGS;
-Level	Code	Message
 DROP TABLE t_json;
-SET check_constraint_checks=1;

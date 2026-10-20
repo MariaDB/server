@@ -1061,13 +1061,12 @@ eval:
   case INT_RESULT:
   {
     /*
-      MDEV-41563: Use val_int() / append_longlong() directly to avoid the
+      Use val_int() / append_longlong() directly to avoid the
       ZEROFILL zero-padding that val_str() applies for display.
       append_longlong() / append_ulonglong() format as a plain JSON integer
       with no leading zeros.
     */
     longlong ival= args[0]->val_int();
-    if (args[0]->null_value) { null_value= 1; return 0; }
     if (args[0]->unsigned_flag ? str->append_ulonglong((ulonglong)ival)
                                : str->append_longlong(ival))
     {
@@ -1081,13 +1080,12 @@ eval:
   case DECIMAL_RESULT:
   {
     /*
-      MDEV-41563: Use val_decimal() directly so ZEROFILL display attributes
+      Use val_decimal() directly so ZEROFILL display attributes
       don't leak into the JSON number.  my_decimal::to_string() produces a
       canonical decimal representation (e.g. "1.50" not "0001.50").
     */
     my_decimal dec_buf;
     my_decimal *dec= args[0]->val_decimal(&dec_buf);
-    if (args[0]->null_value) { null_value= 1; return 0; }
     if (!dec || !dec->to_string(&tmp_s) || str->append(tmp_s))
     {
       null_value= 1;
@@ -1100,12 +1098,11 @@ eval:
   case REAL_RESULT:
   {
     /*
-      MDEV-41563: Use val_real() directly to avoid ZEROFILL distortion.
+      Use val_real() directly to avoid ZEROFILL distortion.
       my_gcvt() produces a shortest-round-trip float representation.
     */
     char rbuf[MY_GCVT_MAX_FIELD_WIDTH + 4];
     double rval= args[0]->val_real();
-    if (args[0]->null_value) { null_value= 1; return 0; }
     size_t rlen= my_gcvt(rval, MY_GCVT_ARG_DOUBLE,
                          MY_GCVT_MAX_FIELD_WIDTH, rbuf, NULL);
     if (str->append(rbuf, rlen))
