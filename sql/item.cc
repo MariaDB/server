@@ -12337,6 +12337,7 @@ void Item::dbug_check_shallow_copy_type(THD *thd) const
     To achieve this, unlink it from thd->free_list and delete ourselves.
     Note that this currently requires that the copy is last in the list (TODO?)
   */
+  DBUG_ASSERT(thd->free_list == item_copy);
   if (thd->free_list == item_copy)
     thd->free_list= item_copy->next;
   if (typeid(*item_copy) != typeid(*this))
