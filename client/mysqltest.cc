@@ -5436,6 +5436,12 @@ int do_save_master_pos()
   const char *query;
   DBUG_ENTER("do_save_master_pos");
 
+  if (!mysql)
+  {
+    handle_no_active_connection(curr_command, cur_con, &ds_res);
+    DBUG_RETURN(1);
+  }
+
   if (mysql_query(mysql, query= "show master status"))
     die("failed in 'show master status': %d %s",
 	mysql_errno(mysql), mysql_error(mysql));
@@ -13570,7 +13576,11 @@ int main(int argc, char **argv)
       case Q_SYNC_WITH_MASTER: do_sync_with_master(command); break;
       case Q_SYNC_SLAVE_WITH_MASTER:
       {
-	do_save_master_pos();
+        if (do_save_master_pos())
+        {
+          command->last_argument= command->end;
+          break;
+        }
 	if (*command->first_argument)
 	  select_connection(command);
 	else
