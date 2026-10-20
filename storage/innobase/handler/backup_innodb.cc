@@ -231,7 +231,7 @@ private:
     const uint32_t BACKUP_BATCH_SIZE{};
     /** maximum BACKUP_BATCH_SIZE */
     static constexpr uint32_t BACKUP_BATCH_SIZE_MAX=
-      1U << (20 - UNIV_PAGE_SIZE_SHIFT_MIN);
+      fil_space_t::backup_batch_size_max();
     /** first log_track() target file handle */
     os_file_t first_log_dst{};
     /** log_track() target file handle */
@@ -2380,14 +2380,20 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       {
         while (page < limit)
         {
+          /* TODO: avoid copying freed page ranges, or pages that were
+          allocated after the backup started */
           start+= BACKUP_BATCH_SIZE;
+          const uint64_t o{uint64_t{page} * page_size};
+          const uint32_t end_page{std::min(limit, page + BACKUP_BATCH_SIZE)};
+#ifdef POSIX_FADV_WILLNEED
+          std::ignore= posix_fadvise(node->handle, o,
+                                     uint64_t{end_page} * page_size,
+                                     POSIX_FADV_WILLNEED);
+#endif
           buf_page_t **end= backup_batch_start(blocks, node->space, start);
           if (end)
           {
-            const uint64_t o{uint64_t{page} * page_size};
-            page= std::min(limit, page + BACKUP_BATCH_SIZE);
-            /* TODO: avoid copying freed page ranges, or pages that were
-            allocated after the backup started */
+            page= end_page;
             err=
               backup::copy(node->handle, f, o, uint64_t{page} * page_size);
           }
@@ -2472,9 +2478,18 @@ int InnoDB_backup::stream(backup_fd stream, fil_node_t *node, const char *name,
   uint32_t page{0};
   const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
 loop:
+  /* TODO: avoid copying freed page ranges, or pages that were
+  allocated after the backup started */
   do
   {
     buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX], **end= blocks;
+    const uint32_t last{std::min(limit, page + BACKUP_BATCH_SIZE)};
+#ifdef POSIX_FADV_WILLNEED
+    std::ignore= posix_fadvise(node->handle,
+                               uint64_t{page} * page_size,
+                               uint64_t{last} * page_size,
+                               POSIX_FADV_WILLNEED);
+#endif
     {
       const uint32_t end_page{start + BACKUP_BATCH_SIZE};
       end= backup_batch_start(end, node->space, end_page);
@@ -2486,9 +2501,6 @@ loop:
           !(err= backup_stream_start(stream, name, 0644,
                                      physical_size, chunk, n_chunk)))
       {
-        /* TODO: avoid copying freed page ranges, or pages that were
-        allocated after the backup started */
-        uint32_t last= std::min(limit, page + BACKUP_BATCH_SIZE);
         err= backup::append(node->handle, stream,
                             uint64_t{page} * page_size,
                             uint64_t{last} * page_size);

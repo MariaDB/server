@@ -90,10 +90,6 @@ template<bool stream>
 static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
                            uint64_t o, uint64_t end) noexcept
 {
-#ifdef __linux__
-#elif defined POSIX_FADV_SEQUENTIAL
-  std::ignore= posix_fadvise(in_fd, o, end - o, POSIX_FADV_SEQUENTIAL);
-#endif
   assert(end >= o);
   uint64_t count{end - o};
 #if SIZEOF_SIZE_T < 8
@@ -119,8 +115,9 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 #ifdef POSIX_FADV_DONTNEED
       std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
 #endif
-#ifdef __linux__
-      readahead(in_fd, n, count);
+#ifdef POSIX_FADV_WILLNEED
+      if (count)
+        std::ignore= posix_fadvise(in_fd, n, size, POSIX_FADV_WILLNEED);
 #endif
       if (!stream)
         ret= pwrite(out_fd, b, size_t(ret), o);
