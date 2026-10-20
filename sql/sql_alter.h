@@ -197,6 +197,15 @@ public:
   // Type of ALTER TABLE lock.
   enum_alter_table_lock         requested_lock;
 
+  /*
+    AUTO reads the history range (prep_alter_part_table()) under
+    MDL_SHARED_NO_WRITE: the copy must not run online.
+  */
+  bool vers_history_read;
+  /* Why AUTO that reads the history range cannot run online */
+  static constexpr const char *vers_history_read_reason=
+    "PARTITION BY SYSTEM_TIME INTERVAL ... AUTO";
+
 
   Alter_info() :
   select_field_count(0),
@@ -205,7 +214,8 @@ public:
     original_table(0),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
-    requested_lock(ALTER_TABLE_LOCK_DEFAULT)
+    requested_lock(ALTER_TABLE_LOCK_DEFAULT),
+    vers_history_read(false)
   {}
 
   void reset()
@@ -229,6 +239,7 @@ public:
     partition_names.empty();
     requested_algorithm= ALTER_TABLE_ALGORITHM_NONE;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
+    vers_history_read= false;
   }
 
 
@@ -273,6 +284,11 @@ public:
   */
 
   bool set_requested_lock(const LEX_CSTRING *str);
+
+  /* ER_ALTER_OPERATION_NOT_SUPPORTED_REASON for LOCK=NONE, try LOCK=SHARED */
+  static void report_lock_none_unsupported(const char *reason);
+  /* ER_ALTER_OPERATION_NOT_SUPPORTED for the ALGORITHM, try ALGORITHM=COPY */
+  void report_algorithm_unsupported(THD *thd) const;
 
   /**
     Set the requested algorithm to the given algorithm value

@@ -66,6 +66,7 @@
 #include "vector_mhnsw.h"
 #include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 #include "sql_rename.h"                // do_rename()
+#include "key.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -2632,7 +2633,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   }
 }
 
-static bool key_cmp(const Key_part_spec &a, const Key_part_spec &b)
+static bool key_eq(const Key_part_spec &a, const Key_part_spec &b)
 {
   return a.length == b.length && a.asc == b.asc &&
          a.field_name.streq(b.field_name);
@@ -2676,7 +2677,7 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
     }
 
     if (std::equal(key->columns.begin(), key->columns.end(), k.columns.begin(),
-                   key_cmp))
+                   key_eq))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DUP_INDEX,
                           ER_THD(thd, ER_DUP_INDEX), key_info->name.str);
@@ -11061,6 +11062,14 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "DROP SYSTEM VERSIONING";
 
+  /*
+    The history partitions are sized from the history read before the copy
+    (prep_alter_part_table()): DML must stay blocked until the end.
+  */
+  *online= !alter_info->vers_history_read;
+  if (!*online)
+    return Alter_info::vers_history_read_reason;
+
   *online= !thd->lex->ignore;
   if (!*online)
     return "ALTER IGNORE TABLE";
@@ -11919,8 +11928,7 @@ do_continue:;
     if (alter_info->algorithm_is_nocopy(thd) &&
         !(require_copy_algorithm && alter_info->algorithm_not_specified()))
     {
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-               alter_info->algorithm_clause(thd), "ALGORITHM=COPY");
+      alter_info->report_algorithm_unsupported(thd);
       DBUG_RETURN(true);
     }
 
@@ -12073,8 +12081,7 @@ do_continue:;
     {
       if (alter_info->algorithm_is_nocopy(thd))
       {
-        my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-                 alter_info->algorithm_clause(thd), "ALGORITHM=COPY");
+        alter_info->report_algorithm_unsupported(thd);
         goto err_new_table_cleanup;
       }
       goto alter_copy;
@@ -12318,8 +12325,7 @@ alter_copy:
         alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
     {
       DBUG_ASSERT(!online);
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
-               "LOCK=NONE", reason, "LOCK=SHARED");
+      Alter_info::report_lock_none_unsupported(reason);
       goto err_new_table_cleanup;
     }
   }
@@ -14388,3 +14394,261 @@ bool HA_CREATE_INFO::
   }
   return false;
 }
+
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+/**
+  Find the shortest index usable for scanning the row-end field in order.
+
+  Selects an index whose first key part is the row-end field and that supports
+  an ordered forward read of that leading part, so its first entry and its last
+  entry before the current-row (max) key yield the range of historical row-end
+  values. To qualify, an index must:
+
+  - start with the row-end field;
+  - support ordered index reads (@c HA_READ_ORDER);
+  - allow a leading-prefix read, i.e. not require the whole key
+    (@c HA_ONLY_WHOLE_INDEX), unless it consists of a single key part;
+  - not sort the row-end part in reverse (@c HA_REVERSE_SORT).
+
+  Among the candidates the one with the shortest key length is chosen.
+
+  @note keys_in_use_for_query is intentionally not consulted, as ALTER TABLE
+        does not call setup_tables().
+
+  @param[out] best_idx  Index number of the chosen key, or @c MAX_KEY if none.
+
+  @return Chosen key, or @c NULL if none qualifies.
+*/
+KEY *TABLE::vers_end_best_idx(uint &best_idx) const
+{
+  KEY *key= key_info, *best_key= NULL;
+  best_idx= MAX_KEY;
+  Field *end_field= vers_end_field();
+  const field_index_t end_field_idx= end_field->field_index;
+  for (uint idx= 0; idx < s->keys; idx++, key++)
+  {
+    DBUG_ASSERT(key->key_part->fieldnr > 0);
+    ulonglong index_flags;
+    if (key->key_part->fieldnr - 1 == end_field_idx &&
+        ((index_flags= file->index_flags(idx, 0, false)) & HA_READ_ORDER) &&
+        (!(index_flags & HA_ONLY_WHOLE_INDEX) ||
+         key->user_defined_key_parts == 1) &&
+        !(key->key_part->key_part_flag & HA_REVERSE_SORT) &&
+        (!best_key || best_key->key_length > key->key_length))
+    {
+      best_key= key;
+      best_idx= idx;
+    }
+  }
+  return best_key;
+}
+
+
+/**
+  Find the minimum and maximum historical row-end timestamps in a versioned
+  table.
+
+  Selects the shortest forward index that starts with the row-end field and
+  reads its first entry (the minimum) and the last entry before the current-row
+  (max) key (the maximum historical value). If no usable index exists, or the
+  table has disabled indexes (ALTER ... DISABLE KEYS), falls back to a full
+  table scan. The scan warns with advice to add the index only if it read any
+  row and no usable index exists (a disabled one does not count as missing).
+  Current rows (row_end at the maximum Timestamp value, or at the pre-11.5
+  marker 2038-01-19 03:14:07.999999) are not taken for history on either path.
+
+  Takes and releases the table lock if the handler is not locked yet.
+  Overwrites record[0].
+
+  In debug builds, both the index and scan paths are executed and their
+  results are asserted to be equal when the DBUG_IF "test_mdev-25529" flag
+  is set.
+
+  @param thd     Current thread.
+  @param min_ts  Out parameter: minimum historical row-end timestamp.
+                 Set to TIMESTAMP_MAX_VALUE.999999 when the table has no
+                 history.
+  @param max_ts  Out parameter: maximum historical row-end timestamp.
+                 Set to MY_TIME_T_MIN when the table has no history.
+
+  @retval false  Success.
+  @retval true   Error (table lock, handler error or kill), reported.
+*/
+bool TABLE::vers_get_history_range(THD *thd, Timestamp &min_ts,
+                                   Timestamp &max_ts)
+{
+  DBUG_ASSERT(versioned());
+  Field *end_field= vers_end_field();
+  uint best_idx;
+  KEY *best_key= vers_end_best_idx(best_idx);
+  /*
+    Advise adding an index only if there is none: with disabled keys
+    (ALTER ... DISABLE KEYS) the advice is wrong.
+  */
+  const bool warn_slow= !best_key;
+  if (file->indexes_are_disabled())
+    best_key= NULL;
+
+  int error= 0;
+  MYSQL_LOCK *lock= NULL;
+  const Timestamp ts_max(TIMESTAMP_MAX_VALUE, TIME_MAX_SECOND_PART);
+  const Timestamp ts_min(MY_TIME_T_MIN, 0);
+  min_ts= ts_max;
+  max_ts= ts_min;
+#ifndef DBUG_OFF
+  Timestamp min_ts2(0, 0), max_ts2(0, 0);
+#endif /* DBUG_OFF */
+  MY_BITMAP *save_read_set=  read_set;
+  MY_BITMAP *save_write_set= write_set;
+  DBUG_ASSERT(save_read_set != &tmp_set);
+  bitmap_clear_all(&tmp_set);
+  column_bitmaps_set(&tmp_set, &tmp_set);
+  bitmap_set_bit(read_set, end_field->field_index);
+  file->column_bitmaps_signal(false);
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, s->db.str,
+                                              s->table_name.str,
+                                              MDL_SHARED_READ));
+  DBUG_ASSERT(!s->tmp_table); /* no versioned temporary tables */
+  if (file->get_lock_type() == F_UNLCK)
+  {
+    /*
+      Take the table lock, not only the external lock: some engines (Aria)
+      set up their transaction in THR_LOCK callbacks.
+    */
+    TABLE *tbl= this;
+    DBUG_EXECUTE_IF("vers_history_range_lock_fail",
+                    my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+                    error= 1;
+                    goto end;);
+    if (!(lock= mysql_lock_tables(thd, &tbl, 1, 0)))
+    {
+      error= 1; /* already reported */
+      goto end;
+    }
+  }
+
+  if (best_key)
+  {
+    uchar search_key[MAX_KEY_LENGTH];
+    KEY_PART_INFO *key_part= best_key->key_part;
+    const uint key_prefix_len= key_part[0].store_length;
+    /* Read relative to the row_end value in record[0] */
+    auto read_key= [&](enum ha_rkey_function find_flag)
+    {
+      key_copy(search_key, record[0], best_key, key_prefix_len);
+      return file->ha_index_read_map(record[0], search_key, key_part_map(1),
+                                     find_flag);
+    };
+
+    /* Get range from index */
+    if ((error= file->ha_index_init(best_idx, true)))
+      goto end_unlock;
+
+    error= file->ha_index_first(record[0]);
+    if (!error && end_field->is_max())
+    {
+      /*
+        is_max() also takes the pre-11.5 current-row marker (row_end at
+        INT_MAX32), which sorts below history after 2038: read after it.
+      */
+      error= read_key(HA_READ_AFTER_KEY);
+    }
+    if (!error && !end_field->is_max())
+    {
+      min_ts.tv_sec= end_field->get_timestamp(&min_ts.tv_usec);
+      end_field->set_max();
+      error= read_key(HA_READ_BEFORE_KEY);
+      if (!error && end_field->is_max())
+      {
+        /* Current rows with the old marker: read before them */
+        end_field->store_timestamp(INT_MAX32, TIME_MAX_SECOND_PART);
+        error= read_key(HA_READ_BEFORE_KEY);
+      }
+      /* The first entry is history, so there is a last one */
+      DBUG_ASSERT(error != HA_ERR_END_OF_FILE &&
+                  error != HA_ERR_KEY_NOT_FOUND);
+      if (!error)
+        max_ts.tv_sec= end_field->get_timestamp(&max_ts.tv_usec);
+    }
+    else if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
+      error= 0; /* no history */
+
+    file->ha_index_end();
+
+    if (error)
+      goto end_unlock;
+
+#ifndef DBUG_OFF
+    /* Test both index and scan, compare the results between them */
+    min_ts2= min_ts;
+    max_ts2= max_ts;
+    if (DBUG_IF("test_mdev-25529"))
+    {
+      min_ts= ts_max;
+      max_ts= ts_min;
+      goto jump_scan;
+    }
+#endif /* DBUG_OFF */
+  }
+  else
+  {
+#ifndef DBUG_OFF
+jump_scan:
+#endif /* DBUG_OFF */
+    /* Get range by scan */
+    ha_rows rows= 0;
+    Timestamp ts(0, 0);
+    if ((error= file->ha_rnd_init(1)))
+      goto end_unlock;
+
+    while (!(error= file->ha_rnd_next(record[0])))
+    {
+      DEBUG_SYNC(thd, "vers_get_history_range_scan");
+      if (thd->killed)
+      {
+        error= HA_ERR_ABORTED_BY_USER; /* print_error() reports the kill */
+        break;
+      }
+      rows++;
+      if (end_field->is_max()) /* current row, also the pre-11.5 marker */
+        continue;
+      ts.tv_sec= end_field->get_timestamp(&ts.tv_usec);
+      if (ts.cmp(min_ts) < 0)
+        min_ts= ts;
+      if (ts.cmp(max_ts) > 0)
+        max_ts= ts;
+    }
+
+    file->ha_rnd_end();
+    if (warn_slow && rows && error == HA_ERR_END_OF_FILE)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_VERS_SLOW_ROW_END,
+                          ER_THD(thd, WARN_VERS_SLOW_ROW_END),
+                          s->table_name.str);
+#ifndef DBUG_OFF
+    if (best_key && error == HA_ERR_END_OF_FILE)
+    {
+      DBUG_ASSERT(DBUG_IF("test_mdev-25529"));
+      DBUG_ASSERT(min_ts.cmp(min_ts2) == 0);
+      DBUG_ASSERT(max_ts.cmp(max_ts2) == 0);
+    }
+#endif /* DBUG_OFF */
+  }
+
+  if (error == HA_ERR_END_OF_FILE)
+    error= 0;
+
+end_unlock:
+  if (lock)
+    mysql_unlock_tables(thd, lock);
+
+  if (error)
+    file->print_error(error, MYF(0));
+
+end:
+  column_bitmaps_set(save_read_set, save_write_set);
+  file->column_bitmaps_signal(false);
+  return error != 0;
+}
+#endif /* WITH_PARTITION_STORAGE_ENGINE */

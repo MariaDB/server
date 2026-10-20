@@ -592,3 +592,18 @@ SELECT ('0x',1) IN ((0,1),(1,1));
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";
+
+--echo #
+--echo # MDEV-25529 Fix to_string() OOM return semantics for temporal types
+--echo #
+--echo # NULL from to_string() does not stick to the next execution
+prepare s from "select trim(time'10:00:00') as t";
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,time_to_string_oom';
+--error ER_OUT_OF_RESOURCES
+execute s;
+set debug_dbug= @save_dbug;
+execute s;
+deallocate prepare s;
+
+--echo # End of 13.2 tests

@@ -1,0 +1,832 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
+--source include/have_64bit_timestamp.inc
+--source include/maybe_debug.inc
+let $have_debug_sync= `select count(*) from information_schema.session_variables where variable_name = 'debug_sync' and variable_value like 'on %'`;
+
+--enable_prepare_warnings
+set @@session.time_zone='+00:00';
+
+--echo #
+--echo # MDEV-25529 Auto-create: Pre-existing historical data is not partitioned as specified by ALTER
+--echo #
+
+# Test both index and scan, compare the results between them
+if ($have_debug)
+{
+  --disable_query_log
+  set @old_dbug= @@debug_dbug;
+  set debug_dbug= '+d,test_mdev-25529';
+  --enable_query_log
+}
+
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1;
+alter table t1 partition by system_time limit 1 auto;
+
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end, row_start),
+  index (row_start),
+  index (row_end, x),
+  index (x, row_end),
+  index (row_end desc)) with system versioning
+partition by system_time limit 1000 partitions 6;
+
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00.22');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+set timestamp= default;
+
+ALTER table t1 partition by system_time
+interval 1 hour starts '2000-01-01 00:00:00';
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+
+alter TABLE t1 partition by system_time
+interval 1 hour;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p3);
+select *, row_start, row_end from t1 partition (p4);
+select *, row_start, row_end from t1 partition (pn);
+
+set @@system_versioning_alter_history= keep;
+alter table t1 remove partitioning;
+# First history:  2000-01-01 00:10:00.220000
+# Last history:   2000-01-01 02:00:00.000000
+select *, row_start, row_end from t1 for system_time all;
+
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+alter table t1 PARTITION by system_time interval 1 hour auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (pn);
+
+alter table t1 remove partitioning;
+alter table t1 partition by SYSTEM_TIME interval 1 hour starts '2000-01-01 00:00:00' auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (pn);
+
+set timestamp= unix_timestamp('2000-01-02 03:01:23.456');
+delete from t1;
+alter table t1 remove partitioning;
+alter table t1 partition by SYSTEM_TIME interval 1 hour auto;
+
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p1);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p27);
+select *, row_start, row_end from t1 partition (pn);
+
+set timestamp= unix_timestamp('2000-01-02 03:01:23.456');
+delete from t1;
+alter table t1 partition by system_time INTERVAL 20 minute auto force;
+show create table t1;
+select *, row_start, row_end from t1 partition (p0);
+select *, row_start, row_end from t1 partition (p2);
+select *, row_start, row_end from t1 partition (p5);
+select *, row_start, row_end from t1 partition (pn);
+
+--echo # STARTS after the oldest history is re-aligned: WARN_VERS_WRONG_STARTS
+alter table t1 remove partitioning;
+alter table t1 partition by system_time interval 1 hour
+starts '2002-01-01 00:00:00' auto;
+
+alter table t1 force partition by system_time interval 1 hour
+starts '2003-01-01 00:00:00' auto;
+show create table t1;
+
+alter table t1 partition by system_time interval 1 hour
+starts '2004-01-01 00:00:00' auto force;
+show create table t1;
+
+--echo # STARTS is not adjusted to the history range without FORCE
+alter table t1 partition by system_time interval 1 hour
+starts '2005-01-01 00:00:00' auto;
+show create table t1;
+
+--echo # min_ts == max_ts case, partitions decrease
+delete history from t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+alter table t1 partition by system_time interval 7 hour auto force;
+show create table t1;
+
+--echo # AUTO FORCE re-lays out; with an explicit partition list it does not
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 8 hour auto force;
+show create table t1;
+
+alter table t1 partition by system_time interval 8 hour auto (
+  partition p0 history,
+  partition p1 history,
+  partition pn current) force;
+show create table t1;
+
+--echo # Switch system_time -> hash
+alter table t1 partition by hash(x) partitions 3;
+show create table t1;
+--echo # Switch hash -> system_time
+alter table t1 partition by system_time interval 9 hour
+starts '2001-01-01 00:00:00' auto force;
+show create table t1;
+
+--echo # Year/month interval
+delete history from t1;
+alter table t1 remove partitioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+alter table t1 partition by system_time interval 1 month auto force;
+show create table t1;
+set timestamp= unix_timestamp('2003-10-01 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 11 month auto force;
+show create table t1;
+alter table t1 partition by system_time interval 1 year auto force;
+show create table t1;
+
+--echo # No history
+delete history from t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+alter table t1 partition by system_time interval 1 hour auto force;
+show create table t1;
+insert t1 values (99);
+alter table t1 partition by system_time interval 1 hour auto force;
+show create table t1;
+
+--echo # Slow scan warning
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (x, row_end, row_start),
+  index (row_start, row_end),
+  index (x, row_end)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+alter table t1 partition by system_time interval 10 hour auto;
+show create table t1;
+
+--echo # TRX_ID versioning
+create or replace table t1 (x int,
+  row_start bigint(20) unsigned as row start invisible,
+  row_end bigint(20) unsigned as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning engine innodb;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (77);
+delete from t1;
+set timestamp= unix_timestamp('2000-01-03 00:00:00');
+insert t1 values (88);
+delete from t1;
+--echo # Partitioning is not allowed for TRX_ID versioning
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t1 partition by system_time interval 11 hour auto;
+
+drop table t1;
+
+--echo # Max history row_end exactly on an interval boundary. A boundary value
+--echo # start + k*i belongs to partition k, so k+1 history partitions are
+--echo # needed. Here start=00:00, interval 1 hour, max history row_end=02:00:00
+--echo # belongs to p2 = [02:00, 03:00).
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end, row_start)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+alter table t1 partition by system_time
+interval 1 hour starts '2000-01-01 00:00:00' auto;
+show create table t1;
+select x, row_end from t1 partition (p1);
+select x, row_end from t1 partition (p2);
+select x, row_end from t1 partition (pn);
+set timestamp= default;
+drop table t1;
+
+--echo # LIMIT ... AUTO on a table that already has history does not size the
+--echo # layout from the history: there is no INTERVAL to size it by.
+create or replace table t1 (x int) with system versioning;
+insert t1 values (0);
+update t1 set x= 1;
+alter table t1 partition by system_time limit 1 auto;
+show create table t1;
+drop table t1;
+
+--echo # A disabled row_end index must not be used for the history range.
+--echo # With the key disabled the code must fall back to a full scan and still
+--echo # lay out history correctly, not fail on the disabled index.
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index k (row_end, row_start)) with system versioning engine=myisam;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+alter table t1 disable keys;
+alter table t1 partition by system_time
+interval 1 hour starts '2000-01-01 00:00:00' auto;
+show create table t1;
+select x, row_end from t1 partition (p2);
+
+--echo # The history-range lookup takes a table lock. Under LOCK TABLES the
+--echo # handler is already locked, so it must not lock again.
+alter table t1 remove partitioning;
+alter table t1 enable keys;
+lock tables t1 write;
+alter table t1 partition by system_time
+interval 1 hour starts '2000-01-01 00:00:00' auto;
+unlock tables;
+show create table t1;
+select x, row_end from t1 partition (p2);
+set timestamp= default;
+drop table t1;
+
+--echo # History range divided by INTERVAL exceeds MAX_PARTITIONS: the number
+--echo # of history partitions needed to cover the range is reported as
+--echo # ER_VERS_HIST_PART_FAILED (preceded by ER_TOO_MANY_PARTITIONS_ERROR).
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 06:00:00');
+update t1 set x= 3;
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 1 second auto;
+show warnings;
+set timestamp= default;
+drop table t1;
+
+--echo # Month/year history partition boundaries must be stepped in UTC, not in
+--echo # the session time zone. Under a DST zone (MET: CET=+1 winter,
+--echo # CEST=+2 summer, spring-forward 2024-03-31) the two disagree.
+--echo #
+--echo # STARTS aligns to local 2024-02-15 00:00 MET = 2024-02-14 23:00 UTC.
+--echo # Max history row_end is 2024-04-14 22:30:00 UTC, which falls in the
+--echo # one-hour gap between the UTC boundary (Apr 14 23:00) and the
+--echo # session-zone boundary (Apr 14 22:00, shifted by the +2 summer offset).
+--echo # UTC stepping covers it with two history partitions (PARTITIONS 3);
+--echo # stepping in MET would add one more (PARTITIONS 4). The query time
+--echo # (22:45 UTC) is inside the same gap.
+set time_zone= 'MET';
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2024-02-15 12:00:00');
+insert t1 values (1);
+delete from t1;
+set timestamp= unix_timestamp('2024-04-15 00:30:00');
+insert t1 values (2);
+delete from t1;
+set timestamp= unix_timestamp('2024-04-15 00:45:00');
+alter table t1 partition by system_time interval 1 month auto;
+show create table t1;
+set timestamp= default;
+set time_zone= '+00:00';
+drop table t1;
+
+--echo # STARTS aligned to a local midnight that does not exist: Moscow skipped
+--echo # 1981-04-01 00:00-01:00 (DST start), so the start of the gap is used
+--echo # instead of failing the ALTER.
+set time_zone= 'Europe/Moscow';
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('1981-04-01 12:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('1981-04-01 13:00:00');
+delete from t1;
+set timestamp= unix_timestamp('1981-04-01 14:00:00');
+alter table t1 partition by system_time interval 1 day auto;
+show create table t1;
+set timestamp= default;
+set time_zone= '+00:00';
+drop table t1;
+
+--echo # STARTS later than the query time warns with AUTO too, unless STARTS
+--echo # is re-aligned to the history range
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour starts '2000-01-01 01:00:00';
+--echo # CREATE never re-aligns STARTS
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour starts '2000-01-01 01:00:00' auto;
+--echo # No history: STARTS is not re-aligned
+create or replace table t1 (x int) with system versioning;
+alter table t1 partition by system_time interval 1 hour
+  starts '2000-01-01 01:00:00' auto;
+alter table t1 force partition by system_time interval 1 hour
+  starts '2000-01-01 01:00:00' auto;
+--echo # Without AUTO: warns at parse time
+alter table t1 partition by system_time interval 1 hour
+  starts '2000-01-01 01:00:00';
+--echo # Explicit partition list: STARTS is not re-aligned despite history
+set timestamp= unix_timestamp('1999-12-31 23:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+delete from t1;
+alter table t1 partition by system_time interval 1 hour
+  starts '2000-01-01 01:00:00' auto (
+  partition p0 history,
+  partition pn current) force;
+drop table t1;
+set timestamp= default;
+
+--echo # The history range is read under a table lock (Aria sets up its
+--echo # transaction in THR_LOCK callbacks)
+create table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end, row_start)) with system versioning engine=aria;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+alter table t1 partition by system_time interval 1 hour auto;
+select x, row_end from t1 partition (p0);
+select x, row_end from t1 partition (p1);
+select x from t1 partition (pn);
+drop table t1;
+set timestamp= default;
+
+--echo # The layout covers the query time as well, so DML after the ALTER
+--echo # does not need to create partitions. STARTS aligns to 01:00, the query
+--echo # time 05:30 needs history partitions p0..p4.
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 05:30:00');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+update t1 set x= 3;
+select x, row_end from t1 partition (p4);
+--echo # Covering the query time needs too many partitions
+alter table t1 remove partitioning;
+set timestamp= default;
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 1 hour auto;
+--echo # DML keeps working
+update t1 set x= 4;
+drop table t1;
+
+--echo # DML waits from the history-range read until the ALTER is done, also
+--echo # during the copy (the copy does not run online). The ALTER at 03:00
+--echo # lays out p0..p2, the UPDATE at 03:30 then puts its history row into
+--echo # p2 = [03:00, 04:00). Without the early metadata lock upgrade the
+--echo # UPDATE runs while the ALTER is copying.
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end, row_start)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= default;
+--connect con1,localhost,root
+--connect con2,localhost,root
+--disable_query_log
+--connection con1
+set time_zone= '+00:00';
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+--connection con2
+set time_zone= '+00:00';
+set timestamp= unix_timestamp('2000-01-01 03:30:00');
+if ($have_debug_sync)
+{
+  --connection con1
+  set debug_sync= 'copy_data_between_tables_before SIGNAL ready WAIT_FOR go';
+  send alter table t1 partition by system_time interval 1 hour auto;
+  --connection default
+  set debug_sync= 'now WAIT_FOR ready';
+  --connection con2
+  send update t1 set x= 3;
+  --connection default
+  let $wait_condition= select count(*) = 1 from information_schema.processlist
+    where state = 'Waiting for table metadata lock'
+    and info = 'update t1 set x= 3';
+  --source include/wait_condition.inc
+  --disable_query_log
+  set debug_sync= 'now SIGNAL go';
+  --connection con1
+  reap;
+  --connection con2
+  reap;
+  --connection default
+  set debug_sync= 'reset';
+}
+if (!$have_debug_sync)
+{
+  --connection con1
+  alter table t1 partition by system_time interval 1 hour auto;
+  --connection con2
+  update t1 set x= 3;
+}
+--enable_query_log
+--disconnect con1
+--disconnect con2
+--connection default
+show create table t1;
+select x, row_end from t1 partition (p2);
+
+--echo # The ALTER fails if concurrent DML cannot be blocked. It fails at the MDL
+--echo # upgrade, before the history range is read: otherwise covering the query
+--echo # time would fail with ER_VERS_HIST_PART_FAILED.
+alter table t1 remove partitioning;
+--connect con1,localhost,root
+begin;
+insert t1 values (5);
+--connection default
+set lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+alter table t1 partition by system_time interval 1 hour auto;
+set lock_wait_timeout= default;
+--connection con1
+commit;
+--disconnect con1
+--connection default
+
+--echo # Table lock failure in the history-range read (debug builds only)
+--disable_query_log
+--disable_result_log
+if ($have_debug)
+{
+  set @save_dbug= @@debug_dbug;
+  set debug_dbug= '+d,vers_history_range_lock_fail';
+  --error ER_LOCK_WAIT_TIMEOUT
+  alter table t1 partition by system_time interval 1 hour auto;
+  set debug_dbug= @save_dbug;
+}
+--enable_result_log
+--enable_query_log
+show create table t1;
+drop table t1;
+
+--echo # KILL QUERY during the history-range scan (debug_sync builds only).
+--echo # With the index, test_mdev-25529 reads it before the scan.
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= default;
+--disable_query_log
+--disable_result_log
+if ($have_debug_sync)
+{
+  --connect con1,localhost,root
+  set time_zone= '+00:00';
+  set timestamp= unix_timestamp('2000-01-01 03:00:00');
+  set debug_dbug= '+d,test_mdev-25529';
+  let $con1_id= `select connection_id()`;
+  set debug_sync= 'vers_get_history_range_scan SIGNAL scanning WAIT_FOR go';
+  send alter table t1 partition by system_time interval 1 hour auto;
+  --connection default
+  set debug_sync= 'now WAIT_FOR scanning';
+  eval kill query $con1_id;
+  set debug_sync= 'now SIGNAL go';
+  --connection con1
+  --error ER_QUERY_INTERRUPTED
+  reap;
+  --disconnect con1
+  --connection default
+  set debug_sync= 'reset';
+}
+--enable_result_log
+--enable_query_log
+show create table t1;
+drop table t1;
+
+--echo # The copy does not run online, so LOCK=NONE is rejected, and it is a
+--echo # copy, so ALGORITHM=INPLACE is rejected too. Both are rejected before the
+--echo # MDL upgrade, so they do not wait for concurrent DML.
+create or replace table t1 (x int) with system versioning;
+--connect con1,localhost,root
+begin;
+insert t1 values (1);
+--connection default
+set lock_wait_timeout= 1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 lock=none partition by system_time interval 1 hour auto;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 algorithm=inplace partition by system_time interval 1 hour auto;
+set lock_wait_timeout= default;
+--connection con1
+commit;
+--disconnect con1
+--connection default
+drop table t1;
+
+--echo # A failed ALTER ... AUTO FORCE on a table already partitioned by
+--echo # INTERVAL leaves its layout intact
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+show create table t1;
+set timestamp= default;
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 1 minute auto force;
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 2;
+select x, row_end from t1 partition (p1);
+set timestamp= default;
+drop table t1;
+
+--echo # Month interval near TIMESTAMP_MAX_VALUE: the boundary after the query
+--echo # time is past it, so the last history partition is partial
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2106-01-20 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2106-01-25 00:00:00');
+delete from t1;
+set timestamp= unix_timestamp('2106-01-26 00:00:00');
+alter table t1 partition by system_time interval 1 month auto;
+show create table t1;
+set timestamp= default;
+drop table t1;
+
+--echo # InnoDB: history range from the row_end index
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning engine=innodb;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+select x, row_end from t1 partition (p0);
+select x, row_end from t1 partition (p1);
+select x from t1 partition (pn);
+set timestamp= default;
+drop table t1;
+
+--echo # MEMORY: history range from a scan
+create or replace table t1 (x int) with system versioning engine=memory;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+select x from t1 partition (p0);
+select x from t1 partition (p1);
+select x from t1 partition (pn);
+set timestamp= default;
+drop table t1;
+
+--echo # History row_end in the last second of the TIMESTAMP range
+set @@system_versioning_insert_history= 1;
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end)) with system versioning;
+insert t1 (x, row_start, row_end)
+  values (1, '2106-02-07 06:00:00', '2106-02-07 06:28:15.5');
+set @@system_versioning_insert_history= 0;
+set timestamp= unix_timestamp('2106-02-07 06:28:15');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+set timestamp= default;
+drop table t1;
+
+--echo # PARTITIONS N is kept if it is more than the history needs
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+alter table t1 partition by system_time interval 1 hour auto partitions 10;
+show create table t1;
+alter table t1 remove partitioning;
+alter table t1 partition by system_time interval 1 hour auto partitions 2;
+show create table t1;
+set timestamp= default;
+drop table t1;
+
+--echo # LOCK=NONE with an explicit partition list: no history is read
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 2;
+alter table t1 lock=none partition by system_time interval 1 hour auto (
+  partition p0 history,
+  partition pn current);
+show create table t1;
+set timestamp= default;
+drop table t1;
+
+--echo # Current rows with the pre-11.5 row_end marker are not history
+set @@system_versioning_insert_history= 1;
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning;
+insert t1 (x, row_start, row_end) values
+  (1, '2000-01-01 00:00:00', '2000-01-01 01:00:00'),
+  (2, '2000-01-01 01:00:00', '2038-01-19 03:14:07.999999'),
+  (3, '2000-01-01 01:00:00', '2038-01-19 03:14:07.999999');
+set @@system_versioning_insert_history= 0;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+select x, row_end from t1 partition (p0);
+select x from t1 partition (pn);
+--echo # The same without the index (scan)
+alter table t1 remove partitioning;
+alter table t1 drop index row_end;
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+set timestamp= default;
+drop table t1;
+
+--echo # History after the pre-11.5 marker sorts above it in the index
+set @@system_versioning_insert_history= 1;
+create or replace table t1 (x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end),
+  index (row_end)) with system versioning;
+insert t1 (x, row_start, row_end) values
+  (1, '2040-01-01 00:00:00', '2040-01-01 01:00:00'),
+  (2, '2000-01-01 01:00:00', '2038-01-19 03:14:07.999999');
+set @@system_versioning_insert_history= 0;
+set timestamp= unix_timestamp('2040-01-01 01:30:00');
+alter table t1 partition by system_time interval 1 hour auto;
+show create table t1;
+select x, row_end from t1 partition (p0);
+select x from t1 partition (pn);
+set timestamp= default;
+drop table t1;
+
+--echo # STARTS aligned to a local midnight before the TIMESTAMP range: the
+--echo # oldest history row_end is used as STARTS
+set time_zone= '+03:00';
+create or replace table t1 (x int) with system versioning;
+# 1970-01-01 01:00:00 UTC
+set timestamp= 3600;
+insert t1 values (1);
+# 1970-01-01 02:00:00 UTC
+set timestamp= 7200;
+delete from t1;
+set timestamp= 7300;
+alter table t1 partition by system_time interval 1 day auto;
+show create table t1;
+set timestamp= default;
+set time_zone= '+00:00';
+drop table t1;
+
+--echo # Subpartitions count against MAX_PARTITIONS
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= 2;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 1 second auto
+subpartition by key (x) subpartitions 2;
+show warnings;
+set timestamp= default;
+drop table t1;
+
+--echo # An explicit subpartition list is replaced by default subpartitions,
+--echo # as many as there were
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour starts '2000-01-01 00:00:00'
+subpartition by key (x) (
+  partition p0 history (subpartition s0, subpartition s1),
+  partition p1 history (subpartition s2, subpartition s3),
+  partition pn current (subpartition s4, subpartition s5));
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+alter table t1 partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00' auto force;
+select partition_name, subpartition_name from information_schema.partitions
+where table_schema= 'test' and table_name= 't1'
+order by partition_ordinal_position, subpartition_ordinal_position;
+select x, row_end from t1 partition (p1);
+select x from t1 partition (pn);
+set timestamp= default;
+drop table t1;
+
+--echo # INTERVAL overflow while stepping the boundaries
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+delete from t1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 9999 year auto;
+show warnings;
+set timestamp= default;
+drop table t1;
+
+--echo # INTERVAL longer than the date range: its seconds would overflow
+create or replace table t1 (x int) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+delete from t1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 4611686018427387904 minute auto;
+show warnings;
+--error ER_VERS_HIST_PART_FAILED
+alter table t1 partition by system_time interval 4611686018427387903 minute auto;
+show warnings;
+set timestamp= default;
+drop table t1;
+
+if ($have_debug)
+{
+  --disable_query_log
+  set debug_dbug= @old_dbug;
+  --enable_query_log
+}
+
+--disable_prepare_warnings
+
+--echo # End of 13.2 tests
