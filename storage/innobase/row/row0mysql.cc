@@ -2460,6 +2460,19 @@ rollback:
   table->space= nullptr;
   table->flags2|= DICT_TF2_DISCARDED;
   err= row_discard_tablespace(trx, table);
+  if (UNIV_UNLIKELY(err != DB_SUCCESS))
+  {
+    /* In case of error, table cannot be loaded from the data
+    dictionary any longer. Flag the table as corrupted, so that no
+    operation other than DROP TABLE will be attempted on it. */
+    table->corrupted= true;
+    ib::error() << "DISCARD TABLESPACE of table " << table->name
+                << " failed: " << ut_strerr(err)
+                << "; the data dictionary is now inconsistent. Please"
+                   " DROP TABLE " << table->name
+                << " and restore it from a backup.";
+  }
+
   DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
                   log_buffer_flush_to_disk(); DBUG_SUICIDE(););
   /* FTS_ tables may be deleted */
