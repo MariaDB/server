@@ -73,7 +73,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 #if defined(_WIN32)
 	// Start the child process. 
-	if (_spawnlp(_P_WAIT, "curl", "curl", fn, "--", buf, NULL)) {
+	if (_spawnlp(_P_WAIT, "curl", "curl", "--proto", "=http,https", fn, "--", buf, NULL)) {
 		my_snprintf(g->Message, sizeof(g->Message), "spawn curl failed (%M)", errno);
 		rc = 1;
 	}	// endif _spawnlp
@@ -106,7 +106,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	if (pID == 0) {
 		// Code executed by child process
-		execlp("curl", "curl", fn, "--", buf, (char*)NULL);
+		execlp("curl", "curl", "--proto", "=http,https", fn, "--", buf, (char*)NULL);
 
 		// If execlp() is successful, we should not reach this next line.
 		strcpy(g->Message, "Unsuccessful execlp from vfork()");
