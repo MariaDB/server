@@ -446,7 +446,7 @@ static bool read_mysql_json_diff_vector(const uchar **row_image_pos,
                       i.e. it was written as '[last]' or '[last-N]'.  Such a
                       path is stored with a negative n_item.  The caller
                       refuses these for now; see the note in
-                      apply_partial_json_column().
+                      convert_partial_json_column().
 
    @retval false  Path parsed; both out-parameters are set.
    @retval true   The path could not be parsed.
@@ -580,30 +580,49 @@ static void report_pj_apply_error(TABLE *table, Field *result_field,
 
 
 /**
-   Apply one partial-JSON column of a MySQL PARTIAL_UPDATE_ROWS_EVENT
-   after-image.
+   Compute the new value of one partial-JSON column of a MySQL
+   PARTIAL_UPDATE_ROWS_EVENT after-image, and write it into result_field.
 
-   A partial column carries a Json_diff vector rather than a value, so it
-   cannot go through the normal unpack path: there is nothing to unpack into
-   the conversion table and copy out with convert_field().  Instead the base
-   document is taken from the matched row, the diffs are applied to it in
-   order, and the resulting text is stored into the slave field directly.
+   This occupies the same slot in unpack_row()'s per-column loop as
+   unpack_field() + convert_field() do for an ordinary column - called
+   instead of them, not in addition - and goes no further than they do: it
+   populates result_field in table->record[0], the same in-memory row
+   buffer being built for every other column, and touches the storage
+   engine exactly as much as convert_field() does, which is to say not at
+   all.  The actual ha_write_row()/ha_update_row() happens later, in the
+   caller's caller (Rows_log_event::do_apply_event()/do_exec_row() in
+   log_event_server.cc), identically for every column regardless of how
+   its value was computed.
 
-   The base document is the *before-image*, which lives in record[1] while
-   record[0] is being built.  The field is temporarily shifted there to read
-   it (move_field_offset()), matching MySQL, which applies diffs to the
+   A partial column carries a Json_diff vector rather than a value, though,
+   so it cannot go through convert_field() itself: that function's
+   Copy_field-based conversion takes one source field's value and converts
+   it into one target field, with no way to also consult a third input -
+   but applying a diff needs exactly that, the column's own *current* value
+   on the slave, which a Copy_field conversion never needs for any other
+   type.  (MySQL's own apply_json_diffs()/Field_json::unpack_diff() -
+   sql/item_json_func.cc, sql/field.cc in a MySQL source tree - likewise
+   sit outside its generic field-conversion machinery, for the same
+   reason: there is no Field shape for "a sequence of patch operations".)
+   So instead, the diffs are applied to that current value one at a time
+   with MariaDB's own JSON functions, and the resulting text is what gets
+   written into result_field, via the same Field::store() every other
+   column's value eventually goes through too.  That current value is the
+   row's *before-image*, which lives in record[1] while record[0] is being
+   built; the field is temporarily shifted there to read it
+   (move_field_offset()), matching MySQL, which applies diffs to the
    field's current value.
 
-   Each diff is folded through MariaDB's own JSON functions, so the result
-   matches what the corresponding SQL function would produce:
+   Each diff is folded through MariaDB's own JSON functions in turn, one
+   feeding the next, so the result matches what the corresponding SQL
+   function would produce:
 
      REPLACE -> JSON_REPLACE, INSERT -> JSON_INSERT, REMOVE -> JSON_REMOVE
 
-   applied one at a time, each result feeding the next.  A diff value arrives
-   as MySQL binary JSON and is decoded to text by storing it into
-   \a conv_field (a Field_mysql_json) and reading it back; the text is then
-   wrapped in JSON_COMPACT() so that JSON_INSERT/JSON_REPLACE treat it as a
-   JSON value rather than as a quoted string.
+   A diff value arrives as MySQL binary JSON and is decoded to text by
+   storing it into \a conv_field (a Field_mysql_json) and reading it back;
+   the text is then wrapped in JSON_COMPACT() so that JSON_INSERT/
+   JSON_REPLACE treat it as a JSON value rather than as a quoted string.
 
    The Items built for this are created on a private THD::free_list which is
    released here, so their internal buffers do not accumulate until the end
@@ -652,10 +671,11 @@ static void report_pj_apply_error(TABLE *table, Field *result_field,
                                 building/evaluating a JSON function failed.
                                 Reported via report_pj_apply_error().
 */
-static int apply_partial_json_column(const rpl_group_info *rgi, TABLE *table,
-                                     Field *result_field, Field *conv_field,
-                                     Unpack_record_state &state,
-                                     const uchar *row_end, bool only_seek)
+static int convert_partial_json_column(const rpl_group_info *rgi,
+                                       TABLE *table, Field *result_field,
+                                       Field *conv_field,
+                                       Unpack_record_state &state,
+                                       const uchar *row_end, bool only_seek)
 {
   Dynamic_array<Mysql_json_diff> diffs((PSI_memory_key) PSI_NOT_INSTRUMENTED);
   const uchar *ptr= state.pack_ptr;
@@ -986,7 +1006,7 @@ static int apply_partial_json_column(const rpl_group_info *rgi, TABLE *table,
                   together with is_partial_json_after_image: a partial JSON
                   column's diff vector is still decoded, to correctly
                   advance past it, but is discarded rather than applied -
-                  see apply_partial_json_column().  Ignored otherwise, since
+                  see convert_partial_json_column().  Ignored otherwise, since
                   ordinary field unpacking never reads record[1], so it is
                   harmless regardless of whether a real row was matched.
 
@@ -1201,9 +1221,9 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
 
       if (is_partial_col)
       {
-        int pj_err= apply_partial_json_column(rgi, table, result_field,
-                                              conv_field, st, row_end,
-                                              only_seek);
+        int pj_err= convert_partial_json_column(rgi, table, result_field,
+                                                conv_field, st, row_end,
+                                                only_seek);
         if (pj_err)
           DBUG_RETURN(pj_err);
       }

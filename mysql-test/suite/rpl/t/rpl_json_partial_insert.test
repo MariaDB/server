@@ -50,9 +50,9 @@
 --source include/master-slave.inc
 
 # The slave decodes MySQL binary JSON with the read-only mysql_json plugin,
-# loaded on the slave only via rpl_json_partial_insert-slave.opt (it never
-# needs to be active on the master, which only ever serves the injected
-# fixture's raw bytes).
+# auto-loaded on the slave via have_type_mysql_json.inc's companion .opt
+# file (it never needs to be active on the master, which only ever serves
+# the injected fixture's raw bytes).
 --connection slave
 --source include/stop_slave.inc
 
