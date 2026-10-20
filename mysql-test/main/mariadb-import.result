@@ -114,7 +114,7 @@ mysql.help_topic: Records: 839  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_transition.txt into time_zone_transition
 mysql.time_zone_transition: Records: 394  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mtr/global_suppressions.txt into global_suppressions
-mtr.global_suppressions: Records: 99  Deleted: 0  Skipped: 0  Warnings: 0
+mtr.global_suppressions: Records: 100  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/help_keyword.txt into help_keyword
 mysql.help_keyword: Records: 106  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/help_relation.txt into help_relation

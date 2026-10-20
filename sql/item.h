@@ -169,8 +169,6 @@ bool mark_unsupported_function(const char *w1, const char *w2,
   Note that for Item_fields, the marker contains
   'select->cur_pos_in_select_list
 */
-/* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
-#define MARKER_UNDEF_POS      -1
 #define MARKER_UNUSED         0
 #define MARKER_CHANGE_COND    1
 #define MARKER_PROCESSED      2
@@ -3378,6 +3376,19 @@ private:
 public:
   Item_splocal *get_item_splocal() override { return this; }
 
+  /*
+    Return true if the item is a part of its SP variable (e.g. a ROW field,
+    an assoc array element), rather than the whole variable.
+    Passing such an item as an OUT parameter must not destruct the variable.
+
+    The default is false (the item is the whole variable). A class derived
+    from Item_splocal, which stands for a part of a variable, must override
+    this method. If it does not, the whole variable is destructed when
+    the item is passed as an OUT argument (e.g. all other elements of
+    an assoc array are lost).
+  */
+  virtual bool is_part_of_variable() const { return false; }
+
   Rewritable_query_parameter *get_rewritable_query_parameter() override
   { return this; }
 
@@ -3435,6 +3446,7 @@ public:
    :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
+  bool is_part_of_variable() const override { return false; } // A variable
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
@@ -3465,6 +3477,7 @@ public:
     m_field_name(*sp_field_name),
     m_field_idx(sp_field_idx)
   { }
+  bool is_part_of_variable() const override { return true; }
   bool fix_fields(THD *thd, Item **) override;
   Item *this_item() override;
   const Item *this_item() const override;
@@ -8090,6 +8103,9 @@ public:
   }
   Item *deep_copy(THD *thd) const override
   { return shallow_copy_with_checks(thd); }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_cache_year>(thd, this); }
 };
 
 

@@ -1260,6 +1260,18 @@ static void srv_master_do_active_tasks(ulonglong counter_time)
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
+
+	/* Release the page frames that page reorganization stopped using. A
+	burst of concurrent reorganizations would otherwise retain one frame
+	per slot until shutdown, and that memory is not covered by
+	innodb_buffer_pool_size. A frame survives two passes, because the
+	first pass only clears the used flag, so the grace period is twice the
+	interval between the passes. Shrink rarely here, so that a loaded
+	server does not free the frames that it is about to need again. */
+	if (!(srv_main_active_loops % 1024)) {
+		srv_main_thread_op_info = "shrinking scratch buffer";
+		buf_pool.scratch_buf_shrink();
+	}
 }
 
 /** Perform periodic tasks whenever the server is idle.
@@ -1277,7 +1289,29 @@ static void srv_master_do_idle_tasks(ulonglong counter_time)
 	}
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
+
+	/* The server is idle, so page reorganization is unlikely to need the
+	frames again soon. Shrink far more often than the active task does. */
+	if (!(srv_main_idle_loops % 16)) {
+		srv_main_thread_op_info = "shrinking scratch buffer";
+		buf_pool.scratch_buf_shrink();
+	}
 }
+
+inline uint16_t buf_pool_t::now() noexcept
+{
+  const uint16_t t= uint16_t(my_interval_timer() / 1000000000ULL);
+  /* buf_page_t::access_time == 0 means that the block has not been
+  accessed, so a value used to stamp access_time must never be 0.
+  This is t ? t : 1 computed without a branch: (uint32_t{t} - 1) >> 31 is 1
+  only when t == 0, so it lifts just that value to 1 and leaves every other
+  reading exact. */
+  return uint16_t(t | ((uint32_t{t} - 1) >> 31));
+}
+
+void buf_pool_t::refresh_clock() noexcept { access_clock= now(); }
+
+void buf_pool_clock_callback(void*) { buf_pool.refresh_clock(); }
 
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*)
@@ -1287,6 +1321,7 @@ void srv_master_callback(void*)
   ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
   MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
+  buf_pool.refresh_clock();
   purge_sys.wake_if_not_active();
   ulonglong counter_time= microsecond_interval_timer();
   srv_sync_log_buffer_in_background();

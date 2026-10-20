@@ -1206,7 +1206,8 @@ Sp_handler::sp_drop_routine_internal(THD *thd,
   sp_head *sp;
   sp_cache **spc= get_cache(thd);
   DBUG_ASSERT(spc);
-  if ((sp= sp_cache_lookup(spc, name)))
+  /* Removing a running routine would free the LEX being executed */
+  if ((sp= sp_cache_lookup(spc, name)) && !sp->is_invoked())
     sp_cache_remove(spc, &sp);
   /* Drop statistics for this stored program from performance schema. */
   MYSQL_DROP_SP(type(), name->m_db.str, static_cast<uint>(name->m_db.length),
@@ -2475,8 +2476,15 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key, const Sp_handler *handler,
                          TABLE_LIST *belong_to_view)
 {
+  /*
+    Compare keys byte for byte.  The key carries the database name as the
+    statement spelled it, and with lower_case_table_names 0 two databases
+    can differ only in case.  A case insensitive comparison would collapse
+    the routines of both into one entry, so only one of them would be
+    loaded and locked, and a reference to the other would not find it.
+  */
   my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
-                   Lex_ident_routine::charset_info(),
+                   &my_charset_bin,
                    Query_tables_list::START_SROUTINES_HASH_SIZE,
                    0, 0, sp_sroutine_key, 0, 0);
 

@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+# Precondition: Galera GTID mode is OFF
+SELECT @@global.wsrep_gtid_mode AS wsrep_gtid_mode;
+wsrep_gtid_mode
+0
+connection node_1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+connection node_3;
+connection node_3;
+connection node_1;
+connection node_1;
+connection node_3;
+SELECT COUNT(*) AS rows_on_joiner FROM t1;
+rows_on_joiner
+5
+include/assert_grep.inc [joiner did not seed binlog GTID state in wsrep_gtid_mode=OFF]
+connection node_1;
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

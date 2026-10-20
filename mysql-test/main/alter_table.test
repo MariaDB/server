@@ -2505,6 +2505,36 @@ drop table Another.Tp4;
 drop database Another;
 
 --echo #
+--echo # MDEV-35732: Failed ALTER TABLE causes inconsistency, changes behavior of the next statement
+--echo #
+--echo # It should be impossible for a failed rename index to affect
+--echo # a subsequent duplicate name check for a foreign key.
+--echo #
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+                 foreign key fk1 (b) references t1 (f1)) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2 rename index fk1 to fk, algorithm=instant, order by a;
+
+--error ER_DUP_KEYNAME
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+
+drop table t2, t1;
+
+--echo #
+--echo # It should be impossible to add a foreign key with a duplicate name.
+--echo #
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+                 foreign key fk1 (b) references t1 (f1)) engine=innodb;
+
+--error ER_DUP_KEYNAME
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+
+drop table t2, t1;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
 
@@ -2551,6 +2581,16 @@ CREATE TABLE cluster_t (
 
 --echo # Clean up
 DROP TABLE utilisateur;
+
+--echo #
+--echo # MDEV-41221 memcpy() source and target overlap in dict_table_rename_in_cache
+--echo # (only fails without the fix on a libc that checks memcpy overlap, e.g. OpenBSD)
+--echo #
+
+CREATE TABLE loader_test7(id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE loader_test6(id INT PRIMARY KEY, loader_test7_id INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE loader_test6 ADD CONSTRAINT loader_test6_to_7_fk FOREIGN KEY(loader_test7_id) REFERENCES loader_test7(id);
+DROP TABLE loader_test6, loader_test7;
 
 --echo #
 --echo # End of 12.3 tests

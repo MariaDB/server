@@ -71,3 +71,27 @@ DROP TABLE t1, t2;
 #
 # End of 11.0 tests
 #
+#
+# MDEV-36096: Assertion partial_join_cost >= 0.0 failed when
+# sql_select_limit=1, and
+# optimizer_join_limit_pref_ratio=1
+#
+CREATE TABLE t (c INT NOT NULL UNIQUE) ENGINE=InnoDB;
+INSERT INTO t VALUES (0),(1),(2),(3),(4),(5);
+SET @save_sql_select_limit= @@sql_select_limit;
+SET sql_select_limit=1,optimizer_join_limit_pref_ratio=1;
+EXPLAIN
+SELECT * FROM t ORDER BY c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	4	NULL	1	
+SET sql_select_limit= @save_sql_select_limit;
+# similar issue with LIMIT 1 clause query
+EXPLAIN
+SELECT * FROM t ORDER BY c LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	4	NULL	1	
+SET optimizer_join_limit_pref_ratio= default;
+DROP table t;
+#
+# End of 11.4 tests
+#

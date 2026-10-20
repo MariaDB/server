@@ -141,6 +141,8 @@ DuckDB handles the join, aggregation, and sorting; InnoDB rows are produced on d
 - **Collations** — MariaDB UCA-based collation rules are approximated via DuckDB's built-in `NOCASE`/`NOACCENT` collations for UTF-8 charsets; non-UTF8 charsets fall back to binary comparison. See [`docs/collation-mapping.md`](docs/collation-mapping.md) for the full mapping and known gaps.
 - **Cross-engine scan is yet single-threaded** — each external (non-DuckDB) table is produced by a single fiber-driven MariaDB query (`_mdb_scan` reports `MaxThreads() == 1`); only the DuckDB side of the query is parallelized.
 - **ALTER COLUMN DROP DEFAULT** — not propagated to DuckDB catalog.
+- **Tables without a primary key** (allowed only with `duckdb_require_primary_key=OFF`) — row-by-row `UPDATE`/`DELETE` (used e.g. with triggers or on a replica) silently skips rows containing NULL values and changes all copies of duplicate rows. See [`docs/architecture.md`](docs/architecture.md#path-3-row-by-row-dml).
+- **Row-based replication into DuckDB tables requires `binlog_row_image=FULL` on the master** (the default). A replica rejects `UPDATE` events with a partial after-image (`MINIMAL`, `NOBLOB`, `FULL_NODUP`) instead of filling the missing columns with defaults. The replica does not detect missing or conflicting rows (`slave_exec_mode=STRICT` is not enforced) and is not crash-safe. See [`docs/architecture.md`](docs/architecture.md#path-3a-row-based-replication-apply).
 - **Timezone propagation** — `TIMESTAMP` columns are stored as `TIMESTAMPTZ`; timezone must be set consistently between MariaDB and DuckDB contexts to avoid shifts.
 
 See [`docs/mariadb-duckdb-incompatibilities.md`](docs/mariadb-duckdb-incompatibilities.md) for a detailed compatibility matrix.

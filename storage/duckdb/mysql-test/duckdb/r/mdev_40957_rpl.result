@@ -1,0 +1,131 @@
+include/master-slave.inc
+[connection master]
+# MIXED: UUID()/NOW() switch the statements to row events
+connection master;
+CREATE DATABASE mdev_40957_rpl CHARACTER SET utf8mb4;
+USE mdev_40957_rpl;
+SELECT @@binlog_format;
+@@binlog_format
+MIXED
+CREATE TABLE invoice (
+id UUID DEFAULT UUID() PRIMARY KEY,
+product VARCHAR(64),
+amount DECIMAL(12,2),
+sold_at TIMESTAMP
+) ENGINE=DuckDB DEFAULT CHARSET utf8mb4;
+INSERT INTO invoice (product, amount, sold_at) VALUES
+('MariaDB mug', 12.00, NOW()),
+('DuckDB sticker', 2.50, NOW()),
+('Sea lion plush', 25.00, NOW()),
+('DuckDB sticker', 2.50, NOW());
+connection slave;
+USE mdev_40957_rpl;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+4
+connection master;
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+0
+connection slave;
+SELECT COUNT(*) FROM invoice;
+COUNT(*)
+0
+# ROW: replicated UPDATE (including a PK change) and DELETE
+connection master;
+SET SESSION binlog_format=ROW;
+CREATE TABLE t_upd (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=DuckDB;
+INSERT INTO t_upd VALUES
+(1, 'one', 'keep-1'),
+(2, 'two', 'keep-2'),
+(3, 'three', 'keep-3'),
+(4, 'four', 'keep-4'),
+(6, 'six', 'keep-6'),
+(7, 'seven', 'keep-7'),
+(8, 'eight', 'keep-8');
+UPDATE t_upd SET v = 'TWO' WHERE id = 2;
+UPDATE t_upd SET id = 30, v = 'moved' WHERE id = 3;
+DELETE FROM t_upd WHERE id = 1;
+UPDATE t_upd FORCE INDEX(PRIMARY) SET v = 'FOUR' WHERE id = 4;
+UPDATE t_upd SET v = 'SIX' WHERE v = 'six';
+UPDATE t_upd SET id = 70, v = 'moved-non-pk' WHERE v = 'seven';
+DELETE FROM t_upd WHERE v = 'eight';
+SELECT * FROM t_upd ORDER BY id;
+id	v	untouched
+2	TWO	keep-2
+4	FOUR	keep-4
+6	SIX	keep-6
+30	moved	keep-3
+70	moved-non-pk	keep-7
+connection slave;
+SELECT * FROM t_upd ORDER BY id;
+id	v	untouched
+2	TWO	keep-2
+4	FOUR	keep-4
+6	SIX	keep-6
+30	moved	keep-3
+70	moved-non-pk	keep-7
+connection master;
+DELETE FROM t_upd;
+connection slave;
+SELECT COUNT(*) FROM t_upd;
+COUNT(*)
+0
+# InnoDB master, DuckDB slave: FULL row images are applied in batch
+connection master;
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=InnoDB;
+SET SESSION sql_log_bin=1;
+connection slave;
+SET SESSION sql_log_bin=0;
+CREATE TABLE t_het (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=DuckDB;
+SET SESSION sql_log_bin=1;
+connection master;
+INSERT INTO t_het VALUES
+(1, 'one', 'keep-1'),
+(2, 'two', 'keep-2'),
+(3, 'three', 'keep-3');
+UPDATE t_het SET v = 'ONE' WHERE id = 1;
+UPDATE t_het SET id = 20 WHERE id = 2;
+DELETE FROM t_het WHERE id = 3;
+connection slave;
+SELECT * FROM t_het ORDER BY id;
+id	v	untouched
+1	ONE	keep-1
+20	two	keep-2
+update_in_batch
+2
+# MINIMAL row image is rejected instead of losing columns
+connection master;
+SET SESSION binlog_row_image=MINIMAL;
+UPDATE t_het SET v = 'TWENTY' WHERE id = 20;
+SET SESSION binlog_row_image=FULL;
+connection slave;
+call mtr.add_suppression("DuckDB tables require binlog_row_image=FULL on the master");
+include/wait_for_slave_sql_error.inc [errno=1296]
+SELECT * FROM t_het ORDER BY id;
+id	v	untouched
+1	ONE	keep-1
+20	two	keep-2
+SET GLOBAL sql_slave_skip_counter=1;
+include/start_slave.inc
+connection master;
+connection slave;
+connection master;
+SET SESSION binlog_format=MIXED;
+DROP DATABASE mdev_40957_rpl;
+connection slave;
+include/rpl_end.inc

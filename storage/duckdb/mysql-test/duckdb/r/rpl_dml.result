@@ -1,0 +1,47 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE DATABASE rpl_dml CHARACTER SET utf8mb4;
+USE rpl_dml;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+v VARCHAR(16),
+untouched VARCHAR(16)
+) ENGINE=DuckDB;
+INSERT INTO t1 VALUES
+(1, 'one', 'keep-1'),
+(2, 'two', 'keep-2'),
+(3, 'three', 'keep-3');
+connection slave;
+USE rpl_dml;
+SELECT * FROM t1 ORDER BY id;
+id	v	untouched
+1	one	keep-1
+2	two	keep-2
+3	three	keep-3
+connection master;
+UPDATE t1 SET v = 'TWO' WHERE v = 'two';
+UPDATE t1 SET id = 30, v = 'moved' WHERE v = 'three';
+connection slave;
+SELECT * FROM t1 ORDER BY id;
+id	v	untouched
+1	one	keep-1
+2	TWO	keep-2
+30	moved	keep-3
+connection master;
+DELETE FROM t1 WHERE v = 'one';
+connection slave;
+SELECT * FROM t1 ORDER BY id;
+id	v	untouched
+2	TWO	keep-2
+30	moved	keep-3
+connection master;
+DELETE FROM t1;
+connection slave;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+connection master;
+DROP DATABASE rpl_dml;
+connection slave;
+include/rpl_end.inc

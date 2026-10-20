@@ -4880,6 +4880,7 @@ xb_load_list_file(
 		if (p) {
 			*p = '\0';
 		} else {
+			fclose(fp);
 			die("`%s...` name is too long", name_buf);
 		}
 
@@ -6796,7 +6797,7 @@ next_file_item_1:
 	/* single table tablespaces */
 	dir = os_file_opendir(path);
 
-	if (UNIV_UNLIKELY(dbdir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))) {
+	if (UNIV_UNLIKELY(dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))) {
 		msg("Can't open dir %s", path);
 		return TRUE;
 	}

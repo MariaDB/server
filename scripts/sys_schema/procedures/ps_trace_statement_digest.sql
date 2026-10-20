@@ -13,11 +13,9 @@
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
-DROP PROCEDURE IF EXISTS ps_trace_statement_digest;
-
 DELIMITER $$
 
-CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_statement_digest (
+CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_statement_digest (
         IN in_digest VARCHAR(32),
         IN in_runtime INT, 
         IN in_interval DECIMAL(2,2),

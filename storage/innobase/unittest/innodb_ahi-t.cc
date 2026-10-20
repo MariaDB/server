@@ -19,6 +19,7 @@ uint32_t srv_page_size_shift= 14;
 ulong srv_page_size= 1 << 14;
 dict_sys_t dict_sys;
 buf_pool_t buf_pool;
+bool buf_page_t::touch() noexcept { return false; }
 buf_block_t *buf_pool_t::block_from(const void *ptr) noexcept
 { return nullptr; }
 void buf_pool_t::clear_hash_index() noexcept {}
@@ -33,7 +34,6 @@ bool btr_cur_t::check_mismatch(const dtuple_t&,bool,ulint) noexcept
 buf_block_t *buf_page_get_gen(const page_id_t, ulint, rw_lock_type_t,
                               buf_block_t*,ulint,mtr_t*,dberr_t*) noexcept
 { return nullptr; }
-bool buf_page_make_young_if_needed(buf_page_t*) { return false; }
 
 mtr_t::mtr_t(trx_t *trx) : trx(trx) {}
 mtr_t::~mtr_t()= default;

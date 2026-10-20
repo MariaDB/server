@@ -5762,12 +5762,8 @@ dberr_t ha_innobase::statistics_init(dict_table_t *table, bool recalc)
       switch (dict_stats_persistent_storage_check(false)) {
       case SCHEMA_OK:
         if (recalc)
-        {
         recalc:
           err= dict_stats_update_persistent(m_prebuilt->trx, table);
-          if (err == DB_SUCCESS)
-            err= dict_stats_save(table);
-        }
         else
         {
           err= dict_stats_fetch_from_ps(table);
@@ -14676,16 +14672,42 @@ innodb_rec_per_key(
 
 		rec_per_key = static_cast<rec_per_key_t>(records);
 	} else if (srv_innodb_stats_method == SRV_STATS_NULLS_IGNORED) {
-		ib_uint64_t	n_null;
-		ib_uint64_t	n_non_null;
+		uint64_t	n_null;
+		uint64_t	n_non_null = records;
 
-		n_non_null = index->stat_n_non_null_key_vals[i];
+		/* stat_n_non_null_key_vals[j] is the number of records in
+		which the j-th indexed column alone is not NULL, while what
+		has to be excluded below is the records that carry a NULL
+		anywhere in the first i+1 columns: with nulls_ignored those
+		records compare unequal to every other record, so each of them
+		adds a distinct value of its own to n_diff. Their number cannot
+		exceed the smallest of the per-column counts, because the
+		records whose first i+1 columns are all not NULL are a subset
+		of the records where any single one of those columns is not
+		NULL. Hence the minimum, which is exact whenever the NULLs of
+		the prefix are confined to one of its columns.
 
-		/* In theory, index->stat_n_non_null_key_vals[i]
-		should always be less than the number of records.
-		Since this is statistics value, the value could
-		have slight discrepancy. But we will make sure
-		the number of null values is not a negative number. */
+		Only a NULL-able column can lower the count, so start from the
+		number of records and let just those columns reduce it: for a
+		NOT NULL column every record counts by definition, and feeding
+		its sampled estimate into the minimum would only let sampling
+		noise pull the result below the truth. A prefix made up
+		entirely of NOT NULL columns therefore keeps n_non_null =
+		records, i.e. n_null = 0, which is the correct answer because
+		such a prefix cannot contain a NULL at all. */
+		for (ulint j = 0; j <= i; j++) {
+			if (index->fields[j].col->is_nullable()) {
+				n_non_null = std::min(
+					n_non_null,
+					index->stat_n_non_null_key_vals[j]);
+			}
+		}
+
+		/* In theory, n_non_null should always be less than
+		the number of records. Since this is statistics value,
+		the value could have slight discrepancy. But we will
+		make sure the number of null values is not a
+		negative number. */
 		if (records < n_non_null) {
 			n_null = 0;
 		} else {
@@ -17836,6 +17858,12 @@ innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 	innobase_old_blocks_pct = ratio;
 }
 
+static void innodb_old_blocks_time_update(THD *, st_mysql_sys_var *, void *,
+                                          const void *save) noexcept
+{
+	buf_pool.set_old_threshold_ms(*static_cast<const uint*>(save));
+}
+
 #ifdef UNIV_DEBUG
 static uint srv_fil_make_page_dirty_debug = 0;
 static uint srv_saved_page_number_debug;
@@ -19716,12 +19744,12 @@ static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   "Percentage of the buffer pool to reserve for 'old' blocks",
   NULL, innodb_old_blocks_pct_update, 100 * 3 / 8, 5, 95, 0);
 
-static MYSQL_SYSVAR_UINT(old_blocks_time, buf_LRU_old_threshold_ms,
+static MYSQL_SYSVAR_UINT(old_blocks_time, buf_pool.LRU_old_time_threshold,
   PLUGIN_VAR_RQCMDARG,
   "Move blocks to the 'new' end of the buffer pool if the first access"
   " was at least this many milliseconds ago."
   " The timeout is disabled if 0",
-  NULL, NULL, 1000, 0, UINT_MAX32, 0);
+  NULL, innodb_old_blocks_time_update, 1000, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_ULONG(open_files, innobase_open_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -21508,8 +21536,6 @@ void alter_stats_rebuild(dict_table_t *table, trx_t *trx, bool copy) noexcept
     DBUG_VOID_RETURN;
 
   dberr_t ret= dict_stats_update_persistent(trx, table);
-  if (ret == DB_SUCCESS)
-    ret= dict_stats_save(table);
   if (ret != DB_SUCCESS)
     push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_ALTER_INFO, "Error updating stats for table after"

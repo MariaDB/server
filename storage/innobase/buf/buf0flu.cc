@@ -671,9 +671,9 @@ static byte *buf_page_encrypt(fil_space_t *space, buf_page_t *bpage, byte *s,
 
   const bool full_crc32= space->full_crc32();
 
-  if (!encrypted && !page_compressed)
+  if (!encrypted)
   {
-    /* No need to encrypt or compress. Clear key-version & crypt-checksum. */
+    /* No need to encrypt. Clear key-version & crypt-checksum. */
     static_assert(FIL_PAGE_FCRC32_KEY_VERSION % 4 == 0, "alignment");
     static_assert(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION % 4 == 2,
                   "not perfect alignment");
@@ -681,7 +681,8 @@ static byte *buf_page_encrypt(fil_space_t *space, buf_page_t *bpage, byte *s,
       memset_aligned<4>(s + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
     else
       memset_aligned<2>(s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
-    return s;
+    if (!page_compressed)
+      return s;
   }
 
   static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
@@ -1319,6 +1320,17 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   {
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     buf_pool.lru_hp.set(prev);
+
+    if (bpage->make_young_if_needed<true>())
+    {
+      if (UNIV_UNLIKELY(scanned && !(scanned & 511)))
+      {
+        mysql_mutex_unlock(&buf_pool.mutex);
+        mysql_mutex_lock(&buf_pool.mutex);
+      }
+      continue;
+    }
+
     auto state= bpage->state();
     ut_ad(state >= buf_page_t::FREED);
     ut_ad(bpage->in_LRU_list);
@@ -1500,6 +1512,11 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
     if (oldest_modification >= lsn)
       break;
     ut_ad(bpage->in_file());
+
+    /* Unlike the LRU sweeps, this visits blocks in the order of
+    oldest_modification. Moving a hot block that is not old would not
+    save it from eviction. */
+    bpage->make_young_if_needed<false, true>();
 
     {
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);

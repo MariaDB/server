@@ -1,0 +1,84 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-33966: page_zip_des_t::state packs ssize, the
+--echo # NONEMPTY/PROMOTE/OLD flags, and the n_blobs count into one 16-bit
+--echo # atomic word. n_blobs was narrowed from 12 bits to 10 bits to make room
+--echo # for PROMOTE and OLD, moved into this word from buf_page_t; 10 bits
+--echo # still holds the 744-column maximum on a 16 KiB page, with headroom to
+--echo # 1023.
+--echo #
+--echo # This test builds a leaf carrying 700 external BLOB pointers, a large
+--echo # fraction of the 10-bit field's 1023 capacity, and verifies both that
+--echo # it inserts and reads back intact and that the 700 pointers are all
+--echo # accounted for on the one leaf page that holds them.
+--echo #
+
+SET @save_strict = @@global.innodb_strict_mode;
+SET @save_ro_zip = @@global.innodb_read_only_compressed;
+SET @@global.innodb_strict_mode         = OFF;
+SET @@global.innodb_read_only_compressed = OFF;
+
+# Build a wide BLOB-only schema. Each LONGBLOB column contributes one
+# off-page pointer per row whenever its value exceeds the 767-byte
+# inline threshold. Each external reference is 20 bytes in the record
+# body, plus a 2-byte field-length-array entry, which bounds a single
+# row to ~360 columns before ER_TOO_BIG_ROWSIZE. Two rows packed on one
+# 16 KiB compressed leaf multiply the count to 700.
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT
+  DEFAULT(SELECT CONCAT(
+    'CREATE TABLE big_blobs (id INT PRIMARY KEY, b',
+    GROUP_CONCAT(seq SEPARATOR ' LONGBLOB, b'),
+    ' LONGBLOB) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16')
+    FROM seq_1_to_350);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
+# index_page_splits counts every B-tree page split. It is reset only now,
+# because CREATE TABLE splits pages of the data dictionary tables. If it
+# stays 0, the clustered index of big_blobs consists of its root page
+# alone.
+SET GLOBAL innodb_monitor_enable = index_page_splits;
+SET GLOBAL innodb_monitor_reset = index_page_splits;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT
+  DEFAULT(SELECT CONCAT('INSERT INTO big_blobs SELECT seq,
+  @r:=repeat(''x'',800)', REPEAT(',@r',349), ' FROM seq_1_to_2'));
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
+SELECT COUNT(*) FROM big_blobs;
+CHECKSUM TABLE big_blobs;
+CHECK TABLE big_blobs;
+
+--echo # Confirm that no page split: the root page is the only leaf of the
+--echo # clustered index, so it holds both rows and therefore all 700 BLOB
+--echo # pointers counted by n_blobs.
+SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME = 'index_page_splits';
+
+DROP TABLE big_blobs;
+
+SET @@global.innodb_strict_mode          = @save_strict;
+SET @@global.innodb_read_only_compressed = @save_ro_zip;
+--disable_query_log
+SET GLOBAL innodb_monitor_disable = index_page_splits;
+--disable_warnings
+SET GLOBAL innodb_monitor_enable = default;
+SET GLOBAL innodb_monitor_disable = default;
+SET GLOBAL innodb_monitor_reset = default;
+SET GLOBAL innodb_monitor_reset_all = default;
+--enable_warnings
+--enable_query_log

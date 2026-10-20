@@ -2918,7 +2918,7 @@ lock_move_reorganize_page(
 /*======================*/
 	const buf_block_t*	block,	/*!< in: old index page, now
 					reorganized */
-	const buf_block_t*	oblock)	/*!< in: copy of the old, not
+	const page_t*		opage)	/*!< in: copy of the old, not
 					reorganized page */
 {
   mem_heap_t *heap;
@@ -2996,7 +2996,7 @@ lock_move_reorganize_page(
     while (lock);
 
     const ulint comp= page_is_comp(block->page.frame);
-    ut_ad(comp == page_is_comp(oblock->page.frame));
+    ut_ad(comp == page_is_comp(opage));
 
     lock_move_granted_locks_to_front(old_locks);
 
@@ -3011,7 +3011,7 @@ lock_move_reorganize_page(
       update of a record is occurring on the page, and its locks
       were temporarily stored on the infimum */
       const rec_t *rec1= page_get_infimum_rec(block->page.frame);
-      const rec_t *rec2= page_get_infimum_rec(oblock->page.frame);
+      const rec_t *rec2= page_get_infimum_rec(opage);
 
       /* Set locks according to old locks */
       for (;;)
@@ -3027,7 +3027,7 @@ lock_move_reorganize_page(
           new_heap_no= rec_get_heap_no_new(rec1);
 
           rec1= page_rec_next_get<true>(block->page.frame, rec1);
-          rec2= page_rec_next_get<true>(oblock->page.frame, rec2);
+          rec2= page_rec_next_get<true>(opage, rec2);
         }
         else
         {
@@ -3036,7 +3036,7 @@ lock_move_reorganize_page(
           ut_ad(!memcmp(rec1, rec2, rec_get_data_size_old(rec2)));
 
           rec1= page_rec_next_get<false>(block->page.frame, rec1);
-          rec2= page_rec_next_get<false>(oblock->page.frame, rec2);
+          rec2= page_rec_next_get<false>(opage, rec2);
         }
 
         trx_t *lock_trx= lock->trx;
@@ -6631,8 +6631,15 @@ lock_clust_rec_read_check_and_lock(
 	const ulint heap_no = lock_get_heap_no(*block, rec);
 
 	trx_t *trx = thr_get_trx(thr);
-	if (lock_table_has(trx, index->table, LOCK_X)
-	    || heap_no == PAGE_HEAP_NO_SUPREMUM) {
+	if (heap_no == PAGE_HEAP_NO_SUPREMUM
+	    || lock_table_has(trx, index->table, LOCK_S)) {
+		/* A conflicting record lock (implicit or explicit LOCK_X)
+		may only be acquired by a transaction that holds LOCK_IX
+		on the table; @see lock_rec_lock().
+
+		Our LOCK_S on the table is mutually exclusive with LOCK_IX.
+
+		Any LOCK_S record locks do not conflict with us. */
 	} else if (lock_rec_convert_impl_to_expl<true>(trx, *block, rec, index,
 						       offsets) == trx
 	    && gap_mode == LOCK_REC_NOT_GAP) {

@@ -2,6 +2,11 @@
 --source include/not_asan.inc
 --source include/not_embedded.inc
 --source include/not_valgrind.inc
+# The read only segment is placed by a linker script and ld64 has no option to
+# take one, so HAVE_RO_AFTER_INIT stays undefined on macOS.  Without it no
+# variable is moved into the read only root either, so neither assignment
+# below is refused by the memory protection.
+--source include/not_mac.inc
 
 --echo #
 --echo # MDEV-40341 store read-only sysvars in a read-only root and a read-only segment

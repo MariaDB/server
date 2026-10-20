@@ -9135,6 +9135,7 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
                                                           MDL_SHARED_WRITE))))
     return NULL;
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  table->updating= true;
   return new (thd->mem_root) Item_func_nextval(thd, table);
 }
 
@@ -9210,6 +9211,7 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
                                                           TL_WRITE_ALLOW_WRITE,
                                                           MDL_SHARED_WRITE))))
     return NULL;
+  table->updating= true;
   return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
                                               is_used);
 }

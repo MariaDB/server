@@ -32,6 +32,10 @@ protected:
   uint  m_alloced_field_count;
   bool  m_using_unique_constraint;
   uint m_temp_pool_slot;
+  /*
+    If set, create a unique index over listed columns. Used by GROUP BY's
+    TemporaryTableWithPartialSums algorithm and also by multi-table UPDATE.
+  */
   ORDER *m_group;
   bool m_distinct;
   bool m_save_sum_fields;

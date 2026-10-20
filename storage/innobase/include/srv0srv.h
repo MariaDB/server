@@ -542,6 +542,10 @@ void srv_monitor_task(void*);
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*);
 
+/** The periodic task that refreshes buf_pool.access_clock while
+srv_master_callback() is not running */
+void buf_pool_clock_callback(void*);
+
 
 /**
  Fetches and executes tasks from the purge work queue,

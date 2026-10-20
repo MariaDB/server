@@ -2480,3 +2480,36 @@ SELECT * FROM t1 WHERE (0,0) IN (SELECT MAX(c),MIN(c) FROM t1);
 DROP TABLE t1;
 
 --echo # end of 10.11 tests
+
+--echo #
+--echo # MDEV-41303 rand() in a semi-join subquery is checked on outer rows
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(100);
+create table t2 (c int, d int);
+insert into t2 select 1, 1 from seq_1_to_80;
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+
+--echo # The subquery must check rand(1) < 0.09 on the 80 rows of t2.
+--echo # Must produce count(*)=1, not 0.
+select count(*) from t1
+where t1.a in (select c from t2 where rand(1) < 0.09);
+--echo # Warning must have "<materialize>(...) JOIN..." and not
+--echo # "`test`.`t1` semi join (`test`.`t2`)"
+explain extended
+select count(*) from t1
+where t1.a in (select c from t2 where rand(1) < 0.09);
+
+--echo # rand() in the outer WHERE does not prevent the conversion to a
+--echo # semi-join.
+explain extended
+select count(*) from t1
+where rand(1) < 2 and t1.a in (select c from t2);
+
+set optimizer_switch=@save_optimizer_switch;
+drop table t1, t2;
+
+--echo # end of 11.4 tests

@@ -24,6 +24,7 @@ InnoDB R-tree search interfaces
 Created 2014/01/16 Jimmy Yang
 ***********************************************************************/
 
+#include "buf0lru.h"
 #include "fsp0fsp.h"
 #include "page0page.h"
 #include "page0cur.h"
@@ -299,7 +300,7 @@ rtr_pcur_getnext_from_path(
 			break;
 		}
 
-		buf_page_make_young_if_needed(&block->page);
+		block->page.touch();
 
 		page = buf_block_get_frame(block);
 		page_ssn = page_get_ssn_id(page);
@@ -677,9 +678,9 @@ dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
     return err;
   }
 
-  buf_page_make_young_if_needed(&block->page);
+  block->page.touch();
 
-  const page_t *page= buf_block_get_frame(block);
+  const page_t *page= block->page.frame;
 #ifdef UNIV_ZIP_DEBUG
   if (rw_latch != RW_NO_LATCH) {
     const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
@@ -1695,7 +1696,7 @@ corrupted:
 		goto func_exit;
 	}
 
-	buf_page_make_young_if_needed(&page_cursor->block->page);
+	page_cursor->block->page.touch();
 
 	/* Get the page SSN */
 	page = buf_block_get_frame(page_cursor->block);
@@ -1881,7 +1882,7 @@ rtr_init_match(
 		matches->block = buf_block_alloc();
 	}
 
-	matches->block->page.init(buf_page_t::MEMORY, block->page.id());
+	matches->block->page.init(buf_page_t::MEMORY, block->page.id(), 0);
 	/* We have to copy PAGE_*_SUPREMUM_END bytes so that we can
 	use infimum/supremum of this page as normal btr page for search. */
 	matches->used = page_is_comp(page)

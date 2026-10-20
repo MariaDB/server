@@ -1,4 +1,5 @@
 # Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2026, MariaDB plc
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,7 +29,16 @@ ENDIF()
 # mysqld_error.h results in rebuild of the almost whole server)
 # To preserve timestamp, first generate a temp header file, then copy it
 # to mysqld_error.h using cmake -E copy_if_different
-ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+SET(GENERATED_ERROR_HEADERS
+  ${CMAKE_BINARY_DIR}/include/mysqld_error.h
+  ${CMAKE_BINARY_DIR}/include/mysqld_ername.h
+  ${CMAKE_BINARY_DIR}/include/sql_state.h)
+
+ADD_CUSTOM_COMMAND(OUTPUT ${GENERATED_ERROR_HEADERS}
+   BYPRODUCTS
+	${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+	${CMAKE_BINARY_DIR}/include/mysqld_ername.h.tmp
+	${CMAKE_BINARY_DIR}/include/sql_state.h.tmp
    COMMAND comp_err
 	--charset=${PROJECT_SOURCE_DIR}/sql/share/charsets
 	--out-dir=${CMAKE_BINARY_DIR}/sql/share/
@@ -44,7 +54,7 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
 ADD_CUSTOM_TARGET(GenError
                   ALL
                   DEPENDS
-                  ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
+                  ${GENERATED_ERROR_HEADERS})
 
 # this approach doesn't work with cross-compiing (runs mariadbd)
 # and doesn't work with ASAN, because LSAN complains about RocksDB (MDEV-36345).
@@ -66,18 +76,19 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT WITH_ASAN AND TARGET mariadbd)
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${my_plugin_dir}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${my_plugin_dir}"
   )
+
+  # Symlinks need a privilege not granted by default on Windows; use hardlinks there.
+  IF(WIN32)
+    SET(linktype hard)
+  ELSE()
+    SET(linktype sym)
+  ENDIF()
   FOREACH(target ${dynamic_plugins})
     LIST(APPEND plugin_load "$<TARGET_FILE_NAME:${target}>")
-     IF(WIN32)
-       SET(maybe_create_hardlink  || ${CMAKE_COMMAND} -E create_hardlink
-          $<TARGET_FILE:${target}>
-          "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>")
-     ENDIF()
-     LIST(APPEND populate_plugin_dir
-     COMMAND ${CMAKE_COMMAND} -E create_symlink
-     $<TARGET_FILE:${target}>
-     "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>"
-     ${maybe_create_hardlink})
+    LIST(APPEND populate_plugin_dir
+    COMMAND ${CMAKE_COMMAND} -E create_${linktype}link
+    $<TARGET_FILE:${target}>
+    "${my_plugin_dir}/$<TARGET_FILE_NAME:${target}>")
   ENDFOREACH()
 
   IF(NOT plugin_load)

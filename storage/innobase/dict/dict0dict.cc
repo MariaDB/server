@@ -1619,16 +1619,21 @@ dict_table_rename_in_cache(
 		foreign->foreign_table_name_lookup_set();
 
 		const char* sql_id = foreign->sql_id();
-		size_t fklen = snprintf(nullptr, 0, "%s\377%s",
-					table->name.m_name, sql_id);
+		const size_t name_len = strlen(table->name.m_name);
+		const size_t sql_len = strlen(sql_id);
+		const size_t fklen = name_len + 1 + sql_len + 1;
 		char* id = foreign->id;
-		if (fklen++ > strlen(id)) {
+		if (fklen > strlen(id) + 1) {
 			id = static_cast<char*>(
 				mem_heap_alloc(foreign->heap, fklen));
 		}
 		table->foreign_set.erase(it);
 		foreign->id = id;
-		snprintf(id, fklen, "%s\377%s", table->name.m_name, sql_id);
+		/* sql_id may point into the old foreign->id, which may be
+		   reused as id: move the tail first, then write the prefix. */
+		memmove(id + name_len + 1, sql_id, sql_len + 1);
+		memcpy(id, table->name.m_name, name_len);
+		id[name_len] = '\377';
 		fk_set.insert(foreign);
 
 		if (foreign->referenced_table) {

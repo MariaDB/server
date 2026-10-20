@@ -160,7 +160,7 @@ buf_block_t *buf_page_optimistic_fix(buf_block_t *block, page_id_t id) noexcept
 /** Try to acquire a page latch after buf_page_optimistic_fix().
 @param block         buffer-fixed block
 @param rw_latch      RW_S_LATCH or RW_X_LATCH
-@param modify_clock  expected value of block->modify_clock
+@param modify_clock  expected value of block->modify_clock()
 @param mtr           mini-transaction
 @return block if the latch was acquired
 @retval nullptr if block->unfix() was called because it no longer is valid */
@@ -237,31 +237,6 @@ buf_page_create_deferred(uint32_t space_id, ulint zip_size, mtr_t *mtr,
 @param[in]	page	page number
 @param[in,out]	mtr	mini-transaction */
 void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr);
-
-/** Determine if a block is still close enough to the MRU end of the LRU list
-meaning that it is not in danger of getting evicted and also implying
-that it has been accessed recently.
-Note that this is for heuristics only and does not reserve buffer pool
-mutex.
-@param[in]	bpage		buffer pool page
-@return whether bpage is close to MRU end of LRU */
-inline bool buf_page_peek_if_young(const buf_page_t *bpage);
-
-/** Determine if a block should be moved to the start of the LRU list if
-there is danger of dropping from the buffer pool.
-@param[in]	bpage		buffer pool page
-@return true if bpage should be made younger */
-inline bool buf_page_peek_if_too_old(const buf_page_t *bpage);
-
-/********************************************************************//**
-Increments the modify clock of a frame by 1. The caller must (1) own the
-buf_pool.mutex and block bufferfix count has to be zero, (2) or own an x-lock
-on the block. */
-UNIV_INLINE
-void
-buf_block_modify_clock_inc(
-/*=======================*/
-	buf_block_t*	block);	/*!< in: block */
 
 /** Increment the pages_accessed count. */
 void buf_inc_get(trx_t *trx) noexcept;
@@ -378,6 +353,10 @@ buf_print_io(
 /** Refresh the statistics used to print per-second averages. */
 void buf_refresh_io_stats() noexcept;
 
+/** Invalidate all pages in the buffer pool.
+All pages must be in a replaceable state (not modified or latched). */
+ATTRIBUTE_COLD void buf_pool_invalidate() noexcept;
+
 /*========================================================================
 --------------------------- LOWER LEVEL ROUTINES -------------------------
 =========================================================================*/
@@ -420,6 +399,8 @@ class buf_tmp_buffer_t
 {
   /** whether this slot is reserved */
   std::atomic<bool> reserved;
+  /** whether this slot was reserved since the last test_and_clear_used() */
+  std::atomic<bool> used;
 public:
   /** For encryption, the data needs to be copied to a separate buffer
   before it's encrypted&written. The buffer block itself can be replaced
@@ -432,39 +413,88 @@ public:
   byte *out_buf;
 
   /** Release the slot */
-  void release() noexcept { reserved.store(false, std::memory_order_relaxed); }
+  void release() noexcept
+  {
+    if (crypt_buf)
+      MEM_UNDEFINED(crypt_buf, srv_page_size);
+    reserved.store(false, std::memory_order_release);
+  }
 
-  /** Acquire the slot
+  /** Acquire the slot.
+  The plain read comes first, so that a caller that scans an array of slots
+  does not write to the slots that it finds reserved.
+  A read-modify-write would acquire every such cache line in exclusive state.
   @return whether the slot was acquired */
   bool acquire() noexcept
-  { return !reserved.exchange(true, std::memory_order_relaxed);}
+  {
+    return !reserved.load(std::memory_order_relaxed) &&
+      !reserved.exchange(true, std::memory_order_acquire);
+  }
 
   /** Allocate a buffer for encryption, decryption or decompression. */
   void allocate() noexcept
   {
     if (!crypt_buf)
+    {
       crypt_buf= static_cast<byte*>
-      (aligned_malloc(srv_page_size, srv_page_size));
+        (aligned_malloc(srv_page_size, srv_page_size));
+      ut_a(crypt_buf);
+    }
   }
+
+  /** Free the page frame, which allocate() will allocate again if the slot
+  is reserved again. */
+  void free_frame() noexcept
+  {
+    /* Only scratch buffer slots are freed this way. */
+    ut_ad(!comp_buf);
+    ut_ad(!out_buf);
+
+    aligned_free(crypt_buf);
+    crypt_buf= nullptr;
+  }
+
+  /** Page frame accessor.
+  @return pointer to the allocated page frame */
+  byte* frame() const noexcept { return crypt_buf; }
+
+  /** Note that the slot is being used. */
+  void mark_used() noexcept { used.store(true, std::memory_order_relaxed); }
+
+  /** Clear the used bit.
+  @return whether the slot was reserved since the previous call */
+  bool test_and_clear_used() noexcept
+  { return used.exchange(false, std::memory_order_relaxed); }
+
+#ifdef UNIV_DEBUG
+  /** Test if the slot is reserved.
+  @return whether the slot is reserved */
+  bool is_reserved() const noexcept
+  { return reserved.load(std::memory_order_relaxed); }
+#endif
 };
 
 /** The common buffer control block structure
 for compressed and uncompressed frames */
 
 class buf_pool_t;
+struct FetchIndexRootPages;
+class PageConverter;
 
 class buf_page_t
 {
   friend buf_pool_t;
   friend buf_block_t;
+  friend FetchIndexRootPages;
+  friend PageConverter;
 
   /** @name General fields */
   /* @{ */
 
-public: // FIXME: fix fil_iterate()
   /** Page id. Protected by buf_pool.page_hash.lock_get() when
   the page is in buf_pool.page_hash. */
   page_id_t id_;
+public:
   union {
     /** for in_file(): buf_pool.page_hash link;
     protected by buf_pool.page_hash.lock_get() */
@@ -489,6 +519,18 @@ private:
   2 if modifications are pending, but the block is not in buf_pool.flush_list
   (because id().space() is the temporary tablespace). */
   Atomic_relaxed<lsn_t> oldest_modification_;
+
+  /** buf_page_t::invalidate() will increment this field every time
+  a pointer to a record on the page may become obsolete for the quick path of
+  btr_pcur_t::restore_position(). */
+  uint32_t modify_clock_low;
+  /** most significant part of the invalidate() counter */
+  uint16_t modify_clock_high;
+
+  /** buf_pool.access_clock of the first access of an in_file() block
+  since the block was initialized, or of the last promotion by
+  make_young_if_needed(); 0=never */
+  Atomic_relaxed<uint16_t> access_time;
 
 public:
   /** state() of unused block (in buf_pool.free list) */
@@ -545,26 +587,9 @@ public:
   or if state() == MEMORY or state() == REMOVE_HASH. */
   UT_LIST_NODE_T(buf_page_t) list;
 
-	/** @name LRU replacement algorithm fields.
-	Protected by buf_pool.mutex. */
-	/* @{ */
+  /** member of buf_pool.LRU; protected by buf_pool.mutex */
+  UT_LIST_NODE_T(buf_page_t) LRU;
 
-	UT_LIST_NODE_T(buf_page_t) LRU;
-					/*!< node of the LRU list */
-	unsigned	old:1;		/*!< TRUE if the block is in the old
-					blocks in buf_pool.LRU_old */
-	unsigned	freed_page_clock:31;/*!< the value of
-					buf_pool.freed_page_clock
-					when this block was the last
-					time put to the head of the
-					LRU list; a thread is allowed
-					to read this for heuristic
-					purposes without holding any
-					mutex or latch */
-	/* @} */
-	Atomic_counter<unsigned> access_time;	/*!< time of first access, or
-					0 if the block was never accessed
-					in the buffer pool. */
   buf_page_t() : id_{0}
   {
     static_assert(NOT_USED == 0, "compatibility");
@@ -574,32 +599,59 @@ public:
   buf_page_t(const buf_page_t &b) :
     id_(b.id_), hash(b.hash),
     oldest_modification_(b.oldest_modification_),
+    /* not copied: the clock belongs to the block descriptor; see
+    relocate_from() */
+    modify_clock_low(0), modify_clock_high(0),
+    access_time(b.access_time),
     lock() /* not copied */,
     frame(b.frame), zip(b.zip),
 #ifdef UNIV_DEBUG
     in_LRU_list(b.in_LRU_list),
     in_page_hash(b.in_page_hash), in_free_list(b.in_free_list),
 #endif /* UNIV_DEBUG */
-    list(b.list), LRU(b.LRU), old(b.old), freed_page_clock(b.freed_page_clock),
-    access_time(b.access_time)
+    list(b.list), LRU(b.LRU)
   {
     lock.init();
   }
 
+  /** Replace this block descriptor with a copy of b, keeping the frame
+  and the modify_clock() of this block. The clock must only grow during
+  the lifetime of the block descriptor, so that a btr_pcur_t that was
+  saved on this block for the same page cannot match a stale value.
+  @param b  the descriptor that is being relocated to this block */
+  void relocate_from(const buf_page_t &b) noexcept
+  {
+    /* invalidate() requires a frame, and a ROW_FORMAT=COMPRESSED only
+    descriptor starts with a zero clock, so discarding the clock of b
+    below loses nothing in buf_relocate() */
+    ut_ad(b.frame || (!b.modify_clock_low && !b.modify_clock_high));
+    byte *const f= frame;
+    const uint32_t low= modify_clock_low;
+    const uint16_t high= modify_clock_high;
+    lock.free();
+    new (this) buf_page_t(b);
+    frame= f;
+    modify_clock_low= low;
+    modify_clock_high= high;
+  }
+
   /** Initialize some more fields */
-  void init(uint32_t state, page_id_t id) noexcept
+  void init(uint32_t state, page_id_t id, uint16_t ssize) noexcept
   {
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
     ut_ad(!lock.is_locked_or_waiting());
     id_= id;
-    zip.fix.store(state, std::memory_order_release);
     oldest_modification_= 0;
     ut_d(in_free_list= false);
     ut_d(in_LRU_list= false);
     ut_d(in_page_hash= false);
-    old= 0;
-    freed_page_clock= 0;
+    /* modify_clock_low, modify_clock_high are intentionally not reset:
+    they must stay monotonic for the lifetime of the block descriptor,
+    so that a stale optimistic-restore comparison against a page that
+    was evicted and reloaded into this same slot cannot spuriously
+    match. */
     access_time= 0;
+    zip.clear(state, ssize);
   }
 
   void set_os_unused() const
@@ -777,22 +829,25 @@ public:
   /** @return the physical size, in bytes */
   ulint physical_size() const noexcept
   {
-    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : srv_page_size;
+    const auto ssize= zip.ssize();
+    return ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << ssize : srv_page_size;
   }
 
   /** @return the ROW_FORMAT=COMPRESSED physical size, in bytes
   @retval 0 if not compressed */
   ulint zip_size() const noexcept
   {
-    return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : 0;
+    const auto ssize= zip.ssize();
+    return ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << ssize : 0;
   }
 
   /** @return the byte offset of the page within a file */
   os_offset_t physical_offset() const noexcept
   {
     os_offset_t o= id().page_no();
-    return zip.ssize
-      ? o << (zip.ssize + (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
+    const auto ssize= zip.ssize();
+    return ssize
+      ? o << (ssize + (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
       : o << srv_page_size_shift;
   }
 
@@ -802,35 +857,69 @@ public:
   /** @return whether the block can be relocated in memory.
   The block can be dirty, but it must not be I/O-fixed or bufferfixed. */
   inline bool can_relocate() const noexcept;
+  /** @return whether the block has been flagged old in buf_pool.LRU,
+  without the debug checks of is_old() */
+  bool old() const noexcept { return zip.old(); }
   /** @return whether the block has been flagged old in buf_pool.LRU */
   inline bool is_old() const noexcept;
   /** Set whether a block is old in buf_pool.LRU */
-  inline void set_old(bool old) noexcept;
-  /** Flag a page accessed in buf_pool
-  @return whether this is not the first access */
-  bool set_accessed() noexcept
+  template<bool old> inline void set_old() noexcept;
+  /** Set whether a block is old in buf_pool.LRU */
+  void set_old(bool old) noexcept
+  { if (old) set_old<true>(); else set_old<false>(); }
+  /** @return buf_pool.access_clock of the block's first access since
+  the block was initialized, or of the last promotion
+  @retval 0 if the block has not been accessed since it was initialized */
+  inline uint16_t accessed_at() const noexcept { return access_time; }
+
+  /** @return number of invalidate() calls */
+  uint64_t modify_clock() const noexcept
   {
-    if (is_accessed()) return true;
-    access_time= static_cast<uint32_t>(ut_time_ms());
-    return false;
+    ut_ad(frame);
+    ut_ad(in_file());
+    ut_ad(lock.have_any());
+    return modify_clock_low | uint64_t{modify_clock_high} << 32;
   }
-  /** @return ut_time_ms() at the time of first access of a block in buf_pool
-  @retval 0 if not accessed */
-  unsigned is_accessed() const noexcept
-  { ut_ad(in_file()); return access_time; }
+
+  /** Mark the block invalid for optimistic btr_pcur_t::restore_position()
+  when a record is deleted or the page is reorganized or freed. */
+  inline void invalidate() noexcept;
+
+  /** Flag the block for promotion by make_young_if_needed() if
+  innodb_old_blocks_time is 0, or if accessed_at() is at least that old.
+  Unlike touch(), do not record the first access (when we do not
+  want to trigger read-ahead). */
+  inline void touch_no_stamp() noexcept;
+
+  /** Record an access to the block: stamp access_time on the first
+  access since the block was initialized, and invoke touch_no_stamp()
+  @return whether this is not the first access */
+  bool touch() noexcept;
+
+  /** If zip.is_promote() holds, invoke make_young(). The caller must
+  hold buf_pool.mutex.
+  @tparam count_not_young  whether to count an old block that has an
+                           accessed_at() stamp but is not flagged, in
+                           buf_pool.stat.n_pages_not_made_young
+  @tparam only_old         whether to leave a block that is not old in
+                           place; for a sweep that does not visit
+                           blocks in the order of buf_pool.LRU
+  @return whether the block was moved */
+  template<bool count_not_young= false, bool only_old= false>
+  inline bool make_young_if_needed() noexcept;
+
+private:
+  /** Clear zip.is_promote(), stamp access_time, and move the block to
+  the "recently used" end of buf_pool.LRU. The caller holds
+  buf_pool.mutex and has found zip.is_promote() set. */
+  void make_young() noexcept;
 };
 
 /** The buffer control block structure */
 
 struct buf_block_t{
-
-	/** @name General fields */
-	/* @{ */
-
-	buf_page_t	page;		/*!< page information; this must
-					be the first field, so that
-					buf_pool.page_hash can point
-					to buf_page_t or buf_block_t */
+  /* page information; must be the first field */
+  buf_page_t page;
 #ifdef UNIV_DEBUG
   /** whether unzip_LRU is in buf_pool.unzip_LRU
   (in_file() && frame && zip.data);
@@ -839,22 +928,10 @@ struct buf_block_t{
 #endif
   /** member of buf_pool.unzip_LRU (if belongs_to_unzip_LRU()) */
   UT_LIST_NODE_T(buf_block_t) unzip_LRU;
-	/* @} */
-	/** @name Optimistic search field */
-	/* @{ */
 
-	ib_uint64_t	modify_clock;	/*!< this clock is incremented every
-					time a pointer to a record on the
-					page may become obsolete; this is
-					used in the optimistic cursor
-					positioning: if the modify clock has
-					not changed, we know that the pointer
-					is still valid; this field may be
-					changed if the thread (1) owns the
-					pool mutex and the page is not
-					bufferfixed, or (2) the thread has an
-					x-latch on the block */
-	/* @} */
+  /** @return number of invalidate() calls */
+  uint64_t modify_clock() const noexcept { return page.modify_clock(); }
+
 #ifdef BTR_CUR_HASH_ADAPT
   /** @name Hash search fields */
   /* @{ */
@@ -900,11 +977,14 @@ struct buf_block_t{
   ulint zip_size() const noexcept { return page.zip_size(); }
 
   /** Initialize the block.
-  @param page_id  page identifier
-  @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-  @param state    initial state() */
-  void initialise(const page_id_t page_id, ulint zip_size, uint32_t state)
+  @param page_id   page identifier
+  @param zip_ssize ROW_FORMAT=COMPRESSED page size shift, or 0
+  @param state     initial state() */
+  void initialise(const page_id_t page_id, uint16_t zip_ssize, uint32_t state)
     noexcept;
+
+  /** @see buf_page_t::invalidate() */
+  void invalidate() noexcept { page.invalidate(); }
 
   /** Calculate the page frame address */
   IF_DBUG(,inline) byte *frame_address() const noexcept;
@@ -1056,12 +1136,10 @@ struct buf_pool_stat_t{
 	ulint	n_ra_pages_evicted;/*!< number of read ahead
 				pages that are evicted without
 				being accessed */
-	ulint	n_pages_made_young; /*!< number of pages made young, in
-				buf_page_make_young() */
+	ulint	n_pages_made_young; /*!< number of pages made young */
 	ulint	n_pages_not_made_young; /*!< number of pages not made
 				young because the first access
-				was not long enough ago, in
-				buf_page_peek_if_too_old() */
+				was not long enough ago */
 	/** number of waits for eviction */
 	ulint	LRU_waits;
 	ulint	LRU_bytes;	/*!< LRU size in bytes */
@@ -1483,6 +1561,17 @@ public:
       noexcept;
   };
 
+  /** now(), refreshed about once per second by refresh_clock(), for
+  stamping or comparing against buf_page_t::access_time without reading
+  the system clock on each page access. This and LRU_old_threshold are
+  read on page accesses; they are in a cache line of their own, so that
+  frequent writes to other buf_pool fields will not invalidate it. */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_relaxed<uint16_t> access_clock;
+
+  /** LRU_old_time_threshold converted to whole seconds, rounded up and
+  capped at UINT16_MAX - 1; written by set_old_threshold_ms() */
+  Atomic_relaxed<uint16_t> LRU_old_threshold;
+
   /** Buffer pool mutex */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
 
@@ -1618,24 +1707,30 @@ public:
     last_activity_count= activity_count;
   }
 
-	unsigned	freed_page_clock;/*!< a sequence number used
-					to count the number of buffer
-					blocks removed from the end of
-					the LRU list; NOTE that this
-					counter may wrap around at 4
-					billion! A thread is allowed
-					to read this for heuristic
-					purposes without holding any
-					mutex or latch */
+  /* @} */
+
+  /** @name LRU replacement algorithm fields */
+  /* @{ */
+
   /** Cleared when buf_LRU_get_free_block() fails.
   Set whenever the free list grows, along with a broadcast of done_free.
   Protected by buf_pool.mutex. */
   Atomic_relaxed<bool> try_LRU_scan;
 
-	/* @} */
+  /** innodb_old_blocks_time; 0 if disabled */
+  uint32_t LRU_old_time_threshold;
 
-	/** @name LRU replacement algorithm fields */
-	/* @{ */
+  /** @return uint16_t(my_interval_timer() / 1e9), for refresh_clock() */
+  static inline uint16_t now() noexcept;
+
+  /** Refresh access_clock; invoked by srv_master_callback(), or by
+  buf_pool_clock_callback() while that callback is not running */
+  void refresh_clock() noexcept;
+
+  /** Set LRU_old_time_threshold and recompute the LRU_old_threshold
+  cache from it.
+  @param ms  new innodb_old_blocks_time value, in milliseconds */
+  void set_old_threshold_ms(uint32_t ms) noexcept;
 
 private:
   /** Whether we have warned to be running out of buffer pool;
@@ -1709,6 +1804,15 @@ public:
   buf_tmp_buffer_t *io_buf_reserve(bool wait_for_reads) noexcept
   { return io_buf.reserve(wait_for_reads); }
 
+  /** Reserve a scratch buffer, with its page frame allocated. */
+  buf_tmp_buffer_t *scratch_buf_reserve() noexcept
+  { return scratch_buf.reserve(); }
+
+  /** Free the page frames of the scratch buffer slots that are neither
+  in use nor recently used. */
+  ATTRIBUTE_COLD void scratch_buf_shrink() noexcept
+  { scratch_buf.shrink(false); }
+
   /** Try to allocate a block.
   @return a buffer block
   @retval nullptr if no blocks are available */
@@ -1755,9 +1859,105 @@ private:
 
     void close() noexcept;
 
-    /** Reserve a buffer */
+    /** Reserve a slot without waiting.
+    @return the reserved slot
+    @retval nullptr if all slots are in use */
+    buf_tmp_buffer_t *acquire() noexcept
+    {
+      for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+        if (s->acquire())
+          return s;
+      return nullptr;
+    }
+
+    /** Reserve a slot, waiting for pending I/O writes and optionally reads
+    to complete if needed.
+    @param wait_for_reads whether to wait for pending reads too
+    @return the reserved slot; never nullptr */
     buf_tmp_buffer_t *reserve(bool wait_for_reads) noexcept;
   } io_buf;
+
+  /** Temporary memory for page reorganization.
+
+  A thread holds at most one slot at a time, and it holds a page latch while
+  doing so, therefore reserving a slot must not wait for anything, except
+  in grow().
+  Instead of being sized in advance for a number of threads that is not known
+  and that changes while the server is running, the pool grows on demand.
+
+  Growing appends a chunk. A chunk is never moved or freed before close(), so
+  a thread may keep using the slot and the page frame that it reserved while
+  another thread appends the next chunk.
+
+  Shrinking is implemented by releasing the page frames of unreserved slots
+  and is done both periodically respecting the buf_tmp_buffer_t::used bit,
+  and forcefully on memory pressure events. Chunks and their slots are not
+  released as part of shrinking. */
+  struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) scratch_buffer
+  {
+    /** Slots, link to the next chunk and the counter of allocated frames. */
+    struct chunk : io_buf_t
+    {
+      /** The next, larger chunk, or nullptr;
+      published only after the chunk is ready for use.
+      Writes are protected by scratch_buffer::mutex. */
+      std::atomic<chunk*> next;
+      /** The number of slots whose page frame is allocated, so that
+      shrink() can skip a chunk that has nothing to free. */
+      std::atomic<size_t> n_frames;
+
+#ifdef UNIV_DEBUG
+      /** @return whether n_frames matches the slots that hold a page frame */
+      bool n_frames_valid() const noexcept
+      {
+        size_t n= 0;
+        for (const buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
+          n+= s->frame() != nullptr;
+        return n == n_frames.load(std::memory_order_relaxed);
+      }
+#endif
+
+    private:
+      /** Not applicable here. */
+      using io_buf_t::reserve;
+    };
+
+    /** The smallest chunk; created by create() and never replaced. */
+    chunk first;
+    /** Serializes grow(), protecting writes to chunk::next. */
+    srw_mutex mutex;
+
+    /** Create the scratch buffer with first chunk containing the specified
+    number of slots.
+    @param n_slots the number of slots of the first chunk */
+    void create(size_t n_slots) noexcept;
+
+    /** Close the scratch buffer, destroying all the chunks. */
+    void close() noexcept;
+
+    /** Reserve a slot and its page frame, appending a chunk if all slots
+    are in use.
+    @return the reserved, allocated and use-marked buffer; never nullptr */
+    buf_tmp_buffer_t *reserve() noexcept;
+
+    /** Free the page frames of the slots that are not in use. The slots and
+    the chunks are kept, because a slot costs 32 bytes while a page frame
+    costs srv_page_size, and because a thread may be walking the chunks.
+    A slot that is in use cannot be acquired here, and its used flag is left
+    set, so that it will be given another chance.
+    A frame that was used survives one call with all=false, because that call
+    only clears the used flag. Only one thread may call this with all=false,
+    or else two calls in a row would halve that grace period.
+    @param all whether to free also the frames that were used recently */
+    ATTRIBUTE_COLD void shrink(bool all) noexcept;
+
+  private:
+    /** Append a chunk that holds twice the slots of c, unless another thread
+    appended one already.
+    @param c the last chunk
+    @return the chunk that follows c */
+    ATTRIBUTE_COLD chunk *grow(chunk *c) noexcept;
+  } scratch_buf;
 };
 
 /** The InnoDB buffer pool */
@@ -1875,11 +2075,11 @@ inline bool buf_page_t::is_old() const noexcept
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
-  return old;
+  return old();
 }
 
 /** Set whether a block is old in buf_pool.LRU */
-inline void buf_page_t::set_old(bool old) noexcept
+template<bool flag> inline void buf_page_t::set_old() noexcept
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_LRU_list);
@@ -1887,23 +2087,87 @@ inline void buf_page_t::set_old(bool old) noexcept
 #ifdef UNIV_LRU_DEBUG
   ut_a((buf_pool.LRU_old_len == 0) == (buf_pool.LRU_old == nullptr));
   /* If a block is flagged "old", the LRU_old list must exist. */
-  ut_a(!old || buf_pool.LRU_old);
+  ut_a(!flag || buf_pool.LRU_old);
 
   if (UT_LIST_GET_PREV(LRU, this) && UT_LIST_GET_NEXT(LRU, this))
   {
     const buf_page_t *prev= UT_LIST_GET_PREV(LRU, this);
     const buf_page_t *next = UT_LIST_GET_NEXT(LRU, this);
-    if (prev->old == next->old)
-      ut_a(prev->old == old);
+    const bool prev_is_old{prev->old()};
+    if (prev_is_old == next->old())
+      ut_a(prev_is_old == flag);
     else
     {
-      ut_a(!prev->old);
-      ut_a(buf_pool.LRU_old == (old ? this : next));
+      ut_a(!prev_is_old);
+      ut_a(buf_pool.LRU_old == (flag ? this : next));
     }
   }
 #endif /* UNIV_LRU_DEBUG */
 
-  this->old= old;
+  zip.set_old<flag>();
+}
+
+template<bool count_not_young, bool only_old>
+inline bool buf_page_t::make_young_if_needed() noexcept
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  /* OLD changes only under buf_pool.mutex, and PROMOTE is cleared only
+  by make_young(), also under buf_pool.mutex. A concurrent touch() may
+  set PROMOTE after this snapshot; a later sweep will find it. The block
+  need not be old: if buf_pool.LRU is too short for buf_pool.LRU_old to
+  exist, blocks are evicted without ever becoming old. */
+  const uint16_t s= zip.get_state();
+  const bool old= page_zip_des_t::old(s);
+  if (only_old && !old)
+    return false;
+
+  if (!page_zip_des_t::is_promote(s))
+  {
+    if (count_not_young && old && access_time)
+      /* The block has an accessed_at() stamp, but no access came at
+      least innodb_old_blocks_time after it. This includes a block that
+      had no access since make_young() stamped accessed_at(), so this
+      counts sweep visits, not accesses that were rejected. */
+      buf_pool.stat.n_pages_not_made_young++;
+    return false;
+  }
+
+  if (old)
+    buf_pool.stat.n_pages_made_young++;
+  make_young();
+  return true;
+}
+
+inline void buf_page_t::touch_no_stamp() noexcept
+{
+  if (zip.is_promote())
+    return;
+  const uint16_t threshold= buf_pool.LRU_old_threshold;
+  if (threshold)
+  {
+    const uint16_t t= access_time;
+    /* access_clock advances once per refresh_clock(), so a difference
+    of threshold ticks can span less than threshold seconds. One more
+    tick ensures that at least threshold seconds have elapsed. */
+    if (!t || uint16_t(buf_pool.access_clock - t) <= threshold)
+      return;
+  }
+  zip.set_promote();
+}
+
+inline void buf_page_t::invalidate() noexcept
+{
+  ut_ad(frame);
+  ut_ad(in_file());
+#ifdef SAFE_MUTEX
+  ut_ad((mysql_mutex_is_owner(&buf_pool.mutex) && !buf_fix_count()) ||
+        lock.have_u_or_x());
+#else /* SAFE_MUTEX */
+  ut_ad(!buf_fix_count() || lock.have_u_or_x());
+#endif /* SAFE_MUTEX */
+  assert_block_ahi_valid(reinterpret_cast<buf_block_t*>(this));
+  if (!++modify_clock_low)
+    modify_clock_high++;
 }
 
 /**********************************************************************
@@ -1939,7 +2203,7 @@ inline buf_page_t *LRUItr::start() noexcept
 {
   mysql_mutex_assert_owner(m_mutex);
 
-  if (!m_hp || m_hp->old)
+  if (!m_hp || !m_hp->old())
     m_hp= UT_LIST_GET_LAST(buf_pool.LRU);
 
   return m_hp;
@@ -1986,7 +2250,4 @@ struct	CheckUnzipLRUAndLRUList {
 	}
 };
 #endif /* UNIV_DEBUG */
-
-#include "buf0buf.inl"
-
 #endif /* !UNIV_INNOCHECKSUM */

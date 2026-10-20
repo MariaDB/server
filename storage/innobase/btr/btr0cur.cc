@@ -135,19 +135,6 @@ my_bool btr_cur_index_shrink;
 can be released by page reorganize, then it is reorganized */
 #define BTR_CUR_PAGE_REORGANIZE_LIMIT	(srv_page_size / 32)
 
-/** The structure of a BLOB part header */
-/* @{ */
-/*--------------------------------------*/
-#define BTR_BLOB_HDR_PART_LEN		0	/*!< BLOB part len on this
-						page */
-#define BTR_BLOB_HDR_NEXT_PAGE_NO	4	/*!< next BLOB part page no,
-						FIL_NULL if none */
-/*--------------------------------------*/
-#define BTR_BLOB_HDR_SIZE		8	/*!< Size of a BLOB
-						part header, in bytes */
-
-/* @} */
-
 /*******************************************************************//**
 Marks all extern fields in a record as owned by the record. This function
 should be called if the delete mark of a record is removed: a not delete
@@ -1269,7 +1256,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 
   page_cur.block= block;
   ut_ad(block == mtr->at_savepoint(block_savepoint));
-  const bool not_first_access{buf_page_make_young_if_needed(&block->page)};
+  const bool not_first_access{block->page.touch()};
 #ifdef UNIV_ZIP_DEBUG
   if (const page_zip_des_t *page_zip= buf_block_get_page_zip(block))
     ut_a(page_zip_validate(page_zip, block->page.frame, index()));
@@ -1626,14 +1613,6 @@ ATTRIBUTE_COLD void mtr_t::index_lock_upgrade()
   ut_d(++btr_cur_n_index_lock_upgrades);
 }
 
-/** Mark a non-leaf page "least recently used", but avoid invoking
-buf_page_t::set_accessed(), because we do not want linear read-ahead */
-static void btr_cur_nonleaf_make_young(buf_page_t *bpage)
-{
-  if (UNIV_UNLIKELY(buf_page_peek_if_too_old(bpage)))
-    buf_page_make_young(bpage);
-}
-
 ATTRIBUTE_COLD
 dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
                                            page_cur_mode_t mode, mtr_t *mtr)
@@ -1737,7 +1716,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
   if (--height != btr_page_get_level(block->page.frame))
     goto corrupted;
 
-  btr_cur_nonleaf_make_young(&block->page);
+  block->page.touch_no_stamp();
 
 #ifdef UNIV_ZIP_DEBUG
   const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
@@ -1837,7 +1816,7 @@ search_loop:
   else
   {
     btr_search_drop_page_hash_index(block, index);
-    btr_cur_nonleaf_make_young(&block->page);
+    block->page.touch_no_stamp();
   }
 
 #ifdef UNIV_ZIP_DEBUG
@@ -2951,7 +2930,7 @@ btr_cur_update_alloc_zip_func(
 		return(true);
 	}
 
-	if (!page_zip->m_nonempty && !page_has_garbage(page)) {
+	if (!page_zip->is_nonempty() && !page_has_garbage(page)) {
 		/* The page has been freshly compressed, so
 		reorganizing it will not help. */
 		return(false);
@@ -5505,69 +5484,19 @@ error:
 
 /*================== EXTERNAL STORAGE OF BIG FIELDS ===================*/
 
-/***********************************************************//**
-Gets the offset of the pointer to the externally stored part of a field.
+/** Gets the offset of the pointer to the externally stored part of a field.
+@param offsets offsets of record
+@param n index of the external field
 @return offset of the pointer to the externally stored part */
-static
-ulint
-btr_rec_get_field_ref_offs(
-/*=======================*/
-	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n)	/*!< in: index of the external field */
+size_t btr_rec_get_field_ref_offs(const rec_offs *offsets, size_t n) noexcept
 {
-	ulint	field_ref_offs;
-	ulint	local_len;
+  size_t local_len;
+  ut_ad(rec_offs_nth_extern(offsets, n));
+  rec_offs field_ref_offs= rec_get_nth_field_offs(offsets, n, &local_len);
+  ut_ad(len_is_stored(local_len));
+  ut_ad(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
-	ut_a(rec_offs_nth_extern(offsets, n));
-	field_ref_offs = rec_get_nth_field_offs(offsets, n, &local_len);
-	ut_a(len_is_stored(local_len));
-	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-	return(field_ref_offs + local_len - BTR_EXTERN_FIELD_REF_SIZE);
-}
-
-/** Gets a pointer to the externally stored part of a field.
-@param rec record
-@param offsets rec_get_offsets(rec)
-@param n index of the externally stored field
-@return pointer to the externally stored part */
-#define btr_rec_get_field_ref(rec, offsets, n)			\
-	((rec) + btr_rec_get_field_ref_offs(offsets, n))
-
-/** Gets the externally stored size of a record, in units of a database page.
-@param[in]	rec	record
-@param[in]	offsets	array returned by rec_get_offsets()
-@return externally stored part, in units of a database page */
-ulint
-btr_rec_get_externally_stored_len(
-	const rec_t*	rec,
-	const rec_offs*	offsets)
-{
-	ulint	n_fields;
-	ulint	total_extern_len = 0;
-	ulint	i;
-
-	ut_ad(!rec_offs_comp(offsets) || !rec_get_node_ptr_flag(rec));
-
-	if (!rec_offs_any_extern(offsets)) {
-		return(0);
-	}
-
-	n_fields = rec_offs_n_fields(offsets);
-
-	for (i = 0; i < n_fields; i++) {
-		if (rec_offs_nth_extern(offsets, i)) {
-
-			ulint	extern_len = mach_read_from_4(
-				btr_rec_get_field_ref(rec, offsets, i)
-				+ BTR_EXTERN_LEN + 4);
-
-			total_extern_len += ut_calc_align(
-				extern_len, ulint(srv_page_size));
-		}
-	}
-
-	return total_extern_len >> srv_page_size_shift;
+  return field_ref_offs + local_len - BTR_EXTERN_FIELD_REF_SIZE;
 }
 
 /*******************************************************************//**
@@ -5941,7 +5870,6 @@ btr_store_big_rec_extern_fields(
 
 	for (i = 0; i < big_rec_vec->n_fields; i++) {
 		const ulint field_no = big_rec_vec->fields[i].field_no;
-
 		field_ref = btr_rec_get_field_ref(rec, offsets, field_no);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 		/* A zero BLOB pointer should have been initially inserted. */
@@ -6541,7 +6469,7 @@ btr_copy_blob_prefix(
 			mtr.commit();
 			return copied_len;
 		}
-		if (!buf_page_make_young_if_needed(&block->page)) {
+		if (!block->page.touch()) {
 			buf_read_ahead_linear(id);
 		}
 

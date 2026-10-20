@@ -1,0 +1,113 @@
+# Commit and rollback after an insert-only to mixed batch transition
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+value VARCHAR(16)
+) ENGINE=DuckDB;
+CREATE TABLE t1_audit (event CHAR(1)) ENGINE=InnoDB;
+CREATE TRIGGER t1_ad AFTER DELETE ON t1
+FOR EACH ROW INSERT INTO t1_audit VALUES ('D');
+CREATE TRIGGER t1_au AFTER UPDATE ON t1
+FOR EACH ROW INSERT INTO t1_audit VALUES ('U');
+BEGIN;
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+DELETE FROM t1 WHERE value = 'two';
+UPDATE t1 SET value = 'THREE' WHERE value = 'three';
+COMMIT;
+SELECT * FROM t1 ORDER BY id;
+id	value
+1	one
+3	THREE
+SELECT * FROM t1_audit ORDER BY event;
+event
+D
+U
+BEGIN;
+INSERT INTO t1 VALUES (4, 'four');
+DELETE FROM t1 WHERE value = 'one';
+UPDATE t1 SET value = 'changed' WHERE value = 'THREE';
+ROLLBACK;
+SELECT * FROM t1 ORDER BY id;
+id	value
+1	one
+3	THREE
+SELECT * FROM t1_audit ORDER BY event;
+event
+D
+U
+# Repeated changes, delete followed by insert, and primary key update
+CREATE TABLE t2 (
+id INT PRIMARY KEY,
+value VARCHAR(16)
+) ENGINE=DuckDB;
+CREATE TABLE t2_audit (event CHAR(1)) ENGINE=InnoDB;
+CREATE TRIGGER t2_ad AFTER DELETE ON t2
+FOR EACH ROW INSERT INTO t2_audit VALUES ('D');
+CREATE TRIGGER t2_au AFTER UPDATE ON t2
+FOR EACH ROW INSERT INTO t2_audit VALUES ('U');
+INSERT INTO t2 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+BEGIN;
+UPDATE t2 SET value = 'first' WHERE value = 'one';
+UPDATE t2 SET value = 'second' WHERE value = 'first';
+DELETE FROM t2 WHERE value = 'second';
+DELETE FROM t2 WHERE value = 'two';
+INSERT INTO t2 VALUES (2, 'reinserted');
+UPDATE t2 SET value = 'first' WHERE value = 'three';
+UPDATE t2 SET value = 'second' WHERE value = 'first';
+UPDATE t2 SET id = 30, value = 'moved' WHERE value = 'second';
+COMMIT;
+SELECT * FROM t2 ORDER BY id;
+id	value
+2	reinserted
+30	moved
+SELECT event, COUNT(*) FROM t2_audit GROUP BY event ORDER BY event;
+event	COUNT(*)
+D	2
+U	5
+# Composite primary key
+CREATE TABLE t3 (
+a INT,
+b INT,
+value VARCHAR(16),
+PRIMARY KEY (a, b)
+) ENGINE=DuckDB;
+CREATE TABLE t3_audit (event CHAR(1)) ENGINE=InnoDB;
+CREATE TRIGGER t3_ad AFTER DELETE ON t3
+FOR EACH ROW INSERT INTO t3_audit VALUES ('D');
+CREATE TRIGGER t3_au AFTER UPDATE ON t3
+FOR EACH ROW INSERT INTO t3_audit VALUES ('U');
+INSERT INTO t3 VALUES (1, 1, 'alpha'), (1, 2, 'beta'), (2, 1, 'gamma');
+BEGIN;
+DELETE FROM t3 WHERE value = 'alpha';
+UPDATE t3 SET value = 'BETA' WHERE value = 'beta';
+UPDATE t3 SET a = 3, value = 'moved' WHERE value = 'gamma';
+COMMIT;
+SELECT * FROM t3 ORDER BY a, b;
+a	b	value
+1	2	BETA
+3	1	moved
+SELECT event, COUNT(*) FROM t3_audit GROUP BY event ORDER BY event;
+event	COUNT(*)
+D	1
+U	2
+# A secondary index is not a row identity without a primary key
+CREATE TABLE t4 (
+k INT,
+value VARCHAR(16),
+KEY secondary_key (k)
+) ENGINE=DuckDB;
+CREATE TABLE t4_audit (value VARCHAR(16)) ENGINE=InnoDB;
+CREATE TRIGGER t4_ad AFTER DELETE ON t4
+FOR EACH ROW INSERT INTO t4_audit VALUES (OLD.value);
+INSERT INTO t4 VALUES (1, 'delete-me'), (1, 'keep-me'), (2, 'other');
+DELETE FROM t4 WHERE value = 'delete-me';
+SELECT * FROM t4 ORDER BY k, value;
+k	value
+1	keep-me
+2	other
+SELECT * FROM t4_audit ORDER BY value;
+value
+delete-me
+delete_in_batch
+5
+update_in_batch
+9
