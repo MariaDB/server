@@ -1762,7 +1762,7 @@ static bool recv_sys_invalid_rpo(lsn_t lsn) noexcept
 {
   if (!recv_sys.rpo || recv_sys.rpo >= lsn)
     return false;
-  sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+  sql_print_error("InnoDB: cannot fulfil innodb_log_recovery_target=%"
                   PRIu64 "<%" PRIu64, recv_sys.rpo, lsn);
   log_sys.set_recovered_lsn(lsn);
   return true;
@@ -2169,7 +2169,7 @@ dberr_t recv_sys_t::find_checkpoint()
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
-      sql_print_error("InnoDB: cannot fulfill innodb_log_recovery_target=%"
+      sql_print_error("InnoDB: cannot fulfil innodb_log_recovery_target=%"
                       PRIu64 "!=%" PRIu64, rpo, lsn);
       return DB_CORRUPTION;
     }
@@ -2995,13 +2995,16 @@ recv_sys_t::parse_mtr_result log_parse_start(source &l, unsigned nonce)
   if (UNIV_UNLIKELY(crc32c != stored_crc32c))
     return recv_sys_t::GOT_EOF;
 
-  if (recv_sys.rpo && recv_sys.rpo < end_lsn)
-  {
-    recv_sys_rpo_exceeded= end_lsn;
-    return recv_sys_t::GOT_EOF;
-  }
+  if (!recv_sys.rpo)
+    return recv_sys_t::OK;
 
-  return recv_sys_t::OK;
+  const lsn_t end{end_lsn + 5 + nonce};
+
+  if (recv_sys.rpo >= end)
+    return recv_sys_t::OK;
+
+  recv_sys_rpo_exceeded= end;
+  return recv_sys_t::GOT_EOF;
 }
 
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
@@ -5214,9 +5217,11 @@ recv_scan_log(const bool last_phase, const recv_sys_t::parser *parser) noexcept
           if (!end && !corrupt_fs && !log_sys.archive)
           {
             recv_sys.set_corrupt_log();
-            sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
-                            ") at " LSN_PF, log_sys.last_checkpoint_lsn.load(),
-                            recv_sys.lsn);
+            if (!recv_sys_rpo_exceeded)
+              sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
+                              ") at " LSN_PF,
+                              log_sys.last_checkpoint_lsn.load(),
+                              recv_sys.lsn);
           }
           mysql_mutex_unlock(&recv_sys.mutex);
           DBUG_RETURN(true);
@@ -5936,6 +5941,9 @@ read_only_recovery:
 		}
 		if (recv_sys.is_corrupt_log()) {
 corrupt_log:
+			if (recv_sys_invalid_rpo(recv_sys_rpo_exceeded)) {
+				goto err_exit;
+			}
 			sql_print_error("InnoDB: Log scan aborted at LSN "
 					LSN_PF, recv_sys.lsn);
 			goto err_exit;

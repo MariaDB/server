@@ -14,7 +14,7 @@ SELECT * FROM t2;
 Got one of the listed errors
 SELECT * FROM t2;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: cannot fulfill innodb_log_recovery_target.*/ in mysqld.1.err
+FOUND 1 /InnoDB: cannot fulfil innodb_log_recovery_target.*/ in mysqld.1.err
 DELETE FROM t1;
 Got one of the listed errors
 DELETE FROM t2;
