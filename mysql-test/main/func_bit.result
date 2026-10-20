@@ -365,3 +365,11 @@ Warning	1916	Got overflow when converting '-9223372036854776000' to INT. Value t
 #
 # End of 10.5 tests
 #
+# MDEV-40089 Preserve unsigned cached integers in real comparisons
+CREATE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES ('0'),('1');
+SELECT a FROM t1 WHERE ('0' BETWEEN ~TRUE AND a) IS FALSE ORDER BY a;
+a
+0
+1
+DROP TABLE t1;
