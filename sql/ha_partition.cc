@@ -8209,6 +8209,11 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       /* Caller has specified reverse_order */
       break;
     case partition_index_first:
+      /*
+        We don't call read_with_icp() here as full index scans are not done
+        with ICP.
+      */
+      DBUG_ASSERT(!pushed_idx_cond);
       error= file->ha_index_first(rec_buf_ptr);
       reverse_order= FALSE;
       break;
