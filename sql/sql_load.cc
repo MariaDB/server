@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -433,6 +433,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     my_error(ER_WRONG_USAGE, MYF(0), "Multi-table VIEW", "LOAD");
     DBUG_RETURN(TRUE);
   }
+  if (table_list->table->check_sequence_privileges(thd))
+    DBUG_RETURN(TRUE);
   if (table_list->prepare_where(thd, 0, TRUE) ||
       table_list->prepare_check_option(thd))
   {
