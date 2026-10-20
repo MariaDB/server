@@ -20576,6 +20576,22 @@ typedef struct {
 } v2_proxy_header;
 
 #ifndef EMBEDDED_LIBRARY
+/*
+  Zero the header, and set the part that is common to all PROXY v2 headers:
+  the signature, version 2 with the command (0x1 PROXY, 0x0 LOCAL), the
+  address family and protocol, and the length of the address block.
+*/
+static void init_v2_header(v2_proxy_header *header, int command, int fam,
+                           size_t len)
+{
+  memset(header, 0, sizeof(*header));
+  memcpy(header->sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A",
+         sizeof(header->sig));
+  header->ver_cmd= (0x2 << 4) | command;
+  header->fam= fam;
+  header->len= htons(len);
+}
+
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
   int rc;
@@ -20584,26 +20600,22 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   char query[256];
   char text_header[256], bad_text_header[256];
   char addr_bin[16];
-  v2_proxy_header v2_header, bad_v2_header;
-  void *header_data[4];
-  size_t header_lengths[4];
+  v2_proxy_header v2_header, bad_v2_header, short_v2_header;
+  void *header_data[5];
+  size_t header_lengths[5];
   size_t i;
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
   myheader("test_proxy_header_tcp");
 
-  memset(&v2_header, 0, sizeof(v2_header));
   snprintf(text_header, sizeof(text_header), "PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
- 
+
   inet_pton(family,ipaddr,addr_bin);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
   if(family == AF_INET)
   {
-    v2_header.fam= 0x11;
-    v2_header.len= htons(12);
+    init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
     v2_header.addr.ip4.src_port= htons(port);
     v2_header.addr.ip4.dst_port= htons(3306);
     memcpy(&v2_header.addr.ip4.src_addr,addr_bin, sizeof (v2_header.addr.ip4.src_addr));
@@ -20611,8 +20623,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   }
   else
   {
-    v2_header.fam= 0x21;
-    v2_header.len= htons(36);
+    init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
     v2_header.addr.ip6.src_port= htons(port);
     v2_header.addr.ip6.dst_port= htons(3306);
     memcpy(v2_header.addr.ip6.src_addr,addr_bin, sizeof (v2_header.addr.ip6.src_addr));
@@ -20627,17 +20638,23 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   header_data[1]= &v2_header;
   header_data[2]= bad_text_header;
   header_data[3]= &bad_v2_header;
+  header_data[4]= &short_v2_header;
 
   header_lengths[0]= strlen(text_header);
   header_lengths[1]= family == AF_INET ? 28 : 52;
   header_lengths[2]= sizeof(text_header)-4;
   header_lengths[3]= header_lengths[1];
+  /* MDEV-41508: address block ends before the source port's low byte */
+  header_lengths[4]= family == AF_INET ? 25 : 49;
 
   memset(bad_text_header, ' ', sizeof(bad_text_header));
   memcpy(bad_text_header, text_header, header_lengths[1]-6);
 
   bad_v2_header= v2_header;
   bad_v2_header.len= 0;
+
+  short_v2_header= v2_header;
+  short_v2_header.len= htons(header_lengths[4] - 16);
 
   for (i = 0; i < 2; i++)
   {
@@ -20679,8 +20696,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
       DIE(0);
     printf("pass %zu error %i - %s\n", i, mysql_errno(m),
            mysql_error(m));
-    DIE_IF(i == 2 && mysql_errno(m) != ER_UNKNOWN_ERROR);
-    DIE_IF(i == 3 && mysql_errno(m) != ER_UNKNOWN_ERROR);
+    DIE_IF(mysql_errno(m) != ER_UNKNOWN_ERROR);
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20701,11 +20717,7 @@ static void test_proxy_header_localhost()
   int rc;
   myheader("test_proxy_header_localhost");
 
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
-  v2_header.fam= 0x31;
-  v2_header.len= htons(216);
+  init_v2_header(&v2_header, 0x1, 0x31, sizeof(v2_header.addr.unx));
   strcpy(v2_header.addr.unx.src_addr,"/tmp/mysql.sock");
   strcpy(v2_header.addr.unx.dst_addr,"/tmp/mysql.sock");
   rc = mysql_query(mysql, "CREATE USER 'u'@'localhost' IDENTIFIED BY 'password'");
@@ -20738,10 +20750,8 @@ static void test_proxy_header_ignore()
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
   mysql_close(m);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x0; /* Version (0x2) , Command = LOCAL (0x0) */
-  v2_header.fam= 0x0; /* AF_UNSPEC*/
-  v2_header.len= htons(0);
+  /* Command LOCAL (0x0), AF_UNSPEC, no address block */
+  init_v2_header(&v2_header, 0x0, 0x0, 0);
   m = mysql_client_init(NULL);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
@@ -20759,6 +20769,113 @@ static void test_proxy_header_ignore()
   mysql_query(mysql, "set global proxy_protocol_networks= @sv_proxy_protocol_networks");
   myquery(rc);
 }
+
+/* Open a raw TCP connection to opt_host:opt_port */
+static my_socket connect_tcp(void)
+{
+  struct addrinfo hints, *ai= NULL, *p;
+  char portbuf[MY_INT32_NUM_DECIMAL_DIGITS];
+  int connected= 0;
+  my_socket s= INVALID_SOCKET;
+
+  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family= AF_UNSPEC;
+  hints.ai_socktype= SOCK_STREAM;
+  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
+                         &hints, &ai) == 0);
+
+  for (p= ai; p; p= p->ai_next)
+  {
+    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (s == INVALID_SOCKET)
+      continue;
+    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
+    {
+      connected= 1;
+      break;
+    }
+    closesocket(s);
+    s= INVALID_SOCKET;
+  }
+  freeaddrinfo(ai);
+  DIE_UNLESS(connected);
+  return s;
+}
+
+
+/*
+  MDEV-41508 PROXY v2 header, shorter than it declares, must be rejected.
+  Raw socket is used, as the client library would follow the header with
+  its login packet, which would be taken for the missing header bytes.
+*/
+static void test_proxy_header_short()
+{
+  v2_proxy_header v2_header;
+  /* 1024 is enough for the greeting packet plus the error packet */
+  char buf[1024];
+  /* Error packet payload: 0xff, error code, '#' and SQLSTATE, then message */
+  const size_t error_payload_header_len= 1 + 2 + 1 + SQLSTATE_LENGTH;
+  size_t total= 0, error_packet_pos, error_packet_len, err_msg_len;
+  const uchar *error_packet, *error_payload;
+  const char *err_msg;
+  static const LEX_CSTRING expected_msg=
+    { STRING_WITH_LEN("Failed to parse proxy header") };
+  uint err_code;
+  my_socket s;
+
+  myheader("test_proxy_header_short");
+
+  /* Command PROXY, TCP over IPv4, declares the whole IPv4 address block */
+  init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
+
+  s= connect_tcp();
+  /*
+    Send an incomplete PROXY v2 header, 25 bytes: the signature, 2 IPv4
+    addresses, and the first byte of the source port (16 + 4 + 4 + 1).
+    The complete header is 28 bytes.
+  */
+  DIE_UNLESS(send(s, (const char *) &v2_header, 25, 0) == 25);
+
+  /*
+    The server sends its greeting first. Then it rejects the header with an
+    error packet and closes the connection, so read until EOF.
+  */
+  for (;;)
+  {
+    int n= recv(s, buf + total, (int) (sizeof(buf) - total), 0);
+    if (n <= 0)
+      break;
+    total+= n;
+  }
+  closesocket(s);
+
+  /*
+    Every packet is: 3 bytes of payload length, 1 byte of sequence number,
+    and the payload. Skip the greeting packet.
+  */
+  DIE_UNLESS(total >= NET_HEADER_SIZE);
+  error_packet_pos= NET_HEADER_SIZE + uint3korr(buf);
+
+  /* The error packet, after its header: 0xff, error code, '#', SQLSTATE */
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE);
+  error_packet= (const uchar *) buf + error_packet_pos;
+  error_packet_len= uint3korr(error_packet);
+  error_payload= error_packet + NET_HEADER_SIZE;
+  DIE_UNLESS(error_packet_len >= error_payload_header_len);
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE + error_packet_len);
+  DIE_UNLESS(error_payload[0] == 0xff);
+  DIE_UNLESS(error_payload[3] == '#');
+  err_code= uint2korr(error_payload + 1);
+  err_msg= (const char *) error_payload + error_payload_header_len;
+  err_msg_len= error_packet_len - error_payload_header_len;
+  printf("error %u: %.*s\n", err_code, (int) err_msg_len, err_msg);
+
+  DIE_UNLESS(err_code == ER_UNKNOWN_ERROR);
+  DIE_UNLESS(err_msg_len == expected_msg.length);
+  DIE_UNLESS(!memcmp(err_msg, expected_msg.str, expected_msg.length));
+}
+
 
 static void test_proxy_header_limits()
 {
@@ -20823,11 +20940,7 @@ static void test_proxy_header_dbug_remote_connection()
   myquery(rc);
 
   /* Build a v2 proxy header announcing proxy_ipv6 as the client address. */
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* PROXY command */
-  v2_header.fam     = 0x21;              /* TCPv6 */
-  v2_header.len     = htons(36);
+  init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
   inet_pton(AF_INET6, proxy_ipv6, addr_bin);
   memcpy(v2_header.addr.ip6.src_addr, addr_bin, 16);
   memcpy(v2_header.addr.ip6.dst_addr, addr_bin, 16);
@@ -20872,33 +20985,8 @@ static void test_proxy_header_dbug_remote_connection()
 */
 static void proxy_send_handshake_error(const char *client_ip)
 {
-  struct addrinfo hints, *ai= NULL, *p;
-  char portbuf[20], header[128];
-  int connected= 0;
-  my_socket s= INVALID_SOCKET;
-
-  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family= AF_UNSPEC;
-  hints.ai_socktype= SOCK_STREAM;
-  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
-                         &hints, &ai) == 0);
-
-  for (p= ai; p; p= p->ai_next)
-  {
-    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-    if (s == INVALID_SOCKET)
-      continue;
-    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
-    {
-      connected= 1;
-      break;
-    }
-    closesocket(s);
-    s= INVALID_SOCKET;
-  }
-  freeaddrinfo(ai);
-  DIE_UNLESS(connected);
+  char header[128];
+  my_socket s= connect_tcp();
 
   if (client_ip)
   {
@@ -21198,6 +21286,7 @@ static void test_proxy_header()
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
+  test_proxy_header_short();
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
   test_proxy_header_proxy_host_connect_errors_reset();
