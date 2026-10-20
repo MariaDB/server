@@ -1,0 +1,83 @@
+#
+#   This test ensures that starting the I/O thread of one master connection
+# does not zero the global Rpl_semi_sync_slave_send_ack status variable while
+# another master connection is still active. Because the counter is global
+# (shared by all connections), a per-connection START SLAVE must not reset it,
+# otherwise ACKs already sent by other active connections are lost from the
+# count.
+#
+#   The slave (server 3) uses multi-source replication with two connections
+# ('' and 'other') to two masters (servers 1 and 2). The '' connection sends
+# semi-sync ACKs first; then starting the 'other' connection's I/O thread must
+# leave Rpl_semi_sync_slave_send_ack unchanged.
+#
+# References:
+#   MDEV-41014: START SLAVE zeroes Rpl_semi_sync_slave_send_ack even if a
+#               multi-source connection is active
+#
+--source include/have_binlog_format_mixed.inc
+--source include/not_embedded.inc
+
+--connect (master, 127.0.0.1, root, , , $SERVER_MYPORT_1)
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+RESET MASTER;
+
+--connect (master_other, 127.0.0.1, root, , , $SERVER_MYPORT_2)
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1; # MDEV-32947
+RESET MASTER;
+
+--connect (slave, 127.0.0.1, root, , , $SERVER_MYPORT_3)
+--disable_warnings
+  SET @@GLOBAL.gtid_slave_pos= '';
+--enable_warnings
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root';
+SET @@SESSION.default_master_connection= 'other';
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO
+  master_host='127.0.0.1', master_port=$SERVER_MYPORT_2, master_user='root';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+
+
+SET @@SESSION.default_master_connection= '';
+START SLAVE '';
+--connection master
+--echo # Wait for the slave's '' connection to register as a semi-sync client
+--let $status_var= Rpl_semi_sync_master_clients
+--let $status_var_value= 1
+--source include/wait_for_status_var.inc
+
+CREATE TABLE t (a INT);
+DROP TABLE t;
+save_master_pos;
+
+--connection slave
+SET @@SESSION.default_master_connection= '';
+sync_with_master;
+
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack'; #=> 2
+
+--echo # Start the I/O thread of the 'other' connection while the '' connection
+--echo # is active. This must NOT reset the counter accumulated by ''.
+SET @@SESSION.default_master_connection= 'other';
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+SHOW STATUS LIKE 'Rpl_semi_sync_slave_send_ack'; #=> Expected: 2; Actual: 0 (pre-MDEV-41014)
+
+
+--source include/stop_slave_io.inc
+RESET SLAVE ALL;
+SET @@SESSION.default_master_connection= '';
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+--disconnect slave
+
+--connection master
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+--disconnect master
+
+--connection master_other
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0; # MDEV-32947
+--disconnect master_other
