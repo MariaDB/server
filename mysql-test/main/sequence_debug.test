@@ -14,3 +14,37 @@ DROP TABLE t;
 
 DROP SEQUENCE s;
 set debug_dbug=@save_debug_dbug;
+
+--echo #
+--echo # MDEV-41258 Server crashes in Item_func_nextval::val_int()/update_table()
+--echo # when a table using DEFAULT NEXTVAL(sequence) is closed and reopened
+--echo # between two executions of a prepared statement.
+--echo #
+--echo # Debug-only build: assert that re-execution after the reopen does not
+--echo # allocate a duplicate sequence dependency.
+--echo #
+
+CREATE SEQUENCE s1 START WITH 1 INCREMENT BY 1 CACHE 10;
+CREATE TABLE t1 (
+  id  BIGINT NOT NULL DEFAULT NEXTVAL(s1),
+  val VARCHAR(20),
+  PRIMARY KEY(id)
+);
+
+PREPARE stmt FROM 'INSERT INTO t1 (val) VALUES (?)';
+SET @v = 'row1';
+EXECUTE stmt USING @v;
+
+FLUSH TABLE t1;
+
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug= '+d,assert_no_alloc_internal_tables';
+SET @v = 'row2';
+EXECUTE stmt USING @v;
+SET SESSION debug_dbug= @saved_dbug;
+
+SELECT val FROM t1 ORDER BY id;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s1;
