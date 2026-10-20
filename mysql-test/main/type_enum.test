@@ -647,7 +647,10 @@ INSERT INTO t1 VALUES ();
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
+--echo #
 --echo # MDEV-35715: ENUM double store UBSAN fix
+--echo #
+
 create table t1 (c enum('-1', '0', '1', '2', '3'));
 insert into t1 values (1.0), (2.0), (3.0);
 select c, length(c) as l from t1;
@@ -673,5 +676,18 @@ set statement sql_mode='' for insert into t1 values (1e+19);
 select c, length(c) as l from t1;
 
 drop table t1;
+
+CREATE TABLE t2 (
+  c INT ZEROFILL,
+  c2 CHAR CHARACTER SET 'utf8' COLLATE 'utf8_bin',
+  c3 ENUM ('') CHARACTER SET 'latin1' COLLATE 'latin1_bin',
+  KEY(c));
+SET STATEMENT sql_mode='' FOR INSERT INTO t2 VALUES (-1.e-2,+1,-1.e+30);
+DROP TABLE t2;
+
+CREATE TABLE t3 (c ENUM (''''));
+SET STATEMENT sql_mode='' FOR INSERT INTO t3 VALUES ((1-EXP(230)));
+DROP TABLE t3;
+
 
 --echo # End of 10.11 tests

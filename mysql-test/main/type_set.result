@@ -735,7 +735,9 @@ SELECT a+0, HEX(a) FROM t1;
 a+0	HEX(a)
 2	0000
 DROP TABLE t1;
+#
 # MDEV-35715: SET double store UBSAN fix
+#
 create table t1 (c set('a', 'b', 'c'));
 # Show that integer-equivalent doubles produce the same bitmap as integers:
 insert into t1 values (1.0), (2.0), (3.0);
@@ -754,7 +756,7 @@ Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 select c from t1;
 c
-a,b,c
+
 delete from t1;
 # Large float overflow:
 insert into t1 values (1e+19);
@@ -764,6 +766,16 @@ Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 select c from t1;
 c
-a,b,c
+
 drop table t1;
+SET STATEMENT sql_mode = '' FOR
+CREATE DEFINER=current_user FUNCTION f (i1 SET('a','b'))
+RETURNS INT CONTAINS SQL DETERMINISTIC NO SQL NO SQL
+RETURN CONCAT ('FUNCTION output:',i1);
+SET STATEMENT sql_mode = '' FOR SELECT f (-1.e+30);
+f (-1.e+30)
+0
+Warnings:
+Warning	1366	Incorrect integer value: 'FUNCTION output:' for column ``.``.`f (-1.e+30)` at row 0
+DROP FUNCTION f;
 # End of 10.11 tests

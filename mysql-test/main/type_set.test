@@ -352,7 +352,10 @@ INSERT INTO t1 VALUES ();
 SELECT a+0, HEX(a) FROM t1;
 DROP TABLE t1;
 
+--echo #
 --echo # MDEV-35715: SET double store UBSAN fix
+--echo #
+
 create table t1 (c set('a', 'b', 'c'));
 
 --echo # Show that integer-equivalent doubles produce the same bitmap as integers:
@@ -376,5 +379,14 @@ set statement sql_mode='' for insert into t1 values (1e+19);
 select c from t1;
 
 drop table t1;
+
+SET STATEMENT sql_mode = '' FOR
+CREATE DEFINER=current_user FUNCTION f (i1 SET('a','b'))
+  RETURNS INT CONTAINS SQL DETERMINISTIC NO SQL NO SQL
+  RETURN CONCAT ('FUNCTION output:',i1);
+# Test: should not produce UBsan warnings
+SET STATEMENT sql_mode = '' FOR SELECT f (-1.e+30);
+DROP FUNCTION f;
+
 
 --echo # End of 10.11 tests
