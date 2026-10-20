@@ -21,3 +21,13 @@ ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
 HTTP='http://jsonplaceholder.typicode.com/users" "-Dhead.log';
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-41641 CONNECT REST can bypass FILE protection
+--echo #
+--error ER_OPTION_PREVENTS_STATEMENT
+--evalp CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='$MTR_SUITE_DIR/std_data/bios.json'
+--error ER_UNKNOWN_ERROR
+--evalp CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JSON HTTP='file://$MTR_SUITE_DIR/std_data/bios.json'
+
+--echo # End of 10.11 tests
