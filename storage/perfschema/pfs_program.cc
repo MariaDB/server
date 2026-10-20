@@ -236,6 +236,8 @@ search:
     pfs->m_schema_name_length= schema_name_length;
     pfs->m_enabled= is_enabled;
     pfs->m_timed= is_timed;
+    pfs->m_stmt_stat.reset();
+    pfs->m_sp_stat.reset();
 
     /* Insert this record. */
     pfs->m_lock.dirty_to_allocated(& dirty_state);

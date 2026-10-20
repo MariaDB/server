@@ -1,4 +1,3 @@
---source include/not_msan.inc
 SET GLOBAL duckdb_copy_ddl_in_batch=ON;
 --source ../include/alter_engine_duckdb.inc
 

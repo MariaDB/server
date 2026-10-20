@@ -1653,8 +1653,15 @@ public:
   ORDER *order, *group_list, *proc_param; //hold parameters of mysql_select
   COND *conds;                            // ---"---
   Item *conds_history;                    // store WHERE for explain
-  COND *outer_ref_cond;       ///<part of conds containing only outer references
-  COND *pseudo_bits_cond;     // part of conds containing special bita
+  /*
+    Condition to be checked once for every join execution, before reading any
+    non-const tables. (Do not confuse this with exec_const_cond which is
+    constant across all executions).  Normally, this is condition that refers
+    to outer tables only.
+    For degenerate joins that only have constant tables and semi-join nests,
+    this includes conditions with RAND_TABLE_BIT.
+  */
+  Item *outer_ref_cond;
   TABLE_LIST *tables_list;           ///<hold 'tables' parameter of mysql_select
   List<TABLE_LIST> *join_list;       ///< list of joined tables in reverse order
   COND_EQUAL *cond_equal;

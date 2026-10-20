@@ -164,3 +164,101 @@ BINLOG '123';
 BINLOG '-2079193929';
 --error ER_BASE64_DECODE_ERROR
 BINLOG 'xç↓%~∙D╒ƒ╡';
+
+--echo #
+--echo # MDEV-39074 trans_rollback_stmt(THD *): Assertion `! thd->in_sub_stmt' failed.
+--echo #
+
+create table t0 (a int);
+create table t1 (a int);
+
+# Format_description_log_event, same as in the FD test above
+--let $FORMAT_DESCR_LOG_EVENT= 'ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC'
+
+# table_map+write_rows_log_event corresponding to: insert into t1 values (3)
+--let $ROW_INSERT_T1= 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='
+
+# Query_log_event (no checksum, matches the checksum-less FD event above)
+# corresponding to: insert into t1 values (99)
+--let $STMT_INSERT_T1= 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'
+
+--echo ## Case 1: Trigger (disabled)
+
+--error ER_SP_BADSTATEMENT
+create trigger trig_t0_insert after insert on t0 for each row binlog 'enabled';
+--error ER_SP_BADSTATEMENT
+create trigger trig_t0_insert after insert on t0 for each row
+binlog @a, @b;
+
+--echo ## Case 2: SP (disabled)
+
+--error ER_SP_BADSTATEMENT
+eval create procedure proc_t1_insert() binlog $STMT_INSERT_T1;
+
+--echo ## Case 3: SF (disabled)
+
+delimiter |;
+--error ER_SP_BADSTATEMENT
+eval create function func_t1_insert() returns int
+begin
+  binlog $ROW_INSERT_T1;
+  return 0;
+end|
+--error ER_SP_BADSTATEMENT
+create function func_t1_insert() returns int
+begin
+  binlog @a, @b;
+  return 0;
+end|
+delimiter ;|
+
+--echo ## Case 4: Event (disabled)
+
+--error ER_SP_BADSTATEMENT
+eval create event ev_t1_insert on schedule every 1 day do
+binlog $ROW_INSERT_T1;
+
+--echo ## Case 5: Anonymous block (disabled)
+
+delimiter |;
+--error ER_SP_BADSTATEMENT
+eval begin not atomic
+  binlog $ROW_INSERT_T1;
+end|
+delimiter ;|
+
+--echo ## Case 6: Dynamic SQL in SP (disabled)
+
+eval create procedure proc_t1_insert()
+execute immediate "binlog $ROW_INSERT_T1";
+--error ER_SP_BADSTATEMENT
+call proc_t1_insert();
+drop procedure proc_t1_insert;
+
+eval prepare stmt from "binlog $ROW_INSERT_T1";
+create procedure proc_t1_insert() execute stmt;
+--error ER_SP_BADSTATEMENT
+call proc_t1_insert();
+drop procedure proc_t1_insert;
+deallocate prepare stmt;
+
+--echo ## Case 7: Row event in PS (works)
+
+eval binlog $FORMAT_DESCR_LOG_EVENT;
+eval prepare stmt from "binlog $ROW_INSERT_T1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+
+--echo ## Case 8: Statement event in PS (works)
+
+eval prepare stmt from "binlog $STMT_INSERT_T1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+
+drop table t0, t1;
+
+--echo # End of 10.11 tests

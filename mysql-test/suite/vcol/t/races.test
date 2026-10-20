@@ -5,6 +5,10 @@ source include/have_innodb.inc;
 source include/have_debug_sync.inc;
 create table t1 (f text, vf tinytext as (f), key (vf(64))) engine=innodb;
 insert t1 (f) values ('foo');
+# Purge may open t1 into the table cache after FLUSH TABLES
+--disable_query_log
+set global innodb_max_purge_lag_wait= 0;
+--enable_query_log
 flush tables;
 connect con1,localhost,root,,test;
 set debug_sync='TABLE_after_field_clone WAIT_FOR go';

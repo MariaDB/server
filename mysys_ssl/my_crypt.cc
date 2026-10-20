@@ -30,27 +30,17 @@
 
 #include <random>
 
-#define CTX_ALIGN 16
-
 class MyCTX
 {
 public:
-  char ctx_buf[EVP_CIPHER_CTX_SIZE + CTX_ALIGN];
   EVP_CIPHER_CTX* ctx;
   MyCTX()
   {
-#if CTX_ALIGN > 0
-    uintptr_t p= ((uintptr_t)ctx_buf + (CTX_ALIGN - 1)) & ~(CTX_ALIGN - 1);
-    ctx = reinterpret_cast<EVP_CIPHER_CTX*>(p);
-#else
-    ctx = (EVP_CIPHER_CTX*)ctx_buf;
-#endif
-
-    EVP_CIPHER_CTX_init(ctx);
+    ctx= EVP_CIPHER_CTX_new();
   }
   virtual ~MyCTX()
   {
-    EVP_CIPHER_CTX_reset(ctx);
+    EVP_CIPHER_CTX_free(ctx);
     ERR_remove_state(0);
   }
 
@@ -58,6 +48,8 @@ public:
                    uint klen, const uchar *iv, uint ivlen)
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX));
+    if (unlikely(!ctx))
+      return MY_AES_OPENSSL_ERROR;
     if (unlikely(!cipher))
       return MY_AES_BAD_KEYSIZE;
 
@@ -116,9 +108,11 @@ public:
     DBUG_ASSERT(ivlen == 0 || ivlen == sizeof(oiv));
 
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
+    if (res)
+      return res;
 
     EVP_CIPHER_CTX_set_padding(ctx, 0);
-    return res;
+    return MY_AES_OK;
   }
 
   /** Update last partial source block, stored in source_tail array. */
@@ -214,10 +208,12 @@ public:
   {
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_gcm));
     int res= MyCTX::init(cipher, encrypt, key, klen, iv, ivlen);
+    if (res)
+      return res;
     int real_ivlen= EVP_CIPHER_CTX_iv_length(ctx);
     aad= iv + real_ivlen;
     aadlen= ivlen - real_ivlen;
-    return res;
+    return MY_AES_OK;
   }
 
   int update(const uchar *src, uint slen, uchar *dst, uint *dlen) override
@@ -299,20 +295,30 @@ int my_aes_crypt_init(void *ctx, enum my_aes_mode mode, int flags,
     new (ctx) MyCTX_nopad();
   else
     new (ctx) MyCTX();
-  return ((MyCTX*)ctx)->init(ciphers[mode](klen), flags & 1,
-                             key, klen, iv, ivlen);
+  MyCTX *c= (MyCTX*)ctx;
+  int res= c->init(ciphers[mode](klen), flags & 1, key, klen, iv, ivlen);
+  if (res)
+  {
+    /* release ctx but keep the object: a later update()/finish() from a
+       caller that ignored the error is then a safe no-op, not a double free */
+    EVP_CIPHER_CTX_free(c->ctx);
+    c->ctx= NULL;
+  }
+  return res;
 }
 
 int my_aes_crypt_update(void *ctx, const uchar *src, uint slen,
                         uchar *dst, uint *dlen)
 {
-  return ((MyCTX*)ctx)->update(src, slen, dst, dlen);
+  MyCTX *c= (MyCTX*)ctx;
+  return c->ctx ? c->update(src, slen, dst, dlen) : MY_AES_OPENSSL_ERROR;
 }
 
 int my_aes_crypt_finish(void *ctx, uchar *dst, uint *dlen)
 {
-  int res= ((MyCTX*)ctx)->finish(dst, dlen);
-  ((MyCTX*)ctx)->~MyCTX();
+  MyCTX *c= (MyCTX*)ctx;
+  int res= c->ctx ? c->finish(dst, dlen) : MY_AES_OPENSSL_ERROR;
+  c->~MyCTX();
   return res;
 }
 

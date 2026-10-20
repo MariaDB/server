@@ -560,7 +560,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   first_select= sub_select;
   group_sent= 0;
 
-  outer_ref_cond= pseudo_bits_cond= NULL;
+  outer_ref_cond= NULL;
   in_to_exists_where= NULL;
   in_to_exists_having= NULL;
   emb_sjm_nest= NULL;
@@ -980,6 +980,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
+  from_sysvar= (type != SYSTEM_TIME_UNSPECIFIED);
   delete_history= false;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
@@ -1301,6 +1302,21 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
     }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    partition_info *part_info= table->table->part_info;
+    if (part_info && part_info->vers_info &&
+        !table->partition_names &&
+        !vers_conditions.was_set() &&
+        !vers_conditions.from_sysvar)
+    {
+      /*
+        No row_end condition: prune_partitions() restricts read_partitions
+        to now_part on each execution, with the same conditions.
+      */
+      vers_conditions.set_all();
+    }
+#endif
 
     if (vers_conditions.is_set())
     {
@@ -14529,6 +14545,26 @@ bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
 }
 
 
+/*
+  Find the last top level table in the join order that is neither
+  const nor a materialized semijoin nest.  Return its index in
+  join->join_tab, or a value below join->const_tables when no such
+  table exists.
+*/
+
+static uint
+get_last_top_base_tab_idx(const JOIN *join)
+{
+  uint i;
+  for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
+  {
+    if (!join->join_tab[i].bush_children)
+      break;
+  }
+  return i;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -14542,6 +14578,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           "attached_conditions_computation");
     add_not_null_conds(join);
     table_map used_tables;
+
+    /* Step #1 and Step #2 both decide from this index. */
+    const uint last_top_base_tab_idx= get_last_top_base_tab_idx(join);
+
     /*
       Step #1: Extract constant condition
        - Extract and check the constant part of the WHERE 
@@ -14607,40 +14647,36 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           join->exec_const_cond= const_cond;
         }
 
-        if (join->table_count != join->const_tables)
         {
-          COND *outer_ref_cond= make_cond_for_table(thd, cond,
-                                                    join->const_table_map |
-                                                    OUTER_REF_TABLE_BIT,
-                                                    OUTER_REF_TABLE_BIT,
-                                                    -1, FALSE, FALSE);
-          if (outer_ref_cond)
+          /*
+            Collect the conjuncts that are checked once for each execution
+            of the query, before the join reads a table that is not const.
+            Each refers to at least one pseudo table in pseudo_bits and to
+            no table that is not const.
+
+            A conjunct that refers to a column of an outer query is always
+            collected, because that column has one value for each
+            execution.  rand() takes a new value on each call, and a
+            conjunct that calls it is checked for each row of the last top
+            level table that is neither const nor a materialized semijoin
+            nest.  When no such table exists, the join returns at most one
+            row, and its rand() conjuncts are collected here.
+          */
+          table_map pseudo_bits= OUTER_REF_TABLE_BIT;
+          if (last_top_base_tab_idx < join->const_tables)
+            pseudo_bits= PSEUDO_TABLE_BITS;
+          COND *pseudo_cond= make_cond_for_table(thd, cond,
+                                                 join->const_table_map |
+                                                 pseudo_bits,
+                                                 pseudo_bits,
+                                                 -1, FALSE, FALSE);
+          if (pseudo_cond)
           {
-            add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
-            join->outer_ref_cond= outer_ref_cond;
+            add_cond_and_fix(thd, &pseudo_cond, join->outer_ref_cond);
+            join->outer_ref_cond= pseudo_cond;
 
             Json_writer_object trace(thd);
-            trace.add("outer_ref_cond", outer_ref_cond);
-          }
-          else if (thd->is_error())
-            DBUG_RETURN(1);
-        }
-        else
-        {
-          COND *pseudo_bits_cond=
-            make_cond_for_table(thd, cond,
-                                join->const_table_map |
-                                PSEUDO_TABLE_BITS,
-                                PSEUDO_TABLE_BITS,
-                                -1, FALSE, FALSE);
-          if (pseudo_bits_cond)
-          {
-            add_cond_and_fix(thd, &pseudo_bits_cond,
-                             join->pseudo_bits_cond);
-            join->pseudo_bits_cond= pseudo_bits_cond;
-
-            Json_writer_object trace(thd);
-            trace.add("pseudo_bits_cond", pseudo_bits_cond);
+            trace.add("outer_ref_cond", pseudo_cond);
           }
           else if (thd->is_error())
             DBUG_RETURN(1);
@@ -14653,13 +14689,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     */
 
     uint i;
-    for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
-    {
-      if (!join->join_tab[i].bush_children)
-        break;
-    }
-    uint last_top_base_tab_idx= i;
-
     table_map save_used_tables= 0;
     used_tables=((select->const_tables=join->const_table_map) |
 		 OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
@@ -24080,12 +24109,11 @@ do_select(JOIN *join, Procedure *procedure)
       HAVING will be checked after processing aggregate functions,
       But WHERE should checked here (we alredy have read tables).
       Notice that make_join_select() splits all conditions in this case
-      into two groups exec_const_cond and outer_ref_cond.
-      If join->table_count == join->const_tables then it is
-      sufficient to check only the condition pseudo_bits_cond.
+      into two groups exec_const_cond and outer_ref_cond.  exec_const_cond
+      is checked before the join starts, and it is sufficient to check
+      only the condition outer_ref_cond.
     */
-    DBUG_ASSERT(join->outer_ref_cond == NULL);
-    if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_bool())
+    if (!join->outer_ref_cond || join->outer_ref_cond->val_bool())
     {
       // HAVING will be checked by end_select
       error= (*end_select)(join, 0, 0);
@@ -31713,7 +31741,6 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     xpl_sel->exec_const_cond= exec_const_cond;
     xpl_sel->outer_ref_cond= outer_ref_cond;
-    xpl_sel->pseudo_bits_cond= pseudo_bits_cond;
     if (tmp_having)
       xpl_sel->having= tmp_having;
     else
