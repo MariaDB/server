@@ -2454,18 +2454,22 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
       item= func->create(thd, expr, item);
       if (!is_top_level_item() && orig_item->maybe_null())
       {
-	having= new (thd->mem_root) Item_is_not_null_test(thd, this, having);
-        if (left_expr->maybe_null())
+        /* EXCEPT must decide whether this NULL survives before recording it. */
+        if (!has_except())
         {
-          disable_cond_guard_for_const_null_left_expr(0);
-          if (!(having= new (thd->mem_root) Item_func_trig_cond(thd, having,
-                                                            get_cond_guard(0))))
+          having= new (thd->mem_root) Item_is_not_null_test(thd, this, having);
+          if (left_expr->maybe_null())
+          {
+            disable_cond_guard_for_const_null_left_expr(0);
+            if (!(having= new (thd->mem_root) Item_func_trig_cond(thd, having,
+                                                              get_cond_guard(0))))
+              DBUG_RETURN(true);
+          }
+          having->name= in_having_cond;
+          if (fix_having(having, select_lex))
             DBUG_RETURN(true);
+          *having_item= having;
         }
-        having->name= in_having_cond;
-        if (fix_having(having, select_lex))
-          DBUG_RETURN(true);
-        *having_item= having;
 
 	item= new (thd->mem_root) Item_cond_or(thd, item,
                                new (thd->mem_root) Item_func_isnull(thd, orig_item));
@@ -2843,6 +2847,26 @@ Item_exists_subselect::select_transformer(JOIN *join)
   @retval TRUE   error
 */
 
+bool Item_in_subselect::has_except()
+{
+  if (substype() != IN_SUBS)
+    return false;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    if (sl->get_linkage() == EXCEPT_TYPE)
+      return true;
+  }
+  return false;
+}
+
+
+bool Item_in_subselect::needs_except_result_null_check()
+{
+  return has_except() && !is_top_level_item() &&
+         unit->types.head()->maybe_null();
+}
+
+
 bool Item_in_subselect::create_in_to_exists_cond(JOIN *join_arg)
 {
   bool res;
@@ -2984,9 +3008,19 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     join_arg->having= select_lex->having;
   }
   SELECT_LEX *global_parameters= unit->global_parameters();
-  join_arg->thd->change_item_tree(&global_parameters->limit_params.select_limit,
-                                  new (thd->mem_root) Item_int(thd, (int32) 1));
-  unit->lim.set_single_row();
+  if (needs_except_result_null_check())
+  {
+    /* A final NULL row must not hide a later non-NULL match. */
+    join_arg->thd->change_item_tree(&global_parameters->limit_params.select_limit,
+                                    NULL);
+    unit->lim.set_unlimited();
+  }
+  else
+  {
+    join_arg->thd->change_item_tree(&global_parameters->limit_params.select_limit,
+                                    new (thd->mem_root) Item_int(thd, (int32) 1));
+    unit->lim.set_single_row();
+  }
 
   DBUG_RETURN(false);
 }
