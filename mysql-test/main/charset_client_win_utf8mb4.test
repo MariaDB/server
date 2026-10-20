@@ -7,9 +7,18 @@
 # This is important for backward compatibility
 
 # Emulate creating password in an interactive client session, with older clients
-# which communicates with the server using with something like cp850
+# which communicates with the server using with something like cp850.
+# Do not use chcp: the console codepage is shared by all parallel mtr workers.
+# 0x81 is 'ü' in cp850.
 
-exec chcp 850 > NUL && echo CREATE USER 'u' IDENTIFIED by 'ü' | $MYSQL --default-character-set=cp850;
+--perl
+open(F, '>', "$ENV{MYSQL_TMP_DIR}/create_user_cp850.sql") or die;
+binmode F;
+print F "CREATE USER 'u' IDENTIFIED BY '\x81';\n";
+close F;
+EOF
+--exec $MYSQL --default-character-set=cp850 < $MYSQL_TMP_DIR/create_user_cp850.sql
+--remove_file $MYSQL_TMP_DIR/create_user_cp850.sql
 
 
 # Can't connect with UTF8
