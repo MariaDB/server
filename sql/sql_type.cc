@@ -234,10 +234,20 @@ Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
   if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_DATA_TYPE_PLUGIN)))
   {
     /*
-      Data type plugins do not maintain ref_count yet.
-      For now we have only mandatory built-in plugins
-      and dynamic plugins for test purposes.
-      It should be safe to unlock the plugin immediately.
+      Data type plugins do not maintain ref_count yet, so the Type_handler
+      below is returned with no lock protecting it: a concurrent
+      UNINSTALL SONAME of this plugin can unload it while the returned
+      pointer is still being used - e.g. cached in a Field, Column_definition
+      or table_def and dereferenced well after this call returns, including
+      by the mysql_json replication path (MDEV-39143) - which is a real,
+      currently-unguarded race.  In practice this hasn't yet been a problem
+      because the data type plugins in actual use are either mandatory
+      built-ins (never unloaded) or loaded for test purposes under
+      controlled conditions. A real fix needs the returned handler to carry
+      a held plugin_ref for as long as it is used, the way
+      TABLE_SHARE::db_plugin pins a storage engine plugin for a table's
+      lifetime; that is a larger change than this comment's history
+      suggests, not a settled safety property.
     */
     const Type_handler *ph= reinterpret_cast<st_mariadb_data_type*>
                               (plugin_decl(plugin)->info)->type_handler;

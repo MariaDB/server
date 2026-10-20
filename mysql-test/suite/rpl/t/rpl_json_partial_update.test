@@ -1,0 +1,90 @@
+# MDEV-39143: replicate MySQL binary JSON (full documents and partial diffs)
+# from a MySQL master to a MariaDB slave.
+#
+# No MySQL server runs here.  Both servers started by master-slave.inc below
+# are MariaDB; the MySQL side is supplied by a binlog recorded once on a real
+# MySQL 9.2 server and checked in as
+# std_data/mdev39143_partial_json.000001.  The test stops the MariaDB master,
+# replaces the master's own master-bin.000001 with that file, and restarts it.
+# The master is then only a file server for those bytes, and the slave pulls
+# them over the ordinary replication protocol.  What is under test is the
+# slave apply path: PARTIAL_UPDATE_ROWS_EVENT (39) parsing, Json_diff
+# decoding, and diff application - see unpack_row() in sql/rpl_record.cc.
+#
+# The recorded events are fixed: the SQL the MySQL master ran is not stored
+# in the binlog in row format, only its effect, so it cannot be recovered
+# from the file itself.  What follows is that effect decoded by hand (event
+# headers, Table_map column metadata, and the raw JSONB/Json_diff bytes of
+# each row/update/partial-update event), written back as the equivalent SQL
+# that reproduces it - this is what a re-recording needs to match:
+#
+#   -- MySQL 9.2, binlog_format=ROW, default binlog_row_image=FULL.
+#   SET SESSION binlog_row_value_options= 'PARTIAL_JSON';
+#   CREATE DATABASE IF NOT EXISTS testdb;
+#   CREATE TABLE testdb.tj (id INT PRIMARY KEY, j JSON) ENGINE=InnoDB;
+#   -- id=2 (inserted, fully updated, then deleted) is interleaved purely as
+#   -- realism/noise alongside id=1's partial updates below - the slave must
+#   -- apply ordinary WRITE_ROWS/UPDATE_ROWS/DELETE_ROWS events on the same
+#   -- table correctly too, not just PARTIAL_UPDATE_ROWS_EVENT.  Its outcome
+#   -- is not itself asserted by this test (id=2 is gone by the final
+#   -- SELECT).  The large 'pad' members exist so the base document is big
+#   -- enough that MySQL's diffs against it stay small - the point being
+#   -- tested, even though PARTIAL_JSON always logs a diff when enabled,
+#   -- regardless of document size.
+#   INSERT INTO testdb.tj VALUES
+#     (1, JSON_OBJECT('a','xxxx','n',42,'arr',JSON_ARRAY(1,2,3),
+#                     'pad',REPEAT('z',400)));
+#   INSERT INTO testdb.tj VALUES
+#     (2, JSON_OBJECT('a','q','pad',REPEAT('w',400)));
+#   UPDATE testdb.tj SET j=JSON_OBJECT('x',JSON_ARRAY(1,2),'full','true')
+#     WHERE id=2;
+#   DELETE FROM testdb.tj WHERE id=2;
+#   -- From here on, each UPDATE on id=1 logs as one PARTIAL_UPDATE_ROWS_EVENT
+#   -- carrying only the diff below, not the (padded) document.
+#   UPDATE testdb.tj SET j=JSON_REPLACE(j,'$.a','yyyy')        WHERE id=1;
+#   UPDATE testdb.tj SET j=JSON_REPLACE(j,'$.n',43)            WHERE id=1;
+#   UPDATE testdb.tj SET j=JSON_REMOVE(j,'$.arr[2]')           WHERE id=1;
+#   UPDATE testdb.tj SET j=JSON_REPLACE(j,'$.a','zzzz','$.n',44) WHERE id=1;
+#
+# Important points:
+#  - The Json_diff encoding exercised is MySQL 9.2's specifically.
+#  - Extending coverage needs a MySQL server, a re-recording along the lines
+#    above, and a new file - the recorded events themselves cannot be edited.
+#  - have_binlog_format_row.inc constrains the MariaDB master's own binlog
+#    format; the injected events are row events regardless of it.
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_type_mysql_json.inc
+--source include/master-slave.inc
+
+# The slave decodes MySQL binary JSON with the read-only mysql_json plugin,
+# auto-loaded on the slave via have_type_mysql_json.inc's companion .opt
+# file (it never needs to be active on the master, which only ever serves
+# the injected fixture's raw bytes).
+--connection slave
+--source include/stop_slave.inc
+
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_partial_json.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+START SLAVE;
+
+# Wait until the last partial JSON update has been applied to id=1.
+# (LIKE avoids '$' which mysqltest would interpolate inside --let.)
+--let $wait_condition= SELECT COUNT(*)=1 FROM testdb.tj WHERE id=1 AND j LIKE '%"a": "zzzz"%' AND j LIKE '%"n": 44%'
+--source include/wait_condition.inc
+
+--echo # id=1: inserted as a full document, then modified by four partial-JSON
+--echo # events (REPLACE of members a and n twice, REMOVE of arr element 2).
+SELECT id, JSON_VALUE(j,'$.a') AS a, JSON_VALUE(j,'$.n') AS n,
+       JSON_QUERY(j,'$.arr') AS arr FROM testdb.tj ORDER BY id;
+
+# Cleanup.
+--connection slave
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+--let $mdev39143_cleanup_db= testdb
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
+--source include/rpl_end.inc

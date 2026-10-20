@@ -1,0 +1,62 @@
+# MDEV-39143: a MySQL binary JSON column replicated to a slave that does not
+# have the type_mysql_json plugin loaded must halt with a clear, actionable
+# error naming the plugin - see check_wrong_column_usage()'s after-image fix
+# and give_compatibility_error()'s SLAVE_FIELD_UNKNOWN_TYPE case in
+# sql/rpl_utility_server.cc - rather than silently skip the column or fail
+# with a generic "unknown field type" message that gives the DBA nothing to
+# act on.
+#
+# Deliberately does NOT load the plugin on the slave, and reuses the
+# mdev39143_partial_json.000001 fixture also used by
+# rpl_json_partial_update.test (see its header for how the injection
+# works), replicated from the very start this time: the CREATE
+# DATABASE/CREATE TABLE DDL needs no plugin and must succeed, so only the
+# first row event (the full-document INSERT) should fail.
+#
+# This cannot --source include/have_type_mysql_json.inc like the other
+# MDEV-39143 rpl tests: that file has a companion have_type_mysql_json.opt
+# that mtr auto-applies to any test sourcing it (see mtr_cases.pm's
+# per-included-file .opt lookup), which loads the plugin at server startup -
+# exactly what this test must NOT do.  The check below is that file's skip
+# condition, inlined.
+if (!$TYPE_MYSQL_JSON_SO) {
+  skip Need MYSQL_JSON plugin;
+}
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--let $mdev39143_binlog_fixture= $MYSQL_TEST_DIR/std_data/mdev39143_partial_json.000001
+--source suite/rpl/include/mdev39143_inject_mysql_binlog.inc
+
+--connection slave
+CHANGE MASTER TO Master_log_file='master-bin.000001', Master_log_pos=4, Master_use_gtid=No;
+call mtr.add_suppression("plugin needed to decode it is not installed");
+call mtr.add_suppression("Slave SQL.*Error executing row event");
+START SLAVE;
+
+# The slave must refuse the row event naming the missing plugin, after the
+# preceding CREATE DATABASE/CREATE TABLE DDL (which needs no plugin) applies
+# cleanly.
+--let $slave_sql_errno= 4254
+--source include/wait_for_slave_sql_error.inc
+--let $err= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--echo # Slave stopped, Last_SQL_Error names the missing plugin:
+--echo # $err
+
+--echo #
+--echo # The table exists (DDL applied) but holds no rows - the row event
+--echo # that needed the plugin never got that far.
+SELECT * FROM testdb.tj;
+
+# Cleanup.
+--connection slave
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+--let $mdev39143_cleanup_db= testdb
+--source suite/rpl/include/mdev39143_resync_after_mysql_binlog.inc
+--source include/rpl_end.inc
