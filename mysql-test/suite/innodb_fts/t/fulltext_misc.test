@@ -211,3 +211,21 @@ DROP TABLE t1,t2;
 
 --echo End of 5.1 tests
 
+--echo #
+--echo # MDEV-41281 Unbounded Recursion in InnoDB FTS Boolean-Mode
+--echo #	causes Stack-Overflow fts_ast_visit
+--echo #
+CREATE TABLE t1 (col TEXT, FULLTEXT KEY ftidx (col)) ENGINE=InnoDB;
+INSERT INTO t1 (col) VALUES ('word appears here for the fulltext');
+
+--disable_query_log
+--perl
+my $payload = '(word)' x 5000;
+open(FILE, ">", "$ENV{MYSQLTEST_VARDIR}/tmp/fts_query.inc") or die;
+print FILE "SELECT COUNT(*) FROM t1 WHERE MATCH(col) AGAINST('$payload' IN BOOLEAN MODE);\n";
+close(FILE);
+EOF
+--source $MYSQLTEST_VARDIR/tmp/fts_query.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/fts_query.inc
+--enable_query_log
+DROP TABLE t1;
