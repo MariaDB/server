@@ -260,12 +260,13 @@ fts_ast_create_node_phrase_list(
 /******************************************************************//**
 This function takes ownership of the expr and is responsible
 for free'ing it.
-@return new node */
+@return new node, never NULL */
 fts_ast_node_t*
 fts_ast_create_node_list(
 /*=====================*/
 	void*		arg,			/*!< in: ast state instance */
-	fts_ast_node_t*	expr)			/*!< in: ast expr instance */
+	fts_ast_node_t*	expr)			/*!< in: ast expr instance, or
+						NULL for an empty list */
 {
 	fts_ast_node_t*	node = fts_ast_node_create();
 
@@ -280,12 +281,13 @@ fts_ast_create_node_list(
 /******************************************************************//**
 Create a sub-expression list node. This function takes ownership of
 expr and is responsible for deleting it.
-@return new node */
+@return new node, never NULL */
 fts_ast_node_t*
 fts_ast_create_node_subexp_list(
 /*============================*/
 	void*		arg,			/*!< in: ast state instance */
-	fts_ast_node_t*	expr)			/*!< in: ast expr instance */
+	fts_ast_node_t*	expr)			/*!< in: ast expr instance, or
+						NULL for an empty list */
 {
 	fts_ast_node_t*	node = fts_ast_node_create();
 
@@ -367,12 +369,13 @@ fts_ast_free_node(
 /******************************************************************//**
 This AST takes ownership of the expr and is responsible
 for free'ing it.
-@return in param "list" */
+@return in param "list", or NULL if elem was NULL */
 fts_ast_node_t*
 fts_ast_add_node(
 /*=============*/
 	fts_ast_node_t*	node,			/*!< in: list instance */
-	fts_ast_node_t*	elem)			/*!< in: node to add to list */
+	fts_ast_node_t*	elem)			/*!< in: node to add to list;
+						NULL is ignored */
 {
 	if (!elem) {
 		return(NULL);
