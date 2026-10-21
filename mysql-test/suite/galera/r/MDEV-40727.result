@@ -1,0 +1,42 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+# Take node_2 down first: a per-table DATA/INDEX DIRECTORY names an
+# absolute host path, and mtr runs both nodes on the same host, so
+# creating the tables while node_2 is a live cluster member would
+# replicate the same CREATE TABLE to node_2 and make it race node_1
+# for the same external path. Node_2 must only ever receive these
+# tables as SST-transferred files, not as replicated DDL.
+connection node_2;
+connection node_1;
+CALL mtr.add_suppression("InnoDB: File .* was not found");
+CREATE TABLE t_aria (f1 INT PRIMARY KEY, f2 VARCHAR(100))
+ENGINE=Aria
+DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_data'
+     INDEX DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_index';
+CREATE TABLE t_innodb (f1 INT PRIMARY KEY, f2 VARCHAR(100))
+ENGINE=InnoDB
+DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_innodb_data';
+INSERT INTO t_aria VALUES (1, 'aria_row_1'), (2, 'aria_row_2');
+INSERT INTO t_innodb VALUES (1, 'innodb_row_1'), (2, 'innodb_row_2');
+# Clean node_2's data directory so that a restart forces a full SST.
+connection node_2;
+SET SESSION wsrep_sync_wait = 15;
+# Check that every table in database test, not only t_aria and
+# t_innodb, has identical content on node_2 after the SST.
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_2;
+# Confirm the donor's rsync SST script flushed the filesystems
+# holding the Aria and InnoDB per-table directories, not only the
+# data directory itself.
+FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_data/ in mysqld.1.err
+FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_index/ in mysqld.1.err
+FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_innodb_data/test/ in mysqld.1.err
+connection node_1;
+DROP TABLE t_aria, t_innodb;
