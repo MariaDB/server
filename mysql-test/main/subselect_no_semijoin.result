@@ -7671,7 +7671,7 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
-          "pseudo_bits_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
+          "outer_ref_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
           "nested_loop": [
             {
               "table": {

@@ -3518,6 +3518,13 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			LOCK_REC_NOT_GAP,
 			thr);
 
+		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
+			/* Cancel the lock wait, unless the lock was granted
+			meanwhile; then continue with a normal locking read
+			of clust_rec. */
+			err = lock_trx_handle_wait(trx);
+		}
+
 		switch (err) {
 		case DB_SUCCESS:
 		case DB_SUCCESS_LOCKED_REC:
@@ -5554,9 +5561,6 @@ requires_clust_rec:
 						      &offsets, &heap,
 						      need_vrow ? &vrow : NULL,
 						      &mtr);
-		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
-			err = lock_trx_handle_wait(trx);
-		}
 		switch (err) {
 		case DB_SUCCESS:
 			if (clust_rec == NULL) {

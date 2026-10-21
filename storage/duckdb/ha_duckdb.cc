@@ -1165,6 +1165,15 @@ int ha_duckdb::external_lock(THD *thd, int lock_type)
   DBUG_ENTER("ha_duckdb::external_lock");
   if (lock_type != F_UNLCK)
   {
+    /* DuckDB has no row locks: reject SELECT ... FOR UPDATE / LOCK IN SHARE MODE. */
+    if (thd_sql_command(thd) == SQLCOM_SELECT &&
+        (table->reginfo.lock_type == TL_READ_WITH_SHARED_LOCKS ||
+         table->reginfo.lock_type >= TL_FIRST_WRITE))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "locking SELECT");
+      DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    }
+
     /* DuckDB does not support XA transactions. Reject DML early. */
     if (myduck::reject_xa_if_active(thd))
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
