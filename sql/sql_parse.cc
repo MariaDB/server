@@ -5067,8 +5067,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     }
     break;
   case SQLCOM_BACKUP:
-    if (check_global_access(thd, RELOAD_ACL))
-      goto error;
     if (!(res= run_backup_stage(thd, lex->backup_stage)))
       my_ok(thd);
     break;

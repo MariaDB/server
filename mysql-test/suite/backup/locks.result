@@ -5,15 +5,15 @@ BACKUP STAGE BLOCK_COMMIT;
 connect  backup,localhost,root;
 FLUSH TABLES WITH READ LOCK;
 FLUSH TABLES t FOR EXPORT;
-SET STATEMENT max_statement_time=0.1 FOR
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
-ERROR 70100: Query was interrupted: execution time limit 0.1 sec exceeded
+ERROR HY000: Can't execute the query because you have a conflicting read lock
 connection default;
 BACKUP STAGE END;
 connection backup;
 UNLOCK TABLES;
 FLUSH TABLES t FOR EXPORT;
 BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 FLUSH TABLES t FOR EXPORT;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 FLUSH TABLES t FOR EXPORT;

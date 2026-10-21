@@ -17,43 +17,43 @@
 #include "log0types.h"
 
 /**
-   Start of a BACKUP SERVER phase,
+   Start of a BACKUP SERVER stage,
    when no innodb_backup_step() or innodb_backup_end() is pending.
    @param thd     current session
    @param target  backup target
-   @param phase   BACKUP_PHASE_START, ... (not BACKUP_PHASE_ABORT)
+   @param stage   BACKUP_PREPARE, ... (not BACKUP_ABORTED)
    @param sink    worker context
    @return backup context object to be attached to sink, or nullptr
    @retval -1     on failure
 */
 void *innodb_backup_start(THD *thd, const backup_target *target,
-                          backup_phase phase, const backup_sink *sink)
+                          backup_stages stage, const backup_sink *sink)
   noexcept;
 
 /**
    Process a file that was collected in innodb_backup_start().
    @param thd     current session
    @param target  backup target
-   @param phase   last phase on which backup_start() was successfully invoked
+   @param stage   last stage on which backup_start() was successfully invoked
    @param sink    worker context
    @return number of files remaining, or negative on error
    @retval 0 on completion
 */
 int innodb_backup_step(THD *thd, const backup_target *target,
-                       backup_phase phase, const backup_sink *sink) noexcept;
+                       backup_stages stage, const backup_sink *sink) noexcept;
 
 /**
-   Finish a phase, once all calls for the current phase are completed.
+   Finish a stage, once all calls for the current phase are completed.
    @param thd     current sesssion
    @param target  backup target
-   @param phase   last phase on which backup_start() was successfully invoked,
-   or BACKUP_PHASE_ABORT or BACKUP_PHASE_FINISH
+   @param stage   last stage on which backup_start() was successfully invoked,
+   or BACKUP_ABORTED or BACKUP_FINISHED
    @param sink    worker context
    @return error code
    @retval 0 on success
 */
 int innodb_backup_end(THD *thd, const backup_target *target,
-                      backup_phase phase, const backup_sink *sink) noexcept;
+                      backup_stages stage, const backup_sink *sink) noexcept;
 
 /**
    Complete the first checkpoint in a new archive log file.

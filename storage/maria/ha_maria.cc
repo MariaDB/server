@@ -3731,9 +3731,9 @@ void maria_end_backup()
 /* A C++ function pointer compatible wrapper of a C function */
 static void *
 maria_backup_start(THD *, const backup_target *target,
-                   backup_phase phase, const backup_sink *sink) noexcept
+                   backup_stages stage, const backup_sink *sink) noexcept
 {
-  if (phase == BACKUP_PHASE_NO_COMMIT)
+  if (stage == BACKUP_LOCK_COMMIT)
   {
     const size_t prefix{strlen(maria_data_root) + 1};
     const size_t size{prefix + sizeof "aria_log.00000001"};
@@ -3777,14 +3777,14 @@ maria_backup_start(THD *, const backup_target *target,
 /**
    Check if a file needs to included by BACKUP SERVER.
 
-   @param phase    the last phase on which aria_backup_start() was called
+   @param stage    the last stage on which maria_backup_start() was called
    @param name     candidate file name
    @return whether the file should be backed up
 */
-static bool maria_backup_file(backup_phase phase, const LEX_CSTRING name)
+static bool maria_backup_file(backup_stages stage, const LEX_CSTRING name)
   noexcept
 {
-  if (phase == BACKUP_PHASE_NO_COMMIT)
+  if (stage == BACKUP_LOCK_COMMIT)
   {
     if (name.length >= 4)
     {
