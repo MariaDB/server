@@ -2389,7 +2389,8 @@ Query_log_event::peek_is_commit_rollback(const uchar *event_start,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
+  if (unlikely(event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN ||
+               event_len < 9))
     return false;
   return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
          !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
@@ -2461,7 +2462,7 @@ bool Format_description_log_event::write(Log_event_writer *writer)
   ret= write_header(writer, rec_size) ||
        write_data(writer, buff, buff_size) ||
        (!DBUG_IF("truncate_fde_post_header_len") &&
-         write_data(writer, post_header_len, number_of_event_types)) ||
+         write_data(writer, byte_data_for_post_header_len, number_of_event_types)) ||
        (!DBUG_IF("truncate_fde_used_checksum_alg") &&
          write_data(writer, &checksum_byte, sizeof(checksum_byte))) ||
        write_footer(writer);
@@ -2945,7 +2946,7 @@ bool
 Gtid_log_event::peek(const uchar *event_start, size_t event_len,
                      enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                     uchar *flags2, const Format_description_log_event *fdev)
+                     uchar *flags2)
 {
   const uchar *p;
 
@@ -2960,10 +2961,12 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < (uint32)fdev->common_header_len + GTID_HEADER_LEN)
+  if (unlikely(event_len <
+               (uint32)Format_description_log_event::common_header_len +
+               GTID_HEADER_LEN))
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
-  p= event_start + fdev->common_header_len;
+  p= event_start + Format_description_log_event::common_header_len;
   *seq_no= uint8korr(p);
   p+= 8;
   *domain_id= uint4korr(p);
@@ -8148,12 +8151,12 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 #endif
 
 #if defined(HAVE_REPLICATION)
-Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
-                    const Format_description_log_event* description_event)
-  :Log_event(buf, description_event), ident_len(0), log_ident(NULL)
+Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len)
+  :Log_event(buf, event_len), ident_len(0), log_ident(NULL)
 {
+  uint8 header_size= Format_description_log_event::common_header_len;
   uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;
-  uint all_headers_len= description_event->common_header_len + sub_header_len;
+  uint all_headers_len= header_size + sub_header_len;
 
   /*
     The comparison is <= rather than <, so an event whose length stops exactly
@@ -8174,7 +8177,7 @@ Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
     return;
 
   if (log_pos == 0)
-    log_pos= uint8korr(buf + description_event->common_header_len);
+    log_pos= uint8korr(buf + header_size);
 
   log_ident= buf + all_headers_len;
   ident_len= event_len - all_headers_len;
