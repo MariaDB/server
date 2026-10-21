@@ -287,8 +287,8 @@
  show status like 'handler_read_%';
  Variable_name	Value
  Handler_read_first	0
--Handler_read_key	6
-+Handler_read_key	7
+-Handler_read_key	8
++Handler_read_key	11
  Handler_read_last	0
  Handler_read_next	0
  Handler_read_prev	0
@@ -301,9 +301,12 @@
  ) PARTITION BY RANGE COLUMNS(d) (
  PARTITION `p1` VALUES LESS THAN (10),
  PARTITION `p2` VALUES LESS THAN (20),
-@@ -688,8 +688,8 @@
+@@ -686,10 +686,10 @@
+ show status like 'handler_read_%';
+ Variable_name	Value
  Handler_read_first	0
- Handler_read_key	1
+-Handler_read_key	1
++Handler_read_key	2
  Handler_read_last	0
 -Handler_read_next	2
 -Handler_read_prev	0
@@ -312,6 +315,15 @@
  Handler_read_retry	0
  Handler_read_rnd	0
  Handler_read_rnd_deleted	0
+@@ -698,7 +698,7 @@
+ set @js='$out';
+ select json_extract(@js,'$**.partitions_index_scan_method');
+ json_extract(@js,'$**.partitions_index_scan_method')
+-["iterate_over_partitions"]
++["merge_ordered_scans"]
+ ## Case 2: Unordered scans in ha_partition::index_read_map
+ flush status;
+ select * from t1 where c = 120 ORDER BY d DESC LIMIT 1;
 @@ -725,8 +725,8 @@
  Handler_read_first	0
  Handler_read_key	1
@@ -479,7 +491,7 @@
  Handler_read_prev	0
  Handler_read_retry	0
  Handler_read_rnd	0
-@@ -1202,18 +1202,18 @@
+@@ -1202,20 +1202,20 @@
  #
  # MDEV-40479: Reverse prefix scan across partitions
  #
@@ -503,3 +515,5 @@
 +11
 +15
  DROP TABLE t1;
+ #
+ # MDEV-41366 Wrong result with Case 2 of non-merging partition index scan
