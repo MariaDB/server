@@ -788,6 +788,7 @@ protected:
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
                        Item_func::Functype type, Item *value) override;
+  virtual bool mbr_range_is_exact() const { return false; }
   bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 2);
@@ -836,6 +837,7 @@ public:
   LEX_CSTRING func_name_cstring() const override;
 
 protected:
+  bool mbr_range_is_exact() const override { return true; }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
 };
