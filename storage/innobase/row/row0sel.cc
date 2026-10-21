@@ -1352,6 +1352,8 @@ sel_set_rec_lock(
 		return DB_LOCK_TABLE_FULL;
 	}
 
+	/* Change LOCK_X_BY_TABLE to LOCK_X */
+	mode &= LOCK_MODE_MASK;
 	if (dict_index_is_clust(index)) {
 		err = lock_clust_rec_read_check_and_lock(
 			0, block, rec, index, offsets,
@@ -3387,7 +3389,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	/* Extract values from prebuilt */
 	dtuple_t*	clust_ref= prebuilt->clust_ref;
 	btr_pcur_t*	clust_pcur= prebuilt->clust_pcur;
-	lock_mode	select_lock_type= prebuilt->select_lock_type;
+	lock_mode	select_lock_type= prebuilt->real_lock_mode();
 	trx_t*		trx= prebuilt->trx;
 
 	dict_index_t*	clust_index;
@@ -4265,7 +4267,8 @@ bool row_search_with_covering_prefix(
 
 	/* In ha_innobase::build_template() we choose to access the
 	whole row when using exclusive row locks or In case of fts
-	query, we need to read from clustered index */
+	query, we need to read from clustered index. LOCK_X_BY_TABLE (see
+	extra_opt()) is deliberately not matched here */
 	if (prebuilt->select_lock_type == LOCK_X || prebuilt->in_fts_query
 	    || !index->is_btree()) {
 		return false;
@@ -4821,10 +4824,7 @@ aborted:
 		} else {
 wait_table_again:
 			err = lock_table(prebuilt->table, nullptr,
-                       prebuilt->full_table_scan ?
-                       prebuilt->select_lock_type :
-                       (prebuilt->select_lock_type == LOCK_S
-                        ? LOCK_IS : LOCK_IX), thr);
+                       prebuilt->table_lock_mode(), thr);
 
 			if (err != DB_SUCCESS) {
 

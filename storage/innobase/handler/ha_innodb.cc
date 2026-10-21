@@ -6404,7 +6404,7 @@ ha_innobase::clone(
 		DBUG_ASSERT(new_handler->m_prebuilt != NULL);
 
 		new_handler->m_prebuilt->select_lock_type
-			= m_prebuilt->select_lock_type;
+			= m_prebuilt->real_lock_mode();
 	}
 
 	DBUG_RETURN(new_handler);
@@ -7394,7 +7394,8 @@ ha_innobase::build_template(
 		/* We always retrieve the whole clustered index record if we
 		use exclusive row level locks, for example, if the read is
 		done in an UPDATE statement or if we are using a no rollback
-                table */
+                table. LOCK_X_BY_TABLE (see	extra_opt()) is
+		deliberately not matched here */
 
 		whole_row = true;
 	} else if (!whole_row) {
@@ -16454,7 +16455,30 @@ int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
     case HA_EXTRA_FULL_SCAN:
       if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
           !m_prebuilt->skip_locked && arg == ULONG_MAX)
+      {
         m_prebuilt->full_table_scan = true;
+        /* Allow a covering index scan to be considered for a LOCK_X
+        read in a SELECT statement. Otherwise a LOCK_X read always
+        reads the whole clustered index record (see
+        ha_innobase::build_template()): UPDATE and DELETE need it to
+        write the row, and a locking read through a secondary index
+        must lock the clustered index record to lock the row against
+        access through any other index.
+
+        With innodb_snapshot_isolation and a read view already open
+        (e.g. inside a START TRANSACTION WITH CONSISTENT SNAPSHOT, or
+        an earlier consistent read in a REPEATABLE READ transaction),
+        it needs to check if there is a committed change the
+        transaction never saw. To that end it needs the record's
+        trx_id which is only available from clustered records, see
+        lock_clust_rec_read_check_and_lock. In such a case we need to
+        disable the optimization. */
+        if (m_prebuilt->select_lock_type == LOCK_X &&
+            thd_sql_command(ha_thd()) == SQLCOM_SELECT &&
+            !(m_prebuilt->trx->snapshot_isolation &&
+              m_prebuilt->trx->read_view.is_open()))
+          m_prebuilt->select_lock_type= LOCK_X_BY_TABLE;
+      }
       return 0;
     default:/* Do nothing */
       ;
@@ -16483,6 +16507,7 @@ ha_innobase::reset()
 
 	m_prebuilt->skip_locked = false;
 	m_prebuilt->full_table_scan = false;
+	m_prebuilt->select_lock_type = m_prebuilt->real_lock_mode();
 	return(0);
 }
 

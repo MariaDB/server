@@ -1194,8 +1194,7 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 		trx_start_if_not_started_xa(trx, false);
 
-		err = lock_table(prebuilt->table, NULL, static_cast<lock_mode>(
-					 prebuilt->select_lock_type), thr);
+		err = lock_table(prebuilt->table, NULL, prebuilt->real_lock_mode(), thr);
 		trx->error_state = err;
 	} while (err != DB_SUCCESS
 		 && row_mysql_handle_errors(&err, trx, thr, nullptr));
@@ -1833,8 +1832,7 @@ row_unlock_for_mysql(
 				trx,
 				*btr_pcur_get_block(pcur),
 				rec,
-				static_cast<enum lock_mode>(
-					prebuilt->select_lock_type));
+				prebuilt->real_lock_mode());
 		}
 no_unlock:
 		mtr_commit(&mtr);
