@@ -636,7 +636,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> RETURN_ORACLE_SYM             /* SQL-2003-R, PLSQL-R */
 %token  <kwd> REVOKE                        /* SQL-2003-R */
 %token  <kwd> RIGHT                         /* SQL-2003-R */
-%token  <kwd> ROW_NUMBER_SYM
 %token  <kwd> ROWS_SYM                      /* SQL-2003-R */
 %token  <kwd> ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
 %token  <kwd> SECOND_MICROSECOND_SYM
@@ -1053,6 +1052,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ROW_SYM                       /* SQL-2003-R */
 %token  <kwd>  ROW_COUNT_SYM                 /* SQL-2003-N */
 %token  <kwd>  ROW_FORMAT_SYM
+%token  <kwd>  ROW_NUMBER_SYM
 %token  <kwd>  RTREE_SYM
 %token  <kwd>  SAVEPOINT_SYM                 /* SQL-2003-R */
 %token  <kwd>  SCHEDULE_SYM
@@ -16197,6 +16197,7 @@ keyword_sp_var_and_label:
 %ifdef MARIADB
         | ROWNUM_SYM
 %endif
+        | ROW_NUMBER_SYM
         | SECOND_SYM
         | SETVAL_SYM
         | SOUNDS_SYM
@@ -16393,7 +16394,6 @@ reserved_keyword_udt_not_param_type:
         | RIGHT
         | ROWS_SYM
         | ROWTYPE_ORACLE_SYM
-        | ROW_NUMBER_SYM
         | SECOND_MICROSECOND_SYM
         | SELECT_SYM
         | SENSITIVE_SYM
