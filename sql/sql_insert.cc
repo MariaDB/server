@@ -2194,6 +2194,12 @@ int Write_record::replace_row(ha_rows *inserted, ha_rows *deleted)
       DBUG_PRINT("info", ("Deleting offending row and trying to write"
                           " new one again"));
 
+      /*
+        Make the DELETE triggers fired below see the DELETING clause
+        set to true
+      */
+      Running_stmt_guard stmt_guard(thd, active_dml_stmt::DELETING_STMT);
+
       auto *trg = table->triggers;
       bool trg_skip_row= false;
       if (use_triggers && trg->process_triggers(table->in_use, TRG_EVENT_DELETE,
@@ -2261,6 +2267,12 @@ int Write_record::insert_on_duplicate_update(ha_rows *inserted,
   */
   DBUG_ASSERT(info->update_fields->elements ==
               info->update_values->elements);
+
+  /*
+    Make the UPDATE triggers fired below see the UPDATING clause
+    set to true
+  */
+  Running_stmt_guard stmt_guard(thd, active_dml_stmt::UPDATING_STMT);
 
   bool trg_skip_row= false;
   if (fill_record_n_invoke_before_triggers(thd, table,
