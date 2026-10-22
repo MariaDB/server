@@ -1,0 +1,11 @@
+#
+# MDEV-38243: FK cascade row events in Galera without a binary log
+# (WSREP_EMULATE_BINLOG path).
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+SELECT @@log_bin;
+
+--source galera_fk_cascade_binlog_events.inc
