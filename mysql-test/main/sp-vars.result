@@ -1714,4 +1714,34 @@ ERROR 42000: Undeclared variable: unknown_ident
 #
 # End of MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
 #
+#
+# MDEV-41530 Assoc array element field as OUT parameter crashes the server
+#
+# ENUM and SET variables as OUT parameters
+#
+# The Item_splocal of an ENUM or SET variable has the VARCHAR data type,
+# while the variable itself has the ENUM or SET data type.
+#
+CREATE PROCEDURE p1(OUT a ENUM('','x','y'), OUT b SET('a','b','c'))
+BEGIN
+SET a='y';
+SET b='a,c';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE v1 ENUM('','x','y') DEFAULT 'x';
+DECLARE v2 SET('a','b','c') DEFAULT 'b';
+CALL p1(v1, v2);
+SELECT v1, v2;
+END;
+$$
+CALL p2();
+v1	v2
+y	a,c
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# End of ENUM and SET variables as OUT parameters
+#
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

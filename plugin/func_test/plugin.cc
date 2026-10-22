@@ -275,6 +275,194 @@ public:
   }
 };
 
+
+
+/*
+  The UCA version formatted as "[version X.Y.Z]".
+  The version is stored in CHARSET_INFO::uca->version as a number,
+  e.g. 400 for 4.0.0, 520 for 5.2.0, 1400 for 14.0.0.
+  The major version is at most 255, the minor and patch versions are one
+  digit. Every number is appended with CharBuffer::append_uint8(),
+  which needs 3 free bytes, hence the buffer size.
+*/
+class UCAVersion: public CharBuffer<24>
+{
+public:
+  UCAVersion(uint version)
+  {
+    append("[version "_LEX_CSTRING);
+    append_uint8((uint8) (version / 100));
+    append_char('.');
+    append_uint8((uint8) ((version / 10) % 10));
+    append_char('.');
+    append_uint8((uint8) (version % 10));
+    append_char(']');
+  }
+};
+
+
+class Item_func_collation_tailoring: public Item_str_func
+{
+  using Self= Item_func_collation_tailoring;
+public:
+
+  /*
+    A helper subclass to get my_repertoire_t from an Item
+    either in numeric or in string (named) format.
+  */
+  class Repertoire: public Longlong_null
+  {
+    // Returns NULL if the name is unknown
+    static Longlong_null repertoire_by_name(const LEX_CSTRING &name)
+    {
+      static const struct
+      {
+        Lex_ident_charset name;
+        my_repertoire_t value;
+      } names[]=
+      {
+        {"NONE"_Lex_ident_charset, MY_REPERTOIRE_NONE},
+        {"ASCII_DIGITS"_Lex_ident_charset, MY_REPERTOIRE_ASCII_DIGITS},
+        {"ASCII_MINUS_DOT_DIGITS"_Lex_ident_charset,
+         MY_REPERTOIRE_ASCII_MINUS_DOT_DIGITS},
+        {"ASCII_ALNUM"_Lex_ident_charset, MY_REPERTOIRE_ASCII_ALNUM},
+        {"ASCII_IDENT"_Lex_ident_charset, MY_REPERTOIRE_ASCII_IDENT},
+        {"ASCII"_Lex_ident_charset, MY_REPERTOIRE_ASCII}
+      };
+      for (const auto &n : names)
+      {
+        if (n.name.streq(name))
+          return Longlong_null(n.value);
+      }
+      return Longlong_null();
+    }
+  public:
+    Repertoire(const Longlong_null &rhs)
+     :Longlong_null(rhs)
+    { }
+    Repertoire(Item *item)
+     :Longlong_null()
+    {
+      if (item->cmp_type() != STRING_RESULT)
+      {
+        *this= item->to_longlong_null();
+        return;
+      }
+      String tmp;
+      String *repertoire= item->val_str_ascii(&tmp);
+      if (!repertoire)
+        return;
+      *this= repertoire_by_name(repertoire->to_lex_cstring());
+    }
+  };
+
+  using Item_str_func::Item_str_func;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    collation.set(&my_charset_utf8mb4_bin);
+    max_length= MAX_BLOB_WIDTH;
+    return false;
+  }
+
+  String *val_str(String *to) override
+  {
+    String *clname= args[0]->val_str_ascii(to);
+    Repertoire repertoire(args[1]);
+    if ((null_value= (!clname || args[1]->null_value)))
+      return nullptr;
+    /*
+      An unknown repertoire name or a number with bits outside of
+      the known repertoires is a mistake in a test.
+      Return NULL with a warning, so it is not mixed up with "no tailoring".
+    */
+    if (repertoire.is_null() ||
+        ((ulonglong) repertoire.value() &
+         ~(ulonglong) MY_REPERTOIRE_UNICODE30))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(ME_WARNING), func_name_cstring().str);
+      null_value= true;
+      return nullptr;
+    }
+    CHARSET_INFO *cl= Charset_loader_mysys().
+                        get_exact_collation(ErrConvString(clname).ptr(),
+                                            MYF(0));
+    if (!cl)
+    {
+      my_error(ER_UNKNOWN_COLLATION, MYF(ME_WARNING),
+               ErrConvString(clname).ptr());
+      null_value= true;
+      return nullptr;
+    }
+    const my_repertoire_t rep=
+      static_cast<my_repertoire_t>(repertoire.value());
+    LEX_CSTRING tr;
+    if ((null_value= !((tr= (cl->coll->tailoring)(cl, rep)).str)))
+      return nullptr;
+    /*
+      Tailorings do not depend on PAD/NOPAD, and on the UCA version.
+      The caller (DTCollation::aggregate_by_tailoring()) checks them
+      separately. Here they are shown only to display the whole picture,
+      the same way as they are checked there: [nopad] for NOPAD collations,
+      and [version X.Y.Z] for UCA collations on a repertoire with
+      punctuation.
+    */
+    const bool show_uca_version=
+      cl->uca &&
+      !my_repertoire_is_subset_of(rep, MY_REPERTOIRE_ASCII_IDENT);
+    if ((cl->state & MY_CS_NOPAD) || show_uca_version)
+    {
+      to->length(0);
+      to->set_charset(collation.collation);
+      if ((cl->state & MY_CS_NOPAD) &&
+          to->append(STRING_WITH_LEN("[nopad]")))
+        return nullptr;
+      if (show_uca_version &&
+          to->append(UCAVersion(cl->uca->version).to_lex_cstring()))
+        return nullptr;
+      if (to->append(tr.str, tr.length))
+        return nullptr;
+      return to;
+    }
+    to->set(tr.str, tr.length, collation.collation);
+    return to;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= "collation_tailoring"_LEX_CSTRING;
+    return name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Self>(thd, this);
+  }
+
+  class Create_func : public Create_native_func
+  {
+  public:
+    using Create_native_func::Create_native_func;
+    Item *create_native(THD *thd, const LEX_CSTRING *name,
+                        List<Item> *item_list) override
+    {
+      uint arg_count= item_list ? item_list->elements : 0;
+      if (arg_count != 2)
+      {
+        my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+        return nullptr;
+      }
+      return new (thd->mem_root) Self(thd, *item_list);
+    }
+  };
+
+  static Plugin_function *plugin_descriptor()
+  {
+    static Create_func creator;
+    static Plugin_function descriptor(&creator);
+    return &descriptor;
+  }
+
+};
+
+
 /*************************************************************************/
 
 maria_declare_plugin(type_test)
@@ -329,6 +517,21 @@ maria_declare_plugin(type_test)
   "strnxfrm_warnings",// plugin name
   "MariaDB Corporation",        // plugin author
   "Function STRNXFRM_WARNINGS()", // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type
+  Item_func_collation_tailoring::plugin_descriptor(),
+  "collation_tailoring",        // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function COLLATION_TAILORING()", // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function

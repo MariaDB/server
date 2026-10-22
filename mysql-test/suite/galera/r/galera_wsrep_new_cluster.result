@@ -1,5 +1,6 @@
 connection node_2;
 connection node_1;
+# Correct Galera library found
 connection node_1;
 connection node_2;
 connection node_2;

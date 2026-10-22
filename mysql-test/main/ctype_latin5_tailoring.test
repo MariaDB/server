@@ -1,0 +1,43 @@
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^latin5';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''latin5_turkish_nopad_ci''),(''latin5_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo #
+--echo # DATE_FORMAT() result repertoire depends on the locale
+--echo # which is actually used: the explicit third argument, or
+--echo # @@lc_time_names. Locale names (e.g. of days) can be non-ASCII.
+--echo # latin1 and latin5_turkish_ci are not compatible on ASCII, unless
+--echo # the DATE_FORMAT() result is allowed to be non-ASCII, so its collation
+--echo # can be preferred.
+--echo #
+SET NAMES latin1;
+--echo # en_US names are ASCII
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+--echo # An explicit non-ASCII locale is not ignored
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin5'a';
+--echo # A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin5'a';
+--echo # The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

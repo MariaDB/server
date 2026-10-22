@@ -56,7 +56,6 @@ DROP TABLE test.t1;
 # reconnect node 2, since it is now inconsistent
 --connection node_2
 --source include/kill_galera.inc
---source include/wait_until_disconnected.inc
 --source include/start_mysqld.inc
 
 --connection node_2

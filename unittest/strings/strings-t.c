@@ -1735,13 +1735,114 @@ static int test_mb_wc_filename_truncated()
 }
 
 
+/*
+  my_string_repertoire() must not return a repertoire which is a subset
+  of ASCII (e.g. MY_REPERTOIRE_NONE, which is compatible with everything)
+  for a string with a bad byte sequence, an unassigned character, or
+  an incomplete character: the characters of such strings are unknown.
+*/
+typedef struct
+{
+  CHARSET_INFO *cs;
+  const char *str;
+  size_t length;
+  my_repertoire_t expected_at_least; /* Bits that must be set */
+  my_bool ascii_only;                /* Is the result a subset of ASCII? */
+} STRING_REPERTOIRE_PARAM;
+
+
+static int test_string_repertoire()
+{
+#define LOWER MY_REPERTOIRE_ASCII_LETTERS_LOWER
+#define EXT   MY_REPERTOIRE_EXTENDED
+  static const STRING_REPERTOIRE_PARAM param[]=
+  {
+    /* Valid strings */
+    {&my_charset_utf16_general_ci, "\0a\0b",     4, LOWER, TRUE},
+    {&my_charset_utf16_general_ci, "\0\xE9",     2, EXT,   FALSE},
+    {&my_charset_ucs2_general_ci,  "\0a",         2, LOWER, TRUE},
+    {&my_charset_utf32_general_ci, "\0\0\0a",   4, LOWER, TRUE},
+    /* A lone high surrogate */
+    {&my_charset_utf16_general_ci, "\xD8\0",     2, EXT,   FALSE},
+    /* ASCII characters followed by a lone high surrogate */
+    {&my_charset_utf16_general_ci, "\0a\xD8\0", 4, EXT,   FALSE},
+    /* An incomplete character at the end */
+    {&my_charset_utf16_general_ci, "\0a\0",      3, EXT,   FALSE},
+    /* A code point beyond U+10FFFF */
+    {&my_charset_utf32_general_ci, "\0\x11\0\0", 4, EXT, FALSE}
+  };
+#undef LOWER
+#undef EXT
+  size_t i;
+  int failed= 0;
+  for (i= 0; i < array_elements(param); i++)
+  {
+    const STRING_REPERTOIRE_PARAM *p= &param[i];
+    my_repertoire_t rep= my_string_repertoire(p->cs, p->str, p->length);
+    if ((rep & p->expected_at_least) != p->expected_at_least ||
+        my_repertoire_is_subset_of(rep, MY_REPERTOIRE_ASCII) != p->ascii_only)
+    {
+      diag("my_string_repertoire() failed for %s, test #%d: %d",
+           p->cs->coll_name.str, (int) i, (int) rep);
+      failed++;
+    }
+  }
+  return failed;
+}
+
+
+/*
+  MDEV-41556: my_strntoull10rnd() must always set *error, also when a signed
+  value equals LONGLONG_MIN exactly. Pre-set "error" to a non-zero value, so
+  the check does not depend on the caller's uninitialized stack contents.
+*/
+static int test_strntoull10rnd_error_set()
+{
+  static const struct
+  {
+    const char *str;
+    int unsigned_flag;
+    int expected_error;
+  } tests[]=
+  {
+    {"-9223372036854775808", 0, 0},
+    {"-9223372036854775809", 0, ERANGE},
+    {"9223372036854775807", 0, 0},
+    {"9223372036854775808", 0, ERANGE},
+    {"18446744073709551615", 1, 0},
+  };
+  CHARSET_INFO *charsets[]= {&my_charset_latin1, &my_charset_bin};
+  int failed= 0;
+  size_t i, j;
+
+  for (j= 0; j < array_elements(charsets); j++)
+  {
+    for (i= 0; i < array_elements(tests); i++)
+    {
+      char *endptr;
+      int error= 12345;
+      my_ci_strntoull10rnd(charsets[j], tests[i].str, strlen(tests[i].str),
+                           tests[i].unsigned_flag, &endptr, &error);
+      if (error != tests[i].expected_error)
+      {
+        diag("%s: %s unsigned_flag=%d: error=%d, expected %d",
+             charsets[j]->coll_name.str, tests[i].str,
+             tests[i].unsigned_flag, error, tests[i].expected_error);
+        failed++;
+      }
+    }
+  }
+  return failed;
+}
+
+
 int main(int ac, char **av)
 {
   size_t i, failed= 0;
 
   MY_INIT(av[0]);
 
-  plan(5);
+  plan(7);
   diag("Testing my_like_range_xxx() functions");
 
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1770,6 +1871,14 @@ int main(int ac, char **av)
   diag("Testing my_charset_filename mb_wc end-pointer bounds");
   ok(test_mb_wc_filename_truncated() == 0,
      "filename decoder does not read past the end pointer");
+
+  diag("Testing my_string_repertoire() for strings with bad characters");
+  ok(test_string_repertoire() == 0,
+     "my_string_repertoire() does not return ASCII for bad strings");
+
+  diag("Testing my_ci_strntoull10rnd() error output");
+  ok(test_strntoull10rnd_error_set() == 0,
+     "my_ci_strntoull10rnd() always sets error");
 
   my_end(0);
 

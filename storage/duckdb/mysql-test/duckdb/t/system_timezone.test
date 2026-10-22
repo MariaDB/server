@@ -1,4 +1,3 @@
---source include/not_msan.inc
 --source ../include/have_mysqld_safe.inc
 
 # 1) Set valiables to be used in parameters of mysqld_safe.

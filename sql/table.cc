@@ -8013,7 +8013,7 @@ inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 }
 
 
-inline void TABLE::mark_index_columns_for_read(uint index)
+void TABLE::mark_index_columns_for_read(uint index)
 {
   do_mark_index_columns(this, index, read_set, true);
 }
@@ -8742,7 +8742,7 @@ bool TABLE::alloc_keys(uint key_count)
   {
     memmove(new_key_info, s->key_info, sizeof(*key_info) * s->total_keys);
     memmove(new_const_key_parts, const_key_parts,
-            s->total_keys * sizeof(const_key_parts));
+            s->total_keys * sizeof *const_key_parts);
   }
   s->key_info= key_info= new_key_info;
   const_key_parts= new_const_key_parts;
@@ -9608,6 +9608,16 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
+  /*
+    Do not use tmp_set here: it may be the active read_set (filesort,
+    keyread), and the engine may call this in the middle of a scan.
+  */
+  MY_BITMAP done_vcols;
+  const uint bitmap_size= bitmap_buffer_size(s->fields);
+  my_bitmap_map *done_buf= (my_bitmap_map *) my_safe_alloca(bitmap_size);
+  if (!done_buf)
+    DBUG_RETURN(1);
+  my_bitmap_init(&done_vcols, done_buf, s->fields);
   in_use->push_internal_handler(&count_errors);
   bool abort_on_warning= ignore_warnings;
   if (ignore_warnings)
@@ -9622,8 +9632,8 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
           TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
-  bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &done_vcols, 0);
+  my_safe_afree(done_buf, bitmap_size);
   DBUG_FIX_WRITE_SET(vf, write_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf, write_set);

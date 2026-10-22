@@ -31,9 +31,31 @@ CREATE TABLE IF NOT EXISTS t_exists LIKE t_exists_template;
 
 --source include/print_ddl_log.inc
 
+--source include/truncate_ddl_log.inc
+
+--echo #
+--echo # MDEV-41175 ASAN stack-buffer-overflow in add_str_to_buffer/add_name_to_buffer
+--echo #
+# A #mysql50# name is stored on disk as is, but is filename-encoded
+# (up to 5 bytes per character) in the ddl log, so the record gets long
+# without hitting MAX_PATH on Windows. Such names can't be created with
+# SQL, so create the 5.0-style files directly.
+let $MYSQLD_DATADIR= `select @@datadir`;
+--mkdir $MYSQLD_DATADIR/!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+CREATE TABLE t1 (id INT) ENGINE=MyISAM;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!/%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.frm
+--move_file $MYSQLD_DATADIR/test/t1.MYI $MYSQLD_DATADIR/!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!/%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.MYI
+--move_file $MYSQLD_DATADIR/test/t1.MYD $MYSQLD_DATADIR/!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!/%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.MYD
+RENAME TABLE `#mysql50#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.`#mysql50#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%` TO `#mysql50#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.t2;
+DROP DATABASE `#mysql50#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`;
+
+--source include/print_ddl_log.inc
+
 --echo #
 --echo # Cleanup
 --echo #
 DROP TABLE t_exists;
 DROP TABLE t_exists_template;
 disconnect con1;
+
+--echo # End of 10.11 tests
