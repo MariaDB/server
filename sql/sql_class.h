@@ -4668,6 +4668,14 @@ public:
   const Diagnostics_area *get_stmt_da() const
   { return m_stmt_da; }
 
+  /*
+    Bulk operation sums affected rows and warnings of all executions in
+    the diagnostics area, so statements of triggers and stored functions
+    called by it must not set the status
+  */
+  bool in_bulk_sub_stmt() const
+  { return in_sub_stmt && m_stmt_da->is_bulk_op(); }
+
   /// Sets Diagnostics-area for the current statement.
   void set_stmt_da(Diagnostics_area *da)
   { m_stmt_da= da; }
@@ -6010,6 +6018,8 @@ my_ok(THD *thd, ulonglong affected_rows_arg= 0, ulonglong id= 0,
 {
   thd->set_row_count_func(affected_rows_arg);
   thd->set_affected_rows(affected_rows_arg);
+  if (thd->in_bulk_sub_stmt())
+    return;
   thd->get_stmt_da()->set_ok_status(affected_rows_arg, id, message);
 }
 

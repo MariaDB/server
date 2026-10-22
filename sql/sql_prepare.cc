@@ -4962,8 +4962,6 @@ reexecute:
     /* items must not cache values of the parameters of the first row */
     if (bulk_optimized)
       set_params_changing_value(true);
-    Diagnostics_area::enum_diagnostics_status da_status=
-      thd->get_stmt_da()->status();
     error= execute(expanded_query, open_cursor) || thd->is_error();
     if (!bulk_optimized)
       thd->get_stmt_da()->set_bulk_warn_count(warn_count);
@@ -4994,11 +4992,6 @@ reexecute:
     {
       DBUG_ASSERT(thd->get_stmt_da()->sql_errno() == ER_NEED_REPREPARE);
       thd->clear_error();
-      /*
-        The failed attempt must not change the status, because it shows
-        whether result set metadata was already sent
-      */
-      thd->get_stmt_da()->restore_bulk_status(da_status);
 
       error= reprepare();
 

@@ -275,7 +275,7 @@ void Sql_condition::assign_defaults(THD *thd, const Sql_state_errno *from)
 
 
 Diagnostics_area::Diagnostics_area(bool initialize)
-  : is_bulk_execution(0), m_main_wi(0, false, initialize)
+  : m_bulk_status(DA_EMPTY), is_bulk_execution(0), m_main_wi(0, false, initialize)
 {
   push_warning_info(&m_main_wi);
 
@@ -285,7 +285,7 @@ Diagnostics_area::Diagnostics_area(bool initialize)
 Diagnostics_area::Diagnostics_area(ulonglong warning_info_id,
                                    bool allow_unlimited_warnings,
                                    bool initialize)
-  : is_bulk_execution(0),
+  : m_bulk_status(DA_EMPTY), is_bulk_execution(0),
   m_main_wi(warning_info_id, allow_unlimited_warnings, initialize)
 {
   push_warning_info(&m_main_wi);
@@ -319,15 +319,13 @@ Diagnostics_area::reset_diagnostics_area()
   get_warning_info()->clear_error_condition();
   set_is_sent(false);
   /*
-    For BULK DML operations (e.g. UPDATE) the data member m_status
-    has the value DA_OK_BULK. Keep this value in order to handle
-    m_affected_rows, m_statement_warn_count in correct way. Else,
-    the number of rows and the number of warnings affected by
-    the last statement executed as part of a trigger fired by the dml
-    (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
-    rows modified by trigger's statement.
+    A bulk operation sums m_affected_rows and m_statement_warn_count of
+    all its executions, so the status stays DA_OK_BULK/DA_EOF_BULK once
+    set, also after an error handled in a trigger or stored function or
+    a reprepare. For RETURNING of non-optimized array binding the status
+    also shows that result set metadata was already sent.
   */
-  m_status= is_bulk_op() ? DA_OK_BULK : DA_EMPTY;
+  m_status= is_bulk_op() ? m_bulk_status : DA_EMPTY;
   DBUG_VOID_RETURN;
 }
 
@@ -350,10 +348,6 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
   */
   if (unlikely(is_error() || is_disabled()))
     DBUG_VOID_RETURN;
-  /*
-    When running a bulk operation, m_status will be DA_OK for the first
-    operation and set to DA_OK_BULK for all following operations.
-  */
   if (m_status == DA_OK_BULK)
   {
     m_statement_warn_count+= current_statement_warn_count();
@@ -364,6 +358,8 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
     m_statement_warn_count= current_statement_warn_count();
     m_affected_rows= affected_rows;
     m_status= (is_bulk_op() ? DA_OK_BULK : DA_OK);
+    if (is_bulk_op())
+      m_bulk_status= DA_OK_BULK;
   }
   m_last_insert_id= last_insert_id;
   if (message)
@@ -411,6 +407,8 @@ Diagnostics_area::set_eof_status(THD *thd)
     else
       m_statement_warn_count= current_statement_warn_count();
     m_status= (is_bulk_op() ? DA_EOF_BULK : DA_EOF);
+    if (is_bulk_op())
+      m_bulk_status= DA_EOF_BULK;
   }
 
   DBUG_VOID_RETURN;
