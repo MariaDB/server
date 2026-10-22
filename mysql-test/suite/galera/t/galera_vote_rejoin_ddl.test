@@ -60,7 +60,6 @@ SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't
 --connection node_4
 SET SESSION wsrep_on=OFF;
 --source include/kill_galera.inc
---sleep 1
 --echo Starting mysqld
 --source include/start_mysqld.inc
 

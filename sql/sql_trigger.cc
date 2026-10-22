@@ -220,7 +220,7 @@ static File_option triggers_file_parameters[]=
     my_offsetof(class Table_triggers_list, hr_create_times),
     FILE_OPTIONS_ULLLIST
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 File_option sql_modes_parameters=
@@ -263,7 +263,7 @@ static File_option trigname_file_parameters[]=
     offsetof(struct st_trigname, trigger_table),
     FILE_OPTIONS_ESTRING
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 

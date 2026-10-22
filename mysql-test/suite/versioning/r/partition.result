@@ -3641,5 +3641,131 @@ Table	Op	Msg_type	Msg_text
 test.t	repair	status	OK
 drop table t;
 set timestamp=default;
+#
+# MDEV-41543 Changing INTERVAL of SYSTEM_TIME partitioning does not move
+#            history to the new partitions
+#
+set time_zone= '+00:00';
+create table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00' partitions 4;
+set timestamp= unix_timestamp('2000-01-01 00:30:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+update t1 set x= 2;
+select x, row_end from t1 partition (p0);
+x	row_end
+select x, row_end from t1 partition (p1);
+x	row_end
+0	2000-01-01 01:30:00.000000
+select x, row_end from t1 partition (p2);
+x	row_end
+1	2000-01-01 02:30:00.000000
+# History is redistributed: p0 = [00:00, 02:00), p1 = [02:00, 04:00)
+alter table t1 partition by system_time interval 2 hour
+starts '2000-01-01 00:00:00';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+select x, row_end from t1 partition (p0);
+x	row_end
+0	2000-01-01 01:30:00.000000
+select x, row_end from t1 partition (p1);
+x	row_end
+1	2000-01-01 02:30:00.000000
+select x, row_end from t1 partition (p2);
+x	row_end
+# Same interval: fast ALTER, no rows copied
+alter table t1 partition by system_time interval 2 hour
+starts '2000-01-01 00:00:00';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+set timestamp= unix_timestamp('2000-01-01 03:30:00');
+update t1 set x= 3;
+select x, row_end from t1 partition (p1);
+x	row_end
+1	2000-01-01 02:30:00.000000
+2	2000-01-01 03:30:00.000000
+# Same interval, no STARTS: it defaults to the current time,
+# so the table is rebuilt
+alter table t1 partition by system_time interval 2 hour;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+drop table t1;
+# Explicit partitions
+create table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00' (
+partition p0 history,
+partition p1 history,
+partition p2 history,
+partition pn current);
+set timestamp= unix_timestamp('2000-01-01 00:30:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= 1;
+set timestamp= unix_timestamp('2000-01-01 02:30:00');
+update t1 set x= 2;
+select x, row_end from t1 partition (p0);
+x	row_end
+select x, row_end from t1 partition (p1);
+x	row_end
+0	2000-01-01 01:30:00.000000
+select x, row_end from t1 partition (p2);
+x	row_end
+1	2000-01-01 02:30:00.000000
+alter table t1 partition by system_time interval 2 hour
+starts '2000-01-01 00:00:00';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+select x, row_end from t1 partition (p0);
+x	row_end
+0	2000-01-01 01:30:00.000000
+select x, row_end from t1 partition (p1);
+x	row_end
+1	2000-01-01 02:30:00.000000
+select x, row_end from t1 partition (p2);
+x	row_end
+# LIMIT to INTERVAL
+alter table t1 partition by system_time limit 100;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+alter table t1 partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+select x, row_end from t1 partition (p0);
+x	row_end
+select x, row_end from t1 partition (p1);
+x	row_end
+0	2000-01-01 01:30:00.000000
+select x, row_end from t1 partition (p2);
+x	row_end
+1	2000-01-01 02:30:00.000000
+# Same interval with ADD COLUMN: the table is rebuilt
+alter table t1 add y int partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+select x, y, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
+x	y	row_end
+0	NULL	2000-01-01 01:30:00.000000
+1	NULL	2000-01-01 02:30:00.000000
+2	NULL	CURRENT
+# LIMIT with DROP COLUMN: the table is rebuilt
+alter table t1 drop y partition by system_time limit 100;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+select x, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
+x	row_end
+0	2000-01-01 01:30:00.000000
+1	2000-01-01 02:30:00.000000
+2	CURRENT
+set timestamp= default;
+set time_zone= default;
+drop table t1;
 # End of 10.11 tests
 set global innodb_stats_persistent= @save_persistent;

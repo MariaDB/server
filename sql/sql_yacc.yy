@@ -1719,7 +1719,8 @@ rule:
                      fetch_first_clause
 
 %type <order_limit_lock>
-        query_expression_tail
+        query_expression_tail_with_order
+        query_expression_tail_no_order
         opt_query_expression_tail
         order_or_limit
         order_limit_lock
@@ -8230,6 +8231,8 @@ table_index_name:
 binlog_base64_event:
           BINLOG_SYM TEXT_STRING_sys
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
             Lex->ident.str=    NULL;
@@ -8238,6 +8241,8 @@ binlog_base64_event:
           |
           BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $3;
             Lex->ident=   $6;
@@ -8742,12 +8747,26 @@ query_expression_body_ext:
           }
         | query_expression_body_ext_parens
           {
-            Lex->push_select(!$1->first_select()->next_select() ?
-                               $1->first_select() : $1->fake_select_lex);
+            if (!($<select_lex>$=
+                  Lex->push_select_for_ext_parens_tail($1, true)))
+              MYSQL_YYABORT;
           }
-          query_expression_tail
+          query_expression_tail_with_order
           {
-            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens($1, $3)))
+            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens(
+                                                  $1, $3, $<select_lex>2)))
+               MYSQL_YYABORT;
+          }
+        | query_expression_body_ext_parens
+          {
+            if (!($<select_lex>$=
+                  Lex->push_select_for_ext_parens_tail($1, false)))
+              MYSQL_YYABORT;
+          }
+          query_expression_tail_no_order
+          {
+            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens(
+                                                  $1, $3, $<select_lex>2)))
                MYSQL_YYABORT;
           }
         ;
@@ -12540,8 +12559,43 @@ opt_order_limit_lock:
         | order_limit_lock { $$= $1; }
         ;
 
-query_expression_tail:
-          order_limit_lock
+/*
+  The tail of a parenthesized query expression body is split on whether it
+  starts with ORDER BY, so that the select owning the tail can be chosen
+  before the tail is parsed (see LEX::push_select_for_ext_parens_tail()).
+*/
+
+query_expression_tail_with_order:
+          order_clause opt_limit_clause opt_select_lock_type
+          {
+            $$= new(thd->mem_root) Lex_order_limit_lock;
+            if (!$$)
+              YYABORT;
+            $$->order_list= $1;
+            $$->limit= $2;
+            $$->lock= $3;
+          }
+        ;
+
+query_expression_tail_no_order:
+          limit_clause opt_select_lock_type
+          {
+            $$= new(thd->mem_root) Lex_order_limit_lock;
+            if (!$$)
+              YYABORT;
+            $$->order_list= NULL;
+            $$->limit= $1;
+            $$->lock= $2;
+          }
+        | select_lock_type
+          {
+            $$= new(thd->mem_root) Lex_order_limit_lock;
+            if (!$$)
+              YYABORT;
+            $$->order_list= NULL;
+            $$->limit.clear();
+            $$->lock= $1;
+          }
         ;
 
 opt_query_expression_tail:

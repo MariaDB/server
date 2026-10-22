@@ -967,6 +967,17 @@ public:
   {
     return store(to, length, cs);
   }
+  /*
+    Store a number literal as text, possibly with a fraction or exponent,
+    rather than a binary string. Called by store_json_in_field() in JSON_TABLE
+    for JSON numeric values. Types whose string store uses a binary
+    representation can override this without changing string input.
+    As with store(), a nonzero result can indicate a conversion warning.
+  */
+  virtual int store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
+  {
+    return store(from, length, cs);
+  }
   virtual int  store_binary(const char *to, size_t length)
   {
     return store(to, length, &my_charset_bin);
@@ -5003,6 +5014,7 @@ public:
   int save_in_field(Field *to) override { return to->store(val_int(), true); }
   bool memcpy_field_possible(const Field *from) const override{ return false; }
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  int store_numeric(const char *from, size_t length, CHARSET_INFO *cs) override;
   int store(double nr) override;
   int store(longlong nr, bool unsigned_val) override;
   int store_decimal(const my_decimal *) override;
@@ -5487,7 +5499,12 @@ public:
 
   bool has_default_function() const
   {
-    return unireg_check != Field::NONE;
+    /*
+      TMYSQL_COMPRESSED is not a default function, it is stored in
+      unireg_check only to remember that the column is COMPRESSED.
+    */
+    return unireg_check != Field::NONE &&
+           unireg_check != Field::TMYSQL_COMPRESSED;
   }
 
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
