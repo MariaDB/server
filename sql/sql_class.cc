@@ -5054,8 +5054,11 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ENTER("open_purge_table");
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  /* Purge already hold the MDL for the table */
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
+  /* Purge already hold the MDL for the table. A kill flag on a purge THD
+  (for example from a Galera BF abort) is never reset, and purge has no
+  statement to abort; it must not make every subsequent open_table() fail. */
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK |
+                                 MYSQL_OPEN_IGNORE_KILLED);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
