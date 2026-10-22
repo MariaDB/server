@@ -1727,9 +1727,9 @@ bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      tbl_name.c_ptr_safe(), "list of table contexts");
+      ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe());
   return true;
 }
 
@@ -1817,21 +1817,13 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
       }
     }
 
-    String arg1;
-    String arg2;
     String tbl_name;
     append_base_table_name(table, &tbl_name);
-    arg1.append(STRING_WITH_LEN("the given list of ranges i.e. "));
-    arg1.append(act_ranges);
-    arg2.append(STRING_WITH_LEN("the list of ranges for table_name "));
-    arg2.append(tbl_name);
-    arg2.append(STRING_WITH_LEN(" and index_name "));
-    arg2.append(idx_name, strlen(idx_name));
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
-        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-        arg1.c_ptr_safe(), arg2.c_ptr_safe());
+        ER_JSON_OPTIMIZER_REPLAY_RANGES_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_RANGES_MATCH_FAILED),
+        act_ranges.c_ptr_safe(), tbl_name.c_ptr_safe(), idx_name);
   }
   return true;
 }
@@ -1876,19 +1868,11 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
     }
   }
 
-  String warn_msg(256);
-  warn_msg.append(tbl_name);
-  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
-  warn_msg.append(STRING_WITH_LEN(", records:"));
-  warn_msg.q_append_int64(records);
-  warn_msg.append(STRING_WITH_LEN(", eq_ref:"));
-  warn_msg.append(eq_ref);
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "cost_for_index_read_calls");
+      ER_JSON_OPTIMIZER_REPLAY_COST_INDEX_READ_CALLS_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_COST_INDEX_READ_CALLS_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), keynr, (ulonglong) records, (int) eq_ref);
   return true;
 }
 
@@ -1994,19 +1978,11 @@ bool Optimizer_context_replay::infuse_records_in_range(
     }
   }
 
-  String warn_msg(256);
-  warn_msg.append(tbl_name);
-  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
-  warn_msg.append(STRING_WITH_LEN(" with min_key:"));
-  warn_msg.append(min_key);
-  warn_msg.append(STRING_WITH_LEN(" with max_key:"));
-  warn_msg.append(max_key);
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "records_in_range_calls");
+      ER_JSON_OPTIMIZER_REPLAY_REC_RANGE_CALLS_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_REC_RANGE_CALLS_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), keynr, min_key.c_ptr_safe(), max_key.c_ptr_safe());
   return true;
 }
 
@@ -2118,7 +2094,7 @@ err:
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED),
-      err_buf.c_ptr_safe(), err_offset);
+      err_buf.c_ptr_safe(), (longlong) err_offset);
   DBUG_RETURN(true);
 }
 
@@ -2253,9 +2229,9 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      tbl_name.c_ptr_safe(), "list of table contexts");
+      ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe());
   return true;
 }
 
@@ -2294,9 +2270,9 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      name.c_ptr_safe(), "list of index contexts");
+      ER_JSON_OPTIMIZER_REPLAY_INDEX_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_INDEX_CONTEXT_MATCH_FAILED),
+      name.c_ptr_safe());
   return NULL;
 }
 
@@ -2335,9 +2311,9 @@ void Optimizer_context_replay::store_range_contexts(
     name.append(idx_name, strlen(idx_name));
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
-        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-        name.c_ptr_safe(), "list of range contexts");
+        ER_JSON_OPTIMIZER_REPLAY_RANGE_CONTEXT_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_RANGE_CONTEXT_MATCH_FAILED),
+        name.c_ptr_safe());
   }
 }
 
