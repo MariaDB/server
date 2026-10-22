@@ -8378,6 +8378,8 @@ table_index_name:
 binlog_base64_event:
           BINLOG_SYM TEXT_STRING_sys
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
             Lex->ident.str=    NULL;
@@ -8386,6 +8388,8 @@ binlog_base64_event:
           |
           BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $3;
             Lex->ident=   $6;

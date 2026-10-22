@@ -3749,20 +3749,22 @@ alter table t1 add y int partition by system_time interval 1 hour
 starts '2000-01-01 00:00:00';
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
-select x, y, row_end from t1 for system_time all order by x;
+select x, y, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
 x	y	row_end
 0	NULL	2000-01-01 01:30:00.000000
 1	NULL	2000-01-01 02:30:00.000000
-2	NULL	2038-01-19 03:14:07.999999
+2	NULL	CURRENT
 # LIMIT with DROP COLUMN: the table is rebuilt
 alter table t1 drop y partition by system_time limit 100;
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
-select x, row_end from t1 for system_time all order by x;
+select x, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
 x	row_end
 0	2000-01-01 01:30:00.000000
 1	2000-01-01 02:30:00.000000
-2	2038-01-19 03:14:07.999999
+2	CURRENT
 set timestamp= default;
 set time_zone= default;
 drop table t1;

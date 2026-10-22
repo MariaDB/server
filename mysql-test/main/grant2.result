@@ -1143,11 +1143,11 @@ connection con1;
 set time_zone= '+00:00';
 select row_start, row_end from t;
 row_start	row_end
-2001-01-01 00:00:00.000000	2038-01-19 03:14:07.999999
+2001-01-01 00:00:00.000000	#
 handler t open;
 handler t read first;
 id	a	b	row_start	row_end	DB_ROW_HASH_1
-1	10	x	2001-01-01 00:00:00.000000	2038-01-19 03:14:07.999999	#
+1	10	x	2001-01-01 00:00:00.000000	#	#
 handler t close;
 disconnect con1;
 connection default;

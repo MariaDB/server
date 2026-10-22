@@ -337,15 +337,15 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
 
         /* Conversion specifiers that match classes of characters */
       case '.':
-	while (my_ispunct(cs, *val) && val != val_end)
+	while (val < val_end && my_ispunct(cs, *val))
 	  val++;
 	break;
       case '@':
-	while (my_isalpha(cs, *val) && val != val_end)
+	while (val < val_end && my_isalpha(cs, *val))
 	  val++;
 	break;
       case '#':
-	while (my_isdigit(cs, *val) && val != val_end)
+	while (val < val_end && my_isdigit(cs, *val))
 	  val++;
 	break;
       default:

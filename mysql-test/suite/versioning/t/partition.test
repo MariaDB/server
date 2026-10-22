@@ -2989,12 +2989,14 @@ select x, row_end from t1 partition (p2);
 alter table t1 add y int partition by system_time interval 1 hour
 starts '2000-01-01 00:00:00';
 --disable_info
-select x, y, row_end from t1 for system_time all order by x;
+select x, y, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
 --echo # LIMIT with DROP COLUMN: the table is rebuilt
 --enable_info
 alter table t1 drop y partition by system_time limit 100;
 --disable_info
-select x, row_end from t1 for system_time all order by x;
+select x, if(current_row_ts(row_end), 'CURRENT', row_end) as row_end
+from t1 for system_time all order by x;
 set timestamp= default;
 set time_zone= default;
 drop table t1;

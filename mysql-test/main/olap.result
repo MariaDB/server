@@ -905,3 +905,19 @@ NULL
 NULL
 DROP TABLE t1;
 # End of 10.3 Tests
+#
+# MDEV-41146: WHERE is not checked when every table is const and
+# the query needs a temporary table
+#
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+# rand() < 0 is never true, so only the ROLLUP total row is returned.
+select distinct a from t1 where a=1 and rand() < 0 group by a with rollup;
+a
+NULL
+select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
+a
+1
+NULL
+drop table t1;
+# End of 11.4 tests

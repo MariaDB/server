@@ -3211,6 +3211,74 @@ int sp_head::add_instr(sp_instr_cursor_copy_struct *instr)
 
 
 /**
+  In a trigger, add_instr() also takes the NEW and OLD fields in
+  m_cur_instr_trig_field_items. Rebuild this list from THD::free_list
+  after a split, so the fields go with their items.
+*/
+
+static void set_trig_field_items(THD *thd, sp_head *sp)
+{
+  if (sp->m_handler->type() != SP_TYPE_TRIGGER)
+    return;
+  sp->m_cur_instr_trig_field_items.empty();
+  for (Item *item= thd->free_list; item; item= item->next)
+  {
+    if (item->type() == Item::TRIGGER_FIELD_ITEM)
+    {
+      Item_trigger_field *field= static_cast<Item_trigger_field*>(item);
+      sp->m_cur_instr_trig_field_items.link_in_list(field,
+                                                    &field->next_trg_field);
+    }
+  }
+}
+
+
+/**
+  Move the items of an expression from an item list to THD::free_list.
+
+  The list starts with the newest item, and the parser creates the parts
+  of an item before the item itself. So the first item in the list that
+  walk() finds in expr, and all items after it, belong to expr, even
+  those walk() does not visit, like the LIMIT of a subquery.
+
+  @param thd    Thread handle
+  @param list   Item list to take the items from
+  @param expr   Root of the oldest expression that has items in list
+*/
+
+void sp_head::move_expr_items_to_free_list(THD *thd, Item **list, Item *expr)
+{
+  DBUG_ASSERT(!thd->free_list || thd->free_list == *list);
+  Item **pos= list;
+  while (*pos && !expr->walk(&Item::find_item_processor, true, *pos))
+    pos= &(*pos)->next;
+  DBUG_ASSERT(*pos);  // expr itself is always found
+  thd->free_list= *pos;
+  *pos= NULL;
+  set_trig_field_items(thd, this);
+}
+
+
+/**
+  Put an item list back on THD::free_list, so that the next added
+  instruction owns the items, or on an error the routine frees them.
+*/
+
+void sp_head::add_to_free_list(THD *thd, Item *items)
+{
+  if (items)
+  {
+    Item *last= items;
+    while (last->next)
+      last= last->next;
+    last->next= thd->free_list;
+    thd->free_list= items;
+  }
+  set_trig_field_items(thd, this);
+}
+
+
+/**
   Add instruction to SP.
 
   @param instr   Instruction
@@ -3971,6 +4039,15 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
                                                  Item_args *parameters)
 {
   DBUG_ASSERT(param_spcont->context_var_count() == parameters->argument_count());
+  /*
+    All parameters were parsed as one expression, so THD::free_list holds:
+
+      [items of no parameter] [items of arg N-1] ... [items of arg 0]
+
+    Give each sp_instr_set the items of the argument it evaluates.
+  */
+  Item *rest= thd->free_list;
+  thd->free_list= NULL;
   for (uint idx= 0; idx < parameters->argument_count(); idx ++)
   {
     /*
@@ -3980,13 +4057,29 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
     */
     bool last= idx + 1 == parameters->argument_count();
     sp_variable *spvar= param_spcont->get_context_variable(idx);
+    /*
+      The last instruction also takes the Item_func_sp of the cursor call
+      and anything that belongs to no argument.
+    */
+    if (last)
+    {
+      add_to_free_list(thd, rest);
+      rest= NULL;
+    }
+    else
+      move_expr_items_to_free_list(thd, &rest, parameters->arguments()[idx]);
     if (set_local_variable(thd, param_spcont,
                            &sp_rcontext_handler_local,
                            spvar, parameters->arguments()[idx],
                            param_lex, last,
                            param_lex->get_expr_str()))
+    {
+      add_to_free_list(thd, rest);
       return true;
+    }
   }
+  /* With no parameters, nothing took the items */
+  add_to_free_list(thd, rest);
   return false;
 }
 

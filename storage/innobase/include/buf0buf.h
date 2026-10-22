@@ -1569,6 +1569,13 @@ public:
 
   /** number of index page splits */
   Atomic_counter<ulint> pages_split;
+  /** the maximum modify_clock of any block that shrink() withdrew;
+  resize() initializes the modify_clock of the blocks that it adds to
+  one more than this, so that the modify_clock at a block descriptor
+  address never repeats an earlier value and a stale
+  btr_pcur_t::restore_position() cannot succeed optimistically;
+  protected by mutex */
+  uint64_t withdrawn_modify_clock;
 
   /** @name Page flushing algorithm fields */
   /* @{ */
