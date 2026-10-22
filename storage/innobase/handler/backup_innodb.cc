@@ -662,6 +662,10 @@ public:
         log_dst, log_dst, tracked, &target
       };
 
+      ut_ad(ctx.BACKUP_BATCH_SIZE);
+      ut_ad(ut_is_2pow(ctx.BACKUP_BATCH_SIZE));
+      ut_ad(ctx.BACKUP_BATCH_SIZE <= ctx.BACKUP_BATCH_SIZE_MAX);
+
       /* Collect all tablespaces that have been created before our
       start checkpoint. Newer tablespaces will be recovered by the
       innodb_log_archive=ON recovery.
@@ -2237,22 +2241,24 @@ int InnoDB_backup::copy_file_shortcut_try(int dst, fil_node_t *node,
 # if 0
   return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
-  const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+  const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
   for (uint32_t page{0};;)
   {
     while (page < limit)
     {
-      start+= BACKUP_BATCH_SIZE;
+      const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+      const uint32_t last{std::min(limit, page + (end_page - start))};
+      start+= last - page;
       int err;
-      buf_page_t **end= backup_batch_start(blocks, node->space, start);
+      buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
       if (end)
       {
-        const uint64_t o{uint64_t{page} * page_size};
-        page= std::min(limit, page + BACKUP_BATCH_SIZE);
         /* TODO: avoid copying freed page ranges, or pages that were
         allocated after the backup started */
         err= copy_file_shortcut(node->handle, dst,
-                                o, uint64_t{page} * page_size);
+                                uint64_t{page} * page_size,
+                                uint64_t{last} * page_size);
+        page= last;
       }
       else
       {
@@ -2404,28 +2410,21 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
     if (err == 1)
 #endif
     {
-      const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+      const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
       for (uint32_t page{0};;)
       {
         while (page < limit)
         {
+          const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+          const uint32_t last{std::min(limit, page + (end_page - start))};
+          start+= last - page;
           /* TODO: avoid copying freed page ranges, or pages that were
           allocated after the backup started */
-          start+= BACKUP_BATCH_SIZE;
-          const uint64_t o{uint64_t{page} * page_size};
-          const uint32_t end_page{std::min(limit, page + BACKUP_BATCH_SIZE)};
-#ifdef POSIX_FADV_WILLNEED
-          std::ignore= posix_fadvise(node->handle, o,
-                                     uint64_t{end_page} * page_size,
-                                     POSIX_FADV_WILLNEED);
-#endif
-          buf_page_t **end= backup_batch_start(blocks, node->space, start);
+          buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
           if (end)
-          {
-            page= end_page;
-            err=
-              backup::copy(node->handle, f, o, uint64_t{page} * page_size);
-          }
+            err= backup::copy(node->handle, f,
+                              uint64_t{page} * page_size,
+                              uint64_t{last} * page_size);
           else
           {
             end= blocks;
@@ -2434,6 +2433,7 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
           backup_batch_stop(node->space, blocks, end);
           if (err)
             break;
+          page= last;
         }
 
         if (final_limit != 0 && !err && page == buf_dblwr.begin())
@@ -2505,25 +2505,17 @@ int InnoDB_backup::stream(backup_fd stream, fil_node_t *node, const char *name,
 
   int err{0};
   uint32_t page{0};
-  const uint32_t BACKUP_BATCH_SIZE{innodb_backup.ctx.BACKUP_BATCH_SIZE};
 loop:
   /* TODO: avoid copying freed page ranges, or pages that were
   allocated after the backup started */
   do
   {
-    buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX], **end= blocks;
-    const uint32_t last{std::min(limit, page + BACKUP_BATCH_SIZE)};
-#ifdef POSIX_FADV_WILLNEED
-    std::ignore= posix_fadvise(node->handle,
-                               uint64_t{page} * page_size,
-                               uint64_t{last} * page_size,
-                               POSIX_FADV_WILLNEED);
-#endif
-    {
-      const uint32_t end_page{start + BACKUP_BATCH_SIZE};
-      end= backup_batch_start(end, node->space, end_page);
-      start= end_page;
-    }
+    buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX];
+    const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+    const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+    const uint32_t last{std::min(limit, page + (end_page - start))};
+    start+= last - page;
+    buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
     if (end)
     {
       if (page ||

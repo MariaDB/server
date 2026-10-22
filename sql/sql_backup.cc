@@ -95,7 +95,11 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 #if SIZEOF_SIZE_T < 8
   size_t size{65536};
 #else
-  constexpr size_t max_size{1 << 20};
+  /*
+    Copy up to this much at a time. The copying of InnoDB data files
+    is additionally limited by fil_space_t::BACKUP_BATCH_SIZE.
+  */
+  constexpr size_t max_size{4 << 20};
   /* An integer multiple of 4096 bytes, up to max_size */
   size_t size{count >= max_size ? max_size : (size_t(count) + 4095) & ~4095};
 #endif

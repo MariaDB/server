@@ -1094,7 +1094,7 @@ public:
   { return backup_end.load(std::memory_order_acquire); }
 
   /** the size of a backup::copy() batch in bytes */
-  static constexpr uint32_t BACKUP_BATCH_SIZE{1 << 20};
+  static constexpr uint32_t BACKUP_BATCH_SIZE{4 << 20};
 
   /** @return the size of a backup::copy() batch in pages */
   static uint32_t backup_batch_size() noexcept
