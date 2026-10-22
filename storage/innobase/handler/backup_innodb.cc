@@ -1656,7 +1656,8 @@ private:
     else
     {
       /* This should be ALTER TABLE ... IMPORT TABLESPACE */
-      ut_ad(space.is_being_imported());
+      ut_ad(space.create_lsn >= ctx.checkpoint /* completed */ ||
+            space.is_being_imported() /* started after init() */);
       res= 0;
     }
     space.release();
