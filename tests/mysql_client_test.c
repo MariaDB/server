@@ -23863,11 +23863,109 @@ static void test_mdev_23864()
   myquery(rc);
   test_mdev_23864_query("UPDATE t1 SET val= f1(10 * ?) WHERE id= ? / 10",
                         "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
-                        same, 0, FALSE);
+                        same, 3, FALSE);
   test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
                         "(?, f1((SELECT b FROM t2 WHERE a = ?)))",
-                        "DELETE FROM t4", looked_up, 0, FALSE);
+                        "DELETE FROM t4", looked_up, 3, FALSE);
   rc= mysql_query(mysql, "DROP FUNCTION f1");
+  myquery(rc);
+
+  /* rows changed by a trigger are not counted as affected */
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_bi BEFORE INSERT ON t1 "
+                         "FOR EACH ROW INSERT INTO t4 (v) VALUES (NEW.val)");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_bi");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW UPDATE t4 SET v= v + 1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW UPDATE t4 SET v= v + 1");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+
+  /* an error handled in a trigger does not reset the affected rows */
+  rc= mysql_query(mysql, "CREATE TABLE t7 (id INT PRIMARY KEY)");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW BEGIN "
+                         "DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END; "
+                         "INSERT INTO t7 VALUES (NEW.id); END");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW BEGIN "
+                         "DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END; "
+                         "INSERT INTO t7 VALUES (NEW.id); END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)",
+                        "REPLACE INTO t7 VALUES (2)", same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))",
+                        "REPLACE INTO t7 VALUES (2)", looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t7");
+  myquery(rc);
+
+  /* statements of a trigger which set the diagnostics area status */
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW BEGIN DECLARE n INT; "
+                         "GET DIAGNOSTICS n= NUMBER; "
+                         "SELECT COUNT(*) INTO @a FROM t2; END");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW BEGIN DECLARE n INT; "
+                         "GET DIAGNOSTICS n= NUMBER; "
+                         "SELECT COUNT(*) INTO @a FROM t2; END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?) "
+                        "RETURNING id, val", NULL, same, 3, TRUE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?)) "
+                        "RETURNING id, val", NULL, looked_up, 3, TRUE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+
+  /* the statement is killed in not the first execution */
+  test_mdev_23864_exec("UPDATE t1 SET val= ? + SLEEP(id = 3) "
+                       "WHERE id= ? / 10",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES "
+                                         "(1, 0), (2, 0), (3, 0)",
+                                         "SET max_statement_time= 0.5",
+                                         NULL}, ER_STATEMENT_TIMEOUT, 0, 0);
+  rc= mysql_query(mysql, "SET max_statement_time= DEFAULT");
   myquery(rc);
 
   /* The first generated id is reported, as for the optimized execution */

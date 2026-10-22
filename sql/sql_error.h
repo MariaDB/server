@@ -1049,19 +1049,15 @@ public:
 
   bool is_disabled() const { return m_status == DA_DISABLED; }
 
-  void set_bulk_execution(bool bulk) { is_bulk_execution= bulk; }
+  void set_bulk_execution(bool bulk)
+  {
+    is_bulk_execution= bulk;
+    m_bulk_status= DA_EMPTY;
+  }
 
   bool is_bulk_op() const { return is_bulk_execution; }
 
   enum_diagnostics_status status() const { return m_status; }
-  void restore_bulk_status(enum_diagnostics_status status)
-  {
-    DBUG_ASSERT(is_bulk_op());
-    DBUG_ASSERT(m_status == DA_OK_BULK);
-    DBUG_ASSERT(status == DA_EMPTY || status == DA_OK_BULK ||
-                status == DA_EOF_BULK);
-    m_status= status;
-  }
 
   const char *message() const
   {
@@ -1319,6 +1315,12 @@ private:
   uint	     m_statement_warn_count;
 
   enum_diagnostics_status m_status;
+
+  /*
+    DA_EMPTY until the bulk operation sets m_status to DA_OK_BULK or
+    DA_EOF_BULK, reset by set_bulk_execution()
+  */
+  enum_diagnostics_status m_bulk_status;
 
   my_bool is_bulk_execution;
 
