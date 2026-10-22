@@ -6476,7 +6476,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     DBUG_PRINT("info",("partition range->range_flag: %u", range->range_flag));
     DBUG_PRINT("info",("partition start_key->key: %p", start_key->key));
     DBUG_PRINT("info",("partition start_key->length: %u", start_key->length));
-    DBUG_PRINT("info",("partition start_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition start_key->keypart_map: %u",
                        start_key->keypart_map));
     DBUG_PRINT("info",("partition start_key->flag: %u", start_key->flag));
 
@@ -6501,7 +6501,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     end_key= &range->end_key;
     DBUG_PRINT("info",("partition end_key->key: %p", end_key->key));
     DBUG_PRINT("info",("partition end_key->length: %u", end_key->length));
-    DBUG_PRINT("info",("partition end_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition end_key->keypart_map: %u",
                        end_key->keypart_map));
     DBUG_PRINT("info",("partition end_key->flag: %u", end_key->flag));
     if (end_key->key)
@@ -11135,6 +11135,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     part_share->next_auto_inc_val+= nb_desired_values * increment;
 
     unlock_auto_increment();
+    DEBUG_SYNC(ha_thd(), "ha_partition_get_auto_increment_after_reservation");
     DBUG_PRINT("info", ("*first_value: %lu", (ulong) *first_value));
     *nb_reserved_values= nb_desired_values;
   }
@@ -11167,7 +11168,8 @@ void ha_partition::release_auto_increment()
         we can lower the reserved value.
       */
       if (next_insert_id < next_auto_inc_val &&
-          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val &&
+          next_insert_id >= auto_inc_interval_for_cur_row.minimum())
       {
         THD *thd= ha_thd();
         /*

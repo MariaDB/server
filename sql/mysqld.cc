@@ -4027,14 +4027,6 @@ static int init_common_variables()
     exit(1);
   }
 
-#ifdef HAVE_OPENSSL
-  if (check_openssl_compatibility())
-  {
-    sql_print_error("Incompatible OpenSSL version. Cannot continue...");
-    exit(1);
-  }
-#endif
-
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
 
@@ -4341,7 +4333,7 @@ static int init_common_variables()
   myf utf8_flag= global_system_variables.old_behavior &
                  OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
 
-  old_mode_deprecated_warnings(0, global_system_variables.old_behavior);
+  old_mode_deprecated_warnings(global_system_variables.old_behavior);
 
   if (character_set_collations_str[0])
   {
@@ -6053,6 +6045,7 @@ int mysqld_main(int argc, char **argv)
   my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
+  vio_check_ssl_init();
   if (init_server_components())
     unireg_abort(1);
 

@@ -1338,6 +1338,7 @@ void LEX::start(THD *thd_arg)
   clause_winfuncs.empty();
 
   table_count_update= 0;
+  needs_reprepare= false;
 
   has_returning_list= false;
 
@@ -7223,12 +7224,34 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
     return true;
   }
+  /*
+    Both bounds were parsed before any instruction was added, so give each
+    bound instruction only the items of its own bound. The left bound was
+    parsed first, so split there; with REVERSE the index is the right bound.
+    Splitting here, not in the grammar, keeps the items on THD::free_list,
+    so a parse error cannot leak them.
+  */
+  Item *rest= thd->free_list;
+  sphead->move_expr_items_to_free_list(thd, &rest, bounds.m_direction > 0 ?
+                                       bounds.m_index->get_item() :
+                                       bounds.m_target_bound->get_item());
+  if (bounds.m_direction < 0)
+  {
+    Item *left= thd->free_list;
+    thd->free_list= NULL;
+    sphead->add_to_free_list(thd, rest);
+    rest= left;
+  }
   if (!(loop->m_index=
         bounds.m_index->sp_add_for_loop_variable(thd, index,
                                                  bounds.m_index->get_item(),
                                                  bounds.m_index->get_expr_str())
                                                  ))
+  {
+    sphead->add_to_free_list(thd, rest);
     return true;
+  }
+  sphead->add_to_free_list(thd, rest);
   if (unlikely(!(loop->m_target_bound=
                  bounds.m_target_bound->
                  sp_add_for_loop_target_bound(thd,
@@ -7460,7 +7483,7 @@ bool LEX::sp_handler_declaration_init(THD *thd, int type)
 {
   sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
 
-  spcont= spcont->push_context(thd, sp_pcontext::HANDLER_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::HANDLER_SCOPE);
 
   sp_instr_hpush_jump *i=
     new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
@@ -7511,7 +7534,7 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
 void LEX::sp_block_init(THD *thd, const LEX_CSTRING *label)
 {
   spcont->push_label(thd, label, sphead->instructions(), sp_label::BEGIN);
-  spcont= spcont->push_context(thd, sp_pcontext::REGULAR_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::REGULAR_SCOPE);
 }
 
 
@@ -10828,22 +10851,61 @@ SELECT_LEX_UNIT *LEX::add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
 
 
 /**
+  Push the select that a non-empty tail of a parenthesized query primary
+  is parsed in.
+
+  If the tail has ORDER BY and the primary already has its own ORDER BY or
+  LIMIT, the primary is wrapped into a derived table here, before the tail
+  is parsed, and the wrapper is pushed.  Window functions, window specs and
+  subqueries in the tail's ORDER BY are attached to the current select
+  while they are parsed, so they must be parsed in the select that will
+  own the ORDER BY.
+
+  @return the pushed select, NULL on error
+*/
+
+SELECT_LEX *
+LEX::push_select_for_ext_parens_tail(SELECT_LEX_UNIT *unit,
+                                     bool tail_has_order)
+{
+  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
+                                                         unit->first_select();
+  if (tail_has_order && sel->is_set_query_expr_tail)
+  {
+    if (!(sel= wrap_unit_into_derived(unit)) || !create_unit(sel))
+      return NULL;
+  }
+  if (push_select(sel))
+    return NULL;
+  return sel;
+}
+
+
+/**
   Add non-empty tail to a parenthesized query primary
+
+  @param tail_sel  the select returned by push_select_for_ext_parens_tail()
 */
 
 SELECT_LEX_UNIT *
 LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-                                                  Lex_order_limit_lock *l)
+                                                  Lex_order_limit_lock *l,
+                                                  SELECT_LEX *tail_sel)
 {
-  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
-                                                         unit->first_select();
+  SELECT_LEX *sel= tail_sel;
 
   DBUG_ASSERT(l != NULL);
 
   pop_select();
-  if (sel->is_set_query_expr_tail)
+  if (sel->master_unit() != unit)
   {
-    if (!l->order_list && !sel->limit_params.explicit_limit)
+    /* Already wrapped by push_select_for_ext_parens_tail() */
+    DBUG_ASSERT(l->order_list);
+  }
+  else if (sel->is_set_query_expr_tail)
+  {
+    DBUG_ASSERT(!l->order_list);
+    if (!sel->limit_params.explicit_limit)
       l->order_list= &sel->order_list;
     else
     {

@@ -1,3 +1,4 @@
+call mtr.add_suppression("Host '192.0.2.4' is blocked because of many connection errors");
 flush status;
 flush hosts;
 flush user_resources;

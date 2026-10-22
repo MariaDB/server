@@ -1,0 +1,32 @@
+SET @saved_replicate_do_db= @@GLOBAL.replicate_do_db;
+SET @saved_slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET @saved_default_master_connection= @@SESSION.default_master_connection;
+CHANGE MASTER 'name' TO master_host='127.0.0.1', master_user='root';
+SET @@SESSION.default_master_connection= 'name';
+SET @@GLOBAL.replicate_do_db= 'named';
+SET @@GLOBAL.``.replicate_do_db= 'unnamed';
+SELECT @@GLOBAL.name.replicate_do_db;
+@@GLOBAL.name.replicate_do_db
+named
+SELECT @@GLOBAL.replicate_do_db;
+@@GLOBAL.replicate_do_db
+named
+SELECT @@GLOBAL.``.replicate_do_db;
+@@GLOBAL.``.replicate_do_db
+unnamed
+SET @@GLOBAL.slave_parallel_mode= 'minimal';
+SET @@GLOBAL.``.slave_parallel_mode= 'aggressive';
+SELECT @@GLOBAL.name.slave_parallel_mode;
+@@GLOBAL.name.slave_parallel_mode
+minimal
+SELECT @@GLOBAL.slave_parallel_mode;
+@@GLOBAL.slave_parallel_mode
+minimal
+SELECT @@GLOBAL.``.slave_parallel_mode;
+@@GLOBAL.``.slave_parallel_mode
+aggressive
+RESET SLAVE 'name' ALL;
+SET @@SESSION.default_master_connection= @saved_default_master_connection;
+SET @@GLOBAL.slave_parallel_mode= @saved_slave_parallel_mode;
+SET @@GLOBAL.replicate_do_db= @saved_replicate_do_db;
+# End of 11.4 tests

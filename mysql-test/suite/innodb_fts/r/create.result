@@ -211,3 +211,11 @@ ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for sys
 ALTER TABLE t1 ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
 ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
 DROP TABLE t1;
+#
+# MDEV-40985 row_end access out of bounds in ALTER TABLE
+#
+CREATE TABLE t1
+(a TEXT,b INT AS(1),c INT AS(1),d INT AS(1),e INT AS(1),f INT AS(1),
+FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;

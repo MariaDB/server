@@ -1664,7 +1664,6 @@ void THD::cleanup(void)
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
     wsrep_cs().cleanup();
-  wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
   DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
@@ -4641,7 +4640,6 @@ void TMP_TABLE_PARAM::init()
   table_charset= 0;
   precomputed_group_by= 0;
   bit_fields_as_long= 0;
-  materialized_subquery= 0;
   force_not_null_cols= 0;
   skip_create_table= 0;
   tmp_name= "temptable";                        // Name of temp table on disk

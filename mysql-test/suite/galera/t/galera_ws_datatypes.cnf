@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+#
+# Own configuration so that this test gets its own pair of servers. It parks
+# a write set in front of the local monitor, and the next test in the worker
+# would otherwise inherit the servers it used.
+#
+[mysqld]
+wsrep-debug=1

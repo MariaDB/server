@@ -478,6 +478,9 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
 
   while (true)
   {
+    if (!instr->is_invalid() && m_lex->needs_reprepare)
+      instr->invalidate();
+
     if (instr->is_invalid())
     {
       thd->clear_error();

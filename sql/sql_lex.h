@@ -3313,6 +3313,13 @@ public:
   Explain_query *explain;
 
   /*
+    If true, query optimizer has encountered an error when doing
+    once-per-statement optimization and it is not safe to re-execute this
+    statement without re-preparing it.
+  */
+  bool needs_reprepare{false};
+
+  /*
     LEX which represents current statement (conventional, SP or PS)
 
     For example during view parsing THD::lex will point to the views LEX and
@@ -4898,9 +4905,12 @@ public:
   bool parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit);
   SELECT_LEX_UNIT *add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
 						     Lex_order_limit_lock *l);
+  SELECT_LEX *push_select_for_ext_parens_tail(SELECT_LEX_UNIT *unit,
+                                              bool tail_has_order);
   SELECT_LEX_UNIT *
   add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-					       Lex_order_limit_lock *l);
+					       Lex_order_limit_lock *l,
+					       SELECT_LEX *tail_sel);
   SELECT_LEX_UNIT *parsed_body_ext_parens_primary(SELECT_LEX_UNIT *unit,
                                                   SELECT_LEX *primary,
                                               enum sub_select_type unit_type,

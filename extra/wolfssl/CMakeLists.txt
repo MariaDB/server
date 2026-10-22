@@ -99,6 +99,7 @@ if(WOLFSSL_INTELASM)
   if(MSVC_INTEL)
     target_sources(wolfssl PRIVATE
       ${WOLFCRYPT_SRCDIR}/aes_asm.asm
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.asm
       ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.asm
       ${WOLFCRYPT_SRCDIR}/sp_x86_64_asm.asm
     )
@@ -110,6 +111,7 @@ if(WOLFSSL_INTELASM)
     set(USE_INTEL_SPEEDUP 1)
     target_sources(wolfssl PRIVATE
       ${WOLFCRYPT_SRCDIR}/aes_asm.S
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.S
       ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.S
       ${WOLFCRYPT_SRCDIR}/chacha_asm.S
       ${WOLFCRYPT_SRCDIR}/poly1305_asm.S
@@ -119,7 +121,8 @@ if(WOLFSSL_INTELASM)
     )
     target_compile_options(wolfssl PRIVATE -maes -msse4.2 -mpclmul)
     # Workaround 5.5.4 bug (user_settings.h not included into aes_asm.S)
-    set_property(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
+    set_property(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
   endif()
 endif()
 

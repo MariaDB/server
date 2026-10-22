@@ -942,3 +942,26 @@ drop table t1;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # MDEV-17613 Read sole now-partition for non-historical versioned query
+--echo #
+--echo # INSERT ... SELECT from explicit PARTITION() without WHERE must not
+--echo # read partitions outside of it (read_partitions widened by auto-increment)
+--echo #
+create table t1 (id int auto_increment primary key, x int)
+partition by range (id) (
+  partition p0 values less than (10),
+  partition p1 values less than maxvalue);
+insert into t1 values (1, 1), (2, 2), (11, 11), (12, 12);
+create table t2 (id int, x int);
+--echo # Fresh share: auto-increment is not initialized yet
+flush tables;
+insert into t2 select * from t1 partition (p0);
+--sorted_result
+select * from t2;
+drop tables t1, t2;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
