@@ -783,11 +783,6 @@ public:
       if (UNIV_UNLIKELY(id_limit > first))
         /* Wait for checkpoint_complete(). */
         buf_flush_sync_batch(id_limit, true);
-      /*
-        This may be invoked also when ctx.is_log_tracking()
-        if (log_sys.last_checkpoint_lsn < log_sys.first_lsn)
-        held in checkpoint_complete().
-      */
       if (replicate(id_limit, target, sink, id_limit < first))
         res= -1;
     }
