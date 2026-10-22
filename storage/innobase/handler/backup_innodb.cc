@@ -779,9 +779,13 @@ public:
     {
       log_sys.latch.rd_lock();
       const lsn_t first{log_sys.get_first_lsn()};
+      const lsn_t last_checkpoint{log_sys.last_checkpoint_lsn};
       log_sys.latch.rd_unlock();
-      if (UNIV_UNLIKELY(id_limit > first))
-        /* Wait for checkpoint_complete(). */
+      if (UNIV_UNLIKELY(id_limit > first || last_checkpoint < first))
+        /*
+          Wait for checkpoint_complete(). The log must be safe to move
+          from the server data directory in case ctx.old_size != 0.
+        */
         buf_flush_sync_batch(id_limit, true);
       if (replicate(id_limit, target, sink, id_limit < first))
         res= -1;
