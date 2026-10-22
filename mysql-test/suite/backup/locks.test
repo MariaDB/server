@@ -13,7 +13,7 @@ FLUSH TABLES t FOR EXPORT;
 --rmdir $MYSQLTEST_VARDIR/backup_locks
 
 --error ER_CANT_UPDATE_WITH_READLOCK
-BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
+evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/backup_locks';
 --connection default
 BACKUP STAGE END;
 --connection backup
