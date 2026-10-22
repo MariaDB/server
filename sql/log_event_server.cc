@@ -9044,7 +9044,7 @@ Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, size_t event_len)
     log_pos= uint8korr(buf + header_size);
 
   log_ident= buf + all_headers_len;
-  ident_len= event_len - all_headers_len;
+  ident_len= (uint)(event_len - all_headers_len);
 }
 #endif
 

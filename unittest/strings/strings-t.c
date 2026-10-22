@@ -1842,7 +1842,7 @@ int main(int ac, char **av)
 
   MY_INIT(av[0]);
 
-  plan(6);
+  plan(7);
   diag("Testing my_like_range_xxx() functions");
 
   for (i= 0; i < array_elements(charset_list); i++)
