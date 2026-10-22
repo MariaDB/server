@@ -36,22 +36,22 @@ drop table test.t1;
 connection master;
 
 select
-  substring_index(replace(file_name, char(92), "/"), "/", -1) as FILE_NAME,
+  substring_index(replace(file_name, 0x5c, "/"), "/", -1) as FILE_NAME,
   EVENT_NAME,
   if (count_read > 0, "MANY", "NONE") as COUNT_READ,
   if (count_write > 0,"MANY", "NONE") as COUNT_WRITE,
   if (sum_number_of_bytes_read > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_READ,
   if (sum_number_of_bytes_write > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_WRITE
   from performance_schema.file_summary_by_instance
-  where substring_index(replace(file_name, char(92), "/"), "/", -1) like "master-%" order by file_name;
+  where substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "master-%" order by file_name;
 
 select * from performance_schema.file_summary_by_instance
-  where substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-%" order by file_name;
+  where substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-%" order by file_name;
 
 -- echo "Expect a master binlog + binlog_index"
 
 select
-  substring_index(replace(file_name, char(92), "/"), "/", -1) as FILE_NAME,
+  substring_index(replace(file_name, 0x5c, "/"), "/", -1) as FILE_NAME,
   EVENT_NAME,
   if (count_read > 0, "MANY", "NONE") as COUNT_READ,
   if (count_write > 0,"MANY", "NONE") as COUNT_WRITE,
@@ -96,26 +96,26 @@ sync_slave_with_master;
 -- echo "============ Performance schema on slave ============"
 
 select * from performance_schema.file_summary_by_instance
-  where substring_index(replace(file_name, char(92), "/"), "/", -1) like "master-%" order by file_name;
+  where substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "master-%" order by file_name;
 
 select
-  substring_index(replace(file_name, char(92), "/"), "/", -1) as FILE_NAME,
+  substring_index(replace(file_name, 0x5c, "/"), "/", -1) as FILE_NAME,
   EVENT_NAME,
   if (count_read > 0, "MANY", "NONE") as COUNT_READ,
   if (count_write > 0,"MANY", "NONE") as COUNT_WRITE,
   if (sum_number_of_bytes_read > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_READ,
   if (sum_number_of_bytes_write > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_WRITE
   from performance_schema.file_summary_by_instance
-  where substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-%"
-  and (substring_index(replace(file_name, char(92), "/"), "/", -1) not like "slave-relay-bin.0%"
-       or substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-relay-bin.000001"
-       or substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-relay-bin.000002")
+  where substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-%"
+  and (substring_index(replace(file_name, 0x5c, "/"), "/", -1) not like "slave-relay-bin.0%"
+       or substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-relay-bin.000001"
+       or substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-relay-bin.000002")
   order by file_name;
 
 -- echo "Expect a slave binlog + binlog_index"
 
 select
-  substring_index(replace(file_name, char(92), "/"), "/", -1) as FILE_NAME,
+  substring_index(replace(file_name, 0x5c, "/"), "/", -1) as FILE_NAME,
   EVENT_NAME,
   if (count_read > 0, "MANY", "NONE") as COUNT_READ,
   if (count_write > 0,"MANY", "NONE") as COUNT_WRITE,
@@ -146,7 +146,7 @@ select
 -- echo "Expect a slave relay log"
 
 select
-  substring_index(replace(file_name, char(92), "/"), "/", -1) as FILE_NAME,
+  substring_index(replace(file_name, 0x5c, "/"), "/", -1) as FILE_NAME,
   EVENT_NAME,
   if (count_read > 0, "MANY", "NONE") as COUNT_READ,
   if (count_write > 0,"MANY", "NONE") as COUNT_WRITE,
@@ -154,9 +154,9 @@ select
   if (sum_number_of_bytes_write > 0, "MANY", "NONE") as SUM_NUMBER_OF_BYTES_WRITE
   from performance_schema.file_summary_by_instance
   where event_name like "%relaylog%"
-  and (substring_index(replace(file_name, char(92), "/"), "/", -1) not like "slave-relay-bin.0%"
-       or substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-relay-bin.000001"
-       or substring_index(replace(file_name, char(92), "/"), "/", -1) like "slave-relay-bin.000002")
+  and (substring_index(replace(file_name, 0x5c, "/"), "/", -1) not like "slave-relay-bin.0%"
+       or substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-relay-bin.000001"
+       or substring_index(replace(file_name, 0x5c, "/"), "/", -1) like "slave-relay-bin.000002")
   order by file_name;
 
 select
