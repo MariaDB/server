@@ -1647,7 +1647,15 @@ private:
 # endif
         for (;;)
         {
+#ifdef POSIX_FADV_SEQUENTIAL
+          std::ignore=
+            posix_fadvise(node->handle, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
           res= (*method)(fd, node, name, start, limit);
+#ifdef POSIX_FADV_NORMAL
+          std::ignore=
+            posix_fadvise(node->handle, 0, 0, POSIX_FADV_NORMAL);
+#endif
           if (res)
             break;
           fil_node_t *next= UT_LIST_GET_NEXT(chain, node);

@@ -112,19 +112,35 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     if (count < size)
       size= count;
     ret= pread(in_fd, b, ssize_t(size), o);
-    count-= uint64_t(ret);
-    const uint64_t n{o + ret};
     if (ret > 0)
     {
 #ifdef POSIX_FADV_DONTNEED
       std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
 #endif
-#ifdef POSIX_FADV_WILLNEED
-      if (count)
-        std::ignore= posix_fadvise(in_fd, n, size, POSIX_FADV_WILLNEED);
-#endif
+      uint64_t wo{o};
+      o+= ret;
+      count-= uint64_t(ret);
+
       if (!stream)
-        ret= pwrite(out_fd, b, size_t(ret), o);
+      {
+        const char *buf= b;
+        size_t size{size_t(ret)};
+        do
+        {
+          ssize_t wrote= pwrite(out_fd, buf, size, wo);
+          assert(wrote <= ssize_t(size));
+          if (wrote < 0)
+          {
+            ret= int(wrote);
+            break;
+          }
+          buf+= wrote;
+          wo+= wrote;
+          size-= size_t(wrote);
+        }
+        while (size);
+        assert(wo == o);
+      }
       else if (backup_stream_write(out_fd, b, size_t(ret)))
       {
         ret= -1;
@@ -143,7 +159,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
       ret= -1;
       break;
     }
-    o= n;
   }
   aligned_free(b);
   return ret;
@@ -170,7 +185,18 @@ int copy_entire_file(int src, int dst) noexcept
   ret= int(copy_file_shortcut(src, dst, 0, end));
   if (ret == 1)
 # endif
+  {
+#ifdef POSIX_FADV_SEQUENTIAL
+    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
     ret= backup::copy(src, dst, 0, end);
+#ifdef POSIX_FADV_DONTNEED
+    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
+#endif
+#ifdef POSIX_FADV_NORMAL
+    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
+#endif
+  }
   return ret;
 }
 #endif
@@ -224,6 +250,9 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 #else
   ssize_t ret{pread_write<false>(src, dst, start, end)};
   assert(ret <= 0);
+#ifdef POSIX_FADV_DONTNEED
+  std::ignore= posix_fadvise(src, start, end, POSIX_FADV_DONTNEED);
+#endif
   return int(ret);
 #endif
 }
