@@ -1538,29 +1538,26 @@ protected:
   { return get_item_copy<Item_sum_sp>(thd, this); }
 };
 
-/* Items to get the value of a stored sum function */
+/*
+  Items to get the value of a stored sum function. Like other expressions,
+  these may need to be materialized again in a subsequent temporary table.
+*/
 
-class Item_sum_field :public Item
+class Item_sum_field :public Item_result_field
 {
 protected:
   Field *field;
 public:
   Item_sum_field(THD *thd, Item_sum *item)
-    :Item(thd), field(item->result_field)
+    :Item_result_field(thd), field(item->result_field)
   {
+    quick_fix_field();
     name= item->name;
     set_maybe_null();
     decimals= item->decimals;
     max_length= item->max_length;
     unsigned_flag= item->unsigned_flag;
   }
-  table_map used_tables() const override { return (table_map) 1L; }
-  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param) override
-  {
-    return create_tmp_field_ex_simple(root, table, src, param);
-  }
-  void save_in_result_field(bool no_conversions) override { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);
