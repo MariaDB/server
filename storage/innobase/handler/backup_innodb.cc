@@ -600,12 +600,25 @@ public:
           else
 #endif
           {
-            tracked=
-              new tracked_log{log_sys.log.m_file, first_lsn,
-                              log_sys.file_size};
-            const os_file_t l{log_sys.resize_log.m_file};
+            os_file_t f{log_sys.log.m_file}, l{log_sys.resize_log.m_file};
+            if (l == f)
+              /* log_t::write_checkpoint() is in progress */
+              l= OS_FILE_CLOSED;
+            else if (l != OS_FILE_CLOSED)
+            {
+              /*
+                log_t::archive_new_write() was invoked and not yet
+                completed by log_t::write_checkpoint()
+              */
+              ut_ad(log_sys.get_lsn() >
+                    log_sys.get_first_lsn() + log_sys.capacity());
+              std::swap(f, l);
+            }
 
-            if (l != OS_FILE_CLOSED && l != log_sys.log.m_file)
+            tracked=
+              new tracked_log{f, first_lsn, log_sys.file_size};
+
+            if (l != OS_FILE_CLOSED)
               tracked->next= new tracked_log{l, first_lsn + log_sys.capacity(),
                                              uint64_t
                                              (IF_WIN(os_file_get_size(l),
