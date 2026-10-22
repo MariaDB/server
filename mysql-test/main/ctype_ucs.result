@@ -6839,3 +6839,42 @@ Warning	1292	Truncated incorrect INTEGER value: '-9223372036854775809'
 DROP TABLE t1;
 SET @@sql_mode= @old_mode;
 # End of 10.11 tests
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_general_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES utf8mb3;
+SET collation_connection=ucs2_bin;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES DEFAULT;
+End of 11.8 tests

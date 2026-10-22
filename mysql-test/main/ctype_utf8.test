@@ -2565,3 +2565,22 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.6 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb3 COLLATE utf8mb3_general_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb3 COLLATE utf8mb3_general_mysql500_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb3 COLLATE utf8mb3_bin;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

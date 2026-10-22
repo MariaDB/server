@@ -776,6 +776,22 @@ insert into t values (0, '');
 replace into t values (0, '123');
 drop table t;
 
+--echo #
+--echo # MDEV-30441 ASAN heap-use-after-free in Field_blob::pack/pack_row
+--echo #
+create table t1 (a blob, va mediumtext as (a) stored, b varchar(3845),
+                 unique key (b, va(64)))
+engine=innodb default charset=utf8mb3;
+insert into t1 (a, b) values ('111', '222');
+delete from t1 order by b limit 1;
+drop table t1;
+
+create table t (a blob, b text as (a) stored, unique (b))
+engine=innodb character set utf8mb3
+as select 'x' as a;
+delete from t;
+drop table t;
+
 --echo # End of 10.11 tests
 
 --echo #

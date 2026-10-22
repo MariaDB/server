@@ -193,4 +193,6 @@ LEX_CSTRING
 my_ci_get_collation_name_uca(CHARSET_INFO *cs, my_collation_name_mode_t mode);
 
 
+LEX_CSTRING my_tailoring_uca(CHARSET_INFO *self, my_repertoire_t repertoire);
+
 #endif /* CTYPE_UCA_H */

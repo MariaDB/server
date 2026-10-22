@@ -32659,6 +32659,9 @@ typedef struct my_coll_rules_st
   MY_COLL_RULE *rule;        /* Rule array                        */
   MY_CHARSET_LOADER *loader;
   my_coll_shift_method shift_after_method;
+  my_bool with_anomalies_on_ascii_range;
+  my_bool with_anomalies_on_digits;
+  my_bool with_anomalies_on_dot_minus;
 } MY_COLL_RULES;
 
 
@@ -32687,6 +32690,34 @@ my_coll_rules_realloc(MY_COLL_RULES *rules, size_t n)
 
 
 /**
+  Check if a rule touches the ASCII range, and its parts,
+  and set the corresponding flags in the rule container:
+  - with_anomalies_on_ascii_range: any character in U+0000..U+007F
+  - with_anomalies_on_digits: any of the digits 0..9
+  - with_anomalies_on_dot_minus: any of the dot (.) and the minus (-)
+  A contraction is checked character by character.
+*/
+static void
+my_coll_rules_check_ascii_anomalies(MY_COLL_RULES *rules,
+                                    const MY_COLL_RULE *rule)
+{
+  uint j;
+  DBUG_ASSERT(array_elements(rule->curr) == MY_UCA_MAX_CONTRACTION);
+  for (j= 0 ; j < array_elements(rule->curr) && rule->curr[j]; j++)
+  {
+    my_wc_t wc= rule->curr[j];
+    if (wc > 0x007F)
+      continue;
+    rules->with_anomalies_on_ascii_range= TRUE;
+    if (wc >= '0' && wc <= '9')
+      rules->with_anomalies_on_digits= TRUE;
+    else if (wc == '.' || wc == '-')
+      rules->with_anomalies_on_dot_minus= TRUE;
+  }
+}
+
+
+/**
   Append one new rule to a rule array
 
   @param  rules   Rule container
@@ -32701,6 +32732,7 @@ my_coll_rules_add(MY_COLL_RULES *rules, MY_COLL_RULE *rule)
   if (my_coll_rules_realloc(rules, rules->nrules + 1))
     return -1;
   rules->rule[rules->nrules++]= rule[0];
+  my_coll_rules_check_ascii_anomalies(rules, rule);
   return 0;
 }
 
@@ -34779,6 +34811,14 @@ create_tailoring(struct charset_info_st *cs,
   else if (!cs->levels_for_order)
     my_ci_set_strength(cs, 1);
 
+  if (!rules.with_anomalies_on_ascii_range)
+    cs->state|= MY_CS_ASCII_STD_UCA;
+  if (!rules.with_anomalies_on_digits)
+  {
+    cs->state|= MY_CS_DIGITS_STD;
+    if (!rules.with_anomalies_on_dot_minus)
+      cs->state|= MY_CS_ASCII_MINUS_DOT_DIGITS;
+  }
 
   if (my_collation_id_is_mysql_uca0900(cs->number))
   {
@@ -39424,6 +39464,75 @@ LEX_CSTRING my_ci_get_collation_name_uca(CHARSET_INFO *cs,
   }
 
   return cs->coll_name;
+}
+
+
+static LEX_CSTRING my_tailoring_uca_ci(my_repertoire_t repertoire)
+{
+  static const LEX_CSTRING ascii_uca_ci=
+    {STRING_WITH_LEN("ascii7_uca_ci")};
+
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_AaZz_ci, /* ALNUM */
+    my_tailoring_str_ident_underscore_09_AaZz_ci, /* IDENT */
+    ascii_uca_ci /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+static LEX_CSTRING my_tailoring_uca_cs(my_repertoire_t repertoire)
+{
+  static const LEX_CSTRING ascii_uca_cs=
+    {STRING_WITH_LEN("ascii7_uca_cs")};
+
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_aAzZ3_cs, /* ALNUM */
+    my_tailoring_str_ident_underscore_09_aAzZ3_cs, /* IDENT */
+    ascii_uca_cs /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+/*
+  Detect a correct tailoring of a UCA collation taking into account:
+  - The requested repertoire
+  - Anomalies on the ASCII range
+  - Case sensitivity
+
+  The PAD/NOPAD attribute and the UCA version are not taken into account:
+  the returned tailoring does not depend on them. The caller,
+  DTCollation::aggregate_by_tailoring(), compares MY_CS_NOPAD of the
+  collations, and the UCA versions on the repertoires with punctuation.
+*/
+
+LEX_CSTRING my_tailoring_uca(CHARSET_INFO *cs, my_repertoire_t repertoire)
+{
+  if (repertoire != MY_REPERTOIRE_NONE &&
+      !(cs->state & MY_CS_ASCII_STD_UCA))
+  {
+    /*
+      Anomalies on the ASCII letter range.
+      The digits can still be sorted in the standard way.
+    */
+    return my_tailoring_by_digit_flags(repertoire, cs->state);
+  }
+
+  /*
+    In UCA case sensitive collations case difference is
+    on the third (tertiary) level. If MY_STRXFRM_LEVEL3 is not given in
+    levels_for_order, then we have a case insensitive collation.
+  */
+  return (cs->levels_for_order & MY_STRXFRM_LEVEL3) ?
+         my_tailoring_uca_cs(repertoire) :
+         my_tailoring_uca_ci(repertoire);
 }
 
 #endif /* HAVE_UCA_COLLATIONS */

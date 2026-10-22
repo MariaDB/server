@@ -1,0 +1,11 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_notify_cmd=@ENV.WSREP_NOTIFY_CMD
+
+[ENV]
+WSREP_NOTIFY_CLIENT= @ENV.EXE_MYSQL
+WSREP_NOTIFY_SCHEMA= mtr_wsrep_notify
+WSREP_NOTIFY_PSWD=
+WSREP_NOTIFY_HOST= 127.0.0.1
+WSREP_NOTIFY_PORT= @mysqld.1.port

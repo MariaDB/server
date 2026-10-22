@@ -46,7 +46,8 @@ int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
                           system_status_var *status_var,
                           enum_var_type scope)
 {
-  local_semi_sync_enabled= repl_semisync_slave.get_slave_enabled();
+  //TODO MDEV-40941
+  local_semi_sync_enabled= repl_semisync_slave.m_slave_enabled;
   var->type= SHOW_BOOL;
   var->value= (char*) &local_semi_sync_enabled;
   return 0;
@@ -55,14 +56,14 @@ int rpl_semi_sync_enabled(THD *thd, SHOW_VAR *var, void *buff,
 
 int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
                                                  unsigned long total_len,
-                                                 int  *semi_flags,
+                                                 Master_info *mi,
                                                  const uchar **payload,
                                                  unsigned long *payload_len)
 {
   int read_res = 0;
   DBUG_ENTER("Repl_semi_sync_slave::slave_read_sync_header");
 
-  if (get_slave_enabled())
+  if (get_slave_enabled(mi))
   {
     if (!DBUG_IF("semislave_corrupt_log")
         && header[0] == k_packet_magic_num)
@@ -76,9 +77,9 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
                               semi_sync_need_reply));
 
       if (semi_sync_need_reply)
-        *semi_flags |= SEMI_SYNC_NEED_ACK;
+        mi->semi_ack |= SEMI_SYNC_NEED_ACK;
       if (is_delay_master())
-        *semi_flags |= SEMI_SYNC_SLAVE_DELAY_SYNC;
+        mi->semi_ack |= SEMI_SYNC_SLAVE_DELAY_SYNC;
     }
     else
     {
@@ -111,7 +112,7 @@ void Repl_semi_sync_slave::slave_start(Master_info *mi)
   */
   bool semi_sync= global_rpl_semi_sync_slave_enabled;
 
-  set_slave_enabled(semi_sync);
+  set_slave_enabled(mi, semi_sync);
   mi->semi_sync_reply_enabled= 0;
 
   sql_print_information("Slave I/O thread: Start %s replication to\
@@ -127,7 +128,7 @@ void Repl_semi_sync_slave::slave_start(Master_info *mi)
 
 void Repl_semi_sync_slave::slave_stop(Master_info *mi)
 {
-  if (get_slave_enabled())
+  if (get_slave_enabled(mi))
   {
 #ifdef ENABLED_DEBUG_SYNC
   /*
@@ -144,7 +145,7 @@ void Repl_semi_sync_slave::slave_stop(Master_info *mi)
     kill_connection(mi);
   }
 
-  set_slave_enabled(0);
+  set_slave_enabled(mi, 0);
 }
 
 void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
@@ -153,7 +154,7 @@ void Repl_semi_sync_slave::slave_reconnect(Master_info *mi)
     Start semi-sync either if it globally enabled or if was enabled
     before the reconnect.
   */
-  if (global_rpl_semi_sync_slave_enabled || get_slave_enabled())
+  if (global_rpl_semi_sync_slave_enabled || get_slave_enabled(mi))
     slave_start(mi);
 }
 
@@ -215,7 +216,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   MYSQL_ROW row;
   const char *query;
 
-  if (!get_slave_enabled())
+  if (!get_slave_enabled(mi))
     return 0;
 
   query= "SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled'";
@@ -223,7 +224,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
       !(res= mysql_store_result(mysql)))
   {
     sql_print_error("Execution failed on master: %s, error :%s", query, mysql_error(mysql));
-    set_slave_enabled(0);
+    set_slave_enabled(mi, 0);
     return 1;
   }
 
@@ -234,7 +235,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
     if (!row)
       sql_print_warning("Master server does not support semi-sync, "
                         "fallback to asynchronous replication");
-    set_slave_enabled(0);
+    set_slave_enabled(mi, 0);
     mysql_free_result(res);
     return 0;
   }
@@ -253,7 +254,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   if (mysql_real_query(mysql, query, (ulong)strlen(query)))
   {
     sql_print_error("%s on master failed", query);
-    set_slave_enabled(0);
+    set_slave_enabled(mi, 0);
     return 1;
   }
   mi->semi_sync_reply_enabled= 1;
@@ -276,7 +277,7 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
   int reply_res = 0;
   size_t name_len = strlen(binlog_filename);
   DBUG_ENTER("Repl_semi_sync_slave::slave_reply");
-  DBUG_ASSERT(get_slave_enabled() && mi->semi_sync_reply_enabled);
+  DBUG_ASSERT(get_slave_enabled(mi) && mi->semi_sync_reply_enabled);
 
   /* Prepare the buffer of the reply. */
   reply_buffer[REPLY_MAGIC_NUM_OFFSET] = k_packet_magic_num;

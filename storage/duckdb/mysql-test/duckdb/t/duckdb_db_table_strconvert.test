@@ -1,4 +1,3 @@
---source include/not_msan.inc
 # Test for escape characters in the table name or database name.
 
 --echo #

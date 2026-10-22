@@ -397,6 +397,19 @@ Event_scheduler::start(int *err_no)
   if (state > INITIALIZED)
     goto end;
 
+  /*
+    Shutdown calls Events::stop() only once in close_connections(). The
+    scheduler thread started after that would never be stopped and
+    close_connections() would wait for it forever. No error needed:
+    the server is shutting down and @@event_scheduler staying ON without
+    the thread does not matter.
+  */
+  if (abort_loop)
+  {
+    DBUG_PRINT("info", ("Shutdown in progress, not starting the scheduler"));
+    goto end;
+  }
+
   if (!(new_thd= new THD(next_thread_id())))
   {
     sql_print_error("Event Scheduler: Cannot initialize the scheduler thread");

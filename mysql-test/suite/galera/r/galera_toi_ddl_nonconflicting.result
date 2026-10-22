@@ -13,7 +13,7 @@ SET SESSION wsrep_sync_wait=0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 # DDL 1
-ALTER TABLE t1 ADD COLUMN f3 INTEGER; INSERT INTO t1 VALUES (NULL, 10000, 10000);;
+ALTER TABLE t1 ADD COLUMN f3 INTEGER;
 connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
@@ -21,14 +21,22 @@ SET GLOBAL wsrep_provider_options = 'dbug=';
 # This will block on acquiring total order isolation
 connection node_1;
 # DDL 2
-CREATE UNIQUE INDEX i1 ON t1(f2);;
+CREATE UNIQUE INDEX i1 ON t1(f2);
+connection node_2a;
+# Neither DDL has been applied on node_1 yet
 connection node_1a;
+SELECT COUNT(*) AS EXPECT_2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 't1';
+EXPECT_1
+1
 # Signal DDL 1
-SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 connection node_2;
 connection node_1;
 connection node_2;
+INSERT INTO t1 VALUES (NULL, 10000, 10000);
 SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 EXPECT_3
 3

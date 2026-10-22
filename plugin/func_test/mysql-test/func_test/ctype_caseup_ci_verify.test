@@ -1,0 +1,95 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+--echo # Some collations (multibyte, Unicode general_ci, etc) are declared
+--echo # to be "caseup CI" on the ASCII (or on the IDENT) range
+--echo # by my_tailoring_{ascii,ident}_caseup_ci_generic(), without detecting
+--echo # this from the collation weights. This test verifies the declaration:
+--echo # the order of the declared range must be the code point order
+--echo # after folding a-z to A-Z.
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE ascii_chars (n INT PRIMARY KEY);
+INSERT INTO ascii_chars
+  WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM seq WHERE n<127)
+  SELECT n FROM seq;
+
+CREATE TABLE tmp_collations (cs VARCHAR(64), cl VARCHAR(64), claim VARCHAR(8));
+INSERT INTO tmp_collations
+SELECT character_set_name, full_collation_name,
+       CASE WHEN collation_tailoring(full_collation_name, 'ascii')
+                 LIKE '%ascii7\_caseup\_ci' THEN 'ascii'
+            WHEN collation_tailoring(full_collation_name, 'ascii_ident')
+                 LIKE '%[digit7]<[letter7\_ci]<\_' THEN 'ident'
+       END
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY;
+DELETE FROM tmp_collations WHERE claim IS NULL;
+
+CREATE TABLE tmp_violations (cl VARCHAR(64), violations INT);
+CREATE TABLE tmp_pad_violations (cl VARCHAR(64), violations INT);
+
+DELIMITER $$;
+CREATE PROCEDURE check_caseup_ci()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_cs, v_cl VARCHAR(64);
+  DECLARE v_claim VARCHAR(8);
+  DECLARE c CURSOR FOR SELECT cs, cl, claim FROM tmp_collations;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=1;
+  OPEN c;
+  read_loop: LOOP
+    FETCH c INTO v_cs, v_cl, v_claim;
+    IF done THEN LEAVE read_loop; END IF;
+    -- The 'ident' claim covers only 0-9, A-Z, a-z, underscore
+    SET @cond= IF(v_claim='ascii', '1',
+      '(CHAR(a.n) REGEXP ''^[0-9A-Za-z_]$'' AND CHAR(b.n) REGEXP ''^[0-9A-Za-z_]$'')');
+    SET @q= CONCAT(
+      'INSERT INTO tmp_violations SELECT ''', v_cl, ''', COUNT(*) FROM ',
+      'ascii_chars a, ascii_chars b WHERE ', @cond, ' AND ',
+      '((CONVERT(CHAR(a.n USING ascii) USING ', v_cs, ') COLLATE ', v_cl, ' < ',
+      'CONVERT(CHAR(b.n USING ascii) USING ', v_cs, ') COLLATE ', v_cl, ') <> ',
+      '(IF(a.n BETWEEN 97 AND 122, a.n-32, a.n) < ',
+      'IF(b.n BETWEEN 97 AND 122, b.n-32, b.n)))');
+    PREPARE stmt FROM @q;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+    -- Compare "ab" to "ab" followed by a character.
+    -- NOPAD collations: the shorter string is always less.
+    -- PAD collations: the shorter string is padded with spaces,
+    -- so the result depends on the position of the space
+    -- relative to the added character.
+    SET @cond_pad= IF(v_claim='ascii', '1',
+      '(CHAR(a.n) REGEXP ''^[0-9A-Za-z_]$'')');
+    SET @q= CONCAT(
+      'INSERT INTO tmp_pad_violations SELECT ''', v_cl, ''', COUNT(*) FROM ',
+      'ascii_chars a WHERE ', @cond_pad, ' AND ',
+      'STRCMP(CONVERT(''ab'' USING ', v_cs, ') COLLATE ', v_cl, ', ',
+      'CONVERT(CONCAT(''ab'', CHAR(a.n USING ascii)) USING ', v_cs, ') ',
+      'COLLATE ', v_cl, ') <> ',
+      IF(v_cl LIKE '%nopad%', '-1', 'SIGN(32 - a.n)'));
+    PREPARE stmt FROM @q;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+CALL check_caseup_ci();
+
+--echo # At least some collations were checked
+SELECT COUNT(*) > 20 AS checked FROM tmp_violations;
+--echo # No violations expected
+SELECT * FROM tmp_violations WHERE violations>0;
+--echo # Padding: the same collations were checked, no violations expected
+SELECT COUNT(*) = (SELECT COUNT(*) FROM tmp_violations) AS same_checked
+FROM tmp_pad_violations;
+SELECT * FROM tmp_pad_violations WHERE violations>0;
+
+DROP PROCEDURE check_caseup_ci;
+DROP TABLE tmp_violations, tmp_pad_violations, tmp_collations, ascii_chars;
+
+--echo # End of 11.8 tests

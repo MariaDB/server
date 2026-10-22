@@ -1,5 +1,7 @@
 source include/not_embedded.inc;
 
+call mtr.add_suppression("Host 'localhost' is not allowed to connect to this MariaDB server");
+
 --echo #
 --echo # MDEV-4462 mysqld gets SIGFPE when mysql.user table is empty
 --echo #

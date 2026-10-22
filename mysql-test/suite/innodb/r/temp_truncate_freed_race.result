@@ -1,0 +1,31 @@
+#
+# MDEV-41103 Crash in innodb.temp_truncate_freed
+#
+SET GLOBAL innodb_immediate_scrub_data_uncompressed=1;
+SET GLOBAL innodb_max_dirty_pages_pct=0;
+SET GLOBAL innodb_buffer_pool_size= 16777216;
+CREATE PROCEDURE process_temp_table(end_time INT UNSIGNED)
+BEGIN
+WHILE UNIX_TIMESTAMP() < end_time DO
+CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (repeat('a', 16777215));
+DROP TEMPORARY TABLE t1;
+END WHILE;
+END|
+CREATE PROCEDURE toggle_pool_size(end_time INT UNSIGNED)
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1221 BEGIN END;
+WHILE UNIX_TIMESTAMP() < end_time DO
+SET GLOBAL innodb_buffer_pool_size=16777216;
+SET GLOBAL innodb_buffer_pool_size=6291456;
+END WHILE;
+END|
+#
+# Run concurrent processing to trigger possible data race
+#
+#
+# Cleanup
+#
+DROP PROCEDURE process_temp_table;
+DROP PROCEDURE toggle_pool_size;
+# End of test

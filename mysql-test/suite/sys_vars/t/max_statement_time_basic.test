@@ -18,8 +18,8 @@
 #              * Scope & Access method                                        #
 #              * Data Integrity                                               #
 #                                                                             #
-# Reference: https://kb.askmonty.org/en/how-to-limittimeout-queries/          #
-#  server-system-variables.html                                               #
+# Reference:                                                                  #
+# https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/query-limits-and-timeouts
 #                                                                             #
 ###############################################################################
 

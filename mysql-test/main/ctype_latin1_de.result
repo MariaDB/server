@@ -839,3 +839,24 @@ hex(weight_string('xﬂ' as char(2)))
 #
 drop database latin1_german2_ci;
 use test;
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES latin1 COLLATE latin1_german2_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+c
+Y
+SET NAMES DEFAULT;
+# End of 11.8 tests
