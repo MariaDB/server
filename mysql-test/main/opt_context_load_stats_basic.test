@@ -289,3 +289,116 @@ select * from t1 where a > 10;
 
 drop table t1;
 drop database db1;
+set optimizer_replay_context="";
+
+--echo #
+--echo # MDEV-41564: context replay warnings/errors are non-translatable
+--echo #
+use test;
+create table t1
+(
+    a int, b int,
+    index t1_idx_a (a),
+    index t1_idx_b (b),
+    index t1_idx_ab (a, b)
+) ENGINE=MyISAM;
+
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+
+set optimizer_record_context=ON;
+
+select * from t1 where a > 10;
+--source include/opt_context_save_in_var.inc
+set @saved_opt_context_1=@opt_context;
+
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+select * from t1 where a < 3 and b > 6;
+
+set @opt_context=json_replace(@saved_opt_context_1, '$.tables[0].name', 'db2.t1');
+select * from t1 where a > 10;
+
+set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].indexes[0]');
+select * from t1 where a > 10;
+
+set optimizer_replay_context="";
+set lc_messages=default;
+set character_set_results=default;
+
+explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
+
+--source include/opt_context_save_in_var.inc
+set @saved_opt_context_1= @opt_context;
+
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+
+set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].index_name');
+select * from t1 where a > 10;
+
+set lc_messages=default;
+set character_set_results=default;
+
+set optimizer_replay_context="";
+
+--echo # cost_for_index_read_calls mismatch
+set optimizer_record_context=ON;
+--disable_result_log
+select * from t1 tt1, t1 tt2 where tt1.a=tt2.a and tt2.b in (1,2);
+--enable_result_log
+--source include/opt_context_save_in_var.inc
+set @saved_opt_context_2=@opt_context;
+set @opt_context=json_replace(@saved_opt_context_2,
+  '$.tables[0].cost_for_index_read_calls[0].num_records', 999999,
+  '$.tables[0].cost_for_index_read_calls[1].num_records', 999999,
+  '$.tables[0].cost_for_index_read_calls[2].num_records', 999999,
+  '$.tables[0].cost_for_index_read_calls[3].num_records', 999999);
+set optimizer_record_context=OFF;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+explain select * from t1 tt1, t1 tt2 where tt1.a=tt2.a and tt2.b in (1,2);
+set lc_messages=default;
+set character_set_results=default;
+
+set optimizer_replay_context="";
+
+--echo # records_in_range_calls mismatch
+create table t2
+(
+  a int, b int, c int, d int,
+  key k1 (a,b), key k2 (b,c), key k3 (c), key k4 (a), key k5 (b)
+) engine=MyISAM;
+insert into t2 select seq%10, (seq div 7)%10, (seq div 3)%10, seq
+from seq_1_to_300;
+analyze table t2 persistent for all;
+set optimizer_switch='index_merge=on,index_merge_intersection=on';
+set optimizer_record_context=ON;
+--disable_result_log
+select * from t2 where a=1 and b=2 and c=3;
+--enable_result_log
+--source include/opt_context_save_in_var.inc
+set @saved_opt_context_3=@opt_context;
+select json_detailed(json_extract(@saved_opt_context_3,
+  '$.tables[0].records_in_range_calls')) as records_in_range_calls;
+set @opt_context=json_replace(@saved_opt_context_3,
+  '$.tables[0].records_in_range_calls[0].min_key', 'nonexistent');
+set optimizer_record_context=OFF;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+select * from t2 where a=1 and b=2 and c=3;
+set lc_messages=default;
+set character_set_results=default;
+set optimizer_replay_context="";
+drop table t2;
+
+drop table t1;
+--echo #
+--echo # End of 13.1 tests
+--echo #
