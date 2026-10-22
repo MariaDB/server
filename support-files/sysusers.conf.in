@@ -1,1 +1,1 @@
-u @MYSQLD_USER@ - "MariaDB" @MYSQL_DATADIR@
+u! @MYSQLD_USER@ - "MariaDB Server" /nonexistent /bin/false
