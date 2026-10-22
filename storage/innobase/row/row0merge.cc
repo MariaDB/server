@@ -80,18 +80,13 @@ public:
     dtuple_t *dtuple= row_build_index_entry(row, ext, index, heap);
     ut_ad(dtuple);
     ut_ad(dtuple->n_fields == index->n_fields);
-    if (ext)
-    {
-      /* Replace any references to ext, because ext will be allocated
-      from row_heap. */
-      for (ulint i= 1; i < dtuple->n_fields; i++)
-      {
-        dfield_t &dfield= dtuple->fields[i];
-        if (dfield.data >= ext->buf &&
-            dfield.data <= &ext->buf[ext->n_ext * ext->max_len])
-          dfield_dup(&dfield, heap);
-      }
-    }
+    /* Copy the fields after the MBR, because they may point to the
+    clustered index page (or to ext, which is allocated from row_heap).
+    insert() may commit the scan mini-transaction before all cached
+    tuples have been inserted, and the page may then be evicted or
+    modified. */
+    for (ulint i= 1; i < dtuple->n_fields; i++)
+      dfield_dup(&dtuple->fields[i], heap);
     m_dtuple_vec.push_back(dtuple);
   }
 
