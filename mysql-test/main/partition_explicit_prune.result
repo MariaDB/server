@@ -2008,3 +2008,12 @@ drop table t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-35555 UBSAN runtime error: applying non-zero offset 32 to null pointer in sel_trees_must_be_ored
+#
+CREATE TABLE t (a INT,b CHAR,PRIMARY KEY(a,b)) PARTITION BY LINEAR KEY() PARTITIONS 2;
+EXPLAIN SELECT * FROM t WHERE a=1 OR a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DROP TABLE t;
+# End of 10.11 tests
