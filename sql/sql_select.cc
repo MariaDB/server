@@ -1460,7 +1460,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                       select_lex, select_lex->select_number, this));
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
-  union_part= unit_arg->is_unit_op();
 
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_prepare(thd, "join_preparation");

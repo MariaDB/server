@@ -1938,7 +1938,6 @@ public:
 
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
-  bool union_part; ///< this subselect is part of union 
 
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
