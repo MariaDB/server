@@ -975,99 +975,108 @@ public:
         goto err_exit;
       }
 
-      if (end != tracked.file_size)
-        log_sys.latch.rd_unlock();
-      else if (tracked_log *tail= tracked.next)
+      do
       {
-        ut_ad(tail->first_lsn > tracked.first_lsn);
+        if (end != tracked.file_size);
+        else if (tracked_log *tail= tracked.next)
+        {
+          ut_ad(tail->first_lsn > tracked.first_lsn);
 #ifdef HAVE_PMEM
-        if (log_sys.is_mmap())
-        {
-          log_sys.latch.rd_unlock();
-          /*
-            Tracked memory-mapped buffers can only be added by init()
-            or checkpoint_complete_pmem(). In both cases, the
-            log_sys.first_lsn will be associated with that buffer.  If
-            we are switching to another log file, the just completed
-            one must be for something earlier than log_sys.first_lsn.
-          */
-          ut_ad(tracked.first_lsn < log_first_lsn);
-          ut_ad(tail->buf != tracked.buf);
-          ut_ad(tracked.buf != log_sys.resize_buf);
-          ut_ad(tracked.buf != log_sys.buf);
-          ut_ad(tracked.buf != log_sys.checkpoint_buf);
-          my_munmap(const_cast<byte*>(tracked.buf), tracked.file_size);
-        }
-        else
-#endif
-        {
-          os_file_t file{tracked.file};
-          ut_ad(tail->file != file);
-          const bool owned_by_us=
-            tracked.first_lsn < log_first_lsn &&
-            /*
-              When log.write() in log_t::write_checkpoint() is pending,
-              we have file == log_sys.resize_log.m_file.
-            */
-            (tail->first_lsn < log_first_lsn ||
-             file != log_sys.resize_log.m_file);
-
-          if (!owned_by_us)
+          if (log_sys.is_mmap())
           {
-            ut_ad(file == log_sys.resize_log.m_file ||
-                  file == log_sys.log.m_file);
-            /* At most two innodb_log_archive=ON files can be active. */
-            ut_ad(!tail->next);
-            file= OS_FILE_CLOSED;
+            log_sys.latch.rd_unlock();
             /*
-              We copied a previous log before the first checkpoint had
-              been completed in the current log_sys.log file, which had
-              been registered by archive_create(). The previous log will
-              be closed by checkpoint_complete().
+              Tracked memory-mapped buffers can only be added by init()
+              or checkpoint_complete_pmem(). In both cases, the
+              log_sys.first_lsn will be associated with that buffer.  If
+              we are switching to another log file, the just completed
+              one must be for something earlier than log_sys.first_lsn.
             */
-            ut_ad(tracked.first_lsn == log_first_lsn ||
-                  tail->first_lsn == log_first_lsn);
+            ut_ad(tracked.first_lsn < log_first_lsn);
+            ut_ad(tail->buf != tracked.buf);
+            ut_ad(tracked.buf != log_sys.resize_buf);
+            ut_ad(tracked.buf != log_sys.buf);
+            ut_ad(tracked.buf != log_sys.checkpoint_buf);
+            my_munmap(const_cast<byte*>(tracked.buf), tracked.file_size);
           }
           else
+#endif
           {
-            ut_ad(file != log_sys.resize_log.m_file);
-            if (file == log_sys.log.m_file)
+            os_file_t file{tracked.file};
+            ut_ad(tail->file != file);
+            const bool owned_by_us= tracked.first_lsn < log_first_lsn &&
+              /*
+                When log.write() in log_t::write_checkpoint() is pending,
+                we have file == log_sys.resize_log.m_file.
+              */
+              (tail->first_lsn < log_first_lsn ||
+               file != log_sys.resize_log.m_file);
+
+            if (!owned_by_us)
             {
-              /* The log file from init() was not disowned by log_sys. */
-              ut_ad(tracked.first_lsn == ctx.first_lsn);
+              ut_ad(file == log_sys.resize_log.m_file ||
+                    file == log_sys.log.m_file);
+              /* At most two innodb_log_archive=ON files can be active. */
+              ut_ad(!tail->next);
               file= OS_FILE_CLOSED;
+              /*
+                We copied a previous log before the first checkpoint had
+                been completed in the current log_sys.log file, which had
+                been registered by archive_create(). The previous log will
+                be closed by checkpoint_complete().
+              */
+              ut_ad(tracked.first_lsn == log_first_lsn ||
+                    tail->first_lsn == log_first_lsn);
             }
+            else
+            {
+              ut_ad(file != log_sys.resize_log.m_file);
+              if (file == log_sys.log.m_file)
+              {
+                /* The log file from init() was not disowned by log_sys. */
+                ut_ad(tracked.first_lsn == ctx.first_lsn);
+                file= OS_FILE_CLOSED;
+              }
+            }
+
+            log_sys.latch.rd_unlock();
+            if (file != OS_FILE_CLOSED)
+              /* Close the file, because we owned it. */
+              err= IF_WIN(-!CloseHandle,close)(file);
           }
 
-          log_sys.latch.rd_unlock();
-          if (file != OS_FILE_CLOSED)
-            /* Close the file, because we owned it. */
-            err= IF_WIN(-!CloseHandle,close)(file);
+          /* Move to the next file */
+          delete ctx.tracked;
+          ctx.tracked= tail;
+          {
+            const os_file_t dst{ctx.log_dst};
+            ctx.log_dst= OS_FILE_CLOSED;
+            if (dst != ctx.first_log_dst)
+              err= IF_WIN(-!CloseHandle,close)(dst);
+          }
+          if (err)
+          {
+            try {
+              my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+                       log_sys.get_archive_path(tracked.first_lsn).c_str(),
+                       errno);
+            } catch (std::bad_alloc&) {}
+            goto flag_error;
+          }
+          err= -1;
+          ctx.log_dst= context::log_track_create(*ctx.target, tail->first_lsn);
+          if (IF_WIN(ctx.log_dst == INVALID_HANDLE_VALUE, ctx.log_dst < 0))
+            goto flag_error;
+          continue;
         }
-        /* Move to the next file */
-        delete ctx.tracked;
-        ctx.tracked= tail;
-        {
-          const os_file_t dst{ctx.log_dst};
-          ctx.log_dst= OS_FILE_CLOSED;
-          if (dst != ctx.first_log_dst)
-            err= IF_WIN(-!CloseHandle,close)(dst);
-        }
-        if (err)
-        {
-          try {
-            my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-                     log_sys.get_archive_path(tracked.first_lsn).c_str(),
-                     errno);
-          } catch (std::bad_alloc&) {}
-          goto flag_error;
-        }
-        err= -1;
-        ctx.log_dst= context::log_track_create(*ctx.target, tail->first_lsn);
-        if (IF_WIN(ctx.log_dst == INVALID_HANDLE_VALUE, ctx.log_dst < 0))
-          goto flag_error;
-      }
 
+        log_sys.latch.rd_unlock();
+      }
+      while (false);
+
+#ifndef SUX_LOCK_DEBUG
+      ut_ad(!log_sys.latch_have_any());
+#endif
       ut_ad(lsn != last || !non_log);
       ut_ad(lsn != last || queue.empty());
 
