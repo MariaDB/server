@@ -311,6 +311,29 @@ int ha_blackhole::index_last(uchar * buf)
 }
 
 
+/*
+  The engine allows FULLTEXT keys. A BLACKHOLE table has no rows, so a
+  search in it finds nothing.
+*/
+static _ft_vft blackhole_ft_vft=
+{
+  [](FT_INFO *, char *) { return HA_ERR_END_OF_FILE; },  // read_next
+  [](FT_INFO *, uchar *, uint) { return 0.0f; },         // find_relevance
+  [](FT_INFO *) {},                                      // close_search
+  [](FT_INFO *) { return 0.0f; },                        // get_relevance
+  [](FT_INFO *) {}                                       // reinit_search
+};
+
+static FT_INFO blackhole_ft_info= { &blackhole_ft_vft };
+
+
+FT_INFO *ha_blackhole::ft_init_ext(uint flags, uint inx, String *key)
+{
+  DBUG_ENTER("ha_blackhole::ft_init_ext");
+  DBUG_RETURN(&blackhole_ft_info);
+}
+
+
 static st_blackhole_share *get_share(const char *table_name)
 {
   st_blackhole_share *share;
