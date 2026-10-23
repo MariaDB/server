@@ -45,6 +45,7 @@
 # - INSTALL_SYSCONF2DIR     (additional config files, e.g. /etc/mysql/conf.d)
 #
 # - INSTALL_LIBDIR          (directory with client end embedded libraries)
+# - INSTALL_LIBEXECDIR      (directory with binaries that are not executed directly)
 # - INSTALL_PLUGINDIR       (directory for plugins)
 #
 # - INSTALL_INCLUDEDIR      (directory for MySQL headers)
@@ -111,6 +112,7 @@ SET(INSTALL_SBINDIR_STANDALONE          "bin")
 SET(INSTALL_SCRIPTDIR_STANDALONE        "scripts")
 #
 SET(INSTALL_LIBDIR_STANDALONE           "lib")
+SET(INSTALL_LIBEXECDIR_STANDALONE       "libexec")
 SET(INSTALL_PLUGINDIR_STANDALONE        "lib/plugin")
 #
 SET(INSTALL_INCLUDEDIR_STANDALONE       "include/mysql")
@@ -145,6 +147,7 @@ IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
 ELSE()
   SET(INSTALL_LIBDIR_RPM                "lib")
 ENDIF()
+SET(INSTALL_LIBEXECDIR_RPM              "libexec")
 SET(INSTALL_PLUGINDIR_RPM               "${INSTALL_LIBDIR_RPM}/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_RPM              "include/mysql")
@@ -185,6 +188,7 @@ SET(INSTALL_SYSCONFDIR_DEB              "/etc")
 SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/mariadb.conf.d")
 #
 SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
+SET(INSTALL_LIBEXECDIR_DEB              "libexec")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_DEB              "include/mariadb")
@@ -218,6 +222,7 @@ SET(INSTALL_SBINDIR_SVR4                "bin")
 SET(INSTALL_SCRIPTDIR_SVR4              "scripts")
 #
 SET(INSTALL_LIBDIR_SVR4                 "lib")
+SET(INSTALL_LIBEXECDIR_SVR4             "libexec")
 SET(INSTALL_PLUGINDIR_SVR4              "lib/plugin")
 #
 SET(INSTALL_INCLUDEDIR_SVR4             "include/mysql")

@@ -1952,7 +1952,8 @@ sub executable_setup () {
   {
     $exe_mysqltest=
       mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mariadb-test-embedded",
-                     "$path_client_bindir/mariadb-test-embedded");
+                     "$path_client_bindir/mariadb-test-embedded",
+                     "$bindir/libexec/mariadb-test-embedded");
   }
   else
   {
@@ -1965,7 +1966,8 @@ sub executable_setup () {
     }
     else
     {
-      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test",
+                                       "$bindir/libexec/mariadb-test");
     }
   }
 
@@ -2057,13 +2059,17 @@ sub mysql_client_test_arguments(){
     $exe= mtr_exe_maybe_exists(
             "$bindir/libmysqld/examples$multiconfig/mariadb-client-test-embedded",
             "$bindir/bin/mariadb-client-test-embedded",
+            "$bindir/libexec/mariadb-client-test-embedded",
             "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
-            "$bindir/bin/mysql_client_test_embedded");
+            "$bindir/bin/mysql_client_test_embedded",
+            "$bindir/libexec/mysql_client_test_embedded");
   } else {
     $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mariadb-client-test",
                                "$bindir/bin/mariadb-client-test",
+                               "$bindir/libexec/mariadb-client-test",
                                "$bindir/tests$multiconfig/mysql_client_test",
-                               "$bindir/bin/mysql_client_test");
+                               "$bindir/bin/mysql_client_test",
+                               "$bindir/libexec/mysql_client_test");
   }
 
   my $args;
