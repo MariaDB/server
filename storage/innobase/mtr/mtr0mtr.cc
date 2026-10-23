@@ -50,7 +50,7 @@ std::pair<lsn_t,lsn_t> (*mtr_t::finisher)(mtr_t *, size_t);
 Atomic_counter<uint64_t> mtr_t::n_index_x_lock_calls{0};
 #endif
 
-void mtr_t::finisher_update()
+void mtr_t::finisher_update() noexcept
 {
   ut_ad(log_sys.latch_have_wr());
 #ifdef HAVE_PMEM
@@ -66,6 +66,22 @@ void mtr_t::finisher_update()
 #endif
   finisher= mtr_t::finish_writer<log_t::WRITE_NORMAL>;
 }
+
+#ifdef UNIV_DEBUG
+bool mtr_t::finisher_validate() noexcept
+{
+  ut_ad(log_sys.latch_have_any());
+# ifdef HAVE_PMEM
+  if (log_sys.is_mmap())
+    return commit_logger == mtr_t::commit_log<true> && finisher ==
+      (log_sys.archive
+       ? mtr_t::finish_writer<log_t::ARCHIVED_MMAP>
+       : mtr_t::finish_writer<log_t::CIRCULAR_MMAP>);
+# endif
+  return commit_logger == mtr_t::commit_log<false> && finisher ==
+    mtr_t::finish_writer<log_t::WRITE_NORMAL>;
+}
+#endif
 
 void mtr_memo_slot_t::release() const
 {
