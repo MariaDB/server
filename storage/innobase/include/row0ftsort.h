@@ -96,6 +96,8 @@ struct fts_psort_t {
 /** Row fts token for plugin parser */
 struct row_fts_token_t {
 	fts_string_t*	text;		/*!< token */
+	ulint		position;	/*!< byte offset of the token
+					in the field */
 	UT_LIST_NODE_T(row_fts_token_t)
 			token_list;	/*!< next token link */
 };
@@ -109,6 +111,9 @@ struct fts_tokenize_ctx {
 	or the number of row_merge_fts_doc_tokenize_by_parser() calls */
 	ulint			processed_len;
 	ulint			init_pos;       /*!< doc start position */
+	/** lowest position for the next token of a parser plugin:
+	the positions of a document keep increasing across its fields */
+	ulint			next_pos;
 	ulint			buf_used;       /*!< the sort buffer (ID) when
 						tokenization stops, which
 						could due to sort buffer full */
@@ -122,7 +127,7 @@ struct fts_tokenize_ctx {
 	fts_token_list_t	fts_token_list;
 
 	fts_tokenize_ctx() :
-		processed_len(0), init_pos(0), buf_used(0),
+		processed_len(0), init_pos(0), next_pos(0), buf_used(0),
 		rows_added(), cached_stopword(NULL), sort_field(),
 		fts_token_list()
 	{
