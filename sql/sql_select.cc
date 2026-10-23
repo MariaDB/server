@@ -559,7 +559,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   no_rows_in_result_called= 0;
   positions= best_positions= 0;
   pushdown_query= 0;
-  original_join_tab= 0;
   explain= NULL;
   tmp_table_keep_current_rowid= 0;
   allowed_top_level_tables= 0;
@@ -17585,14 +17584,6 @@ void JOIN::cleanup(bool full)
 
   if (full)
     have_query_plan= QEP_DELETED;
-
-  if (original_join_tab)
-  {
-    /* Free the original optimized join created for the group_by_handler */
-    join_tab= original_join_tab;
-    original_join_tab= 0;
-    table_count= original_table_count;
-  }
 
   if (join_tab)
   {
