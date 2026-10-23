@@ -119,6 +119,13 @@ ALTER TABLE t CHANGE COLUMN c c BINARY (0);
 ERROR 42000: The storage engine InnoDB can't index column `c`
 UPDATE t SET c=REPEAT(0,0) WHERE c=REPEAT(0,0);
 DROP TABLE t;
+#
+# MDEV-36178: Indefinite loop or assertion failure upon modifying a column to zero length
+#
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+ALTER TABLE t MODIFY a CHAR(0);
+ERROR 42000: The storage engine InnoDB can't index column `a`
+DROP TABLE t;
 # End of 10.11 tests
 #
 # MDEV-37998 (Column) CHECK constraints can cause CREATE TABLE (SELECT) queries to fail

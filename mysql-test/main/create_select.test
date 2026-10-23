@@ -133,6 +133,15 @@ ALTER TABLE t CHANGE COLUMN c c BINARY (0);
 UPDATE t SET c=REPEAT(0,0) WHERE c=REPEAT(0,0);
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-36178: Indefinite loop or assertion failure upon modifying a column to zero length
+--echo #
+
+CREATE TABLE t (a INT KEY) ENGINE=InnoDB;
+--error ER_WRONG_KEY_COLUMN
+ALTER TABLE t MODIFY a CHAR(0);
+DROP TABLE t;
+
 --echo # End of 10.11 tests
 
 --echo #
