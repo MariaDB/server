@@ -3939,9 +3939,48 @@ bool JOIN::make_aggr_tables_info()
         Having condition which we are not able to add as tmp table conds are
         kept as before. And, this will be applied before storing the rows in
         tmp table.
+
+        In the case of window functions, conditions containing window functions
+        cannot be evaluated before storing rows into the temp table (Phase 1),
+        because window functions have not been computed yet and will return NULL.
+        They must remain in this->having to be evaluated after the window functions
+        computation step (Phase 3).
       */
-      curr_tab->having= having;
-      having= NULL; // Already done
+      if (select_lex->have_window_funcs() && having && having->with_window_func())
+      {
+        if (having->type() == Item::COND_ITEM &&
+            ((Item_cond*)having)->functype() == Item_func::COND_AND_FUNC)
+        {
+          List<Item> *and_list= ((Item_cond*)having)->argument_list();
+          List_iterator<Item> li(*and_list);
+          Item *item;
+          Item *pre_wf= NULL;
+          Item *post_wf= NULL;
+          while ((item= li++))
+          {
+            if (item->with_window_func())
+              post_wf= and_items(thd, post_wf, item);
+            else
+              pre_wf= and_items(thd, pre_wf, item);
+          }
+          if (pre_wf && pre_wf->fix_fields_if_needed(thd, 0))
+            DBUG_RETURN(true);
+          if (post_wf && post_wf->fix_fields_if_needed(thd, 0))
+            DBUG_RETURN(true);
+          curr_tab->having= pre_wf;
+          having= post_wf;
+        }
+        else
+        {
+          curr_tab->having= NULL;
+          // having remains in this->having to be checked at end_send()
+        }
+      }
+      else
+      {
+        curr_tab->having= having;
+        having= NULL; // Already done
+      }
     }
 
     tmp_table_param.func_count= 0;
