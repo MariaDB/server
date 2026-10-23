@@ -1,0 +1,421 @@
+#
+# MDEV-41146: rand() in WHERE is not checked when every base table
+# is const and a materialized semi-join terminates the join order
+#
+# A WHERE conjunct that calls rand() and names no field is checked on
+# the last top level base table that is not const.  When every base
+# table is const, the conjunct is checked once in outer_ref_condition.
+#
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (b int primary key);
+insert into t2 values (1),(2),(3),(4);
+create table t3 (c int, d int);
+insert into t3 values (1,1),(2,2),(3,3),(4,4),(5,5),
+(6,6),(7,7),(8,8),(9,9),(10,10);
+insert into t3 select c+10, d+10 from t3;
+insert into t3 select c+20, d+20 from t3;
+insert into t3 select c+40, d+40 from t3;
+create table t4 (e int, f int);
+insert into t4 select c, d from t3;
+create table t5 (g int);
+insert into t5 select c+1000 from t3;
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_optimizer_where_cost= @@optimizer_where_cost;
+set optimizer_switch='firstmatch=off,loosescan=off';
+set optimizer_where_cost=0;
+# One const table.  rand() < 0 is never true, so the result is empty.
+explain
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() < 0;
+a
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and rand() >= 0;
+a
+1
+# The IN-equality is still checked.  t5 holds no value below 1001.
+select t1.a from t1 where t1.a=1 and t1.a in (select g from t5) and rand() >= 0;
+a
+select t1.a from t1 where t1.a=1 and t1.a in (select g from t5) and rand() < 0;
+a
+# Two rand() conjuncts.  outer_ref_condition shows both.
+explain format=json
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() < 0 and rand() < 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "outer_ref_condition": "rand() < 0 and rand() < 2",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["c"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 80,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t3.c = 1"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() < 0 and rand() < 2;
+a
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3)
+and rand() >= 0 and rand() < 2;
+a
+1
+# Two const tables joined, as in the original report.
+explain
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	t2	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() < 0;
+x	y
+select t1.a x, t2.b y from t1 left join t2 on t1.a=t2.b
+where t1.a=1 and t2.b=1 and t1.a in (select c from t3) and rand() >= 0;
+x	y
+1	1
+# Two materialized nests terminate the join order.
+explain
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+and rand() < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+3	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	80	Using where
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+and rand() < 0;
+a
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and t1.a in (select e from t4)
+and rand() >= 0;
+a
+1
+# The const table column is bigint and the subquery column is int.
+create table t6 (a bigint primary key);
+insert into t6 values (1),(2),(3);
+explain
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t6	const	PRIMARY	PRIMARY	8	const	1	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() < 0;
+a
+select t6.a from t6 where t6.a=1 and t6.a in (select c from t3) and rand() >= 0;
+a
+1
+# An outer table that is not const precedes the nest.  The conjunct
+# is checked on that table.
+create table t7 (a int);
+insert into t7 values (1),(2),(3),(100);
+explain
+select t7.a from t7 where t7.a in (select c from t3) and rand() < 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t7	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	
+select t7.a from t7 where t7.a in (select c from t3) and rand() < 0;
+a
+select t7.a from t7 where t7.a in (select c from t3) and rand() >= 0;
+a
+1
+2
+3
+# The conjunct also reads a column of the enclosing query.  It is true
+# when t7.a is 4 or more, which holds only for the row where t7.a is
+# 100.
+explain
+select t7.a,
+(select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < t7.a - 3) x
+from t7;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t7	ALL	NULL	NULL	NULL	NULL	4	
+2	DEPENDENT SUBQUERY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+2	DEPENDENT SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+select t7.a,
+(select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < t7.a - 3) x
+from t7;
+a	x
+1	NULL
+100	1
+2	NULL
+3	NULL
+# rand(7) continues one sequence across the executions of the
+# subquery.  The conjunct takes one value for each row of t8,
+# including the rows where t8.a is 100 and the lookup finds no match.
+# A plan where t1 is not const checks the conjunct on t1 before the
+# lookup and returns the same rows.
+create table t8 (id int, a int);
+insert into t8 values (1,1),(2,100),(3,2),(4,100),(5,3),(6,100),(7,4),
+(8,100),(9,5),(10,100),(11,6),(12,7),(13,8),(14,9);
+explain
+select t8.id,
+(select t1.a from t1
+where t1.a=1 and t8.a in (select c from t3) and rand(7) < 0.5) x
+from t8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t8	ALL	NULL	NULL	NULL	NULL	14	
+2	DEPENDENT SUBQUERY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+2	DEPENDENT SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	
+select t8.id,
+(select t1.a from t1
+where t1.a=1 and t8.a in (select c from t3) and rand(7) < 0.5) x
+from t8 order by t8.id;
+id	x
+1	NULL
+2	NULL
+3	1
+4	NULL
+5	NULL
+6	NULL
+7	1
+8	NULL
+9	1
+10	NULL
+11	NULL
+12	1
+13	1
+14	NULL
+# rand() in the WHERE of the subquery instead of the outer query.
+# Every row of t9 has c=1.  The first four values of rand(1) are not
+# below 0.09 and the fifth is, so checking the condition on each row
+# of t9 matches t1.a=1.  A subquery that calls rand() is not converted
+# to a semi-join, so the condition is not moved to the outer query and
+# checked once there.  Adding 0*t9.d makes the condition read a column
+# of t9, which gives the same result in any plan.
+create table t9 (c int, d int);
+insert into t9 select 1, 1 from seq_1_to_80;
+explain
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	<subquery2>	const	distinct_key	distinct_key	4	const	1	
+2	MATERIALIZED	t9	ALL	NULL	NULL	NULL	NULL	80	Using where
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09);
+count(*)
+1
+select count(*) from t1
+where t1.a=1 and t1.a in (select c from t9 where rand(1) < 0.09 + 0*t9.d);
+count(*)
+1
+# The conjunct is checked once, in outer_ref_condition, only when
+# the join returns at most one row.  f1() counts its calls.  With
+# the const t1 and a lookup nest, f1() is called once.  Adding t10,
+# which holds two rows, makes the join return two rows, and f1() is
+# called once for each.
+create table t10 (b int);
+insert into t10 values (1),(2);
+create function f1() returns int not deterministic
+begin
+set @calls= @calls + 1;
+return 1;
+end|
+explain
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+set @calls= 0;
+select t1.a from t1 where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+a
+1
+select @calls;
+@calls
+1
+explain
+select t1.a, t10.b from t1, t10
+where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	PRIMARY	t10	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	80	Using where
+set @calls= 0;
+select t1.a, t10.b from t1, t10
+where t1.a=1 and t1.a in (select c from t3) and f1() > 0;
+a	b
+1	1
+1	2
+select @calls;
+@calls
+2
+drop function f1;
+# A materialized nest read by a scan precedes t11, which is not
+# const, so the conjunct is checked on t11.  The optimizer chooses
+# the scan only with the statistics from ANALYZE, which give 200
+# rows of t11 for each value of a.
+create table t11 (a int, key(a));
+insert into t11 select seq mod 10 from seq_1_to_2000;
+create table t12 (b int);
+insert into t12 select seq mod 10 from seq_1_to_20;
+analyze table t11, t12 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t11	analyze	status	Engine-independent statistics collected
+test.t11	analyze	status	Table is already up to date
+test.t12	analyze	status	Engine-independent statistics collected
+test.t12	analyze	status	OK
+explain format=json
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() < 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "const",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
+          "rows": 20,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t12",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 20,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t12.b is not null"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "t11",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t12.b"],
+          "loops": 20,
+          "rows": 200,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "rand() < 0",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() < 0;
+count(*)
+0
+select count(*) from t1, t11
+where t1.a=1 and t11.a in (select b from t12) and rand() >= 0;
+count(*)
+2000
+# A prepared statement executed twice, with the bound for rand()
+# passed as a parameter.  The first execution returns no row and
+# the second returns t1.a=1.
+prepare stmt from "select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < ?";
+execute stmt using 0;
+a
+execute stmt using 2;
+a
+1
+deallocate prepare stmt;
+# The same query in a stored procedure called twice.
+create procedure p1(x int)
+select t1.a from t1
+where t1.a=1 and t1.a in (select c from t3) and rand() < x;
+call p1(0);
+a
+call p1(2);
+a
+1
+drop procedure p1;
+set optimizer_switch= @save_optimizer_switch;
+set optimizer_where_cost= @save_optimizer_where_cost;
+drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12;
+# End of 11.4 tests

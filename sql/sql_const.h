@@ -32,7 +32,6 @@
 #define MAX_FIELD_NAME (NAME_LEN+1)             /* Max column name length +1 */
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
-#define MAX_REF_PARTS 32			/* Max parts used as ref */
 
 /*
   Maximum length of the data part of an index lookup key.

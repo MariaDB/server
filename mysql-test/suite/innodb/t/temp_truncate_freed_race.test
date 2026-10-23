@@ -1,0 +1,136 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-41103 Crash in innodb.temp_truncate_freed
+--echo #
+
+#
+# Data race bug caused by unsynchronized access to
+# fil_space_t::freed_ranges when mtr_t::commit() frees
+# pages for a temporary tablespace.
+#
+# The race can be triggered by fil_space_t::flush_freed(),
+# called concurrently from the page cleaner when resizing
+# the buffer pool. The test attempts to reproduce that condition
+# by creating, writing to, and dropping temporary tables concurrently,
+# while resizing the buffer pool constantly. If successful it will
+# likely terminate the server with a segfault or, on a debug build,
+# possibly an assertion.
+#
+# This is a stress/regression test: it does not assert on any
+# query result, it only requires the server to survive. It is
+# to run under 10 seconds, which on tested systems only fails on
+# 5-10% of runs. If it is seen to fail, but the failure cannot be
+# reproduced, more reliable reproduction may be attempted by locally
+# increasing the $rounds and $duration_seconds variables: total test
+# runtime is the product of those. Running 8 rounds of 12 seconds
+# increased failure rate on the test systems to 50% when reproducing
+# the original bug.
+#
+
+--disable_query_log
+# Expected side effects of repeatedly toggling innodb_buffer_pool_size
+# concurrently with heavy write activity against a deliberately tiny
+# pool: a resize can be superseded by the next one before it finishes,
+# and the tiny pool can occasionally have nothing evictable on demand.
+call mtr.add_suppression("innodb_buffer_pool_size change aborted");
+call mtr.add_suppression("Could not free any blocks in the buffer pool");
+--enable_query_log
+
+--let $old_scrub= `SELECT @@global.innodb_immediate_scrub_data_uncompressed`
+--let $old_dirty_pct= `SELECT @@global.innodb_max_dirty_pages_pct`
+--let $old_pool_size= `SELECT @@global.innodb_buffer_pool_size`
+
+SET GLOBAL innodb_immediate_scrub_data_uncompressed=1;
+SET GLOBAL innodb_max_dirty_pages_pct=0;
+SET GLOBAL innodb_buffer_pool_size= 16777216;
+
+# The workload is repeated across several rounds against the same live
+# server; this makes the data race more likely than a single cold-started
+# attempt, presumably due to fragmentation and partially-drained
+# freed_ranges backlog left over by superseded resizes from previous
+# rounds.
+
+--let $connections= 12
+--let $rounds= 3
+--let $duration_seconds= 3
+
+delimiter |;
+CREATE PROCEDURE process_temp_table(end_time INT UNSIGNED)
+BEGIN
+  WHILE UNIX_TIMESTAMP() < end_time DO
+    CREATE TEMPORARY TABLE t1(c1 MEDIUMTEXT) ENGINE=InnoDB;
+    INSERT INTO t1 VALUES (repeat('a', 16777215));
+    DROP TEMPORARY TABLE t1;
+  END WHILE;
+END|
+
+# Toggle between different buffer pool sizes.
+#
+# The continue handler is for a scenario where a resize is
+# superseded by the next one before it finishes and subsequently
+# fails ("innodb_buffer_pool_size change aborted"); that is expected
+# and harmless here, so the test ignores it and keeps toggling.
+CREATE PROCEDURE toggle_pool_size(end_time INT UNSIGNED)
+BEGIN
+  DECLARE CONTINUE HANDLER FOR 1221 BEGIN END;
+  WHILE UNIX_TIMESTAMP() < end_time DO
+    SET GLOBAL innodb_buffer_pool_size=16777216;
+    SET GLOBAL innodb_buffer_pool_size=6291456;
+  END WHILE;
+END|
+delimiter ;|
+
+--echo #
+--echo # Run concurrent processing to trigger possible data race
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+--let $round= 1
+while ($round <= $rounds)
+{
+  --let $end_time= query_get_value(SELECT UNIX_TIMESTAMP() + $duration_seconds AS t, t, 1)
+
+  --let $i= 1
+  while ($i <= $connections)
+  {
+    --connect (con$i,localhost,root,,)
+    --connection con$i
+    send_eval CALL process_temp_table($end_time);
+    --inc $i
+  }
+
+  --connection default
+  eval CALL toggle_pool_size($end_time);
+
+  --let $i= 1
+  while ($i <= $connections)
+  {
+    --connection con$i
+    --reap
+    --disconnect con$i
+    --inc $i
+  }
+  --connection default
+  --inc $round
+}
+
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # Cleanup
+--echo #
+
+DROP PROCEDURE process_temp_table;
+DROP PROCEDURE toggle_pool_size;
+
+--disable_query_log
+eval SET GLOBAL innodb_immediate_scrub_data_uncompressed= $old_scrub;
+eval SET GLOBAL innodb_max_dirty_pages_pct= $old_dirty_pct;
+eval SET GLOBAL innodb_buffer_pool_size= $old_pool_size;
+--enable_query_log
+
+--echo # End of test

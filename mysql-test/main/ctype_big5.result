@@ -5644,3 +5644,406 @@ c1
 #
 # End of 10.5 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+# Two different explicit COLLATE clauses are still not accepted,
+# whether the character sets are different or the same
+SELECT _latin1'a' COLLATE latin1_swedish_ci = _big5'a' COLLATE big5_chinese_ci;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,EXPLICIT) and (big5_chinese_ci,EXPLICIT) for operation '='
+SELECT _latin1'a' COLLATE latin1_german1_ci = _latin1'a' COLLATE latin1_swedish_ci;
+ERROR HY000: Illegal mix of collations (latin1_german1_ci,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation '='
+SET NAMES big5 COLLATE big5_chinese_ci;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+# Same as above, but using BETWEEN (3-operand aggregation)
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A_' AND 'Z' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'between'
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A+' AND 'Z' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'between'
+# Same as above, but using IN() (N-operand aggregation)
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N') LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y_','N') LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N+') LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y+','N') LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+# Same as above, but using STRCMP()
+SELECT STRCMP(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+STRCMP(Insert_priv,'Y')
+SELECT STRCMP(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+STRCMP(Insert_priv,'Y_')
+SELECT STRCMP(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'strcmp'
+# Same as above, but using LOCATE()/POSITION()/INSTR()
+SELECT LOCATE('Y',Insert_priv) FROM mysql.user LIMIT 0;
+LOCATE('Y',Insert_priv)
+SELECT LOCATE('Y_',Insert_priv) FROM mysql.user LIMIT 0;
+LOCATE('Y_',Insert_priv)
+SELECT LOCATE('Y+',Insert_priv) FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+SELECT POSITION('Y' IN Insert_priv) FROM mysql.user LIMIT 0;
+POSITION('Y' IN Insert_priv)
+SELECT POSITION('Y+' IN Insert_priv) FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+SELECT INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+INSTR(Insert_priv,'Y')
+SELECT INSTR(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+# Same as above, but using FIELD()
+SELECT FIELD(Insert_priv,'Y','N') FROM mysql.user LIMIT 0;
+FIELD(Insert_priv,'Y','N')
+SELECT FIELD(Insert_priv,'Y_','N') FROM mysql.user LIMIT 0;
+FIELD(Insert_priv,'Y_','N')
+SELECT FIELD(Insert_priv,'Y','N+') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'field'
+SELECT FIELD(Insert_priv,'Y+','N') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'field'
+# Same as above, but using FIND_IN_SET()
+# (a single-value haystack, so the ',' separator does not
+# itself force a wider repertoire)
+SELECT FIND_IN_SET(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+FIND_IN_SET(Insert_priv,'Y')
+SELECT FIND_IN_SET(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+FIND_IN_SET(Insert_priv,'Y_')
+SELECT FIND_IN_SET(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'find_in_set'
+# Same as above, but using LIKE
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'like'
+# Same as above, but using RLIKE
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y_' LIMIT 0;
+Insert_priv
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y+' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'regexp'
+# Same as above, but using REGEXP_INSTR()
+SELECT REGEXP_INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+REGEXP_INSTR(Insert_priv,'Y')
+SELECT REGEXP_INSTR(Insert_priv,'Y_') FROM mysql.user LIMIT 0;
+REGEXP_INSTR(Insert_priv,'Y_')
+SELECT REGEXP_INSTR(Insert_priv,'Y+') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'regexp_instr'
+# Same as above, but using MATCH ... AGAINST().
+# Unlike the other comparison functions above, MATCH ... AGAINST()
+# does not aggregate the AGAINST phrase's collation for the illegal-mix
+# check: Item_func_match::fix_fields() calls
+# agg_arg_charsets_for_comparison() on args+1 (the indexed column(s)
+# only), skipping args[0], which is the AGAINST phrase (key_item()).
+# The phrase is instead silently converted to the column's collation
+# (search_value), so none of the queries below raise an error, even
+# with a _bin column.
+CREATE TABLE t1 (a VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+FULLTEXT(a));
+INSERT INTO t1 VALUES ('Y'),('N');
+SET NAMES big5 COLLATE big5_chinese_ci;
+SELECT MATCH(a) AGAINST('Y') FROM t1;
+MATCH(a) AGAINST('Y')
+0
+0
+SELECT MATCH(a) AGAINST('Y_') FROM t1;
+MATCH(a) AGAINST('Y_')
+0
+0
+SELECT MATCH(a) AGAINST('Y+') FROM t1;
+MATCH(a) AGAINST('Y+')
+0
+0
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(200) CHARACTER SET latin1 COLLATE latin1_bin,
+FULLTEXT(a));
+INSERT INTO t1 VALUES ('Y'),('N');
+SELECT MATCH(a) AGAINST('Y') FROM t1;
+MATCH(a) AGAINST('Y')
+0
+0
+DROP TABLE t1;
+# Same as above, but using the simple CASE operator
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END
+SELECT CASE Insert_priv WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+CASE Insert_priv WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N+' THEN 0 END FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'case'
+SELECT CASE Insert_priv WHEN 'Y+' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'case'
+SET NAMES big5 COLLATE big5_bin;
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv='Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation '='
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv LIKE 'Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'like'
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv RLIKE 'Y' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'regexp'
+SELECT REGEXP_INSTR(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'regexp_instr'
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv BETWEEN 'A' AND 'Z' LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'between'
+SELECT Insert_priv FROM mysql.user WHERE Insert_priv IN ('Y','N') LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'in'
+SELECT STRCMP(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'strcmp'
+SELECT LOCATE('Y',Insert_priv) FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'locate'
+SELECT FIELD(Insert_priv,'Y','N') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'field'
+SELECT FIND_IN_SET(Insert_priv,'Y') FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'find_in_set'
+SELECT CASE Insert_priv WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM mysql.user LIMIT 0;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'case'
+#
+# The same checks using an own view instead of mysql.user.
+# The view has exactly one row, so every query below returns
+# a row, or raises an error.
+#
+SET NAMES big5 COLLATE big5_chinese_ci;
+# ASCII digits
+d
+1
+# ASCII minus, dot and digits
+e
+-1.5
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '<>'
+# Same as above, but using BETWEEN (3-operand aggregation)
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z';
+c
+Y
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A_' AND 'Z';
+c
+Y
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'between'
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A+' AND 'Z';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'between'
+# Same as above, but using IN() (N-operand aggregation)
+SELECT c FROM v_tailoring WHERE c IN ('Y','N');
+c
+Y
+SELECT c FROM v_tailoring WHERE c NOT IN ('Y_','N');
+c
+Y
+SELECT c FROM v_tailoring WHERE c IN ('Y','N+');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+SELECT c FROM v_tailoring WHERE c NOT IN ('Y+','N');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+# Same as above, but using STRCMP()
+SELECT STRCMP(c,'Y') FROM v_tailoring;
+STRCMP(c,'Y')
+0
+SELECT STRCMP(c,'Y_') FROM v_tailoring;
+STRCMP(c,'Y_')
+-1
+SELECT STRCMP(c,'Y+') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'strcmp'
+# Same as above, but using LOCATE()/POSITION()/INSTR()
+SELECT LOCATE('Y',c) FROM v_tailoring;
+LOCATE('Y',c)
+1
+SELECT LOCATE('Y_',c) FROM v_tailoring;
+LOCATE('Y_',c)
+0
+SELECT LOCATE('Y+',c) FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+SELECT POSITION('Y' IN c) FROM v_tailoring;
+POSITION('Y' IN c)
+1
+SELECT POSITION('Y+' IN c) FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+SELECT INSTR(c,'Y') FROM v_tailoring;
+INSTR(c,'Y')
+1
+SELECT INSTR(c,'Y+') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'locate'
+# Same as above, but using FIELD()
+SELECT FIELD(c,'Y','N') FROM v_tailoring;
+FIELD(c,'Y','N')
+1
+SELECT FIELD(c,'Y_','N') FROM v_tailoring;
+FIELD(c,'Y_','N')
+0
+SELECT FIELD(c,'Y','N+') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'field'
+SELECT FIELD(c,'Y+','N') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'field'
+# Same as above, but using FIND_IN_SET()
+# (a single-value haystack, so the ',' separator does not
+# itself force a wider repertoire)
+SELECT FIND_IN_SET(c,'Y') FROM v_tailoring;
+FIND_IN_SET(c,'Y')
+1
+SELECT FIND_IN_SET(c,'Y_') FROM v_tailoring;
+FIND_IN_SET(c,'Y_')
+0
+SELECT FIND_IN_SET(c,'Y+') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'find_in_set'
+# Same as above, but using LIKE
+SELECT c FROM v_tailoring WHERE c LIKE 'Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c NOT LIKE 'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c NOT LIKE 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'like'
+# Same as above, but using RLIKE
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c NOT RLIKE 'Y_';
+c
+Y
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'regexp'
+# Same as above, but using REGEXP_INSTR()
+SELECT REGEXP_INSTR(c,'Y') FROM v_tailoring;
+REGEXP_INSTR(c,'Y')
+1
+SELECT REGEXP_INSTR(c,'Y_') FROM v_tailoring;
+REGEXP_INSTR(c,'Y_')
+0
+SELECT REGEXP_INSTR(c,'Y+') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation 'regexp_instr'
+# Same as above, but using the simple CASE operator
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+CASE c WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END
+1
+SELECT CASE c WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+CASE c WHEN 'Y_' THEN 1 WHEN 'N' THEN 0 END
+NULL
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N+' THEN 0 END FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'case'
+SELECT CASE c WHEN 'Y+' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'case'
+SET NAMES big5 COLLATE big5_bin;
+SELECT c FROM v_tailoring WHERE c='Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation '='
+SELECT c FROM v_tailoring WHERE c LIKE 'Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'like'
+SELECT c FROM v_tailoring WHERE c RLIKE 'Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'regexp'
+SELECT REGEXP_INSTR(c,'Y') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'regexp_instr'
+SELECT c FROM v_tailoring WHERE c BETWEEN 'A' AND 'Z';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'between'
+SELECT c FROM v_tailoring WHERE c IN ('Y','N');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'in'
+SELECT STRCMP(c,'Y') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'strcmp'
+SELECT LOCATE('Y',c) FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'locate'
+SELECT FIELD(c,'Y','N') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'field'
+SELECT FIND_IN_SET(c,'Y') FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_bin,COERCIBLE) for operation 'find_in_set'
+SELECT CASE c WHEN 'Y' THEN 1 WHEN 'N' THEN 0 END FROM v_tailoring;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_bin,COERCIBLE), (big5_bin,COERCIBLE) for operation 'case'
+# The originally reported scenario: a view is created under latin1
+# and queried under big5. The comparison must return the right rows.
+SET NAMES latin1 COLLATE latin1_swedish_ci;
+CREATE VIEW v1 AS SELECT 'Y' AS c1 UNION SELECT 'N';
+SET NAMES big5 COLLATE big5_chinese_ci;
+SELECT * FROM v1 WHERE c1='y';
+c1
+Y
+SELECT * FROM v1 WHERE c1='Y';
+c1
+Y
+SELECT * FROM v1 WHERE 'n'=c1;
+c1
+N
+SELECT * FROM v1 WHERE c1='N';
+c1
+N
+SELECT * FROM v1 WHERE c1='x';
+c1
+SELECT * FROM v1 WHERE c1 IN ('y','n') ORDER BY c1;
+c1
+N
+Y
+SELECT * FROM v1 WHERE c1 BETWEEN 'm' AND 'z' ORDER BY c1;
+c1
+N
+Y
+# The same view with prepared statement parameters.
+# A parameter with a non-ALNUM value makes the collations incompatible.
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1=? ORDER BY c1';
+SET @y='y', @n='N', @y_plus='Y+';
+EXECUTE stmt USING @y;
+c1
+Y
+EXECUTE stmt USING @n;
+c1
+N
+EXECUTE stmt USING @y_plus;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+EXECUTE stmt USING 'y';
+c1
+Y
+EXECUTE stmt USING 'x';
+c1
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT c1 FROM v1 WHERE c1 IN (?,?) ORDER BY c1';
+EXECUTE stmt USING 'y', 'n';
+c1
+N
+Y
+EXECUTE stmt USING 'y', 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE), (big5_chinese_ci,COERCIBLE) for operation 'in'
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'y';
+c1
+Y
+EXECUTE IMMEDIATE 'SELECT c1 FROM v1 WHERE c1=?' USING 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+DROP VIEW v1;
+# Prepared statement parameters compared to a literal of another charset.
+# A parameter with a non-ALNUM value makes the collations incompatible.
+PREPARE stmt FROM 'SELECT _latin1''Y'' = ? AS r';
+EXECUTE stmt USING @y;
+r
+1
+EXECUTE stmt USING @n;
+r
+0
+EXECUTE stmt USING @y_plus;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT _latin1''Y+'' = ? AS r';
+EXECUTE stmt USING 'y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+EXECUTE stmt USING 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+DEALLOCATE PREPARE stmt;
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'y';
+r
+1
+EXECUTE IMMEDIATE 'SELECT _latin1''Y'' = ? AS r' USING 'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (big5_chinese_ci,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

@@ -12,6 +12,8 @@ In the current release model, versions are released like the following
 2027    13.2            13.3-LTS        14.0            14.1
 2028    14.2            14.3-LTS        15.0            15.1
 2029    15.2            15.3-LTS        16.0            16.1
+2030    16.2            16.3-LTS        17.0            17.1
+2031    17.2            17.3-LTS        18.0            18.1
 ...
 
 A deprecated feature can be removed only when all releases when it's
@@ -31,7 +33,9 @@ template<uint V> static inline void check_deprecated_version(void)
      V <= 1005 ? MYSQL_VERSION_ID < 120000 :   /* until 10.5  EOL */
      V <= 1010 ? MYSQL_VERSION_ID < 130000 :   /* until 10.6  EOL */
      V <= 1103 ? MYSQL_VERSION_ID < 140300 :   /* until 10.11 EOL */
-     V <= 1107 ? MYSQL_VERSION_ID < 160000 :   /* until 10.11 EOL */
+     V <= 1107 ? MYSQL_VERSION_ID < 160000 :   /* until 11.4  EOL */
+     V <= 1202 ? MYSQL_VERSION_ID < 170000 :   /* until 11.8  EOL */
+     V <= 1302 ? MYSQL_VERSION_ID < 180000 :   /* until 12.3  EOL */
      V == 999999,    /* only for sys_var::do_deprecated_warning() */
      "check_deprecated_version failed"
   );

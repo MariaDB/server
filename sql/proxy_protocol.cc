@@ -178,7 +178,7 @@ bool has_proxy_protocol_header(NET *net)
 */
 int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
 {
-  uchar hdr[MAX_PROXY_HEADER_LEN];
+  uchar hdr[MAX_PROXY_HEADER_LEN + 1]; /* +1 for the NUL terminator */
   size_t pos= 0;
 
   DBUG_ASSERT(!net->compress);

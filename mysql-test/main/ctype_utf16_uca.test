@@ -288,6 +288,42 @@ SET NAMES utf8;
 SET @charset='utf16';
 --source include/ctype_uca1400_ids_using_convert.inc
 
+
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_unicode_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_czech_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_uca1400_ai_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_uca1400_ai_cs;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_uca1400_as_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf16_uca1400_as_cs;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

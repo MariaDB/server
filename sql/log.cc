@@ -4509,15 +4509,15 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
     Create an index file that will hold all file names uses for logging.
     Add new entries to the end of it.
   */
-  myf opt= MY_UNPACK_FILENAME;
+  myf opt= MY_UNPACK_FILENAME | MY_SAFE_PATH;
   if (!index_file_name_arg)
   {
     index_file_name_arg= log_name;    // Use same basename for index file
-    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT;
+    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_SAFE_PATH;
   }
-  fn_format(index_file_name, index_file_name_arg, mysql_data_home,
-            ".index", opt);
-  if ((index_file_nr= mysql_file_open(m_key_file_log_index,
+  if (!fn_format(index_file_name, index_file_name_arg, mysql_data_home,
+                ".index", opt) ||
+      (index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
                                       O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
@@ -6564,6 +6564,16 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
 
 
 /*
+  Three parameter state object describes the exclusive rhs of the
+  purgeable range (left is the past). The state modification is
+  guarded by LOCK_index.
+*/
+static bool waiting_for_slave_to_change_binlog= 0;
+static ulonglong purge_sending_new_binlog_file= 0;
+static char purge_binlog_name[FN_REFLEN];
+static bool purge_warning_given= 0;
+
+/*
   @param  log_file_name_arg  Name of log file to check
   @param  interactive        True if called by a PURGE BINLOG command.
 
@@ -6580,12 +6590,6 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
   sending_new_binlog_file, cached in purge_sending_new_binlog_file,
   is incremented every time a slave changes to use a new binary log.
 */
-
-static bool waiting_for_slave_to_change_binlog= 0;
-static ulonglong purge_sending_new_binlog_file= 0;
-static char purge_binlog_name[FN_REFLEN];
-static bool purge_warning_given= 0;
-
 bool
 MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
                              bool interactive)
@@ -6594,12 +6598,24 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
   const char *reason;
 
   DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
-  if (is_active(log_file_name_arg) ||
-      (!is_relay_log && waiting_for_slave_to_change_binlog &&
-       purge_sending_new_binlog_file == sending_new_binlog_file &&
-       !strcmp(log_file_name_arg, purge_binlog_name)))
+  mysql_mutex_assert_owner(&LOCK_index);
+
+  if (is_active(log_file_name_arg))
   {
     reason= "it is the current active binlog";
+    goto error;
+  }
+  /*
+    If purge_sending_new_binlog_file == sending_new_binlog_file then
+    no dump thread has changed the state since we last computed it,
+    and we can re-use that state for the check.
+  */
+  if (!interactive && !is_relay_log && waiting_for_slave_to_change_binlog &&
+      purge_sending_new_binlog_file == sending_new_binlog_file &&
+      !strcmp(log_file_name_arg, purge_binlog_name))
+  {
+    reason= "it is in use by a slave thread or less than "
+      "'slave_connections_needed_for_purge' slaves have processed it";
     goto error;
   }
 
@@ -8575,7 +8591,6 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
                           handler_binlog_reader *reader)
 {
   String packet;
-  Format_description_log_event fd_event(4);
 
   if (reader)
   {
@@ -8595,8 +8610,7 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
       uchar flags2;
       if (Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                BINLOG_CHECKSUM_ALG_OFF, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2,
-                               &fd_event))
+                               &gtid.server_id, &gtid.seq_no, &flags2))
         return true;
       state->update_nolock(&gtid);
     }

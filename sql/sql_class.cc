@@ -1713,7 +1713,6 @@ void THD::cleanup(void)
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
     wsrep_cs().cleanup();
-  wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
   DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
@@ -2850,7 +2849,7 @@ THD::make_string_literal(const char *str, size_t length,
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);
   if (!charset_is_collation_connection &&
-      (repertoire != MY_REPERTOIRE_ASCII ||
+      (!my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII) ||
        !my_charset_is_ascii_based(variables.collation_connection)))
   {
     LEX_STRING to;
@@ -4894,7 +4893,6 @@ void TMP_TABLE_PARAM::init()
   table_charset= 0;
   precomputed_group_by= 0;
   bit_fields_as_long= 0;
-  materialized_subquery= 0;
   force_not_null_cols= 0;
   skip_create_table= 0;
   tmp_name= "temptable";                        // Name of temp table on disk

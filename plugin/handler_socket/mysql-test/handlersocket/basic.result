@@ -12,8 +12,8 @@ plugin_description	Direct access into InnoDB
 plugin_license	BSD
 plugin_maturity	Beta
 plugin_auth_version	1.1
-select * from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
-VARIABLE_NAME	VARIABLE_VALUE
+select variable_name, if(variable_name like 'handlersocket_plain_secret%', 'HS_SECRET', variable_value) as variable_value from information_schema.global_variables where variable_name like 'handlersocket%' order by variable_name;
+variable_name	variable_value
 HANDLERSOCKET_ACCEPT_BALANCE	0
 HANDLERSOCKET_ADDRESS	
 HANDLERSOCKET_BACKLOG	32768

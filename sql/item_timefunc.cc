@@ -2340,6 +2340,7 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
 {
   if (!is_time_format)
   {
+    locale= NULL; // Unknown yet, if the third argument is not a constant
     if (arg_count < 3)
       locale= thd->variables.lc_time_names;
     else if (args[2]->basic_const_item())
@@ -2355,7 +2356,14 @@ bool Item_func_date_format::fix_length_and_dec(THD *thd)
   decimals=0;
   CHARSET_INFO *cs= thd->variables.collation_connection;
   my_repertoire_t repertoire= arg1->collation.repertoire;
-  if (!thd->variables.lc_time_names->is_ascii)
+  /*
+    The result can contain locale specific names (e.g. of months and days).
+    Take the locale that is actually used. If the locale is passed
+    as a non-constant third argument, then it's not known at this point,
+    so assume that it can be a non-ASCII locale.
+  */
+  if (is_time_format ? !thd->variables.lc_time_names->is_ascii :
+                       (!locale || !locale->is_ascii))
     repertoire|= MY_REPERTOIRE_EXTENDED;
   collation.set(cs, arg1->collation.derivation, repertoire);
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
@@ -2408,7 +2416,10 @@ bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
 
 uint Item_func_date_format::format_length(const String *format)
 {
-  uint size=0;
+  /* A negative TIME value adds a leading minus sign. */
+  uint size= (is_time_format ||
+              args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_TIME) ? 1 : 0;
   const char *ptr=format->ptr();
   const char *end=ptr+format->length();
 

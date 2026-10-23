@@ -4186,6 +4186,7 @@ static const char *old_mode_names[]=
   "LOCK_ALTER_TABLE_COPY",              // 7: deprecated since 11.3
   "OLD_FLUSH_STATUS",                   // 8: deprecated since 11.5
   "SESSION_USER_IS_USER",               // 9: deprecated since 11.7
+  "X509_LENIENT_COMPARE",               // 10: deprecated since 13.1
   0
 };
 
@@ -4211,6 +4212,10 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 9; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1107>(thd, old_mode_names[i]);
+  for (; i <= 10; i++)
+    if ((1ULL<<i) & v)
+      warn_deprecated<1301>(thd, old_mode_names[i]);
+  DBUG_ASSERT(old_mode_names[i] == 0); // all modes were used up above
   return false;
 }
 
@@ -5975,6 +5980,9 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   uchar *ret;
   Master_info *mi;
   Rpl_filter *rpl_filter;
+
+  if (!base_name->str)
+    base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mi= get_master_info(base_name, !base_name->length ?

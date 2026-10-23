@@ -78,8 +78,9 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#53676: Unexpected errors and possible table corruption on
 --echo #            ADD PARTITION and LOCK TABLE
+# Avoid a MDL conflict between statistics recalc and the DROP TABLE below
 CREATE TABLE t1 ( i INT NOT NULL AUTO_INCREMENT PRIMARY KEY, f INT )
-        ENGINE = InnoDB PARTITION BY HASH(i) PARTITIONS 2;
+        ENGINE = InnoDB STATS_PERSISTENT=0 PARTITION BY HASH(i) PARTITIONS 2;
 INSERT INTO t1 VALUES (2, 2), (3, 3), (4, 4), (5, 5);
 
 LOCK TABLE t1 READ;

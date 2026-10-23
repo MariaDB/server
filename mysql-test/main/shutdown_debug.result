@@ -6,3 +6,26 @@ set @old_dbug=@@global.debug_dbug;
 set global debug_dbug='+d,CONNECT_wait';
 select variable_value into @cons from information_schema.global_status where variable_name='connections';
 # restart
+#
+# MDEV-25176 Shutdown hangs if event scheduler is started during shutdown
+#
+set global event_scheduler= 1;
+connect con1, localhost, root;
+set global debug_dbug= '+d,only_kill_system_threads';
+shutdown;
+disconnect con1;
+connection default;
+set global event_scheduler= 1;
+# Must be 0: the scheduler is not started after Events::stop()
+select count(*) as scheduler_started from information_schema.processlist
+where user = 'event_scheduler';
+scheduler_started
+0
+# ON: the skipped start reports no error
+select @@global.event_scheduler;
+@@global.event_scheduler
+ON
+set global event_scheduler= 0;
+disconnect default;
+connect default, localhost, root;
+# End of 10.11 tests
