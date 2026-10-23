@@ -1,0 +1,207 @@
+# MDEV-26479 Add support for slave_skip_errors="ddl_exist_errors"
+include/master-slave.inc
+[connection master]
+# we just verfiy that codes is set correctly
+connection slave;
+SHOW VARIABLES LIKE 'slave_skip_errors';
+Variable_name	Value
+slave_skip_errors	1007,1008,1050,1051,1054,1060,1061,1068,1091,1146
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+#
+# Test 1: ER_DB_CREATE_EXISTS ( 1007 )
+#
+connection slave;
+include/stop_slave.inc
+CREATE DATABASE test_ddl1;
+include/start_slave.inc
+connection master;
+CREATE DATABASE test_ddl1;
+INSERT INTO t1 VALUES (1);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1007 (ER_DB_CREATE_EXISTS) skipped successfully 
+#
+# Test 2: ER_DB_DROP_EXISTS (1008)
+#
+connection master;
+CREATE DATABASE test_ddl2;
+connection slave;
+connection slave;
+include/stop_slave.inc
+DROP DATABASE test_ddl2;
+include/start_slave.inc
+connection master;
+DROP DATABASE test_ddl2;
+INSERT INTO t1 VALUES (2);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1008 (ER_DB_DROP_EXISTS)  skipped successfully
+#
+# Test 3: ER_TABLE_EXISTS_ERROR (1050)
+#
+connection slave;
+include/stop_slave.inc
+CREATE TABLE t2 (c INT);
+include/start_slave.inc
+connection master;
+CREATE TABLE t2 (b INT);
+INSERT INTO t1 VALUES (3);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1050 (ER_TABLE_EXISTS_ERROR)  skipped successfully
+#
+# Test 4: ER_BAD_TABLE_ERROR (1051)
+#
+connection master;
+CREATE TABLE t3 (d INT);
+connection slave;
+connection slave;
+include/stop_slave.inc
+DROP TABLE t3;
+include/start_slave.inc
+connection master;
+DROP TABLE t3;
+INSERT INTO t1 VALUES (4);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1051 (ER_BAD_TABLE_ERROR)  skipped successfully
+#
+# Test 5: ER_BAD_FIELD_ERROR (1054)
+#
+connection master;
+CREATE TABLE t4 (id INT, name VARCHAR(50));
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE t4 DROP COLUMN name;
+include/start_slave.inc
+connection master;
+ALTER TABLE t4 DROP COLUMN name;
+INSERT INTO t1 VALUES (5);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1054 (ER_BAD_FIELD_ERROR)  skipped successfully
+#
+# Test 6: ER_DUP_FIELDNAME (1060)
+#
+connection master;
+CREATE TABLE t5 (id INT);
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE t5 ADD COLUMN name VARCHAR(100);
+include/start_slave.inc
+connection master;
+ALTER TABLE t5 ADD COLUMN name VARCHAR(100);
+INSERT INTO t1 VALUES (6);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1060 (ER_DUP_FIELDNAME)  skipped successfully
+#
+# Test 7: ER_DUP_KEYNAME (1061)
+#
+connection master;
+CREATE TABLE t6 (id INT, value VARCHAR(100));
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE t6 ADD INDEX idx_value (value);
+include/start_slave.inc
+connection master;
+ALTER TABLE t6 ADD INDEX idx_value (value);
+INSERT INTO t1 VALUES (7);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1061 (ER_DUP_KEYNAME) skipped successfully
+#
+# Test 8: ER_MULTIPLE_PRI_KEY (1068)
+#
+connection master;
+CREATE TABLE t7 (id INT);
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE t7 ADD PRIMARY KEY (id);
+include/start_slave.inc
+connection master;
+ALTER TABLE t7 ADD PRIMARY KEY (id);
+INSERT INTO t1 VALUES (8);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1068 (ER_MULTIPLE_PRI_KEY)  skipped successfully
+#
+# Test 9: ER_CANT_DROP_FIELD_OR_KEY (1091)
+#
+connection master;
+CREATE TABLE t8 (id INT, col1 VARCHAR(50), col2 INT);
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE t8 DROP COLUMN col2;
+include/start_slave.inc
+connection master;
+ALTER TABLE t8 DROP COLUMN col2;
+INSERT INTO t1 VALUES (9);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1091 (ER_CANT_DROP_FIELD_OR_KEY) skipped successfully
+#
+# Test 10: ER_NO_SUCH_TABLE (1146)
+#
+connection master;
+CREATE TABLE t9 (e INT);
+connection slave;
+connection slave;
+include/stop_slave.inc
+DROP TABLE t9;
+include/start_slave.inc
+connection master;
+ALTER TABLE t9 ADD COLUMN col1 INT;
+INSERT INTO t1 VALUES (10);
+connection slave;
+connection slave;
+include/check_slave_param.inc [Slave_SQL_Running]
+include/diff_tables.inc [master:t1, slave:t1]
+# Error 1146 (ER_NO_SUCH_TABLE)  skipped successfully
+#
+#  all errors skipped successfully
+#
+connection slave;
+SELECT COUNT(*) as total_rows FROM t1;
+total_rows
+10
+Slave_IO_Running: Yes
+Slave_SQL_Running: Yes
+#
+# Cleanup
+#
+connection master;
+connection master;
+DROP DATABASE IF EXISTS test_ddl1;
+DROP DATABASE IF EXISTS test_ddl2;
+Warnings:
+Note	1008	Can't drop database 'test_ddl2'; database doesn't exist
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5, t6, t7, t8, t9;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+connection slave;
+include/rpl_end.inc
