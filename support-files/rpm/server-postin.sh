@@ -60,7 +60,7 @@ if [ $1 = 1 ] ; then
 
   # Fix permissions for the permission database so that only the user
   # can read them.
-  chmod -R og-rw $datadir/mysql
+  chmod -R og-rw $datadir/mysql/
 fi
 
 # install SELinux files - but don't override existing ones
