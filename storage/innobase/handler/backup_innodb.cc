@@ -31,6 +31,30 @@
 # include <linux/falloc.h>
 #endif
 
+#ifndef _WIN32
+/** openat(2) mode for creating output files */
+static constexpr int MODE{0666};
+/** openat(2) flags for creating output files */
+static constexpr int CREATE_FLAGS={O_CREAT | O_EXCL | O_TRUNC | O_WRONLY};
+# ifdef O_DIRECT
+/** openat(2) flags for opening a possibly already created output file */
+static constexpr int RECREATE_FLAGS={O_CREAT | O_TRUNC | O_WRONLY};
+# endif
+
+# ifdef POSIX_FADV_NOREUSE
+/**
+   Try to make an output file cache-friendly.
+   @param fd   file descriptor for which caching should be avoided
+*/
+static void cache_friendly(int fd) noexcept
+{
+  std::ignore= posix_fadvise(fd, 0, 0, POSIX_FADV_NOREUSE);
+}
+# else
+static inline void cache_friendly(int) noexcept {}
+# endif
+#endif
+
 /** Associate a transaction with the current session
 @param thd   session
 @return InnoDB transaction */
@@ -347,13 +371,10 @@ private:
 #ifndef _WIN32
         std::string path{};
         log_sys.append_archive_name(path, lsn);
-        int log= openat(target.fd, path.c_str(),
-                        O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+        int log= openat(target.fd, path.c_str(), CREATE_FLAGS, MODE);
         if (log >= 0)
         {
-# ifdef POSIX_FADV_NOREUSE
-          std::ignore= posix_fadvise(log, 0, 0, POSIX_FADV_NOREUSE);
-# endif
+          cache_friendly(log);
           return log;
         }
 #else
@@ -446,12 +467,10 @@ private:
       if (unlinkat(target->fd, d_, 0))
         goto error_return;
       err= ER_CANT_CREATE_FILE;
-      d= openat(target->fd, d_, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      d= openat(target->fd, d_, CREATE_FLAGS, MODE);
       if (d < 0)
         goto error_return;
-# ifdef POSIX_FADV_NOREUSE
-      std::ignore= posix_fadvise(d, 0, 0, POSIX_FADV_NOREUSE);
-# endif
+      cache_friendly(d);
 #endif
       const uint64_t end{log_sys.START_OFFSET + last_lsn - hl};
       int f= extend_log(d, end);
@@ -615,9 +634,7 @@ public:
               std::swap(f, l);
             }
 
-#ifdef POSIX_FADV_NOREUSE
-            std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_NOREUSE);
-#endif
+            cache_friendly(f);
 #ifdef POSIX_FADV_SEQUENTIAL
             std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
@@ -626,9 +643,7 @@ public:
 
             if (l != OS_FILE_CLOSED)
             {
-#ifdef POSIX_FADV_NOREUSE
-              std::ignore= posix_fadvise(l, 0, 0, POSIX_FADV_NOREUSE);
-#endif
+              cache_friendly(l);
 #ifdef POSIX_FADV_SEQUENTIAL
               std::ignore= posix_fadvise(l, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
@@ -1678,10 +1693,7 @@ private:
 # endif
         for (;;)
         {
-#ifdef POSIX_FADV_NOREUSE
-          std::ignore=
-            posix_fadvise(node->handle, 0, 0, POSIX_FADV_NOREUSE);
-#endif
+          cache_friendly(node->handle);
 #ifdef POSIX_FADV_SEQUENTIAL
           std::ignore=
             posix_fadvise(node->handle, 0, 0, POSIX_FADV_SEQUENTIAL);
@@ -2151,8 +2163,7 @@ public:
     int dst{sink.stream};
     if (dst < 0)
     {
-      dst= openat(target.fd, basename,
-                  O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      dst= openat(target.fd, basename, CREATE_FLAGS, MODE);
       if (dst < 0)
         goto close_and_fail;
     }
@@ -2230,10 +2241,8 @@ public:
     }
     else
     {
-# ifdef POSIX_FADV_NOREUSE
-      std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
-      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NOREUSE);
-# endif
+      cache_friendly(dst);
+      cache_friendly(src);
 # ifdef POSIX_FADV_SEQUENTIAL
       std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
 # endif
@@ -2385,13 +2394,15 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       goto fail;
     }
 # endif
-    f= openat(target, name, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
-    if (f >= 0)
-    {
-# ifdef POSIX_FADV_NOREUSE
-      std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_NOREUSE);
+# ifdef O_DIRECT
+    f= openat(target, name, O_DIRECT | CREATE_FLAGS, MODE);
+    if (f < 0)
+      f= openat(target, name, RECREATE_FLAGS, MODE);
+# else
+    f= openat(target, name, CREATE_FLAGS, MODE);
 # endif
-    }
+    if (f >= 0)
+      cache_friendly(f);
     else
     {
       if (errno == ENOENT)
