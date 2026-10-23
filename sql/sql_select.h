@@ -1825,12 +1825,6 @@ public:
   */
   bool no_rows_in_result_called;
 
-  /**
-    This is set if SQL_CALC_ROWS was calculated by filesort()
-    and should be taken from the appropriate JOIN_TAB
-  */
-  bool filesort_found_rows;
-
   bool subq_exit_fl;
   
   ROLLUP rollup;				///< Used with rollup
