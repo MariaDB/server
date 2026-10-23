@@ -793,25 +793,52 @@ static int faulty_server_versions(const char *version)
   return 0;
 }
 
+/* Read Grant_tables_intact ("ON" or "OFF") using "mysql" */
+static my_bool grant_tables_are_intact(void)
+{
+  DYNAMIC_STRING ds_status;
+  char value[NAME_CHAR_LEN + 1];
+  my_bool intact= FALSE;
+
+  if (init_dynamic_string(&ds_status, NULL, NAME_CHAR_LEN, NAME_CHAR_LEN))
+    die("Out of memory");
+
+  if (run_query("show status like 'Grant_tables_intact'",
+                &ds_status, FALSE) ||
+      extract_variable_from_show(&ds_status, value))
+  {
+    if (opt_verbose)
+      verbose("Could not read Grant_tables_intact. Assuming the grant "
+              "tables need checking.");
+  }
+  else
+    intact= (strcmp(value, "ON") == 0);
+
+  dynstr_free(&ds_status);
+  return intact;
+}
+
+
 /*
   Read the content of mysql_upgrade_info file and
   compare the version number form file against
   version number which mysql_upgrade was compiled for
 
-  NOTE
-  This is an optimization to avoid running mysql_upgrade
-  when it's already been performed for the particular
-  version of MariaDB.
+  This is also used, with silent=1, just to verify that
+  finish_mysql_upgrade_info_file() successfully wrote the file - so it must
+  depend only on the file's content, never on live server state, and must
+  not print the "already upgraded" success message itself (that belongs to
+  upgrade_already_done(), once it has also checked Grant_tables_intact).
 
   In case the MariaDBL server can't return the upgrade info
   file it's always better to report that the upgrade hasn't
   been performed.
 
-  @return 0   Upgrade has already been run on this version
-  @return > 0 Upgrade has to be run
+  @return 0   file's recorded version matches the current version
+  @return > 0 upgrade has to be run
 */
 
-static int upgrade_already_done(int silent)
+static int version_file_matches(int silent)
 {
   const char *version = MYSQL_SERVER_VERSION;
   const char *s;
@@ -867,6 +894,64 @@ static int upgrade_already_done(int silent)
         "lower version is not supported!",
         upgrade_from_version, version);
   }
+  return 0;
+}
+
+
+static void flush_privileges_for_check(void)
+{
+  run_query("FLUSH PRIVILEGES", NULL, TRUE);
+}
+
+/*
+  Decide whether mysql_upgrade has to be run: the recorded version in
+  mysql_upgrade_info must match the version mysql_upgrade was compiled for,
+  AND the grant tables' structure must match what this server expects
+  (Grant_tables_intact) - e.g. a dump or restore may have replaced them
+  with an older version's, independently of what the version file says.
+
+  NOTE
+  This is an optimization to avoid running mysql_upgrade
+  when it's already been performed for the particular
+  version of MariaDB.
+
+  @return 0   Upgrade has already been run on this version
+  @return > 0 Upgrade has to be run
+*/
+
+static int upgrade_already_done(int silent)
+{
+  const char *version = MYSQL_SERVER_VERSION;
+  const char *s;
+  int file_result= version_file_matches(silent);
+
+  if (file_result)
+    return file_result;
+
+  /*
+    The recorded version matches, so the only thing that could still require
+    an upgrade is the grant tables' live structure - e.g. a dump restore may
+    have just replaced them with an older version's, without a server
+    restart or an explicit FLUSH PRIVILEGES to refresh Grant_tables_intact.
+    Only now, when that's the deciding factor, force a FLUSH PRIVILEGES so
+    the check below reflects the grant tables' current on-disk structure
+    rather than a value cached since the last startup or flush.
+  */
+  flush_privileges_for_check();
+
+  if (!grant_tables_are_intact())
+  {
+    if (opt_verbose)
+      verbose("The recorded version (%s) matches, but the grant tables' "
+              "structure doesn't match what this server expects - a dump "
+              "or restore likely replaced them with an older version's. "
+              "Check required!", upgrade_from_version);
+    return 4;
+  }
+
+  s= strchr(version, '.');
+  s= strchr(s + 1, '.');
+
   if (!silent)
   {
     if (strcmp(upgrade_from_version, version))
@@ -901,7 +986,7 @@ static void finish_mysql_upgrade_info_file(void)
     Check if the upgrade_info_file was properly created/updated
     It's not a fatal error -> just print a message if it fails
   */
-  if (upgrade_already_done(1))
+  if (version_file_matches(1))
     fprintf(stderr,
             "Could not write to the upgrade info file '%s' in "
             "the MariaDB Servers datadir, errno: %d\n",
@@ -1513,8 +1598,8 @@ int main(int argc, char **argv)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
 
   /*
-    Read the mysql_upgrade_info file to check if mysql_upgrade
-    already has been run for this installation of MariaDB
+    Read the mysql_upgrade_info file (and Grant_tables_intact) to check if
+    mysql_upgrade already has been run for this installation of MariaDB
   */
   if (!opt_force && !upgrade_already_done(0))
     goto end;                                   /* Upgrade already done */
