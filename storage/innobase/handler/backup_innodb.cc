@@ -987,29 +987,37 @@ public:
         else
 #endif
         {
-          const bool owned_by_us{tracked.first_lsn < log_first_lsn};
           os_file_t file{tracked.file};
           ut_ad(tail->file != file);
+          const bool owned_by_us=
+            tracked.first_lsn < log_first_lsn &&
+            /*
+              When log.write() in log_t::write_checkpoint() is pending,
+              we have file == log_sys.resize_log.m_file.
+            */
+            (tail->first_lsn < log_first_lsn ||
+             file != log_sys.resize_log.m_file);
 
           if (!owned_by_us)
           {
             ut_ad(file == log_sys.resize_log.m_file ||
                   file == log_sys.log.m_file);
+            /* At most two innodb_log_archive=ON files can be active. */
+            ut_ad(!tail->next);
+            file= OS_FILE_CLOSED;
             /*
               We copied a previous log before the first checkpoint had
               been completed in the current log_sys.log file, which had
               been registered by archive_create(). The previous log will
               be closed by checkpoint_complete().
             */
-            ut_ad(tracked.first_lsn == log_first_lsn);
-            /* At most two innodb_log_archive=ON files can be active. */
-            ut_ad(!tail->next);
-            file= OS_FILE_CLOSED;
+            ut_ad(tracked.first_lsn == log_first_lsn ||
+                  tail->first_lsn == log_first_lsn);
           }
           else
           {
             ut_ad(file != log_sys.resize_log.m_file);
-            if (tracked.file == log_sys.log.m_file)
+            if (file == log_sys.log.m_file)
             {
               /* The log file from init() was not disowned by log_sys. */
               ut_ad(tracked.first_lsn == ctx.first_lsn);
