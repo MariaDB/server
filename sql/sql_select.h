@@ -623,11 +623,6 @@ typedef struct st_join_table {
     It is only used to prune searches in best_extension_by_limited_search()
   */
   table_map     key_dependent;
-   /*
-    Tables that have expression in their attached condition clause that depends
-    on this table.
-  */
-  table_map     related_tables;
 
   /*
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
