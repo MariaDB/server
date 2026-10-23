@@ -5350,7 +5350,8 @@ void do_sync_with_master2(struct st_command *command, long offset,
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
 
-    sprintf(query_buf2, "show slave \"%s\" status", connection_name);
+    snprintf(query_buf2, sizeof(query_buf2), "show slave \"%s\" status",
+             connection_name);
 
     if (!mysql_query(mysql, query_buf2))
     {

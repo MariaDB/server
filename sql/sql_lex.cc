@@ -11732,7 +11732,8 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     Extract condition that can be pushed from HAVING into WHERE
 
   @param thd           the thread handle
-  @param having        the HAVING clause of this select
+  @param having_ptr    in: the HAVING clause of this select,
+                       out: the HAVING clause left after the pushdown
   @param having_equal  multiple equalities of HAVING
 
   @details
@@ -11787,15 +11788,16 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
   @retval FALSE  otherwise
 */
 
-Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
+bool st_select_lex::pushdown_from_having_into_where(THD *thd,
+                                                    Item **having_ptr)
 {
+  Item *having= *having_ptr;
   if (!having || !group_list.first)
-    return having;
+    return false;
   if (!cond_pushdown_is_allowed())
-    return having;
+    return false;
 
-  st_select_lex *save_curr_select= thd->lex->current_select;
-  thd->lex->current_select= this;
+  SCOPE_VALUE(thd->lex->current_select, this);
 
   /*
     1. Collect fields used in the GROUP BY grouping fields of this SELECT
@@ -11804,7 +11806,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   */
   if (collect_grouping_fields(thd) ||
       collect_fields_equal_to_grouping(thd))
-    return having;
+    return false;
 
   /*
     3. Extract the most restrictive condition from the HAVING clause of this
@@ -11818,12 +11820,9 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having);
   if (build_pushable_cond_for_having_pushdown(thd, having))
-  {
-    attach_to_conds.empty();
-    goto exit;
-  }
+    goto error;
   if (!attach_to_conds.elements)
-    goto exit;
+    return false;
 
   /*
     4. Remove conditions from HAVING clause that can be entirely pushed
@@ -11874,17 +11873,33 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   it.rewind();
   while ((item=it++))
   {
+    /*
+      Unwrapping in place would make the pushed condition share field items
+      with the SELECT list. Those items are later bound to the GROUP BY
+      temporary table, and evaluating the condition (e.g. for "Range checked
+      for each record") would then read the not yet filled temporary table.
+      A clone gets its own field items.
+
+      Some items (e.g. subqueries) cannot be cloned but we don't want
+      to abandon the pushdown, so we unwrap the original item in place.
+      The risk is low: the problem above needs "Range checked for each
+      record", which is unlikely for conditions containing such items.
+    */
+    Item *cloned_item= item->deep_copy_with_checks(thd);
+    if (cloned_item)
+      item= cloned_item;
+    else if (thd->is_error())
+      goto error;
+
     item= item->transform(thd,
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
-
-    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0,
+    it.replace(item);
+    if (!item ||
+        item->walk(&Item::cleanup_excluding_immutables_processor, 0,
                    STOP_PTR) ||
         item->fix_fields(thd, it.ref()))
-    {
-      attach_to_conds.empty();
-      goto exit;
-    }
+      goto error;
   }
 
   /*
@@ -11894,14 +11909,21 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   while ((item=it++))
   {
     if (item->walk(&Item::remove_immutable_flag_processor, 0, STOP_PTR))
-    {
-      attach_to_conds.empty();
-      goto exit;
-    }
+      goto error;
   }
-exit:
-  thd->lex->current_select= save_curr_select;
-  return having;
+  *having_ptr= having;
+  return false;
+
+error:
+  /*
+    HAVING may have been modified already, so the query cannot continue
+    without the pushdown.
+  */
+  DBUG_ASSERT(thd->is_error());
+  if (!thd->is_error())
+    my_error(ER_INTERNAL_ERROR, MYF(0), "HAVING pushdown into WHERE");
+  attach_to_conds.empty();
+  return true;
 }
 
 

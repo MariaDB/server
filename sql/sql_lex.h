@@ -1673,7 +1673,7 @@ public:
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
-  Item *pushdown_from_having_into_where(THD *thd, Item *having);
+  bool pushdown_from_having_into_where(THD *thd, Item **having_ptr);
 
   bool is_set_op()
   {
