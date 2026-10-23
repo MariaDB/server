@@ -1633,7 +1633,7 @@ public:
          setup_end_select_func
   */
   bool     sort_and_group; 
-  bool     first_record,full_join, no_field_update;
+  bool     first_record,full_join;
   bool     hash_join;
   bool	   do_send_rows;
   table_map const_table_map;
@@ -1785,8 +1785,6 @@ public:
   List<Cached_item> group_fields, group_fields_cache;
   THD	   *thd;
   Item_sum  **sum_funcs, ***sum_funcs_end;
-  /** second copy of sumfuncs (for queries with 2 temporary tables */
-  Item_sum  **sum_funcs2, ***sum_funcs_end2;
   Procedure *procedure;
   Item	    *having;
   Item      *tmp_having; ///< To store having when processed temporary table
