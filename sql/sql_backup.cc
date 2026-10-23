@@ -114,6 +114,9 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     ret= pread(in_fd, b, ssize_t(size), o);
     if (ret > 0)
     {
+#ifdef POSIX_FADV_DONTNEED
+      std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
+#endif
       uint64_t wo{o};
       o+= ret;
       count-= uint64_t(ret);
