@@ -1,0 +1,15 @@
+--source ../include/have_duckdb.inc
+
+--echo # MDEV-40839: SET members from the 9th on were lost when reading back
+--echo # a SET column wider than 8 members
+
+create database mytest;
+use mytest;
+
+create table t (id int primary key, s set('a','b','c','d','e','f','g','h','i','j')) engine=DuckDB;
+insert into t values (1,'a'),(2,'a,i'),(3,'h,i,j'),(4,'i'),(5,'a,b,c,d,e,f,g,h');
+select * from t order by id;
+select id, cast(s as char) from t order by id;
+drop table t;
+
+drop database mytest;
