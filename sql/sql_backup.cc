@@ -114,9 +114,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     ret= pread(in_fd, b, ssize_t(size), o);
     if (ret > 0)
     {
-#ifdef POSIX_FADV_DONTNEED
-      std::ignore= posix_fadvise(in_fd, o, ret, POSIX_FADV_DONTNEED);
-#endif
       uint64_t wo{o};
       o+= ret;
       count-= uint64_t(ret);
@@ -178,6 +175,7 @@ int copy_entire_file(int src, int dst) noexcept
 {
   uint64_t end(lseek(src, 0, SEEK_END));
 #ifdef POSIX_FADV_NOREUSE
+  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NOREUSE);
   std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
 #endif
   int ret;
@@ -190,9 +188,6 @@ int copy_entire_file(int src, int dst) noexcept
     std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
     ret= backup::copy(src, dst, 0, end);
-#ifdef POSIX_FADV_DONTNEED
-    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_DONTNEED);
-#endif
 #ifdef POSIX_FADV_NORMAL
     std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
 #endif
@@ -250,9 +245,6 @@ int copy(handle src, backup_fd dst, uint64_t start, uint64_t end) noexcept
 #else
   ssize_t ret{pread_write<false>(src, dst, start, end)};
   assert(ret <= 0);
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(src, start, end, POSIX_FADV_DONTNEED);
-#endif
   return int(ret);
 #endif
 }
@@ -484,9 +476,6 @@ int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
   assert(ret <= 0);
   if (ret && (errno == EOPNOTSUPP || errno == EXDEV))
     return 1;
-#ifdef POSIX_FADV_DONTNEED
-  std::ignore= posix_fadvise(src, start, end - start, POSIX_FADV_DONTNEED);
-#endif
   return int(ret);
 }
 #endif

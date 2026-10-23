@@ -615,14 +615,28 @@ public:
               std::swap(f, l);
             }
 
+#ifdef POSIX_FADV_NOREUSE
+            std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_NOREUSE);
+#endif
+#ifdef POSIX_FADV_SEQUENTIAL
+            std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
             tracked=
               new tracked_log{f, first_lsn, log_sys.file_size};
 
             if (l != OS_FILE_CLOSED)
+            {
+#ifdef POSIX_FADV_NOREUSE
+              std::ignore= posix_fadvise(l, 0, 0, POSIX_FADV_NOREUSE);
+#endif
+#ifdef POSIX_FADV_SEQUENTIAL
+              std::ignore= posix_fadvise(l, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
               tracked->next= new tracked_log{l, first_lsn + log_sys.capacity(),
                                              uint64_t
                                              (IF_WIN(os_file_get_size(l),
                                                      lseek(l, 0, SEEK_END)))};
+            }
           }
           log_dst= context::log_track_create(target, first_lsn);
           if (IF_WIN(log_dst != INVALID_HANDLE_VALUE, log_dst >= 0))
@@ -1655,6 +1669,10 @@ private:
 # endif
         for (;;)
         {
+#ifdef POSIX_FADV_NOREUSE
+          std::ignore=
+            posix_fadvise(node->handle, 0, 0, POSIX_FADV_NOREUSE);
+#endif
 #ifdef POSIX_FADV_SEQUENTIAL
           std::ignore=
             posix_fadvise(node->handle, 0, 0, POSIX_FADV_SEQUENTIAL);
@@ -2205,11 +2223,18 @@ public:
     {
 # ifdef POSIX_FADV_NOREUSE
       std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
+      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NOREUSE);
+# endif
+# ifdef POSIX_FADV_SEQUENTIAL
+      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
 # endif
       err= extend(dst, chunk->offset) ||
         backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
                      chunk[-1].length) ||
         (lsn <= ctx.checkpoint && write_checkpoint(dst, cp_buf));
+# ifdef POSIX_FADV_NORMAL
+      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
+# endif
 #ifdef _WIN32
       err|= !CloseHandle(dst);
 #else
