@@ -362,3 +362,132 @@ SET GLOBAL query_cache_type= DEFAULT;
 SET @@GLOBAL.concurrent_insert=@save_concurrent_insert;
 
 --echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-41690 ASAN error, server hang or crash upon query cache operations
+--echo #
+
+SET @save_query_cache_size= @@global.query_cache_size;
+SET GLOBAL query_cache_size= 128*1024;
+SET GLOBAL query_cache_type= ON;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+--echo # The cache is disabled and re-enabled while the writer is running
+--connect (con1,localhost,root,,test)
+SET SESSION query_cache_type= ON;
+SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked WAIT_FOR go EXECUTE 1";
+--send SELECT COUNT(*) FROM t1
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR parked";
+SET GLOBAL query_cache_type= OFF;
+SET GLOBAL query_cache_type= ON;
+SET DEBUG_SYNC="now SIGNAL go";
+
+--connection con1
+--reap
+--connection default
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+
+--echo # Writers wait for the cache lock while the cache is disabled
+--connection con1
+SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked2 WAIT_FOR go2 EXECUTE 1";
+--send SELECT COUNT(*) FROM t1 WHERE a > 0
+
+--connect (con3,localhost,root,,test)
+SET SESSION query_cache_type= ON;
+SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked4 WAIT_FOR go4 EXECUTE 1";
+--send SELECT COUNT(*) FROM t1 WHERE a > 1
+
+--connect (con2,localhost,root,,test)
+SET DEBUG_SYNC="now WAIT_FOR parked2";
+SET DEBUG_SYNC="now WAIT_FOR parked4";
+SET DEBUG_SYNC="wait_in_query_cache_disable SIGNAL disabling WAIT_FOR go3";
+--send SET GLOBAL query_cache_type= OFF
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR disabling";
+SET DEBUG_SYNC="now SIGNAL go2";
+SET DEBUG_SYNC="now SIGNAL go4";
+let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.processlist
+  WHERE state = 'Waiting for query cache lock' AND info LIKE 'SELECT COUNT%';
+--source include/wait_condition.inc
+SET DEBUG_SYNC="now SIGNAL go3";
+
+--connection con2
+--reap
+--disconnect con2
+--connection con1
+--reap
+--connection con3
+--reap
+--disconnect con3
+
+--connection default
+SET GLOBAL query_cache_type= ON;
+--connection con1
+SET SESSION query_cache_type= ON;
+SELECT COUNT(*) FROM t1;
+--disconnect con1
+--connection default
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+
+--echo # The writer gives up and disconnects while disabling is pending
+SET @save_thread_cache_size= @@global.thread_cache_size;
+# Make sure THD of the writer is freed on disconnect
+SET GLOBAL thread_cache_size= 0;
+--connect (con1,localhost,root,,test)
+SET SESSION query_cache_type= ON;
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET DEBUG_SYNC="wait_in_query_cache_insert SIGNAL parked5 WAIT_FOR go5 EXECUTE 1";
+--send SELECT COUNT(*) FROM t1 WHERE a > 2
+
+--connect (con3,localhost,root,,test)
+SET DEBUG_SYNC="now WAIT_FOR parked5";
+SET DEBUG_SYNC="wait_in_query_cache_flush1 SIGNAL flushing WAIT_FOR go6";
+SET DEBUG_SYNC="wait_in_query_cache_flush2 SIGNAL flushing2 WAIT_FOR go7";
+--send RESET QUERY CACHE
+
+--connect (con2,localhost,root,,test)
+SET DEBUG_SYNC="now WAIT_FOR flushing";
+SET DEBUG_SYNC="wait_in_query_cache_disable SIGNAL disabling WAIT_FOR go8";
+--send SET GLOBAL query_cache_type= OFF
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR disabling";
+SET DEBUG_SYNC="now SIGNAL go6";
+let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE state = 'Waiting for query cache lock' AND info = 'RESET QUERY CACHE';
+--source include/wait_condition.inc
+SET DEBUG_SYNC="now SIGNAL go8";
+SET DEBUG_SYNC="now WAIT_FOR flushing2";
+SET DEBUG_SYNC="now SIGNAL go5";
+
+--connection con1
+--reap
+--disconnect con1
+--connection default
+let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+# The flush frees the query block of the disconnected writer
+SET DEBUG_SYNC="now SIGNAL go7";
+
+--connection con3
+--reap
+--disconnect con3
+--connection con2
+--reap
+--disconnect con2
+--connection default
+SET GLOBAL query_cache_type= ON;
+SET GLOBAL thread_cache_size= @save_thread_cache_size;
+
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+SET GLOBAL query_cache_size= @save_query_cache_size;
+SET GLOBAL query_cache_type= DEFAULT;
+
+--echo # End of 10.11 tests
