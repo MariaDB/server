@@ -122,11 +122,15 @@ Do not load any columns or indexes.
 @param[in]	uncommitted	whether to use READ UNCOMMITTED isolation level
 @param[in]	rec		SYS_TABLES record
 @param[out,own]	table		table, or nullptr
+@param[out]	uncommitted_rec	whether the current version of the SYS_TABLES
+				record was written by a transaction that has
+				not been committed
 @return	error message
 @retval	nullptr on success */
 const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
-                                const rec_t *rec, dict_table_t **table)
-  MY_ATTRIBUTE((nonnull, warn_unused_result));
+                                const rec_t *rec, dict_table_t **table,
+                                bool *uncommitted_rec= nullptr)
+  MY_ATTRIBUTE((nonnull(1,3,4), warn_unused_result));
 
 /********************************************************************//**
 This function parses a SYS_INDEXES record and populate a dict_index_t
