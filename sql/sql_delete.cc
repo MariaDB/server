@@ -43,6 +43,7 @@
 #include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
 #include "sql_insert.h"          // fix_rownum_pointers
+#include "sql_update.h"          // multi_change_moves_rows
 #include "sql_partition.h"       // make_used_partitions_str
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
@@ -1831,6 +1832,16 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
         my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
                  target_tbl->table_name.str, "DELETE");
         DBUG_RETURN(TRUE);
+      }
+
+      TABLE_LIST *base2=
+        target_tbl->correspondent_table->find_table_for_update();
+      for (TABLE_LIST *tbl= aux_tables; tbl != target_tbl;
+           tbl= tbl->next_local)
+      {
+        TABLE_LIST *base1= tbl->correspondent_table->find_table_for_update();
+        if (multi_change_moves_rows(base1, base2))
+          DBUG_RETURN(TRUE);
       }
     }
 
