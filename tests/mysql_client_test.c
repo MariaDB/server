@@ -23925,6 +23925,21 @@ static void test_mdev_23864()
   myquery(rc);
   rc= mysql_query(mysql, "DROP TRIGGER t1_au");
   myquery(rc);
+  /* an error handled in a stored function */
+  rc= mysql_query(mysql, "CREATE FUNCTION f2(x INT) RETURNS INT BEGIN "
+                         "DECLARE EXIT HANDLER FOR SQLEXCEPTION RETURN x; "
+                         "INSERT INTO t7 VALUES (x / 10); RETURN x; END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, f2(?))",
+                        "REPLACE INTO t7 VALUES (2)", same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, f2((SELECT b FROM t2 WHERE a = ?)))",
+                        "REPLACE INTO t7 VALUES (20)", looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= f2(10 * ?) WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP FUNCTION f2");
+  myquery(rc);
   rc= mysql_query(mysql, "DROP TABLE t7");
   myquery(rc);
 
