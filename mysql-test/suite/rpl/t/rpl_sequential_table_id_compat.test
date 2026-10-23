@@ -1,0 +1,60 @@
+# Test backward compatibility: sequential table IDs work via hash fallback
+#
+# When the master uses sequential table IDs but the slave doesn't have
+# the array optimization (simulated by the hash-based path), the slave
+# should still replicate correctly because sequential IDs (1, 2, 3, ...)
+# are valid hash keys.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+SET @@session.binlog_sequential_table_ids= ON;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--echo #
+--echo # Insert data with sequential table IDs
+--echo #
+INSERT INTO t1 VALUES (1, 'compat test');
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+
+--echo #
+--echo # Multi-table transaction
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (2, 'txn row');
+UPDATE t2 SET a= 2 WHERE a= 1;
+INSERT INTO t3 VALUES (2);
+COMMIT;
+
+--echo #
+--echo # Multi-table single statement
+--echo #
+INSERT INTO t2 VALUES (10);
+UPDATE t1, t2 SET t1.b= 'multi', t2.a= 20
+  WHERE t1.a= 1 AND t2.a= 10;
+
+--echo #
+--echo # Verify slave replicated everything correctly
+--echo #
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+SET @@session.binlog_sequential_table_ids= OFF;
+DROP TABLE t1, t2, t3;
+
+--sync_slave_with_master
+--source include/rpl_end.inc

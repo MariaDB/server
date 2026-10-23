@@ -1,0 +1,103 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @saved_sequential= @@session.binlog_sequential_table_ids;
+SET @@session.binlog_sequential_table_ids= ON;
+#
+# Test 1: Single table INSERT — table_id should be 1
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'hello');
+Table_map event: table_id: 1 (test.t1)
+connection slave;
+connection slave;
+SELECT * FROM t1;
+a	b
+1	hello
+#
+# Test 2: Multi-table transaction (separate statements) — each resets to 1
+#
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (2, 'world');
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+COMMIT;
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	hello
+2	world
+SELECT * FROM t2;
+a
+1
+SELECT * FROM t3;
+a
+1
+#
+# Test 3: Multi-table single statement (UPDATE t1, t2) — IDs 1, 2
+#
+connection master;
+INSERT INTO t2 VALUES (10);
+UPDATE t1, t2 SET t1.b= 'updated', t2.a= 20
+WHERE t1.a= 1 AND t2.a= 10;
+connection slave;
+connection slave;
+SELECT * FROM t1 WHERE a= 1;
+a	b
+1	updated
+SELECT * FROM t2 WHERE a= 20;
+a
+20
+#
+# Test 4: Cross-database multi-table statement
+#
+connection master;
+CREATE DATABASE IF NOT EXISTS db2;
+CREATE TABLE db2.t4 (x INT PRIMARY KEY, y VARCHAR(50)) ENGINE=InnoDB;
+INSERT INTO db2.t4 VALUES (1, 'original');
+UPDATE t1, db2.t4 SET t1.b= 'cross-db', db2.t4.y= 'cross-db'
+  WHERE t1.a= 1 AND db2.t4.x= 1;
+connection slave;
+connection slave;
+SELECT * FROM t1 WHERE a= 1;
+a	b
+1	cross-db
+SELECT * FROM db2.t4 WHERE x= 1;
+x	y
+1	cross-db
+#
+# Test 5: Multiple statements in transaction, verify slave correctness
+#
+connection master;
+BEGIN;
+INSERT INTO t1 VALUES (3, 'foo');
+UPDATE t2 SET a= 2 WHERE a= 20;
+DELETE FROM t3 WHERE a= 1;
+COMMIT;
+connection slave;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	cross-db
+2	world
+3	foo
+SELECT * FROM t2;
+a
+1
+2
+SELECT * FROM t3;
+a
+#
+# Cleanup
+#
+connection master;
+SET @@session.binlog_sequential_table_ids= @saved_sequential;
+DROP TABLE t1, t2, t3;
+DROP TABLE db2.t4;
+DROP DATABASE db2;
+connection slave;
+include/rpl_end.inc
