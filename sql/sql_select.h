@@ -1609,7 +1609,6 @@ public:
      group_list)
   */
   bool	   group;
-  bool     need_distinct;
 
   /**
     Indicates that grouping will be performed on the result set during
