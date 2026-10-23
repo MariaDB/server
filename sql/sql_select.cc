@@ -3806,7 +3806,6 @@ bool JOIN::make_aggr_tables_info()
   if (join_tab && top_join_tab_count && tables_list)
   {
     join_tab[top_join_tab_count - 1].fields= &fields_list;
-    join_tab[top_join_tab_count - 1].all_fields= &all_fields;
   }
 
   /*
@@ -3925,7 +3924,6 @@ bool JOIN::make_aggr_tables_info()
 
         //todo: new:
         curr_tab->ref_array= &items1;
-        curr_tab->all_fields= &tmp_all_fields1;
         curr_tab->fields= &tmp_fields_list1;
 
         DBUG_RETURN(thd->is_error());
@@ -4013,7 +4011,6 @@ bool JOIN::make_aggr_tables_info()
     // Need to set them now for correct group_fields setup, reset at the end.
     set_items_ref_array(items1);
     curr_tab->ref_array= &items1;
-    curr_tab->all_fields= &tmp_all_fields1;
     curr_tab->fields= &tmp_fields_list1;
     set_postjoin_aggr_write_func(curr_tab);
 
@@ -4155,7 +4152,6 @@ bool JOIN::make_aggr_tables_info()
       curr_all_fields= &tmp_all_fields2;
       set_items_ref_array(items2);
       curr_tab->ref_array= &items2;
-      curr_tab->all_fields= &tmp_all_fields2;
       curr_tab->fields= &tmp_fields_list2;
       set_postjoin_aggr_write_func(curr_tab);
 
@@ -4240,7 +4236,6 @@ bool JOIN::make_aggr_tables_info()
       JOIN_TAB *last_tab= join_tab + top_join_tab_count + aggr_tables - 1;
       // Set grouped fields on the last table
       last_tab->ref_array= &items3;
-      last_tab->all_fields= &tmp_all_fields3;
       last_tab->fields= &tmp_fields_list3;
     }
     if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))

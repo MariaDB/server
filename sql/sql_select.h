@@ -769,16 +769,13 @@ typedef struct st_join_table {
 
   /**
     List of topmost expressions in the select list. The *next* JOIN_TAB
-    in the plan should use it to obtain correct values. Same applicable to
-    all_fields. These lists are needed because after tmp tables functions
-    will be turned to fields. These variables are pointing to
-    tmp_fields_list[123]. Valid only for tmp tables and the last non-tmp
-    table in the query plan.
+    in the plan should use it to obtain correct values. This list is needed
+    because after tmp tables functions will be turned to fields. This
+    variable is pointing to tmp_fields_list[123]. Valid only for tmp tables
+    and the last non-tmp table in the query plan.
     @see JOIN::make_aggr_tables_info()
   */
   List<Item> *fields;
-  /** List of all expressions in the select list */
-  List<Item> *all_fields;
   /*
     Pointer to the ref array slice which to switch to before sending
     records. Valid only for tmp tables.
