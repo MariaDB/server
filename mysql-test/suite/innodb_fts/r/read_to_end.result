@@ -1,0 +1,103 @@
+# MDEV-41754: FTS callbacks must stop internal index scans
+SET @save_debug_dbug= @@SESSION.debug_dbug;
+SET @save_optimize= @@GLOBAL.innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= ON;
+# Document lookups stop at the next document
+CREATE TABLE t (id INT PRIMARY KEY, body TEXT, FULLTEXT(body))
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t SELECT seq, 'alpha beta gamma delta epsilon zeta eta theta'
+  FROM seq_1_to_32;
+OPTIMIZE TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	status	OK
+SELECT COUNT(*) FROM t WHERE MATCH(body) AGAINST('gamma' IN BOOLEAN MODE);
+COUNT(*)
+32
+SET SESSION debug_dbug= '+d,fts_count_callback_records';
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('"gamma delta"' IN BOOLEAN MODE);
+COUNT(*)
+32
+include/assert.inc [Phrase search]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('"gamma epsilon" @3' IN BOOLEAN MODE);
+COUNT(*)
+32
+include/assert.inc [Proximity search]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('gamma' WITH QUERY EXPANSION);
+COUNT(*)
+32
+include/assert.inc [Query expansion]
+SET SESSION debug_dbug= @save_debug_dbug;
+DROP TABLE t;
+# Word lookups in an auxiliary table stop after the last match
+CREATE TABLE t (id INT PRIMARY KEY, body TEXT, FULLTEXT(body))
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t SELECT seq, CONCAT('wrd', LPAD(seq, 4, '0')) FROM seq_1_to_128;
+OPTIMIZE TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	status	OK
+SET SESSION debug_dbug= '+d,fts_count_callback_records';
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0001' IN BOOLEAN MODE);
+COUNT(*)
+1
+include/assert.inc [A word: one match and one boundary]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd000*' IN BOOLEAN MODE);
+COUNT(*)
+9
+include/assert.inc [A prefix: nine matches and one boundary]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0000' IN BOOLEAN MODE);
+COUNT(*)
+0
+include/assert.inc [A missing word: the first greater word]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0128' IN BOOLEAN MODE);
+COUNT(*)
+1
+include/assert.inc [The last word: the end of the index]
+SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd9999' IN BOOLEAN MODE);
+COUNT(*)
+0
+include/assert.inc [Beyond the last word: no record]
+SET SESSION debug_dbug= @save_debug_dbug;
+DROP TABLE t;
+SET NAMES utf8mb4;
+# A prefix does not stop at an accent variant (synced row by row, so
+# that the spellings are separate auxiliary records)
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT, FULLTEXT(c))
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+SET SESSION debug_dbug= '+d,fts_instrument_sync_debug';
+INSERT INTO t VALUES (1, 'abaa');
+INSERT INTO t VALUES (2, 'abzz');
+INSERT INTO t VALUES (3, 'ábaa');
+SET SESSION debug_dbug= @save_debug_dbug;
+SELECT id FROM t WHERE MATCH(c) AGAINST('ab*' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+2
+3
+SELECT id FROM t WHERE MATCH(c) AGAINST('ábaa*' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+3
+SELECT id FROM t WHERE MATCH(c) AGAINST('abaa' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+3
+DROP TABLE t;
+# In a multi-level collation, prefix matches can be separated by
+# words that do not match
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT)
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_as_ci;
+INSERT INTO t VALUES (1, 'aab'), (2, 'aabaa'), (3, 'aábaa'), (4, 'AABxx'),
+(5, 'aabzz'), (6, 'aábzz'), (7, 'aacaa');
+ALTER TABLE t ADD FULLTEXT(c);
+SELECT id FROM t WHERE MATCH(c) AGAINST('aab*' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+2
+4
+5
+SELECT id FROM t WHERE MATCH(c) AGAINST('aáb*' IN BOOLEAN MODE) ORDER BY id;
+id
+3
+6
+DROP TABLE t;
+SET GLOBAL innodb_optimize_fulltext_only= @save_optimize;

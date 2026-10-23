@@ -864,24 +864,33 @@ RecordCompareAction AuxRecordReader::compare_record(
         return RecordCompareAction::SKIP;
 
       const dtype_t* type= dfield_get_type(search_field);
-      cmp_result= cmp_data(type->mtype, type->prtype, false,
-                           static_cast<const byte*>(search_data),
-                           search_len, word_data, word_len);
       if (compare_mode == AuxCompareMode::EQUAL)
-        return cmp_result == 0
-               ? RecordCompareAction::PROCESS
-               : RecordCompareAction::STOP;
+        cmp_result= cmp_data(type->mtype, type->prtype, false,
+                             word_data, word_len,
+                             static_cast<const byte*>(search_data), search_len);
       else /* AuxCompareMode::LIKE */
       {
-        int prefix_cmp= cmp_data(type->mtype, type->prtype, false,
-                                 static_cast<const byte*>(search_data),
-                                 search_len, word_data,
-                                 search_len <= word_len ? search_len : word_len);
+        /* Compare the whole word with the search prefix using the index
+        collation. Byte lengths can differ for collation-equivalent prefixes. */
+        CHARSET_INFO *cs= fts_get_charset(type->prtype);
+        my_bool is_prefix= false;
+        cmp_result= cs->strnncoll(word_data, word_len,
+                                  static_cast<const byte*>(search_data),
+                                  search_len, &is_prefix);
 
-        if (prefix_cmp != 0) return RecordCompareAction::STOP;
-        return (search_len <= word_len) ? RecordCompareAction::PROCESS
-                                        : RecordCompareAction::SKIP;
+        /* Prefix matches are adjacent in the index only if the collation
+        compares one sequence of weights. Several levels (accents, case) or a
+        complex non-UCA mapping, like the vowel reordering of tis620_thai_ci,
+        can sort other words between them. */
+        if (cmp_result > 0 &&
+            (cs->levels_for_order > 1 ||
+             (!cs->uca && (cs->state & MY_CS_NON1TO1))))
+          return RecordCompareAction::SKIP;
       }
+
+      if (cmp_result == 0) return RecordCompareAction::PROCESS;
+      return cmp_result > 0 ? RecordCompareAction::STOP
+                            : RecordCompareAction::SKIP;
     }
   }
   return RecordCompareAction::PROCESS;

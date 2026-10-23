@@ -1,0 +1,108 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+--echo # MDEV-41754: FTS callbacks must stop internal index scans
+
+SET @save_debug_dbug= @@SESSION.debug_dbug;
+SET @save_optimize= @@GLOBAL.innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= ON;
+
+--echo # Document lookups stop at the next document
+CREATE TABLE t (id INT PRIMARY KEY, body TEXT, FULLTEXT(body))
+  ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t SELECT seq, 'alpha beta gamma delta epsilon zeta eta theta'
+  FROM seq_1_to_32;
+OPTIMIZE TABLE t;
+SELECT COUNT(*) FROM t WHERE MATCH(body) AGAINST('gamma' IN BOOLEAN MODE);
+
+# Up to 96 visits for 32 documents and their word lookups; scanning to the
+# end for each document alone would take 32*33/2 = 528. The counts are per
+# execution, and --ps-protocol would execute twice.
+--disable_ps2_protocol
+SET SESSION debug_dbug= '+d,fts_count_callback_records';
+--let $visits_min= 32
+--let $visits_max= 96
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('"gamma delta"' IN BOOLEAN MODE)
+--let $assert_text= Phrase search
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('"gamma epsilon" @3' IN BOOLEAN MODE)
+--let $assert_text= Proximity search
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('gamma' WITH QUERY EXPANSION)
+--let $assert_text= Query expansion
+--source suite/innodb_fts/include/callback_visits.inc
+SET SESSION debug_dbug= @save_debug_dbug;
+--enable_ps2_protocol
+DROP TABLE t;
+
+--echo # Word lookups in an auxiliary table stop after the last match
+CREATE TABLE t (id INT PRIMARY KEY, body TEXT, FULLTEXT(body))
+  ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t SELECT seq, CONCAT('wrd', LPAD(seq, 4, '0')) FROM seq_1_to_128;
+OPTIMIZE TABLE t;
+--disable_ps2_protocol
+SET SESSION debug_dbug= '+d,fts_count_callback_records';
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0001' IN BOOLEAN MODE)
+--let $assert_text= A word: one match and one boundary
+--let $visits_min= 2
+--let $visits_max= 2
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd000*' IN BOOLEAN MODE)
+--let $assert_text= A prefix: nine matches and one boundary
+--let $visits_min= 10
+--let $visits_max= 10
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0000' IN BOOLEAN MODE)
+--let $assert_text= A missing word: the first greater word
+--let $visits_min= 1
+--let $visits_max= 1
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd0128' IN BOOLEAN MODE)
+--let $assert_text= The last word: the end of the index
+--let $visits_min= 1
+--let $visits_max= 1
+--source suite/innodb_fts/include/callback_visits.inc
+--let $query= SELECT SQL_NO_CACHE COUNT(*) FROM t WHERE MATCH(body) AGAINST('wrd9999' IN BOOLEAN MODE)
+--let $assert_text= Beyond the last word: no record
+--let $visits_min= 0
+--let $visits_max= 0
+--source suite/innodb_fts/include/callback_visits.inc
+SET SESSION debug_dbug= @save_debug_dbug;
+--enable_ps2_protocol
+DROP TABLE t;
+
+SET NAMES utf8mb4;
+# The view protocol would send the non-ASCII search strings through
+# another connection, with another character set.
+--disable_view_protocol
+
+--echo # A prefix does not stop at an accent variant (synced row by row, so
+--echo # that the spellings are separate auxiliary records)
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT, FULLTEXT(c))
+  ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+SET SESSION debug_dbug= '+d,fts_instrument_sync_debug';
+INSERT INTO t VALUES (1, 'abaa');
+INSERT INTO t VALUES (2, 'abzz');
+INSERT INTO t VALUES (3, 'ábaa');
+SET SESSION debug_dbug= @save_debug_dbug;
+# The index order is abaa, ábaa, abzz.
+SELECT id FROM t WHERE MATCH(c) AGAINST('ab*' IN BOOLEAN MODE) ORDER BY id;
+# A collation-equivalent prefix may be longer in bytes than the word.
+SELECT id FROM t WHERE MATCH(c) AGAINST('ábaa*' IN BOOLEAN MODE) ORDER BY id;
+SELECT id FROM t WHERE MATCH(c) AGAINST('abaa' IN BOOLEAN MODE) ORDER BY id;
+DROP TABLE t;
+
+--echo # In a multi-level collation, prefix matches can be separated by
+--echo # words that do not match
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT)
+  ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_as_ci;
+INSERT INTO t VALUES (1, 'aab'), (2, 'aabaa'), (3, 'aábaa'), (4, 'AABxx'),
+  (5, 'aabzz'), (6, 'aábzz'), (7, 'aacaa');
+ALTER TABLE t ADD FULLTEXT(c);
+SELECT id FROM t WHERE MATCH(c) AGAINST('aab*' IN BOOLEAN MODE) ORDER BY id;
+SELECT id FROM t WHERE MATCH(c) AGAINST('aáb*' IN BOOLEAN MODE) ORDER BY id;
+DROP TABLE t;
+--enable_view_protocol
+
+SET GLOBAL innodb_optimize_fulltext_only= @save_optimize;
