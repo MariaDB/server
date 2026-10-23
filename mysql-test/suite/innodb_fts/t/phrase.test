@@ -37,3 +37,27 @@ SELECT * FROM articles WHERE MATCH(title, body)
 	AGAINST('("mysql good database")' IN BOOLEAN MODE);
 
 DROP TABLE articles;
+
+--echo #
+--echo # MDEV-41757 Phrase search misses rows of a FULLTEXT index built over
+--echo # rows with an empty string in an earlier indexed column
+--echo #
+
+CREATE TABLE articles (
+	id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+	title VARCHAR(200),
+	body TEXT
+) ENGINE=InnoDB;
+
+INSERT INTO articles (title,body) VALUES
+	(NULL, 'mysql good database'),
+	('', 'mysql good database'),
+	('', ' mysql good database'),
+	('mysql good database', '');
+
+ALTER TABLE articles ADD FULLTEXT (title,body);
+
+SELECT * FROM articles WHERE MATCH(title, body)
+	AGAINST('"mysql good database"' IN BOOLEAN MODE) ORDER BY id;
+
+DROP TABLE articles;
