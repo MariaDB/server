@@ -16702,6 +16702,21 @@ ha_innobase::external_lock(
 		ut_ad(not_autocommit || trx->n_mysql_tables_in_use
 		      || UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 set_lock:
+		/* A background thread may have been the one
+		that first opened this table. In that case,
+		ha_innobase::open() skips stats initialization
+		for such threads, and the resulting
+		TABLE object can later be handed out of the
+		table cache to a real client or replication thread
+		without open() being called again. Make sure a
+		non-background user never runs
+		DML against uninitialized statistics. */
+		if (!THDVAR(thd, background_thread)
+		    && !m_prebuilt->table->stat_initialized()) {
+			info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE
+			     | HA_STATUS_CONST | HA_STATUS_OPEN);
+		}
+
 		*trx->detailed_error = 0;
 
 		innobase_register_trx(ht, thd, trx);
