@@ -5992,7 +5992,8 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
   }
 
   if (have_start_key &&
-      (m_start_key.flag == HA_READ_PREFIX_LAST ||
+      (m_start_key.flag == HA_READ_KEY_OR_PREV ||
+       m_start_key.flag == HA_READ_PREFIX_LAST ||
        m_start_key.flag == HA_READ_PREFIX_LAST_OR_PREV ||
        m_start_key.flag == HA_READ_BEFORE_KEY))
   {
@@ -7516,8 +7517,23 @@ bool ha_partition::can_skip_merging_scans()
         (key_part->key_part_flag & HA_REVERSE_SORT) ? true : false;
       if (m_index_scan_type == partition_index_read)
       {
-        return
-          m_start_key.key && (m_start_key.keypart_map & prefix) == prefix;
+        switch (m_start_key.flag) {
+        case HA_READ_AFTER_KEY:
+        case HA_READ_BEFORE_KEY:
+        case HA_READ_KEY_OR_NEXT:
+        case HA_READ_KEY_OR_PREV:
+        case HA_READ_PREFIX_LAST_OR_PREV:
+          return false;
+        case HA_READ_KEY_EXACT:
+        case HA_READ_PREFIX:
+        case HA_READ_PREFIX_LAST:
+          return m_start_key.key &&
+            (m_start_key.keypart_map & prefix) == prefix;
+        default:
+          /* SPATIAL keys have a single key part, so Case 2 cannot apply */
+          DBUG_ASSERT(0);
+          return false;
+        }
       }
       else if (m_index_scan_type == partition_read_range)
       {
@@ -7596,6 +7612,7 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     DBUG_PRINT("info", ("index scan using the single partition %u",
 			(uint) m_part_spec.start_part));
     m_ordered_scan_ongoing= FALSE;
+    m_unordered_prefix_len= 0;
   }
   else
   {
