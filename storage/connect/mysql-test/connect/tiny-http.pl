@@ -24,11 +24,13 @@ close P;
 
 while (my $c= $srv->accept()) {
   binmode $c;
-  while (<$c>) { last if /^\r?$/ }
-  open(F, '<', $file) or die "open(<$file): $!";
-  binmode F;
-  print $c "HTTP/1.0 200 OK\r\n\r\n", <F>;
-  close F;
+  if(<$c> =~ m@^GET [a-z0-9._/]+ HTTP/\d\.\d@i) {
+    while (<$c>) { last if /^\r?$/ }
+    open(F, '<', $file) or die "open(<$file): $!";
+    binmode F;
+    print $c "HTTP/1.0 200 OK\r\n\r\n", <F>;
+    close F;
+  }
   close $c;
 }
 die "accept(): $!";
