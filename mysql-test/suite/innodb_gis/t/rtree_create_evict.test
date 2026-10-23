@@ -1,0 +1,33 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+--source include/big_test.inc
+
+--echo #
+--echo # MDEV-41728 Stale PRIMARY KEY values in a SPATIAL INDEX built by
+--echo #            ALTER TABLE when the clustered index page was evicted
+--echo #
+
+# The minimal buffer pool (see the .opt file) is much smaller than the
+# table and the R-tree. While the spatial index records that were built
+# from one clustered index page are being inserted, the scan of the
+# clustered index is suspended for a log checkpoint, and the page may be
+# evicted and the block reused for another page. Whether the block is
+# reused in time depends on timing, so without the fix this test may not
+# fail every time.
+CREATE TABLE t1 (id INT PRIMARY KEY, g POINT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq,
+  POINT(FLOOR(RAND(seq) * 1000000), FLOOR(RAND(seq + 7777777) * 1000000))
+FROM seq_1_to_200000;
+
+SET @save_dbug=@@SESSION.debug_dbug;
+SET debug_dbug='+d,row_merge_instrument_log_check_flush';
+ALTER TABLE t1 ADD SPATIAL INDEX(g);
+SET debug_dbug=@save_dbug;
+
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
