@@ -540,12 +540,7 @@ select round(area(@geom), 5);
 --echo # MDEV-41458 Assertion `n > 0 && n < SINUSES_CALCULATED*2+1' failed in get_n_sincos()
 --echo #
 --replace_regex /(\.\d{5})\d+/\1/
-SELECT ST_AsText(
-    ST_Buffer(
-        ST_GeomFromText('LINESTRING(0 0, 1e-200 1e-200)'),
-        1
-    )
-);
+SELECT ST_AsText(ST_Buffer(ST_GeomFromText('LINESTRING(0 0, 1e-200 1e-200)'),1)) a;
 
 --echo # End of 10.11 tests
 
