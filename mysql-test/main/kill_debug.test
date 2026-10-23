@@ -307,7 +307,11 @@ create table t1 (a int) engine=innodb;
 insert t1 values (1);
 set debug_sync='THD_cleanup_after_set_killed SIGNAL go0 WAIT_FOR go1';
 set debug_sync='innobase_connection_closed SIGNAL go2 WAIT_FOR go3';
-disconnect foo;
+
+# "disconnect" command would deadlock waiting for server to close socket
+# which would be past THD_cleanup_after_set_killed sync point
+# so use non-waiting variation, dirty_close, i.e shutting down client socket.
+dirty_close foo;
 
 connection default;
 set debug_sync='now WAIT_FOR go0';

@@ -153,12 +153,6 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   {
     /* For perl DBI/DBD. */
     net->fd= vio_fd(vio);
-    if (!(test_flags & TEST_BLOCKING))
-    {
-      my_bool old_mode;
-      vio_blocking(vio, FALSE, &old_mode);
-    }
-    vio_fastsend(vio);
   }
   DBUG_RETURN(0);
 }
@@ -353,19 +347,13 @@ void net_clear(NET *net, my_bool clear_buffer __attribute__((unused)))
       }
     }
 #ifdef NET_DATA_IS_READY_CAN_RETURN_MINUS_ONE
-    /* 'net_data_is_ready' returned "don't know" */
+    /* 'net_data_is_ready' returned "don't know"; drain what's pending. */
     if (ready == -1)
     {
-      /* Read unblocking to clear net */
-      my_bool old_mode;
-      if (!vio_blocking(net->vio, FALSE, &old_mode))
-      {
-        while ((long) (count= vio_read(net->vio, net->buff,
-                                       (size_t) net->max_packet)) > 0)
-          DBUG_PRINT("info",("skipped %ld bytes from file: %s",
-                             (long) count, vio_description(net->vio)));
-        vio_blocking(net->vio, TRUE, &old_mode);
-      }
+      while ((long) (count= vio_read(net->vio, net->buff,
+                                     (size_t) net->max_packet)) > 0)
+        DBUG_PRINT("info",("skipped %ld bytes from file: %s",
+                           (long) count, vio_description(net->vio)));
     }
 #endif /* NET_DATA_IS_READY_CAN_RETURN_MINUS_ONE */
   }
@@ -702,10 +690,10 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       }
       EXTRA_DEBUG_fprintf(stderr,
                           "%s: write looped on vio with state %d, aborting thread\n",
-                          my_progname, (int) net->vio->type);
+                          my_progname, (int) vio_type(net->vio));
       net->error= 2;				/* Close socket */
 
-      if (net->vio->state != VIO_STATE_SHUTDOWN || net->last_errno == 0)
+      if (vio_state(net->vio) != VIO_STATE_SHUTDOWN || net->last_errno == 0)
       {
         net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
                           ER_NET_ERROR_ON_WRITE);
@@ -714,7 +702,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
         {
           sql_print_warning("Could not write packet: fd: %lld  state: %d  "
                             "errno: %d  vio_errno: %d  length: %ld",
-                            (longlong) vio_fd(net->vio), (int) net->vio->state,
+                            (longlong) vio_fd(net->vio), (int) vio_state(net->vio),
                             vio_errno(net->vio), net->last_errno,
                             (ulong) (end-pos));
         }
@@ -772,7 +760,7 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
     return ABORT;
   }
 
-  if (!is_proxy_protocol_allowed((sockaddr *)&(thd->net.vio->remote)))
+  if (!is_proxy_protocol_allowed((sockaddr *) vio_remote_addr(thd->net.vio)))
   {
      /* proxy-protocol-networks variable needs to be set to allow this remote address */
      my_printf_error(ER_HOST_NOT_PRIVILEGED, "Proxy header is not accepted from %s",
@@ -863,7 +851,7 @@ retry:
         EXTRA_DEBUG_fprintf(stderr,
                             "%s: read looped with error %d on vio with state %d, "
                             "aborting thread\n",
-                            my_progname, vio_errno(net->vio), (int) net->vio->type);
+                            my_progname, vio_errno(net->vio), (int) vio_type(net->vio));
         DBUG_PRINT("error",
                    ("Couldn't read packet: remain: %u  errno: %d  length: %ld",
                     remain, vio_errno(net->vio), (long) length));
@@ -880,7 +868,7 @@ retry:
                               "read_length: %u  errno: %d  vio_errno: %d  "
                               "length: %lld",
                               (longlong) vio_fd(net->vio),
-                              (int) net->vio->state,
+                              (int) vio_state(net->vio),
                               remain, vio_errno(net->vio), net->last_errno,
                               (longlong) length);
           }
