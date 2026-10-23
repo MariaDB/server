@@ -980,6 +980,52 @@ static dberr_t row_sel_clust_sees(const rec_t *rec, const dict_index_t &index,
   return DB_CORRUPTION;
 }
 
+/** Check whether the state of a secondary index leaf record,
+as far as the record itself tells, is the state that a consistent
+read view must see.
+
+A record of an index that has_trx_id() carries the identifier
+of the transaction that last inserted, delete-marked or
+un-delete-marked it, and every such modification restamps the record. 
+
+If that transaction is visible in the view, no later transaction has
+modified the record, so the record, including its delete-mark,
+is exactly what the view sees. If the stamp is not visible, the
+record alone cannot tell whether it existed in the view
+(secondary index changes are not undo-logged): the caller must
+look at the clustered index as before.
+@param rec      secondary index leaf record on a latched page
+@param index    secondary index, has_trx_id()
+@param offsets  rec_get_offsets(rec, index)
+@param view     consistent read view
+@retval DB_SUCCESS             if the view sees the record as it is
+@retval DB_SUCCESS_LOCKED_REC  if this cannot be decided from the rec
+ord
+@retval DB_CORRUPTION          if the DB_TRX_ID is corrupted */
+static dberr_t row_sel_sec_rec_sees(const rec_t *rec,
+                                    const dict_index_t &index,
+                                    const rec_offs *offsets,
+                                    const ReadView &view)
+{
+  ut_ad(index.has_trx_id());
+  ut_ad(page_rec_is_user_rec(rec));
+  ut_ad(rec_offs_validate(rec, &index, offsets));
+  ut_ad(!index.table->is_temporary());
+
+  const trx_id_t id= rec_get_sec_trx_id(rec, &index, offsets);
+
+  if (view.changes_visible(id))
+    return DB_SUCCESS;
+
+  if (UNIV_LIKELY(id < view.low_limit_id() || id < trx_sys.get_max_trx_id()))
+    return DB_SUCCESS_LOCKED_REC;
+
+  ib::warn() << "A transaction id in a record of index " << index.name
+             << " of table " << index.table->name
+             << " is newer than the system-wide maximum.";
+  return DB_CORRUPTION;
+}
+
 /*********************************************************************//**
 Retrieves the clustered index record corresponding to a record in a
 non-clustered index. Does the necessary locking.
@@ -3350,7 +3396,7 @@ public:
   dberr_t operator()(row_prebuilt_t *prebuilt, dict_index_t *sec_index,
                      const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
                      rec_offs **offsets, mem_heap_t **offset_heap,
-                     dtuple_t **vrow, mtr_t *mtr);
+                     dtuple_t **vrow, mtr_t *mtr, bool sec_stamp_visible);
 };
 
 
@@ -3380,9 +3426,14 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */
 	dtuple_t**	vrow,	/*!< out: virtual column to fill */
-	mtr_t*		mtr)	/*!< in: mtr used to get access to the
+	mtr_t*		mtr,	/*!< in: mtr used to get access to the
 				non-clustered record; the same mtr is used to
 				access the clustered index */
+	bool		sec_stamp_visible)
+				/* !<in: Whether DB_TRX_ID of rec,
+				an index that has_trx_id(), is visible
+				in read view of trx; rec is then
+				version that view sees */
 {
 	/* Extract values from prebuilt */
 	dtuple_t*	clust_ref= prebuilt->clust_ref;
@@ -3614,7 +3665,15 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 
 		/* And for spatial index, since the rec is from shadow buffer,
 		so we need to check if it's exactly match the clust_rec. */
+		/* When the stamp of rec is visible, rec is the
+		state that the view sees, and it cannot be for a
+		different version of the row: any later change of
+		its ordering fields would have delete-marked and
+		restamped it. The (expensive) comparison is not
+		needed. */
+
 		if (clust_rec
+		    && !sec_stamp_visible
 		    && (old_vers
 			|| trx->isolation_level <= TRX_ISO_READ_UNCOMMITTED
 			|| dict_index_is_spatial(sec_index)
@@ -4111,11 +4170,14 @@ row_search_idx_cond_check(
 		        if (prebuilt->clust_index_was_generated) {
                                ulint len;
                                dict_index_t* index = prebuilt->index;
-                               const byte* data = rec_get_nth_field(
-                                       rec, offsets, index->n_fields - 1,
+                               const ulint row_id_pos =
+				 index->n_fields - 1 -
+				 ulint(index->has_trx_id());
+			       const byte* data = rec_get_nth_field(
+                                       rec, offsets, row_id_pos,
                                        &len);
                                ut_ad(dict_index_get_nth_col(index,
-                                                            index->n_fields - 1)
+                                                            row_id_pos)
                                      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
                                ut_ad(len == DATA_ROW_ID_LEN);
                                memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
@@ -4460,6 +4522,7 @@ row_search_mvcc(
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
+	bool		sec_stamp_visible		= false;
 
 	ut_ad(index && pcur);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
@@ -5019,6 +5082,7 @@ page_corrupted:
 
 rec_loop:
 	DEBUG_SYNC_C("row_search_rec_loop");
+	sec_stamp_visible = false;
 	if (trx_is_interrupted(trx)) {
 		if (!spatial_search) {
 			btr_pcur_store_position(pcur, mtr);
@@ -5305,6 +5369,13 @@ wrong_offs:
 					transaction. Ignore the record. */
 					goto locks_ok_del_marked;
 				}
+			} else if (index->has_trx_id()) {
+				const trx_id_t id =
+				  rec_get_sec_trx_id(rec, index, offsets);
+				if (!id || !trx_sys.is_registered(trx, id)) {
+					goto next_rec;
+				}
+
 			} else if (trx_t* t = row_vers_impl_x_locked(
 					   trx, rec, index, offsets)) {
 				/* The record belongs to an active
@@ -5553,6 +5624,24 @@ no_gap_lock:
 				if (trx->read_view.sees(trx_id)) {
 					goto locks_ok;
 				}
+
+				if (index->has_trx_id()) {
+
+					err = row_sel_sec_rec_sees(
+					        rec, *index, offsets,
+						trx->read_view);
+					switch (err) {
+					case DB_SUCCESS:
+						sec_stamp_visible = true;
+						goto locks_ok;
+					case DB_SUCCESS_LOCKED_REC:
+						err = DB_SUCCESS;
+						break;
+					default:
+						goto lock_wait_or_error;
+					}
+				}
+
 				/* We should look at the clustered index.
 				However, as this is a non-locking read,
 				we can skip the clustered index lookup if
@@ -5661,7 +5750,7 @@ requires_clust_rec:
 						      thr, &clust_rec,
 						      &offsets, &heap,
 						      need_vrow ? &vrow : NULL,
-						      mtr);
+						      mtr, sec_stamp_visible);
 
 		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
 			err = lock_trx_handle_wait(trx);
@@ -5891,11 +5980,13 @@ use_covering_index:
 				memcpy(prebuilt->row_id, result_rec, DATA_ROW_ID_LEN);
 			} else {
 				ulint len;
+				const ulint row_id_pos = index->n_fields
+					- 1 - ulint(index->has_trx_id());
 				const byte* data = rec_get_nth_field(
-					result_rec, offsets, index->n_fields - 1,
+					result_rec, offsets, row_id_pos,
 					&len);
 				ut_ad(dict_index_get_nth_col(index,
-							     index->n_fields - 1)
+							     row_id_pos)
 				      ->prtype == (DATA_ROW_ID | DATA_NOT_NULL));
 				ut_ad(len == DATA_ROW_ID_LEN);
 				memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);

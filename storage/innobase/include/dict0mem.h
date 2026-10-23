@@ -66,6 +66,7 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
+
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -73,6 +74,16 @@ combination of types */
 #define	DICT_SPATIAL	64	/* SPATIAL index; can't be combined with the
 				other flags */
 #define	DICT_VIRTUAL	128	/* Index on Virtual column */
+
+/* Secondary index whose leaf-page record end with 6 byte DB_TRX_ID
+field. The field is an ordinary trailing field of
+dict_index_t::fields[], it is not part of the ordering fields, and
+it is never present in node pointer records. Persisted in
+SYS_INDEXES.TYPE, so that a server that does not know about the
+format refuses to load the index. Never set on DICT_CLUSTERED,
+DICT_FTS or DICT_SPATIAL indexes.
+TODO : Blocked for ROW_FORMAT=REDUNDANT and COMPRESSED TABLES */
+#define DICT_SEC_TRX_ID 4
 
 #define	DICT_IT_BITS	8	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
@@ -1418,6 +1429,19 @@ public:
 
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
+
+	/** @return leaf page records of this secondary index
+	end with DB_TRX_ID */
+	bool has_trx_id() const
+	{ return type & DICT_SEC_TRX_ID; }
+
+	/** @return the position of DB_TRX_ID in a secondary index */
+	uint16_t sec_db_trx_id() const {
+		DBUG_ASSERT(has_trx_id());
+		DBUG_ASSERT(!is_primary());
+		DBUG_ASSERT(n_fields > n_uniq);
+		return static_cast<uint16_t>(n_fields - 1);
+	}
 
 	/** @return the position of DB_TRX_ID */
 	uint16_t db_trx_id() const {

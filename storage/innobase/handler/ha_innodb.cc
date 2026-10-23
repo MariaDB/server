@@ -206,6 +206,10 @@ extern uint srv_n_fil_crypt_iops;
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
+/** Create the secondary indexes of new tables in the
+DICT_SEC_TRX_ID format. */
+static my_bool innodb_sec_index_trx_id_debug;
+
 #if defined(UNIV_DEBUG) || \
     defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
 my_bool innodb_enable_xap_unlock_unmodified_for_primary_debug;
@@ -11153,6 +11157,17 @@ create_index(
 		ind_type |= DICT_UNIQUE;
 	}
 
+	if (innodb_sec_index_trx_id_debug
+	    && !(ind_type & DICT_CLUSTERED)
+	    && table->not_redundant()
+	    && !DICT_TF_GET_ZIP_SSIZE(table->flags)
+	    && !table->is_temporary()
+	    && !DICT_TF2_FLAG_IS_SET(
+		    table,
+		    DICT_TF2_FTS | DICT_TF2_FTS_HAS_DOC_ID)) {
+		ind_type |= DICT_SEC_TRX_ID;
+	}
+
 	field_lengths = (ulint*) my_malloc(PSI_INSTRUMENT_ME,
 		key->user_defined_key_parts * sizeof *
 				field_lengths, MYF(MY_FAE));
@@ -20467,6 +20482,14 @@ static MYSQL_SYSVAR_BOOL(enable_xap_unlock_unmodified_for_primary_debug,
 #endif /* defined(UNIV_DEBUG) ||
           defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
 
+static MYSQL_SYSVAR_BOOL(sec_index_trx_id_debug,
+  innodb_sec_index_trx_id_debug, PLUGIN_VAR_OPCMDARG,
+  "Testing aid: create the secondary indexes of new tables "
+  " in the format where the leaf page records end with DB_TRX_ID. "
+  "Not supported for ROW_FORMAT=REDUNDANT or COMPRESSED, temporary or "
+  "FULLTEXT tables; ALTER TABLE ... ADD INDEX still creates the old format",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
   PLUGIN_VAR_OPCMDARG,
@@ -20736,6 +20759,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(enable_xap_unlock_unmodified_for_primary_debug),
 #endif /* defined(UNIV_DEBUG) ||
           defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
+  MYSQL_SYSVAR(sec_index_trx_id_debug),
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(alter_copy_bulk),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),

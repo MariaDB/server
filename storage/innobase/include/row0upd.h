@@ -77,7 +77,7 @@ upd_field_set_field_no(
 	upd_field_t*	upd_field,	/*!< in: update vector field */
 	uint16_t	field_no,	/*!< in: field number in a clustered
 					index */
-	dict_index_t*	index);
+	const dict_index_t*	index); /*!< in: Secondary index */
 
 /** set field number to a update vector field, marks this field is updated
 @param[in,out]	upd_field	update vector field
@@ -131,8 +131,26 @@ row_upd_build_sec_rec_difference_binary(
 	dict_index_t*	index,	/*!< in: index */
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
-	mem_heap_t*	heap)	/*!< in: memory heap from which allocated */
+	mem_heap_t*	heap,	/*!< in: memory heap from which allocated */
+	bool		skip_trx_id= false)
+				/*!< in: Don't compare the trailing
+				DB_TRX_ID of an index that has
+				DB_TRX_ID as part of it */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
+/** Append the DB_TRX_ID of a secondary index to an update vector
+that was built by row_upd_build_sec_rec_difference_binary() with
+skip_trx_id=true. The update vector must have room for
+one more field, which is guaranteed because that function
+leaves the last slot free.
+@param[in,out]  update  update vector
+@param[in]      index   secondary index
+@param[in]      trx_id  identifier of the modifying transaction
+@param[in,out]  heap    memory heap for the 6-byte value */
+void row_upd_add_sec_trx_id(upd_t *update, const dict_index_t *index,
+                            trx_id_t trx_id, mem_heap_t *heap)
+  MY_ATTRIBUTE((nonnull));
+
 /** Builds an update vector from those fields, excluding the roll ptr and
 trx id fields, which in an index entry differ from a record that has
 the equal ordering fields. NOTE: we compare the fields as binary strings!

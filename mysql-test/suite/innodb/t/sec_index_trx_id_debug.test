@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+let $flag_query=
+  SELECT i.NAME, i.TYPE FROM information_schema.INNODB_SYS_INDEXES i
+  JOIN information_schema.INNODB_SYS_TABLES t USING (TABLE_ID)
+  WHERE t.NAME='test/t1' ORDER BY i.NAME;
+
+--echo # Old format (default)
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(20), KEY(b), UNIQUE KEY(c))
+ENGINE=InnoDB;
+eval $flag_query;
+DROP TABLE t1;
+
+--echo # New format
+SET GLOBAL innodb_sec_index_trx_id_debug=ON;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(20), KEY(b), UNIQUE KEY(c))
+ENGINE=InnoDB;
+eval $flag_query;
+SET GLOBAL innodb_sec_index_trx_id_debug=OFF;
+
+INSERT INTO t1 SELECT seq, seq%10, CONCAT('v',seq) FROM seq_1_to_2000;
+SELECT COUNT(*), SUM(b) FROM t1 FORCE INDEX(b) WHERE b>=5;
+SELECT COUNT(*) FROM t1 FORCE INDEX(c);
+CHECK TABLE t1 EXTENDED;
+
+--echo # UPDATE, DELETE, and rollback
+BEGIN;
+UPDATE t1 SET b=b+100 WHERE a<=100;
+DELETE FROM t1 WHERE a BETWEEN 101 AND 200;
+SELECT COUNT(*) FROM t1 FORCE INDEX(b) WHERE b>=100;
+ROLLBACK;
+SELECT COUNT(*) FROM t1 FORCE INDEX(b) WHERE b>=100;
+SELECT COUNT(*) FROM t1 FORCE INDEX(b);
+UPDATE t1 SET b=b+1 WHERE a<=100;
+DELETE FROM t1 WHERE a BETWEEN 101 AND 200;
+INSERT INTO t1 VALUES (101,1,'v101');
+CHECK TABLE t1 EXTENDED;
+
+--echo # Consistent read of an old snapshot while another connection modifies
+connect (con1,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t1 SET b=999 WHERE a BETWEEN 1 AND 50;
+DELETE FROM t1 WHERE a BETWEEN 51 AND 100;
+connection con1;
+SELECT COUNT(*) FROM t1 FORCE INDEX(b) WHERE b=999;
+SELECT COUNT(*), SUM(b) FROM t1 FORCE INDEX(b) WHERE a<=100;
+COMMIT;
+disconnect con1;
+connection default;
+
+--echo # Mixed formats in one table: ADD INDEX creates the old format
+ALTER TABLE t1 ADD KEY(c, b);
+eval $flag_query;
+SELECT COUNT(*) FROM t1 FORCE INDEX(c_2);
+CHECK TABLE t1 EXTENDED;
+
+--echo # Restart keeps both formats
+--source include/restart_mysqld.inc
+eval $flag_query;
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*) FROM t1 FORCE INDEX(b);
+
+DROP TABLE t1;
