@@ -36,6 +36,7 @@
 #include "sql_show.h"
 #include "sp.h"
 #include "handler.h"
+#include "sql_table.h"                         /* build_table_filename() */
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
@@ -1841,6 +1842,13 @@ bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
       }
     }
 
+    DBUG_EXECUTE_IF("wsrep_append_fk_parent_table_fail",
+                    {
+                      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+                      fail= true;
+                      goto exit;
+                    });
+
     if (table->table && !is_temporary_table(table))
     {
       FOREIGN_KEY_INFO *f_key_info;
@@ -2216,6 +2224,95 @@ bool wsrep_prepare_key_for_innodb(THD* thd,
 {
 
   return wsrep_prepare_key(cache_key, cache_key_len, row_id, row_id_len, key, key_len);
+}
+
+/*
+  Append the FOREIGN KEY parent and child tables of the existing table
+  db.table to keys (CREATE OR REPLACE TABLE drops it). Nothing is appended
+  if the table does not exist.
+*/
+bool wsrep_append_fk_keys_for_table(THD *thd, const LEX_CSTRING *db,
+                                    const LEX_CSTRING *table,
+                                    wsrep::key_array *keys)
+{
+  TABLE_LIST table_list;
+  table_list.init_one_table(db, table, table, TL_READ);
+  return wsrep_append_fk_parent_table(thd, &table_list, keys);
+}
+
+/*
+  Append the FOREIGN KEY parent and child tables in other databases of
+  the tables of database db to keys (DROP DATABASE drops them). Tables in
+  db itself are covered by the database key.
+*/
+bool wsrep_append_fk_keys_for_db(THD *thd, const LEX_CSTRING *db,
+                                 wsrep::key_array *keys)
+{
+  char path[FN_REFLEN + 16];
+  build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
+  MY_DIR *dirp= my_dir(path, MYF(MY_DONT_SORT));
+  if (!dirp)
+    return false; /* mysql_rm_db() reports a missing database */
+
+  Dynamic_array<LEX_CSTRING*> files(PSI_INSTRUMENT_MEM, dirp->number_of_files);
+  Discovered_table_list tl(thd, &files);
+  bool fail= ha_discover_table_names(thd, const_cast<LEX_CSTRING*>(db),
+                                     dirp, &tl, true);
+  my_dirend(dirp);
+  if (fail)
+    return true;
+
+  TABLE_LIST *tables= nullptr, **next_local= &tables, **next_global= &tables;
+  for (size_t i= 0; i < files.elements(); i++)
+  {
+    TABLE_LIST *table_list= (TABLE_LIST*) thd->calloc(sizeof(*table_list));
+    if (!table_list)
+      return true;
+    LEX_CSTRING table_name= *files.at(i);
+    if (lower_case_file_system)
+      table_name.length= my_casedn_str(files_charset_info,
+                                       (char*) table_name.str);
+    table_list->init_one_table(db, &table_name, &table_name, TL_READ);
+    *next_local= *next_global= table_list;
+    next_local= &table_list->next_local;
+    next_global= &table_list->next_global;
+  }
+
+  wsrep::key_array fk_keys;
+  if (tables && wsrep_append_fk_parent_table(thd, tables, &fk_keys))
+    return true;
+
+  for (const wsrep::key &key : fk_keys)
+  {
+    const wsrep::const_buffer &key_db= key.key_parts()[0];
+    if (key_db.size() != db->length ||
+        memcmp(key_db.data(), db->str, db->length))
+      keys->push_back(key);
+  }
+  return false;
+}
+
+/*
+  Append keys of the given type for the FOREIGN KEY child tables of table
+  to the transaction (CREATE OR REPLACE TABLE ... SELECT, which is not
+  replicated in TOI, drops the old table).
+*/
+int wsrep_append_child_table_keys(THD *thd, TABLE *table,
+                                  Wsrep_service_key_type key_type)
+{
+  List<FOREIGN_KEY_INFO> f_key_list;
+  table->file->get_parent_foreign_key_list(thd, &f_key_list);
+  List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+  FOREIGN_KEY_INFO *f_key_info;
+  int rcode= 0;
+  while (!rcode && (f_key_info= it++))
+  {
+    WSREP_DEBUG("appended child FK key %s", f_key_info->foreign_table->str);
+    rcode= wsrep_thd_append_table_key(thd, f_key_info->foreign_db->str,
+                                      f_key_info->foreign_table->str,
+                                      key_type);
+  }
+  return rcode;
 }
 
 wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
@@ -3233,6 +3330,29 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   return ret;
 }
 
+/*
+  wsrep_to_isolation_begin() with the FOREIGN KEY parent and child tables of
+  fk_list appended to the key set, as ALTER TABLE and DROP TABLE do.
+
+  InnoDB takes an X lock on the FK child tables of a table in CREATE INDEX,
+  DROP INDEX, OPTIMIZE TABLE and RENAME TABLE (lock_table_children()). Without
+  the child keys, a DML on a child table that is ordered after the DDL does
+  not depend on it, and a parallel applier holds an IX lock on the child while
+  it waits for the commit order behind the DDL, which waits for that lock
+  (MDEV-39955).
+*/
+int wsrep_to_isolation_begin_fk(THD *thd, const char *db_, const char *table_,
+                                const TABLE_LIST* table_list,
+                                TABLE_LIST* fk_list)
+{
+  wsrep::key_array fk_tables;
+  if (wsrep_thd_is_local(thd) &&
+      wsrep_append_fk_parent_table(thd, fk_list, &fk_tables))
+    return -1;
+  return wsrep_to_isolation_begin(thd, db_, table_, table_list, nullptr,
+                                  &fk_tables);
+}
+
 void wsrep_to_isolation_end(THD *thd)
 {
   if (wsrep_thd_is_local_toi(thd))
@@ -3928,6 +4048,16 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
                              HA_CREATE_INFO *create_info)
 {
+  /*
+    CREATE OR REPLACE drops the old table, InnoDB X-locks its FOREIGN KEY
+    child tables (MDEV-39955).
+  */
+  wsrep::key_array fk_keys;
+  if (!create_info->tmp_table() && thd->lex->create_info.or_replace() &&
+      wsrep_append_fk_keys_for_table(thd, &table->db, &table->table_name,
+                                     &fk_keys))
+    return true;
+
   if (create_info->tmp_table())
   {
     /* CREATE TEMPORARY TABLE LIKE must be skipped from replication */
@@ -3937,7 +4067,10 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   else if (!(thd->find_temporary_table(src_table)))
   {
     /* this is straight CREATE TABLE LIKE... with no tmp tables */
-    WSREP_TO_ISOLATION_BEGIN_CREATE(table->db.str, table->table_name.str, table, create_info);
+    if (WSREP_ON && WSREP(thd) &&
+        wsrep_to_isolation_begin(thd, table->db.str, table->table_name.str,
+                                 table, nullptr, &fk_keys, create_info))
+      goto wsrep_error_label;
   }
   else
   {
@@ -3956,7 +4089,10 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
     thd->wsrep_TOI_pre_query=     query.ptr();
     thd->wsrep_TOI_pre_query_len= query.length();
 
-    WSREP_TO_ISOLATION_BEGIN_CREATE(table->db.str, table->table_name.str, table, create_info);
+    if (WSREP_ON && WSREP(thd) &&
+        wsrep_to_isolation_begin(thd, table->db.str, table->table_name.str,
+                                 table, nullptr, &fk_keys, create_info))
+      goto wsrep_error_label;
 
     thd->wsrep_TOI_pre_query=      NULL;
     thd->wsrep_TOI_pre_query_len= 0;
