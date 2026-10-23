@@ -530,7 +530,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   simple_order= 0;
   simple_group= 0;
   ordered_index_usage= ordered_index_void;
-  need_distinct= 0;
   skip_sort_order= 0;
   with_two_phase_optimization= 0;
   save_qep= 0;
@@ -2247,7 +2246,6 @@ JOIN::optimize_inner()
   do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
   set_allowed_join_cache_types();
-  need_distinct= TRUE;
 
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_prepare(thd, "join_optimization");
@@ -3589,7 +3587,6 @@ int JOIN::optimize_stage2()
     tmp_table_param.precomputed_group_by= TRUE;
     if (join_tab->is_using_agg_loose_index_scan())
     {
-      need_distinct= FALSE;
       tmp_table_param.precomputed_group_by= FALSE;
     }
   }
