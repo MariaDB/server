@@ -6235,11 +6235,11 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
 
   table->use_all_columns();
   restore_record(table, s->default_values);            // Get empty record
-  table->field[0]->store(combo.host.str,combo.host.length, &my_charset_latin1);
-  table->field[1]->store(db,(uint) strlen(db), &my_charset_latin1);
-  table->field[2]->store(combo.user.str,combo.user.length, &my_charset_latin1);
+  table->field[0]->store(combo.host.str,combo.host.length, system_charset_info);
+  table->field[1]->store(db,(uint) strlen(db), system_charset_info);
+  table->field[2]->store(combo.user.str,combo.user.length, system_charset_info);
   table->field[3]->store(routine_name,(uint) strlen(routine_name),
-                         &my_charset_latin1);
+                         system_charset_info);
   table->field[4]->store((longlong) sph->type(), true);
   store_record(table,record[1]);			// store at pos 1
 
@@ -6283,7 +6283,7 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
     }
   }
 
-  table->field[5]->store(grantor,(uint) strlen(grantor), &my_charset_latin1);
+  table->field[5]->store(grantor,(uint) strlen(grantor), system_charset_info);
   table->field[6]->store((longlong) store_proc_rights, TRUE);
   rights=fix_rights_for_procedure(store_proc_rights);
 
