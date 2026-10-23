@@ -1,11 +1,809 @@
 /**
   @mainpage Plugin API Documentation
 
-  The MariaDB plugin API allows development of plugins that can extend the basic server functionality.
+  MariaDB Server Plugin API is a C-based extensibility framework
+  (largely compatible with MySQL’s but extended) that allows dynamic or
+  static loading of modules to add or modify server behavior without
+  recompiling the core server.
 
-   - Concepts
-   - Get started: Building a plugin
-   - Plugin types
-   - Plugin services
+   - @subpage concepts
+   - @subpage implementation
+   - @subpage make_a_plugin
+   - @ref plugin_types
+   - @ref plugin_api_services_for_plugins
    - [API reference](api.md#)
+*/
+
+/**
+  @page concepts Plugin API Concepts
+
+  @section concept_big_picture The Big Picture: The Server, Plugins and Interfaces
+
+  The server does, at certain stages of its execution, call plugin APIs when it
+  needs certain operation performed: e.g. authenticate a user, log a message,
+  read and write from/to a database table etc.
+
+  These API are like written functionality contracts.
+  They allow separating the server functionality from the actual API
+  implementations themselves. And, since the API implementations are a dynamic set,
+  adding new implementations extends the server functionality
+  (e.g. adds new ways a user can be authenticated or message be logged)
+  without having to re-compile and even re-start the server itself.
+
+  The MariaDB server plugin infrastructure uses the following logical terms:
+
+  @section concept_plugin_api Plugin API
+
+  A well defined, versioned and stable interface specification.
+  It's also abstract, as it's not tied to any one specific implementation.
+
+  @section concept_plugin Plugin
+
+  A named and versioned implementation of a specific @ref concept_plugin_api.
+
+  @sa @ref plugin_types for a list of the available plugin types and what they do
+
+  @section concept_plugin_library Plugin Library
+
+  (habitually abbreviated as a plugin)
+  An executable binary that contains one or more @ref concept_plugin that can
+  be accessed by the server when it needs to call plugin API implementations.
+
+  @section concept_plugin_service Plugin Services
+
+  Sometimes plugin code needs to call back into the server.
+
+  The plugin is running into the same process and the server symbols are
+  not hidden. So it can just reference a server symbol: e.g. call a server
+  function or read a server variable. These will get resolved by the OS's
+  dynamic linker (for dynamic plugins) or static linker (for static plugins).
+
+  But this is considered **bad** since there's no guarantee that the plugin's
+  snapshot of what the server symbol is captured during plugin compilation
+  matches the actual server symbol definition inside the running server.
+
+  This is why the plugin infrastructure provides a more controlled way for a
+  plugin to call server code.
+
+  It's called a plugin service.
+
+  Plugin services are a finite set determined at server's and plugin's
+  compile time.
+
+  They guarantee that the service is present, matches the definition and
+  is callable after plugin load.
+  They also provide platform independence as they operate the same on all
+  OSes and architectures.
+
+  @section concept_plugin_system_variables Plugin System Variables
+
+  Plugins can provide their own configuration variables. These become
+  regular server system variables when the plugin is loaded: their values
+  can be stored in config files or passed on the server's command line or
+  via the SET command.
+  When the plugin is unloaded the variables go away with it.
+
+  The variable names known to the server are prefixed with the plugin name
+  so that they do not pollute the namespace. E.g. the variable `foo` becomes
+  known to the server as `bar_plugin_foo` when exported by the plugin `bar_plugin`.
+
+  Each variable has a declared data type.
+
+  Plugin authors must decide if they want to keep a single global value
+  or a per-session value + global value for each variable.
+
+  Plugin authors must also decide if they will allow setting the value at
+  runtime or not. And make sure the plugin code is built to handle value changes
+  mid-flight if they allow it.
+
+  @section concept_plugin_status_variables Plugin Status Variables
+
+  Plugins can also provide their own status variables. Think of status
+  variables as read-only @ref concept_plugin_system_variables that the plugin
+  authors can use to expose volatile data of the plugin state, like e.g. counters,
+  on/off indicators, gauges, progress bars, state names etc.
+
+  Status variables are also lighter weight compared to @ref concept_plugin_system_variables :
+  knowing that they're read-only allows better optimization and less locking when handling them.
+  So, if plugin authors can use status variables, it's advisable that they should.
+
+  Similarly to system variables, the status variables become known to the server
+  when the plugin is loaded and go away when it's unloaded.
+
+  @warning Status variables are not automatically prefixed with the plugin name! You will need
+  to prefix your status variables with the plugin name.
+  See @ref impl_plugin_status_variables_array for a convenient way to do this.
+
+  The status variables also have a declared data type.
+
+  @sa @ref implementation on how the above concepts are implemented.
+
+*/
+
+/**
+  @page implementation Plugin API Implementation
+
+  This is how the individual abstract concepts are implemented and
+  interact with each other.
+
+  @section impl_server The Server Plugin API implementation
+
+  The server is the bedrock of the plugin infrastructure and contains the
+  base implementation to enable plugin usage.
+  Plugins can theoretically be loaded into other binaries, but chances are
+  that they won't operate all that well (if at all) in this case since they
+  heavily depend on server's infrastructure.
+
+  Here's what the server implements to support plugins:
+
+  @subsection impl_server_global_plugin_list The Global Plugin List
+
+  The server maintains a global in-memory list of all available plugins (plugin_array), mirrored into a set of hash tables (plugin_hash) and guarded by LOCK_plugin.
+
+  The plugin libraries containing the available plugins can be:
+   - statically linked into the server binary
+   - dynamically loaded at startup via the --plugin-load... command line arguments
+   - dynamically loaded just prior to the server's commencement of normal operations from the mysql.plugins table.
+   - dynamically loaded at runtime via the INSTALL PLUGIN SQL command.
+   - unloaded at runtime via the UNINSTALL PLUGIN SQL command
+   - unloaded at server shutdown
+
+  The server implements all of the above possibilities in its code.
+
+  It also implements and provides a list of interfaces the plugins can use to
+  call back and interact with the server.
+  These are called @ref impl_server_plugin_services.
+
+  The list and some basic attributes for each plugin in it are visible via
+  the INFORMATION_SCHEMA.plugins table.
+
+  @subsection impl_server_plugin_api_call How Does The Server Call a Plugin API.
+
+  At certain opportune stages of server's normal operation the server might decide
+  to "reach out" to a plugin by calling a plugin API. Since the plugins are named it
+  can call any individual plugin by name. E.g. when executing `CREATE TABLE engine=foo`,
+  the server will:
+
+  - look "foo" into the cache of plugin "references" (plugin_ref) for that plugin type, if available.
+  - If no cached reference is found:
+      - Take LOCK_plugin
+      - Look "foo" up into the global plugin_array for implementations of the specific plugin API (storage engine in this case)
+      - If found, create a reference (plugin_ref) to the plugin.
+  - call API "method" (function pointers) through the plugin_ref, if found.
+  - when done, either store the plugin_ref into a cache for reuse or release it.
+
+  @section impl_server_plugin_services Plugin Services Implementation
+
+  Every dynamic plugin exposes one symbol for every service it knows about. These
+  are implemented by the `libservices` static library that is linked into every plugin.
+
+  Initially, these global pointers are not valid pointers: when the plugin is compiled,
+  they are set to the service version (e.g. VERSION_base64) that the plugin expects.
+  The service header also contains a definition of a more concrete data structure
+  (e.g. @ref base64_service_st) that this global pointer should be pointing to.
+
+  The server maintains a global named list of plugin service API implementations.
+  Every time a @ref concept_plugin_library is initialized, the server gets its global
+  service API implementation list, looks up all the symbols exported by the
+  @ref concept_plugin_library, and, for each symbol:
+
+  - checks the versions by comparing the symbol's value to the server version.
+  - sets @ref concept_plugin_library 's symbol value to the actual server
+    service pointer.
+
+  Each service header also contains "syntax sugar" macros, e.g.
+
+  ```
+  #define my_base64_encode(A,B,C) base64_service->base64_encode_ptr(A,B,C)
+  ```
+
+  that allow successful compilation of
+
+  ```
+    my_base64_encode(x,y,z)
+  ```
+  as a function pointer call through the @ref concept_plugin_library 's service pointer.
+
+  @sa @ref plugin_api_services for a list of the services provided by the server.
+
+  @section impl_plugin_library The Plugin library Implementation
+
+  A @ref concept_plugin_library is executable code, either a part of
+  the server itself or bundled as a shared library.
+
+  Each plugin library implements the plugin library API. It exposes that implementation
+  via a set of dynamic library symbols.
+
+  @subsection impl_plugin_library_static Statically Linked Plugin Libraries.
+
+  Plugins linked statically to the server are collected into a global
+  server "plugin library" and "installed" (and initialized) at server startup.
+
+  @subsection impl_plugin_library_dynamic Dynamic Plugin Libraries
+
+  A @ref concept_plugin_library is usually compiled as OS dynamic library:
+   DLLs on MS Windows, .so on Unixes.
+  What differentiates a @ref concept_plugin_library from a regular OS
+  shared library is that it exposes a specific public symbol
+  _maria_plugin_declarations_ that the server recognizes.
+  In fact it also exposes _maria_plugin_interface_version_ and
+  _maria_sizeof_struct_st_plugin_, but these are auxiliary.
+
+  See @ref maria_declare_plugin for details on how this is implemented.
+
+  @subsection impl_plugin_library_lifecycle The Lifecycle Of a Plugin Library
+
+  A plugin library always provides an array of @ref st_maria_plugin structures,
+  each describing a @ref concept_plugin this @ref concept_plugin_library provides.
+  This contains everything that goes between @ref maria_declare_plugin and
+  @ref maria_declare_plugin_end in plugin declaration.
+
+  When the @ref concept_plugin_library is loaded into the server:
+
+   - the library is version and maturity checked. @sa @subpage plugin_verification
+   - for each @ref concept_plugin contained
+     - plugin API version check is performed
+     - the plugin system variables are added the variable global lists
+     - the plugin is initialized
+     - the status variables are added to the variable global lists
+     - the plugin is added into the global plugin_array.
+
+  At unload time the effect of plugin library load above is reversed.
+
+  @section impl_plugin Plugin implementation
+
+  A MariaDB plugin is a logical, versioned implementation of exactly two interfaces:
+   - The base, house-keeping @ref st_maria_plugin plugin management interface
+   - A specific plugin interface, one of @ref plugin_types. This is referenced by the
+     @ref st_maria_plugin::info pointer of the @ref st_maria_plugin structure.
+
+  @section impl_plugin_system_variables Plugin System Variables Implementation
+
+  Broadly speaking the @ref concept_plugin_system_variables are a property of the @ref st_maria_plugin
+  interface that every plugin exposes. They are assigned to the
+  @ref st_maria_plugin::system_vars member. When the plugin is loaded the data
+  in that NULL-terminated C++ array are used to register the system variables into
+  the server. And also to unregister them at plugin unload time.
+
+  The plugin macros @ref plugin_sysvar_macros, @ref plugin_thdvar_macros and @ref MYSQL_SYSVAR
+  facilitate defining an array of `st_mysql_sys_var` system variable definitions
+  that is then passed as a value initializer to @ref st_maria_plugin::system_vars member
+  when defining the plugin.
+
+  But before we can examine more practical examples, there are some important decisions
+  to make about each system variable: it's type and settability cases.
+
+  @subsection impl_plugin_sysvars_type Decide on Data Type and Settability.
+
+  @subsubsection impl_plugin_sysvars_type_data_type Pick a Data Type
+
+  The data types available are listed in the @ref plugin_sysvar_types group.
+  Pick the one that matches your configuration option best.
+
+  @subsubsection impl_plugin_sysvars_type_settability Pick Settability
+
+  You need to decide if the system variable should just be a global variable or
+  if it also should have a per-session value.
+
+  The global variable represents a single variable instance, containing a single value,
+  shared across all worker threads inside the server. Think global scope C/C++ variables.
+
+  The per-session variable, in addition to what the global variable does,
+  will also allow:
+   - lock-free access to the session value.
+   - Every session having a different value for this variable, that is defaulted
+  to the current value of the global variable at session creation time.
+
+  See the corresponding server reference manual chapter on system variables for more
+  details on this.
+
+  @subsection impl_plugin_sysvars_callbacks Check and Update Callbacks
+
+  @subsubsection impl_plugin_sysvars_callbacks_check The Check Callback
+
+  This callback (if non-`NULL`) is called by the server **before** the variable
+  value is set. See @ref mysql_var_check_func for the parameters of the callback.
+  This is the plugin author's chance to check the new value and return an error if it
+  cannot or should not be set.
+
+  This callback is expected to:
+   - inspect the value passed to it
+   - apply validity constraints (e.g. limits), if any to the value.
+   - convert it to the correct native C type (see @ref plugin_sysvar_types) for the
+     destination value.
+   - store it (in native C format) into the temp storage the save pointer points to
+
+  If no callback is supplied the server adds its own for each system variable type
+  supported.
+
+  A very simple check function for the @ref PLUGIN_VAR_DOUBLE type is shown below:
+
+  ```
+  static int check_func_double(THD *thd, struct st_mysql_sys_var *var,
+                               void *save, st_mysql_value *value)
+  {
+    double v;
+    const double v_max = 100.0, v_min=-100.0;
+
+    if (value->val_real(value, &v))
+      return 1;
+    if (v < v_min || v > v_max)
+      return 1;
+    *(double *) save= v;
+
+    return 0;
+  }
+  ```
+
+  @subsubsection impl_plugin_sysvars_callbacks_update The Update Callback
+
+  This callback (if non-`NULL`) is called by the server to set the new value into
+  the variable. See @ref mysql_var_update_func for the parameters to the callback.
+  
+  The plugin author should implement that if they want to have more control over how
+  the variable is set. E.g. if they want to store the value into an atomic variable
+  they will need the update callback. 
+
+  Another reason to implement is to invoke any side effects on setting the variable.
+  E.g. if a new value for a temp cache size is set, the code would need to actually
+  resize the global cache list to the new size in addition to storing the new size value.
+
+  This callback is expected to:
+    - fetch the value to be set stored by @ref impl_plugin_sysvars_callbacks_check
+    - store it into the variable pointed to by the `var_ptr` pointer argument
+
+  If no callback is supplied the server adds its own for each system variable type
+  supported.
+
+  A very simple update function for the @ref PLUGIN_VAR_DOUBLE type is shown below:
+
+  ```
+  static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
+                                 void *tgt, const void *save)
+  {
+    *(double *) tgt= *(double *) save;
+  }
+  ```
+
+  @subsection impl_plugin_sysvars_global Define a Global Variable
+
+  To define a global only variable, do as follows:
+
+  - Define the C++ global variable. Use the variable type for your selected type mentioned
+    in @ref plugin_sysvar_types, e.g.
+    ```
+      char *var1_var;
+      char default_var1_var[]= "var1 default";
+      ...
+    ```
+  - Use one of the @ref plugin_sysvar_macros to declare the variable, e.g.
+    ```
+      static MYSQL_SYSVAR_STR(var1, var1_var, PLUGIN_VAR_RQCMDARG,
+       "Variable 1", NULL, NULL, default_var1_var);
+    ```
+  - Add the variable to a global per-plugin NULL terminated C++ array using @ref MYSQL_SYSVAR, e.g. 
+    ```
+       static struct st_mysql_sys_var* vars[] = {
+	  ...
+	  MYSQL_SYSVAR(var1),
+	  ...
+	  NULL
+       }
+    ```
+  -  Pass the array to @ref maria_declare_plugin, e.g.
+    ```
+      maria_declare_plugin(innobase)
+      {
+        MYSQL_STORAGE_ENGINE_PLUGIN,
+        &innobase_storage_engine,
+        innobase_hton_name,
+        plugin_author,
+        "Supports transactions, row-level locking, foreign keys and encryption for tables",
+        PLUGIN_LICENSE_GPL,
+        innodb_init, // Plugin Init
+        NULL, // Plugin Deinit
+        MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR,
+        innodb_status_variables_export, // status variables
+        vars,   // system variables
+        PACKAGE_VERSION,
+        MariaDB_PLUGIN_MATURITY_STABLE // maturity
+      }
+    ```
+
+  @subsection impl_plugin_sysvars_session Define a Session Variable
+
+  Unlike the global ones, session variables do not need a C++ placeholder variable.
+  The global value is stored within a global server data structure. And the values
+  for each session are stored into a per-session data structure, owned by the 
+  @ref MYSQL_THD structure.
+
+  This also means that you will need to use the @ref THDVAR macro to access both
+  the global (pass `NULL` to the first @ref MYSQL_THD argument) and the per-session values.
+
+  Example:
+
+  ```
+     static MYSQL_THDVAR_INT(tvar, ...);
+     ...
+     // Get and set the global value
+     int val = THDVAR(NULL, tvar);
+     THDVAR(NULL, tvar)= 12;
+     ...
+     // Get and set the per-thread value
+     MYSQL_THD thd = ...
+     int val = THDVAR(thd, tvar);
+     THDVAR(thd, tvar)= 42;
+     ...
+  ```
+
+  To define a global+session variable do as follows:
+
+  - Define the variable using one of the @ref plugin_thdvar_macros, e.g.:
+    ```
+      static MYSQL_THDVAR_INT(tvar,
+        PLUGIN_VAR_RQCMDARG, // flags
+        "Default depth used by Json, XML and Mongo discovery", // comment
+        NULL, // check
+        NULL, // update
+        5, // default
+        -1, // min
+        16, // max
+        1); // block.
+    ```
+  - Add the variable to a global per-plugin NULL terminated C++ array using @ref MYSQL_SYSVAR, e.g. 
+    ```
+       static struct st_mysql_sys_var* vars[] = {
+          ...
+          MYSQL_SYSVAR(tvar),
+          ...
+          NULL
+       }
+    ```
+  -  Pass the array to @ref maria_declare_plugin, e.g.
+    ```
+      maria_declare_plugin(innobase)
+      {
+        MYSQL_STORAGE_ENGINE_PLUGIN,
+        &innobase_storage_engine,
+        innobase_hton_name,
+        plugin_author,
+        "Supports transactions, row-level locking, foreign keys and encryption for tables",
+        PLUGIN_LICENSE_GPL,
+        innodb_init, // Plugin Init
+        NULL, // Plugin Deinit
+        MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR,
+        innodb_status_variables_export, // status variables
+        vars,   // system variables
+        PACKAGE_VERSION,
+        MariaDB_PLUGIN_MATURITY_STABLE // maturity
+      }
+    ```
+
+    @note You can mix global and session variable into a single array.
+
+  @section impl_plugin_status_variables Plugin Status Variables Implementation
+
+  @ref concept_plugin_status_variables are defined similarly to
+  @ref concept_plugin_system_variables by creating a per-plugin `NULL` terminated
+  array of @ref st_mysql_show_var structures and passing it down
+  to @ref maria_declare_plugin.
+
+  Unlike the system variables, the status variables are read-only, i.e. only
+  the plugin code can manipulate the status variable's value.
+
+  Each status variable has a type: one of the @ref enum_mysql_show_type types.
+  In practice try to restrict your variables to use either @ref SHOW_LONG or
+  @ref SHOW_LONGLONG. These are typically counters and these two types get
+  reset by the server when you reset status. Plus, they are typically accessed
+  atomically by modern CPUs so you can skip doing locking. 
+
+  The scope for the status variables is handled by the server as follows:
+  All of the status variables data types except @ref SHOW_FUNC, SHOW_FUNC_ENTRY
+  and @ref SHOW_ARRAY are treated as global+session status values. 
+  This means that each session gets a private value slot that is aggregated into
+  the global value as the session ends.
+  The rest of them are implemented as global scope: a single global status
+  variable that all of the threads are reading from and writing to.
+
+  Status variables can be scalar or functional.
+
+  @subsection impl_plugin_status_variables_scalar Scalar Status Variables
+
+  For "scalar" status variables the data is kept into a C/C++ variable and
+  a pointer to that is passed to the infrastructure. When the server needs to
+  read the value it just de-references the pointer and reads the value.
+
+  To implement a scalar status variable do as follows:
+
+  - Define the global counter variable
+    ```
+      unsigned long stat_var_buffer;
+    ```
+  - Add it to a global per-plugin NULL-element terminated array:
+    ```
+      static struct st_mysql_show_var status_variables[]= {
+        ...
+        {"stat_var", (char *) &stat_var_buffer, SHOW_LONGLONG},
+        ...
+        {NullS, NullS, SHOW_LONG}};
+    ```
+  - Pass the global array to @ref maria_declare_plugin :
+     ```
+      maria_declare_plugin(innobase)
+      {
+        MYSQL_STORAGE_ENGINE_PLUGIN,
+        &innobase_storage_engine,
+        innobase_hton_name,
+        plugin_author,
+        "Supports transactions, row-level locking, foreign keys and encryption for tables",
+        PLUGIN_LICENSE_GPL,
+        innodb_init, // Plugin Init
+        NULL, // Plugin Deinit
+        MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR,
+        status variables, // status variables
+        vars,   // system variables
+        PACKAGE_VERSION,
+        MariaDB_PLUGIN_MATURITY_STABLE // maturity
+      }
+    ```
+  - Manipulate the global counter variable
+    ```
+       stat_var_buffer++;
+    ```
+
+  @subsection impl_plugin_status_variables_function Functional Status Variables
+
+  For functional status variables instead of dereferencing a pointer, the server
+  takes a function pointer of the type @ref mysql_show_var_func and is calling
+  the function when it needs the value.
+
+  The function can also change the type for the variable.
+
+  A typical @ref SHOW_SIMPLE_FUNC variable looks like this:
+  ```
+    static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
+                             void *buf, system_status_var *, enum_var_type)
+    {
+      var->type= SHOW_CHAR;
+      var->value= buf; // it's of SHOW_VAR_FUNC_BUFF_SIZE bytes
+      my_snprintf((char*) buf, SHOW_VAR_FUNC_BUFF_SIZE,
+              ...);
+      return 0;
+    }
+    ...
+    static struct st_mysql_show_var func_status[]=
+    {
+      {"func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
+      {0,0,SHOW_UNDEF}
+    };
+  ```
+
+  There's also @ref SHOW_FUNC, which you can use through the SHOW_FUNC_ENTRY
+  macro as follows:
+  ```
+    static int show_value(THD *thd, SHOW_VAR *var, void *buff,
+                           system_status_var *, enum_var_type scope)
+    {
+      var->type= SHOW_ULONGLONG;
+      var->value= buff;
+      *(ulonglong*) buff= 0;
+      return 0;
+    }
+    ...
+    static struct st_mysql_show_var func_status[]=
+    {
+      SHOW_FUNC_ENTRY("show_value", &show_value),
+      {0,0,SHOW_UNDEF}
+    }
+  ```
+
+  @subsection impl_plugin_status_variables_array Array Status Variables
+
+  Sometimes you want a group of status variables to have a custom prefix. 
+
+  One approach is to copy that prefix to all the variables in the list, e.g.
+  ```
+    struct st_mysql_show_var status_variables[] = {
+      {"prefix_var1", (char *) &var1, SHOW_LONGLONG},
+      {"prefix_var2", (char *) &var2, SHOW_LONGLONG},
+      {NullS, NullS, SHOW_LONG}
+    };
+  ```
+
+  This can be tedious, so MariaDB supports a trick to specify the prefix
+  just once:
+
+  ```
+    struct st_mysql_show_var plugin_variables[] = {
+      {"var1", (char *) &var1, SHOW_LONGLONG},
+      {"var2", (char *) &var2, SHOW_LONGLONG},
+      {NullS, NullS, SHOW_LONG}
+    };
+
+    static int show_plugin_vars(THD *thd, SHOW_VAR *var, void *buff,
+                             struct system_status_var *,
+                             enum enum_var_type) {
+      var->type = SHOW_ARRAY;
+      var->value = reinterpret_cast<char *>(&plugin_variables);
+      return 0;
+    }
+
+    struct st_mysql_show_var status_variables[] = {
+      SHOW_FUNC_ENTRY("prefix", &show_plugin_vars),
+      {NullS, NullS, SHOW_LONG}
+    };
+  ```
+
+  This is using the @ref SHOW_FUNC type that prefixes the variable
+  names with the prefix supplied.
+*/
+
+/**
+  @page plugin_verification Plugin Verification
+
+  When a dynamically-loaded @ref concept_plugin_library is loaded into the server,
+  the server will verify if it is compatible with it before proceeding any further.
+  This is important since the plugin API expects certain data structures to be laid
+  out in a certain way so that the plugin can function correctly.
+
+  @section plugin_verification_version Plugin Version Verification
+
+  The server will read plugin's symbol `_maria_plugin_interface_version_`
+  (as defined by @ref maria_declare_plugin) and compare that with its own plugin API
+  version.
+  If plugin's API interface version is with a different major version loading
+  is refused.
+*/
+
+/**
+   @page make_a_plugin How to make a plugin
+
+   This is a tutorial and a walk-through on how to bootstrap, implement, compile,
+   test and distribute a MariaDB @ref concept_plugin_library.
+
+   @section map_architecture Architecture and Design Decisions.
+
+   The most important architectural decision is to decide what
+   @ref concept_plugin_api to implement.
+   To make that determination you need to understand when your
+   plugin needs to be called by the server and with what parameters.
+
+   Sometimes just the base @ref st_maria_plugin API is good enough.
+   @ref st_maria_plugin::init is called when the plugin is loaded and
+   @ref st_maria_plugin::deinit is called when the plugin is unloaded.
+   This will suffice if you are after implementing e.g. a network listener:
+   you can start a background thread that listens for connections and
+   processes connects, disconnects and commands in @ref st_maria_plugin::init.
+   And then signal to it to shut down gracefully from @ref st_maria_plugin::deinit.
+
+   In this case you implement the so called @ref daemon_plugin_data. This has no
+   API whatsoever. Just a version.
+
+   But, in general, you need to understand the available @ref plugin_types and
+   decide on implementing the one that suits your needs best.
+
+   Do you want to provide a better password validation method? Look into
+   @ref password_validation_plugin_data.
+   Need to expose data in tabular format to server? Do a
+   @ref information_schema_plugin_data.
+
+   The good part is that you can actually combine multiple @ref concept_plugin
+   into a single @ref concept_plugin_library.
+
+   So, back to the example above, if you need to implement a network listener,
+   but also return the current connection table as an INFORMATION_SCHEMA table
+   you can define the two @ref concept_plugin implementations into your single
+   @ref concept_plugin_library.
+
+   @section map_code Code your plugin library
+
+   It's easiest to just take one of the existing plugins and copy its code.
+
+   But, in case you want to start afresh, here's a very minimal boilerplate to
+   copy from
+   ```
+    #include <mysql/plugin.h>
+    /* TODO: if needed: #include <mysql/specific plugin type, e.g. plugin_audit.h> */
+
+    static int plugin_one_init(void *)
+    {
+      /* TODO: code here */
+      return 0; /* success */
+    }
+
+    static int plugin_one_deinit(void *)
+    {
+      /* TODO: code here */
+      return 0; /* success */
+    }
+
+    static struct st_mysql_daemon plugin_one =
+    { MYSQL_DAEMON_INTERFACE_VERSION  };
+
+    maria_declare_plugin(plugin_one)
+    {
+      MYSQL_DAEMON_PLUGIN,
+      &plugin_one,
+      "plugin example",
+      "You",
+      "A boilerplate plugin code",
+      PLUGIN_LICENSE_GPL,
+      plugin_one_init,            /* Plugin Init */
+      plugin_one_deinit,          /* Plugin Deinit */
+      0x0100,                     /* 1.0 */
+      NULL,                       /* status variables */
+      NULL,                       /* system variables */
+      "1.0",                      /* string version */
+      MariaDB_PLUGIN_MATURITY_EXPERIMENTAL /* maturity */
+    }
+    maria_declare_plugin_end;
+   ```
+
+   @sa @ref maria_declare_plugin, @ref maria_declare_plugin_end,
+    @ref MYSQL_DAEMON_PLUGIN, @ref MYSQL_DAEMON_INTERFACE_VERSION,
+    @ref PLUGIN_LICENSE_GPL, @ref MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+
+   If you need to add system variables, you can add the following to the above:
+
+   ```
+   static unsigned int v1;
+
+   static int
+   v1_check_function(MYSQL_THD thd,
+                     struct st_mysql_sys_var *var,
+                     void *save, struct st_mysql_value *value) {
+     /* TODO: code here */
+     return 0; /* OK */
+   }
+   static void
+   v1_update_function(MYSQL_THD thd,
+                      struct st_mysql_sys_var *var,
+                      void *var_ptr, const void *save) {
+     /* TODO: code here */
+   }
+
+   static MYSQL_SYSVAR_UINT(
+	v1,			/* SQL variable name */
+	v1,			/* local C variable reference */
+	PLUGIN_VAR_RQCMDARG,    /* flags: An argument is required */
+        "gizmo variable",	/* SQL visible description */
+	v1_check_function,
+	v1_update_function,
+        0,                      /* default value */
+	0,                      /* minimal value */
+	365*100,                /* maximum value */
+	1			/* increase step */
+  );
+
+  static struct st_mysql_sys_var* sysvars[]= {
+    MYSQL_SYSVAR(v1),   /* variable reference */
+    NULL                /* terminator. keep */
+  };
+  ```
+
+  And then pass on the `sysvars` to the @ref maria_declare_plugin 's
+  system variable placeholder.
+
+  @sa @ref MYSQL_SYSVAR_UINT, @ref mysql_var_check_func,
+  @ref mysql_var_update_func, @ref MYSQL_SYSVAR
+
+  Similarly, if you need status variables, you can add the following:
+
+  ```
+  static volatile int var_s1;
+  static struct st_mysql_show_var status_vars[]=
+  {
+    {
+      "s1",               /* status variable SQL name */
+      (char *) &var_s1,   /* reference to the C variable */
+      SHOW_INT            /* type */
+    },
+    { 0, 0, 0}            /* terminator. keep */
+  }
+  ```
+
+  And then pass on the `status_vars` to the @ref maria_declare_plugin 's
+  status variable placeholder.
+
+  @sa @ref st_mysql_show_var, @ref SHOW_INT
 */

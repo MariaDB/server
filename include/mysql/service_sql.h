@@ -23,22 +23,31 @@
 /**
   @file
   SQL service
+*/
+
+/**
+  @defgroup plugin_api_service_sql SQL service
+  @ingroup plugin_api_services
+  SQL service
 
   Interface for plugins to execute SQL queries on the local server.
 
-  Functions of the service are the 'server-limited'  client library:
-     mysql_init
-     mysql_real_connect_local
-     mysql_real_connect
-     mysql_errno
-     mysql_error
-     mysql_real_query
-     mysql_affected_rows
-     mysql_num_rows
-     mysql_store_result
-     mysql_free_result
-     mysql_fetch_row
-     mysql_close
+  Functions of the service are the 'server-limited' client library:
+
+  - @ref mysql_init
+  - @ref mysql_real_connect_local
+  - @ref mysql_real_connect
+  - @ref mysql_errno
+  - @ref mysql_error
+  - @ref mysql_real_query
+  - @ref mysql_affected_rows
+  - @ref mysql_num_rows
+  - @ref mysql_store_result
+  - @ref mysql_free_result
+  - @ref mysql_fetch_row
+  - @ref mysql_close
+
+  @{
 */
 
 
@@ -78,27 +87,28 @@ extern struct sql_service_st {
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
-#define mysql_init(M) sql_service->mysql_init_func(M)
-#define mysql_real_connect_local(M) sql_service->mysql_real_connect_local_func(M)
-#define mysql_real_connect(M,H,U,PW,D,P,S,F) sql_service->mysql_real_connect_func(M,H,U,PW,D,P,S,F)
-#define mysql_errno(M) sql_service->mysql_errno_func(M)
-#define mysql_error(M) sql_service->mysql_error_func(M)
+#define mysql_init(mysql) sql_service->mysql_init_func(mysql)
+#define mysql_real_connect_local(mysql) sql_service->mysql_real_connect_local_func(mysql)
+#define mysql_real_connect(mysql,host,user,password,db,port,socket,flags) \
+  sql_service->mysql_real_connect_func(mysql,host,user,password,db,port,socket,flags)
+#define mysql_errno(mysql) sql_service->mysql_errno_func(mysql)
+#define mysql_error(mysql) sql_service->mysql_error_func(mysql)
 #define mysql_real_query sql_service->mysql_real_query_func
-#define mysql_affected_rows(M) sql_service->mysql_affected_rows_func(M)
-#define mysql_num_rows(R) sql_service->mysql_num_rows_func(R)
-#define mysql_store_result(M) sql_service->mysql_store_result_func(M)
-#define mysql_free_result(R) sql_service->mysql_free_result_func(R)
-#define mysql_fetch_row(R) sql_service->mysql_fetch_row_func(R)
-#define mysql_close(M) sql_service->mysql_close_func(M)
-#define mysql_options(M,O,V) sql_service->mysql_options_func(M,O,V)
-#define mysql_fetch_lengths(R) sql_service->mysql_fetch_lengths_func(R)
-#define mysql_set_character_set(M,C) sql_service->mysql_set_character_set_func(M,C)
-#define mysql_num_fields(R) sql_service->mysql_num_fields_func(R)
-#define mysql_select_db(M,D) sql_service->mysql_select_db_func(M,D)
-#define mysql_use_result(M) sql_service->mysql_use_result_func(M)
-#define mysql_fetch_fields(R) sql_service->mysql_fetch_fields_func(R)
-#define mysql_real_escape_string(M,T,F,L) sql_service->mysql_real_escape_string_func(M,T,F,L)
-#define mysql_ssl_set(M,K,C1,C2,C3,C4) sql_service->mysql_ssl_set_func(M,K,C1,C2,C3,C4)
+#define mysql_affected_rows(mysql) sql_service->mysql_affected_rows_func(mysql)
+#define mysql_num_rows(result) sql_service->mysql_num_rows_func(result)
+#define mysql_store_result(mysql) sql_service->mysql_store_result_func(mysql)
+#define mysql_free_result(result) sql_service->mysql_free_result_func(result)
+#define mysql_fetch_row(result) sql_service->mysql_fetch_row_func(result)
+#define mysql_close(mysql) sql_service->mysql_close_func(mysql)
+#define mysql_options(mysql,option,arg) sql_service->mysql_options_func(mysql,option,arg)
+#define mysql_fetch_lengths(result) sql_service->mysql_fetch_lengths_func(result)
+#define mysql_set_character_set(mysql,cs_name) sql_service->mysql_set_character_set_func(mysql,cs_name)
+#define mysql_num_fields(result) sql_service->mysql_num_fields_func(result)
+#define mysql_select_db(mysql,db) sql_service->mysql_select_db_func(mysql,db)
+#define mysql_use_result(mysql) sql_service->mysql_use_result_func(mysql)
+#define mysql_fetch_fields(result) sql_service->mysql_fetch_fields_func(result)
+#define mysql_real_escape_string(mysql,to,from,length) sql_service->mysql_real_escape_string_func(mysql,to,from,length)
+#define mysql_ssl_set(mysql,key,cert,ca,capath,cipher) sql_service->mysql_ssl_set_func(mysql,key,cert,ca,capath,cipher)
 
 #else
 
@@ -119,5 +129,7 @@ MYSQL *mysql_real_connect_local(MYSQL *mysql);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /*MYSQL_SERVICE_SQL */

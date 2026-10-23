@@ -1,4 +1,3 @@
-#ifndef MYSQL_PLUGIN_ENCRYPTION_INCLUDED
 /* Copyright (C) 2014, 2015 Sergei Golubchik and MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -14,6 +13,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#ifndef MYSQL_PLUGIN_ENCRYPTION_INCLUDED
+#define MYSQL_PLUGIN_ENCRYPTION_INCLUDED
+
 /**
   @file
 
@@ -23,7 +25,23 @@
   keys for MariaDB on-disk data encryption.
 */
 
-#define MYSQL_PLUGIN_ENCRYPTION_INCLUDED
+/**
+   @defgroup encryption_plugin_data Encryption Plugin
+   @ingroup plugin_types
+   API for Encryption plugin. (@ref MariaDB_ENCRYPTION_PLUGIN)
+
+   The API for server plugins that manage encryption
+   keys for MariaDB on-disk data encryption
+
+   The caller uses encryption as follows:
+      1. create the encryption context object of the crypt_ctx_size() bytes.
+      2. initialize it with crypt_ctx_init().
+      3. repeat crypt_ctx_update() until there are no more data to encrypt.
+      4. write the remaining output bytes and destroy the context object
+         with crypt_ctx_finish().
+   @{
+*/
+
 
 #include <mysql/plugin.h>
 
@@ -72,15 +90,7 @@ struct st_mariadb_encryption
   unsigned int (*get_key)(unsigned int key_id, unsigned int version,
                           unsigned char *key, unsigned int *key_length);
 
-  /*********** ENCRYPTION ************************************************/
-  /*
-    the caller uses encryption as follows:
-      1. create the encryption context object of the crypt_ctx_size() bytes.
-      2. initialize it with crypt_ctx_init().
-      3. repeat crypt_ctx_update() until there are no more data to encrypt.
-      4. write the remaining output bytes and destroy the context object
-         with crypt_ctx_finish().
-  */
+  /*********** ENCRYPTION CONTEXT *****************************************/
 
   /**
     returns the size of the encryption context object in bytes
@@ -125,4 +135,6 @@ struct st_mariadb_encryption
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 #endif

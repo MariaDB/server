@@ -1,4 +1,3 @@
-#ifndef MYSQL_SERVICE_PROGRESS_REPORT_INCLUDED
 /* Copyright (C) 2011 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -14,15 +13,28 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#ifndef MYSQL_SERVICE_PROGRESS_REPORT_INCLUDED
+#define MYSQL_SERVICE_PROGRESS_REPORT_INCLUDED
+
 /**
   @file
   This service allows plugins to report progress of long running operations
-  to the server. The progress report is visible in SHOW PROCESSLIST,
+  to the server.
+*/
+
+/**
+  @defgroup plugin_api_service_progress_report Progress Report service
+  @ingroup plugin_api_services
+  Allows plugins to report progress of long running operations to the server.
+
+  The progress report is visible in SHOW PROCESSLIST,
   INFORMATION_SCHEMA.PROCESSLIST, and is sent to the client
   if requested.
 
   The functions are documented at
   https://mariadb.com/docs/server/reference/product-development/mariadb-internals/using-mariadb-with-your-programs-api
+
+  @{
 */
 
 #ifdef __cplusplus
@@ -77,6 +89,6 @@ const char *set_thd_proc_info(MYSQL_THD, const char * info, const char *func,
 }
 #endif
 
-#define MYSQL_SERVICE_PROGRESS_REPORT_INCLUDED
+/** @} */
 #endif
 
