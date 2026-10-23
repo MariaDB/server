@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo # A table from a MySQL dump that uses WITH PARSER ngram loads
+--echo #
+SET NAMES utf8mb4;
+# As written by mysqldump of MySQL 8.0
+CREATE TABLE `articles` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) DEFAULT NULL,
+  `body` text,
+  PRIMARY KEY (`id`),
+  FULLTEXT KEY `ft` (`title`,`body`) /*!50100 WITH PARSER `ngram` */
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+INSERT INTO `articles` VALUES (1,'数据库管理系统','计算机是处理大量数据的理想工具');
+SHOW CREATE TABLE articles;
+SELECT id FROM articles WHERE MATCH(title, body) AGAINST('数据库' IN BOOLEAN MODE);
+DROP TABLE articles;

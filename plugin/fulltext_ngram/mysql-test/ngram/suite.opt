@@ -1,2 +1,3 @@
 --default-storage-engine=InnoDB
 --plugin-load-add=$FULLTEXT_NGRAM_SO
+--plugin-ngram=ON
