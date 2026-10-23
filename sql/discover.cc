@@ -137,6 +137,7 @@ int writefile(const char *path, const char *db, const char *table,
   }
   else
   {
+    DEBUG_SYNC(current_thd, "writefile_after_create_before_write");
     error= (int)mysql_file_write(file, data, len, MYF(MY_WME | MY_NABP));
 
     if (!error && !tmp_table && opt_sync_frm)
