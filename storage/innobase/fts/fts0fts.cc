@@ -5179,7 +5179,9 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
         ulint field_len;
         const byte* field_data= rec_get_nth_field(rec, offsets, col_pos,
                                                   &field_len);
-        if (field_len == UNIV_SQL_NULL)
+        /* Skip an empty field as a NULL, as fts_fetch_doc_from_rec()
+        does */
+        if (field_len == UNIV_SQL_NULL || !field_len)
           continue;
         if (!get_doc->index_cache->charset)
         {
@@ -5207,10 +5209,9 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
           fts_tokenize_document_next(&doc, doc_len, NULL, parser);
 
 	processed_field++;
-        doc_len+=
-          (i < (unsigned) get_doc->index_cache->index->n_user_defined_cols - 1)
-          ? field_len + 1
-          : field_len;
+        /* Not field_len: that is the length of the locally stored part
+        of an externally stored field */
+        doc_len+= doc.text.f_len + 1;
       }
 
       fts_cache_add_doc(cache, get_doc->index_cache, doc_id, doc.tokens);

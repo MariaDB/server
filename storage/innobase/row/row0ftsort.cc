@@ -687,8 +687,10 @@ row_merge_fts_doc_tokenize(
 		t_ctx->rows_added[i] += n_tuple[i];
 	}
 
-	if (!buf_full) {
-		/* we pad one byte between text accross two fields */
+	if (!buf_full && doc->text.f_len) {
+		/* We pad one byte between the text of two fields. An empty
+		field adds nothing, as in fts_fetch_doc_from_rec() and
+		fts_query_fetch_document(). */
 		t_ctx->init_pos += doc->text.f_len + 1;
 	}
 
