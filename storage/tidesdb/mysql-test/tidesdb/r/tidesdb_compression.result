@@ -1,0 +1,96 @@
+#
+# === NONE ===
+#
+CREATE TABLE t_none (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='NONE';
+SHOW CREATE TABLE t_none;
+Table	Create Table
+t_none	CREATE TABLE `t_none` (
+  `id` int(11) NOT NULL,
+  `val` varchar(2000) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='NONE'
+INSERT INTO t_none VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_none WHERE id = 1;
+id	len	row1_ok
+1	1600	1
+SELECT id, LENGTH(val) AS len, val = REPEAT('z', 1500) AS row2_ok FROM t_none WHERE id = 2;
+id	len	row2_ok
+2	1500	1
+#
+# === SNAPPY ===
+#
+CREATE TABLE t_snappy (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='SNAPPY';
+SHOW CREATE TABLE t_snappy;
+Table	Create Table
+t_snappy	CREATE TABLE `t_snappy` (
+  `id` int(11) NOT NULL,
+  `val` varchar(2000) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='SNAPPY'
+INSERT INTO t_snappy VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_snappy WHERE id = 1;
+id	len	row1_ok
+1	1600	1
+#
+# === LZ4 ===
+#
+CREATE TABLE t_lz4 (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='LZ4';
+SHOW CREATE TABLE t_lz4;
+Table	Create Table
+t_lz4	CREATE TABLE `t_lz4` (
+  `id` int(11) NOT NULL,
+  `val` varchar(2000) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='LZ4'
+INSERT INTO t_lz4 VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_lz4 WHERE id = 1;
+id	len	row1_ok
+1	1600	1
+#
+# === LZ4_FAST ===
+#   maps to TDB_COMPRESS_LZ4_FAST -> LZ4_compress_fast (acceleration > 1)
+#
+CREATE TABLE t_lz4_fast (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='LZ4_FAST';
+SHOW CREATE TABLE t_lz4_fast;
+Table	Create Table
+t_lz4_fast	CREATE TABLE `t_lz4_fast` (
+  `id` int(11) NOT NULL,
+  `val` varchar(2000) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='LZ4_FAST'
+INSERT INTO t_lz4_fast VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_lz4_fast WHERE id = 1;
+id	len	row1_ok
+1	1600	1
+SELECT id, LENGTH(val) AS len, val = REPEAT('z', 1500) AS row2_ok FROM t_lz4_fast WHERE id = 2;
+id	len	row2_ok
+2	1500	1
+# update + delete under LZ4_FAST to exercise re-compression on rewrite
+UPDATE t_lz4_fast SET val = REPEAT('mnop', 350) WHERE id = 1;
+SELECT id, val = REPEAT('mnop', 350) AS row1_updated FROM t_lz4_fast WHERE id = 1;
+id	row1_updated
+1	1
+DELETE FROM t_lz4_fast WHERE id = 2;
+SELECT COUNT(*) AS cnt FROM t_lz4_fast;
+cnt
+1
+#
+# === ZSTD ===
+#
+CREATE TABLE t_zstd (id INT PRIMARY KEY, val VARCHAR(2000)) ENGINE=TIDESDB COMPRESSION='ZSTD';
+SHOW CREATE TABLE t_zstd;
+Table	Create Table
+t_zstd	CREATE TABLE `t_zstd` (
+  `id` int(11) NOT NULL,
+  `val` varchar(2000) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=TidesDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci `COMPRESSION`='ZSTD'
+INSERT INTO t_zstd VALUES (1, REPEAT('abcd', 400)), (2, REPEAT('z', 1500));
+SELECT id, LENGTH(val) AS len, val = REPEAT('abcd', 400) AS row1_ok FROM t_zstd WHERE id = 1;
+id	len	row1_ok
+1	1600	1
+#
+# === Cleanup ===
+#
+DROP TABLE t_none, t_snappy, t_lz4, t_lz4_fast, t_zstd;
+# Done.

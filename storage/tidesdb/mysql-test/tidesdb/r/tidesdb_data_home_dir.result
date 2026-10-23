@@ -1,0 +1,10 @@
+#
+# Verify tidesdb_data_home_dir is visible and read-only
+#
+SHOW VARIABLES LIKE 'tidesdb_data_home_dir';
+Variable_name	Value
+tidesdb_data_home_dir	
+SET GLOBAL tidesdb_data_home_dir = '/tmp/test';
+ERROR HY000: Variable 'tidesdb_data_home_dir' is a read only variable
+#
+# Done.

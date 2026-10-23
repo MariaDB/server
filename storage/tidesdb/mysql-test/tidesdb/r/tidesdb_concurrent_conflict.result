@@ -1,0 +1,58 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+#
+# Issue #77: Concurrent conflict detection
+#
+CREATE TABLE t (
+i INT NOT NULL PRIMARY KEY,
+x INT
+) ENGINE=TidesDB;
+INSERT INTO t VALUES (1,10),(2,20),(3,30),(4,40),(5,50);
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+# ---- TEST 1: Two UPDATEs on same row ----
+connection con1;
+START TRANSACTION;
+UPDATE t SET x = 999 WHERE i = 1;
+connection con2;
+START TRANSACTION;
+UPDATE t SET x = 888 WHERE i = 1;
+COMMIT;
+connection con1;
+COMMIT;
+Got one of the listed errors
+connection default;
+# con2 wins: x should be 888
+SELECT * FROM t WHERE i = 1;
+i	x
+1	888
+# ---- TEST 2: UPDATE vs DELETE on same row ----
+connection con1;
+START TRANSACTION;
+UPDATE t SET x = 777 WHERE i = 2;
+connection con2;
+START TRANSACTION;
+DELETE FROM t WHERE i = 2;
+COMMIT;
+connection con1;
+COMMIT;
+Got one of the listed errors
+connection default;
+# con2 wins: row 2 should be gone
+SELECT * FROM t WHERE i = 2;
+i	x
+# Remaining rows intact
+SELECT * FROM t ORDER BY i;
+i	x
+1	888
+3	30
+4	40
+5	50
+# Cleanup
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+DROP TABLE t;
+#
+# Done.

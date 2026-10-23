@@ -1,0 +1,32 @@
+# ---- setup ----
+CREATE TABLE t_info_schema (
+id INT PRIMARY KEY,
+val VARCHAR(200)
+) ENGINE=TidesDB;
+INSERT INTO t_info_schema VALUES (1, REPEAT('a', 100));
+INSERT INTO t_info_schema VALUES (2, REPEAT('b', 100));
+INSERT INTO t_info_schema VALUES (3, REPEAT('c', 100));
+# ---- data_length must be non-zero ----
+FAIL: DATA_LENGTH is 0
+# ---- table_rows must reflect inserted rows ----
+FAIL: TABLE_ROWS < 3
+# ---- add secondary index and check index_length ----
+ALTER TABLE t_info_schema ADD INDEX idx_val (val);
+SELECT COUNT(*) FROM t_info_schema;
+COUNT(*)
+3
+FAIL: INDEX_LENGTH is 0
+# ---- verify after bulk insert ----
+SELECT COUNT(*) FROM t_info_schema;
+COUNT(*)
+200
+FAIL: DATA_LENGTH is 0 after bulk insert
+# ---- create_time must be non-null ----
+OK: CREATE_TIME is set
+# ---- update_time must be non-null after DML ----
+OK: UPDATE_TIME is set
+# ---- update_time advances after more DML ----
+INSERT INTO t_info_schema VALUES (9999, 'timestamp_test');
+OK: UPDATE_TIME advanced after INSERT
+# ---- cleanup ----
+DROP TABLE t_info_schema;

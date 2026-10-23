@@ -1,0 +1,25 @@
+#
+# ============================================
+# TEST: SQL SAVEPOINT support
+# ============================================
+#
+CREATE TABLE t_sp (
+id INT PRIMARY KEY,
+v  INT
+) ENGINE=TIDESDB;
+# SAVEPOINT should work inside an explicit transaction
+START TRANSACTION;
+INSERT INTO t_sp VALUES (1, 10);
+SAVEPOINT a;
+INSERT INTO t_sp VALUES (2, 20);
+ROLLBACK TO SAVEPOINT a;
+INSERT INTO t_sp VALUES (3, 30);
+RELEASE SAVEPOINT a;
+COMMIT;
+SELECT * FROM t_sp ORDER BY id;
+id	v
+1	10
+3	30
+DROP TABLE t_sp;
+#
+# Done.

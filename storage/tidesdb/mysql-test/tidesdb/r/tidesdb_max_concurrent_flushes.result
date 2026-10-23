@@ -1,0 +1,8 @@
+call mtr.add_suppression("\\[TIDESDB\\] tidesdb_max_concurrent_flushes=.* is lower than tidesdb_flush_threads=");
+SELECT @@global.tidesdb_flush_threads AS flush_threads,
+@@global.tidesdb_max_concurrent_flushes AS max_concurrent_flushes;
+flush_threads	max_concurrent_flushes
+4	2
+# the server error log carries the misalignment warning
+FOUND 1 /tidesdb_max_concurrent_flushes=2 is lower than tidesdb_flush_threads=4/ in mysqld.1.err
+# Done.
