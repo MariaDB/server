@@ -1256,6 +1256,7 @@ public:
     Item_func_case_expression(thd, list) {}
   double real_op() override;
   longlong int_op() override;
+  bool val_bool() override;
   String *str_op(String *) override;
   my_decimal *decimal_op(my_decimal *) override;
   bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;

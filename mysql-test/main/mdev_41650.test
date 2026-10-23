@@ -1,0 +1,20 @@
+--echo #
+--echo # MDEV-41650: COALESCE with typeless NULL changes hex literal Boolean evaluation
+--echo #
+
+# Bare hex literal is TRUE
+SELECT (0x30 XOR 0) AS bare;
+
+# Wrapped hex literal should also be TRUE
+SELECT (COALESCE(NULL, 0x30) XOR 0) AS coalesce_hex;
+
+# Control cases for mixed types (Ensure our fix didn't break these)
+SELECT COALESCE('0', 5) XOR 0 AS coalesce_str_int;
+SELECT COALESCE(0.5, 'abc') XOR 0 AS coalesce_float_str;
+SELECT COALESCE(NULL, NULL) IS NULL AS coalesce_nulls;
+SELECT COALESCE(0x30, NULL) XOR 0 AS coalesce_hex_first;
+SELECT COALESCE(NULL, COALESCE(NULL, 0x30)) XOR 0 AS coalesce_nested;
+
+# The bug also affects IFNULL and CASE (Still broken in this PR)
+SELECT IFNULL(NULL, 0x30) XOR 0 AS ifnull_hex;
+SELECT CASE WHEN NULL IS NULL THEN 0x30 END XOR 0 AS case_hex;

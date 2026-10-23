@@ -3643,6 +3643,20 @@ longlong Item_func_coalesce::int_op()
   return 0;
 }
 
+bool Item_func_coalesce::val_bool()
+{
+  DBUG_ASSERT(fixed());
+  null_value= 0;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    bool res= args[i]->val_bool();
+    if (!args[i]->null_value)
+      return res;
+  }
+  null_value= 1;
+  return 0;
+}
+
 double Item_func_coalesce::real_op()
 {
   DBUG_ASSERT(fixed());
