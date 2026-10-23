@@ -3222,6 +3222,8 @@ int ha_federatedx::reset(void)
   THD *thd= ha_thd();
   int error = 0;
 
+  table_will_be_deleted= false;
+
   insert_dup_update= FALSE;
   ignore_duplicates= FALSE;
   replace_duplicates= FALSE;

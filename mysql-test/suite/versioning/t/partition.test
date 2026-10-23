@@ -3001,6 +3001,29 @@ set timestamp= default;
 set time_zone= default;
 drop table t1;
 
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning
+partition by system_time (partition p0 history, partition pn current);
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from t1 where id = 1;
+replace t1 (id, a) values (2, 'final');
+check table t1 extended;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
 --echo # End of 10.11 tests
 
 --echo #
