@@ -1711,8 +1711,6 @@ public:
   POSITION *next_sort_position; /* Next free space in sort_positions */
 
   Pushdown_query *pushdown_query;
-  JOIN_TAB *original_join_tab;
-  uint	   original_table_count;
   uint	   sort_space;
 
 /******* Join optimization state members start *******/
