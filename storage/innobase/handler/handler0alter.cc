@@ -6647,6 +6647,7 @@ prepare_inplace_alter_table_dict(
 
 	const bool have_fts = user_table->flags2
 		& (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
+	ut_ad(!user_table->loading());
 	const bool pause_purge = have_fts || user_table->get_ref_count() > 1;
 	/* Acquire a lock on the table before creating any indexes. */
 	bool table_lock_failed = false;
@@ -7206,7 +7207,7 @@ wrong_column_name:
 
 		if (dict_sys.find_table(
 			    {ctx->new_table->name.m_name,
-			     strlen(ctx->new_table->name.m_name)})) {
+			     strlen(ctx->new_table->name.m_name)}, true)) {
 			my_error(ER_TABLE_EXISTS_ERROR, MYF(0),
 				 ctx->new_table->name.m_name);
 			goto new_clustered_failed;
@@ -10181,11 +10182,15 @@ innobase_update_foreign_cache(
 	dictionary cache (work around the lack of WL#6049). */
 	dict_names_t	fk_tables;
         mtr_t mtr{ctx->trx};
+	/* The names in fk_tables must survive the temporary release of
+	the exclusive dict_sys.latch inside dict_sys.load_table() in the
+	loop below. */
+	mem_heap_t*	fk_heap = mem_heap_create(1000);
 
 	err = dict_load_foreigns(mtr, user_table->name.m_name,
 				 ctx->col_names, 1, true,
 				 DICT_ERR_IGNORE_FK_NOKEY,
-				 fk_tables);
+				 fk_heap, fk_tables);
 
 	if (err == DB_CANNOT_ADD_CONSTRAINT) {
 		fk_tables.clear();
@@ -10196,7 +10201,7 @@ innobase_update_foreign_cache(
 		err = dict_load_foreigns(mtr, user_table->name.m_name,
 					 ctx->col_names, 1, false,
 					 DICT_ERR_IGNORE_NONE,
-					 fk_tables);
+					 fk_heap, fk_tables);
 
 		/* The load with "charset_check" off is successful, warn
 		the user that the foreign key has loaded with mis-matched
@@ -10228,6 +10233,8 @@ innobase_update_foreign_cache(
 
 		fk_tables.pop_front();
 	}
+
+	mem_heap_free(fk_heap);
 
 	DBUG_RETURN(err);
 }

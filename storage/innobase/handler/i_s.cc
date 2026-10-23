@@ -4698,6 +4698,8 @@ i_s_dict_fill_sys_tablestats(THD* thd, dict_table_t *table,
 
   Field **fields= table_to_fill->field;
 
+  ut_ad(!table->loading());
+
   {
     table->stats_shared_lock();
     auto _ = make_scope_exit([table]() {

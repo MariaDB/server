@@ -1254,7 +1254,10 @@ static void innodb_drop_database(handlerton*, char *path)
       next= table->id_hash;
       if (strncmp(table->name.m_name, namebuf, len + 1))
         continue;
-      const auto n_handles= table->get_ref_count();
+      /* This walks the hash table directly, so table may still be
+      loading(); its LOADING_MASK bits are not open handles. */
+      const auto n_handles=
+        table->get_ref_count() & ~dict_table_t::LOADING_MASK;
       const bool locks= !n_handles && lock_table_has_locks(table);
       if (n_handles || locks)
       {
@@ -12618,6 +12621,17 @@ create_table_info_t::create_foreign_keys()
 {
 	dict_foreign_set      local_fk_set;
 	dict_foreign_set_free local_fk_set_free(local_fk_set);
+	/* Release the temporary reference taken below on each
+	foreign->referenced_table left in local_fk_set on failure; the
+	success path releases them itself and clears the set first, so
+	this is then a no-op. Declared after local_fk_set_free so it runs
+	first (LIFO), before dict_foreign_free() invalidates `foreign`. */
+	auto unpin_referenced_tables = make_scope_exit([&local_fk_set]() {
+		for (const dict_foreign_t *foreign : local_fk_set)
+			if (dict_table_t *rt = foreign->referenced_table) {
+				rt->release();
+			}
+	});
 	dberr_t		      error;
 	ulint		      number	      = 1;
 	static const unsigned MAX_COLS_PER_FK = 500;
@@ -12685,7 +12699,7 @@ create_table_info_t::create_foreign_keys()
 	ut_ad(alter_info);
 	List_iterator_fast<Key> key_it(alter_info->key_list);
 
-	dict_table_t* table = dict_sys.find_table({name.str, name.length});
+	dict_table_t* table = dict_sys.find_table({name.str, name.length}, true);
 	if (!table) {
 		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 				"%s table %s foreign key constraint"
@@ -12838,6 +12852,16 @@ create_table_info_t::create_foreign_keys()
 			: LEX_CSTRING{table->name.m_name, table->name.dblen()};
 		foreign->referenced_table_name = dict_table_lookup(
 			d, t, &foreign->referenced_table, foreign->heap);
+
+		if (foreign->referenced_table) {
+			/* Pin it so dict_sys.load_table() for a later
+			constraint in this loop cannot evict it while
+			referenced_set does not yet reflect this constraint.
+			unpin_referenced_tables releases this on failure;
+			made permanent via dict_sys.prevent_eviction() only
+			once the constraint is actually committed below. */
+			foreign->referenced_table->acquire();
+		}
 
 		if (!foreign->referenced_table && m_trx->check_foreigns) {
 			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
@@ -13041,6 +13065,14 @@ create_table_info_t::create_foreign_keys()
 					  local_fk_set.end());
 		std::for_each(local_fk_set.begin(), local_fk_set.end(),
 			      dict_foreign_add_to_referenced_table());
+		for (const dict_foreign_t *foreign : local_fk_set) {
+			if (dict_table_t *rt = foreign->referenced_table) {
+				/* Committed: make it permanently
+				non-evictable, replacing the temporary pin. */
+				dict_sys.prevent_eviction(rt);
+				rt->release();
+			}
+		}
 		local_fk_set.clear();
 
 		dict_mem_table_fill_foreign_vcol_set(table);
@@ -13170,6 +13202,13 @@ int create_table_info_t::create_table(bool create_fk)
 	}
 
 	create_fk&= !m_creating_stub;
+
+	/* Pin the newly created table: dict_sys.load_table() inside
+	create_foreign_keys() and in the loop below may temporarily
+	release the exclusive dict_sys.latch, during which
+	dict_sys.evict_table_LRU() could evict an unreferenced table. */
+	m_table->acquire();
+
 	dberr_t err = create_fk ? create_foreign_keys() : DB_SUCCESS;
 
 	if (err == DB_SUCCESS) {
@@ -13179,16 +13218,23 @@ int create_table_info_t::create_table(bool create_fk)
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
 		mtr_t mtr{m_trx};
+		/* The names in fk_tables must survive the temporary
+		release of the exclusive dict_sys.latch inside
+		dict_sys.load_table() in the loop below. */
+		mem_heap_t*	fk_heap = mem_heap_create(1000);
 		err = dict_load_foreigns(mtr, m_table_name, nullptr,
 					 m_trx->id, true,
-					 ignore_err, fk_tables);
+					 ignore_err, fk_heap, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
 			dict_sys.load_table(
 				{fk_tables.front(), strlen(fk_tables.front())},
 				ignore_err);
 			fk_tables.pop_front();
 		}
+		mem_heap_free(fk_heap);
 	}
+
+	m_table->release();
 
 	switch (err) {
 	case DB_PARENT_NO_INDEX:
@@ -13972,6 +14018,7 @@ int ha_innobase::delete_table(const char *name)
 
   dict_sys.lock(SRW_LOCK_CALL);
 
+  ut_ad(!table->loading());
   if (!table->release() && err == DB_SUCCESS)
   {
     /* Wait for purge threads to stop using the table. */
@@ -14247,6 +14294,7 @@ int ha_innobase::truncate()
   if (error == DB_SUCCESS)
     error= lock_table_for_trx(ib_table, trx, LOCK_X);
 
+  ut_ad(!ib_table->loading());
   const bool fts= error == DB_SUCCESS &&
     ib_table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
   const bool pause_purge= error == DB_SUCCESS && ib_table->get_ref_count() > 1;
@@ -14333,13 +14381,17 @@ int ha_innobase::truncate()
       m_prebuilt->table->def_trx_id= def_trx_id;
     }
     dict_names_t fk_tables;
+    /* The names in fk_tables must survive the temporary release of the
+    exclusive dict_sys.latch inside dict_sys.load_table() below. */
+    mem_heap_t *fk_heap= mem_heap_create(1000);
     {
       mtr_t mtr{trx};
       dict_load_foreigns(mtr, m_prebuilt->table->name.m_name, nullptr, 1, true,
-                         DICT_ERR_IGNORE_FK_NOKEY, fk_tables);
+                         DICT_ERR_IGNORE_FK_NOKEY, fk_heap, fk_tables);
     }
     for (const char *f : fk_tables)
       dict_sys.load_table({f, strlen(f)});
+    mem_heap_free(fk_heap);
   }
 
   if (fts)
@@ -14461,6 +14513,7 @@ ha_innobase::rename_table(
 		t = dict_table_open_on_name(
 			norm_from, false, DICT_ERR_IGNORE_FK_NOKEY);
 		if (t) {
+			ut_ad(!t->loading());
 			error = lock_table_children(t, trx);
 			if (error == DB_SUCCESS) {
 				error = lock_table_for_trx(t, trx, LOCK_X);
