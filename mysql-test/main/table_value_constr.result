@@ -3279,3 +3279,125 @@ drop table t1,t2;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-33477: Prepared statement with only placeholders in Table Value
+# Constructor discards values silently
+#
+# A column with placeholders only, of various types
+execute immediate 'select * from (values (?)) t' using 'a';
+?
+a
+execute immediate 'select * from (values (?)) t' using 12345;
+?
+12345
+execute immediate 'select * from (values (?)) t' using 1.5;
+?
+1.5
+execute immediate 'select * from (values (?)) t' using 1.5e0;
+?
+1.5
+execute immediate 'select * from (values (?, "b")) t' using 'a';
+?	b
+a	b
+execute immediate 'with c(x) as (values (?)) select x from c' using 'a';
+x
+a
+# A placeholder next to a literal in the same column
+execute immediate 'select * from (values (?), ("zz")) t' using 'a';
+?
+a
+zz
+execute immediate 'select * from (values ("zz"), (?)) t' using 'a';
+zz
+zz
+a
+# Re-execution of a prepared statement with parameters of other types
+prepare stmt from 'select * from (values (?)) t';
+set @a= 'xyz';
+execute stmt using @a;
+?
+xyz
+set @a= 'a considerably longer string value';
+execute stmt using @a;
+?
+a considerably longer string value
+set @a= 42;
+execute stmt using @a;
+?
+42
+set @a= NULL;
+execute stmt using @a;
+?
+NULL
+set @a= 3.25;
+execute stmt using @a;
+?
+3.25
+deallocate prepare stmt;
+prepare stmt from 'values (?, ?), (?, ?)';
+execute stmt using 1, 'x', 2, 'yy';
+?	?
+1	x
+2	yy
+execute stmt using 10, 'longer', 20, 'y';
+?	?
+10	longer
+20	y
+deallocate prepare stmt;
+prepare stmt from 'values (?) union all values (?)';
+execute stmt using 'p', 'q';
+?
+p
+q
+execute stmt using 'p', 'quite long q';
+?
+p
+quite long q
+deallocate prepare stmt;
+# A placeholder inside an expression
+prepare stmt from 'values (? +12)';
+execute stmt using 1;
+? +12
+13
+execute stmt using 100;
+? +12
+112
+execute stmt using 2.5;
+? +12
+14.5
+execute stmt using '7';
+? +12
+19
+execute stmt using NULL;
+? +12
+NULL
+deallocate prepare stmt;
+prepare stmt from 'select * from (values (? + 12)) t';
+execute stmt using 5;
+? + 12
+17
+execute stmt using 5.5;
+? + 12
+17.5
+deallocate prepare stmt;
+prepare stmt from 'values (? + 12, ? + 12)';
+execute stmt using 1, 2;
+? + 12	? + 12
+13	14
+execute stmt using 3, 4;
+? + 12	? + 12
+15	16
+deallocate prepare stmt;
+# Parameters in a stored procedure
+create procedure p(x varchar(20))
+execute immediate 'select * from (values (?)) t' using x;
+call p('one');
+?
+one
+call p('twotwotwo');
+?
+twotwotwo
+drop procedure p;
+#
+# End of 10.11 tests
+#

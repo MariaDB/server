@@ -1824,3 +1824,74 @@ drop table t1,t2;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-33477: Prepared statement with only placeholders in Table Value
+--echo # Constructor discards values silently
+--echo #
+
+--echo # A column with placeholders only, of various types
+execute immediate 'select * from (values (?)) t' using 'a';
+execute immediate 'select * from (values (?)) t' using 12345;
+execute immediate 'select * from (values (?)) t' using 1.5;
+execute immediate 'select * from (values (?)) t' using 1.5e0;
+execute immediate 'select * from (values (?, "b")) t' using 'a';
+execute immediate 'with c(x) as (values (?)) select x from c' using 'a';
+
+--echo # A placeholder next to a literal in the same column
+execute immediate 'select * from (values (?), ("zz")) t' using 'a';
+execute immediate 'select * from (values ("zz"), (?)) t' using 'a';
+
+--echo # Re-execution of a prepared statement with parameters of other types
+prepare stmt from 'select * from (values (?)) t';
+set @a= 'xyz';
+execute stmt using @a;
+set @a= 'a considerably longer string value';
+execute stmt using @a;
+set @a= 42;
+execute stmt using @a;
+set @a= NULL;
+execute stmt using @a;
+set @a= 3.25;
+execute stmt using @a;
+deallocate prepare stmt;
+
+prepare stmt from 'values (?, ?), (?, ?)';
+execute stmt using 1, 'x', 2, 'yy';
+execute stmt using 10, 'longer', 20, 'y';
+deallocate prepare stmt;
+
+prepare stmt from 'values (?) union all values (?)';
+execute stmt using 'p', 'q';
+execute stmt using 'p', 'quite long q';
+deallocate prepare stmt;
+
+--echo # A placeholder inside an expression
+prepare stmt from 'values (? +12)';
+execute stmt using 1;
+execute stmt using 100;
+execute stmt using 2.5;
+execute stmt using '7';
+execute stmt using NULL;
+deallocate prepare stmt;
+
+prepare stmt from 'select * from (values (? + 12)) t';
+execute stmt using 5;
+execute stmt using 5.5;
+deallocate prepare stmt;
+
+prepare stmt from 'values (? + 12, ? + 12)';
+execute stmt using 1, 2;
+execute stmt using 3, 4;
+deallocate prepare stmt;
+
+--echo # Parameters in a stored procedure
+create procedure p(x varchar(20))
+  execute immediate 'select * from (values (?)) t' using x;
+call p('one');
+call p('twotwotwo');
+drop procedure p;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
