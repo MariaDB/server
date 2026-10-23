@@ -1,0 +1,43 @@
+MDEV-37607: WSREP Binlog Transaction Coordinator
+================================================
+
+9. IMPLEMENTATION PLAN (PHASES)
+===============================
+
+Three phases. Each leaves the server working and is verified with the Galera cluster suites, with
+and without the binlog, before the next starts.
+
+Phase 1: the server owns the order
+----------------------------------
+
+Goal. One component in the server holds the chain, the release and the abort logic; group commit has
+no provider names.
+What changes. The tail pointer and the helpers move into Commit_order_manager. A provider adapter
+replaces the provider tests. The inline block in binlog group commit becomes one generic release
+call with named result fields.
+What stays. The Galera library and its commit monitor. Behavior is identical.
+Exit. Suites show only the failures of the unmodified base.
+
+Phase 2: tickets and the wait move to the server
+------------------------------------------------
+
+Goal. The library reports the order, the server waits.
+What changes. The commit order service is added. The library registers a ticket per certified seqno,
+in order, for every kind of write set (commits, fragments, dummy write sets, DDL, non-blocking
+operations, views). Commits wait in the server and bind the ticket. The manager gets the seqno list,
+the tracker, abort, interrupt, the blocker report and stuck escalation.
+What stays. The commit monitor still exists for what is not yet ticketed (IST, no binlog).
+Exit. Commit order in the binlogs of all nodes is identical under load, with DDL, streaming
+replication and replay; no ticket is left over.
+
+Phase 3: the library commit monitor is removed
+----------------------------------------------
+
+Goal. Nothing orders commits in the library any more.
+What changes. IST write sets and views get tickets. Tickets are registered without a binlog too and
+released at the ordered commit stage. DDL waits for every earlier seqno through the service. The
+monitor's other jobs (donor drain, resync, replay wait, pause, state transfer reset) use the apply
+monitor. The monitor, its statistics and its parameter are deleted; the service becomes mandatory.
+What stays. The apply monitor and the apply order.
+Exit. Suites with the debug and release libraries pass; the benchmark shows no regression without a
+binlog.

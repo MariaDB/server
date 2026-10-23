@@ -1,0 +1,208 @@
+MDEV-37607: WSREP Binlog Transaction Coordinator
+================================================
+
+1. BACKGROUND: THE EXISTING GALERA DESIGN
+=========================================
+
+1.1 What a commit order is
+--------------------------
+
+Galera certifies every write set into one cluster-wide total order (the seqno). Every node applies
+write sets in parallel to be fast, but the commits must finish in seqno order on every node:
+
+- the binlog of every node must list the transactions in the same order, so GTIDs and replicas
+  agree;
+- a statement that depends on earlier commits (DDL) must see them;
+- a membership change (a view) must fall between the same two commits on every node.
+
+So there are two orders. The apply order says which write sets may run at the same time; it comes
+from the dependency (depends_seqno) and is parallel. The commit order says in which order the
+commits finish; it is one after the other. This document is about the second one.
+
+1.2 Architecture of the existing design
+---------------------------------------
+
+ +-------------------------------------------------------------------+
+ |  MariaDB server                                                   |
+ |    wsrep-lib hooks: before_commit  ordered_commit  after_commit   |
+ |    binlog group commit (log.cc): provider block, codes -2 / -3    |
+ |    wait_for_commit chain: one global tail pointer, registered     |
+ |        in before_commit, AFTER the library call returned          |
+ +----------------------------^--------------------------------------+
+                              | commit_order_enter / commit_order_leave
+ +----------------------------+--------------------------------------+
+ |  Galera library                                                   |
+ |    local monitor     certification, in seqno order                |
+ |    apply monitor     parallel apply, held until the commit ends   |
+ |    COMMIT MONITOR    admits a commit when last_left + 1 == seqno  |
+ |    (also the barrier for DDL, non-blocking operations, views,     |
+ |     state transfer, replay, join and resync)                      |
+ +-------------------------------------------------------------------+
+
+The library decides the order and the server follows it: the library's commit monitor makes a commit
+wait until the previous seqno has left the monitor, and only after the library call returns does the
+server link the transaction into its own chain.
+
+1.3 How one commit runs today
+-----------------------------
+
+ client thread                       library                          server
+ -------------                       -------                          ------
+ COMMIT
+ before_commit --------------->  replicate, certify (seqno N)
+                                 apply monitor enter
+ commit_order_enter ---------->  commit monitor enter:
+                                   wait until N-1 has left the monitor
+                                 <-- returns
+ register in the server chain  <-----------------------------  (late: inside the monitor's
+                                                                one-at-a-time section)
+ binlog group commit
+   queue_for_group_commit  ---->  wsrep_ordered_commit -> commit_order_leave -> monitor leave
+ leader writes the binlog, engine commit (chain orders it)
+ after_commit: unregister
+ release_commit: apply monitor leave
+
+The server needs its own chain because binlog group commit releases the monitor before the engine
+commit, and the engine requires its stored replication position to be written in strictly increasing
+order. The server registered in the chain inside the monitor, which gave seqno order for free.
+
+1.4 Limits of the existing design
+---------------------------------
+
++------------------------------------------------+-------------------------------------------------+
+| Limit                                          | Consequence                                     |
++================================================+=================================================+
+| The library owns the order, the server only    | The server cannot order, abort, time out or     |
+| follows                                        | report anything before the library lets it      |
++------------------------------------------------+-------------------------------------------------+
+| The server joins the chain late, inside the    | All kinds of write sets must pass the monitor;  |
+| monitor                                        | registering only some kinds early inverts the   |
+|                                                | chain and deadlocks (a prototype hung)          |
++------------------------------------------------+-------------------------------------------------+
+| The monitor is also the barrier for DDL, non-  | These cannot move to the server one by one      |
+| blocking operations, views, state transfer and |                                                 |
+| replay                                         |                                                 |
++------------------------------------------------+-------------------------------------------------+
+| Group commit holds a provider block with       | A leader that also failed was reported as -3,   |
+| overloaded return codes (-2 failed, -3 leader) | which hid the failure                           |
++------------------------------------------------+-------------------------------------------------+
+| Without a binlog only the monitor orders       | The server has nothing to wait on               |
++------------------------------------------------+-------------------------------------------------+
+| A commit that never finishes stalls every      | Nothing detects or reports it                   |
+| later commit                                   |                                                 |
++------------------------------------------------+-------------------------------------------------+
+
+2. WHAT MUST CHANGE TO MOVE THE ORDER TO THE SERVER
+===================================================
+
+If the server is to own the commit order, it must be able to do everything the monitor did, and
+more. Each need leads to one part of the new design:
+
+ what the monitor did / what is missing        becomes (in the server)
+ --------------------------------------        -----------------------
+ know the order of the write sets      ----->  TICKET per seqno, registered at certification
+ hold a commit until its turn          ----->  WAIT until the ticket before is ordered, then BIND
+ let the next commit go                ----->  RELEASE at one generic point (queue entry or ordered commit)
+ know "everything up to N finished"
+   (DDL, views, IST, resync, replay)   ----->  TRACKER (committed position) and wait_committed
+ interrupt a waiting commit            ----->  abort_waiter, interrupt_all, sticky error
+ notice a commit that never ends       ----->  blocker report and stuck escalation
+ let library and server cooperate      ----->  COMMIT ORDER SERVICE (the contract)
+ stay out of group commit internals    ----->  provider adapter, generic release call
+
+Why a ticket: the server needs an object for each seqno, in seqno order, from the moment the order
+is known, not after the monitor returns. A ticket is that object. It joins the server's existing
+chain (so group commit and the engine commit stay ordered) and also sits in a list by seqno (so the
+server can tell whether the one before is ordered).
+
+Why a tracker: the monitor answered "has everything up to N finished" for several jobs. Once the
+monitor is gone, the server must answer it. The answer falls out of the ticket list: everything
+below the oldest live ticket has finished.
+
+ monitor job                       new owner
+ -------------------------------   -------------------------------------------
+ order of commits                  ticket list + chain (manager)
+ barrier before DDL / NBO          tracker: wait_committed(seqno - 1)
+ view change drain                 apply monitor drain + VIEW ticket
+ donor, pause, resync, replay      apply monitor and last_committed()
+ interrupt of waiters              abort_waiter / interrupt_all
+
+What stays in the library
+
+Only the commit monitor is removed. Everything else in the table below stays, because the server
+cannot do these jobs: the library knows the order and decides the certification result, and the
+server only follows it.
+
++--------------------------------------+-------------------+---------------------------------------+
+| Galera part                          | In the new design | Why it stays                          |
++======================================+===================+=======================================+
+| Group communication                  | Stays             | Delivers every write set with its     |
+|                                      |                   | seqno in the same order on all nodes. |
+|                                      |                   | This is the order the server follows. |
++--------------------------------------+-------------------+---------------------------------------+
+| Certification (certification index,  | Stays             | Decides whether a write set           |
+| depends_seqno)                       |                   | conflicts, gives its dependency, and  |
+|                                      |                   | marks a failed one dummy. Only the    |
+|                                      |                   | library has the certification index.  |
++--------------------------------------+-------------------+---------------------------------------+
+| Local monitor                        | Stays             | Certifies one write set at a time in  |
+|                                      |                   | seqno order. Tickets are registered   |
+|                                      |                   | under it (finish_cert), so they are   |
+|                                      |                   | in seqno order.                       |
++--------------------------------------+-------------------+---------------------------------------+
+| Apply monitor                        | Stays             | Runs independent write sets in        |
+|                                      |                   | parallel (the apply order). A thread  |
+|                                      |                   | leaves it only after its commit is    |
+|                                      |                   | over, so its last_left, read as       |
+|                                      |                   | last_committed(), means "finished".   |
++--------------------------------------+-------------------+---------------------------------------+
+| Commit monitor                       | Removed           | It ordered the commits and was the    |
+|                                      |                   | barrier for DDL, non-blocking         |
+|                                      |                   | operations and views. The server now  |
+|                                      |                   | does this with tickets and the        |
+|                                      |                   | committed position. Debug sync point  |
+|                                      |                   | names that contain "commit_monitor"   |
+|                                      |                   | are kept, so the existing tests still |
+|                                      |                   | work.                                 |
++--------------------------------------+-------------------+---------------------------------------+
+| Applier threads and replay           | Stay              | Run the write sets and replay a       |
+|                                      |                   | committing transaction that was       |
+|                                      |                   | brute-force aborted.                  |
++--------------------------------------+-------------------+---------------------------------------+
+| commit_order_enter and               | Stay, thin        | Forward the call to the server        |
+| commit_order_leave                   |                   | through the commit order service.     |
++--------------------------------------+-------------------+---------------------------------------+
+| Inconsistency detection and voting   | Stay              | Decide that a node is inconsistent.   |
+|                                      |                   | The library then calls interrupt_all  |
+|                                      |                   | on the server.                        |
++--------------------------------------+-------------------+---------------------------------------+
+| State transfer (IST, SST, donor,     | Stay              | Use the apply monitor and             |
+| join, resync, pause)                 |                   | last_committed(). The IST receiver    |
+|                                      |                   | registers the tickets.                |
++--------------------------------------+-------------------+---------------------------------------+
+| View handling                        | Stays             | Drains the apply monitor, then        |
+|                                      |                   | registers a VIEW ticket and submits   |
+|                                      |                   | the view.                             |
++--------------------------------------+-------------------+---------------------------------------+
+| Isolated statements and non-blocking | Stay              | Certify and start DDL and non-        |
+| operations (to_isolation_begin)      |                   | blocking operations. They wait for    |
+|                                      |                   | earlier commits through the service.  |
++--------------------------------------+-------------------+---------------------------------------+
+| Streaming replication fragments      | Stay              | Certified like other write sets. A    |
+|                                      |                   | queued aborted fragment becomes a     |
+|                                      |                   | SKIPPED entry.                        |
++--------------------------------------+-------------------+---------------------------------------+
+| Reporting the committed seqno and    | Stay              | After a commit has finished, the      |
+| write set cache purge                |                   | library tells the group the seqno and |
+| (release_commit)                     |                   | lets the cache purge.                 |
++--------------------------------------+-------------------+---------------------------------------+
+
+3. USER STORIES
+===============
+
+- As a server maintainer, I want the commit order in one place, so that group commit contains no
+  provider-specific code.
+- As a Galera developer, I want a small documented contract between the library and the server
+  (register, wait, bind, release), so that the library keeps no commit monitor.
+- As a DBA, I want unchanged order, durability and crash recovery, and a report when a commit is
+  stuck.
