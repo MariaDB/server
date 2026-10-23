@@ -516,7 +516,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   found_records= accepted_rows= 0;
   fetch_limit= HA_POS_ERROR;
   thd= thd_arg;
-  sum_funcs= sum_funcs2= 0;
+  sum_funcs= 0;
   procedure= 0;
   having= tmp_having= having_history= 0;
   having_is_correlated= false;
