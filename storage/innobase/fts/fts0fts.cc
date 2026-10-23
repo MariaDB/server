@@ -5605,7 +5605,9 @@ fts_init_recover_doc(
 			continue;
 		}
 
-		if (len == UNIV_SQL_NULL) {
+		/* Skip an empty field as a NULL, as
+		fts_fetch_doc_from_rec() does */
+		if (len == UNIV_SQL_NULL || len == 0) {
 			exp = que_node_get_next(exp);
 			continue;
 		}
