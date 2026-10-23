@@ -1839,7 +1839,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
   return
-    (thd->lex->has_returning());
+    (thd->lex->has_returning() ||
+     thd->lex->period_conditions.is_set());
 }
 
 
@@ -1966,7 +1967,9 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             WARN_INDEX_HINTS_IGNORED,
-                            "%s", ER_THD(thd, WARN_INDEX_HINTS_IGNORED));
+                            ER_THD(thd, WARN_INDEX_HINTS_IGNORED),
+                            thd->lex->has_returning() ?
+                              "RETURNING" : "FOR PORTION OF");
       }
     }
     if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())

@@ -1,6 +1,7 @@
 source suite/period/engines.inc;
 source include/have_log_bin.inc;
 source include/have_partition.inc;
+source include/have_sequence.inc;
 
 create table t (id int, s date, e date, period for apptime(s,e));
 
@@ -268,3 +269,66 @@ select * from t1;
 drop table t1;
 drop table log_tbl;
 drop procedure log;
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+--echo # Bound referencing another table must not delete whole rows
+create table t1 (x int, s date, e date, period for app(s,e));
+create table t2 (d date);
+insert into t1 values (1, '2000-01-01', '2000-01-10'),
+                      (2, '2000-02-01', '2000-02-10');
+insert into t2 values ('2000-01-05');
+--error ER_NOT_CONSTANT_EXPRESSION
+delete from t1 for portion of app from (select d from t2) to '2000-01-20';
+--sorted_result
+select * from t1;
+drop table t1, t2;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+--echo # Subquery on the target: row must be split, not deleted
+create table t1 (id int, s date, e date, period for app(s,e));
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+delete from t1 for portion of app from '2000-01-05' to '2000-01-20'
+  where id in (select id from t1);
+select * from t1;
+drop table t1;
+
+--echo # End of 11.4 tests
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+create table t1 (c1 int key);
+create sequence cs1 engine myisam;
+--error ER_PERIOD_NOT_FOUND
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+create or replace table t1 (c1 int key, s date, e date, period for app(s,e));
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+# Cleanup
+drop sequence cs1;
+drop table t1;
+
+create table t1 (id int, s date, e date, period for app(s,e), key(id));
+
+--echo # Index hint: row must be split, not deleted
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+delete from t1 ignore index (id)
+  for portion of app from '2000-01-05' to '2000-01-20';
+select * from t1;
+
+--echo # Index hint: non-constant bounds must be rejected
+delete from t1;
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+--error ER_NOT_CONSTANT_EXPRESSION
+delete from t1 ignore index (id) for portion of app from s to e;
+select * from t1;
+
+drop table t1;
+
+--echo # End of 11.8 tests

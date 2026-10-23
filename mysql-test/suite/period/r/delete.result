@@ -421,3 +421,65 @@ id	s	e
 drop table t1;
 drop table log_tbl;
 drop procedure log;
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+# Bound referencing another table must not delete whole rows
+create table t1 (x int, s date, e date, period for app(s,e));
+create table t2 (d date);
+insert into t1 values (1, '2000-01-01', '2000-01-10'),
+(2, '2000-02-01', '2000-02-10');
+insert into t2 values ('2000-01-05');
+delete from t1 for portion of app from (select d from t2) to '2000-01-20';
+ERROR HY000: Expression in FOR PORTION OF must be constant
+select * from t1;
+x	s	e
+1	2000-01-01	2000-01-10
+2	2000-02-01	2000-02-10
+drop table t1, t2;
+# End of 10.11 tests
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+# Subquery on the target: row must be split, not deleted
+create table t1 (id int, s date, e date, period for app(s,e));
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+delete from t1 for portion of app from '2000-01-05' to '2000-01-20'
+  where id in (select id from t1);
+select * from t1;
+id	s	e
+1	2000-01-01	2000-01-05
+drop table t1;
+# End of 11.4 tests
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+create table t1 (c1 int key);
+create sequence cs1 engine myisam;
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+ERROR HY000: Period `app` is not found in table
+create or replace table t1 (c1 int key, s date, e date, period for app(s,e));
+delete from t1 ignore index (primary) for portion of app from setval(cs1,1) to sum(1) over w1;
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+drop sequence cs1;
+drop table t1;
+create table t1 (id int, s date, e date, period for app(s,e), key(id));
+# Index hint: row must be split, not deleted
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+delete from t1 ignore index (id)
+for portion of app from '2000-01-05' to '2000-01-20';
+Warnings:
+Warning	4207	Index hints are ignored because they are incompatible with FOR PORTION OF clause
+select * from t1;
+id	s	e
+1	2000-01-01	2000-01-05
+# Index hint: non-constant bounds must be rejected
+delete from t1;
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+delete from t1 ignore index (id) for portion of app from s to e;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+select * from t1;
+id	s	e
+1	2000-01-01	2000-01-10
+drop table t1;
+# End of 11.8 tests

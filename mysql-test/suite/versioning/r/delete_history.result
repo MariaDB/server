@@ -504,4 +504,114 @@ create table t (a int) with system versioning;
 insert into t values (1),(2);
 prepare stmt from 'select * from t for system_time as of timestamp ?';
 drop table t;
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+# Point referencing another table must purge only history
+create table t1 (x int) with system versioning;
+create table t2 (d timestamp(6));
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+insert into t1 values (1), (2);
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+delete from t1 where x = 2;
+insert into t2 values ('2000-01-01 00:00:03');
+set timestamp= default;
+delete history from t1 before system_time (select d from t2);
+select * from t1;
+x
+1
+select * from t1 for system_time all;
+x
+1
+# Prepared statement
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+insert into t1 values (3);
+delete from t1 where x = 3;
+set timestamp= default;
+prepare stmt from 'delete history from t1 before system_time (select d from t2)';
+execute stmt;
+select * from t1 for system_time all;
+x
+1
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+insert into t1 values (4);
+delete from t1 where x = 4;
+set timestamp= default;
+execute stmt;
+select * from t1 for system_time all;
+x
+1
+drop prepare stmt;
+# Sequence function in the point
+create sequence s start with 3 engine=myisam;
+select nextval(s);
+nextval(s)
+3
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+insert into t1 values (5);
+delete from t1 where x = 5;
+set timestamp= default;
+delete history from t1 before system_time
+timestampadd(second, lastval(s), '2000-01-01 00:00:00');
+select * from t1 for system_time all;
+x
+1
+drop sequence s;
+# Non-versioned table must be rejected
+create table t3 (x int);
+insert into t3 values (1);
+delete history from t3 before system_time (select d from t2);
+ERROR HY000: Table `t3` is not system-versioned
+select * from t3;
+x
+1
+drop table t3;
+# View over partitioned table
+create table t3 (x int) with system versioning
+partition by system_time limit 1;
+create view v as select * from t3;
+delete history from v;
+ERROR 42S02: 'v' is a view
+drop view v;
+drop table t3;
+# Locking subquery on partitioned table
+create table t3 (d timestamp(6)) with system versioning
+partition by system_time limit 1;
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+insert into t1 values (6);
+delete from t1 where x = 6;
+insert into t3 values ('2000-01-01 00:00:03');
+set timestamp= default;
+delete history from t1 before system_time (select d from t3 for update);
+select * from t1 for system_time all;
+x
+1
+# Subquery with its own FOR SYSTEM_TIME
+create table t4 (d timestamp(6)) with system versioning;
+set timestamp= unix_timestamp('2000-01-01 00:00:02');
+insert into t1 values (7);
+delete from t1 where x = 7;
+insert into t4 values ('2000-01-01 00:00:03');
+set timestamp= unix_timestamp('2000-01-01 00:00:03');
+update t4 set d= '2000-01-01 00:00:00';
+set timestamp= default;
+delete history from t1 before system_time
+(select max(d) from t4 for system_time all);
+select * from t1 for system_time all;
+x
+1
+drop table t1, t2, t3, t4;
 # End of 10.11 tests
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+create table t1 (c1 int key);
+create sequence cs1 engine myisam;
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (c1 int key) with system versioning;
+delete history from t1 ignore index (primary) before system_time timestamp(setval(cs1,1),sum(1) over w1);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+drop sequence cs1;
+drop table t1;
+# End of 11.8 tests

@@ -12293,7 +12293,7 @@ ER_PSEUDO_THREAD_ID_OVERWRITE
 ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
 WARN_INDEX_HINTS_IGNORED
-        eng "Index hints are ignored because they are incompatible with RETURNING clause"
-        ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з RETURNING"
+        eng "Index hints are ignored because they are incompatible with %s clause"
+        ukr "Підказки по використанню индексів ігноруются тому що вони несумісні з %s"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
