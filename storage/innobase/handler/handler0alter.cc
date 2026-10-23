@@ -6776,9 +6776,17 @@ new_clustered_failed:
 			n_cols++;
 			DBUG_ASSERT(flags2 & DICT_TF2_FTS);
 			DBUG_ASSERT(add_fts_doc_id_idx);
-			flags2 |= DICT_TF2_FTS_ADD_DOC_ID
-				| DICT_TF2_FTS_HAS_DOC_ID
-				| DICT_TF2_FTS;
+			flags2 |= DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS;
+			/* This flag makes row_merge_build_indexes() assign
+			new FTS_DOC_ID values; it clears the flag when done.
+			If the table is empty (mdl_exclusive_after_prepare),
+			inplace_alter_table() skips that phase. The flag
+			would stay set, and a FULLTEXT index added later
+			without a rebuild would not match the FTS_DOC_ID
+			of the rows. */
+			if (!ha_alter_info->mdl_exclusive_after_prepare) {
+				flags2 |= DICT_TF2_FTS_ADD_DOC_ID;
+			}
 		}
 
 		DBUG_ASSERT(!add_fts_doc_id_idx || (flags2 & DICT_TF2_FTS));
