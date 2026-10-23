@@ -560,7 +560,6 @@ SELECT * FROM t1;
 a	b	c
 SET DEBUG_SYNC='now SIGNAL emptied';
 connection con2;
-disconnect con2;
 connection default;
 ALTER TABLE t1 DROP c;
 INSERT INTO t1 VALUES (2),(3),(4);
@@ -588,3 +587,31 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 # End of 10.6 tests
+#
+#  MDEV-41494 Server aborts on crash recovery after an
+#   interrupted instant ALTER TABLE reorders/drops columns
+# 
+call mtr.add_suppression("InnoDB: Table `test`.`t1` contains unrecognizable instant ALTER metadata");
+call mtr.add_suppression("mariadbd: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("DDL_LOG: Got error 1877 when trying to execute action for entry 2 of type 'alter table'");
+call mtr.add_suppression("mariadbd: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY c INT FIRST, ALGORITHM=INSTANT;
+connection con2;
+SET DEBUG_SYNC='after_row_upd_clust SIGNAL s WAIT_FOR go EXECUTE 4';
+ALTER TABLE t1 MODIFY b INT FIRST, ALGORITHM=INSTANT;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s';
+SET DEBUG_SYNC='now SIGNAL go';
+SET DEBUG_SYNC='now WAIT_FOR s';
+SET DEBUG_SYNC='now SIGNAL go';
+SET DEBUG_SYNC='now WAIT_FOR s';
+SET DEBUG_SYNC='now SIGNAL go';
+SET DEBUG_SYNC='now WAIT_FOR s';
+FLUSH ENGINE LOGS;
+# restart: --innodb-force-recovery=4
+disconnect con2;
+SELECT * FROM t1;
+ERROR HY000: Table `test`.`t1` is corrupted. Please drop the table and recreate.
+# restart
+DROP TABLE t1;
