@@ -2447,7 +2447,8 @@ bool Field_str::test_if_equality_guarantees_uniqueness(const Item *item) const
     return non-unique values 'a' and 'A'.
   */
   DTCollation tmp(dtcollation());
-  return !tmp.aggregate(item->collation) && tmp.collation == field_charset();
+  return !tmp.aggregate(item->collation, 0, MY_REPERTOIRE_UNICODE30) &&
+         tmp.collation == field_charset();
 }
 
 
@@ -7857,7 +7858,7 @@ Field_string::compatible_field_size(uint field_metadata,
 {
 #ifdef HAVE_REPLICATION
   const Check_field_param check_param = { this };
-  if (rpl_master_has_bug(rli_arg, 37426, TRUE,
+  if (rpl_master_has_bug(rli_arg, RPL_BUG_MYSQL_37426, TRUE,
                          check_field_for_37426, &check_param))
     return FALSE;                        // Not compatible field sizes
 #endif
@@ -10270,6 +10271,34 @@ int Field_bit::store(const char *from, size_t length, CHARSET_INFO *cs)
 }
 
 
+int Field_bit::store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
+{
+  char *end;
+  int error;
+  ulonglong nr= cs->strntoull10rnd(from, length, true, &end, &error);
+  int store_error= store((longlong) nr, true);
+
+  if (unlikely(error == MY_ERRNO_ERANGE))
+  {
+    if (!store_error)
+      set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
+    return 1;
+  }
+  if (error == MY_ERRNO_EDOM || from == end)
+  {
+    ErrConvString str(from, length, cs);
+    set_warning_truncated_wrong_value("integer", str.ptr());
+    return 1;
+  }
+  if (test_if_important_data(cs, end, from + length))
+  {
+    set_warning(WARN_DATA_TRUNCATED, 1);
+    return 1;
+  }
+  return store_error;
+}
+
+
 int Field_bit::store(double nr)
 {
   return Field_bit::store((longlong) nr, FALSE);
@@ -11075,12 +11104,13 @@ bool Column_definition::check(THD *thd)
   char_length= (uint)length;
 
   /*
-    Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
-    it is NOT NULL, not an AUTO_INCREMENT field.
-    We need to do this check here and in mysql_create_prepare_table() as
+    Set NO_DEFAULT_VALUE_FLAG if this field is NOT NULL and has neither
+    a DEFAULT value nor a default function (AUTO_INCREMENT,
+    DEFAULT/ON UPDATE NOW()).
+    We need to do this check here and in mysql_prepare_create_table() as
     sp_head::fill_field_definition() calls this function.
   */
-  if (!default_value && unireg_check == Field::NONE && (flags & NOT_NULL_FLAG))
+  if (!default_value && !has_default_function() && (flags & NOT_NULL_FLAG))
   {
     /*
       TIMESTAMP columns get implicit DEFAULT value when
@@ -11802,7 +11832,7 @@ bool Field::save_in_field_ignore_value(bool view_error_processing)
 
 void Field::register_field_in_read_map()
 {
-  if (vcol_info)
+  if (!stored_in_db())
   {
     Item *vcol_item= vcol_info->expr;
     vcol_item->walk(&Item::register_field_in_read_map,

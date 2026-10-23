@@ -122,11 +122,10 @@ my_bool wsrep_incremental_data_collection= 0;   // Incremental data collection
 bool wsrep_new_cluster= false;                  // Bootstrap the cluster?
 int wsrep_slave_count_change= 0;                // No. of appliers to stop/start
 int wsrep_to_isolation= 0;                      // No. of active TO isolation threads
-//
-// NOTE : MySQL Cluster has max_protocol version 7
-// thus protocol versions 5-7 are reserved for compatibility.
+// 5: CHAR write set key values are normalized to the number of characters
+//    the column holds, see wsrep_store_string_key_val()
+long wsrep_max_protocol_version= 5;             // Maximum protocol version to use
 // 
-long wsrep_max_protocol_version= 4;             // Maximum protocol version to use
 long int  wsrep_protocol_version= wsrep_max_protocol_version;
 ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
@@ -2029,7 +2028,6 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
   case 2:
   case 3:
   case 4:
-  // For MySQL Galera Cluster migration
   case 5:
   case 6:
   case 7:
@@ -2212,7 +2210,6 @@ bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
     case 2:
     case 3:
     case 4:
-    // For MySQL Galera Cluster migration
     case 5:
     case 6:
     case 7:

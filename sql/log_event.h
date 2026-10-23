@@ -156,6 +156,26 @@ class String;
 
 #define NUM_LOAD_DELIM_STRS 5
 
+
+/*
+  Master-side bugs that we work-around with rpl_master_has_bug().
+  Each define is a bit number (0, 1, 2, ...) set in
+  Relay_log_info::rpl_master_bug_bitmask.
+  These bit numbers are internal-only, can be changed (eg. to drop a bug
+  work-around for ancient version) without concern for backwards compatibility.
+*/
+enum enum_rpl_master_bug_ids {
+  RPL_BUG_MYSQL_24432,
+  RPL_BUG_MYSQL_33029,
+  RPL_BUG_MYSQL_37426,
+  RPL_BUG_MDEV_29621,
+  RPL_BUG_END  /* To check size of Relay_log_info::rpl_master_bug_bitmask */
+};
+
+/* Must be large enough to hold all enum_rpl_master_bug_ids bits. */
+typedef uint32_t rpl_bug_id_t;
+
+
 /*
   The following is the max table_map_id. This is limited by that we
   are using 6 bytes for it in replication
@@ -238,16 +258,19 @@ class String;
                                    1 + 1 + 255    /* type, length, catalog */ + \
                                    1 + 4          /* type, auto_increment */ + \
                                    1 + 6          /* type, charset */ + \
+                                   1 + Charset_collation_map_st::binary_size_max() \
+                                                  /* type, map */ + \
                                    1 + 1 + 255    /* type, length, time_zone */ + \
+                                   1 + 1 + 255 + 1/* type, length, catalog, \0 */ + \
                                    1 + 2          /* type, lc_time_names_number */ + \
                                    1 + 2          /* type, charset_database_number */ + \
                                    1 + 8          /* type, table_map_for_update */ + \
                                    1 + 4          /* type, master_data_written */ + \
+                                   1 + 1 + 16 + 1 + 60 \
+                                                  /* type, user_len, user, host_len, host */ + \
                                    1 + 3          /* type, sec_part of NOW() */ + \
-                                   1 + 16 + 1 + 60/* type, user_len, user, host_len, host */ + \
-                                   1 + 2 + 8      /* type, flags3, seq_no */ + \
-                                   1 + Charset_collation_map_st::binary_size_max() \
-                                   /* type, map */ \
+                                   1 + 8          /* type, (query) xid */ + \
+                                   1 + 1 + 8      /* type, flags3, sa_seq_no */ \
                                    )
 #define MAX_LOG_EVENT_HEADER   ( /* in order of Query_log_event::write */ \
   LOG_EVENT_HEADER_LEN + /* write_header */ \
@@ -1627,8 +1650,7 @@ public:
   {
     return (cache_type == Log_event::EVENT_NO_CACHE);
   }
-  Log_event(const uchar *buf, const Format_description_log_event
-            *description_event);
+  Log_event(const uchar *buf, size_t event_len);
   virtual ~Log_event() { free_temp_buf();}
   void register_temp_buf(uchar* buf, bool must_free)
   { 
@@ -2330,7 +2352,7 @@ public:
 #endif
 
   Query_log_event();
-  Query_log_event(const uchar *buf, uint event_len,
+  Query_log_event(const uchar *buf, size_t event_len,
                   const Format_description_log_event *description_event,
                   Log_event_type event_type);
   ~Query_log_event()
@@ -2404,7 +2426,7 @@ class Query_compressed_log_event:public Query_log_event{
 protected:
   Log_event::Byte* query_buf;  // point to the uncompressed query
 public:
-  Query_compressed_log_event(const uchar *buf, uint event_len,
+  Query_compressed_log_event(const uchar *buf, size_t event_len,
     const Format_description_log_event *description_event,
     Log_event_type event_type);
   ~Query_compressed_log_event()
@@ -2504,9 +2526,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Start_encryption_log_event(const uchar *buf, uint event_len,
-                             const Format_description_log_event
-                             *description_event);
+  Start_encryption_log_event(const uchar *buf, size_t event_len);
 
   bool is_valid() const override { return crypto_scheme == 1; }
 
@@ -2546,7 +2566,7 @@ protected:
 public:
   Version()
   {
-    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+    clear();
   }
   Version(uchar v0, uchar v1, uchar v2)
   {
@@ -2555,6 +2575,10 @@ public:
     m_ver[2]= v2;
   }
   Version(const char *version, const char **endptr);
+  void clear()
+  {
+    m_ver[0]= m_ver[1]= m_ver[2]= '\0';
+  }
   const uchar& operator [] (size_t i) const
   {
     DBUG_ASSERT(i < 3);
@@ -2617,13 +2641,16 @@ public:
      LOG_EVENT_HEADER_LEN), except FORMAT_DESCRIPTION_EVENT and ROTATE_EVENT
      (those have a header of size LOG_EVENT_MINIMAL_HEADER_LEN).
   */
-  uint8 common_header_len;
+  static constexpr uint8 common_header_len= LOG_EVENT_HEADER_LEN;
   uint8 number_of_event_types;
   /*
      The list of post-headers' lengths followed
-     by the checksum alg description byte
+     by the checksum alg description byte.
+
+     NOTE: This is only to be able to write this data into events for backwards
+     compatibility. This list is no longer used in new code.
   */
-  uint8 *post_header_len;
+  static uint8 byte_data_for_post_header_len[256];
   class master_version_split: public Version {
   public:
     enum {KIND_MYSQL, KIND_MARIADB};
@@ -2637,7 +2664,6 @@ public:
     }
   };
   master_version_split server_version_split;
-  const uint8 *event_type_permutation;
   uint32 options_written_to_bin_log;
   /*
     The checksum algorithm used in the binlog or relaylog following this
@@ -2646,15 +2672,10 @@ public:
   */
   enum_binlog_checksum_alg used_checksum_alg;
 
-  Format_description_log_event(uint8 binlog_ver, const char* server_ver= 0,
+  Format_description_log_event(uint8 binlog_ver, const char* server_ver=0,
       enum_binlog_checksum_alg checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF);
-  Format_description_log_event(const uchar *buf, uint event_len,
-                               const Format_description_log_event
-                               *description_event);
-  ~Format_description_log_event()
-  {
-    my_free(post_header_len);
-  }
+  Format_description_log_event(const uchar *buf, size_t event_len);
+  ~Format_description_log_event() { }
   Log_event_type get_type_code() override { return FORMAT_DESCRIPTION_EVENT;}
   my_off_t get_header_len(my_off_t) override
     { return LOG_EVENT_MINIMAL_HEADER_LEN; }
@@ -2667,14 +2688,10 @@ public:
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
-  bool header_is_valid() const
-  {
-    return common_header_len >= LOG_EVENT_MINIMAL_HEADER_LEN && post_header_len;
-  }
 
   bool is_valid() const override
   {
-    return header_is_valid() && server_version_split.version_is_valid();
+    return server_version_split.version_is_valid();
   }
 
   int get_data_size() override
@@ -2769,8 +2786,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Intvar_log_event(const uchar *buf,
-                   const Format_description_log_event *description_event);
+  Intvar_log_event(const uchar *buf, size_t event_len);
   ~Intvar_log_event() = default;
   Log_event_type get_type_code() override { return INTVAR_EVENT;}
   const char* get_var_type_name();
@@ -2852,8 +2868,7 @@ class Rand_log_event: public Log_event
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Rand_log_event(const uchar *buf,
-                 const Format_description_log_event *description_event);
+  Rand_log_event(const uchar *buf, size_t event_len);
   ~Rand_log_event() = default;
   Log_event_type get_type_code() override { return RAND_EVENT;}
   int get_data_size() override { return 16; /* sizeof(ulonglong) * 2*/ }
@@ -2881,9 +2896,8 @@ public:
   Xid_apply_log_event(THD* thd_arg):
    Log_event(thd_arg, 0, TRUE) {}
 #endif
-  Xid_apply_log_event(const uchar *buf,
-                const Format_description_log_event *description_event):
-   Log_event(buf, description_event) {}
+  Xid_apply_log_event(const uchar *buf, size_t event_len):
+    Log_event(buf, event_len) {}
 
   ~Xid_apply_log_event() = default;
   bool is_valid() const override { return 1; }
@@ -2934,8 +2948,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Xid_log_event(const uchar *buf,
-                const Format_description_log_event *description_event);
+  Xid_log_event(const uchar *buf, size_t event_len);
   ~Xid_log_event() = default;
   Log_event_type get_type_code() override { return XID_EVENT;}
   int get_data_size() override { return sizeof(xid); }
@@ -3082,8 +3095,7 @@ public:
 #else
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
-  XA_prepare_log_event(const uchar *buf,
-                       const Format_description_log_event *description_event);
+  XA_prepare_log_event(const uchar *buf, size_t event_len);
   ~XA_prepare_log_event() = default;
   Log_event_type get_type_code() override { return XA_PREPARE_LOG_EVENT; }
   bool is_valid() const override { return m_xid.formatID != -1; }
@@ -3153,8 +3165,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  User_var_log_event(const uchar *buf, uint event_len,
-                     const Format_description_log_event *description_event);
+  User_var_log_event(const uchar *buf, size_t event_len);
   ~User_var_log_event() = default;
   Log_event_type get_type_code() override { return USER_VAR_EVENT;}
 #ifdef MYSQL_SERVER
@@ -3203,9 +3214,8 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Stop_log_event(const uchar *buf,
-                 const Format_description_log_event *description_event):
-    Log_event(buf, description_event)
+  Stop_log_event(const uchar *buf, size_t event_len):
+    Log_event(buf, event_len)
   {}
   ~Stop_log_event() = default;
   Log_event_type get_type_code() override { return STOP_EVENT;}
@@ -3299,8 +3309,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Rotate_log_event(const uchar *buf, uint event_len,
-                   const Format_description_log_event* description_event);
+  Rotate_log_event(const uchar *buf, size_t event_len);
   ~Rotate_log_event()
   {
     if (flags & DUP_NAME)
@@ -3338,9 +3347,7 @@ public:
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
-  Binlog_checkpoint_log_event(const uchar *buf, uint event_len,
-                              const Format_description_log_event
-                              *description_event);
+  Binlog_checkpoint_log_event(const uchar *buf, size_t event_len);
   ~Binlog_checkpoint_log_event() { my_free(binlog_file_name); }
   Log_event_type get_type_code() override { return BINLOG_CHECKPOINT_EVENT;}
   int get_data_size() override
@@ -3556,8 +3563,7 @@ public:
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
-  Gtid_log_event(const uchar *buf, uint event_len,
-                 const Format_description_log_event *description_event);
+  Gtid_log_event(const uchar *buf, size_t event_len);
   ~Gtid_log_event() = default;
   Log_event_type get_type_code() override { return GTID_EVENT; }
   int get_data_size() override
@@ -3585,7 +3591,7 @@ public:
   static bool peek(const uchar *event_start, size_t event_len,
                    enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                   uchar *flags2, const Format_description_log_event *fdev);
+                   uchar *flags2);
 #endif
 };
 
@@ -3682,8 +3688,7 @@ public:
 #else
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info) override;
 #endif
-  Gtid_list_log_event(const uchar *buf, uint event_len,
-                      const Format_description_log_event *description_event);
+  Gtid_list_log_event(const uchar *buf, size_t event_len);
   ~Gtid_list_log_event() { my_free(list); my_free(sub_id_list); }
   Log_event_type get_type_code() override { return GTID_LIST_EVENT; }
   int get_data_size() override {
@@ -3702,9 +3707,8 @@ public:
   enum_skip_reason do_shall_skip(rpl_group_info *rgi) override;
 #endif
   static bool peek(const char *event_start, size_t event_len,
-                   enum_binlog_checksum_alg checksum_alg,
-                   rpl_gtid **out_gtid_list, uint32 *out_list_len,
-                   const Format_description_log_event *fdev);
+                   enum enum_binlog_checksum_alg checksum_alg,
+                   rpl_gtid **out_gtid_list, uint32 *out_list_len);
 };
 
 
@@ -3742,9 +3746,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info) override;
 #endif
 
-  Append_block_log_event(const uchar *buf, uint event_len,
-                         const Format_description_log_event
-                         *description_event);
+  Append_block_log_event(const uchar *buf, size_t event_len);
   ~Append_block_log_event() = default;
   Log_event_type get_type_code() override { return APPEND_BLOCK_EVENT;}
   int get_data_size() override { return  block_len + APPEND_BLOCK_HEADER_LEN ;}
@@ -3784,8 +3786,7 @@ public:
              bool enable_local);
 #endif
 
-  Delete_file_log_event(const uchar *buf, uint event_len,
-                        const Format_description_log_event* description_event);
+  Delete_file_log_event(const uchar *buf, size_t event_len);
   ~Delete_file_log_event() = default;
   Log_event_type get_type_code() override { return DELETE_FILE_EVENT;}
   int get_data_size() override { return DELETE_FILE_HEADER_LEN ;}
@@ -3823,9 +3824,7 @@ public:
   int get_create_or_append() const override;
 #endif /* HAVE_REPLICATION */
 #endif
-  Begin_load_query_log_event(const uchar *buf, uint event_len,
-                             const Format_description_log_event
-                             *description_event);
+  Begin_load_query_log_event(const uchar *buf, size_t event_len);
   ~Begin_load_query_log_event() = default;
   Log_event_type get_type_code() override { return BEGIN_LOAD_QUERY_EVENT; }
 private:
@@ -3881,7 +3880,7 @@ public:
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info,
 	     const char *local_fname);
 #endif
-  Execute_load_query_log_event(const uchar *buf, uint event_len,
+  Execute_load_query_log_event(const uchar *buf, size_t event_len,
                                const Format_description_log_event
                                *description_event);
   ~Execute_load_query_log_event() = default;
@@ -3911,14 +3910,8 @@ class Unknown_log_event: public Log_event
 {
 public:
   enum { UNKNOWN, ENCRYPTED } what;
-  /*
-    Even if this is an unknown event, we still pass description_event to
-    Log_event's ctor, this way we can extract maximum information from the
-    event's header (the unique ID for example).
-  */
-  Unknown_log_event(const uchar *buf,
-                    const Format_description_log_event *description_event):
-    Log_event(buf, description_event), what(UNKNOWN)
+  Unknown_log_event(const uchar *buf, size_t event_len):
+    Log_event(buf, event_len), what(UNKNOWN)
   {}
   /* constructor for hopelessly corrupted events */
   Unknown_log_event(): Log_event(), what(ENCRYPTED) {}
@@ -3948,8 +3941,7 @@ public:
 #ifndef MYSQL_CLIENT
   Annotate_rows_log_event(THD*, bool using_trans, bool direct);
 #endif
-  Annotate_rows_log_event(const uchar *buf, uint event_len,
-                          const Format_description_log_event*);
+  Annotate_rows_log_event(const uchar *buf, size_t event_len);
   ~Annotate_rows_log_event();
 
   int get_data_size() override;
@@ -4609,8 +4601,7 @@ public:
                       bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Table_map_log_event(const uchar *buf, uint event_len,
-                      const Format_description_log_event *description_event);
+  Table_map_log_event(const uchar *buf, size_t event_len);
 #endif
 
   ~Table_map_log_event();
@@ -4621,8 +4612,7 @@ public:
     return new table_def(m_coltype, m_colcnt, m_field_metadata,
                          m_field_metadata_size, m_null_bits, m_flags, 0, 0);
   }
-  int rewrite_db(const char* new_name, size_t new_name_len,
-                 const Format_description_log_event*);
+  int rewrite_db(const char* new_name, size_t new_name_len);
 #endif
   ulonglong get_table_id() const        { return m_table_id; }
   const char *get_table_name() const { return m_tblnam; }
@@ -4980,8 +4970,7 @@ protected:
 		 MY_BITMAP const *cols, bool is_transactional,
 		 Log_event_type event_type);
 #endif
-  Rows_log_event(const uchar *row_data, size_t event_len,
-		 const Format_description_log_event *description_event);
+  Rows_log_event(const uchar *row_data, size_t event_len);
   void uncompress_buf();
 
 #ifdef MYSQL_CLIENT
@@ -5210,8 +5199,7 @@ public:
                        bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Write_rows_log_event(const uchar *buf, size_t event_len,
-                       const Format_description_log_event *description_event);
+  Write_rows_log_event(const uchar *buf, size_t event_len);
 #endif
 #if defined(MYSQL_SERVER) 
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
@@ -5264,8 +5252,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Write_rows_compressed_log_event(const uchar *buf, size_t event_len,
-                       const Format_description_log_event *description_event);
+  Write_rows_compressed_log_event(const uchar *buf, size_t event_len);
 #endif
 private:
 #if defined(MYSQL_CLIENT)
@@ -5301,8 +5288,7 @@ public:
   ~Update_rows_log_event() override;
 
 #ifdef HAVE_REPLICATION
-  Update_rows_log_event(const uchar *buf, size_t event_len,
-			const Format_description_log_event *description_event);
+  Update_rows_log_event(const uchar *buf, size_t event_len);
 #endif
 
 #ifdef MYSQL_SERVER
@@ -5354,8 +5340,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Update_rows_compressed_log_event(const uchar *buf, size_t event_len,
-                       const Format_description_log_event *description_event);
+  Update_rows_compressed_log_event(const uchar *buf, size_t event_len);
 #endif
 private:
 #if defined(MYSQL_CLIENT)
@@ -5393,8 +5378,7 @@ public:
   Delete_rows_log_event(THD*, TABLE*, ulonglong, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Delete_rows_log_event(const uchar *buf, size_t event_len,
-			const Format_description_log_event *description_event);
+  Delete_rows_log_event(const uchar *buf, size_t event_len);
 #endif
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
@@ -5446,8 +5430,7 @@ public:
   bool write(Log_event_writer *writer) override;
 #endif
 #ifdef HAVE_REPLICATION
-  Delete_rows_compressed_log_event(const uchar *buf, size_t event_len,
-                       const Format_description_log_event *description_event);
+  Delete_rows_compressed_log_event(const uchar *buf, size_t event_len);
 #endif
 private:
 #if defined(MYSQL_CLIENT)
@@ -5539,8 +5522,7 @@ public:
   bool write_data_body(Log_event_writer *writer) override;
 #endif
 
-  Incident_log_event(const uchar *buf, uint event_len,
-                     const Format_description_log_event *descr_event);
+  Incident_log_event(const uchar *buf, size_t event_len);
 
   virtual ~Incident_log_event();
 
@@ -5602,8 +5584,8 @@ public:
   }
 #endif
 
-  Ignorable_log_event(const uchar *buf,
-                      const Format_description_log_event *descr_event,
+  Ignorable_log_event(const uchar *buf, size_t event_len,
+                      Log_event_type event_type,
                       const char *event_name);
   virtual ~Ignorable_log_event();
 
@@ -5881,9 +5863,7 @@ public:
         end_offset(end_offset), ev_buffer_base(NULL), rows_event(rows_event){};
 #endif /* MYSQL_SERVER */
 
-  Partial_rows_log_event(
-      const uchar *buf, uint event_len,
-      const Format_description_log_event *description_event);
+  Partial_rows_log_event(const uchar *buf, size_t event_len);
 
   ~Partial_rows_log_event() {}
 
@@ -5942,8 +5922,7 @@ class Heartbeat_log_event: public Log_event
 {
 public:
   uint8 hb_flags;
-  Heartbeat_log_event(const uchar *buf, uint event_len,
-                      const Format_description_log_event* description_event);
+  Heartbeat_log_event(const uchar *buf, size_t event_len);
   Log_event_type get_type_code() override { return HEARTBEAT_LOG_EVENT; }
   bool is_valid() const override
     {
@@ -6220,21 +6199,17 @@ int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len,
 int binlog_buf_uncompress(const uchar *src, uchar *dst, uint32 len,
                           uint32 *newlen);
 uint32 binlog_get_compress_len(uint32 len);
-uint32 binlog_get_uncompress_len(const uchar *buf);
+uint32 binlog_get_uncompress_len(const uchar *buf, size_t buf_len);
 
-int query_event_uncompress(const Format_description_log_event *description_event,
-                           bool contain_checksum,
+int query_event_uncompress(bool contain_checksum,
                            const uchar *src, ulong src_len, uchar *buf,
                            ulong buf_size, bool* is_malloc,
                            uchar **dst, ulong *newlen);
-int row_log_event_uncompress(const Format_description_log_event
-                             *description_event,
-                             bool contain_checksum,
+int row_log_event_uncompress(bool contain_checksum,
                              const uchar *src, ulong src_len,
                              uchar* buf, ulong buf_size, bool *is_malloc,
                              uchar **dst, ulong *newlen);
-time_t query_event_get_end_time(
-    const uchar *buf, const Format_description_log_event *description_event);
+time_t query_event_get_end_time(const uchar *buf);
 
 bool is_parallel_retry_error(rpl_group_info *rgi, int err);
 

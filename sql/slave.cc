@@ -4816,7 +4816,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       if (repl_semisync_slave.
           slave_read_sync_header((const uchar*) mysql->net.read_pos + 1,
                                  event_len,
-                                 &(mi->semi_ack), &event_buf, &event_len))
+                                 mi, &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4873,7 +4873,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (repl_semisync_slave.get_slave_enabled() &&
+      if (repl_semisync_slave.get_slave_enabled(mi) &&
           mi->semi_sync_reply_enabled &&
           (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
@@ -4917,7 +4917,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
             master info only when ack is needed. This may lead to at least one
             group transaction delay but affords better performance improvement.
           */
-          (!repl_semisync_slave.get_slave_enabled() ||
+          (!repl_semisync_slave.get_slave_enabled(mi) ||
            (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
             (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
           (DBUG_IF("failed_flush_master_info") ||
@@ -6025,17 +6025,6 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   case ROTATE_EVENT:
   {
     /*
-      This is normally done in Log_event::read_log_event(),
-      but we bypass it here because it's expensive and costs dynamic memory.
-    */
-    if (unlikely(ROTATE_EVENT >
-      mi->rli.relay_log.description_event_for_queue->number_of_event_types))
-    {
-      // The current FDE does not support `ROTATE_EVENT`.
-      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
-      goto err;
-    }
-    /*
       RSC_1 and RSC_2 below rewrite the fake Rotate (the one that opens a
       connection, naming the binary log file the dump starts in; the file
       switches later in the connection send more, but by then the first
@@ -6076,8 +6065,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     }
 
     Rotate_log_event rev(buf, event_has_checksum ?
-                         event_len - BINLOG_CHECKSUM_LEN : event_len,
-                         mi->rli.relay_log.description_event_for_queue);
+                         event_len - BINLOG_CHECKSUM_LEN : event_len);
     bool master_changed= false;
     bool maybe_crashed= false;
     // Exclude server start scenario
@@ -6306,8 +6294,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Heartbeat_log_event hb(buf,
                            mi->rli.relay_log.relay_log_checksum_alg
                            != BINLOG_CHECKSUM_ALG_OFF ?
-                           event_len - BINLOG_CHECKSUM_LEN : event_len,
-                           mi->rli.relay_log.description_event_for_queue);
+                           event_len - BINLOG_CHECKSUM_LEN : event_len);
     if (!hb.is_valid())
     {
       error= ER_SLAVE_HEARTBEAT_FAILURE;
@@ -6433,8 +6420,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
     if (Gtid_log_event::peek(buf, event_len, checksum_alg,
                              &event_gtid.domain_id, &event_gtid.server_id,
-                             &event_gtid.seq_no, &gtid_flag,
-                             rli->relay_log.description_event_for_queue))
+                             &event_gtid.seq_no, &gtid_flag))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;
@@ -6601,7 +6587,7 @@ dbug_gtid_accept:
     */
     mi->do_accept_own_server_id=
       (s_id == global_system_variables.server_id &&
-       repl_semisync_slave.get_slave_enabled() && opt_gtid_strict_mode &&
+       repl_semisync_slave.get_slave_enabled(mi) && opt_gtid_strict_mode &&
        mi->using_gtid != Master_info::USE_GTID_NO &&
         !mysql_bin_log.check_strict_gtid_sequence(event_gtid.domain_id,
                                                   event_gtid.server_id,
@@ -6616,8 +6602,7 @@ dbug_gtid_accept:
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
     if ((error=
-         query_event_uncompress(rli->relay_log.description_event_for_queue,
-                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+         query_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                 buf, event_len, new_buf_arr,
                                 sizeof(new_buf_arr),
                                 &is_malloc, &new_buf, &event_len)))
@@ -6641,8 +6626,7 @@ dbug_gtid_accept:
     inc_pos = event_len;
     {
       if ((error=
-           row_log_event_uncompress(rli->relay_log.description_event_for_queue,
-                                    checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+           row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                     buf, event_len, new_buf_arr,
                                     sizeof(new_buf_arr),
                                     &is_malloc, &new_buf, &event_len)))
@@ -6673,9 +6657,7 @@ dbug_gtid_accept:
       is_rows_event= true;
       mi->rows_event_tracker.update(mi->master_log_name,
                                     mi->master_log_pos,
-                                    buf,
-                                    mi->rli.relay_log.
-                                    description_event_for_queue);
+                                    buf);
 
       DBUG_EXECUTE_IF("simulate_stmt_end_rows_event_loss",
                       {
@@ -6952,8 +6934,7 @@ dbug_gtid_accept:
     if (LOG_EVENT_IS_QUERY((Log_event_type) buf[EVENT_TYPE_OFFSET]) ||
         LOG_EVENT_IS_LOAD_DATA((Log_event_type) buf[EVENT_TYPE_OFFSET]))
     {
-      time_t end_time= query_event_get_end_time(
-          buf, rli->relay_log.description_event_for_queue);
+      time_t end_time= query_event_get_end_time(buf);
       set_if_bigger(rli->newest_master_timestamp, end_time);
     }
     else if (((Log_event_type) buf[EVENT_TYPE_OFFSET]) == XID_EVENT)
@@ -7870,104 +7851,6 @@ end:
 
 
 /**
-   Detects, based on master's version (as found in the relay log), if master
-   has a certain bug.
-   @param rli Relay_log_info which tells the master's version
-   @param bug_id Number of the bug as found in bugs.mysql.com
-   @param report bool report error message, default TRUE
-
-   @param pred Predicate function that will be called with @c param to
-   check for the bug. If the function return @c true, the bug is present,
-   otherwise, it is not.
-
-   @param param  State passed to @c pred function.
-
-   @return TRUE if master has the bug, FALSE if it does not.
-*/
-bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
-                        bool (*pred)(const void *), const void *param,
-                        bool maria_master)
-{
-  struct st_version_range_for_one_bug {
-    uint        bug_id;
-    Version introduced_in; // first version with bug
-    Version fixed_in;      // first version with fix
-  };
-  static struct st_version_range_for_one_bug versions_for_their_bugs[]=
-  {
-    {24432, { 5, 0, 24 }, { 5, 0, 38 } },
-    {24432, { 5, 1, 12 }, { 5, 1, 17 } },
-    {33029, { 5, 0,  0 }, { 5, 0, 58 } },
-    {33029, { 5, 1,  0 }, { 5, 1, 12 } },
-    {37426, { 5, 1,  0 }, { 5, 1, 26 } },
-  };
-  static struct st_version_range_for_one_bug versions_for_our_bugs[]=
-  {
-    {29621, { 10, 3, 36 }, { 10, 3, 39 } },
-    {29621, { 10, 4, 26 }, { 10, 4, 29 } },
-    {29621, { 10, 5, 17 }, { 10, 5, 20 } },
-    {29621, { 10, 6, 9  }, { 10, 6, 13 } },
-    {29621, { 10, 7, 5  }, { 10, 7, 9 } },
-    {29621, { 10, 8, 4  }, { 10, 8, 8  } },
-    {29621, { 10, 9, 2  }, { 10, 9, 6  } },
-    {29621, { 10, 10,1  }, { 10, 10,4  } },
-    {29621, { 10, 11,1  }, { 10, 11,3  } },
-  };
-  const Version &master_ver=
-    rli->relay_log.description_event_for_sql_thread->server_version_split;
-  struct st_version_range_for_one_bug* versions_for_all_bugs= maria_master ?
-    versions_for_our_bugs : versions_for_their_bugs;
-  uint all_size= maria_master ?
-    sizeof(versions_for_our_bugs)/sizeof(*versions_for_our_bugs) :
-    sizeof(versions_for_their_bugs)/sizeof(*versions_for_their_bugs);
-
-  for (uint i= 0; i < all_size; i++)
-  {
-    const Version &introduced_in= versions_for_all_bugs[i].introduced_in;
-    const Version &fixed_in= versions_for_all_bugs[i].fixed_in;
-    if ((versions_for_all_bugs[i].bug_id == bug_id) &&
-        introduced_in <= master_ver &&
-        fixed_in > master_ver &&
-        (pred == NULL || (*pred)(param)))
-    {
-      const char *bug_source= maria_master ?
-        "https://jira.mariadb.org/browse/MDEV-" :
-        "http://bugs.mysql.com/bug.php?id=";
-      if (!report)
-	return TRUE;
-      // a short message for SHOW SLAVE STATUS (message length constraints)
-      my_printf_error(ER_UNKNOWN_ERROR, "master may suffer from"
-                      " %s%u"
-                      " so slave stops; check error log on slave"
-                      " for more info", MYF(0), bug_source, bug_id);
-      // a verbose message for the error log
-      rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, NULL,
-                  "According to the master's version ('%s'),"
-                  " it is probable that master suffers from this bug:"
-                      " %s%u"
-                      " and thus replicating the current binary log event"
-                      " may make the slave's data become different from the"
-                      " master's data."
-                      " To take no risk, slave refuses to replicate"
-                      " this event and stops."
-                      " We recommend that all updates be stopped on the"
-                      " master and slave, that the data of both be"
-                      " manually synchronized,"
-                      " that master's binary logs be deleted,"
-                      " that master be upgraded to a version at least"
-                      " equal to '%d.%d.%d'. Then replication can be"
-                      " restarted.",
-                      rli->relay_log.description_event_for_sql_thread->server_version,
-                      bug_source,
-                      bug_id,
-                      fixed_in[0], fixed_in[1], fixed_in[2]);
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-/**
    BUG#33029, For all 5.0 up to 5.0.58 exclusive, and 5.1 up to 5.1.12
    exclusive, if one statement in a SP generated AUTO_INCREMENT value
    by the top statement, all statements after it would be considered
@@ -7982,25 +7865,23 @@ bool rpl_master_erroneous_autoinc(THD *thd)
   if (thd->rgi_slave)
   {
     DBUG_EXECUTE_IF("simulate_bug33029", return TRUE;);
-    return rpl_master_has_bug(thd->rgi_slave->rli, 33029, FALSE, NULL, NULL);
+    return rpl_master_has_bug(thd->rgi_slave->rli, RPL_BUG_MYSQL_33029, FALSE,
+                              NULL, NULL);
   }
   return FALSE;
 }
 
 
-static bool get_row_event_stmt_end(const uchar *buf,
-                                   const Format_description_log_event *fdle)
+static bool get_row_event_stmt_end(const uchar *buf)
 {
-  uint8 const common_header_len= fdle->common_header_len;
-  Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
-
-  uint8 const post_header_len= fdle->post_header_len[event_type-1];
+  uint8 const common_header_len=
+    Format_description_log_event::common_header_len;
   const uchar *flag_start= buf + common_header_len;
   /*
     The term 4 below signifies that master is of 'an intermediate source', see
     Rows_log_event::Rows_log_event.
   */
-  flag_start += RW_MAPID_OFFSET + ((post_header_len == 6) ? 4 : RW_FLAGS_OFFSET);
+  flag_start += RW_MAPID_OFFSET + RW_FLAGS_OFFSET;
 
   return (uint2korr(flag_start) & Rows_log_event::STMT_END_F) != 0;
 }
@@ -8026,8 +7907,7 @@ void Rows_event_tracker::reset()
 */
 
 void Rows_event_tracker::update(const char *file_name, my_off_t pos,
-                                const uchar *buf,
-                                const Format_description_log_event *fdle)
+                                const uchar *buf)
 {
   DBUG_ENTER("Rows_event_tracker::update");
   if (!first_seen)
@@ -8037,7 +7917,7 @@ void Rows_event_tracker::update(const char *file_name, my_off_t pos,
   }
   last_seen= pos;
   DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
-  stmt_end_seen= get_row_event_stmt_end(buf, fdle);
+  stmt_end_seen= get_row_event_stmt_end(buf);
   DBUG_VOID_RETURN;
 };
 

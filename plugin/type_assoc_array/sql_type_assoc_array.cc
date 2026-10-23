@@ -2029,14 +2029,38 @@ void Item_splocal_assoc_array_element::print(String *str, enum_query_type type)
 }
 
 
+/*
+  Resolve the key of an expression like arr(key_expr) or arr(key_expr).field
+  to the string used as the key in the array variable. It is shared by
+  set_value() of the classes for these expressions, which are used as OUT
+  or INOUT arguments of routines.
+*/
+bool Item_splocal_assoc_array_base::evaluate_key(THD *thd,
+                                                 const sp_rcontext_addr
+                                                       &array_addr,
+                                                 String *buffer,
+                                                 LEX_CSTRING *key)
+{
+  *key= Type_handler_assoc_array::singleton()->
+          key_to_lex_cstring(thd, array_addr, &m_key, buffer);
+  return key->str == nullptr;
+}
+
+
+/*
+  Store a value into an associative array element.
+  Used when such an expression is an OUT or INOUT argument, e.g.
+    CALL p1(arr(1));
+  where p1 has a scalar OUT parameter. The element is created if it does
+  not exist yet.
+*/
 bool Item_splocal_assoc_array_element::set_value(THD *thd,
                                                  sp_rcontext *ctx,
                                                  Item **it)
 {
   StringBufferKey buffer;
-  const LEX_CSTRING key= Type_handler_assoc_array::singleton()->
-        key_to_lex_cstring(thd, rcontext_addr(), &m_key, &buffer);
-  if (!key.str)
+  LEX_CSTRING key;
+  if (evaluate_key(thd, rcontext_addr(), &buffer, &key))
     return true;
 
   return get_rcontext(ctx)->set_variable_composite_by_name(thd, m_var_idx, key,
@@ -2058,6 +2082,31 @@ Item_splocal_assoc_array_element_field(THD *thd,
   Item_splocal_assoc_array_base(key),
   m_element_item(NULL)
 {
+}
+
+
+/*
+  Store a value into a field of an associative array element.
+  Used when such an expression is an OUT or INOUT argument, e.g.
+    CALL p1(arr(1).field);
+  where p1 has a scalar OUT parameter, and arr is an associative array
+  of a RECORD.
+  The element is found by the key, and the field in it by the field name.
+  Unlike Item_splocal_assoc_array_element::set_value(), this method does
+  not create the element: it must exist, otherwise an error is raised.
+*/
+bool Item_splocal_assoc_array_element_field::set_value(THD *thd,
+                                                       sp_rcontext *ctx,
+                                                       Item **it)
+{
+  DBUG_ASSERT(fixed());
+  StringBufferKey buffer;
+  LEX_CSTRING key;
+  if (evaluate_key(thd, rcontext_addr(), &buffer, &key))
+    return true;
+  return get_rcontext(ctx)->
+           set_variable_composite_field_by_key(thd, m_var_idx, key,
+                                               m_field_name, it);
 }
 
 
@@ -2475,21 +2524,18 @@ bool Type_handler_assoc_array::
            (value_def->get_attr_const_generic_ptr(0)))
     {
       /*
-        Hack to ensure that we don't call sp_head::row_fill_field_definitions()
-        for the same row definition twice.
-
-        Check the pack_flag of the first field in the row definition.
-        FIELDFLAG_MAYBE_NULL will be set if the row_fill_field_definitions()
-        has been called.
+        sprec->field is the un-prepared definition of the RECORD, which
+        is shared by all variables of the RECORD type and by all associative
+        arrays of it. Do not prepare it: prepare its copy (like
+        Type_handler_row::sp_variable_declarations_finalize() does for
+        a variable of the RECORD type). Preparing the same definition twice
+        is wrong: e.g. a MEDIUMTEXT member would become TINYTEXT.
       */
-      List_iterator<Spvar_definition> it(*sprec->field);
-      auto first= sprec->field->head();
-
-      if (first && !(first->pack_flag & FIELDFLAG_MAYBE_NULL) &&
-          lex->sphead->row_fill_field_definitions(thd, sprec->field))
+      Row_definition_list *row= sprec->field->deep_copy(thd);
+      if (!row || lex->sphead->row_fill_field_definitions(thd, row))
         return true;
 
-      value_def->set_row_field_definitions(&type_handler_row, sprec->field);
+      value_def->set_row_field_definitions(&type_handler_row, row);
     }
   }
 

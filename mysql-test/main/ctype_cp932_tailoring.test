@@ -1,0 +1,128 @@
+--source include/have_cp932.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^cp932';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''cp932_japanese_ci''),(''cp932_japanese_nopad_ci''),'
+ '(''cp932_bin''),(''cp932_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo #
+--echo # DATE_FORMAT() result repertoire depends on the locale
+--echo # which is actually used: the explicit third argument, or
+--echo # @@lc_time_names. Locale names (e.g. of days) can be non-ASCII.
+--echo # cp932_japanese_ci and latin1_swedish_ci are compatible on ASCII, so
+--echo # no error is expected, whatever the repertoire of the result is.
+--echo #
+SET NAMES cp932;
+#
+# Why this query does not fail with an error:
+#   DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a'
+# (see DTCollation::aggregate() and aggregate_by_tailoring() in sql/item.cc):
+#
+# - Both sides are COERCIBLE, the character sets are different (cp932 and
+#   latin1), and none of them is a Unicode superset of the other.
+# - The names of days in en_US are ASCII, so the repertoire of the left side
+#   is ASCII only (the format string contains '%'). The right side is
+#   ASCII only too (_latin1'a'). So the rule "Allow convert from ASCII" in
+#   left_is_superset() does not choose a winner: neither side is a superset.
+# - The next step is the tailoring optimization. Both collations
+#   are PAD, and none of them is a UCA collation. Their tailorings on
+#   the cumulative ASCII repertoire are equal (ascii7_caseup_ci), as both
+#   collations convert lower case letters to upper case ones and sort
+#   all other ASCII characters in the code point order.
+#   So the collations are compatible on the ASCII repertoire.
+# - Any of the two collations can be used for comparison.
+#   The algorithmically simpler one wins: latin1_swedish_ci has
+#   mbmaxlen 1, and cp932_japanese_ci has mbmaxlen 2. So the right side
+#   wins and the left side is converted to latin1. It is safe, as
+#   the left side is ASCII only.
+#
+# With a collation which is not compatible with cp932_japanese_ci on
+# the ASCII repertoire, e.g. latin5_turkish_ci (it reorders ASCII letters),
+# the same query fails with ER_CANT_AGGREGATE_2COLLATIONS. In
+# ctype_big5_tailoring.test the partner is latin1, because big5_chinese_ci
+# has no tailoring on the ASCII repertoire, so the query fails there.
+#
+--echo # en_US names are ASCII
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+#
+# Why the collation of the left side (cp932_japanese_ci) wins in
+#   DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin1'a'
+# (see DTCollation::aggregate() and left_is_superset() in sql/item.cc):
+#
+# - Both sides have the same derivation: COERCIBLE (a function result
+#   with a literal format, and a string literal), so the derivation
+#   cannot decide.
+# - The character sets are different (cp932 and latin1), and none of them
+#   is a Unicode superset of the other.
+# - The right side is _latin1'a'. Its repertoire is ASCII only, so it can be
+#   converted to any ASCII compatible character set without data loss,
+#   including cp932.
+# - The left side is DATE_FORMAT() with the locale ru_RU. The names of days
+#   in ru_RU are not ASCII, therefore the repertoire of the result
+#   includes MY_REPERTOIRE_EXTENDED. So it cannot be converted to latin1.
+# - Therefore the rule "Allow convert from ASCII" in left_is_superset() says
+#   that the left side is a superset of the right side: the right side is
+#   ASCII only, and the left side is not. The left side wins and the right
+#   side is converted to cp932. The tailoring optimization is not even tried.
+#
+# If the repertoire of the left side was ASCII only (e.g. with the locale
+# en_US), then neither side would be a superset of the other one, and the
+# result would depend on the tailoring of the two collations. The result
+# of this query would be the same: cp932_japanese_ci and latin1_swedish_ci
+# have equal tailorings on the ASCII repertoire.
+#
+--echo # An explicit non-ASCII locale is not ignored.
+--echo # This query does not fail with an error: the DATE_FORMAT() result is
+--echo # non-ASCII, so the collation of the result is used for comparison.
+--echo # Note, it would not fail even if the result was ASCII, as
+--echo # cp932_japanese_ci and latin1_swedish_ci are compatible on ASCII.
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin1'a';
+--echo # A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin1'a';
+--echo # The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin1'a';
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin1'a';
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+
+--echo #
+--echo # DATE_FORMAT() with cp932 and latin5. cp932_japanese_ci and
+--echo # latin5_turkish_ci are not compatible on ASCII (latin5_turkish_ci
+--echo # reorders ASCII letters), so unlike the latin1 queries above,
+--echo # the repertoire of the DATE_FORMAT() result decides the outcome.
+--echo #
+SET NAMES cp932;
+--echo # en_US names are ASCII: no side is a superset, and the tailorings
+--echo # are not equal, so the query fails
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+--echo # ru_RU names are not ASCII: the right side is ASCII only, so it
+--echo # is converted to cp932, and the left side collation wins
+SELECT DATE_FORMAT('2024-01-02','%W','ru_RU') = _latin5'a';
+--echo # A non-constant locale is not known at the fixing time
+SET @loc='en_US';
+SELECT DATE_FORMAT('2024-01-02','%W',@loc) = _latin5'a';
+--echo # The session locale is not used when the locale is passed explicitly
+SET lc_time_names=ru_RU;
+SELECT DATE_FORMAT('2024-01-02','%W') = _latin5'a';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT DATE_FORMAT('2024-01-02','%W','en_US') = _latin5'a';
+SET lc_time_names=DEFAULT;
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests
