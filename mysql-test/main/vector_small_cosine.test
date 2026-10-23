@@ -1,0 +1,6 @@
+--echo #
+--echo # MDEV-41639 VEC_DISTANCE_COSINE returns 0 for small-magnitude vectors
+--echo #
+SELECT ROUND(VEC_DISTANCE_COSINE(VEC_FromText('[1e-23,0]'), VEC_FromText('[0,1e-23]')), 6) AS orth;
+SELECT ROUND(VEC_DISTANCE_COSINE(VEC_FromText('[1e-23,0]'), VEC_FromText('[-1e-23,0]')), 6) AS opp;
+SELECT ROUND(VEC_DISTANCE_COSINE(VEC_FromText('[1e-30,1e-30]'), VEC_FromText('[1e-30,1e-30]')), 6) AS same;
