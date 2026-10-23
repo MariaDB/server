@@ -1,0 +1,45 @@
+--disable_query_log
+CREATE DATABASE IF NOT EXISTS duckdb_foreign_key_test;
+USE duckdb_foreign_key_test;
+
+DROP TABLE IF EXISTS c_parent;
+DROP TABLE IF EXISTS c_child;
+--enable_query_log
+
+CREATE TABLE c_parent(id INT PRIMARY KEY) ENGINE=DuckDB;
+CREATE TABLE c_child(id INT PRIMARY KEY, parent_id INT,
+  FOREIGN KEY (parent_id) REFERENCES c_parent(id)) ENGINE=DuckDB;
+SHOW WARNINGS;
+SHOW CREATE TABLE c_child;
+INSERT INTO c_child VALUES (1, 999);
+DROP TABLE c_child;
+
+CREATE TABLE c_child(id INT PRIMARY KEY, parent_id INT,
+  CONSTRAINT fk_name FOREIGN KEY (parent_id) REFERENCES c_parent(id)) ENGINE=DuckDB;
+SHOW WARNINGS;
+SHOW CREATE TABLE c_child;
+INSERT INTO c_child VALUES (1, 999);
+DROP TABLE c_child;
+
+CREATE TABLE c_child(id INT PRIMARY KEY, parent_id INT) ENGINE=DuckDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE c_child ADD CONSTRAINT fk_name FOREIGN KEY (id)
+REFERENCES c_parent(id);
+
+DROP TABLE c_parent;
+DROP TABLE c_child;
+
+CREATE TABLE c_parent(id INT PRIMARY KEY) ENGINE=DuckDB;
+CREATE TABLE c_child(id INT PRIMARY KEY, parent_id INT,
+  FOREIGN KEY (parent_id) REFERENCES c_parent) ENGINE=DuckDB;
+
+DROP TABLE c_parent;
+DROP TABLE c_child;
+
+CREATE TABLE c_parent(id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE c_child(id INT PRIMARY KEY, parent_id INT,
+  FOREIGN KEY (parent_id) REFERENCES c_parent(id)) ENGINE=DuckDB;
+
+DROP TABLE c_parent;
+DROP TABLE c_child;
+DROP DATABASE duckdb_foreign_key_test;
