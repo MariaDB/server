@@ -17,6 +17,8 @@
 --source have_federatedx.inc
 --source include/federated.inc
 --source include/no_valgrind_without_big.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
 
 connection default;
 ALTER DATABASE federated CHARACTER SET latin1;
@@ -776,6 +778,205 @@ DROP VIEW v4, v3, v2, v1;
 
 connection master;
 set global federated_pushdown=0;
+
+--echo #
+--echo # MDEV-41293: FederatedX: connection state after a net_read_timeout
+--echo #
+--echo # Separate database on both servers, so that a new connection is opened
+connection master;
+CREATE DATABASE federated_nrt;
+connection slave;
+CREATE DATABASE federated_nrt;
+create table federated_nrt.s1 (a int);
+
+connection master;
+DROP TABLE IF EXISTS federated_nrt.s1;
+--echo # Short read timeout for the new connection to the remote server
+let $old_net_read_timeout= `SELECT @@global.net_read_timeout`;
+set global net_read_timeout=2;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated_nrt.s1 (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated_nrt/s1';
+
+--echo # Fill the table
+insert into federated_nrt.s1 select seq from seq_1_to_100;
+
+--echo # Log the statements received by the remote server
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+--echo # Pushed down multi-table UPDATE
+let $nrt_stmt= UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+let $nrt_pattern= 'update %';
+let $nrt_after= UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a < 2 AND OUTR2.a < 2;
+connection master;
+set @old_federated_pushdown= @@global.federated_pushdown;
+--source federatedx_nrt_timeout.inc
+
+--echo # Pushed down multi-table DELETE
+let $nrt_stmt= DELETE t FROM federated_nrt.s1 AS t JOIN federated_nrt.s1 AS OUTR2 where t.a > 0;
+let $nrt_pattern= 'delete %';
+let $nrt_after= DELETE t FROM federated_nrt.s1 AS t JOIN federated_nrt.s1 AS OUTR2 where t.a = 100 AND OUTR2.a = 100;
+--source federatedx_nrt_timeout.inc
+
+--echo # The remote connection is killed while a transaction is open
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+connection master;
+set global federated_pushdown=ON;
+SET autocommit=0;
+INSERT INTO federated_nrt.s1 VALUES (-1);
+connection slave;
+LOCK TABLES federated_nrt.s1 WRITE;
+connection master;
+send UPDATE federated_nrt.s1 JOIN federated_nrt.s1 AS OUTR2 SET OUTR2.a = 1 where s1.a > 0;
+let $nrt_pattern= 'update %';
+let $nrt_wait_start= 1;
+--source federatedx_nrt_kill.inc
+UNLOCK TABLES;
+connection master;
+--disable_abort_on_error
+reap;
+--enable_abort_on_error
+SELECT @@in_transaction;
+INSERT INTO federated_nrt.s1 VALUES (0);
+ROLLBACK;
+SET autocommit=1;
+set global federated_pushdown= @old_federated_pushdown;
+connection slave;
+SELECT argument FROM mysql.general_log
+WHERE argument IN ('SET AUTOCOMMIT=0', 'ROLLBACK') OR argument LIKE 'INSERT %'
+ORDER BY event_time;
+DELETE FROM federated_nrt.s1 WHERE a=0;
+
+--echo # The timeout while the rows of a result are read (store_result())
+--echo # The remote server flushes the first rows and then stalls in a row,
+--echo # so that the result is not complete when the query returns
+connection slave;
+create table federated_nrt.t_slow (a int);
+insert into federated_nrt.t_slow select seq from seq_1_to_100;
+create view federated_nrt.v_slow as
+select a, repeat('x', 1000) as c, sleep(if(a=100, 5, 0)) as s
+from federated_nrt.t_slow;
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE federated_nrt.f_slow (a int, c varchar(1000), s int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated_nrt/v_slow';
+--error ER_NET_READ_INTERRUPTED
+select * from federated_nrt.f_slow;
+--echo # Kill the abandoned SELECT on the remote server
+let $nrt_pattern= CONCAT('SELECT ', CHAR(96), '%');
+--source federatedx_nrt_kill.inc
+connection master;
+--echo # The connection is usable after it
+select * from federated_nrt.s1 where a=0;
+DROP TABLE federated_nrt.f_slow;
+connection slave;
+DROP VIEW federated_nrt.v_slow;
+DROP TABLE federated_nrt.t_slow;
+
+--echo # The timeout of the query that sets the time zone of a new connection
+--echo # The remote server runs init_connect after it accepted the connection,
+--echo # for the users that do not have the SUPER privilege
+connection slave;
+CREATE USER nrt_u@127.0.0.1;
+GRANT SELECT ON federated_nrt.* TO nrt_u@127.0.0.1;
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE federated_nrt.f_init (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://nrt_u@127.0.0.1:$SLAVE_MYPORT/federated_nrt/s1';
+connection slave;
+set @old_init_connect= @@global.init_connect;
+set global init_connect= 'do sleep(5)';
+connection master;
+--error ER_NET_READ_INTERRUPTED
+select * from federated_nrt.f_init;
+connection slave;
+set global init_connect= @old_init_connect;
+--echo # Wait for the abandoned connection to go
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE user = 'nrt_u';
+--source include/wait_condition.inc
+connection master;
+--echo # A new connection works once the remote server accepts it quietly
+select count(*) > 0 from federated_nrt.f_init;
+DROP TABLE federated_nrt.f_init;
+connection slave;
+--disable_warnings
+DROP USER nrt_u@127.0.0.1;
+--enable_warnings
+
+--echo # Errors of the client library in ha_federatedx::info()
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE SERVER srv_nrt FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST '127.0.0.1', DATABASE 'federated_nrt', USER 'root', PORT $SLAVE_MYPORT);
+CREATE TABLE federated_nrt.f_gone (a int)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1 CONNECTION='srv_nrt/s1';
+ALTER SERVER srv_nrt OPTIONS (PORT 1);
+FLUSH TABLES;
+--replace_regex /Data source error: .*/Data source error: .../
+--error ER_QUERY_ON_FOREIGN_DATA_SOURCE
+select * from federated_nrt.f_gone;
+DROP SERVER srv_nrt;
+DROP TABLE federated_nrt.f_gone;
+
+--echo # An error packet of the remote server with the code of
+--echo # ER_NET_READ_INTERRUPTED is not a net_read_timeout: the connection and
+--echo # the transaction on the remote server must stay
+connection slave;
+CREATE DATABASE f2db;
+CREATE TABLE f2db.s1 (a INT) ENGINE=InnoDB;
+--echo # The remote server rejects a=2 with an error packet whose code is 1159
+delimiter |;
+CREATE TRIGGER f2db.tr BEFORE INSERT ON f2db.s1 FOR EACH ROW
+BEGIN
+  IF NEW.a = 2 THEN
+    SIGNAL SQLSTATE 'HY000' SET MYSQL_ERRNO = 1159,
+      MESSAGE_TEXT = 'error raised by remote trigger';
+  END IF;
+END|
+delimiter ;|
+
+connection master;
+CREATE DATABASE f2db;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE f2db.s1 (a INT)
+ENGINE=FEDERATED CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/f2db/s1';
+
+BEGIN;
+INSERT INTO f2db.s1 VALUES (1);
+--error ER_GET_ERRMSG
+INSERT INTO f2db.s1 VALUES (2);
+SHOW WARNINGS;
+SELECT @@in_transaction;
+INSERT INTO f2db.s1 VALUES (3);
+COMMIT;
+
+connection slave;
+--echo # Rows on the remote server
+SELECT a FROM f2db.s1 ORDER BY a;
+
+connection master;
+DROP DATABASE f2db;
+connection slave;
+DROP DATABASE f2db;
+
+--echo # Cleanup
+connection master;
+--disable_query_log
+eval set global net_read_timeout= $old_net_read_timeout;
+--enable_query_log
+connection slave;
+DROP DATABASE federated_nrt;
+connection master;
+DROP DATABASE federated_nrt;
 
 DROP PROCEDURE fill_tables;
 DROP TABLE federated.t1, federated.t2, federated.t3;

@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "m_string.h"
 #include "mysqld_error.h"
 #include "sql_servers.h"
+#include <errmsg.h>
 
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
@@ -64,8 +65,10 @@ class federatedx_io_mysql :public federatedx_io
   bool requested_autocommit;
   bool actual_autocommit;
 
-  int actual_query(const char *buffer, size_t length);
+  int actual_query(const char *buffer, size_t length,
+                   bool ending_transaction= false);
   bool test_all_restrict() const;
+  void connection_lost(bool ending_transaction);
 public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql() override;
@@ -170,7 +173,7 @@ int federatedx_io_mysql::commit()
   int error= 0;
   DBUG_ENTER("federatedx_io_mysql::commit");
   
-  if (!actual_autocommit && (error= actual_query("COMMIT", 6)))
+  if (!actual_autocommit && (error= actual_query("COMMIT", 6, true)))
     rollback();
   
   reset();
@@ -184,7 +187,7 @@ int federatedx_io_mysql::rollback()
   DBUG_ENTER("federatedx_io_mysql::rollback");
   
   if (!actual_autocommit)
-    error= actual_query("ROLLBACK", 8);
+    error= actual_query("ROLLBACK", 8, true);
   else
     error= ER_WARNING_NOT_COMPLETE_ROLLBACK;
 
@@ -418,7 +421,64 @@ int federatedx_io_mysql::query(const char *buffer, size_t length)
 }
 
 
-int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
+/*
+  Called after a failed query or a failed read of its result. If the
+  connection is gone, forget the state of its session. The next query opens
+  a new session in autocommit mode, so query() has to send SET AUTOCOMMIT=0
+  to it again, or the rest of the transaction would be committed on the
+  remote server statement by statement.
+
+  The client library compiled into the server returns from a timeout of
+  reading the remote reply (net_read_timeout) without closing the connection,
+  so the reply to the query is still to arrive. Close it, so that the next
+  query does not read a stale reply. mysql_close() rather than end_server()
+  is needed, because the next query initializes the MYSQL structure from
+  scratch (see actual_query()), which would lose everything the closed
+  connection has allocated. The timeout is already reported to the user by
+  the network layer (ER_NET_READ_INTERRUPTED); CR_SERVER_LOST is only what
+  the error of this io object says.
+
+  @param ending_transaction  the failed query is the COMMIT or ROLLBACK of the
+                             transaction. Its error is returned to the
+                             caller, so the transaction is not marked for
+                             rollback here.
+*/
+
+void federatedx_io_mysql::connection_lost(bool ending_transaction)
+{
+  void *thd= mysql.net.thd;
+  const bool in_transaction= !actual_autocommit;
+
+  /* net.error == 2: reading failed; an error packet of the server with the
+     same code (via SIGNAL) leaves it alone */
+  const bool timeout= mysql.net.vio && mysql.net.error == 2 &&
+                      mysql.net.last_errno == ER_NET_READ_INTERRUPTED;
+  if (mysql.net.vio && !timeout)
+    return;
+
+  /* The library closed the connection by end_server(), which the next
+     mysql_init() of the structure would leak. Keep its error. */
+  uint last_errno= timeout ? CR_SERVER_LOST : mysql.net.last_errno;
+  char sqlstate[SQLSTATE_LENGTH + 1];
+  char last_error[MYSQL_ERRMSG_SIZE];
+  strmake_buf(sqlstate, timeout ? "HY000" : mysql.net.sqlstate);
+  strmake_buf(last_error, timeout ? "Lost connection to server during query"
+                                  : mysql.net.last_error);
+  mysql_close(&mysql);
+  /* set_mysql_error() is not exported to plugins on Windows */
+  mysql.net.last_errno= last_errno;
+  strmov(mysql.net.sqlstate, sqlstate);
+  strmov(mysql.net.last_error, last_error);
+
+  reset();
+  actual_autocommit= TRUE;
+  if (in_transaction && !ending_transaction && thd)
+    static_cast<THD *>(thd)->mark_transaction_to_rollback(true);
+}
+
+
+int federatedx_io_mysql::actual_query(const char *buffer, size_t length,
+                                      bool ending_transaction)
 {
   int error;
   DBUG_ENTER("federatedx_io_mysql::actual_query");
@@ -447,13 +507,19 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 
     if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
+    {
+      connection_lost(false);
       DBUG_RETURN(error);
+    }
 
     mysql.reconnect= 1;
   }
 
   error= mysql_real_query(&mysql, buffer, (ulong)length);
-  
+
+  if (error)
+    connection_lost(ending_transaction);
+
   DBUG_RETURN(error);
 }
 
@@ -517,7 +583,8 @@ FEDERATEDX_IO_RESULT *federatedx_io_mysql::store_result()
   FEDERATEDX_IO_RESULT *result;
   DBUG_ENTER("federatedx_io_mysql::store_result");
 
-  result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql);
+  if (!(result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql)))
+    connection_lost(false);
 
   DBUG_RETURN(result);
 }
