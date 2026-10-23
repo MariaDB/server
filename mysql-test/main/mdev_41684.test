@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-41684: Embedded: prepared TIME parameter reports column length 16 instead of 23
+--echo #
+
+--enable_metadata
+PREPARE stmt FROM 'SELECT ?';
+SET @a = '-838:59:59.000000';
+EXECUTE stmt USING @a;
+DEALLOCATE PREPARE stmt;
+--disable_metadata

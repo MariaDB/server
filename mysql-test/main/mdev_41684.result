@@ -1,0 +1,11 @@
+#
+# MDEV-41684: Embedded: prepared TIME parameter reports column length 16 instead of 23
+#
+PREPARE stmt FROM 'SELECT ?';
+SET @a = '-838:59:59.000000';
+EXECUTE stmt USING @a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	251	17	17	N	1	39	8
+?
+-838:59:59.000000
+DEALLOCATE PREPARE stmt;

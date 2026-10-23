@@ -777,7 +777,7 @@ void Item_param::set_param_time(uchar **pos, ulong len)
     tm.minute= 59;
     tm.second= 59;
   }
-  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_WIDTH);
+  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_FULL_WIDTH);
 }
 
 void Item_param::set_param_datetime(uchar **pos, ulong len)
