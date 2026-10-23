@@ -2724,5 +2724,17 @@ SELECT CONV(18446744073709551615, 10, 62);
 SELECT CONV(-9223372036854775808, -10, -62);
 
 --echo #
+--echo # MDEV-41640: UNION converts NULL returned by AES_ENCRYPT with an invalid mode to an empty string in non-strict SQL mode
+--echo #
+
+SET @orig_sql_mode = @@SQL_MODE;
+SET sql_mode = '';
+SELECT DISTINCT AES_ENCRYPT('x', 'k', '', 'hkdf') AS col1;
+SELECT AES_ENCRYPT('x', 'k', '', 'hkdf') AS col1
+UNION
+SELECT AES_ENCRYPT('x', 'k', '', 'hkdf') AS col1;
+SET sql_mode = @orig_sql_mode;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
