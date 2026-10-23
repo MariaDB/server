@@ -3901,6 +3901,7 @@ void st_select_lex::print_limit(THD *thd,
 {
   SELECT_LEX_UNIT *unit= master_unit();
   Item_subselect *item= unit->item;
+  bool skip_limit= false;
 
   if (item && unit->global_parameters() == this)
   {
@@ -3908,10 +3909,10 @@ void st_select_lex::print_limit(THD *thd,
     if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
-      return;
+      skip_limit= true;
     }
   }
-  if (limit_params.explicit_limit &&
+  if (!skip_limit && limit_params.explicit_limit &&
       limit_params.select_limit)
   {
     /*
@@ -3943,6 +3944,13 @@ void st_select_lex::print_limit(THD *thd,
       }
       limit_params.select_limit->print(str, query_type);
     }
+  }
+  else if (limit_params.explicit_limit && limit_params.offset_limit)
+  {
+    // OFFSET is allowed without LIMIT, including in IN/ALL subqueries.
+    str->append(STRING_WITH_LEN(" offset "));
+    limit_params.offset_limit->print(str, query_type);
+    str->append(STRING_WITH_LEN(" rows"));
   }
 }
 
