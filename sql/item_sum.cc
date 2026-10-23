@@ -4745,7 +4745,7 @@ String *Item_func_collect::val_str(String *str)
 {
   Geometry_buffer buffer;
   int type= Geometry::wkbType::wkb_last;
-  const int initial_type= Geometry::wkbType::wkb_last;
+  bool is_first= true;
   Geometry *geometry;
   String content;
 
@@ -4781,9 +4781,10 @@ String *Item_func_collect::val_str(String *str)
       return NULL;
     }
 
-    if (type == initial_type)
+    if (is_first)
     {
       type= geometry->get_class_info()->m_type_id;
+      is_first= false;
       content.append(temp_geometry->ptr() + SRID_SIZE,
                      temp_geometry->length() - SRID_SIZE);
       continue;
