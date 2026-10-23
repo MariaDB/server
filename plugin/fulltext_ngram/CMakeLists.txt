@@ -13,4 +13,4 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
-MYSQL_ADD_PLUGIN(fulltext_ngram plugin_ngram.cc MODULE_ONLY)
+MYSQL_ADD_PLUGIN(fulltext_ngram plugin_ngram.cc DEFAULT)

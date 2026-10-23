@@ -6,6 +6,7 @@ innodb,^
 binlog_in_engine,^
 versioning,^
 plugins,^
+ngram,^
 mariabackup,^
 roles,^
 auth_gssapi,^

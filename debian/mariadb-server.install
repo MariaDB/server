@@ -29,7 +29,6 @@ usr/lib/mysql/plugin/auth_pam_v1.so
 usr/lib/mysql/plugin/auth_parsec.so
 usr/lib/mysql/plugin/disks.so
 usr/lib/mysql/plugin/file_key_management.so
-usr/lib/mysql/plugin/fulltext_ngram.so
 usr/lib/mysql/plugin/ha_archive.so
 usr/lib/mysql/plugin/ha_blackhole.so
 usr/lib/mysql/plugin/ha_federated.so

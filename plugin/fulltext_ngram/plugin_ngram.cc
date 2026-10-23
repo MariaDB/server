@@ -236,7 +236,7 @@ static struct st_mysql_sys_var *ngram_system_variables[]=
   NULL
 };
 
-maria_declare_plugin(ngram_parser)
+maria_declare_plugin(fulltext_ngram)
 {
   MYSQL_FTPARSER_PLUGIN,        // Type.
   &ngram_parser_descriptor,     // Descriptor.
@@ -250,6 +250,6 @@ maria_declare_plugin(ngram_parser)
   NULL,                         // Status variables.
   ngram_system_variables,       // System variables.
   "1.0",                        // String version representation.
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL, // Maturity.
+  MariaDB_PLUGIN_MATURITY_BETA,  // Maturity.
 }
 maria_declare_plugin_end;
