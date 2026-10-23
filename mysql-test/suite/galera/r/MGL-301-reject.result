@@ -1,0 +1,42 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: certification interval");
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE PROCEDURE fill(n INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < n DO
+INSERT INTO t2 (v) VALUES (i);
+SET i = i + 1;
+END WHILE;
+END|
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1000000';
+SET GLOBAL wsrep_provider_options='dbug=d,apply_monitor_slave_enter_sync';
+connection node_1;
+CALL fill(70000);
+connection node_2;
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
+INSERT INTO t1 VALUES (1, 0);
+ERROR HY000: Could not replicate writeset (provider status: Not synced with a Primary Component)
+connection node_1;
+connection node_2;
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+VARIABLE_VALUE = 'ON'
+1
+SET GLOBAL wsrep_slave_threads = 16;
+SET GLOBAL wsrep_provider_options='dbug=';
+SET GLOBAL wsrep_provider_options='signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
+SET GLOBAL wsrep_slave_threads = 1;
+INSERT INTO t1 VALUES (1, 0);
+connection node_1;
+DROP PROCEDURE fill;
+DROP TABLE t1, t2;
