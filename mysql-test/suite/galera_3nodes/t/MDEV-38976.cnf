@@ -1,0 +1,4 @@
+# Dedicated cluster: the test kills nodes 1 and 2 and leaves node 3 with a
+# stale primary component.
+
+!include ../galera_3nodes.cnf
