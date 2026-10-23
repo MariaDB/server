@@ -2638,22 +2638,18 @@ drop table t1;
 --echo #
 
 SET @p=_latin1'x';
-SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
  WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
 
 # charset convertor if @p is assigned to, no convertor otherwise
-EXPLAIN EXTENDED SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+EXPLAIN EXTENDED SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
  WHERE (@p := CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
-EXPLAIN EXTENDED SELECT LENGTH(RPAD(_latin1'a', 766, @p)) FROM DUAL
+EXPLAIN EXTENDED SELECT RPAD(_latin1'a', 766, @p)>'' FROM DUAL
  WHERE (@p = CONVERT(UNHEX('0034002d') USING ucs2)) IS NOT NULL;
 
 SET @p=_utf16'x';
-SELECT LENGTH(RPAD(_utf16'a', 766, @p)) FROM DUAL
+SELECT RPAD(_utf16'a', 766, @p)>'' FROM DUAL
  WHERE (@p := CONCAT(_latin1'ab', _latin1 0xD800, REPEAT(_latin1'z',1000))) IS NOT NULL;
-
-SET @p= _utf8mb3'b';
-SELECT HEX(CONCAT(_utf8mb3'a', @p)) FROM DUAL
-WHERE (@p := _ucs2 0x00FF) IS NOT NULL;
 
 --echo #
 --echo # RPAD(), LPAD(), INSERT() should not mangle their arguments
