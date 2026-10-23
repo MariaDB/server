@@ -777,8 +777,6 @@ typedef struct st_join_table {
     @see JOIN::make_aggr_tables_info()
   */
   List<Item> *fields;
-  /** List of all expressions in the select list */
-  List<Item> *all_fields;
   /*
     Pointer to the ref array slice which to switch to before sending
     records. Valid only for tmp tables.
