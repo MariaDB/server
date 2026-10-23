@@ -24,7 +24,9 @@ CREATE TABLE diaries (
 
 INSERT INTO diaries VALUES (1, 'Hello Mroonga world');
 
+--error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL mroonga_database_path_prefix = REPEAT('A', 4096);
+SET GLOBAL mroonga_database_path_prefix = REPEAT('A', 4095);
 CHECK TABLE diaries;
 SET GLOBAL mroonga_database_path_prefix = NULL;
 
