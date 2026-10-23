@@ -1866,10 +1866,10 @@ SET @decimal= 1.1;
 CREATE TABLE t1 SELECT @decimal AS c1;
 DESC t1;
 Field	Type	Null	Key	Default	Extra
-c1	decimal(65,38)	YES		NULL	
+c1	decimal(65,1)	YES		NULL	
 SELECT * FROM t1;
 c1
-1.10000000000000000000000000000000000000
+1.1
 DROP TABLE t1;
 #
 # Bug #45261 : Crash, stored procedure + decimal
