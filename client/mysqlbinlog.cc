@@ -1320,7 +1320,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 
       size_t len_to= 0;
       const char* db_to= binlog_filter->get_rewrite_db(map->get_db_name(), &len_to);
-      if (len_to && map->rewrite_db(db_to, len_to, glob_description_event))
+      if (len_to && map->rewrite_db(db_to, len_to))
       {
         error("Could not rewrite database name");
         goto err;
@@ -2403,6 +2403,53 @@ static Exit_status safe_connect()
   }
   mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
   return OK_CONTINUE;
+}
+
+
+/**
+  Copied from sql-common/pack.c, since it is needed for reading Log_event
+  objects in sql/log_event.cc, but this function is not available in
+  libmariadbclient.
+
+  The function is simple and the format of the variable length field is
+  fixed, so we can probably live with copying the code for now.
+*/
+my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len)
+{
+  uchar *pos= *packet;
+  if (packet_len < 1)
+    goto err;
+  if (*pos < 251)
+  {
+    (*packet)++;
+    return (my_ulonglong) *pos;
+  }
+  if (*pos == 251)
+  {
+    (*packet)++;
+    return (my_ulonglong) NULL_LENGTH;
+  }
+  if (*pos == 252)
+  {
+    if (packet_len < 3)
+      goto err;
+    (*packet)+=3;
+    return (my_ulonglong) uint2korr(pos+1);
+  }
+  if (*pos == 253)
+  {
+    if (packet_len < 4)
+      goto err;
+    (*packet)+=4;
+    return (my_ulonglong) uint3korr(pos+1);
+  }
+  if (packet_len < 9 || *pos != 254)
+    goto err;
+  (*packet)+=9;
+  return (my_ulonglong) uint8korr(pos+1);
+err:
+  *packet = NULL;
+  return 0;
 }
 
 

@@ -563,3 +563,5 @@ select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
 drop table t1;
 
 --echo # End of 11.4 tests
+
+--source include/test_db_charset_restore.inc

@@ -937,3 +937,4 @@ a
 NULL
 drop table t1;
 # End of 11.4 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
