@@ -84,3 +84,53 @@ select * from b;
 cola	v_cola	p_cola	c_cola
 10	2	2	12
 drop table b, a;
+#
+# MDEV-41666 Corruption on statement rollback when
+#    ON UPDATE SET NULL affects the base column
+#
+CREATE TABLE t18 (
+c5 INT NOT NULL,
+PRIMARY KEY (c5)
+) ENGINE=InnoDB;
+CREATE TABLE t21 (
+c1 INT NOT NULL,
+c2 INT DEFAULT NULL,
+c2v INT AS (c2 DIV 1), c1v INT AS (FLOOR(c1)),
+KEY i15 (c2v, c1v),
+CONSTRAINT t21_ibfk_1 FOREIGN KEY (c2) REFERENCES t18 (c5) ON UPDATE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO t18 (c5) VALUES (1), (2);
+INSERT INTO t21 (c1, c2) VALUES (0, 1);
+UPDATE t18 SET c5 = 3;
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+SELECT c5 FROM t18 ORDER BY c5;
+c5
+1
+2
+SELECT c1, c2 FROM t21;
+c1	c2
+0	1
+DROP TABLE t21, t18;
+CREATE TABLE parent (
+id INT PRIMARY KEY
+) ENGINE=InnoDB;
+CREATE TABLE child (
+a INT DEFAULT NULL,
+parent_id INT DEFAULT NULL,
+av INT AS (IFNULL(a, 0)), pv INT AS (IFNULL(parent_id, 0)),
+KEY idx_functional (av, pv),
+CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent (id)
+ON DELETE SET NULL
+) ENGINE=InnoDB;
+INSERT INTO parent VALUES (1);
+INSERT INTO child(a, parent_id) VALUES (NULL, 1);
+START TRANSACTION;
+DELETE FROM parent WHERE id = 1;
+ROLLBACK;
+SELECT id FROM parent;
+id
+1
+SELECT a, parent_id FROM child;
+a	parent_id
+NULL	1
+DROP TABLE child, parent;

@@ -1331,7 +1331,15 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
   mtr->set_log_mode(log_mode);
 
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
+  {
+  corruption:
+    /* Restore the old page. */
+    memcpy_aligned<UNIV_PAGE_SIZE_MIN>(block->page.frame, old->page.frame,
+                                       srv_page_size);
+  func_exit:
+    buf_block_free(old);
     return err;
+  }
 
   /* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
   ut_ad(!page_get_max_trx_id(block->page.frame));
@@ -1367,14 +1375,18 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
     sql_print_error("InnoDB: Page old data size %u new data size %u"
                     ", page old max ins size %zu new max ins size %zu",
                     data_size1, data_size2, max1, max2);
-    return DB_CORRUPTION;
+  corrupted:
+    err= DB_CORRUPTION;
+    goto corruption;
   }
 
   /* Restore the cursor position. */
   if (!pos)
     ut_ad(cursor->rec == page_get_infimum_rec(block->page.frame));
-  else if (!(cursor->rec= page_rec_get_nth(block->page.frame, pos)))
-    return DB_CORRUPTION;
+  else if (rec_t *rec= page_rec_get_nth(block->page.frame, pos))
+    cursor->rec= rec;
+  else
+    goto corrupted;
 
   if (block->page.id().page_no() != cursor->index->page ||
       fil_page_get_type(old->page.frame) != FIL_PAGE_TYPE_INSTANT)
@@ -1545,11 +1557,9 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
     }
   }
 
-  buf_block_free(old);
-
   MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
   MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);
-  return DB_SUCCESS;
+  goto func_exit;
 }
 
 /** Reorganize an index page.

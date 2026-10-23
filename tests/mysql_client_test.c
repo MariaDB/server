@@ -20877,30 +20877,88 @@ static void test_proxy_header_short()
 }
 
 
+#define MAX_IPV6_ADDR "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+
+/*
+  MDEV-41691 PROXY v1 header must be a single line of up to 107 bytes,
+  with fields separated by one space and ending in CRLF.
+  Loopback addresses are used, to avoid name resolution.
+*/
 static void test_proxy_header_limits()
 {
-  MYSQL *m;
-  char text_header[256];
-  const char *prefix = "PROXY TCP4 1.2.3.4 5.6.7.8 1234 5678";
-  size_t prefix_len;
+  static const char nul_in_line[]=
+    "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\0junk\r\n";
+  size_t i;
+  MYSQL *m, *conn;
+  struct
+  {
+    const char *header;
+    size_t len;                 /* 0 for a null-terminated header */
+    my_bool valid;
+  } cases[]=
+  {
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, TRUE },
+    /* Anything after UNKNOWN is ignored, or can be absent */
+    { "PROXY UNKNOWN\r\n", 0, TRUE },
+    { "PROXY UNKNOWN junk\r\n", 0, TRUE },
+    /* Not the UNKNOWN keyword */
+    { "PROXY UNKNOWNX\r\n", 0, FALSE },
+    /* A field is missing */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234\r\n", 0, FALSE },
+    /* Invalid address */
+    { "PROXY TCP4 1.2.3 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Line ends in LF instead of CRLF */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\n", 0, FALSE },
+    /* Two spaces between fields */
+    { "PROXY TCP4 127.0.0.1  127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Unknown address family */
+    { "PROXY TCP5 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Space after the last field */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678 \r\n", 0, FALSE },
+    /* Port out of range, or not just digits */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65535\r\n", 0, TRUE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65536\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 +1234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 -1 5678\r\n", 0, FALSE },
+    /* Leading zeroes are not allowed, port 0 is fine */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 01234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 0 5678\r\n", 0, TRUE },
+    /* NUL byte inside the line */
+    { nul_in_line, sizeof(nul_in_line) - 1, FALSE },
+    /*
+      The longest line of the specification, 107 bytes with CRLF, is
+      accepted. UNKNOWN ignores the fields, but the line is limited too,
+      with one more byte it is not.
+    */
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 65535\r\n",
+      0, TRUE },
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 655350\r\n",
+      0, FALSE },
+  };
 
   myheader("test_proxy_header_limits");
 
-  /* Test maximum length PROXY header (256 bytes) to ensure no overflow */
-  memset(text_header, ' ', sizeof(text_header));
-
-  prefix_len = strlen(prefix);
-
-  memcpy(text_header, prefix, prefix_len);
-  text_header[sizeof(text_header) - 1] = '\n';
-
-  m = mysql_client_init(NULL);
-  DIE_UNLESS(m);
-
-  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, text_header, sizeof(text_header));
-
-  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == NULL);
-  mysql_close(m);
+  for (i= 0; i < array_elements(cases); i++)
+  {
+    size_t len= cases[i].len ? cases[i].len : strlen(cases[i].header);
+    m= mysql_client_init(NULL);
+    DIE_UNLESS(m);
+    mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, cases[i].header, len);
+    conn= mysql_real_connect(m, opt_host, "root", "", NULL, opt_port,
+                             opt_unix_socket, 0);
+    if (cases[i].valid)
+    {
+      DIE_UNLESS(conn);
+    }
+    else
+    {
+      DIE_UNLESS(!conn);
+      /* A rejected header must be the reason of the failure */
+      DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
+      DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+    }
+    mysql_close(m);
+  }
 }
 
 
