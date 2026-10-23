@@ -842,7 +842,15 @@ sp_head::init_sp_name(const sp_name *spname)
 void
 sp_head::init_psi_share()
 {
-  m_sp_share= MYSQL_GET_SP_SHARE(m_handler->type(), m_db.str, static_cast<uint>(m_db.length),
+  /*
+    Package routines are instrumented with their own types, so that
+    "pkg.routine" is not confused with a standalone routine `pkg.routine`.
+  */
+  m_sp_share= MYSQL_GET_SP_SHARE(!m_parent ? (uint) m_handler->type() :
+                                 m_handler->type() == SP_TYPE_FUNCTION ?
+                                 SP_PSI_TYPE_PACKAGE_FUNCTION :
+                                 SP_PSI_TYPE_PACKAGE_PROCEDURE,
+                                 m_db.str, static_cast<uint>(m_db.length),
                                  m_name.str, static_cast<uint>(m_name.length));
 }
 
