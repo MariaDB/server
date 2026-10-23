@@ -2312,8 +2312,6 @@ JOIN::optimize_inner()
     select_lex->update_used_tables();
   }
   
-  eval_select_list_used_tables();
-
   table_count= select_lex->leaf_tables.elements;
 
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
@@ -15674,29 +15672,6 @@ void JOIN::drop_unused_derived_keys()
       /* The query cannot use keys, remove all non unique keys */
       tmp_tbl->use_index(-1, &tab->keys);
     }
-  }
-}
-
-
-/*
-  Evaluate the bitmap of used tables for items from the select list
-*/
-
-inline void JOIN::eval_select_list_used_tables()
-{
-  select_list_used_tables= 0;
-  Item *item;
-  List_iterator_fast<Item> it(fields_list);
-  while ((item= it++))
-  {
-    select_list_used_tables|= item->used_tables();
-  }
-  Item_outer_ref *ref;
-  List_iterator_fast<Item_outer_ref> ref_it(select_lex->inner_refs_list);
-  while ((ref= ref_it++))
-  {
-    item= ref->outer_ref;
-    select_list_used_tables|= item->used_tables();
   }
 }
 
