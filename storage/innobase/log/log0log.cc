@@ -797,15 +797,15 @@ bool log_t::set_archive(my_bool archive, THD *thd, bool backup) noexcept
       wait_lsn= 0;
       break;
     }
-    if (archive == this->archive)
-      break;
-    if ((!backup || archive) && thd_kill_level(thd))
-      goto fail;
     if (!backup && this->backup)
     {
       my_printf_error(ER_WRONG_USAGE, "BACKUP SERVER is in progress", MYF(0));
       goto fail;
     }
+    if (archive == this->archive)
+      break;
+    if ((!backup || archive) && thd_kill_level(thd))
+      goto fail;
 
     if (resize_log.is_opened())
     {
