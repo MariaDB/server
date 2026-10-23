@@ -1,0 +1,199 @@
+CREATE TABLE patterns (
+pattern INT PRIMARY KEY,
+body VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+INSERT INTO patterns VALUES
+(1, 'alpha'),
+(2, 'bravo'),
+(3, 'charlie'),
+(4, 'alpha bravo'),
+(5, 'bravo alpha'),
+(6, 'alpha charlie'),
+(7, 'bravo charlie'),
+(8, 'alpha bravo charlie'),
+(9, 'alpha filler bravo charlie'),
+(10, 'alpha bravo filler charlie'),
+(11, 'alpha filler bravo filler charlie'),
+(12, 'charlie bravo alpha'),
+(13, 'alpha alpha bravo charlie'),
+(14, 'alpha bravo alpha charlie'),
+(15, 'alpha bravo charlie delta'),
+(16, 'filler'),
+(17, 'alpha bravo'),
+(18, 'alpha');
+CREATE TABLE t1 (
+FTS_DOC_ID BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+pattern INT NOT NULL,
+body VARCHAR(100) NOT NULL,
+FULLTEXT KEY ft (body)
+) ENGINE=InnoDB;
+INSERT INTO t1
+SELECT seq * 1000 + pattern * 10, pattern, body
+FROM seq_1_to_32, patterns ORDER BY seq, pattern;
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+4	32
+8	32
+10	32
+13	32
+14	32
+15	32
+17	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"charlie bravo alpha"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+12	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha alpha bravo"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+13	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"@2' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+4	32
+5	32
+8	32
+10	32
+12	32
+13	32
+14	32
+15	32
+17	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo charlie"@3' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+8	32
+12	32
+13	32
+14	32
+15	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"delta alpha"@100' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+15	32
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"delta filler"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha absent"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+DROP INDEX ft ON t1;
+CREATE FULLTEXT INDEX ft ON t1 (body);
+INSERT INTO t1
+SELECT (seq + 32) * 1000 + pattern * 10, pattern, body
+FROM seq_1_to_32, patterns ORDER BY seq, pattern;
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+4	64
+8	64
+10	64
+13	64
+14	64
+15	64
+17	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"charlie bravo alpha"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+12	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha alpha bravo"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+13	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"@2' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+4	64
+5	64
+8	64
+10	64
+12	64
+13	64
+14	64
+15	64
+17	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo charlie"@3' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+8	64
+12	64
+13	64
+14	64
+15	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"delta alpha"@100' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+15	64
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"delta filler"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+SELECT pattern, COUNT(*) AS matches FROM t1
+WHERE MATCH(body) AGAINST ('"alpha absent"' IN BOOLEAN MODE)
+GROUP BY pattern ORDER BY pattern;
+pattern	matches
+DROP TABLE t1, patterns;
+CREATE TABLE t1 (
+FTS_DOC_ID BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+body VARCHAR(100) NOT NULL,
+FULLTEXT KEY ft (body)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'filler');
+connect  con1,localhost,root,,test;
+START TRANSACTION;
+INSERT INTO t1 VALUES (10, 'alpha bravo'), (20, 'alpha bravo');
+connection default;
+INSERT INTO t1 VALUES (30, 'alpha');
+connection con1;
+COMMIT;
+connection default;
+INSERT INTO t1 VALUES (40, 'bravo');
+SELECT FTS_DOC_ID FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"' IN BOOLEAN MODE)
+ORDER BY FTS_DOC_ID;
+FTS_DOC_ID
+10
+20
+SELECT FTS_DOC_ID FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"@2' IN BOOLEAN MODE)
+ORDER BY FTS_DOC_ID;
+FTS_DOC_ID
+10
+20
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (1, 'filler');
+connection con1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (10, 'alpha bravo');
+connection default;
+INSERT INTO t1 VALUES (30, 'bravo');
+connection con1;
+COMMIT;
+connection default;
+SELECT FTS_DOC_ID FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"' IN BOOLEAN MODE)
+ORDER BY FTS_DOC_ID;
+FTS_DOC_ID
+10
+SELECT FTS_DOC_ID FROM t1
+WHERE MATCH(body) AGAINST ('"alpha bravo"@2' IN BOOLEAN MODE)
+ORDER BY FTS_DOC_ID;
+FTS_DOC_ID
+10
+disconnect con1;
+DROP TABLE t1;
