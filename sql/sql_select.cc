@@ -851,6 +851,15 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   DBUG_ASSERT (subq_predicate->substype() == Item_subselect::EXISTS_SUBS ||
                subq_predicate->is_in_predicate());
 
+  /*
+    Removing DISTINCT or GROUP BY changes the number of rows, which changes
+    the result of a LIMIT clause that skips rows.
+  */
+  if (!subq_select_lex->limit_params.starts_at_first_row() ||
+      !subq_select_lex->master_unit()->global_parameters()->
+        limit_params.starts_at_first_row())
+    DBUG_VOID_RETURN;
+
   if (subq_select_lex->options & SELECT_DISTINCT)
   {
     subq_select_lex->join->select_distinct= false;

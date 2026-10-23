@@ -3531,13 +3531,28 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 */
 bool st_select_lex::test_limit()
 {
-  if (limit_params.select_limit)
+  if (!limit_params.keeps_all_rows())
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-             "LIMIT & IN/ALL/ANY/SOME subquery");
+             limit_params.select_limit ?
+             "LIMIT & IN/ALL/ANY/SOME subquery" :
+             "OFFSET & IN/ALL/ANY/SOME subquery");
     return(1);
   }
   return(0);
+}
+
+
+bool Lex_select_limit::keeps_all_rows() const
+{
+  return !select_limit && starts_at_first_row();
+}
+
+
+bool Lex_select_limit::starts_at_first_row() const
+{
+  return !offset_limit ||
+         (offset_limit->basic_const_item() && offset_limit->val_uint() == 0);
 }
 
 
@@ -3944,6 +3959,14 @@ void st_select_lex::print_limit(THD *thd,
       limit_params.select_limit->print(str, query_type);
     }
   }
+  else if (limit_params.explicit_limit &&
+           limit_params.offset_limit)
+  {
+    /* OFFSET n ROWS alone keeps every row after the first n */
+    str->append(STRING_WITH_LEN(" offset "));
+    limit_params.offset_limit->print(str, query_type);
+    str->append(STRING_WITH_LEN(" rows"));
+  }
 }
 
 
@@ -4160,7 +4183,7 @@ bool st_select_lex_unit::can_be_merged()
       fs->group_list.elements || fs->having ||
       fs->with_sum_func ||
       fs->table_list.elements < 1 ||
-      fs->limit_params.select_limit)
+      !fs->limit_params.keeps_all_rows())
     return false;
   for (SELECT_LEX_UNIT *tmp_unit= fs->first_inner_unit();
        tmp_unit;
