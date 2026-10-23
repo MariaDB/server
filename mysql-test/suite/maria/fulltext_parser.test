@@ -1,0 +1,87 @@
+--source include/have_maria.inc
+--source include/have_simple_parser.inc
+--source include/not_embedded.inc
+
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+
+# simple_parser keeps punctuation in words: 'abc-def abcd' finds
+# 'abc-def', but not the fragment 'abcd' of 'abcd-efgh'.
+--let $row_format= PAGE
+--let $transactional= 1
+--source suite/maria/include/fulltext_parser_ops.inc
+--let $row_format= DYNAMIC
+--let $transactional= 0
+--source suite/maria/include/fulltext_parser_ops.inc
+
+--echo # Recover committed rows written after the last checkpoint
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+  ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('baseline-two'), ('baseline-three');
+CREATE TABLE t_flush (a INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t_flush VALUES (0);
+
+# A clean restart establishes the on-disk baseline. The .opt file disables
+# periodic checkpoints and automatic repair, so they cannot hide failures.
+--source include/restart_mysqld.inc
+INSERT INTO t1 VALUES ('commit-one'), ('commit-two');
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+
+# Check the recovered data and index before CHECK TABLE or REPAIR can help.
+SELECT a FROM t1 ORDER BY a;
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('commit-one commit-two') ORDER BY a;
+CHECK TABLE t1 EXTENDED;
+
+--echo # Roll back row and fulltext key changes without loading the parser
+# Aria defers its commit until UNLOCK TABLES, unlike ordinary statements.
+--connect (writer,localhost,root,,test)
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES ('undo-insert');
+UPDATE t1 SET a = 'undo-update' WHERE a = 'abc-def';
+DELETE FROM t1 WHERE a = 'baseline-two';
+
+--connection default
+# Committing another Aria table flushes the preceding UNDO and REDO records
+# without committing the writer or flushing t1's dirty pages.
+INSERT INTO t_flush VALUES (1);
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+--disconnect writer
+
+# The row checks alone could pass if recovery skipped t1 and its changes
+# never reached disk. Require a completed rollback with no skipped UNDO
+# records from this restart; the writer is the only uncommitted transaction.
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after= Starting MariaDB
+--let $assert_text= Recovery rolled back the writer transaction
+--let $assert_select= transactions to roll back: 1 0
+--let $assert_count= 1
+--source include/assert_grep.inc
+--let $assert_text= Recovery did not skip UNDO records
+--let $assert_select= UNDO records skipped in UNDO phase
+--let $assert_count= 0
+--source include/assert_grep.inc
+
+SELECT a FROM t1 ORDER BY a;
+SELECT a FROM t1
+  WHERE MATCH(a) AGAINST('abc-def baseline-two undo-insert undo-update')
+  ORDER BY a;
+CHECK TABLE t1 EXTENDED;
+
+--echo # Recover a completed bulk-insert repair with a parser plugin
+# INSERT ... SELECT into an empty table disables the keys and rebuilds them
+# with a repair. Its state LSNs normally make recovery skip REDO_REPAIR_TABLE.
+# fulltext_parser_debug covers a repair record newer than the saved state LSNs.
+CREATE TABLE t_src (a TEXT) ENGINE=Aria;
+INSERT INTO t_src VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+CREATE TABLE t2 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+  ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t2 SELECT a FROM t_src;
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+SELECT a FROM t2 WHERE MATCH(a) AGAINST('abc-def abcd');
+CHECK TABLE t2 EXTENDED;
+DROP TABLE t2, t_src;
+
+DROP TABLE t1, t_flush;
+UNINSTALL PLUGIN simple_parser;
