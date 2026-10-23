@@ -1,0 +1,23 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+log-bin
+log-slave-updates
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=1
+binlog-cache-size=32768
+
+[mysqld.1]
+wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+server-id=11
+
+[mysqld.2]
+wsrep_provider_options='pc.ignore_sb=true;repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#galera_port;evs.suspect_timeout=PT10S;evs.inactive_timeout=PT30S;evs.install_timeout=PT15S;pc.wait_prim_timeout=PT60S;gcache.size=10M'
+server-id=12
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream
+
+[mysqld.2]
+binlog-storage-engine=innodb

@@ -1,0 +1,14 @@
+#
+# A cluster where one node uses the binlog in InnoDB
+# (--binlog-storage-engine=innodb) and the other a file binlog, see
+# the .cnf file. Here node_1, the donor for the state
+# transfers to node_2, uses the binlog in InnoDB.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_mariabackup.inc
+
+--source suite/galera/include/galera_binlog_in_engine_mixed.inc
+
+--source include/galera_end.inc

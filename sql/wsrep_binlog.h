@@ -23,6 +23,19 @@
 #define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
 
 /*
+  Read the binlog cache contents of thd from log_position to the end of the
+  cache, when the binlog is implemented in a storage engine
+  (--binlog-storage-engine), including data spilled into the engine binlog.
+  The data is passed to the callback in one or more pieces.
+
+  @return 0 on success, 1 on error
+ */
+int wsrep_read_engine_cache(THD *thd, IO_CACHE *cache, my_off_t log_position,
+                            bool (*callback)(void *arg, const uchar *data,
+                                             size_t len),
+                            void *arg);
+
+/*
   Write the contents of a cache to a memory buffer.
 
   This function quite the same as MYSQL_BIN_LOG::write_cache(),

@@ -486,7 +486,9 @@ EOF
 #         --exclude grastate.txt --exclude '*.pem' \
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
-# New filter - exclude everything except dirs (schemas) and innodb files
+# New filter - exclude everything except dirs (schemas) and innodb files.
+# The InnoDB binlog files (--binlog-storage-engine=innodb) are transferred
+# with the rest of the InnoDB state, as the InnoDB redo log refers to them.
 FILTER="-f '- /lost+found'
         -f '- /.zfs'
         -f '- /.fseventsd'
@@ -501,6 +503,7 @@ FILTER="-f '- /lost+found'
         -f '- $ib_log_dir/ib_logfile[0-9]*'
         -f '- $ar_log_dir/aria_log_control'
         -f '- $ar_log_dir/aria_log.*'
+        -f '+ /binlog-[0-9]*.ibb'
         -f '+ /*/'
         -f '- /*'"
 

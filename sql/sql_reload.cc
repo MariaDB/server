@@ -188,8 +188,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
           *write_to_binlog= -1;
 
         /* Note that WSREP(thd) might not be true here e.g. during
-        SST. */
-        if (WSREP_ON)
+        SST. The binlog-in-engine does not use checkpoint events. */
+        if (WSREP_ON && !opt_binlog_engine_hton)
         {
           /* Wait for last binlog checkpoint event to be logged. */
           mysql_bin_log.wait_for_last_checkpoint_event();

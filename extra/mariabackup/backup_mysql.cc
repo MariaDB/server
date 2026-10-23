@@ -1610,6 +1610,7 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 	char *log_bin_pos = NULL;
 	char *log_bin_gtid_executed = NULL;
 	char *log_bin_dir = NULL;
+	char *binlog_storage_engine = NULL;
 	bool gtid_exists;
 	bool result = true;
 	char filepath[FN_REFLEN];
@@ -1632,11 +1633,20 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 		{"gtid_binlog_state", &gtid_binlog_state},
 		{"gtid_current_pos", &gtid_current_pos},
 		{"log_bin_basename", &log_bin_dir},
+		{"binlog_storage_engine", &binlog_storage_engine},
 		{NULL, NULL}
 	};
 
 	read_mysql_variables(connection, "SHOW MASTER STATUS", status, false);
 	read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
+
+	/*
+	  With --binlog-storage-engine, the binlog files are copied by
+	  copy_engine_binlogs() consistently with the engine data, so they
+	  are not flushed and copied here.
+	*/
+	if (binlog_storage_engine && *binlog_storage_engine)
+		goto cleanup;
 
 	gtid_exists = (executed_gtid_set && *executed_gtid_set)
 			|| (gtid_binlog_state && *gtid_binlog_state);
