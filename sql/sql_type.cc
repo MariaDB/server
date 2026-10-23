@@ -4059,7 +4059,7 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
          Field_set(addr.ptr(), attr.max_length,
                    addr.null_ptr(), addr.null_bit(),
                    Field::NONE, name,
-                   get_enum_pack_length(typelib->count), typelib,
+                   get_set_pack_length(typelib->count), typelib,
                    attr.collation);
 }
 
