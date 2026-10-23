@@ -142,4 +142,61 @@ drop function f;
 --echo #
 select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
 
+--echo #
+--echo # MDEV-33527 Stale data remains in userstat upon renaming table
+--echo #
+--disable_ps2_protocol
+set @userstat.save= @@global.userstat;
+set global userstat= 1;
+flush table_statistics;
+flush index_statistics;
+
+create table t (a int, key(a)) engine=MyISAM;
+insert into t values (1),(2);
+select * from t;
+select * from t where a=1;
+select table_name, rows_read, rows_changed
+  from information_schema.table_statistics where table_name='t';
+select table_name, index_name, rows_read
+  from information_schema.index_statistics where table_name='t';
+
+--echo # The old name has no statistics left, neither for its indexes
+rename table t to t2;
+select table_name from information_schema.table_statistics
+  where table_name in ('t','t2');
+select table_name, index_name from information_schema.index_statistics
+  where table_name in ('t','t2');
+
+--echo # A new table with the old name starts from scratch
+create table t (b varchar(8), key(b)) engine=MyISAM;
+insert into t values ('foo'),('bar'),('baz');
+select * from t where b='foo';
+select table_name, rows_read, rows_changed
+  from information_schema.table_statistics where table_name='t';
+select table_name, index_name, rows_read
+  from information_schema.index_statistics where table_name='t';
+
+--echo # ALTER TABLE ... RENAME and RENAME to another database
+select * from t2;
+select table_name from information_schema.table_statistics
+  where table_name='t2';
+alter table t2 rename to t3;
+select table_name from information_schema.table_statistics
+  where table_name in ('t2','t3');
+select * from t3;
+create database db_mdev33527;
+rename table t3 to db_mdev33527.t4;
+select table_schema, table_name from information_schema.table_statistics
+  where table_name in ('t3','t4');
+select * from db_mdev33527.t4;
+select table_schema, table_name from information_schema.table_statistics
+  where table_name in ('t3','t4');
+
+drop table t, db_mdev33527.t4;
+drop database db_mdev33527;
+flush table_statistics;
+flush index_statistics;
+set global userstat= @userstat.save;
+--enable_ps2_protocol
+
 --echo # End of 10.11 tests

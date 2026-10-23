@@ -4026,6 +4026,15 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   int rc= 0;
   DBUG_ENTER("rename_table_in_stat_tables");
 
+  /*
+    The usage statistics (userstat) are kept per table name, like when the
+    table is dropped. The renamed table starts to collect them again under
+    its new name, and a new table that gets the old name must not inherit
+    them. This does not depend on the statistical tables below.
+  */
+  if (del_global_table_stat(thd, db, tab))
+    rc= 1;
+
   TABLE_LIST *tables=
     static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
                                        STATISTICS_TABLES * sizeof *tables,
