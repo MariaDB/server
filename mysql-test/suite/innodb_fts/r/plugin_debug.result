@@ -126,12 +126,10 @@ MATCH(title, body) AGAINST('full text');
 id	title	body
 4	1001 MySQL Tricks	How to use full-text search engine
 5	Go MySQL Tricks	How to use full text search engine
-# simple parser st_mysql_ftparser_boolean_info doesn't
-# store position of every word in boolean metadata.
-# This leads to empty result
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 DROP TABLE articles;
 # Test Part 5: Row Merge Create Index Test with Default/Internal Parser
 CREATE TABLE articles (
@@ -168,12 +166,10 @@ MATCH(title, body) AGAINST('full text');
 id	title	body
 4	1001 MySQL Tricks	How to use full-text search engine
 5	Go MySQL Tricks	How to use full text search engine
-# simple parser st_mysql_ftparser_boolean_info doesn't
-# store position of every word in boolean metadata.
-# This leads to empty result
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 DROP TABLE articles;
 # Test Part 6: Test Query Parser with Default/Internal Parser
 SET GLOBAL innodb_ft_enable_diag_print = 1;
@@ -229,18 +225,18 @@ id	title	body
 3	How To Use MySQL Well	After you went through a ...
 4	Optimizing MySQL	In this tutorial we will show ...
 5	1001 MySQL Tricks	How to use full-text search engine
-# simple parser st_mysql_ftparser_boolean_info doesn't
-# store position of every word in boolean metadata.
-# This leads to empty result for the next 3 queries
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 id	title	body
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"full text search"' IN BOOLEAN MODE);
 id	title	body
+5	1001 MySQL Tricks	How to use full-text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"full text search engine"' IN BOOLEAN MODE);
 id	title	body
+5	1001 MySQL Tricks	How to use full-text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('+"dbms stands" -good' IN BOOLEAN MODE);
 id	title	body
@@ -257,6 +253,7 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('+("dbms stands" "full text") -good' IN BOOLEAN MODE);
 id	title	body
+5	1001 MySQL Tricks	How to use full-text search engine
 1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('("msyql database")@3' IN BOOLEAN MODE);
@@ -294,12 +291,10 @@ SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('+数据库 -计算机');
 id	title	body
 1	数据库 是 数据 的 结构化 集合	它 可以 是 任何 东西
-# simple parser st_mysql_ftparser_boolean_info doesn't
-# store position of every word in boolean metadata.
-# This leads to empty result
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('"计算机 数据库"' IN BOOLEAN MODE);
 id	title	body
+3	要 想 将 数据 添加 到 数据库	或 访问、处理 计算机 数据库 中 保存 的 数据
 DROP TABLE articles;
 SET GLOBAL innodb_ft_enable_diag_print = 0;
 SET SESSION debug="-d,fts_instrument_use_default_parser";
@@ -315,4 +310,59 @@ CREATE FULLTEXT INDEX idx ON articles(body);
 ERROR HY000: Out of memory.
 SET SESSION debug="-d,ib_dict_create_index_tree_fail";
 DROP TABLE articles;
+#
+# MDEV-35967 INSERT and ALTER TABLE store the same positions
+# for the words of a parser plugin
+#
+SET @save_debug = @@GLOBAL.debug_dbug;
+SET @save_session_debug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug = '+d,fts_instrument_use_default_parser';
+# Words in the document
+CREATE TABLE t (id INT PRIMARY KEY, title VARCHAR(20), body TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+INSERT INTO t VALUES (2, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+SET GLOBAL innodb_ft_aux_table = 'test/t';
+# Positions stored by ALTER TABLE
+SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE ORDER BY position;
+word	position
+one	2
+two	6
+three	12
+four	108
+# Positions stored by INSERT
+SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE ORDER BY position;
+word	position
+one	2
+two	6
+three	12
+four	108
+SET GLOBAL innodb_ft_aux_table = default;
+DROP TABLE t;
+# Words outside the document
+SET GLOBAL debug_dbug = '+d,fts_instrument_word_outside_doc';
+SET SESSION debug_dbug = '+d,fts_instrument_word_outside_doc';
+CREATE TABLE t (id INT PRIMARY KEY, title VARCHAR(20), body TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+INSERT INTO t VALUES (2, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+SET GLOBAL innodb_ft_aux_table = 'test/t';
+# Positions stored by ALTER TABLE
+SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE ORDER BY position;
+word	position
+one	1
+two	6
+three	8
+four	11
+# Positions stored by INSERT
+SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE ORDER BY position;
+word	position
+one	1
+two	6
+three	8
+four	11
+SET GLOBAL innodb_ft_aux_table = default;
+DROP TABLE t;
+SET SESSION debug_dbug = @save_session_debug;
+SET GLOBAL debug_dbug = @save_debug;
 UNINSTALL PLUGIN simple_parser;

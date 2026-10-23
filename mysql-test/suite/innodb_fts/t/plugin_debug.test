@@ -121,9 +121,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('full text');
 
 # Phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -163,9 +160,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('full text');
 
 # Phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -211,9 +205,6 @@ SELECT * FROM articles WHERE
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"for mysql"' IN BOOLEAN MODE);
 
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result for the next 3 queries
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -274,9 +265,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('+数据库 -计算机');
 
 # Test phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"计算机 数据库"' IN BOOLEAN MODE);
 
@@ -304,5 +292,48 @@ CREATE FULLTEXT INDEX idx ON articles(body);
 SET SESSION debug="-d,ib_dict_create_index_tree_fail";
 #
 DROP TABLE articles;
+
+--echo #
+--echo # MDEV-35967 INSERT and ALTER TABLE store the same positions
+--echo # for the words of a parser plugin
+--echo #
+# Every word that the parser reports takes a position, also one that is
+# not indexed: a and b (too short), the (stopword) and 85 x (too long).
+# A word in the document gets its byte offset. With
+# fts_instrument_word_outside_doc the words point outside the document;
+# ALTER TABLE tokenizes in other threads, hence GLOBAL. The words differ:
+# INFORMATION_SCHEMA shows the distance to the previous position for a
+# word that occurs again in a document.
+SET @save_debug = @@GLOBAL.debug_dbug;
+SET @save_session_debug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug = '+d,fts_instrument_use_default_parser';
+let $outside = 0;
+while ($outside < 2)
+{
+  if (!$outside)
+  {
+    --echo # Words in the document
+  }
+  if ($outside)
+  {
+    --echo # Words outside the document
+    SET GLOBAL debug_dbug = '+d,fts_instrument_word_outside_doc';
+    SET SESSION debug_dbug = '+d,fts_instrument_word_outside_doc';
+  }
+  CREATE TABLE t (id INT PRIMARY KEY, title VARCHAR(20), body TEXT) ENGINE=InnoDB;
+  INSERT INTO t VALUES (1, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+  ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+  INSERT INTO t VALUES (2, 'a one', CONCAT('two b three the ', REPEAT('x', 85), ' four'));
+  SET GLOBAL innodb_ft_aux_table = 'test/t';
+  --echo # Positions stored by ALTER TABLE
+  SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE ORDER BY position;
+  --echo # Positions stored by INSERT
+  SELECT word, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE ORDER BY position;
+  SET GLOBAL innodb_ft_aux_table = default;
+  DROP TABLE t;
+  inc $outside;
+}
+SET SESSION debug_dbug = @save_session_debug;
+SET GLOBAL debug_dbug = @save_debug;
 
 UNINSTALL PLUGIN simple_parser;

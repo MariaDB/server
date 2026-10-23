@@ -219,3 +219,17 @@ ERROR HY000: Function 'simple_parser' is not defined
 DROP TABLE articles;
 UNINSTALL PLUGIN simple_parser;
 ERROR 42000: PLUGIN simple_parser does not exist
+#
+# MDEV-35967 Server crashes when creating a fulltext index with
+#            simple_parser plugin
+#
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t (title CHAR, body TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a', 'xyz xyz'), ('b', 'xyz uvw xyz uvw');
+ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+SELECT * FROM t WHERE MATCH(title, body) AGAINST('xyz');
+title	body
+a	xyz xyz
+b	xyz uvw xyz uvw
+DROP TABLE t;
+UNINSTALL PLUGIN simple_parser;
