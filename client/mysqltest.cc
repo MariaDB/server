@@ -1930,6 +1930,7 @@ void free_used_memory()
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
   delete_dynamic(&q_lines);
+  dynstr_free(&master_pos.gtid_pos);
   dynstr_free(&ds_res);
   if (ds_warn)
     dynstr_free(ds_warn);
