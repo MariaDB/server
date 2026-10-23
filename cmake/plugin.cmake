@@ -41,12 +41,16 @@ MACRO(MYSQL_ADD_PLUGIN)
   )
   IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 
-  # Add common include directories
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
+  # Add common include directories. zlib and ssl headers are made available to
+  # all plugins (several engines #include <zlib.h>, and violite.h pulls in
+  # <openssl/ssl.h> under HAVE_OPENSSL); the dirs come from the MariaDB::zlib /
+  # MariaDB::OpenSSL targets so we don't rely on the FindZLIB / FindOpenSSL
+  # result variables.
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
                     ${PCRE_INCLUDE_DIRS}
-                    ${SSL_INCLUDE_DIRS}
-                    ${ZLIB_INCLUDE_DIRS})
+                    $<TARGET_PROPERTY:mariadb_zlib,INTERFACE_INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:mariadb_ssl,INTERFACE_INCLUDE_DIRECTORIES>)
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})
