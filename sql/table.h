@@ -2270,7 +2270,6 @@ public:
   void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
   bool check_unit(THD *thd, vers_select_conds_t *vers_conds);
-  bool has_param() const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -3102,7 +3101,6 @@ struct TABLE_LIST
   {
     derived_type|= DTYPE_MULTITABLE;
   }
-  bool set_as_with_table(THD *thd, With_element *with_elem);
   void reset_const_table();
   bool handle_derived(LEX *lex, uint phases);
 
@@ -3513,7 +3511,6 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
 int closefrm(TABLE *table);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
-ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
 void append_unescaped(String *res, const char *pos, size_t length,
                       bool in_comment= false);
 static inline void append_unescaped(String *res, const LEX_CSTRING &str,
