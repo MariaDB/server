@@ -1044,3 +1044,34 @@ SELECT 1 /* doesn't throw error */;
 #
 # caught error and exited my_copy()
 # End of 10.11 tests
+#
+# PS_bind_long binds like PS_bind, but sends every value as a string
+# with mysql_stmt_send_long_data() before each PS_execute
+#
+PS_prepare select concat('[', ?, ']') as a, concat('[', ?, ']') as b;
+# PS_bind: 010 is bound as an integer, no long data is sent
+PS_bind 010 abc;
+PS_execute;
+a	b
+[10]	[abc]
+# long data packets: 0
+PS_close;
+PS_prepare select concat('[', ?, ']') as a, concat('[', ?, ']') as b;
+# PS_bind_long: 010 stays a string, both values are sent as long data
+# for each of the two executions
+PS_bind_long 010 abc;
+PS_execute;
+a	b
+[010]	[abc]
+PS_execute;
+a	b
+[010]	[abc]
+# long data packets: 4
+# A later PS_bind sends no long data
+PS_bind 7 xyz;
+PS_execute;
+a	b
+[7]	[xyz]
+# long data packets: 0
+PS_close;
+# End of 11.4 tests
