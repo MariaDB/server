@@ -1771,7 +1771,7 @@ sst_user_grants(const std::string& method)
     nullptr
   };
 
-  if (method == "mariabackup-test") {
+  if (method == "mariabackup") {
     return mariabackup;
   }
   if (method == "rsync") {
