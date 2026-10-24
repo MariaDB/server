@@ -5832,3 +5832,27 @@ SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100
 r
 0
 # End of 11.4 tests
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[1,1]') AS duplicate_numbers;
+duplicate_numbers
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '["x","x"]') AS duplicate_strings;
+duplicate_strings
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[{"x":1},{"x":1}]') AS duplicate_objects;
+duplicate_objects
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[1,2]') AS unique_array;
+unique_array
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[]') AS empty_array;
+empty_array
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '1') AS scalar;
+scalar
+1
+SELECT JSON_SCHEMA_VALID('{}', '[1,1]') AS omitted_keyword;
+omitted_keyword
+1
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":true}', '[1,1]') AS true_keyword;
+true_keyword
+0
