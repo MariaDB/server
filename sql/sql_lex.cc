@@ -3235,7 +3235,6 @@ void st_select_lex::init_select()
   type= 0;
   db= null_clex_str;
   having= 0;
-  table_join_options= 0;
   select_lock= select_lock_type::NONE;
   in_sum_expr= with_wild= with_wild_returning= 0;
   options= 0;
