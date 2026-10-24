@@ -15068,7 +15068,7 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_HOSTS;
           }
-        | BINLOG_SYM EVENTS_SYM binlog_in binlog_from
+        | BINLOG_SYM EVENTS_SYM binlog_in binlog_from binlog_to
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_BINLOG_EVENTS;
@@ -15455,6 +15455,12 @@ binlog_in:
 binlog_from:
           /* empty */        { Lex->mi.pos = 4; /* skip magic number */ }
         | FROM ulonglong_num { Lex->mi.pos = $2; }
+        | FROM TEXT_STRING_sys { Lex->mi.binlog_from_gtid = $2; }
+        ;
+
+binlog_to:
+          /* empty */        {}
+        | TO_SYM TEXT_STRING_sys { Lex->mi.binlog_to_gtid = $2; }
         ;
 
 wild_and_where:
