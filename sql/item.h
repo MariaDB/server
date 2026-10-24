@@ -1253,8 +1253,11 @@ public:
   {
     bool binary_cmp;        /**< Make binary comparison */
     bool omit_table_names;  /**< Skip table and db names comparison */
-    Eq_config(bool binary_cmp, bool omit_table_names= false)
-      : binary_cmp(binary_cmp), omit_table_names(omit_table_names) {}
+    bool unordered_conditions; /**< Ignore AND/OR operand order and duplicates */
+    Eq_config(bool binary_cmp, bool omit_table_names= false,
+              bool unordered_conditions= false)
+      : binary_cmp(binary_cmp), omit_table_names(omit_table_names),
+        unordered_conditions(unordered_conditions) {}
   };
   virtual bool eq(const Item *, const Eq_config &config) const;
   enum_field_types field_type() const
@@ -2698,7 +2701,7 @@ public:
       not only numeric/datetime origin.
     */
     if (collation.derivation == DERIVATION_NUMERIC &&
-        collation.repertoire == MY_REPERTOIRE_ASCII &&
+        collation.repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
         !(collation.collation->state & MY_CS_NONASCII) &&
         !(tocs->state & MY_CS_NONASCII))
       return false;
@@ -3433,6 +3436,19 @@ private:
 public:
   Item_splocal *get_item_splocal() override { return this; }
 
+  /*
+    Return true if the item is a part of its SP variable (e.g. a ROW field,
+    an assoc array element), rather than the whole variable.
+    Passing such an item as an OUT parameter must not destruct the variable.
+
+    The default is false (the item is the whole variable). A class derived
+    from Item_splocal, which stands for a part of a variable, must override
+    this method. If it does not, the whole variable is destructed when
+    the item is passed as an OUT argument (e.g. all other elements of
+    an assoc array are lost).
+  */
+  virtual bool is_part_of_variable() const { return false; }
+
   Rewritable_query_parameter *get_rewritable_query_parameter() override
   { return this; }
 
@@ -3490,6 +3506,7 @@ public:
    :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
+  bool is_part_of_variable() const override { return false; } // A variable
 
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
@@ -3520,6 +3537,7 @@ public:
     m_field_name(*sp_field_name),
     m_field_idx(sp_field_idx)
   { }
+  bool is_part_of_variable() const override { return true; }
   bool fix_fields(THD *thd, Item **) override;
   Item *this_item() override;
   const Item *this_item() const override;
@@ -4292,7 +4310,7 @@ public:
     max_length= 0;
     name.str= name_par ? name_par : "NULL";
     name.length= strlen(name.str);
-    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_NONE);
   }
   Type type() const override { return NULL_ITEM; }
   bool vcol_assignment_allowed_value() const override { return true; }
@@ -6306,6 +6324,7 @@ public:
   }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
+  void free_call_ctx();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
   bool execute_impl(THD *thd, Item **args, uint arg_count);
@@ -8881,11 +8900,13 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      int *escape);
 
 inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol,
-                                          bool omit_table_names) const
+                                          bool omit_table_names,
+                                          bool unordered_conditions) const
 {
   return type_handler()  == vcol->type_handler()
       && is_stored() == vcol->is_stored()
-      && expr->eq(vcol->expr, {true, omit_table_names});
+      && expr->eq(vcol->expr,
+                  {true, omit_table_names, unordered_conditions});
 }
 
 inline void Virtual_column_info::print(String* str)

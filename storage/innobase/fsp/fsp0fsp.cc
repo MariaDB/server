@@ -2143,10 +2143,12 @@ take_hinted_page:
 	used pages, then we allow a new empty extent to be added to
 	the segment in fseg_alloc_free_page_general(). Otherwise, we use
 	unused pages of the segment. */
-	if (used < extent_size / 2 ||
-            reserved - used >= reserved / 8 ||
-            reserved - used >= extent_size * 4) {
-	} else if (xdes_get_state(descr) == XDES_FREE) {
+	bool may_add_extent;
+	may_add_extent = used >= extent_size / 2
+		&& reserved - used < reserved / 8
+		&& reserved - used < extent_size * 4;
+
+	if (may_add_extent && xdes_get_state(descr) == XDES_FREE) {
 		/* Allocate the free extent from space and can
 		take the hinted page */
 		ret_descr = fsp_alloc_free_extent(space, hint, &xdes,
@@ -2181,7 +2183,9 @@ take_hinted_page:
 			return nullptr;
 		}
 		goto take_hinted_page;
-	} else if (direction != FSP_NO_DIR) {
+	}
+
+	if (may_add_extent && direction != FSP_NO_DIR) {
 
 		ret_descr = fseg_alloc_free_extent(seg_inode, iblock,
 						   &xdes, space, mtr, err);

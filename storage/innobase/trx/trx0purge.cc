@@ -40,6 +40,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0trx.h"
 #include "dict0load.h"
+#include "debug_sync.h"
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_wsrep.h>
 #include "log.h"
@@ -48,7 +49,7 @@ Created 3/26/1996 Heikki Tuuri
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
                         const char *tb, size_t tblen,
                         MDL_ticket *mdl_ticket) noexcept;
-int close_thread_tables(THD* thd) noexcept;
+void reset_thd(MYSQL_THD thd);
 MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
@@ -1108,7 +1109,12 @@ static void trx_purge_close_tables(THD *thd, purge_table *last_entry,
       node->tables.clear();
   }
 
-  close_thread_tables(thd);
+  /* Close the tables and free thd->mem_root, which holds the TABLE_LIST
+  allocated by every open_purge_table() call. Nothing else in the
+  coordinator's mem_root outlives its open tables, and without this
+  every batch (and every close_and_reopen() retry) would leak one
+  TABLE_LIST per opened table. */
+  reset_thd(thd);
 
   for (auto mdl : mdl_tickets)
   {
@@ -1524,6 +1530,26 @@ ulint trx_purge(trx_t *trx, ulint n_tasks, ulint history_size) noexcept
 
     trx_purge_close_tables(thd, nullptr, true);
   }
+
+#ifdef ENABLED_DEBUG_SYNC
+  /* Hold the batch open between its last purged record and the advance of
+  purge_sys.head and purge_sys.end_view, which is the window where a reader
+  that goes by end_view can still reach history this batch has removed. That
+  window is not otherwise accessible from a test, because it opens and closes
+  within this function.
+
+  Only a batch that purged something opens it, and parking one that did not
+  would stop the batch a test is waiting for. Whoever sets purge_hold_cleanup
+  must release the batch: until then it keeps this thread, and the undo pages
+  the batch handled. */
+  if (n_work)
+    DBUG_EXECUTE_IF("purge_hold_cleanup",
+                    debug_sync_set_action
+                    (current_thd,
+                     STRING_WITH_LEN("now SIGNAL purge_batch_parked "
+                                     "WAIT_FOR purge_batch_resume"));
+                    );
+#endif
 
   purge_sys.batch_cleanup(head);
 

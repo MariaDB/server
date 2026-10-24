@@ -812,3 +812,17 @@ DROP FUNCTION test.create; -- FUNCTION test.create does not exist
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
+End of 10.3 tests
+#
+# MDEV-41657 TO_DATE no longer works as a variable
+#
+BEGIN NOT ATOMIC
+DECLARE to_date DATETIME DEFAULT '2026-10-11 10:10:10';
+SELECT to_date;
+END
+$$
+to_date
+2026-10-11 10:10:10
+CREATE TABLE t1(TO_DATE DATE);
+DROP TABLE t1;
+End of 12.3 tests

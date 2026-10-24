@@ -808,3 +808,25 @@ ts
 2024-01-26 21:38:02
 drop table t1;
 # End of 10.6 tests
+#
+# MDEV-39530: Collation mix issue after update
+#
+# Reproduce the environment from the report: character_set_collations
+# maps utf8mb3 to utf8mb3_uca1400_ai_ci and the connection uses that
+# collation.
+SET NAMES utf8mb3 COLLATE utf8mb3_uca1400_ai_ci;
+SELECT @@character_set_collations, @@collation_connection;
+@@character_set_collations	@@collation_connection
+utf8mb3=utf8mb3_uca1400_ai_ci,ucs2=ucs2_uca1400_ai_ci,utf8mb4=utf8mb4_uca1400_ai_ci,utf16=utf16_uca1400_ai_ci,utf32=utf32_uca1400_ai_ci	utf8mb3_uca1400_ai_ci
+CREATE TABLE file (
+`ID` int(10) unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+`Path` varchar(800) NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
+INSERT INTO file VALUES (1,"text");
+# This query used to work in 11.4 but raises
+# ER_CANT_AGGREGATE_2COLLATIONS in 12.1+
+SELECT IF((@p:=(SELECT f.Path FROM file f WHERE f.ID=1 AND f.Path REGEXP "^xx"))!="",1,2);
+IF((@p:=(SELECT f.Path FROM file f WHERE f.ID=1 AND f.Path REGEXP "^xx"))!="",1,2)
+2
+DROP TABLE file;
+# End of 12.3 tests

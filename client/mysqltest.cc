@@ -140,6 +140,7 @@ static my_bool abort_on_error= 1, opt_continue_on_error= 0;
 static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static my_bool optimizer_trace_active= 0;
+static my_bool enable_sync_gtid= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
@@ -169,7 +170,8 @@ static struct property prop_list[] = {
   { &service_connection_enabled, 0, 1, 0, "$ENABLED_SERVICE_CONNECTION"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
-  { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
+  { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" },
+  { &enable_sync_gtid, 0, 0, 0, "$ENABLED_SYNC_GTID" }
 };
 
 static my_bool once_property= FALSE;
@@ -188,6 +190,7 @@ enum enum_prop {
   P_QUERY,
   P_RESULT,
   P_WARN,
+  P_SYNC_GTID,
   P_MAX
 };
 
@@ -311,6 +314,8 @@ struct MasterPos
   char file[FN_REFLEN];
   char gtid[256];
   ulong pos;
+  DYNAMIC_STRING gtid_pos;
+  bool gtid_pos_set;
 } master_pos;
 
 /* if set, all results are concated and compared against this file */
@@ -388,6 +393,7 @@ enum enum_commands {
   Q_ENABLE_QUERY_LOG, Q_DISABLE_QUERY_LOG,
   Q_ENABLE_RESULT_LOG, Q_DISABLE_RESULT_LOG,
   Q_ENABLE_CONNECT_LOG, Q_DISABLE_CONNECT_LOG,
+  Q_ENABLE_SYNC_GTID, Q_DISABLE_SYNC_GTID,
   Q_WAIT_FOR_SLAVE_TO_STOP,
   Q_ENABLE_WARNINGS, Q_DISABLE_WARNINGS,
   Q_ENABLE_INFO, Q_DISABLE_INFO,
@@ -472,6 +478,8 @@ const char *command_names[]=
   "disable_result_log",
   "enable_connect_log",
   "disable_connect_log",
+  "enable_sync_gtid",
+  "disable_sync_gtid",
   "wait_for_slave_to_stop",
   "enable_warnings",
   "disable_warnings",
@@ -815,6 +823,16 @@ struct Expression_value
     type= EXPR_INT;
     is_numeric= true;
     is_unsigned= false;
+    int_val= (unsigned long long) value;
+  }
+
+
+  /* Preserve the bit pattern after a defined unsigned operation. */
+  void set_int_from_uint(unsigned long long value)
+  {
+    type= EXPR_INT;
+    is_numeric= true;
+    is_unsigned= false;
     int_val= value;
   }
 
@@ -1001,6 +1019,17 @@ struct Expression_value
     set_string(token_start, token_len);
   }
 };
+
+
+static void check_mixed_unsigned_arithmetic(const Expression_value &left,
+                                            const Expression_value &right,
+                                            const char *op)
+{
+  if ((left.is_unsigned || right.is_unsigned) &&
+      ((!left.is_unsigned && left.to_int() < 0) ||
+       (!right.is_unsigned && right.to_int() < 0)))
+    die("Evaluation error: Signed integer overflow in operator '%s'", op);
+}
 
 
 /* Core expression parsing functions */
@@ -1903,6 +1932,7 @@ void free_used_memory()
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
   delete_dynamic(&q_lines);
+  dynstr_free(&master_pos.gtid_pos);
   dynstr_free(&ds_res);
   if (ds_warn)
     dynstr_free(ds_warn);
@@ -5344,28 +5374,45 @@ void do_sync_with_master2(struct st_command *command, long offset,
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
+  DYNAMIC_STRING ds_query;
+  const char *query_ptr;
   MYSQL *mysql= cur_con->mysql;
   char query_buf[FN_REFLEN+128], query_buf2[256];
   int timeout= opt_wait_for_pos_timeout;
 
-  if (!master_pos.file[0])
+  if ((enable_sync_gtid && !master_pos.gtid_pos_set) ||
+      (!enable_sync_gtid && !master_pos.file[0]))
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  snprintf(query_buf, sizeof(query_buf),
-          "select master_pos_wait('%s', %ld, %d, '%s')",
-          master_pos.file, master_pos.pos + offset, timeout,
-          connection_name);
+  if (enable_sync_gtid)
+  {
+    init_dynamic_string(&ds_query, "select master_gtid_wait('",
+                        master_pos.gtid_pos.length+32, 256);
+    dynstr_append_mem(&ds_query, master_pos.gtid_pos.str,
+                      master_pos.gtid_pos.length);
+    sprintf(query_buf, "', %d)", timeout);
+    dynstr_append_mem(&ds_query, query_buf, strlen(query_buf));
+    query_ptr= ds_query.str;
+  }
+  else
+  {
+    snprintf(query_buf, sizeof(query_buf),
+            "select master_pos_wait('%s', %ld, %d, '%s')",
+            master_pos.file, master_pos.pos + offset, timeout,
+            connection_name);
+    query_ptr= query_buf;
+  }
 
-  if (mysql_query(mysql, query_buf))
-    die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
+  if (mysql_query(mysql, query_ptr))
+    die("failed in '%s': %d: %s", query_ptr, mysql_errno(mysql),
         mysql_error(mysql));
 
   if (!(res= mysql_store_result(mysql)))
-    die("mysql_store_result() returned NULL for '%s'", query_buf);
+    die("mysql_store_result() returned NULL for '%s'", query_ptr);
   if (!(row= mysql_fetch_row(res)))
   {
     mysql_free_result(res);
-    die("empty result in %s", query_buf);
+    die("empty result in %s", query_ptr);
   }
 
   int result= -99;
@@ -5408,6 +5455,23 @@ void do_sync_with_master2(struct st_command *command, long offset,
     }
     /* purify end tested */
 
+
+    if (master_pos.gtid_pos_set &&
+        !mysql_query(mysql, "select @@global.gtid_slave_pos"))
+    {
+      if ((res= mysql_store_result(mysql)))
+      {
+        if ((row= mysql_fetch_row(res)))
+        {
+          fprintf(stderr, "Slave GTID position: %s\n",
+                  get_col_value(res, row, "@@global.gtid_slave_pos"));
+          fprintf(stderr, "Master GTID position: %s\n",
+                  master_pos.gtid_pos.str);
+        }
+        mysql_free_result(res);
+      }
+    }
+
     if (!result_str)
     {
       /*
@@ -5418,17 +5482,20 @@ void do_sync_with_master2(struct st_command *command, long offset,
       */
       die("%.*sB failed: '%s' returned NULL "            \
           "indicating slave SQL thread failure",
-          command->first_word_len, command->query, query_buf);
+          command->first_word_len, command->query, query_ptr);
     }
 
     if (result == -1)
       die("%.*sB failed: '%s' returned -1 "            \
           "indicating timeout after %d seconds",
-          command->first_word_len, command->query, query_buf, timeout);
+          command->first_word_len, command->query, query_ptr, timeout);
     else
       die("%.*sB failed: '%s' returned unknown result :%d",
-          command->first_word_len, command->query, query_buf, result);
+          command->first_word_len, command->query, query_ptr, result);
   }
+
+  if (enable_sync_gtid)
+    dynstr_free(&ds_query);
 
   return;
 }
@@ -5438,7 +5505,7 @@ void do_sync_with_master(struct st_command *command)
   long offset= 0;
   char *p= command->first_argument;
   const char *offset_start= p;
-  char *start, *buff= 0;
+  char *start, *buff= 0, *str;
   start= const_cast<char*>("");
 
   if (*offset_start)
@@ -5456,15 +5523,15 @@ void do_sync_with_master(struct st_command *command)
       p++;
       while (*p && my_isspace(charset_info, *p))
         p++;
-      start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
-                                    MYF(MY_WME|MY_FAE));
-      get_string(&buff, &p, command);
+      str= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
+                                  MYF(MY_WME|MY_FAE));
+      start= get_string(&str, &p, command);
     }
     command->last_argument= p;
   }
   do_sync_with_master2(command, offset, start);
   if (buff)
-    my_free(start);
+    my_free(buff);
   return;
 }
 
@@ -5477,17 +5544,26 @@ int do_save_master_pos()
   const char *query;
   DBUG_ENTER("do_save_master_pos");
 
-  if (mysql_query(mysql, query= "show master status"))
-    die("failed in 'show master status': %d %s",
+  query= enable_sync_gtid ? "select @@gtid_binlog_pos" : "show master status";
+  if (mysql_query(mysql, query))
+    die("failed in '%s': %d %s", query,
 	mysql_errno(mysql), mysql_error(mysql));
 
   if (!(res = mysql_store_result(mysql)))
     die("mysql_store_result() returned NULL for '%s'", query);
   if (!(row = mysql_fetch_row(res)))
-    die("empty result in show master status");
-  strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
-  master_pos.pos= strtoul(row[1], (char**) 0, 10);
-  strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
+    die("empty result in %s", query);
+  if (enable_sync_gtid)
+  {
+    dynstr_set(&master_pos.gtid_pos, row[0]);
+    master_pos.gtid_pos_set= 1;
+  }
+  else
+  {
+    strmake(master_pos.file, row[0], sizeof(master_pos.file)-1);
+    master_pos.pos = strtoul(row[1], (char**) 0, 10);
+    strmake(master_pos.gtid, row[4], sizeof(master_pos.gtid)-1);
+  }
   mysql_free_result(res);
   DBUG_RETURN(0);
 }
@@ -5755,7 +5831,15 @@ static void unary(Expression_value *result, const char **s)
     unary(result, s);
     if (!result->is_numeric)
       die("Type error: unary minus requires an integer operand");
-    result->set_int(-result->to_int());
+    if (result->is_unsigned)
+      result->set_int_from_uint(0ULL - result->to_uint());
+    else
+    {
+      long long value= result->to_int();
+      if (value == LLONG_MIN)
+        die("Evaluation error: Signed integer overflow in unary '-'");
+      result->set_int(-value);
+    }
     return;
   }
   if (match(s, "~"))
@@ -5804,10 +5888,26 @@ static void factor(Expression_value *result, const char **s)
       bitwise_xor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '*' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "*");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() * rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (right != 0 && left > ULLONG_MAX / right)
+          die("Evaluation error: Unsigned integer overflow in operator '*'");
+        result->set_uint(left * right);
+      }
       else
-        result->set_int(result->to_int() * rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((left > 0 && right > 0 && left > LLONG_MAX / right) ||
+            (left > 0 && right < 0 && right < LLONG_MIN / left) ||
+            (left < 0 && right > 0 && left < LLONG_MIN / right) ||
+            (left < 0 && right < 0 && left < LLONG_MAX / right))
+          die("Evaluation error: Signed integer overflow in operator '*'");
+        result->set_int(left * right);
+      }
     }
     else if (match(s, "/"))
     {
@@ -5817,17 +5917,17 @@ static void factor(Expression_value *result, const char **s)
         die("Type error: operator '/' requires integer operands");
       if (rhs.to_int() == 0)
         die("Evaluation error: Division by zero");
+      check_mixed_unsigned_arithmetic(*result, rhs, "/");
       if (result->is_unsigned || rhs.is_unsigned)
         result->set_uint(result->to_uint() / rhs.to_uint());
       else
       {
         long long nominator= result->to_int();
         long long denominator= rhs.to_int();
-        // Prevent fatal integer overflow from LLONG_MIN / -1, which causes a crash
+        // Prevent signed overflow from LLONG_MIN / -1.
         if (nominator == LLONG_MIN && denominator == -1)
-          result->set_int(nominator);
-        else
-          result->set_int(nominator / denominator);
+          die("Evaluation error: Signed integer overflow in operator '/'");
+        result->set_int(nominator / denominator);
       }
     }
     else if (match(s, "%"))
@@ -5838,13 +5938,14 @@ static void factor(Expression_value *result, const char **s)
         die("Type error: operator '%%' requires integer operands");
       if (rhs.to_int() == 0)
         die("Evaluation error: Modulo by zero");
+      check_mixed_unsigned_arithmetic(*result, rhs, "%");
       if (result->is_unsigned || rhs.is_unsigned)
         result->set_uint(result->to_uint() % rhs.to_uint());
       else
       {
         long long nominator= result->to_int();
         long long denominator= rhs.to_int();
-        // Prevent fatal integer overflow from LLONG_MIN % -1, which causes a crash
+        // LLONG_MIN % -1 is zero, but the CPU division can still trap.
         if (nominator == LLONG_MIN && denominator == -1)
           result->set_int(0);
         else
@@ -5870,10 +5971,24 @@ static void term(Expression_value *result, const char **s)
       factor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '+' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "+");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() + rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (left > ULLONG_MAX - right)
+          die("Evaluation error: Unsigned integer overflow in operator '+'");
+        result->set_uint(left + right);
+      }
       else
-        result->set_int(result->to_int() + rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((right > 0 && left > LLONG_MAX - right) ||
+            (right < 0 && left < LLONG_MIN - right))
+          die("Evaluation error: Signed integer overflow in operator '+'");
+        result->set_int(left + right);
+      }
     }
     else if (match(s, "-"))
     {
@@ -5881,10 +5996,27 @@ static void term(Expression_value *result, const char **s)
       factor(&rhs, s);
       if (!result->is_numeric || !rhs.is_numeric)
         die("Type error: operator '-' requires integer operands");
+      check_mixed_unsigned_arithmetic(*result, rhs, "-");
       if (result->is_unsigned || rhs.is_unsigned)
-        result->set_uint(result->to_uint() - rhs.to_uint());
+      {
+        unsigned long long left= result->to_uint();
+        unsigned long long right= rhs.to_uint();
+        if (left >= right)
+          result->set_uint(left - right);
+        else if (right - left <= (unsigned long long) LLONG_MAX + 1)
+          result->set_int_from_uint(left - right);  /* negative result */
+        else
+          die("Evaluation error: Integer overflow in operator '-'");
+      }
       else
-        result->set_int(result->to_int() - rhs.to_int());
+      {
+        long long left= result->to_int();
+        long long right= rhs.to_int();
+        if ((right > 0 && left < LLONG_MIN + right) ||
+            (right < 0 && left > LLONG_MAX + right))
+          die("Evaluation error: Signed integer overflow in operator '-'");
+        result->set_int(left - right);
+      }
     }
     else
       break;
@@ -6350,7 +6482,19 @@ void func_abs(Expression_value args[], int count, Expression_value *result)
   if (!args[0].is_numeric)
     die("abs() requires numeric argument");
 
-  result->set_int(llabs(args[0].to_int()));
+  if (args[0].is_unsigned)
+  {
+    if (args[0].to_uint() > (unsigned long long) LLONG_MAX)
+      die("Evaluation error: Signed integer overflow in abs()");
+    result->set_int((long long) args[0].to_uint());
+  }
+  else
+  {
+    long long value= args[0].to_int();
+    if (value == LLONG_MIN)
+      die("Evaluation error: Signed integer overflow in abs()");
+    result->set_int(value < 0 ? -value : value);
+  }
 }
 
 
@@ -8508,7 +8652,7 @@ void do_get_errcodes(struct st_command *command)
 
 
 /*
-  Get a string;  Return ptr to end of string
+  Get a string;  Return ptr to start of string
   Strings may be surrounded by " or '
 
   If string is a '$variable', return the value of the variable.
@@ -10917,7 +11061,10 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   {
     for (i= 0; i < num_fields; i++)
       append_field(rs, i, &fields[i], (char*)my_bind[i].buffer,
-                   *my_bind[i].length, *my_bind[i].is_null);
+                   (*my_bind[i].is_null ?
+                     0 :
+                     *my_bind[i].length),
+                   *my_bind[i].is_null);
     if (!display_result_vertically)
       dynstr_append_mem(rs, "\n", 1);
   }
@@ -12852,7 +12999,7 @@ void init_re(void)
   */
   const char *ps2_re_str =
     "^("
-    "[[:space:]]*SELECT[[:space:]])";
+    "[[:space:]]*(\\([[:space:]]*)*SELECT[[:space:]])";
 
   /*
     Filter for queries that can be run as views
@@ -13193,6 +13340,7 @@ int main(int argc, char **argv)
   }
 
   memset(&master_pos, 0, sizeof(master_pos));
+  init_dynamic_string(&master_pos.gtid_pos, "", 1, 256);
 
   parser.current_line= parser.read_lines= 0;
   memset(&var_reg, 0, sizeof(var_reg));
@@ -13235,6 +13383,7 @@ int main(int argc, char **argv)
   var_set_int("$ENABLED_ABORT_ON_ERROR", 1);
   var_set_int("$ENABLED_RESULT_LOG", 1);
   var_set_int("$ENABLED_CONNECT_LOG", 0);
+  var_set_int("$ENABLED_SYNC_GTID", enable_sync_gtid);
   var_set_int("$ENABLED_WARNINGS", 1);
   var_set_int("$ENABLED_INFO", 0);
   var_set_int("$ENABLED_METADATA", 0);
@@ -13428,6 +13577,12 @@ int main(int argc, char **argv)
         break;
       case Q_DISABLE_METADATA:
         set_property(command, P_META, 0);
+        break;
+      case Q_ENABLE_SYNC_GTID:
+        set_property(command, P_SYNC_GTID, 1);
+        break;
+      case Q_DISABLE_SYNC_GTID:
+        set_property(command, P_SYNC_GTID, 0);
         break;
       case Q_ENABLE_COLUMN_NAMES:
         disable_column_names= 0;

@@ -20604,6 +20604,22 @@ typedef struct {
 } v2_proxy_header;
 
 #ifndef EMBEDDED_LIBRARY
+/*
+  Zero the header, and set the part that is common to all PROXY v2 headers:
+  the signature, version 2 with the command (0x1 PROXY, 0x0 LOCAL), the
+  address family and protocol, and the length of the address block.
+*/
+static void init_v2_header(v2_proxy_header *header, int command, int fam,
+                           size_t len)
+{
+  memset(header, 0, sizeof(*header));
+  memcpy(header->sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A",
+         sizeof(header->sig));
+  header->ver_cmd= (0x2 << 4) | command;
+  header->fam= fam;
+  header->len= htons(len);
+}
+
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
   int rc;
@@ -20612,26 +20628,22 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   char query[256];
   char text_header[256], bad_text_header[256];
   char addr_bin[16];
-  v2_proxy_header v2_header, bad_v2_header;
-  void *header_data[4];
-  size_t header_lengths[4];
+  v2_proxy_header v2_header, bad_v2_header, short_v2_header;
+  void *header_data[5];
+  size_t header_lengths[5];
   size_t i;
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
   myheader("test_proxy_header_tcp");
 
-  memset(&v2_header, 0, sizeof(v2_header));
   snprintf(text_header, sizeof(text_header), "PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
- 
+
   inet_pton(family,ipaddr,addr_bin);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
   if(family == AF_INET)
   {
-    v2_header.fam= 0x11;
-    v2_header.len= htons(12);
+    init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
     v2_header.addr.ip4.src_port= htons(port);
     v2_header.addr.ip4.dst_port= htons(3306);
     memcpy(&v2_header.addr.ip4.src_addr,addr_bin, sizeof (v2_header.addr.ip4.src_addr));
@@ -20639,8 +20651,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   }
   else
   {
-    v2_header.fam= 0x21;
-    v2_header.len= htons(36);
+    init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
     v2_header.addr.ip6.src_port= htons(port);
     v2_header.addr.ip6.dst_port= htons(3306);
     memcpy(v2_header.addr.ip6.src_addr,addr_bin, sizeof (v2_header.addr.ip6.src_addr));
@@ -20655,17 +20666,23 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   header_data[1]= &v2_header;
   header_data[2]= bad_text_header;
   header_data[3]= &bad_v2_header;
+  header_data[4]= &short_v2_header;
 
   header_lengths[0]= strlen(text_header);
   header_lengths[1]= family == AF_INET ? 28 : 52;
   header_lengths[2]= sizeof(text_header)-4;
   header_lengths[3]= header_lengths[1];
+  /* MDEV-41508: address block ends before the source port's low byte */
+  header_lengths[4]= family == AF_INET ? 25 : 49;
 
   memset(bad_text_header, ' ', sizeof(bad_text_header));
   memcpy(bad_text_header, text_header, header_lengths[1]-6);
 
   bad_v2_header= v2_header;
   bad_v2_header.len= 0;
+
+  short_v2_header= v2_header;
+  short_v2_header.len= htons(header_lengths[4] - 16);
 
   for (i = 0; i < 2; i++)
   {
@@ -20707,8 +20724,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
       DIE(0);
     printf("pass %zu error %i - %s\n", i, mysql_errno(m),
            mysql_error(m));
-    DIE_IF(i == 2 && mysql_errno(m) != ER_UNKNOWN_ERROR);
-    DIE_IF(i == 3 && mysql_errno(m) != ER_UNKNOWN_ERROR);
+    DIE_IF(mysql_errno(m) != ER_UNKNOWN_ERROR);
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20729,11 +20745,7 @@ static void test_proxy_header_localhost()
   int rc;
   myheader("test_proxy_header_localhost");
 
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
-  v2_header.fam= 0x31;
-  v2_header.len= htons(216);
+  init_v2_header(&v2_header, 0x1, 0x31, sizeof(v2_header.addr.unx));
   strcpy(v2_header.addr.unx.src_addr,"/tmp/mysql.sock");
   strcpy(v2_header.addr.unx.dst_addr,"/tmp/mysql.sock");
   rc = mysql_query(mysql, "CREATE USER 'u'@'localhost' IDENTIFIED BY 'password'");
@@ -20766,10 +20778,8 @@ static void test_proxy_header_ignore()
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
   mysql_close(m);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x0; /* Version (0x2) , Command = LOCAL (0x0) */
-  v2_header.fam= 0x0; /* AF_UNSPEC*/
-  v2_header.len= htons(0);
+  /* Command LOCAL (0x0), AF_UNSPEC, no address block */
+  init_v2_header(&v2_header, 0x0, 0x0, 0);
   m = mysql_client_init(NULL);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
@@ -20788,30 +20798,195 @@ static void test_proxy_header_ignore()
   myquery(rc);
 }
 
+/* Open a raw TCP connection to opt_host:opt_port */
+static my_socket connect_tcp(void)
+{
+  struct addrinfo hints, *ai= NULL, *p;
+  char portbuf[MY_INT32_NUM_DECIMAL_DIGITS];
+  int connected= 0;
+  my_socket s= INVALID_SOCKET;
+
+  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family= AF_UNSPEC;
+  hints.ai_socktype= SOCK_STREAM;
+  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
+                         &hints, &ai) == 0);
+
+  for (p= ai; p; p= p->ai_next)
+  {
+    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (s == INVALID_SOCKET)
+      continue;
+    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
+    {
+      connected= 1;
+      break;
+    }
+    closesocket(s);
+    s= INVALID_SOCKET;
+  }
+  freeaddrinfo(ai);
+  DIE_UNLESS(connected);
+  return s;
+}
+
+
+/*
+  MDEV-41508 PROXY v2 header, shorter than it declares, must be rejected.
+  Raw socket is used, as the client library would follow the header with
+  its login packet, which would be taken for the missing header bytes.
+*/
+static void test_proxy_header_short()
+{
+  v2_proxy_header v2_header;
+  /* 1024 is enough for the greeting packet plus the error packet */
+  char buf[1024];
+  /* Error packet payload: 0xff, error code, '#' and SQLSTATE, then message */
+  const size_t error_payload_header_len= 1 + 2 + 1 + SQLSTATE_LENGTH;
+  size_t total= 0, error_packet_pos, error_packet_len, err_msg_len;
+  const uchar *error_packet, *error_payload;
+  const char *err_msg;
+  static const LEX_CSTRING expected_msg=
+    { STRING_WITH_LEN("Failed to parse proxy header") };
+  uint err_code;
+  my_socket s;
+
+  myheader("test_proxy_header_short");
+
+  /* Command PROXY, TCP over IPv4, declares the whole IPv4 address block */
+  init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
+
+  s= connect_tcp();
+  /*
+    Send an incomplete PROXY v2 header, 25 bytes: the signature, 2 IPv4
+    addresses, and the first byte of the source port (16 + 4 + 4 + 1).
+    The complete header is 28 bytes.
+  */
+  DIE_UNLESS(send(s, (const char *) &v2_header, 25, 0) == 25);
+
+  /*
+    The server sends its greeting first. Then it rejects the header with an
+    error packet and closes the connection, so read until EOF.
+  */
+  for (;;)
+  {
+    int n= recv(s, buf + total, (int) (sizeof(buf) - total), 0);
+    if (n <= 0)
+      break;
+    total+= n;
+  }
+  closesocket(s);
+
+  /*
+    Every packet is: 3 bytes of payload length, 1 byte of sequence number,
+    and the payload. Skip the greeting packet.
+  */
+  DIE_UNLESS(total >= NET_HEADER_SIZE);
+  error_packet_pos= NET_HEADER_SIZE + uint3korr(buf);
+
+  /* The error packet, after its header: 0xff, error code, '#', SQLSTATE */
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE);
+  error_packet= (const uchar *) buf + error_packet_pos;
+  error_packet_len= uint3korr(error_packet);
+  error_payload= error_packet + NET_HEADER_SIZE;
+  DIE_UNLESS(error_packet_len >= error_payload_header_len);
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE + error_packet_len);
+  DIE_UNLESS(error_payload[0] == 0xff);
+  DIE_UNLESS(error_payload[3] == '#');
+  err_code= uint2korr(error_payload + 1);
+  err_msg= (const char *) error_payload + error_payload_header_len;
+  err_msg_len= error_packet_len - error_payload_header_len;
+  printf("error %u: %.*s\n", err_code, (int) err_msg_len, err_msg);
+
+  DIE_UNLESS(err_code == ER_UNKNOWN_ERROR);
+  DIE_UNLESS(err_msg_len == expected_msg.length);
+  DIE_UNLESS(!memcmp(err_msg, expected_msg.str, expected_msg.length));
+}
+
+
+#define MAX_IPV6_ADDR "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+
+/*
+  MDEV-41691 PROXY v1 header must be a single line of up to 107 bytes,
+  with fields separated by one space and ending in CRLF.
+  Loopback addresses are used, to avoid name resolution.
+*/
 static void test_proxy_header_limits()
 {
-  MYSQL *m;
-  char text_header[256];
-  const char *prefix = "PROXY TCP4 1.2.3.4 5.6.7.8 1234 5678";
-  size_t prefix_len;
+  static const char nul_in_line[]=
+    "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\0junk\r\n";
+  size_t i;
+  MYSQL *m, *conn;
+  struct
+  {
+    const char *header;
+    size_t len;                 /* 0 for a null-terminated header */
+    my_bool valid;
+  } cases[]=
+  {
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, TRUE },
+    /* Anything after UNKNOWN is ignored, or can be absent */
+    { "PROXY UNKNOWN\r\n", 0, TRUE },
+    { "PROXY UNKNOWN junk\r\n", 0, TRUE },
+    /* Not the UNKNOWN keyword */
+    { "PROXY UNKNOWNX\r\n", 0, FALSE },
+    /* A field is missing */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234\r\n", 0, FALSE },
+    /* Invalid address */
+    { "PROXY TCP4 1.2.3 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Line ends in LF instead of CRLF */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\n", 0, FALSE },
+    /* Two spaces between fields */
+    { "PROXY TCP4 127.0.0.1  127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Unknown address family */
+    { "PROXY TCP5 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Space after the last field */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678 \r\n", 0, FALSE },
+    /* Port out of range, or not just digits */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65535\r\n", 0, TRUE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65536\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 +1234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 -1 5678\r\n", 0, FALSE },
+    /* Leading zeroes are not allowed, port 0 is fine */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 01234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 0 5678\r\n", 0, TRUE },
+    /* NUL byte inside the line */
+    { nul_in_line, sizeof(nul_in_line) - 1, FALSE },
+    /*
+      The longest line of the specification, 107 bytes with CRLF, is
+      accepted. UNKNOWN ignores the fields, but the line is limited too,
+      with one more byte it is not.
+    */
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 65535\r\n",
+      0, TRUE },
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 655350\r\n",
+      0, FALSE },
+  };
 
   myheader("test_proxy_header_limits");
 
-  /* Test maximum length PROXY header (256 bytes) to ensure no overflow */
-  memset(text_header, ' ', sizeof(text_header));
-
-  prefix_len = strlen(prefix);
-
-  memcpy(text_header, prefix, prefix_len);
-  text_header[sizeof(text_header) - 1] = '\n';
-
-  m = mysql_client_init(NULL);
-  DIE_UNLESS(m);
-
-  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, text_header, sizeof(text_header));
-
-  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == NULL);
-  mysql_close(m);
+  for (i= 0; i < array_elements(cases); i++)
+  {
+    size_t len= cases[i].len ? cases[i].len : strlen(cases[i].header);
+    m= mysql_client_init(NULL);
+    DIE_UNLESS(m);
+    mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, cases[i].header, len);
+    conn= mysql_real_connect(m, opt_host, "root", "", NULL, opt_port,
+                             opt_unix_socket, 0);
+    if (cases[i].valid)
+    {
+      DIE_UNLESS(conn);
+    }
+    else
+    {
+      DIE_UNLESS(!conn);
+      /* A rejected header must be the reason of the failure */
+      DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
+      DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+    }
+    mysql_close(m);
+  }
 }
 
 
@@ -20851,11 +21026,7 @@ static void test_proxy_header_dbug_remote_connection()
   myquery(rc);
 
   /* Build a v2 proxy header announcing proxy_ipv6 as the client address. */
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* PROXY command */
-  v2_header.fam     = 0x21;              /* TCPv6 */
-  v2_header.len     = htons(36);
+  init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
   inet_pton(AF_INET6, proxy_ipv6, addr_bin);
   memcpy(v2_header.addr.ip6.src_addr, addr_bin, 16);
   memcpy(v2_header.addr.ip6.dst_addr, addr_bin, 16);
@@ -20900,33 +21071,8 @@ static void test_proxy_header_dbug_remote_connection()
 */
 static void proxy_send_handshake_error(const char *client_ip)
 {
-  struct addrinfo hints, *ai= NULL, *p;
-  char portbuf[20], header[128];
-  int connected= 0;
-  my_socket s= INVALID_SOCKET;
-
-  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family= AF_UNSPEC;
-  hints.ai_socktype= SOCK_STREAM;
-  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
-                         &hints, &ai) == 0);
-
-  for (p= ai; p; p= p->ai_next)
-  {
-    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-    if (s == INVALID_SOCKET)
-      continue;
-    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
-    {
-      connected= 1;
-      break;
-    }
-    closesocket(s);
-    s= INVALID_SOCKET;
-  }
-  freeaddrinfo(ai);
-  DIE_UNLESS(connected);
+  char header[128];
+  my_socket s= connect_tcp();
 
   if (client_ip)
   {
@@ -20947,12 +21093,14 @@ static void proxy_send_handshake_error(const char *client_ip)
 }
 
 /*
-  Connect through PROXY protocol, advertising 'client_ip' as the client.
-  On success returns the connection (caller closes it); on failure returns NULL
-  and stores the client error code in *out_errno.
+  Connect through PROXY protocol, advertising 'client_ip' as the client,
+  optionally requiring SSL. On success returns the connection (caller
+  closes it); on failure returns NULL and stores the client error code
+  in *out_errno.
 */
 static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
-                               const char *passwd, unsigned int *out_errno)
+                               const char *passwd, my_bool use_ssl,
+                               unsigned int *out_errno)
 {
   MYSQL *m= mysql_client_init(NULL);
   char header[128];
@@ -20963,6 +21111,8 @@ static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
            v6 ? "TCP6" : "TCP4", client_ip, v6 ? "::1" : "127.0.0.1", opt_port);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header, strlen(header));
   mysql_optionsv(m, MYSQL_OPT_PROTOCOL, &proto);
+  if (use_ssl)
+    mysql_ssl_set(m, NULL, NULL, NULL, NULL, NULL);
   if (!mysql_real_connect(m, opt_host, user, passwd, NULL, opt_port, NULL, 0))
   {
     if (out_errno)
@@ -20982,6 +21132,7 @@ static MYSQL *proxy_connect_as(const char *client_ip, const char *user,
 */
 static void test_proxy_header_connect_errors_reset()
 {
+#ifndef DBUG_OFF
   const char *client_ip= "192.0.2.50";
   char query[256];
   unsigned int conn_errno= 0;
@@ -20989,6 +21140,13 @@ static void test_proxy_header_connect_errors_reset()
   MYSQL *m;
 
   myheader("test_proxy_header_connect_errors_reset");
+
+  /* Force a deterministic "unresolvable" outcome; see hostname.cc. */
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,getnameinfo_error_noname'");
+  myquery(rc);
 
   rc= mysql_query(mysql,
                   "SET @saved_max_connect_errors= @@global.max_connect_errors");
@@ -21006,7 +21164,7 @@ static void test_proxy_header_connect_errors_reset()
   /* max_connect_errors handshake errors block the host. */
   for (i= 0; i < 3; i++)
     proxy_send_handshake_error(client_ip);
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
 
   rc= mysql_query(mysql, "FLUSH HOSTS");
@@ -21017,7 +21175,7 @@ static void test_proxy_header_connect_errors_reset()
   proxy_send_handshake_error(client_ip);
 
   /* Below the limit: must connect, and this success must reset the counter. */
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);
   mysql_close(m);
 
@@ -21026,7 +21184,7 @@ static void test_proxy_header_connect_errors_reset()
   proxy_send_handshake_error(client_ip);
   proxy_send_handshake_error(client_ip);
 
-  m= proxy_connect_as(client_ip, "u", "password", &conn_errno);
+  m= proxy_connect_as(client_ip, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED with unfixed MDEV-25817 */
   mysql_close(m);
 
@@ -21038,6 +21196,9 @@ static void test_proxy_header_connect_errors_reset()
   myquery(rc);
   rc= mysql_query(mysql, "FLUSH HOSTS");
   myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif /* !DBUG_OFF */
 }
 
 /*
@@ -21079,7 +21240,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
      max_connect_errors of them block it. */
   for (i= 0; i < 3; i++)
     proxy_send_handshake_error(NULL);
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL && conn_errno == ER_HOST_IS_BLOCKED);
 
   rc= mysql_query(mysql, "FLUSH HOSTS");
@@ -21090,7 +21251,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
   proxy_send_handshake_error(NULL);
 
   /* Success: client has no errors, so this must reset the proxy host's two. */
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);
   mysql_close(m);
 
@@ -21098,7 +21259,7 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
   proxy_send_handshake_error(NULL);
   proxy_send_handshake_error(NULL);
 
-  m= proxy_connect_as(proxied_client, "u", "password", &conn_errno);
+  m= proxy_connect_as(proxied_client, "u", "password", FALSE, &conn_errno);
   DIE_UNLESS(m != NULL);   /* ER_HOST_IS_BLOCKED if proxy host not reset */
   mysql_close(m);
 
@@ -21114,6 +21275,94 @@ static void test_proxy_header_proxy_host_connect_errors_reset()
 #endif /* !DBUG_OFF */
 }
 
+/*
+  MDEV-40967: a host that fails the check on its PROXY-derived address
+  must still be rejected with ER_HOST_NOT_PRIVILEGED when SSL isn't even
+  requested. This plain case already worked before the fix too - it is
+  baseline coverage, not the regression case; see
+  test_proxy_header_ssl_host_denied() for that.
+*/
+static void test_proxy_header_host_denied()
+{
+  const char *client_ip= "192.0.2.222";
+  unsigned int conn_errno= 0;
+  MYSQL *m;
+
+  myheader("test_proxy_header_host_denied");
+
+  m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
+  DIE_UNLESS(m == NULL);
+  DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+}
+
+/*
+  MDEV-40967: repeated ER_HOST_NOT_PRIVILEGED rejections via the deferred
+  path must never count toward max_connect_errors - the pre-deferral,
+  immediate check never did either, since a host with no matching grant
+  did nothing resembling a failed handshake.
+*/
+static void test_proxy_header_host_denied_not_counted()
+{
+#ifndef DBUG_OFF
+  const char *client_ip= "192.0.2.224";
+  unsigned int conn_errno= 0;
+  int rc, i;
+  MYSQL *m;
+
+  myheader("test_proxy_header_host_denied_not_counted");
+
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,getnameinfo_error_noname'");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+                  "SET @save_max_connect_errors= @@global.max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @@global.max_connect_errors=3");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+
+  /* More attempts than max_connect_errors: every one must still be
+     ER_HOST_NOT_PRIVILEGED, never ER_HOST_IS_BLOCKED. */
+  for (i= 0; i < 5; i++)
+  {
+    m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
+    DIE_UNLESS(m == NULL);
+    DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  }
+
+  rc= mysql_query(mysql,
+                  "SET @@global.max_connect_errors=@save_max_connect_errors");
+  myquery(rc);
+  rc= mysql_query(mysql, "FLUSH HOSTS");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif /* !DBUG_OFF */
+}
+
+/*
+  MDEV-40967: same deferred rejection as test_proxy_header_host_denied(),
+  but with the client requesting (and completing) SSL - the actual
+  regression case: before the fix, the host check ran before the SSL
+  handshake, corrupting it.
+*/
+static void test_proxy_header_ssl_host_denied()
+{
+  const char *client_ip= "192.0.2.223";
+  unsigned int conn_errno= 0;
+  MYSQL *m;
+
+  myheader("test_proxy_header_ssl_host_denied");
+
+  m= proxy_connect_as(client_ip, "root", "", TRUE, &conn_errno);
+  DIE_UNLESS(m == NULL);
+  DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+}
+
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
@@ -21123,9 +21372,13 @@ static void test_proxy_header()
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
+  test_proxy_header_short();
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
   test_proxy_header_proxy_host_connect_errors_reset();
+  test_proxy_header_host_denied();
+  test_proxy_header_host_denied_not_counted();
+  test_proxy_header_ssl_host_denied();
 }
 
 

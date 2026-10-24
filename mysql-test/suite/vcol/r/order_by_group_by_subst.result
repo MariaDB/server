@@ -234,6 +234,7 @@ INDEX (a1)
 ) ENGINE=INNODB;
 SELECT * FROM t1 GROUP BY a WITH ROLLUP;
 a	b	a1
+NULL	NULL	NULL
 drop table t1;
 #
 # End of 12.1 tests

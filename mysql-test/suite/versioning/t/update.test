@@ -429,6 +429,205 @@ insert into t (b) values (1);
 insert into t (b) values (1),(1) on duplicate key update a = 3;
 drop table t;
 
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning;
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+update t1 set c1= c1 + interval 1 day;
+check table t1 extended;
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+drop table t1;
+
+--echo # Multi-table UPDATE
+create table t1 (c1 date key, c2 text as (c1) virtual, index (c2(10)))
+with system versioning;
+create table t2 (x int) engine=myisam;
+insert t1 values ('2000-01-01', default), ('2000-01-03', default);
+insert t2 values (1);
+update t1, t2 set t1.c1= t1.c1 + interval 1 day;
+check table t1 extended;
+select c1, c2 from t1 for system_time all force index (c2) order by c2;
+drop table t1, t2;
+
+--echo # INSERT ... ON DUPLICATE KEY UPDATE
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+insert t1 (id, a) values (1, 'old'), (2, 'start');
+insert t1 (id, a) values (2, 'x') on duplicate key update a= 'final';
+check table t1 extended;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+
+--echo # Virtual fields of the new row are computed once
+set @save_sql_mode= @@sql_mode;
+set sql_mode= '';
+create table t1 (a varchar(10), b int as (a) virtual)
+with system versioning;
+insert t1 (a) values ('x');
+update t1 set a= 'y';
+drop table t1;
+set sql_mode= @save_sql_mode;
+
+--echo # Error from virtual fields computed after the system fields
+set @save_sql_mode= @@sql_mode;
+set sql_mode= 'strict_all_tables,error_for_division_by_zero';
+create table t1 (a int,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  b int as (1 div (year(rs) - 2000)) stored)
+with system versioning engine=innodb;
+# One-row MyISAM t2 is a const table and InnoDB t1 is not, so t1 is updated
+# through a temporary table in multi_update::do_updates()
+create table t2 (x int) engine=myisam;
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (a) values (1);
+insert t2 values (1);
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+flush status;
+--error ER_DIVISION_BY_ZERO
+update t1, t2 set t1.a= 2;
+--echo # Non-zero: t1 is updated through the temporary table
+show status like 'Handler_tmp_write';
+set timestamp= default;
+select a, b from t1;
+drop table t1, t2;
+set sql_mode= @save_sql_mode;
+
+--echo #
+--echo # MDEV-41493 AFTER UPDATE trigger reads wrong NEW value of BLOB/TEXT
+--echo #            virtual column in system-versioned table
+--echo #
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table log (op varchar(10), id int, new_v text);
+create trigger tr after update on t1 for each row
+  insert log values (@op, new.id, new.v);
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer-than-new');
+set @op= 'update';
+update t1 set a= 'new';
+create table t2 (x int);
+insert t2 values (1);
+set @op= 'multi';
+update t1, t2 set t1.a= concat(t1.a, '2');
+set @op= 'odku';
+insert t1 (id, a) values (2, 'x') on duplicate key update a= 'odku';
+select * from log order by op, id;
+drop table t1, t2, log;
+
+--echo # Virtual GEOMETRY column
+create table t1 (id int primary key, a int, g point as (point(a, a)) virtual)
+with system versioning;
+create table log (op varchar(10), id int, new_g text);
+create trigger tr_upd after update on t1 for each row
+  insert log values ('update', new.id, st_astext(new.g));
+create trigger tr_ins after insert on t1 for each row
+  insert log values ('replace', new.id, st_astext(new.g));
+insert t1 (id, a) values (1, 1), (2, 2);
+delete from log;
+update t1 set a= a + 10;
+replace t1 (id, a) values (1, 5);
+select * from log order by op, id;
+drop table t1, log;
+
+--echo # History row with negative lifetime is not written
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table log (id int, new_v text);
+create trigger tr after update on t1 for each row
+  insert log values (new.id, new.v);
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'old-and-longer-than-new');
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+update t1 set a= 'new';
+set timestamp= default;
+select * from log;
+select id, a, v from t1 for system_time all;
+drop table t1, log;
+
+--echo # Multi-table UPDATE on the fly
+# No primary key: row_end in it would rule out updating on the fly
+create table t1 (id int, a text, v text as (concat('v-', a)) virtual)
+with system versioning;
+create table t2 (x int) engine=innodb;
+create table log (id int, new_v text);
+create trigger tr after update on t1 for each row
+  insert log values (new.id, new.v);
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer-than-new');
+insert t2 values (1);
+flush status;
+update t1 straight_join t2 set t1.a= 'new';
+--echo # Zero: t1 is updated on the fly
+show status like 'Handler_tmp_write';
+select * from log order by id;
+drop table t1, t2, log;
+
+--echo #
+--echo # MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+--echo #            versioned table
+--echo #
+--echo # AFTER UPDATE trigger reads NEW of a stored generated blob
+create table t1 (id int primary key, a text charset latin1,
+  s text charset utf8mb4 as (concat('s-', a)) stored)
+with system versioning;
+create table log (op varchar(10), id int, new_s text);
+create trigger tr after update on t1 for each row
+  insert log values (@op, new.id, new.s);
+insert t1 (id, a) values (1, 'old-and-longer-than-new');
+set @op= 'update';
+update t1 set a= 'new';
+create table t2 (x int);
+insert t2 values (1);
+set @op= 'multi';
+update t1, t2 set t1.a= 'new2';
+set @op= 'odku';
+insert t1 (id, a) values (1, 'x') on duplicate key update a= 'odku';
+select * from log order by op, id;
+drop table t1, t2, log;
+
+--echo # Several generated columns of different kinds
+create table t1 (id int primary key, a text charset latin1,
+  v1 text as (concat('v1-', a)) virtual,
+  n int as (length(a)) virtual,
+  s text charset utf8mb4 as (concat('s-', a)) stored,
+  g point as (point(length(a), length(a))) virtual,
+  v2 text as (concat('v2-', a)) virtual,
+  unique (a), key (v1(10)), key (v2(10)))
+with system versioning;
+create table log (op varchar(10), id int, v1 text, n int, s text, g text,
+                  v2 text);
+create trigger tu after update on t1 for each row
+  insert log values ('update', new.id, new.v1, new.n, new.s, st_astext(new.g),
+                     new.v2);
+create trigger ti after insert on t1 for each row
+  insert log values ('insert', new.id, new.v1, new.n, new.s, st_astext(new.g),
+                     new.v2);
+create trigger td after delete on t1 for each row
+  insert log values ('delete', old.id, old.v1, old.n, old.s, st_astext(old.g),
+                     old.v2);
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from log;
+update t1 set a= 'one-upd' where id = 1;
+replace t1 (id, a) values (2, 'rep');
+delete from t1 where id = 1;
+check table t1 extended;
+select * from log order by op, id;
+select id, a, v1, n, s, st_astext(g), v2 from t1 for system_time all
+order by id, a;
+drop table t1, log;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
 --echo # End of 10.11 tests
 
 source suite/versioning/common_finish.inc;

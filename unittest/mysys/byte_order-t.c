@@ -83,6 +83,81 @@ void test_byte_order()
   TEST(mi_int8store, mi_uint8korr, ulonglong, 0x0807060504030201,
        ARRAY_8(8, 7, 6, 5, 4, 3, 2, 1));
 
+  /*
+    Floating point macros. The stored bytes are IEEE 754, little-endian
+    (float4store etc.) or big-endian (the mi_ variants), on any host.
+  */
+#define TEST_FLOAT(STORE_NAME, LOAD_NAME, TYPE, VALUE, BYTES)                  \
+  {                                                                            \
+    TYPE value= VALUE, loaded;                                                 \
+    uchar bytes[]= BYTES;                                                      \
+    STORE_NAME(aligned, value);                                                \
+    ok(!memcmp(aligned, bytes, sizeof(bytes)), "aligned\t\t" #STORE_NAME);     \
+    LOAD_NAME(loaded, aligned);                                                \
+    ok(!memcmp(&loaded, &value, sizeof(value)), "aligned\t\t" #LOAD_NAME);     \
+    STORE_NAME(not_aligned, value);                                            \
+    ok(!memcmp(not_aligned, bytes, sizeof(bytes)),                             \
+       "not aligned\t" #STORE_NAME);                                           \
+    LOAD_NAME(loaded, not_aligned);                                            \
+    ok(!memcmp(&loaded, &value, sizeof(value)), "not aligned\t" #LOAD_NAME);   \
+  }
+
+  TEST_FLOAT(float4store, float4get, float, 1.0f, ARRAY_4(0, 0, 0x80, 0x3f));
+  TEST_FLOAT(float8store, float8get, double, 1.0,
+             ARRAY_8(0, 0, 0, 0, 0, 0, 0xf0, 0x3f));
+  TEST_FLOAT(float8store, float8get, double, -0.0,
+             ARRAY_8(0, 0, 0, 0, 0, 0, 0, 0x80));
+  TEST_FLOAT(mi_float4store, mi_float4get, float, 1.0f,
+             ARRAY_4(0x3f, 0x80, 0, 0));
+  TEST_FLOAT(mi_float4store, mi_float4get, float, -2.0f,
+             ARRAY_4(0xc0, 0, 0, 0));
+  TEST_FLOAT(mi_float8store, mi_float8get, double, 1.0,
+             ARRAY_8(0x3f, 0xf0, 0, 0, 0, 0, 0, 0));
+  TEST_FLOAT(mi_float8store, mi_float8get, double, -2.0,
+             ARRAY_8(0xc0, 0, 0, 0, 0, 0, 0, 0));
+
+  {
+    /* The bits of a NaN must be preserved, too */
+    ulonglong bits= 0x7ff8000000000001ULL;
+    uchar bytes[]= ARRAY_8(1, 0, 0, 0, 0, 0, 0xf8, 0x7f);
+    double nan, loaded;
+    memcpy(&nan, &bits, sizeof(nan));
+    float8store(aligned, nan);
+    ok(!memcmp(aligned, bytes, sizeof(bytes)), "NaN\t\tfloat8store");
+    float8get(loaded, aligned);
+    ok(!memcmp(&loaded, &nan, sizeof(nan)), "NaN\t\tfloat8get");
+  }
+
+  /* Native byte order integers, including sign and zero extension on read */
+#define TEST_NATIVE(P, NAME)                                                   \
+  {                                                                            \
+    int16 s= -2;                                                               \
+    uint16 us= 0xfffe;                                                         \
+    int32 l= -70000;                                                           \
+    int16 s_loaded;                                                            \
+    int i_loaded;                                                              \
+    int32 l_loaded;                                                            \
+    longlong ll_loaded;                                                        \
+    shortstore(P, s);                                                          \
+    shortget(s_loaded, P);                                                     \
+    ok(s_loaded == s, NAME "\tshortstore/shortget");                           \
+    shortget(i_loaded, P);                                                     \
+    ok(i_loaded == -2, NAME "\tshortget sign extension");                      \
+    shortstore(P, us);                                                         \
+    ushortget(i_loaded, P);                                                    \
+    ok(i_loaded == 0xfffe, NAME "\tushortget zero extension");                 \
+    longstore(P, l);                                                           \
+    longget(l_loaded, P);                                                      \
+    ok(l_loaded == l, NAME "\tlongstore/longget");                             \
+    longget(ll_loaded, P);                                                     \
+    ok(ll_loaded == -70000, NAME "\tlongget sign extension");                  \
+  }
+
+  TEST_NATIVE(aligned, "aligned");
+  TEST_NATIVE(not_aligned, "not aligned");
+
+#undef TEST_NATIVE
+#undef TEST_FLOAT
 #undef ARRAY_8
 #undef ARRAY_7
 #undef ARRAY_6
@@ -96,7 +171,7 @@ void test_byte_order()
 
 int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
-  plan(68);
+  plan(108);
   test_byte_order();
   return exit_status();
 }

@@ -3268,6 +3268,11 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 bool Sql_cmd_show_routine_code::execute(THD *thd)
 {
   sp_head *sp;
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT(thd) &&
+      wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_SHOW))
+    return true;
+#endif /* WITH_WSREP */
   if (m_handler->sp_cache_routine(thd, m_name, &sp))
     return true;
   if (!sp || sp->show_routine_code(thd))
@@ -5566,6 +5571,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       There is no need to check for table permissions here, because
       if a user has no permissions to read a table, he won't be
       able to open it (with SQLCOM_HA_OPEN) in the first place.
+      On implicit reopen mysql_ha_open() checks privileges again.
     */
     unit->set_limit(select_lex);
 
@@ -10430,6 +10436,14 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   /* Reset parser state. */
 
   thd->m_parser_state= NULL;
+
+  /*
+    The parser-only part of LEX is not meant to be used after parsing.
+    Mark it as freed so that stale accesses are caught early. It is
+    brought back by LEX::start() -> LEX_Parser_state::reset_parser_state().
+  */
+  TRASH_FREE((void*) &static_cast<LEX_Parser_state&>(*thd->lex),
+             sizeof(LEX_Parser_state));
 
   /* Restore creation context. */
 

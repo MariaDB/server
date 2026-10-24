@@ -1,4 +1,3 @@
---source include/not_msan.inc
 --source include/have_sequence.inc
 
 --disable_warnings

@@ -672,8 +672,7 @@ static int process_all_tables_in_db(char *database)
 
   if (use_db(database))
     DBUG_RETURN(1);
-  if ((mysql_query(sock, "SHOW /*!50002 FULL*/ TABLES") &&
-       mysql_query(sock, "SHOW TABLES")) ||
+  if (mysql_query(sock, "SHOW FULL TABLES") ||
       !(res= mysql_store_result(sock)))
   {
     my_printf_error(0, "Error: Couldn't get table list for database %s: %s",
@@ -877,10 +876,7 @@ static int use_db(char *database)
 {
   DBUG_ENTER("use_db");
 
-  if (mysql_get_server_version(sock) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-      !cmp_database(database, INFORMATION_SCHEMA_DB_NAME))
-    DBUG_RETURN(1);
-  if (mysql_get_server_version(sock) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
+  if (!cmp_database(database, INFORMATION_SCHEMA_DB_NAME) ||
       !cmp_database(database, PERFORMANCE_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_select_db(sock, database))

@@ -104,7 +104,8 @@ static int read_with_icp(TABLE* table,
     return func(record_buf);
 
   int error= func(table->record[0]);
-  memcpy(record_buf, table->record[0], record_buf_len);
+  if (likely(!error))
+    memcpy(record_buf, table->record[0], record_buf_len);
   return error;
 }
 
@@ -5981,7 +5982,7 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
     m_start_key.length= key_len= calculate_key_len(table, active_index,
                                                    m_start_key.key,
                                                    m_start_key.keypart_map);
-    DBUG_PRINT("info", ("have_start_key map %lu find_flag %u len %u",
+    DBUG_PRINT("info", ("have_start_key map %u find_flag %u len %u",
                         m_start_key.keypart_map, m_start_key.flag, key_len));
     DBUG_ASSERT(key_len);
   }
@@ -6437,7 +6438,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     DBUG_PRINT("info",("partition range->range_flag: %u", range->range_flag));
     DBUG_PRINT("info",("partition start_key->key: %p", start_key->key));
     DBUG_PRINT("info",("partition start_key->length: %u", start_key->length));
-    DBUG_PRINT("info",("partition start_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition start_key->keypart_map: %u",
                        start_key->keypart_map));
     DBUG_PRINT("info",("partition start_key->flag: %u", start_key->flag));
 
@@ -6462,7 +6463,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     end_key= &range->end_key;
     DBUG_PRINT("info",("partition end_key->key: %p", end_key->key));
     DBUG_PRINT("info",("partition end_key->length: %u", end_key->length));
-    DBUG_PRINT("info",("partition end_key->keypart_map: %lu",
+    DBUG_PRINT("info",("partition end_key->keypart_map: %u",
                        end_key->keypart_map));
     DBUG_PRINT("info",("partition end_key->flag: %u", end_key->flag));
     if (end_key->key)
@@ -8208,11 +8209,22 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
       /* Caller has specified reverse_order */
       break;
     case partition_index_first:
+      /*
+        We don't call read_with_icp() here as full index scans are not done
+        with ICP.
+      */
+      DBUG_ASSERT(!pushed_idx_cond);
       error= file->ha_index_first(rec_buf_ptr);
       reverse_order= FALSE;
       break;
     case partition_index_last:
-      error= file->ha_index_last(rec_buf_ptr);
+      error= read_with_icp(table,
+                           pushed_idx_cond != nullptr,
+                           rec_buf_ptr,
+                           m_rec_length,
+                           [file] (uchar* read_buf) {
+                             return file->ha_index_last(read_buf);
+                           });
       reverse_order= TRUE;
       break;
     case partition_read_range:
@@ -8752,7 +8764,14 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   uchar *rec_buf= queue_top(&m_queue) + ORDERED_REC_OFFSET;
   handler *file= m_file[part_id];
 
-  if (unlikely((error= file->ha_index_prev(rec_buf))))
+  error= read_with_icp(table,
+                       pushed_idx_cond != nullptr,
+                       rec_buf,
+                       m_rec_length,
+                       [file] (uchar* read_buf) {
+                         return file->ha_index_prev(read_buf);
+                       });
+  if (unlikely(error))
   {
     if (error == HA_ERR_END_OF_FILE && m_queue.elements)
     {
@@ -11422,6 +11441,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     part_share->next_auto_inc_val+= nb_desired_values * increment;
 
     unlock_auto_increment();
+    DEBUG_SYNC(ha_thd(), "ha_partition_get_auto_increment_after_reservation");
     DBUG_PRINT("info", ("*first_value: %lu", (ulong) *first_value));
     *nb_reserved_values= nb_desired_values;
   }
@@ -11454,7 +11474,8 @@ void ha_partition::release_auto_increment()
         we can lower the reserved value.
       */
       if (next_insert_id < next_auto_inc_val &&
-          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val &&
+          next_insert_id >= auto_inc_interval_for_cur_row.minimum())
       {
         THD *thd= ha_thd();
         /*

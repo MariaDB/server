@@ -448,3 +448,30 @@ SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_turkish_ai_ci;
 --echo #
 --echo # End of 10.10 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_czech_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_ai_cs;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_as_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_as_cs;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+
+--echo # End of 11.8 tests

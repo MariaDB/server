@@ -1,0 +1,1754 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET @character_set_name='utf16';
+SELECT
+full_collation_name AS name,
+collation_tailoring(full_collation_name, 'none') AS none,
+collation_tailoring(full_collation_name, 'ascii_digits') AS digits,
+collation_tailoring(full_collation_name, 'ascii_minus_dot_digits') AS minus_dot_digits,
+collation_tailoring(full_collation_name, 'ascii_alnum') AS alnum,
+collation_tailoring(full_collation_name, 'ascii_ident') AS ident,
+collation_tailoring(full_collation_name, 'ascii') AS ascii,
+'---' AS `---`
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE character_set_name=@character_set_name
+ORDER BY collation_name LIKE '%_ci', collation_name;
+name	utf16_uca1400_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_croatian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_esperanto_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_esperanto_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_esperanto_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_esperanto_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_estonian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_german2_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_german2_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_german2_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_german2_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_hungarian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_hungarian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_hungarian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_hungarian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_icelandic_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_icelandic_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_icelandic_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_icelandic_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_latvian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_persian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_persian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_persian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_persian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_polish_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_polish_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_polish_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_polish_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_romanian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_romanian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_romanian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_romanian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_roman_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_sinhala_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_sinhala_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_sinhala_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_sinhala_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_slovak_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovenian_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_slovenian_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_slovenian_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_slovenian_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_spanish2_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_spanish_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_spanish_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_spanish_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_swedish_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_swedish_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_swedish_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_swedish_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_turkish_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_vietnamese_ai_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_vietnamese_as_cs
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_cs3_LowerFirst]
+ident	_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_vietnamese_nopad_ai_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_uca1400_vietnamese_nopad_as_cs
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_cs3_LowerFirst]
+ident	[nopad]_<[digit7]<[letter7_cs3_LowerFirst]
+ascii	[nopad][version 14.0.0]ascii7_uca_cs
+---	---
+name	utf16_bin
+none	
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	[digit7]<[upper7]<[lower7]
+ident	[digit7]<[upper7]<_<[lower7]
+ascii	ascii7_bin
+---	---
+name	utf16_nopad_bin
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad]-<.<[digit7]
+alnum	[nopad][digit7]<[upper7]<[lower7]
+ident	[nopad][digit7]<[upper7]<_<[lower7]
+ascii	[nopad]ascii7_bin
+---	---
+name	utf16_thai_520_w2
+none	
+digits	[digit7]
+minus_dot_digits	[version 5.2.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 5.2.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_croatian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_croatian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_czech_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_danish_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_esperanto_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_esperanto_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_esperanto_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_esperanto_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_estonian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_estonian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_german2_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_german2_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_german2_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_german2_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_hungarian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_hungarian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_hungarian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_hungarian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_icelandic_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_icelandic_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_icelandic_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_icelandic_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_latvian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_latvian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_lithuanian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_persian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_persian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_persian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_persian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_polish_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_polish_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_polish_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_polish_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_romanian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_romanian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_romanian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_romanian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_roman_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_roman_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_sinhala_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_sinhala_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_sinhala_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_sinhala_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_slovak_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovak_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_slovenian_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_slovenian_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_slovenian_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_slovenian_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_spanish2_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish2_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_spanish_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_spanish_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_spanish_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_spanish_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_swedish_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_swedish_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_swedish_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_swedish_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_turkish_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_turkish_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_uca1400_vietnamese_ai_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_vietnamese_as_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 14.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_vietnamese_nopad_ai_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_uca1400_vietnamese_nopad_as_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 14.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 14.0.0]ascii7_uca_ci
+---	---
+name	utf16_croatian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_croatian_mysql561_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_czech_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_danish_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_esperanto_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_estonian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_general_ci
+none	
+digits	[digit7]
+minus_dot_digits	-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	[digit7]<[letter7_ci]<_
+ascii	ascii7_caseup_ci
+---	---
+name	utf16_general_nopad_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad][digit7]<[letter7_ci]<_
+ascii	[nopad]ascii7_caseup_ci
+---	---
+name	utf16_german2_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_hungarian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_icelandic_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_latvian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_lithuanian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_myanmar_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 5.2.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 5.2.0]ascii7_uca_ci
+---	---
+name	utf16_persian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_polish_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_romanian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_roman_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_sinhala_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_slovak_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_slovenian_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_spanish2_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_spanish_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_swedish_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_turkish_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	NULL
+ident	NULL
+ascii	NULL
+---	---
+name	utf16_unicode_520_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 5.2.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 5.2.0]ascii7_uca_ci
+---	---
+name	utf16_unicode_520_nopad_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 5.2.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 5.2.0]ascii7_uca_ci
+---	---
+name	utf16_unicode_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_unicode_nopad_ci
+none	[nopad]
+digits	[nopad][digit7]
+minus_dot_digits	[nopad][version 4.0.0]-<.<[digit7]
+alnum	[nopad][digit7]<[letter7_ci]
+ident	[nopad]_<[digit7]<[letter7_ci]
+ascii	[nopad][version 4.0.0]ascii7_uca_ci
+---	---
+name	utf16_vietnamese_ci
+none	
+digits	[digit7]
+minus_dot_digits	[version 4.0.0]-<.<[digit7]
+alnum	[digit7]<[letter7_ci]
+ident	_<[digit7]<[letter7_ci]
+ascii	[version 4.0.0]ascii7_uca_ci
+---	---
+SET @character_set_name=NULL;
+# End of 11.8 tests

@@ -104,3 +104,35 @@ disconnect con2;
 set @@timestamp= default;
 drop tables t1;
 set debug_sync= 'reset';
+#
+# MDEV-41545 Unchecked get_clone() in ALTER of partitioned table
+#            crashes on out-of-memory
+#
+create table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+starts '2000-01-01 00:00:00' partitions 3;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,prep_alter_part_table_get_clone_oom';
+alter table t1 partition by system_time interval 2 hour;
+ERROR HY000: Out of memory.
+set debug_dbug= @save_dbug;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00'
+PARTITIONS 3
+set debug_dbug= '+d,partition_info_get_clone_vers_oom';
+alter table t1 partition by system_time interval 2 hour;
+ERROR HY000: Out of memory.
+set debug_dbug= @save_dbug;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00'
+PARTITIONS 3
+drop table t1;
+# End of 10.11 tests

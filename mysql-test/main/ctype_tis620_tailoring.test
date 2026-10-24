@@ -1,0 +1,39 @@
+--source include/have_tis620.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^tis620';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''tis620_thai_ci''),(''tis620_thai_nopad_ci''),'
+ '(''tis620_bin''),(''tis620_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+
+SET NAMES tis620;
+SELECT _tis620'foo' = _latin1'foo';
+SET NAMES DEFAULT;
+
+
+--echo #
+--echo # MDEV-41246: The repertoire of IF() must include the repertoires of
+--echo # both branches, not only of the winner branch (HEX(), ALNUM).
+--echo # The value '1.5' has a punctuation character, so the collations
+--echo # latin1_swedish_ci and tis620_thai_ci must not be mixed on it.
+--echo #
+
+SET NAMES latin1;
+SELECT HEX(255) = _tis620'A';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT '1.5' = _tis620'A';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT IF(1, 1.5, HEX(255)) = _tis620'A';
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

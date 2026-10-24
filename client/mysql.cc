@@ -1673,10 +1673,6 @@ bool kill_query(const char *reason)
   /* First time try to kill the query, second time the connection */
   interrupted_query++;
 
-  /* mysqld < 5 does not understand KILL QUERY, skip to KILL CONNECTION */
-  if ((interrupted_query == 1) && (mysql_get_server_version(&mysql) < 50000))
-    interrupted_query= 2;
-
   /* kill_buffer is always big enough because max length of %lu is 15 */
   snprintf(kill_buffer, sizeof(kill_buffer), "KILL %s%lu",
           (interrupted_query == 1) ? "QUERY " : "",
@@ -3563,7 +3559,7 @@ static int com_help(String *buffer, char *line)
       tee_fprintf(stdout, "%s(\\%c) %s\n", buff,
 		  commands[i].cmd_char, commands[i].doc);
   }
-  if (connected && mysql_get_server_version(&mysql) >= 40100)
+  if (connected)
     put_info("\nFor server side help, type 'help contents'\n", INFO_INFO);
   return 0;
 }
@@ -4560,6 +4556,8 @@ print_tab_data(MYSQL_RES *result)
   }
   while ((cur = fetch_row(result)))
   {
+    if (interrupted_query)
+      break;
     lengths=mysql_fetch_lengths(result);
     field= mysql_fetch_fields(result);
     if (opt_binhex && is_binary_field(&field[0]))

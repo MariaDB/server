@@ -8013,7 +8013,7 @@ inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 }
 
 
-inline void TABLE::mark_index_columns_for_read(uint index)
+void TABLE::mark_index_columns_for_read(uint index)
 {
   do_mark_index_columns(this, index, read_set, true);
 }
@@ -8667,18 +8667,37 @@ void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
 
 
 /*
-  Store all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Generated blob fields handled by remember_blob_values(),
+  restore_blob_values() and free_blob_values()
 */
 
-void TABLE::remember_blob_values(String *blob_storage)
+static inline bool is_remembered_blob(const Field *field, bool with_stored)
+{
+  return field->flags & BLOB_FLAG &&
+         (with_stored || !field->vcol_info->is_stored());
+}
+
+
+/*
+  Move Field_blob::value of generated blob fields into blob_storage,
+  leaving value empty. Computing another row into record[0] then does not
+  overwrite the buffers that a saved record points to.
+
+  Used by InnoDB when it computes virtual fields for its internal records,
+  by handler::check_duplicate_long_entry_key(), TABLE::delete_row(),
+  vers_insert_history_row() and TABLE::period_make_insert().
+
+  @param with_stored  Also move the values of stored generated blob fields.
+                      blob_storage must hold s->virtual_fields values, else
+                      s->virtual_not_stored_blob_fields values.
+*/
+
+void TABLE::remember_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->is_stored())
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       memcpy((void*) blob_storage, (void*) &blob->value, sizeof(blob->value));
@@ -8690,24 +8709,41 @@ void TABLE::remember_blob_values(String *blob_storage)
 
 
 /*
-  Restore all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Free what was computed into Field_blob::value since
+  remember_blob_values() and move the stored values back
+
+  @param with_stored  Must match remember_blob_values()
 */
 
-void TABLE::restore_blob_values(String *blob_storage)
+void TABLE::restore_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->is_stored())
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       blob->value.free();
       memcpy((void*) &blob->value, (void*) blob_storage, sizeof(blob->value));
       blob_storage++;
     }
+  }
+}
+
+
+/*
+  Free the values stored by remember_blob_values() without moving them
+  back: Field_blob::value keeps what was computed since then
+
+  @param with_stored  Must match remember_blob_values()
+*/
+
+void TABLE::free_blob_values(String *blob_storage, bool with_stored)
+{
+  for (Field **vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  {
+    if (is_remembered_blob(*vfield_ptr, with_stored))
+      (blob_storage++)->free();
   }
 }
 
@@ -8743,7 +8779,7 @@ bool TABLE::alloc_keys(uint key_count)
   {
     memmove(new_key_info, s->key_info, sizeof(*key_info) * s->total_keys);
     memmove(new_const_key_parts, const_key_parts,
-            s->total_keys * sizeof(const_key_parts));
+            s->total_keys * sizeof *const_key_parts);
   }
   s->key_info= key_info= new_key_info;
   const_key_parts= new_const_key_parts;
@@ -9615,6 +9651,16 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Query_arena backup_arena;
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
+  /*
+    Do not use tmp_set here: it may be the active read_set (filesort,
+    keyread), and the engine may call this in the middle of a scan.
+  */
+  MY_BITMAP done_vcols;
+  const uint bitmap_size= bitmap_buffer_size(s->fields);
+  my_bitmap_map *done_buf= (my_bitmap_map *) my_safe_alloca(bitmap_size);
+  if (!done_buf)
+    DBUG_RETURN(1);
+  my_bitmap_init(&done_vcols, done_buf, s->fields);
   in_use->push_internal_handler(&count_errors);
   bool abort_on_warning= ignore_warnings;
   if (ignore_warnings)
@@ -9629,8 +9675,8 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
           TABLE::update_virtual_fields(handler *, enum_vcol_update_mode).
   */
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
-  bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &tmp_set, 0);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, &done_vcols, 0);
+  my_safe_afree(done_buf, bitmap_size);
   DBUG_FIX_WRITE_SET(vf, write_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
   DBUG_RESTORE_WRITE_SET(vf, write_set);
@@ -9718,10 +9764,13 @@ int TABLE::update_generated_fields()
     next_number_field= NULL;
   }
 
-  if (likely(!res) && vfield)
-    res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
-  if (likely(!res) && versioned())
-    vers_update_fields();
+  if (likely(!res))
+  {
+    if (versioned())
+      res= vers_update_fields_vcols();
+    else if (vfield)
+      res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  }
   if (likely(!res))
     res= verify_constraints(false) == VIEW_CHECK_ERROR;
   return res;
@@ -9744,7 +9793,19 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   THD *thd= in_use;
 
   ulonglong prev_insert_id= file->next_insert_id;
+  String *blob_storage= NULL;
   store_record(this, record[1]);
+  /*
+    update_generated_fields() computes generated blobs into
+    Field_blob::value, which may hold the generated blobs of the row saved by
+    the caller (the new row of UPDATE FOR PORTION OF in record[2]). Keep them
+    while the inserted row is in record[0].
+  */
+  if (vfield)
+  {
+    blob_storage= (String *) alloca(sizeof(String) * s->virtual_fields);
+    remember_blob_values(blob_storage, true);
+  }
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
@@ -9771,6 +9832,8 @@ int TABLE::period_make_insert(Item *src, Field *dst)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
                                     TRG_ACTION_AFTER, true, nullptr);
 
+  if (blob_storage)
+    restore_blob_values(blob_storage, true);
   restore_record(this, record[1]);
   if (res)
     file->restore_auto_increment(prev_insert_id);
@@ -9854,7 +9917,18 @@ bool TABLE::check_period_overlaps(const KEY &key,
   return true;
 }
 
-/* returns true if vers_end_field was updated */
+/**
+  Set row_start and row_end of the row in record[0] unless they have
+  explicit values. For VERS_TRX_ID only row_end is set, regardless of its
+  explicit value.
+
+  Virtual fields are not computed: the caller must call
+  update_virtual_fields(VCOL_UPDATE_FOR_WRITE) afterwards, or use
+  vers_update_fields_vcols().
+
+  @retval true   vers_end_field was updated
+  @retval false  vers_end_field has an explicit value and was not updated
+*/
 bool TABLE::vers_update_fields()
 {
   bool res= false;
@@ -9870,9 +9944,24 @@ bool TABLE::vers_update_fields()
     res= true;
   }
 
-  if (vfield)
-    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
   return res;
+}
+
+
+/**
+  Set the system fields and compute virtual fields, which may depend on them.
+
+  @see vers_update_fields()
+
+  @retval 0      Success
+  @retval other  Error from update_virtual_fields(VCOL_UPDATE_FOR_WRITE)
+*/
+int TABLE::vers_update_fields_vcols()
+{
+  vers_update_fields();
+  if (vfield)
+    return update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  return 0;
 }
 
 
