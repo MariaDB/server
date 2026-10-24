@@ -1290,7 +1290,6 @@ public:
 
   /* Structure to store fields that are used in the GROUP BY of this select */
   List<Field_pair> grouping_tmp_fields;
-  List<udf_func>     udf_list;                  /* udf function calls stack */
   List<Index_hint> *index_hints;  /* list of USE/FORCE/IGNORE INDEX */
   /*
     This list is used to restore the names of items
