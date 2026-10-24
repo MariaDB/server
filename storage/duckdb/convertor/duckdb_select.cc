@@ -42,6 +42,22 @@ static void store_field_temporal_value(Field *field, MYSQL_TIME *ltime)
 }
 
 /**
+  Get the text of a duckdb value. Value::GetValue<string>() casts the value to
+  VARCHAR for every cell, even when it already is one (SET, ENUM and (var)char
+  columns arrive as VARCHAR), so read those by reference.
+  @param value            the value to read
+  @param buf              storage for the converted text of a non-VARCHAR value
+*/
+static inline const duckdb::string &value_as_string(const duckdb::Value &value,
+                                                    duckdb::string &buf)
+{
+  if (value.type().id() == duckdb::LogicalTypeId::VARCHAR)
+    return duckdb::StringValue::Get(value);
+  buf= value.GetValue<duckdb::string>();
+  return buf;
+}
+
+/**
   Store a duckdb value in a field of mysql format.
   @param field            the field to store value
   @param value            the value to be stored
@@ -78,14 +94,16 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_VAR_STRING: {
       if (is_uuid_field(field))
       {
-        auto str= value.GetValue<duckdb::string>();
+        duckdb::string buf;
+        const duckdb::string &str= value_as_string(value, buf);
         field->store(str.c_str(), str.size(), system_charset_info);
         break;
       }
       if (field->has_charset())
       {
         DBUG_ASSERT(field->charset() != &my_charset_bin);
-        auto str= value.GetValue<duckdb::string>();
+        duckdb::string buf;
+        const duckdb::string &str= value_as_string(value, buf);
         auto varchar= str.c_str();
         auto varchar_len= str.size();
         field->store(varchar, varchar_len, field->charset());
@@ -105,7 +123,8 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_ENUM:
     case MYSQL_TYPE_SET:
     case MYSQL_TYPE_NEWDECIMAL: {
-      auto str= value.GetValue<duckdb::string>();
+      duckdb::string buf;
+      const duckdb::string &str= value_as_string(value, buf);
       auto varchar= str.c_str();
       auto varchar_len= str.size();
       field->store(varchar, varchar_len, system_charset_info);
