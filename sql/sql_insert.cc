@@ -2033,24 +2033,43 @@ ushort Write_record::get_last_unique_key() const
  Inserts one historical row to a table.
 
  Copies content of the row from table->record[1] to table->record[0],
- sets Sys_end to now() and calls ha_write_row() .
+ sets Sys_end to now() and calls ha_write_row(). The history row is not
+ written if its lifetime is not positive (row_start >= row_end).
+
+ The caller saves the new row into record[2] and restores it afterwards.
+ This function keeps the generated blobs of the new row in
+ Field_blob::value while it computes the history row.
 */
 
 int vers_insert_history_row(TABLE *table)
 {
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
   DBUG_ASSERT(table->vers_write);
+  String *blob_storage= NULL;
+  int error= 0;
   restore_record(table,record[1]);
+  /*
+    vers_update_end() computes generated blobs into Field_blob::value, which
+    holds the generated blobs of the new row saved by the caller in record[2].
+  */
+  if (table->vfield)
+  {
+    blob_storage= (String *) alloca(sizeof(String) *
+                                    table->s->virtual_fields);
+    table->remember_blob_values(blob_storage, true);
+  }
 
   // Set Sys_end to now()
   table->vers_update_end();
 
   Field *row_start= table->vers_start_field();
   Field *row_end= table->vers_end_field();
-  if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
-    return 0;
+  if (row_start->cmp(row_start->ptr, row_end->ptr) < 0)
+    error= table->file->ha_write_row(table->record[0]);
 
-  return table->file->ha_write_row(table->record[0]);
+  if (blob_storage)
+    table->restore_blob_values(blob_storage, true);
+  return error;
 }
 
 /*

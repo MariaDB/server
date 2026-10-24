@@ -8253,7 +8253,7 @@ calc_row_difference(
 	const uchar*	new_row,
 	TABLE*		table,
 	uchar*		upd_buff,
-	ulint		buff_len,
+	size_t		buff_len,
 	row_prebuilt_t*	prebuilt,
 	ib_uint64_t&	auto_inc)
 {
@@ -8785,6 +8785,21 @@ ha_innobase::update_row(
 
 		m_upd_buf_size = table->s->reclength + table->s->max_key_length
 			+ MAX_REF_PARTS * 3;
+
+		/* Reserve an extra packed value for every
+		virtual column. calc_row_difference() may retain
+		both new and old values for indexed virtual
+		columns, including columns indexed by an online
+		rebuild.
+		The buffer is reused, so its capacity must also
+		cover virtual columns that become indexed
+		after the initial allocation. */
+		for (uint i = 0; i < table->s->fields; i++) {
+			Field *field = table->field[i];
+			if (!field->stored_in_db()) {
+				m_upd_buf_size += field->pack_length();
+			}
+		}
 
 		m_upd_buf = reinterpret_cast<uchar*>(
 			my_malloc(PSI_INSTRUMENT_ME,

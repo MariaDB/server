@@ -2551,7 +2551,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
   Master_info *mi;
   bool res= false;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -2597,7 +2597,7 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
   enum_slave_parallel_mode val=
     (enum_slave_parallel_mode)opt_slave_parallel_mode;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -5910,7 +5910,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
   bool result= true;                            // Assume error
   LEX_CSTRING *base_name= &var->base;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);

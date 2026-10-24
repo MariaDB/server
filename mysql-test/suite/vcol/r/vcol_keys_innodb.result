@@ -366,6 +366,23 @@ rollback;
 disconnect con1;
 connection default;
 drop table t;
+#
+# MDEV-41667 InnoDB: Failing assertion: buf <= (byte*)
+#		original_upd_buff + buff_len
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b BIGINT NOT NULL , v1 BIGINT AS (b+1) VIRTUAL, KEY(v1), v2 BIGINT AS (b+2) VIRTUAL, KEY(v2), v3 BIGINT AS (b+3) VIRTUAL, KEY(v3), v4 BIGINT AS (b+4) VIRTUAL, KEY(v4), v5 BIGINT AS (b+5) VIRTUAL, KEY(v5), v6 BIGINT AS (b+6) VIRTUAL, KEY(v6), v7 BIGINT AS (b+7) VIRTUAL, KEY(v7), v8 BIGINT AS (b+8) VIRTUAL, KEY(v8), v9 BIGINT AS (b+9) VIRTUAL, KEY(v9), v10 BIGINT AS (b+10) VIRTUAL, KEY(v10), v11 BIGINT AS (b+11) VIRTUAL, KEY(v11), v12 BIGINT AS (b+12) VIRTUAL, KEY(v12), v13 BIGINT AS (b+13) VIRTUAL, KEY(v13), v14 BIGINT AS (b+14) VIRTUAL, KEY(v14), v15 BIGINT AS (b+15) VIRTUAL, KEY(v15), v16 BIGINT AS (b+16) VIRTUAL, KEY(v16), v17 BIGINT AS (b+17) VIRTUAL, KEY(v17), v18 BIGINT AS (b+18) VIRTUAL, KEY(v18), v19 BIGINT AS (b+19) VIRTUAL, KEY(v19), v20 BIGINT AS (b+20) VIRTUAL, KEY(v20), v21 BIGINT AS (b+21) VIRTUAL, KEY(v21), v22 BIGINT AS (b+22) VIRTUAL, KEY(v22), v23 BIGINT AS (b+23) VIRTUAL, KEY(v23), v24 BIGINT AS (b+24) VIRTUAL, KEY(v24), v25 BIGINT AS (b+25) VIRTUAL, KEY(v25), v26 BIGINT AS (b+26) VIRTUAL, KEY(v26), v27 BIGINT AS (b+27) VIRTUAL, KEY(v27), v28 BIGINT AS (b+28) VIRTUAL, KEY(v28), v29 BIGINT AS (b+29) VIRTUAL, KEY(v29), v30 BIGINT AS (b+30) VIRTUAL, KEY(v30), v31 BIGINT AS (b+31) VIRTUAL, KEY(v31), v32 BIGINT AS (b+32) VIRTUAL, KEY(v32)) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20);
+UPDATE t1 SET b=11 WHERE a=1;
+UPDATE t1 SET b=b+100;
+SELECT a, b, v1, v32 FROM t1;
+a	b	v1	v32
+1	111	112	143
+2	120	121	152
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
 #  MDEV-39081 InnoDB: tried to purge non-delete-marked record, assertion fails in row_purge_del_mark_error

@@ -1335,6 +1335,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
 
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
+  corruption:
+    /* Restore the old page. */
+    memcpy_aligned<UNIV_PAGE_SIZE_MIN>(block->page.frame, opage,
+                                       srv_page_size);
   func_exit:
     tmp_buf->release();
     return err;
@@ -1374,18 +1378,18 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
     sql_print_error("InnoDB: Page old data size %u new data size %u"
                     ", page old max ins size %zu new max ins size %zu",
                     data_size1, data_size2, max1, max2);
-    goto corrupted;
+  corrupted:
+    err= DB_CORRUPTION;
+    goto corruption;
   }
 
   /* Restore the cursor position. */
   if (!pos)
     ut_ad(cursor->rec == page_get_infimum_rec(block->page.frame));
-  else if (!(cursor->rec= page_rec_get_nth(block->page.frame, pos)))
-  {
-  corrupted:
-    err= DB_CORRUPTION;
-    goto func_exit;
-  }
+  else if (rec_t *rec= page_rec_get_nth(block->page.frame, pos))
+    cursor->rec= rec;
+  else
+    goto corrupted;
 
   if (block->page.id().page_no() != cursor->index->page ||
       fil_page_get_type(opage) != FIL_PAGE_TYPE_INSTANT)

@@ -7764,15 +7764,22 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
   if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
-    // Check whether a row came from unversioned table and fix vers fields.
+    /*
+      If the row came from an unversioned table or the system fields from the
+      master are not trusted, set the system fields here. Then compute
+      vcols, which may depend on them.
+    */
     if (opt_secure_timestamp > SECTIME_REPL)
     {
       table->vers_start_field()->clear_has_explicit_value();
       table->vers_end_field()->clear_has_explicit_value();
-      table->vers_update_fields();
+      if (table->vers_update_fields_vcols())
+        DBUG_RETURN(HA_ERR_GENERIC);
     }
-    else if (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0)
-      table->vers_update_fields();
+    else if (table->vers_start_field()->get_timestamp(&sec_part) == 0 &&
+             sec_part == 0 &&
+             table->vers_update_fields_vcols())
+      DBUG_RETURN(HA_ERR_GENERIC);
     table->vers_fix_old_timestamp(rgi);
   }
 
@@ -8141,6 +8148,7 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
     {
       const uchar *curr_row_end= m_curr_row_end;
       Check_level_instant_set clis(m_table->in_use, CHECK_FIELD_IGNORE);
+      m_table->reset_default_fields();
       if (int err= unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
                               &curr_row_end, m_rows_end))
         DBUG_RETURN(err);
@@ -8340,6 +8348,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   */
   
   restore_record(table, s->default_values);
+  /* Drop the explicit value marks left by the previously unpacked row */
+  table->reset_default_fields();
   error= unpack_current_row(rgi);
 
   m_vers_from_plain= false;
@@ -8858,7 +8868,11 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
       {
         m_table->vers_start_field()->clear_has_explicit_value();
         m_table->vers_end_field()->clear_has_explicit_value();
-        m_table->vers_update_fields();
+        if (m_table->vers_update_fields_vcols())
+        {
+          error= HA_ERR_GENERIC;
+          goto err;
+        }
       }
       m_table->vers_fix_old_timestamp(rgi);
     }
@@ -8875,7 +8889,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   tl->trg_event_map= trg_event_map_save;
   if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
-  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+  if (!error && m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);
