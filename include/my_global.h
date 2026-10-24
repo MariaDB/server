@@ -568,7 +568,12 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #define O_SHORT_LIVED	0
 #endif
 #ifndef O_NOFOLLOW
+#ifdef _WIN32
+/* Not a genuine Windows open() flag, but implemented in my_win_open(). */
+#define O_NOFOLLOW      (1 << 28)
+#else
 #define O_NOFOLLOW      0
+#endif
 #endif
 #ifndef O_CLOEXEC
 #define O_CLOEXEC       0
