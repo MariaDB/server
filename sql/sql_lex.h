@@ -1532,7 +1532,7 @@ public:
                                        Item **remaining_cond,
                                        Item_transformer transformer,
                                        uchar *arg);
-  Item *pushdown_from_having_into_where(THD *thd, Item *having);
+  bool pushdown_from_having_into_where(THD *thd, Item **having_ptr);
 
   bool is_set_op()
   {
@@ -3177,9 +3177,9 @@ public:
   Explain_query *explain;
 
   /*
-    If true, query optimizer has encountered an unrecoverable error when doing
+    If true, query optimizer has encountered an error when doing
     once-per-statement optimization and it is not safe to re-execute this
-    statement.
+    statement without re-preparing it.
   */
   bool needs_reprepare{false};
 

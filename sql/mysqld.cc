@@ -6141,6 +6141,7 @@ int mysqld_main(int argc, char **argv)
   my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
+  vio_check_ssl_init();
   if (init_server_components())
     unireg_abort(1);
 

@@ -6427,6 +6427,12 @@ Warning	1292	Incorrect time value: '9430886' for column `test`.`t1`.`c2` at row 
 Warning	1292	Incorrect time value: '9430816' for column `test`.`t1`.`c1` at row 2
 Warning	1292	Incorrect time value: '9430816' for column `test`.`t1`.`c2` at row 2
 drop table t1;
+#
+# MDEV-40616: MSAN - use-of-uninitialized-value in extract_date_time()
+#
+DO STR_TO_DATE(1, '%#');
+DO STR_TO_DATE(LOWER('q'), '%@');
+DO STR_TO_DATE(LOWER('.'), '%.');
 # End of 10.11 tests
 #
 # MDEV-34829 LOCALTIME returns a wrong data type

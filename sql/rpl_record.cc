@@ -545,6 +545,8 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
   DBUG_ENTER("prepare_record");
 
   restore_record(table, s->default_values);
+  /* Drop the explicit value marks left by the previously unpacked row */
+  table->reset_default_fields();
 
   /*
      This skip should be revisited in 6.0, because in 6.0 RBR one 

@@ -2093,3 +2093,43 @@ drop user 'root
 definer_host=localhost
 suid=1'@localhost;
 # End of 10.6 tests
+#
+# MDEV-22374: VIEW with security definer require FILE privilege from
+# definer not invoker in case of INTO OUTFILE
+#
+create user test@localhost;
+grant select on test.* to test@localhost;
+create table t1 (a int);
+insert into t1 values (1),(2);
+create definer=test@localhost sql security definer view v1 as select * from t1;
+# FILE privilege should be checked for the invoker, not the view definer
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from t1;
+select * from v1;
+a
+1
+2
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select count(*) from v1) as dv1;
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select * from v1) as dv1;
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from v1;
+drop view v1;
+# Invoker without FILE privilege can not use the definer's one
+create definer=root@localhost sql security definer view v1 as select * from t1;
+connect con1, localhost, test;
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from t1;
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+select * from v1;
+a
+1
+2
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select count(*) from v1) as dv1;
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from (select * from v1) as dv1;
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+select * into outfile 'MYSQLTEST_VARDIR/tmp/mdev22374.txt' from v1;
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+disconnect con1;
+connection default;
+drop view v1;
+drop table t1;
+drop user test@localhost;
+# End of 10.11 tests

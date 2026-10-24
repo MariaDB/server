@@ -5369,7 +5369,8 @@ void do_sync_with_master2(struct st_command *command, long offset,
     /* master_pos_wait returned NULL or < 0 */
     fprintf(stderr, "analyze: sync_with_master\n");
 
-    sprintf(query_buf2, "show slave \"%s\" status", connection_name);
+    snprintf(query_buf2, sizeof(query_buf2), "show slave \"%s\" status",
+             connection_name);
 
     if (!mysql_query(mysql, query_buf2))
     {
@@ -10935,7 +10936,10 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   {
     for (i= 0; i < num_fields; i++)
       append_field(rs, i, &fields[i], (char*)my_bind[i].buffer,
-                   *my_bind[i].length, *my_bind[i].is_null);
+                   (*my_bind[i].is_null ?
+                     0 :
+                     *my_bind[i].length),
+                   *my_bind[i].is_null);
     if (!display_result_vertically)
       dynstr_append_mem(rs, "\n", 1);
   }

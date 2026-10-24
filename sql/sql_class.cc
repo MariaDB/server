@@ -5210,8 +5210,11 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ENTER("open_purge_table");
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  /* Purge already hold the MDL for the table */
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
+  /* Purge already hold the MDL for the table. A kill flag on a purge THD
+  (for example from a Galera BF abort) is never reset, and purge has no
+  statement to abort; it must not make every subsequent open_table() fail. */
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK |
+                                 MYSQL_OPEN_IGNORE_KILLED);
   TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
@@ -7710,13 +7713,17 @@ void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 
   /*
     Do not put virtual column values into the write_set, as they will be
-    re-computed anyway by the slave applier.
+    re-computed anyway by the slave applier. Except for binlog_row_image=FULL
+    to help 3rd-party readers of the binlog where re-computing the virtual
+    column values may not be simple.
   */
   if (unlikely(table->vfield))
   {
+    if (row_image < BINLOG_ROW_IMAGE_FULL
 #ifdef HAVE_REPLICATION
-    if (!table->s->online_alter_binlog)
+        && !table->s->online_alter_binlog
 #endif
+        )
     {
       if (table->read_set != &table->tmp_set)
       {

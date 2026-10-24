@@ -396,11 +396,88 @@ enum vcol_init_mode
 
 enum enum_vcol_update_mode
 {
+  /*
+    VCOL_UPDATE_FOR_READ
+
+    Engine-driven mode: invoked by the handler read methods (ha_rnd_next,
+    ha_rnd_pos, ha_index_*, ha_ft_read) for every row read into record[0].
+    Also used by MyISAM check, repair and index rebuild (compute_vcols()) and
+    InnoDB online ALTER.
+
+    Compute every non-stored vcol in the read_set. With keyread enabled,
+    update_virtual_fields() computes nothing, in any mode.
+
+    Blob values are stored into read_value (see swap_value_and_read_value()).
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_READ= 0,
+  /*
+    VCOL_UPDATE_FOR_WRITE
+
+    Mode for the row being written: INSERT, the new record in UPDATE,
+    row-based replication apply, ALTER ... copy, history rows.
+
+    Compute every vcol in the read_set, both stored and non-stored.
+
+    Blob values are stored into value.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_WRITE,
+  /*
+    VCOL_UPDATE_FOR_DELETE
+
+    Invoked only from record_should_be_deleted() while deciding whether to
+    delete a row, so the DELETE condition can reference virtual columns.
+
+    Same fields as VCOL_UPDATE_FOR_WRITE: every vcol in the read_set, both
+    stored and non-stored.
+
+    Blob values are stored into value.
+    As on read, errors are downgraded to warnings.
+  */
   VCOL_UPDATE_FOR_DELETE,
+  /*
+    VCOL_UPDATE_INDEXED
+
+    Used only by MyISAM check, repair and index rebuild (compute_vcols()).
+    Complements VCOL_UPDATE_FOR_READ.
+
+    Compute non-stored vcols that are part of a key (PART_KEY_FLAG or
+    PART_INDIRECT_KEY_FLAG) and are not in the read_set -- the indexed vcols
+    that VCOL_UPDATE_FOR_READ skips.
+
+    Blob values are stored into read_value.
+    Errors are downgraded to warnings.
+  */
   VCOL_UPDATE_INDEXED,
+  /*
+    VCOL_UPDATE_INDEXED_FOR_UPDATE
+
+    Used only by multi-table UPDATE, on the old row re-read via rnd_pos so
+    its indexed vcols match the stored index entries before the new values
+    overwrite them.
+
+    Same fields as VCOL_UPDATE_INDEXED.
+
+    Blob values are stored into read_value.
+    Being part of an update, errors are reported instead of downgraded.
+  */
   VCOL_UPDATE_INDEXED_FOR_UPDATE,
+  /*
+    VCOL_UPDATE_FOR_REPLACE
+
+    Used by REPLACE and INSERT ... ON DUPLICATE KEY UPDATE
+    (Write_record::locate_dup_record()) on the conflicting row.
+
+    Compute every vcol: update_all_columns is initialized to 1, so the
+    narrower condition (non-stored, part-of-key vcols in the read_set; all
+    vcols only for row-based binary logging with a non-minimal row image)
+    is never applied.
+
+    Blob values are stored into read_value; the record[0] blob held in value
+    is preserved.
+    Errors are reported.
+  */
   VCOL_UPDATE_FOR_REPLACE
 };
 
@@ -844,7 +921,8 @@ struct TABLE_SHARE
   uint fields;                          /* number of fields */
   /* number of stored fields, purely virtual not included */
   uint stored_fields;
-  uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of generated (virtual and stored) fields, entries of vfield */
+  uint virtual_fields;
   /* number of purely virtual not stored blobs */
   uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
@@ -1802,8 +1880,9 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
-  void remember_blob_values(String *blob_storage);
-  void restore_blob_values(String *blob_storage);
+  void remember_blob_values(String *blob_storage, bool with_stored= false);
+  void restore_blob_values(String *blob_storage, bool with_stored= false);
+  void free_blob_values(String *blob_storage, bool with_stored);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
@@ -2016,6 +2095,8 @@ public:
   inline int delete_row(){ return delete_row<false>(versioned(VERS_TIMESTAMP)); }
   template <bool replace>
   int delete_row(bool versioned);
+  /* vers_update_fields() and update_virtual_fields(VCOL_UPDATE_FOR_WRITE) */
+  int vers_update_fields_vcols();
   /* Used in majority of DML (called from fill_record()) */
   bool vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
