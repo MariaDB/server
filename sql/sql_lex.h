@@ -1353,7 +1353,6 @@ public:
 
   /// Array of pointers to top elements of all_fields list
   Ref_ptr_array ref_pointer_array;
-  ulong table_join_options;
 
   /*
     number of items in select_list and HAVING clause used to get number
@@ -1541,7 +1540,6 @@ public:
   bool save_item_list_names(THD *thd);
   void restore_item_list_names();
   bool set_item_list_names( List<Lex_ident_sys> *overwrite );
-  ulong get_table_join_options();
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update,
                            bool skip_locks);
   /*
