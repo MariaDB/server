@@ -23789,3 +23789,1580 @@ id	id	id
 0	3	3
 drop table t1,t2,t3;
 # End of 10.11 tests
+#
+# MDEV-41238 Bound parameters prevent condition pushdown into a grouped
+#   view, while CAST enables it
+#
+create table t0 (x varchar(32) not null, y varchar(32) not null,
+key ix_xy (x, y));
+insert into t0 select concat('x', seq mod 10), concat('y', seq mod 5)
+from seq_1_to_200;
+create view v1 as select x, y, count(*) as total from t0 group by x, y;
+create table t1 (i int not null, s varchar(32) not null,
+dc decimal(10,2) not null, d date not null,
+dtm datetime not null, b int not null);
+insert into t1 select seq mod 10, concat('s', seq mod 10), (seq mod 10) + 0.5,
+date'2020-01-01' + interval (seq mod 10) day,
+timestamp'2020-01-01 00:00:00' + interval (seq mod 10) day,
+seq
+from seq_1_to_100;
+create view vg as select i, s, dc, d, dtm, count(*) as cnt, max(b) as mb
+from t1 group by i, s, dc, d, dtm;
+create view vu as select i, s, b from t1 where b <= 50
+union all
+select i, s, b from t1 where b > 50;
+create table t2 (i int not null, b int not null);
+insert into t2 select seq mod 10, seq from seq_1_to_50;
+# Both conjuncts are pushed into the view, with each execution's values
+prepare s from 'select * from v1 where x = ? and y = ?';
+execute s using 'x7', 'y2';
+x	y	total
+x7	y2	20
+execute s using 'x3', 'y3';
+x	y	total
+x3	y3	20
+prepare s from 'explain format=json select * from v1 where x = ? and y = ?';
+# Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+execute s using 'x7', 'y2';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 20,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "v1.x = 'x7' and v1.y = 'y2'",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t0",
+                    "access_type": "ref",
+                    "possible_keys": ["ix_xy"],
+                    "key": "ix_xy",
+                    "key_length": "260",
+                    "used_key_parts": ["x", "y"],
+                    "ref": ["const", "const"],
+                    "loops": 1,
+                    "rows": 20,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t0.x = 'x7' and t0.y = 'y2'",
+                    "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# One parameter and one literal
+prepare s from 'select * from v1 where x = ? and y = ''y2''';
+execute s using 'x7';
+x	y	total
+x7	y2	20
+execute s using 'x2';
+x	y	total
+x2	y2	20
+prepare s from 'explain format=json select * from v1 where x = ? and y = ''y2''';
+# Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+execute s using 'x7';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 20,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "v1.x = 'x7' and v1.y = 'y2'",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t0",
+                    "access_type": "ref",
+                    "possible_keys": ["ix_xy"],
+                    "key": "ix_xy",
+                    "key_length": "260",
+                    "used_key_parts": ["x", "y"],
+                    "ref": ["const", "const"],
+                    "loops": 1,
+                    "rows": 20,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t0.x = 'x7' and t0.y = 'y2'",
+                    "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# The same with the value sent with mysql_stmt_send_long_data()
+PS_prepare select * from v1 where x = ? and y = 'y2';
+PS_bind_long x7;
+PS_execute;
+x	y	total
+x7	y2	20
+PS_bind_long x2;
+PS_execute;
+x	y	total
+x2	y2	20
+PS_close;
+PS_prepare explain format=json select * from v1 where x = ? and y = 'y2';
+PS_bind_long x7;
+# Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+PS_execute;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 20,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "v1.x = 'x7' and v1.y = 'y2'",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t0",
+                    "access_type": "ref",
+                    "possible_keys": ["ix_xy"],
+                    "key": "ix_xy",
+                    "key_length": "260",
+                    "used_key_parts": ["x", "y"],
+                    "ref": ["const", "const"],
+                    "loops": 1,
+                    "rows": 20,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t0.x = 'x7' and t0.y = 'y2'",
+                    "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+PS_close;
+# A parameter inside an OR, a comparison and an IN list
+prepare s from 'select i, cnt from vg where (i = ? or i = 8) and s <> ''zz''';
+execute s using 7;
+i	cnt
+7	10
+8	10
+execute s using 1;
+i	cnt
+1	10
+8	10
+prepare s from
+'explain format=json select i, cnt from vg where (i = ? or i = 8) and s <> ''zz''';
+# Check that (i = 7 or i = 8) and s <> 'zz' is pushed down into vg
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "(vg.i = 7 or vg.i = 8) and vg.s <> 'zz'",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "(t1.i = 7 or t1.i = 8) and t1.s <> 'zz'"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select i, cnt from vg where i > ?';
+execute s using 7;
+i	cnt
+8	10
+9	10
+execute s using 8;
+i	cnt
+9	10
+prepare s from 'explain format=json select i, cnt from vg where i > ?';
+# Check that i > 7 is pushed down into vg
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.i > 7",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.i > 7"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select i, cnt from vg where s in (?, ?)';
+execute s using 's7', 's8';
+i	cnt
+7	10
+8	10
+execute s using 's1', 's2';
+i	cnt
+1	10
+2	10
+prepare s from 'explain format=json select i, cnt from vg where s in (?, ?)';
+# Check that s in ('s7','s8') is pushed down into vg
+execute s using 's7', 's8';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.s in ('s7','s8')",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.s in ('s7','s8')"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# Equalities on columns of each type, and NULL
+prepare s from 'select i, cnt from vg where i = ?';
+execute s using 7;
+i	cnt
+7	10
+execute s using NULL;
+i	cnt
+prepare s from 'explain format=json select i, cnt from vg where i = ?';
+# Check that i = 7 is pushed down into vg
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.i = 7",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.s, t1.dc, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.i = 7"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# Check that i = NULL is pushed down into vg
+execute s using NULL;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.i = NULL",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.i = NULL"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select i, cnt from vg where dc = ?';
+execute s using 7.5;
+i	cnt
+7	10
+execute s using 2.50;
+i	cnt
+2	10
+prepare s from 'explain format=json select i, cnt from vg where dc = ?';
+# Check that dc = 7.5 is pushed down into vg
+execute s using 7.5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.dc = 7.5",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.d, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.dc = 7.5"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select i, cnt from vg where d = ?';
+execute s using date'2020-01-08';
+i	cnt
+7	10
+execute s using date'2020-01-03';
+i	cnt
+2	10
+prepare s from 'explain format=json select i, cnt from vg where d = ?';
+# Check that d = DATE'2020-01-08' is pushed down into vg
+execute s using date'2020-01-08';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.d = <cache>(DATE'2020-01-08')",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.dtm",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.d = <cache>(DATE'2020-01-08')"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select i, cnt from vg where dtm = ?';
+execute s using timestamp'2020-01-08 00:00:00';
+i	cnt
+7	10
+execute s using date'2020-01-03';
+i	cnt
+2	10
+prepare s from 'explain format=json select i, cnt from vg where dtm = ?';
+# Check that dtm = TIMESTAMP'2020-01-08 00:00:00' is pushed down into vg
+execute s using timestamp'2020-01-08 00:00:00';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vg.dtm = <cache>(TIMESTAMP'2020-01-08 00:00:00')",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "filesort": {
+                "sort_key": "t1.i, t1.s, t1.dc, t1.d",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.dtm = <cache>(TIMESTAMP'2020-01-08 00:00:00')"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# A UNION ALL view, and a parameter in one branch's select list
+prepare s from 'select * from vu where i = ? and b > ?';
+execute s using 7, 40;
+i	s	b
+7	s7	47
+7	s7	57
+7	s7	67
+7	s7	77
+7	s7	87
+7	s7	97
+execute s using 3, 80;
+i	s	b
+3	s3	83
+3	s3	93
+prepare s from 'explain format=json select * from vu where i = ? and b > ?';
+# Check that i = 7 and b > 40 is pushed down into both branches of vu
+execute s using 7, 40;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 200,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "vu.i = 7 and vu.b > 40",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 100,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.i = 7 and t1.b <= 50 and t1.b > 40"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 100,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.i = 7 and t1.b > 50 and t1.b > 40"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from
+'select * from (select i, b as bb from t1 where b <= 50
+                  union all
+                  select i, b + ? from t1 where b > 50) dt
+   where dt.bb > 95';
+execute s using 0;
+i	bb
+6	96
+7	97
+8	98
+9	99
+0	100
+execute s using 10;
+i	bb
+6	96
+7	97
+8	98
+9	99
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+0	110
+prepare s from
+'explain format=json
+   select * from (select i, b as bb from t1 where b <= 50
+                  union all
+                  select i, b + ? from t1 where b > 50) dt
+   where dt.bb > 95';
+# Check that bb > 95 is pushed down into both branches, as b + 0 > 95 into the second
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 200,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.bb > 95",
+          "materialized": {
+            "query_block": {
+              "union_result": {
+                "query_specifications": [
+                  {
+                    "query_block": {
+                      "select_id": 2,
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 100,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.b <= 50 and t1.b > 95"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "query_block": {
+                      "select_id": 3,
+                      "operation": "UNION",
+                      "cost": "COST_REPLACED",
+                      "nested_loop": [
+                        {
+                          "table": {
+                            "table_name": "t1",
+                            "access_type": "ALL",
+                            "loops": 1,
+                            "rows": 100,
+                            "cost": "COST_REPLACED",
+                            "filtered": 100,
+                            "attached_condition": "t1.b > 50 and t1.b + 0 > 95"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# A derived table that is not grouped, and a parameter in its select list
+set optimizer_switch='derived_merge=off';
+prepare s from 'select * from (select i, s, b from t1) dt where dt.i = ? and dt.b > ?';
+execute s using 7, 90;
+i	s	b
+7	s7	97
+execute s using 3, 50;
+i	s	b
+3	s3	53
+3	s3	63
+3	s3	73
+3	s3	83
+3	s3	93
+prepare s from
+'explain format=json
+   select * from (select i, s, b from t1) dt where dt.i = ? and dt.b > ?';
+# Check that i = 7 and b > 90 is pushed down into dt
+execute s using 7, 90;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.i = 7 and dt.b > 90",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 100,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i = 7 and t1.b > 90"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from 'select * from (select i, b + ? as bb from t1) dt where dt.bb > 99';
+execute s using 0;
+i	bb
+0	100
+execute s using 5;
+i	bb
+5	100
+6	101
+7	102
+8	103
+9	104
+0	105
+prepare s from
+'explain format=json
+   select * from (select i, b + ? as bb from t1) dt where dt.bb > 99';
+# Check that bb > 99 is pushed down into dt as b + 0 > 99
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.bb > 99",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 100,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.b + 0 > 99"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+set optimizer_switch=default;
+# A parameter in the GROUP BY expression: pushed into WHERE, not HAVING
+prepare s from
+'select * from (select i + ? as ii, count(*) as c from t1 group by ii) dt
+   where dt.ii = 5';
+execute s using 0;
+ii	c
+5	10
+execute s using 2;
+ii	c
+5	10
+prepare s from
+'explain format=json
+   select * from (select i + ? as ii, count(*) as c from t1 group by ii) dt
+   where dt.ii = 5';
+# Check that ii = 5 is pushed down into the WHERE of dt as i + 0 = 5
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.ii = 5",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 100,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i + 0 = 5"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# HAVING to WHERE: the part of an OR that is extracted
+prepare s from
+'select i, max(b) from t1 group by i
+   having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0)';
+execute s using 7;
+i	max(b)
+7	97
+8	98
+execute s using 1;
+i	max(b)
+1	91
+8	98
+prepare s from
+'explain format=json select i, max(b) from t1 group by i
+   having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0)';
+# Check that i = 7 or i = 8 is moved from HAVING to WHERE
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "having_condition": "t1.i = 7 and max(t1.b) > 0 or t1.i = 8 and max(t1.b) > 0",
+    "filesort": {
+      "sort_key": "t1.i",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 100,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.i = 7 or t1.i = 8"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+prepare s from
+'select i, max(b) from t1 group by i
+   having count(*) > 0 and ((i > ? and max(b) > 0) or (i < 3 and max(b) > 0))';
+execute s using 7;
+i	max(b)
+0	100
+1	91
+2	92
+8	98
+9	99
+execute s using 8;
+i	max(b)
+0	100
+1	91
+2	92
+9	99
+prepare s from
+'explain format=json select i, max(b) from t1 group by i
+   having count(*) > 0 and ((i > ? and max(b) > 0) or (i < 3 and max(b) > 0))';
+# Check that i > 7 or i < 3 is moved from HAVING to WHERE
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "having_condition": "count(0) > 0 and (t1.i > 7 and max(t1.b) > 0 or t1.i < 3 and max(t1.b) > 0)",
+    "filesort": {
+      "sort_key": "t1.i",
+      "temporary_table": {
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 100,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "attached_condition": "t1.i > 7 or t1.i < 3"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+# Pushdown into a materialized IN subquery
+prepare s from
+'select * from t1
+   where (t1.i, t1.b) in (select t2.i, max(t2.b) from t2 group by t2.i)
+     and t1.i = ? and t1.b < ?';
+execute s using 7, 50;
+i	s	dc	d	dtm	b
+7	s7	7.50	2020-01-08	2020-01-08 00:00:00	47
+execute s using 3, 50;
+i	s	dc	d	dtm	b
+3	s3	3.50	2020-01-04	2020-01-04 00:00:00	43
+prepare s from
+'explain format=json select * from t1
+   where (t1.i, t1.b) in (select t2.i, max(t2.b) from t2 group by t2.i)
+     and t1.i = ? and t1.b < ?';
+# Check that i = 7 is pushed down into the materialized subquery as t2.i = 7
+execute s using 7, 50;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.i = 7 and t1.b < 50"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "8",
+          "used_key_parts": ["i", "max(t2.b)"],
+          "ref": ["const", "test.t1.b"],
+          "loops": 100,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "`max(t2.b)` < 50",
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "rows": 50,
+                      "cost": "COST_REPLACED",
+                      "filtered": 100,
+                      "attached_condition": "t2.i = 7"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from
+'select * from t1
+   where t1.i in (select t2.i + cast(? as signed) as x from t2 having x >= 0)
+     and t1.i > 7';
+execute s using 0;
+i	s	dc	d	dtm	b
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	8
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	9
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	18
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	19
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	28
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	29
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	38
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	39
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	48
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	49
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	58
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	59
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	68
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	69
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	78
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	79
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	88
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	89
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	98
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	99
+execute s using 1;
+i	s	dc	d	dtm	b
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	8
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	9
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	18
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	19
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	28
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	29
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	38
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	39
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	48
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	49
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	58
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	59
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	68
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	69
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	78
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	79
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	88
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	89
+8	s8	8.50	2020-01-09	2020-01-09 00:00:00	98
+9	s9	9.50	2020-01-10	2020-01-10 00:00:00	99
+prepare s from
+'explain format=json select * from t1
+   where t1.i in (select t2.i + cast(? as signed) as x from t2 having x >= 0)
+     and t1.i > 7';
+# Check that i > 7 is pushed down into the materialized subquery as
+#   t2.i + cast(0 as signed) > 7
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.i > 7"
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "8",
+          "used_key_parts": ["x"],
+          "ref": ["test.t1.i"],
+          "loops": 100,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.i = `<subquery2>`.x",
+          "materialized": {
+            "unique": 1,
+            "materialization": {
+              "query_block": {
+                "select_id": 2,
+                "cost": "COST_REPLACED",
+                "having_condition": "x >= 0",
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "rows": 50,
+                      "cost": "COST_REPLACED",
+                      "filtered": 100,
+                      "attached_condition": "t2.i + <cache>(cast(0 as signed)) > 7"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+# A CTE referenced twice: the second reference has clones of the
+# parameters, and both references get the copies
+prepare s from
+'with c as (select i, max(b) as mb from t1 group by i
+              having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0))
+   select * from c c1 join c c2 on c1.i = c2.i order by c1.i';
+execute s using 7;
+i	mb	i	mb
+7	97	7	97
+8	98	8	98
+execute s using 1;
+i	mb	i	mb
+1	91	1	91
+8	98	8	98
+prepare s from
+'explain format=json
+   with c as (select i, max(b) as mb from t1 group by i
+              having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0))
+   select * from c c1 join c c2 on c1.i = c2.i';
+# Check that i = 7 or i = 8 is moved to WHERE in both references to c
+execute s using 7;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "having_condition": "t1.i = 7 and max(t1.b) > 0 or t1.i = 8 and max(t1.b) > 0",
+              "filesort": {
+                "sort_key": "t1.i",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.i = 7 or t1.i = 8"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "4",
+          "used_key_parts": ["i"],
+          "ref": ["c1.i"],
+          "loops": 100,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "having_condition": "t1.i = 7 and max(t1.b) > 0 or t1.i = 8 and max(t1.b) > 0",
+              "filesort": {
+                "sort_key": "t1.i",
+                "temporary_table": {
+                  "nested_loop": [
+                    {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "loops": 1,
+                        "rows": 100,
+                        "cost": "COST_REPLACED",
+                        "filtered": 100,
+                        "attached_condition": "t1.i = 7 or t1.i = 8"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+prepare s from
+'with c as (select i + ? as ii, count(*) as cnt from t1 group by ii)
+   select * from c c1 join c c2 on c1.ii = c2.ii where c1.ii = 5';
+execute s using 0;
+ii	cnt	ii	cnt
+5	10	5	10
+execute s using 2;
+ii	cnt	ii	cnt
+5	10	5	10
+prepare s from
+'explain format=json
+   with c as (select i + ? as ii, count(*) as cnt from t1 group by ii)
+   select * from c c1 join c c2 on c1.ii = c2.ii where c1.ii = 5';
+# Check that ii = 5 is pushed down into both references to c as i + 0 = 5
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 100,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "c1.ii = 5",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 100,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i + 0 = 5"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "loops": 100,
+            "rows": 100,
+            "cost": "COST_REPLACED",
+            "filtered": 100,
+            "attached_condition": "c2.ii = 5"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "1KiB",
+          "join_type": "BNL",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 100,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t1.i + 0 = 5"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop view v1, vg, vu;
+drop table t0, t1, t2;
+# Split materialization on an equality with a parameter
+create table t3 (a int not null, b int not null, key ix_a (a));
+insert into t3 select seq mod 2000, seq from seq_1_to_20000;
+create table t4 (k int not null);
+insert into t4 values (10), (20), (30), (40), (50);
+analyze table t3, t4 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+prepare s from
+'select * from t4, (select a, count(*) as c, max(b) as mb from t3 group by a) dt
+   where dt.a = t4.k + ?';
+execute s using 0;
+k	a	c	mb
+10	10	10	18010
+20	20	10	18020
+30	30	10	18030
+40	40	10	18040
+50	50	10	18050
+execute s using 1;
+k	a	c	mb
+10	11	10	18011
+20	21	10	18021
+30	31	10	18031
+40	41	10	18041
+50	51	10	18051
+prepare s from
+'explain format=json
+   select * from t4, (select a, count(*) as c, max(b) as mb from t3 group by a) dt
+   where dt.a = t4.k + ?';
+# Check that dt is split: it is read by ref on key0, and t3 by ref on ix_a
+execute s using 0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t4",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 5,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "loops": 5,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "dt.a = t4.k + 0",
+          "materialized": {
+            "lateral": 1,
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t3",
+                    "access_type": "ref",
+                    "possible_keys": ["ix_a"],
+                    "key": "ix_a",
+                    "key_length": "4",
+                    "used_key_parts": ["a"],
+                    "ref": ["func"],
+                    "loops": 1,
+                    "rows": 10,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "index_condition": "t3.a = t4.k + 0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t3, t4;
+# The casefold rewrite of MDEV-40006 applies to a parameter list
+set names utf8mb4;
+create table t1 (id int, cs varchar(10), key(cs)) collate=utf8mb4_general_ci;
+insert into t1 (id, cs) values (1, 'AA1AA'),(2, 'BB2BB'),(3, 'CC3CC');
+prepare s from 'select id, cs from t1 where upper(cs) in (?, ?)';
+execute s using 'AA1AA', 'BB2BB';
+id	cs
+1	AA1AA
+2	BB2BB
+execute s using 'aa1aa', 'CC3CC';
+id	cs
+1	AA1AA
+3	CC3CC
+prepare s from 'explain select id, cs from t1 where upper(cs) in (?, ?)';
+# Check that the plan reads t1 by range on cs
+execute s using 'AA1AA', 'BB2BB';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	cs	cs	43	NULL	2	Using index condition
+deallocate prepare s;
+drop table t1;
+set names default;
+# End of 11.4 tests

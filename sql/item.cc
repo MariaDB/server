@@ -4435,6 +4435,51 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
 }
 
 
+/*
+  Binding sets only the statement's parameters and their m_clones, so the copy
+  keeps its value. Its strings point into the original's buffer without owning
+  it, which is safe because copies are dropped before the next EXECUTE.
+*/
+Item_param::Item_param(THD *thd, const Item_param &item):
+  Item_basic_value(item),
+  Settable_routine_parameter(item),
+  Rewritable_query_parameter(item),
+  Type_handler_hybrid_field_type(item),
+  state(item.state),
+  m_empty_string_is_null(item.m_empty_string_is_null),
+  value(item.value),
+  indicator(item.indicator),
+  m_out_param_info(item.m_out_param_info),
+  m_is_settable_routine_parameter(item.m_is_settable_routine_parameter),
+  m_clones(thd->mem_root),
+  m_associated_field(item.m_associated_field),
+  m_default_field(item.m_default_field)
+{}
+
+
+Item *Item_param::shallow_copy(THD *thd) const
+{
+  switch (state) {
+  case NULL_VALUE:
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+  {
+    /* We can clone only if the item's lifetime will be single PS execution */
+    DBUG_ASSERT(thd->mem_root != thd->stmt_arena->mem_root);
+    Item *copy= new (thd->mem_root) Item_param(thd, *this);
+    if (likely(copy))
+      copy->register_in(thd);
+    return copy;
+  }
+  case NO_VALUE:
+  case DEFAULT_VALUE:
+  case IGNORE_VALUE:
+    break;
+  }
+  return nullptr;
+}
+
+
 /* Add reference to Item_param used in a copy of CTE to its master as a clone */
 
 bool Item_param::add_as_clone(THD *thd)
