@@ -2205,11 +2205,12 @@ private:
   are provided by the two cursors representing the top and bottom bound
   of the window function's frame definition.
 
-  Each scan clears the sum function.
+  If the sum functions allow it, the result is kept if the frame is unchanged
+  and extended if only the bottom moved down. Else the frame is rescanned.
 
   NOTE:
     The cursor does not alter the top and bottom cursors.
-    This type of cursor is expensive computational wise. This is only to be
+    A rescan is expensive computational wise. This is only to be
     used when the sum functions do not support removal.
 */
 class Frame_scan_cursor : public Frame_cursor
@@ -2217,31 +2218,28 @@ class Frame_scan_cursor : public Frame_cursor
 public:
   Frame_scan_cursor(const Frame_cursor &top_bound,
                     const Frame_cursor &bottom_bound) :
-    top_bound(top_bound), bottom_bound(bottom_bound) {}
+    top_bound(top_bound), bottom_bound(bottom_bound), have_result(false),
+    can_append(false) {}
 
   void init(READ_RECORD *info) override
   {
     cursor.init(info);
+    can_append= true;
+    List_iterator_fast<Item_sum> it(sum_functions);
+    Item_sum *item_sum;
+    while ((item_sum= it++))
+      can_append&= item_sum->supports_append();
   }
 
   void pre_next_partition(ha_rows rownum) override
   {
-    /* TODO(cvicentiu) Sum functions get cleared on next partition anyway during
-       the window function computation algorithm. Either perform this only in
-       cursors, or remove it from pre_next_partition.
-    */
     curr_rownum= rownum;
-    clear_sum_functions();
+    have_result= false;
   }
 
   void next_partition(ha_rows rownum) override
   {
     compute_values_for_current_row();
-  }
-
-  void pre_next_row() override
-  {
-    clear_sum_functions();
   }
 
   void next_row() override
@@ -2260,30 +2258,62 @@ private:
   const Frame_cursor &bottom_bound;
   Table_read_cursor cursor;
   ha_rows curr_rownum;
+  /* The sum functions hold the result for rows last_top..last_bottom */
+  bool have_result;
+  ha_rows last_top, last_bottom;
+  bool can_append;
 
-  /* Scan the rows between the top bound and bottom bound. Add all the values
-     between them, top bound row  and bottom bound row inclusive. */
+  /* Make the sum functions hold the rows between the top bound and bottom
+     bound, both inclusive: reuse, extend or rescan the previous result. */
   void compute_values_for_current_row()
   {
     THD *thd= current_thd;
     if (top_bound.is_outside_computation_bounds() ||
         bottom_bound.is_outside_computation_bounds())
+    {
+      clear_sum_functions();
+      have_result= false;
       return;
+    }
 
     ha_rows start_rownum= top_bound.get_curr_rownum();
     ha_rows bottom_rownum= bottom_bound.get_curr_rownum();
     DBUG_PRINT("info", ("COMPUTING (%llu %llu)", start_rownum, bottom_rownum));
 
-    cursor.move_to(start_rownum);
-
-    for (ha_rows idx= start_rownum; idx <= bottom_rownum
-         && ((idx & 0xFF) || !thd->check_killed(true)); idx++)
+    ha_rows first_rownum= start_rownum;
+    if (can_append && have_result && start_rownum == last_top)
     {
-      if (cursor.fetch()) //EOF
+      if (bottom_rownum == last_bottom)
+        return;
+      /* Extend only a previous frame ending at most 1 row above the top:
+         after an inverted frame ending higher, the rows in between would
+         be added */
+      if (bottom_rownum > last_bottom && last_bottom + 1 >= start_rownum)
+        first_rownum= last_bottom + 1;
+    }
+
+    if (first_rownum == start_rownum)
+      clear_sum_functions();
+    have_result= false;
+    cursor.move_to(first_rownum);
+
+    ha_rows idx= first_rownum;
+    while (idx <= bottom_rownum
+           && ((idx & 0xFF) || !thd->check_killed(true)))
+    {
+      if (cursor.fetch()) // EOF or read error
         break;
       add_value_to_items();
+      idx++;
       if (cursor.next()) // EOF
         break;
+    }
+    /* Cache the result only if the scan completed */
+    if (idx > bottom_rownum)
+    {
+      have_result= true;
+      last_top= start_rownum;
+      last_bottom= bottom_rownum;
     }
   }
 };
