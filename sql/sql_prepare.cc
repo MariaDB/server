@@ -4812,13 +4812,12 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
-  if (lex->needs_reprepare)
+  if (lex->needs_reprepare && state != Query_arena::STMT_ERROR)
   {
     /*
       Something has happened on previous execution that requires us to
       re-prepare before we try to execute.
     */
-    lex->needs_reprepare= false;
     goto start_with_reprepare;
   }
 
@@ -4996,7 +4995,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
       Something has happened on previous execution that requires us to
       re-prepare before we try to execute.
     */
-    lex->needs_reprepare= false;
     error= reprepare();
     if (error)
       goto err;

@@ -1,0 +1,13 @@
+include/master-slave.inc
+[connection master]
+### MDEV-41264: binlog-in-engine dump thread not stopping at server shutdown
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SHUTDOWN WAIT FOR ALL SLAVES;
+include/rpl_reconnect.inc
+connection master;
+INSERT INTO t1 VALUES (2);
+connection slave;
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

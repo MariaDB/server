@@ -1,0 +1,31 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo ### MDEV-41264: binlog-in-engine dump thread not stopping at server shutdown
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-rpl_master_stop.test
+EOF
+
+# The bug was that this shutdown would hang.
+SHUTDOWN WAIT FOR ALL SLAVES;
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--let $rpl_server_number= 1
+--source include/rpl_reconnect.inc
+
+--connection master
+INSERT INTO t1 VALUES (2);
+--sync_slave_with_master
+
+# Cleanup.
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

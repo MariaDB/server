@@ -1862,3 +1862,73 @@ DROP TABLE t1,t2;
 #
 # End of 10.7 tests
 #
+#
+# MDEV-41566 Allow ROW_NUMBER as unquoted column name
+#
+CREATE TABLE row_number (row_number INT);
+INSERT INTO row_number (row_number) VALUES (10),(20);
+SELECT row_number, row_number.row_number, row_number AS row_number
+FROM row_number ORDER BY row_number;
+row_number	row_number	row_number
+10	10	10
+20	20	20
+SELECT ROW_NUMBER() OVER (ORDER BY row_number) AS rn, row_number
+FROM row_number;
+rn	row_number
+1	10
+2	20
+SELECT t.row_number, ROW_NUMBER() OVER (ORDER BY t.row_number) AS row_number
+FROM row_number t;
+row_number	row_number
+10	1
+20	2
+SET sql_quote_show_create=0;
+SHOW CREATE TABLE row_number;
+Table	Create Table
+row_number	CREATE TABLE `row_number` (
+  `row_number` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SET sql_quote_show_create=DEFAULT;
+DROP TABLE row_number;
+CREATE FUNCTION row_number() RETURNS INT RETURN 100;
+SELECT ROW_NUMBER() OVER () AS rn, test.row_number() AS sf;
+rn	sf
+1	100
+DROP FUNCTION row_number;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE row_number INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+GET DIAGNOSTICS CONDITION 1 row_number= ROW_NUMBER;
+row_number: LOOP
+LEAVE row_number;
+END LOOP row_number;
+SIGNAL SQLSTATE '45000' SET ROW_NUMBER= 7;
+SELECT row_number;
+END;
+$$
+CALL p1();
+row_number
+7
+DROP PROCEDURE p1;
+SET sql_mode=ORACLE;
+CREATE TABLE row_number (row_number INT);
+INSERT INTO row_number VALUES (1);
+SELECT row_number, ROW_NUMBER() OVER (ORDER BY row_number) AS rn
+FROM row_number;
+row_number	rn
+1	1
+DROP TABLE row_number;
+DECLARE
+row_number INT := 0;
+BEGIN
+row_number := 5;
+SELECT row_number;
+END;
+$$
+row_number
+5
+SET sql_mode=DEFAULT;
+#
+# End of 11.4 tests
+#

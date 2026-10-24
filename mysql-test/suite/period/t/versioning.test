@@ -64,4 +64,62 @@ select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
 
 drop table t,log_tbl;
 drop procedure log;
+
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #
+create table t1 (x int, s date, e date, period for app (s, e),
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  v text as (concat('v-', x)) virtual,
+  w decimal(20,6) as (x + unix_timestamp(rs)) virtual,
+  ws decimal(20,6) as (x + unix_timestamp(rs)) stored,
+  key (v(10)), key (w))
+with system versioning;
+insert t1 (x, s, e) values (1, '2000-01-01', '2020-01-01'),
+                           (2, '2000-01-01', '2020-01-01');
+delete from t1 for portion of app from '2005-01-01' to '2010-01-01'
+where x = 1;
+update t1 for portion of app from '2005-01-01' to '2010-01-01' set x= 3
+where x = 2;
+check table t1 extended;
+select x, s, e, v, ws = x + unix_timestamp(rs) as ok
+from t1 for system_time all force index (v)
+order by x, s, rs;
+drop table t1;
+
+--echo # Error from virtual fields computed after the system fields
+# Only the left part [2000, 2005), inserted by period_make_insert(),
+# divides by zero, and only with the new row_start.
+set @save_sql_mode= @@sql_mode;
+set sql_mode= 'strict_all_tables,error_for_division_by_zero';
+create table t1 (x int, s date, e date, period for app (s, e),
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  b int as (1 div (year(rs) - 2000 + year(e) - 2005)) stored)
+with system versioning engine=innodb;
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (x, s, e) values (1, '2000-01-01', '2020-01-01');
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+--error ER_DIVISION_BY_ZERO
+update t1 for portion of app from '2005-01-01' to '2010-01-01' set x= 2;
+set timestamp= default;
+select x, s, e, b from t1;
+drop table t1;
+set sql_mode= @save_sql_mode;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
+--echo # End of 10.11 tests
+
 source suite/versioning/common_finish.inc;

@@ -573,6 +573,8 @@ int prepare_record(TABLE *const table)
   DBUG_ENTER("prepare_record");
 
   restore_record(table, s->default_values);
+  /* Drop the explicit value marks left by the previously unpacked row */
+  table->reset_default_fields();
 
   /*
     All fields are used

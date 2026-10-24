@@ -1176,9 +1176,10 @@ connection default;
 grant select (a) on db.t to u@localhost;
 connection con1;
 set time_zone= '+00:00';
+--replace_column 2 #
 select row_start, row_end from t;
 handler t open;
---replace_column 6 #
+--replace_column 5 # 6 #
 handler t read first;
 handler t close;
 disconnect con1;
