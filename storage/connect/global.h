@@ -1,6 +1,6 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright MariaDB Corporation Ab                 							 */
+/*  (C) Copyright MariaDB plc                            2026          */
 /*  Author Olivier Bertrand                              1993-2020     */
 /***********************************************************************/
 
@@ -212,6 +212,7 @@ DllExport char   *PlugGetMessage(PGLOBAL, int);
 DllExport short   GetLineLength(PGLOBAL);   // Console line length
 #endif   // _WIN32
 DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
+DllExport void    PlugCleanSarea(PGLOBAL);  // Zero the work area
 DllExport PGLOBAL PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);

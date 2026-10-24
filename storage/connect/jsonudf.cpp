@@ -1,6 +1,7 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
 /*  PROGRAM NAME: jsonudf     Version 1.8                                        */
 /*  (C) Copyright to the author Olivier BERTRAND          2015-2019              */
+/*  (C) Copyright MariaDB plc                             2026                   */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
 
@@ -6038,7 +6039,11 @@ my_bool jfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	CalcLen(args, false, reslen, memlen);
 	memlen = memlen * M;
 	memlen += (args->arg_count == 3 && args->args[2]) ? (ulong)*(longlong*)args->args[2] : 1024;
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (JsonInit(initid, args, message, true, reslen, memlen))
+		return true;
+
+	PlugCleanSarea((PGLOBAL)initid->ptr);
+	return false;
 } // end of jfile_bjson_init
 
 char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,

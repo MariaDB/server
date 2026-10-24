@@ -1,6 +1,7 @@
 /****************** bsonudf C++ Program Source Code File (.CPP) ******************/
 /*  PROGRAM NAME: bsonudf     Version 1.0                                        */
 /*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021            */
+/*  (C) Copyright MariaDB plc                             2026                   */
 /*  This program are the BSON User Defined Functions.                            */
 /*********************************************************************************/
 
@@ -4763,7 +4764,11 @@ my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	CalcLen(args, false, reslen, memlen);
 	memlen = memlen * M;
 	memlen += (args->arg_count == 3 && args->args[2]) ? (ulong)*(longlong*)args->args[2] : 1024;
-	return JsonInit(initid, args, message, true, reslen, memlen);
+	if (JsonInit(initid, args, message, true, reslen, memlen))
+		return true;
+
+	PlugCleanSarea((PGLOBAL)initid->ptr);
+	return false;
 } // end of bfile_bjson_init
 
 char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
