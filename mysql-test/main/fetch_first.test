@@ -1169,3 +1169,45 @@ order by country
 fetch first 5 rows with ties;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-41746 IN subquery accepted with OFFSET clause
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (a int);
+insert into t2 values (1),(1),(2),(3);
+
+--echo # IN, ALL and ANY subqueries reject a clause that removes rows
+--error ER_NOT_SUPPORTED_YET
+select t1.a in (select t2.a from t2 offset 10 rows) from t1;
+--error ER_NOT_SUPPORTED_YET
+select t1.a > all (select t2.a from t2 offset 10 rows) from t1;
+--error ER_NOT_SUPPORTED_YET
+select t1.a < any (select t2.a from t2 offset 10 rows) from t1;
+--error ER_NOT_SUPPORTED_YET
+select t1.a in (select t2.a from t2 union select 5 offset 10 rows) from t1;
+--error ER_NOT_SUPPORTED_YET
+select t1.a in (select t2.a from t2 limit 1 offset 2) from t1;
+--error ER_NOT_SUPPORTED_YET
+select t1.a in (select t2.a from t2 offset 2 rows fetch first 1 rows only) from t1;
+select t1.a in (select t2.a from t2 offset 0 rows) from t1;
+
+--echo # A derived table with an offset is not merged
+select * from (select a from t2 order by a offset 2 rows) dt;
+explain extended select * from (select a from t2 order by a offset 2 rows) dt;
+
+--echo # The view definition keeps the offset
+create view v1 as select a from t2 order by a offset 2 rows;
+show create view v1;
+select * from v1;
+drop view v1;
+
+--echo # DISTINCT and GROUP BY are kept in EXISTS with an offset
+select a, exists (select distinct a from t2 offset 3 rows) from t1;
+select a, exists (select distinct a from t2 offset 2 rows) from t1;
+select a, exists (select a from t2 group by a limit 3, 1) from t1;
+
+drop table t1, t2;
+
+--echo # End of 11.4 tests

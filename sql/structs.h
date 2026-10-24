@@ -989,6 +989,15 @@ public:
     select_limit= NULL;       // denotes the default limit = HA_POS_ERROR
     offset_limit= NULL;       // denotes the default offset = 0
   }
+
+  /*
+    The clause removes zero rows, e.g., no clause or OFFSET 0 ROWS.  An offset
+    that is a parameter or an SP variable might remove rows.
+  */
+  bool keeps_all_rows() const;
+
+  /* The offset is absent or the constant 0. */
+  bool starts_at_first_row() const;
 };
 
 struct st_order;
