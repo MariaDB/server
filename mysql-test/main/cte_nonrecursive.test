@@ -2026,3 +2026,18 @@ drop table t,s;
 eval $q1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-41808 repeated CTE references keep reparsing exponentially on time and memory
+--echo #
+let $q= with cte0 as (select 1 as a);
+let $i= 1;
+while ($i <= 20)
+{
+  let $q= $q, cte$i as (select * from cte$(($i-1)) union all select * from cte$(($i-1)));
+  inc $i;
+}
+--error ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+eval $q select * from cte$(($i-1));
+
+--echo # End of 10.11 tests

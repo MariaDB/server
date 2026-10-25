@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2025, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2025, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1226,6 +1226,7 @@ void LEX::start(THD *thd_arg)
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
   clone_spec_offset= 0;
+  cte_references= 0;
   create_view= NULL;
   field_list.empty();
   value_list.empty();
