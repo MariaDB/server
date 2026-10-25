@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -1993,7 +1994,7 @@ int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
                              MY_DIR *dir __attribute__((unused)),
                              handlerton::discovered_list *result)
 {
-  if (compare_table_names(db->str, PERFORMANCE_SCHEMA_str.str))
+  if (strcasecmp(db->str, PERFORMANCE_SCHEMA_str.str))
     return 0;
   for (size_t i= 0; i < array_elements(all_shares) - 1; i++)
     result->add_table(all_shares[i]->m_name.str,
