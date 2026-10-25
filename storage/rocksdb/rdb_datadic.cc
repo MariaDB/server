@@ -555,7 +555,8 @@ uint Rdb_key_def::setup(const TABLE *const tbl,
           m_ttl_pk_key_part_offset = dst_i;
         }
 
-        key_part++;
+        if (key_part)
+          key_part++;
         /*
           For "unique" secondary indexes, pretend they have
           "index extensions".
