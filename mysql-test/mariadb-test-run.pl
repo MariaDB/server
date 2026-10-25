@@ -1815,6 +1815,8 @@ sub collect_mysqld_features {
   mtr_verbose("cmd: $cmd");
 
   my $list= `$cmd`;
+  my $help_status= $?;
+  my $help_output= $list;
 
   # to simplify the parsing, we'll merge all nicely formatted --help texts
   $list =~ s/\n {22}(\S)/ $1/g;
@@ -1859,7 +1861,14 @@ sub collect_mysqld_features {
     last if /^\r?$/; # then goes a list of variables, it ends with an empty line
 
     # Put a variable into hash
-    /^([\S]+)[ \t]+(.*?)\r?$/ or die "Could not parse mysqld --help: $_\n";
+    if (!/^([\S]+)[ \t]+(.*?)\r?$/)
+    {
+      print STDERR "---- mysqld --help output begin ----\n",
+                   $help_output,
+                   "\n---- mysqld --help output end ----\n";
+      mtr_error("Could not parse mysqld --help: '$_', exit status $help_status, " .
+                length($help_output) . " bytes of output");
+    }
     $mysqld_variables{$1}= $2;
   }
   mtr_error("Could not find variabes list") unless %mysqld_variables;
