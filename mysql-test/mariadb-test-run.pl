@@ -1814,7 +1814,8 @@ sub collect_mysqld_features {
 
   mtr_verbose("cmd: $cmd");
 
-  my $list= `$cmd`;
+  my $help_stderr= "$opt_vardir/mysqld-help.err";
+  my $list= `$cmd 2>"$help_stderr"`;
   my $help_status= $?;
   my $help_output= $list;
 
@@ -1863,9 +1864,14 @@ sub collect_mysqld_features {
     # Put a variable into hash
     if (!/^([\S]+)[ \t]+(.*?)\r?$/)
     {
+      my $help_errors= "";
+      if (open(my $fh, '<', $help_stderr)) { local $/; $help_errors= <$fh>; close($fh); }
       print STDERR "---- mysqld --help output begin ----\n",
                    $help_output,
-                   "\n---- mysqld --help output end ----\n";
+                   "\n---- mysqld --help output end ----\n",
+                   "---- mysqld --help stderr begin ----\n",
+                   $help_errors,
+                   "\n---- mysqld --help stderr end ----\n";
       mtr_error("Could not parse mysqld --help: '$_', exit status $help_status, " .
                 length($help_output) . " bytes of output");
     }
