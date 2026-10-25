@@ -1553,6 +1553,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   NET *net= &thd->net;
   bool error= 0;
   bool do_end_of_statement= true;
+  bool log_slow_done= false;
   DBUG_ENTER("dispatch_command");
   DBUG_PRINT("info", ("command: %d %s", command,
                       (command_name[command].str != 0 ?
@@ -1768,6 +1769,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_STMT_BULK_EXECUTE:
   {
     mysqld_stmt_bulk_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1779,6 +1781,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_STMT_EXECUTE:
   {
     mysqld_stmt_execute(thd, packet, packet_length);
+    log_slow_done= true;
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -1856,6 +1859,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #endif /* WITH_WSREP */
       mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                   is_com_multi, is_next_command);
+    log_slow_done= thd->lex->sql_command == SQLCOM_EXECUTE;
 
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
@@ -1872,11 +1876,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->protocol->end_statement();
       query_cache_end_of_result(thd);
 
-      mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                          thd->get_stmt_da()->is_error()
-                            ? thd->get_stmt_da()->sql_errno()
-                            : 0,
-                          command_name[command].str);
+      if (!log_slow_done)
+        mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                            thd->get_stmt_da()->is_error()
+                              ? thd->get_stmt_da()->sql_errno()
+                              : 0,
+                            command_name[command].str);
 
       ulong length= (ulong)(packet_end - beginning_of_next_stmt);
 
@@ -1959,6 +1964,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #endif /* WITH_WSREP */
       mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
                   is_com_multi, is_next_command);
+      log_slow_done= thd->lex->sql_command == SQLCOM_EXECUTE;
 
     }
 
@@ -2458,10 +2464,11 @@ dispatch_end:
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                      thd->get_stmt_da()->is_error() ?
-                      thd->get_stmt_da()->sql_errno() : 0,
-                      command_name[command].str);
+  if (!log_slow_done)
+    mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                        thd->get_stmt_da()->is_error() ?
+                        thd->get_stmt_da()->sql_errno() : 0,
+                        command_name[command].str);
 
   thd->update_all_stats();
 

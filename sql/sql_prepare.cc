@@ -5051,6 +5051,11 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
   if (! cursor)
     cleanup_stmt();
+
+  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                      thd->get_stmt_da()->is_error() ?
+                      thd->get_stmt_da()->sql_errno() : 0,
+                      command_name[thd->get_command()].str);
   
   /*
     EXECUTE command has its own dummy "explain data". We don't need it,
