@@ -23,7 +23,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
 HTTP='http://127.0.0.1:$HTTP_PORT/users" "-Dhead.log';
-Got one of the listed errors
+ERROR HY000: Failed to execute curl or casablanca
 # End of 10.6 tests
 #
 # MDEV-41641 CONNECT REST can bypass FILE protection
@@ -31,5 +31,5 @@ Got one of the listed errors
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='$MTR_SUITE_DIR/std_data/bios.json';
 ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JSON HTTP='file://$MTR_SUITE_DIR/std_data/bios.json';
-ERROR HY000: Can only retrieve columns from object rows
+ERROR HY000: Failed to execute curl or casablanca
 # End of 10.11 tests
