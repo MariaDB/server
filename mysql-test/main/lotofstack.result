@@ -132,4 +132,11 @@ select st_length(@g);
 select st_dimension(@g);
 select st_boundary(@g);
 drop table t1, t2;
+#
+# MDEV-41804 deeply nested ROWs crash
+#
+select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
+select 1;
+1
+1
 # End of 10.11 tests
