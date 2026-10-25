@@ -201,4 +201,14 @@ select st_boundary(@g);
 --enable_result_log
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-41804 deeply nested ROWs crash
+--echo #
+let $n=4000;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
+--enable_result_log
+select 1;
+
 --echo # End of 10.11 tests
