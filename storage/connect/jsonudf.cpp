@@ -5695,11 +5695,13 @@ my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (!(args->arg_count % 2)) {
 		strcpy(message, "This function must have an odd number of arguments");
 		return true;
-	} else if (!n && args->arg_type[0] != STRING_RESULT) {
+	}
+	if (!n && args->arg_type[0] != STRING_RESULT) {
 		strcpy(message, "First argument must be a json item");
 		return true;
-	} else
-		CalcLen(args, false, reslen, memlen);
+	}
+	CalcLen(args, false, reslen, memlen);
+	reslen= MY_MAX(reslen, 80); // must fit the error message
 
 	if (n == 2 && args->args[0]) {
 		more = GetFileLength(args->args[0]) * 3;
