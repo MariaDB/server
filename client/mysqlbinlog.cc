@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3078,6 +3078,13 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
     {
       Exit_status ret_val= OK_CONTINUE;
       Rotate_log_event *rev= (Rotate_log_event *)ev;
+
+      if (dirname_length(rev->new_log_ident))
+      {
+        error("Invalid log file name in rotate event: %s", rev->new_log_ident);
+        delete ev;
+        DBUG_RETURN(ERROR_STOP);
+      }
       char *pe= strmake(out_file_name, output_prefix, sizeof(out_file_name)-1);
       strmake(pe, rev->new_log_ident, sizeof(out_file_name) - (pe-out_file_name));
 
