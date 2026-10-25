@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016, 2017 MariaDB
+   Copyright (c) 2016, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1038,6 +1038,14 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   THD *thd= old_lex->thd;
   LEX *lex;
   st_select_lex_unit *res= NULL;
+
+  LEX *stmt_lex= old_lex->stmt_lex ? old_lex->stmt_lex : old_lex;
+  if (++stmt_lex->cte_references > max_number_of_cte_references)
+  {
+    my_printf_error(ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE,
+                    "Too many references to WITH elements", MYF(0));
+    return res;
+  }
 
   if (!(lex= (LEX*) new(thd->mem_root) st_lex_local))
     return res;

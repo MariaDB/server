@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3260,6 +3260,9 @@ public:
     the with element in the input string, otherwise it's set to 0
   */
   my_ptrdiff_t clone_spec_offset;
+
+  /* number of CTE specification clones made while resolving references */
+  uint cte_references;
 
   Create_view_info *create_view;
 
