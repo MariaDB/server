@@ -80,44 +80,29 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 #else   // !_WIN32
 	pid_t pID;
 
-	// Check if curl package is availabe by executing subprocess
-	FILE *f= popen("command -v curl", "r");
-
-	if (!f) {
-			strcpy(g->Message, "Problem in allocating memory.");
-			return 1;
-	} else {
-		char   temp_buff[50];
-		size_t len = fread(temp_buff,1, 50, f);
-
-		if(!len) {
-			strcpy(g->Message, "Curl not installed.");
-			return 1;
-		}	else
-			pclose(f);
-
-	} // endif f
-	
 #ifdef HAVE_VFORK
-       pID = vfork();
+	pID = vfork();
 #else
-       pID = fork();
+	pID = fork();
 #endif
 
 	if (pID == 0) {
 		// Code executed by child process
 		execlp("curl", "curl", "--proto", "=http,https", fn, "--", buf, (char*)NULL);
-
 		// If execlp() is successful, we should not reach this next line.
-		strcpy(g->Message, "Unsuccessful execlp from vfork()");
-		exit(1);
+		_exit(1); // NOT exit()
 	} else if (pID < 0) {
 		// failed to fork
-		strcpy(g->Message, "Failed to fork");
+		my_snprintf(g->Message, sizeof(g->Message), "Failed to fork: %M", errno);
 		rc = 1;
 	} else {
-		// Parent process
-		wait(NULL);  // Wait for the child to terminate
+		// Parent process - wait for the child to terminate
+		int status;
+		if (waitpid(pID, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status))
+		{
+			my_snprintf(g->Message, sizeof(g->Message), "spawn curl failed");
+			rc = 1;
+		}
 	}	// endif pID
 #endif  // !_WIN32
 
@@ -237,7 +222,7 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 		rc = grf(g->Message, trace(515), http, uri, filename);
 
 	if (rc) {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		strcpy(g->Message, "Failed to execute curl or casablanca");
 		return NULL;
 	} else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
@@ -305,7 +290,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	} // endelse
 
 	if (rc) {
-		// strcpy(g->Message, "Cannot access to curl nor casablanca");
+		// strcpy(g->Message, "Failed to execute curl or casablanca");
 		return true;
 	} else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
