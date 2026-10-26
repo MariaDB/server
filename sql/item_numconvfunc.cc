@@ -887,32 +887,56 @@ public:
 
     /*
       Get a PR-style angle-surrounding sign from a subject string in "ls".
-      Strip the sign from 'ls' if found.
+      Strip the sign or optional leading/surrounding spaces from 'ls' if found.
 
       @param OUT neg     - the sign is returned here:
                            true if a negative sign was scanned from "ls"
                            false if a positive sign was scanned from "ls"
                            undefinite if "this" does not have a PR sign
-      @param IN/OUT ls   - the subject string, we search a surrounding sign in
+      @param IN/OUT ls   - the subject string to search the surrounding sign in
       @retval false      Success:
-                          - the format in "this" does not have a sign
-                          - the format in "this" contains a sign, and
-                            the sign was scanned fron the subject string
+                           - negative value enclosed in '<' and '>'
+                           - positive value (unpadded, leading space, or symmetric spaces)
       @retval true       Error:
-                          - the format in "this" has a non-empty sign, but
-                            the subject string does not have a surrounding sign
+                           - malformed brackets or invalid trailing space
     */
     static bool get_PR(bool *neg, LS *ls)
     {
-      if (ls->length() < 2)
-        return true; // The subject string needs at least two characers
+      if (ls->length() == 0)
+        return true;
+
       char leading= ls->front();
       char trailing= ls->back();
-      if (!(leading == ' ' && trailing == ' ') &&
-          !(leading == '<' && trailing == '>'))
-        return true; // Unknown
-      *neg= leading == '<';
-      *ls= ls->chop_right().chop_left();
+
+      if (leading == '<')
+      {
+        if (trailing != '>')
+          return true;
+        *neg= true;
+        *ls= ls->chop_right().chop_left();
+        return false;
+      }
+
+      if (trailing == '>')
+        return true;
+
+      if (trailing == ' ')
+      {
+        // Symmetric blanks: ' 1234.50 ' (MDEV-20022 compatibility)
+        if (leading != ' ' || ls->length() < 2)
+          return true;
+        *neg= false;
+        *ls= ls->chop_right().chop_left();
+        return false;
+      }
+
+      *neg= false;
+
+      // Leading space only: ' 1234.50' (Oracle compatibility)
+      // Since trailing != ' ', length is guaranteed >= 2 here.
+      if (leading == ' ')
+        *ls= ls->chop_left();
+
       return false;
     }
 
