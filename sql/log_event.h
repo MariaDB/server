@@ -634,11 +634,13 @@ class String;
 #define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
 /* MariaDB >= 10.0.1, which knows about global transaction id events. */
 #define MARIA_SLAVE_CAPABILITY_GTID 4
-/* MariaDB >= 12.2.1, basic engine-implemented binlog capability. */
+/* MariaDB >= 12.3.1, basic engine-implemented binlog capability. */
 #define MARIA_SLAVE_CAPABILITY_ENGINE_BINLOG 5
+/* MariaDB >= 13.2.1, semi-sync slave can ack with GTID. */
+#define MARIA_SLAVE_CAPABILITY_SEMISYNC_GTID 6
 
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_ENGINE_BINLOG
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_SEMISYNC_GTID
 
 
 /*

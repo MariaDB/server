@@ -2818,6 +2818,16 @@ static int init_binlog_sender(binlog_send_info *info,
   DBUG_EXECUTE_IF("simulate_non_gtid_aware_master",
                   info->using_gtid_state= false;);
 
+  if (opt_binlog_engine_hton &&
+      thd->semi_sync_slave &&
+      info->mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_SEMISYNC_GTID)
+  {
+    info->errmsg= "MariaDB >= 13.2.1 is required on semi-sync slave when "
+      "master uses --binlog-storage-engine";
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+    return 1;
+  }
+
   if (info->using_gtid_state)
   {
     info->slave_gtid_strict_mode= get_slave_gtid_strict_mode(thd);
@@ -3789,13 +3799,13 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   }
   start_use_binlog= true;
 
+  /* Check if the dump thread is created by a slave with semisync enabled. */
+  thd->semi_sync_slave = is_semi_sync_slave();
+
   if (init_binlog_sender(info, &linfo, log_ident, &pos))
     goto err;
 
   has_transmit_started= true;
-
-  /* Check if the dump thread is created by a slave with semisync enabled. */
-  thd->semi_sync_slave = is_semi_sync_slave();
 
   DBUG_ASSERT(pos == linfo.pos);
 

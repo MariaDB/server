@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+### MDEV-41562: No error when old semi-sync slave without GTID ack capability connects to binlog-in-engine master
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @old_semisync_timeout= @@GLOBAL.rpl_semi_sync_master_timeout;
+SET GLOBAL rpl_semi_sync_master_timeout= 5000;
+SET @old_semisync_enabled= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+connection slave;
+include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET STATEMENT sql_log_bin=0 FOR
+CALL mtr.add_suppression('MariaDB >= 13.2.1 is required on semi-sync slave when master uses --binlog-storage-engine');
+SET @old_semisync_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,simulate_slave_capability_old_12_3';
+START SLAVE;
+connection master;
+INSERT INTO t1 VALUES (1, 0);
+connection slave;
+include/wait_for_slave_sql_to_start.inc
+include/wait_for_slave_io_error.inc [errno=1236]
+STOP SLAVE SQL_THREAD;
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+connection slave;
+include/stop_slave.inc
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_semisync_enabled;
+include/start_slave.inc
+connection master;
+SET GLOBAL rpl_semi_sync_master_timeout= @old_semisync_timeout;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_semisync_enabled;
+DROP TABLE t1;
+include/rpl_end.inc

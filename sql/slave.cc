@@ -2280,8 +2280,11 @@ past_checksum:
     int rc= DBUG_IF("simulate_slave_capability_old_53") ?
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
                          STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))) :
+      ( DBUG_IF("simulate_slave_capability_old_12_3") ?
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
-                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE)));
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ENGINE_BINLOG))) :
+        mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
     if (unlikely(rc))
     {
       if (check_io_slave_killed(mi, NULL))
