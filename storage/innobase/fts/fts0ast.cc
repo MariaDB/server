@@ -299,69 +299,65 @@ fts_ast_create_node_subexp_list(
 	return(node);
 }
 
-/******************************************************************//**
-Free an expr list node elements. */
-static
-void
-fts_ast_free_list(
-/*==============*/
-	fts_ast_node_t*	node)			/*!< in: ast node to free */
-{
-	ut_a(node->type == FTS_AST_LIST
-	     || node->type == FTS_AST_SUBEXP_LIST
-	     || node->type == FTS_AST_PARSER_PHRASE_LIST);
-
-	for (node = node->list.head;
-	     node != NULL;
-	     node = fts_ast_free_node(node)) {
-
-		/*!< No op */
-	}
-}
-
 /********************************************************************//**
-Free a fts_ast_node_t instance.
+Free a fts_ast_node_t instance and the sub-tree below it.
 @return next node to free */
 fts_ast_node_t*
 fts_ast_free_node(
 /*==============*/
 	fts_ast_node_t*	node)			/*!< in: the node to free */
 {
-	fts_ast_node_t*	next_node;
+	fts_ast_node_t*	next_node = node->next;
 
-	switch (node->type) {
-	case FTS_AST_TEXT:
-		if (node->text.ptr) {
-			fts_ast_string_free(node->text.ptr);
-			node->text.ptr = NULL;
+	/* Free the sub-tree rooted at "node" iteratively.
+	A query such as "((((word))))" nests one list node
+	inside another for every pair of parentheses, and
+	recursing into the children would consume one frame
+	of the thread stack per level and overflow it. */
+	node->next = NULL;
+
+	for (fts_ast_node_t* stack = node; stack; ) {
+		node = stack;
+		stack = node->next;
+
+		switch (node->type) {
+		case FTS_AST_TEXT:
+			if (node->text.ptr) {
+				fts_ast_string_free(node->text.ptr);
+				node->text.ptr = NULL;
+			}
+			break;
+
+		case FTS_AST_TERM:
+			if (node->term.ptr) {
+				fts_ast_string_free(node->term.ptr);
+				node->term.ptr = NULL;
+			}
+			break;
+
+		case FTS_AST_LIST:
+		case FTS_AST_SUBEXP_LIST:
+		case FTS_AST_PARSER_PHRASE_LIST:
+			/* The children are already chained to each
+			other by their next pointer, so the whole
+			list is pushed in one step. */
+			if (node->list.head) {
+				ut_ad(!node->list.tail->next);
+				node->list.tail->next = stack;
+				stack = node->list.head;
+				node->list.head = node->list.tail = NULL;
+			}
+			break;
+
+		case FTS_AST_OPER:
+			break;
+
+		default:
+			ut_error;
 		}
-		break;
 
-	case FTS_AST_TERM:
-		if (node->term.ptr) {
-			fts_ast_string_free(node->term.ptr);
-			node->term.ptr = NULL;
-		}
-		break;
-
-	case FTS_AST_LIST:
-	case FTS_AST_SUBEXP_LIST:
-	case FTS_AST_PARSER_PHRASE_LIST:
-		fts_ast_free_list(node);
-		node->list.head = node->list.tail = NULL;
-		break;
-
-	case FTS_AST_OPER:
-		break;
-
-	default:
-		ut_error;
+		ut_free(node);
 	}
-
-	/*!< Get next node before freeing the node itself */
-	next_node = node->next;
-
-	ut_free(node);
 
 	return(next_node);
 }
@@ -485,6 +481,12 @@ fts_ast_string_print(
 	printf("\n");
 }
 
+/** Maximum depth printed by fts_ast_node_print_recursive().
+The parser accepts thousands of nested parentheses, and recursing
+that deep would overflow the thread stack. The limit is above the
+depth of any tree that fts_ast_visit_sub_exp() lets execute. */
+static constexpr ulint FTS_AST_PRINT_MAX_LEVEL = 128;
+
 /******************************************************************//**
 Print an ast node recursively. */
 static
@@ -497,6 +499,11 @@ fts_ast_node_print_recursive(
 	/* Print alignment blank */
 	for (ulint i = 0; i < level; i++) {
 		printf("  ");
+	}
+
+	if (level >= FTS_AST_PRINT_MAX_LEVEL) {
+		printf("...\n");
+		return;
 	}
 
 	switch (node->type) {
