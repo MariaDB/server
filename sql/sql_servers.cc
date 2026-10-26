@@ -161,8 +161,11 @@ static my_bool close_cached_connection_tables_callback(void *el, void *a)
                    arg->connection->length)))
     goto end;
 
-  /* close_cached_tables() only uses these elements */
-  if (!(tmp= (TABLE_LIST*) alloc_root(arg->thd->mem_root, sizeof(TABLE_LIST))) ||
+  /*
+    zero the struct: mysql_ha_flush_tables() also reads view/derived
+    fields
+  */
+  if (!(tmp= (TABLE_LIST*) arg->thd->calloc(sizeof(TABLE_LIST))) ||
       !(arg->thd->make_lex_string(&tmp->db, element->share->db.str, element->share->db.length)) ||
       !(arg->thd->make_lex_string(&tmp->table_name, element->share->table_name.str,
                                       element->share->table_name.length)))

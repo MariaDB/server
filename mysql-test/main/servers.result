@@ -127,3 +127,16 @@ ERROR 22003: port value is out of range in 'INT'
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (HOST'',PORT -5);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-5)' at line 1
 # End of 10.11 tests
+#
+# MDEV-40808 Uninitialized TABLE_LIST causes crash triggered by DROP SERVER
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST '127.0.0.1', DATABASE 'test', USER 'root');
+CREATE TABLE t1(id INT) CONNECTION='s1';
+HANDLER t1 OPEN;
+DROP SERVER s1;
+HANDLER t1 READ FIRST;
+id
+HANDLER t1 CLOSE;
+DROP TABLE t1;
+# End of 11.4 tests
