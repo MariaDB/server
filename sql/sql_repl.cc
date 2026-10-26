@@ -2811,10 +2811,9 @@ static int init_binlog_sender(binlog_send_info *info,
   }
   else if (opt_binlog_engine_hton)
   {
-    my_error(ER_ENGINE_BINLOG_REQUIRES_GTID, MYF(0));
     info->errmsg=
       "Slave must enable GTID mode when master uses --binlog-storage-engine";
-    info->error= ER_ENGINE_BINLOG_REQUIRES_GTID;
+    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     return 1;
   }
 
