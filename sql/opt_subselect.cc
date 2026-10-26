@@ -619,6 +619,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
           (substype == Item_subselect::EXISTS_SUBS &&                // (2)
            !select_lex->limit_params.offset_limit))                  // (2)
       {
+        select_lex->drop_order_window_funcs(); //drop window funcs from ORDER BY
         select_lex->join->order= 0;
         select_lex->join->skip_sort_order= 1;
       }
