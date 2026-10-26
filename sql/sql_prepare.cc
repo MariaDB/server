@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -587,7 +587,7 @@ void Item_param::set_param_time(uchar **pos, ulong len)
     tm.hour=   (uint) to[5] + day * 24;
     tm.minute= (uint) to[6];
     tm.second= (uint) to[7];
-    tm.second_part= (length > 8) ? (ulong) sint4korr(to+8) : 0;
+    tm.second_part= (length >= 12) ? (ulong) sint4korr(to+8) : 0;
     if (tm.hour > 838)
     {
       /* TODO: add warning 'Data truncated' here */
@@ -616,7 +616,7 @@ void Item_param::set_param_datetime(uchar **pos, ulong len)
     tm.year=   (uint) sint2korr(to);
     tm.month=  (uint) to[2];
     tm.day=    (uint) to[3];
-    if (length > 4)
+    if (length >= 7)
     {
       tm.hour=   (uint) to[4];
       tm.minute= (uint) to[5];
@@ -625,7 +625,7 @@ void Item_param::set_param_datetime(uchar **pos, ulong len)
     else
       tm.hour= tm.minute= tm.second= 0;
 
-    tm.second_part= (length > 7) ? (ulong) sint4korr(to+7) : 0;
+    tm.second_part= (length >= 11) ? (ulong) sint4korr(to+7) : 0;
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_DATETIME);
