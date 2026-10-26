@@ -6886,6 +6886,14 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
   if ((subselects_tables= all_tables->next_global))
   {
     /*
+      Only the target table is ours. Own tables come first in the list,
+      so the first not-own table means there are no more to check.
+      The rest were added for prelocking. Their routines check them.
+    */
+    if (subselects_tables == thd->lex->first_not_own_table())
+      return 0;
+
+    /*
       Access rights asked for the first table of a view should be the same
       as for the view
     */
