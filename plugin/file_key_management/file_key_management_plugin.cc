@@ -111,20 +111,6 @@ static inline enum my_digest get_digest()
   }
 }
 
-/*
-  The loaded keys. Encryption threads look keys up under a read lock;
-  a reload parses the new file without the lock and swaps it in under
-  the write lock, so the old keys can be freed right away.
-*/
-static keymap *keys;
-static mysql_rwlock_t LOCK_keys;
-/*
-  The encryption plugin's init ran and failed. The INFORMATION_SCHEMA
-  plugin then refuses to start too, so that a failed INSTALL SONAME does
-  not leave it installed on its own. When the encryption plugin is
-  disabled its init never runs, and the table starts empty as before.
-*/
-static bool init_failed;
 #ifdef HAVE_PSI_INTERFACE
 static PSI_rwlock_key key_LOCK_keys;
 static PSI_rwlock_info all_rwlocks[]=
@@ -133,82 +119,214 @@ static PSI_rwlock_info all_rwlocks[]=
 #define key_LOCK_keys 0
 #endif
 
-static void wipe_and_delete(keymap *keys)
-{
-  for (keymap::iterator id= keys->begin(); id != keys->end(); ++id)
-    for (key_versions::iterator v= id->second.begin();
-         v != id->second.end(); ++v)
-      secure_zero(&v->second, sizeof v->second);
-  delete keys;
-}
-
 /*
-  A reload must not drop or change a key version that is already loaded:
-  data, redo log or binlogs may still be encrypted with it.
-  @return false and the offending id and version if it would
+  The loaded keys. Encryption threads look keys up under a read lock;
+  a reload parses the new file without the lock and swaps it in under
+  the write lock, so the old keys can be freed right away.
 */
-static bool contains_loaded(const keymap &loaded, const keymap &new_keys,
-                            uint *bad_id, uint *bad_version)
+class Key_store
 {
-  for (keymap::const_iterator id= loaded.begin(); id != loaded.end(); ++id)
+  keymap *keys= nullptr;
+  mysql_rwlock_t lock;
+  /*
+    load() ran and failed. The INFORMATION_SCHEMA plugin then refuses to
+    start too, so that a failed INSTALL SONAME does not leave it installed
+    on its own. When the encryption plugin is disabled load() never runs,
+    and the table starts empty.
+  */
+  bool load_failed= false;
+
+  /* @return the parsed key file, or nullptr if it could not be parsed */
+  static keymap *parse(myf log_flags)
   {
-    keymap::const_iterator new_id= new_keys.find(id->first);
-    for (key_versions::const_iterator v= id->second.begin();
-         v != id->second.end(); ++v)
+    keymap *new_keys= new keymap;
+    Parser parser(filename, filekey, get_digest(), use_pbkdf2, log_flags);
+    if (parser.parse(new_keys))
     {
-      key_versions::const_iterator new_v;
-      if (new_id == new_keys.end() ||
-          (new_v= new_id->second.find(v->first)) == new_id->second.end() ||
-          new_v->second.length != v->second.length ||
-          memcmp(new_v->second.key, v->second.key, v->second.length))
+      wipe_and_delete(new_keys);
+      return nullptr;
+    }
+    return new_keys;
+  }
+
+  static void wipe_and_delete(keymap *k)
+  {
+    for (keymap::iterator id= k->begin(); id != k->end(); ++id)
+      for (key_versions::iterator v= id->second.begin();
+           v != id->second.end(); ++v)
+        secure_zero(&v->second, sizeof v->second);
+    delete k;
+  }
+
+  /*
+    A reload must not drop or change a key version that is already loaded:
+    data, redo log or binlogs may still be encrypted with it.
+    @return false and the offending id and version if it would
+  */
+  static bool contains(const keymap &loaded, const keymap &new_keys,
+                       uint *bad_id, uint *bad_version)
+  {
+    for (keymap::const_iterator id= loaded.begin(); id != loaded.end(); ++id)
+    {
+      keymap::const_iterator new_id= new_keys.find(id->first);
+      for (key_versions::const_iterator v= id->second.begin();
+           v != id->second.end(); ++v)
       {
-        *bad_id= id->first;
-        *bad_version= v->first;
-        return false;
+        key_versions::const_iterator new_v;
+        if (new_id == new_keys.end() ||
+            (new_v= new_id->second.find(v->first)) == new_id->second.end() ||
+            new_v->second.length != v->second.length ||
+            memcmp(new_v->second.key, v->second.key, v->second.length))
+        {
+          *bad_id= id->first;
+          *bad_version= v->first;
+          return false;
+        }
       }
     }
+    return true;
   }
-  return true;
-}
 
-/*
-  FLUSH FILE_KEY_MANAGEMENT_KEYS: re-read the key file without a restart.
-  Details of a bad key file go to the error log only; the client gets one
-  error. On any error the loaded keys stay in use.
-*/
+public:
+  /* encryption plugin init; @return whether the key file was loaded */
+  bool load()
+  {
+    load_failed= false;
+    keymap *new_keys= parse(ME_ERROR_LOG);
+    if (!new_keys)
+    {
+      load_failed= true;
+      return false;
+    }
+#ifdef HAVE_PSI_INTERFACE
+    /* the performance schema allows at most 12 characters here */
+    mysql_rwlock_register("file_keymgmt", all_rwlocks,
+                          array_elements(all_rwlocks));
+#endif
+    mysql_rwlock_init(key_LOCK_keys, &lock);
+    keys= new_keys;
+    return true;
+  }
+
+  /* encryption plugin deinit */
+  void unload()
+  {
+    if (keys)
+    {
+      mysql_rwlock_destroy(&lock);
+      wipe_and_delete(keys);
+      keys= nullptr;
+    }
+  }
+
+  bool failed() const { return load_failed; }
+
+  /*
+    FLUSH FILE_KEY_MANAGEMENT_KEYS: re-read the key file without a restart.
+    Details of a bad key file go to the error log only; the client gets
+    one error. On any error the loaded keys stay in use.
+  */
+  int reload()
+  {
+    if (!keys)
+    {
+      my_error(ER_ENCRYPTION_KEY_RELOAD_FAILED, MYF(0),
+               filename ? filename : "");
+      return 1;
+    }
+
+    keymap *new_keys= parse(ME_ERROR_LOG_ONLY);
+    if (!new_keys)
+    {
+      my_error(ER_ENCRYPTION_KEY_RELOAD_FAILED, MYF(0), filename);
+      return 1;
+    }
+
+    uint bad_id, bad_version;
+    mysql_rwlock_wrlock(&lock);
+    bool ok= contains(*keys, *new_keys, &bad_id, &bad_version);
+    if (ok)
+      std::swap(keys, new_keys);
+    mysql_rwlock_unlock(&lock);
+
+    /* the rejected new keys, or the replaced old ones */
+    wipe_and_delete(new_keys);
+    if (!ok)
+    {
+      my_error(ER_ENCRYPTION_KEY_IN_USE, MYF(ME_ERROR_LOG),
+               bad_id, bad_version);
+      return 1;
+    }
+    return 0;
+  }
+
+  uint latest_version(uint key_id)
+  {
+    uint version= ENCRYPTION_KEY_VERSION_INVALID;
+    mysql_rwlock_rdlock(&lock);
+    keymap::const_iterator it= keys->find(key_id);
+    if (it != keys->end())
+      version= it->second.rbegin()->first;
+    mysql_rwlock_unlock(&lock);
+    return version;
+  }
+
+  uint get_key(uint key_id, uint key_version, uchar *dstbuf, uint *buflen)
+  {
+    uint rc= ENCRYPTION_KEY_VERSION_INVALID;
+    mysql_rwlock_rdlock(&lock);
+    keymap::const_iterator it= keys->find(key_id);
+    if (it != keys->end())
+    {
+      key_versions::const_iterator v= it->second.find(key_version);
+      if (v != it->second.end())
+      {
+        const keyentry &entry= v->second;
+        if (*buflen < entry.length)
+          rc= ENCRYPTION_KEY_BUFFER_TOO_SMALL;
+        else
+        {
+          if (dstbuf)
+            memcpy(dstbuf, entry.key, entry.length);
+          rc= 0;
+        }
+        *buflen= entry.length;
+      }
+    }
+    mysql_rwlock_unlock(&lock);
+    return rc;
+  }
+
+  /* fills INFORMATION_SCHEMA.FILE_KEY_MANAGEMENT_KEYS: never key material */
+  int fill(THD *thd, TABLE *table)
+  {
+    int rc= 0;
+    if (!keys)
+      return 0;
+    mysql_rwlock_rdlock(&lock);
+    for (keymap::const_iterator id= keys->begin();
+         id != keys->end() && !rc; ++id)
+      for (key_versions::const_iterator v= id->second.begin();
+           v != id->second.end() && !rc; ++v)
+      {
+        table->field[0]->store(id->first, true);
+        table->field[1]->store(v->first, true);
+        table->field[2]->store(v->second.length * 8, true);
+        bool latest= v->first == id->second.rbegin()->first;
+        table->field[3]->store(latest ? "YES" : "NO", latest ? 3 : 2,
+                               system_charset_info);
+        rc= schema_table_store_record(thd, table);
+      }
+    mysql_rwlock_unlock(&lock);
+    return rc;
+  }
+};
+
+static Key_store key_store;
+
 static int reload_keys()
 {
-  if (!keys)
-  {
-    my_error(ER_ENCRYPTION_KEY_RELOAD_FAILED, MYF(0), filename ? filename : "");
-    return 1;
-  }
-
-  keymap *new_keys= new keymap;
-  Parser parser(filename, filekey, get_digest(), use_pbkdf2,
-                ME_ERROR_LOG_ONLY);
-  if (parser.parse(new_keys))
-  {
-    wipe_and_delete(new_keys);
-    my_error(ER_ENCRYPTION_KEY_RELOAD_FAILED, MYF(0), filename);
-    return 1;
-  }
-
-  uint bad_id, bad_version;
-  mysql_rwlock_wrlock(&LOCK_keys);
-  bool ok= contains_loaded(*keys, *new_keys, &bad_id, &bad_version);
-  if (ok)
-    std::swap(keys, new_keys);
-  mysql_rwlock_unlock(&LOCK_keys);
-
-  /* the rejected new keys, or the replaced old ones */
-  wipe_and_delete(new_keys);
-  if (!ok)
-  {
-    my_error(ER_ENCRYPTION_KEY_IN_USE, MYF(ME_ERROR_LOG), bad_id, bad_version);
-    return 1;
-  }
-  return 0;
+  return key_store.reload();
 }
 
 namespace Show {
@@ -224,33 +342,14 @@ static ST_FIELD_INFO keys_fields_info[] =
 
 } // namespace Show
 
-/* lists ids and versions only, never key material */
 static int keys_fill(THD *thd, TABLE_LIST *tables, COND *)
 {
-  TABLE *table= tables->table;
-  int rc= 0;
-  if (!keys)
-    return 0;
-  mysql_rwlock_rdlock(&LOCK_keys);
-  for (keymap::const_iterator id= keys->begin(); id != keys->end() && !rc; ++id)
-    for (key_versions::const_iterator v= id->second.begin();
-         v != id->second.end() && !rc; ++v)
-    {
-      table->field[0]->store(id->first, true);
-      table->field[1]->store(v->first, true);
-      table->field[2]->store(v->second.length * 8, true);
-      bool latest= v->first == id->second.rbegin()->first;
-      table->field[3]->store(latest ? "YES" : "NO", latest ? 3 : 2,
-                             system_charset_info);
-      rc= schema_table_store_record(thd, table);
-    }
-  mysql_rwlock_unlock(&LOCK_keys);
-  return rc;
+  return key_store.fill(thd, tables->table);
 }
 
 static int keys_is_init(void *p)
 {
-  if (init_failed)
+  if (key_store.failed())
     return 1;
   ST_SCHEMA_TABLE *is= (ST_SCHEMA_TABLE *) p;
   is->fields_info= Show::keys_fields_info;
@@ -264,40 +363,13 @@ static struct st_mysql_information_schema keys_is_descriptor=
 
 static unsigned int get_latest_version(uint key_id)
 {
-  unsigned int version= ENCRYPTION_KEY_VERSION_INVALID;
-  mysql_rwlock_rdlock(&LOCK_keys);
-  keymap::const_iterator it= keys->find(key_id);
-  if (it != keys->end())
-    version= it->second.rbegin()->first;
-  mysql_rwlock_unlock(&LOCK_keys);
-  return version;
+  return key_store.latest_version(key_id);
 }
 
 static unsigned int get_key_from_key_file(unsigned int key_id,
        unsigned int key_version, unsigned char* dstbuf, unsigned *buflen)
 {
-  unsigned int rc= ENCRYPTION_KEY_VERSION_INVALID;
-  mysql_rwlock_rdlock(&LOCK_keys);
-  keymap::const_iterator it= keys->find(key_id);
-  if (it != keys->end())
-  {
-    key_versions::const_iterator v= it->second.find(key_version);
-    if (v != it->second.end())
-    {
-      const keyentry &entry= v->second;
-      if (*buflen < entry.length)
-        rc= ENCRYPTION_KEY_BUFFER_TOO_SMALL;
-      else
-      {
-        if (dstbuf)
-          memcpy(dstbuf, entry.key, entry.length);
-        rc= 0;
-      }
-      *buflen= entry.length;
-    }
-  }
-  mysql_rwlock_unlock(&LOCK_keys);
-  return rc;
+  return key_store.get_key(key_id, key_version, dstbuf, buflen);
 }
 
 // let's simplify the condition below
@@ -369,33 +441,12 @@ struct st_mariadb_encryption file_key_management_plugin= {
 
 static int file_key_management_plugin_init(void *p)
 {
-  init_failed= false;
-  keymap *new_keys= new keymap;
-  Parser parser(filename, filekey, get_digest(), use_pbkdf2);
-  if (parser.parse(new_keys))
-  {
-    wipe_and_delete(new_keys);
-    init_failed= true;
-    return 1;
-  }
-#ifdef HAVE_PSI_INTERFACE
-  /* the performance schema allows at most 12 characters here */
-  mysql_rwlock_register("file_keymgmt", all_rwlocks,
-                        array_elements(all_rwlocks));
-#endif
-  mysql_rwlock_init(key_LOCK_keys, &LOCK_keys);
-  keys= new_keys;
-  return 0;
+  return key_store.load() ? 0 : 1;
 }
 
 static int file_key_management_plugin_deinit(void *p)
 {
-  if (keys)
-  {
-    mysql_rwlock_destroy(&LOCK_keys);
-    wipe_and_delete(keys);
-    keys= NULL;
-  }
+  key_store.unload();
   return 0;
 }
 
