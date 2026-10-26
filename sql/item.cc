@@ -11203,7 +11203,7 @@ bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
     return true;
 
   if ((result_fields= value->cols()) != cols() ||
-       value->cmp_type() != ROW_RESULT)
+       (cols() != 1 && value->cmp_type() != ROW_RESULT))
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
     return true;
@@ -11211,11 +11211,20 @@ bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 
   value->bring_value();
 
-  while((trigger_field= it_trigger_field++) && i < result_fields)
+  if ((*it)->cmp_type() != ROW_RESULT)
   {
-    if (trigger_field->set_value(thd, (*it)->addr(i)))
+    trigger_field= it_trigger_field++;
+    if (trigger_field->set_value(thd, it))
       return true;
-     i++;
+  }
+  else
+  {
+    while((trigger_field= it_trigger_field++) && i < result_fields)
+    {
+      if (trigger_field->set_value(thd, (*it)->addr(i)))
+        return true;
+      i++;
+    }
   }
 
   return false;

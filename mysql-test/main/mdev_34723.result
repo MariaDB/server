@@ -510,3 +510,13 @@ NULL	NULL
 SELECT * FROM t1;
 a	b
 DROP TABLE t1,t2;
+#
+# MDEV-41761: SIGSEGV in sp_head::bind_input_param when trigger
+# passes NEW/OLD row as OUT parameter to CALL
+#
+CREATE TABLE t (a INT);
+CREATE PROCEDURE p(OUT r INT) BEGIN END;
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW CALL p(NEW);
+INSERT INTO t VALUES (1);
+DROP TABLE t;
+DROP procedure p;
