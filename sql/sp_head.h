@@ -154,7 +154,7 @@ protected:
     Prevents freezing main_mem_root for this execution of the routine;
     cleared at the end of sp_head::execute().
   */
-  bool dont_freeze_mem_root= false;
+  bool dont_freeze_mem_root2= false;
 #endif
 public:
   /** Possible values of m_flags */
@@ -954,7 +954,7 @@ public:
 #ifdef PROTECT_STATEMENT_MEMROOT
   int has_all_instrs_executed();
   void reset_instrs_executed_counter();
-  void set_dont_freeze_mem_root() { dont_freeze_mem_root= true; }
+  void set_dont_freeze_mem_root() { /* dont_freeze_mem_root2= true;*/ } 
 #endif
 
   /* Add tables used by routine to the table list. */
