@@ -2199,6 +2199,20 @@ struct Suppress_warnings_error_handler : public Internal_error_handler
 };
 
 
+class Suppress_warnings_and_notes_error_handler: public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *,
+                        uint,
+                        const char *,
+                        Sql_condition::enum_warning_level *level,
+                        const char *,
+                        Sql_condition **) override
+  {
+    return *level != Sql_condition::WARN_LEVEL_ERROR;
+  }
+};
+
 
 /**
   Tables that were locked with LOCK TABLES statement.

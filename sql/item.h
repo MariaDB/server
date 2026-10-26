@@ -8286,6 +8286,9 @@ extern Cached_item *new_Cached_item(THD *thd, Item *item,
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 extern void resolve_const_item(THD *thd, Item **ref, Item *cmp_item);
 extern int stored_field_cmp_to_item(THD *thd, Field *field, Item *item);
+extern int stored_field_cmp_to_item_no_warnings(THD *thd,
+                                                Field *field,
+                                                Item *item);
 
 extern const String my_null_string;
 
