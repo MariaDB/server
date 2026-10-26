@@ -8041,6 +8041,8 @@ public:
   void set_required_privilege(bool rw) override {
     want_privilege = rw ? UPDATE_ACL : SELECT_ACL;
   }
+  bool is_null() override;
+  String* val_str(String *str) override;
   Item *do_get_copy(THD *thd) const
   { return get_item_copy<Item_trigger_row>(thd, this); }
   Item *deep_copy(THD *thd) const override { return do_get_copy(thd); }
