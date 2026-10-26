@@ -1,6 +1,7 @@
 call mtr.add_suppression("File 'bad.key' not found");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 FOUND 1 /File 'bad.key' not found/ in mysqld.1.err
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
@@ -12,6 +13,7 @@ ERROR HY000: Cannot decrypt MTR_SUITE_DIR/t/filekeys-data.enc. Wrong key?
 call mtr.add_suppression("Cannot decrypt .*filekeys-data.enc. Wrong key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 FOUND 1 /Cannot decrypt .*filekeys-data.enc. Wrong key/ in mysqld.1.err
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
@@ -23,6 +25,7 @@ ERROR HY000: Cannot read bad.key, the filekey is too long, max secret size is 25
 call mtr.add_suppression("the filekey is too long");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 FOUND 1 /the filekey is too long/ in mysqld.1.err
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
@@ -37,6 +40,7 @@ ERROR HY000: Cannot decrypt MTR_SUITE_DIR/t/filekeys-data.enc. Wrong key?
 call mtr.add_suppression("Cannot decrypt .*filekeys-data.enc. Wrong key");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 FOUND 1 /Cannot decrypt .*filekeys-data.enc. Wrong key/ in mysqld.1.err
 create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
 ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")

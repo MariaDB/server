@@ -5,18 +5,21 @@
 --source include/have_sequence.inc
 --source include/not_embedded.inc
 
-if (!$FILE_KEY_MANAGEMENT_SO)
-{
-  --skip Needs file_key_management plugin
-}
+--source filekeys_plugin_exists.inc
 
 call mtr.add_suppression("Duplicate key id and version at .*keys_rotation.txt");
 call mtr.add_suppression("Encryption key id 1 version 1 is loaded but is missing from or different in the key file");
 
-# The key file is copied to a writable place by filekeys_rotation-master.sh
---let $keys= $MYSQLTEST_VARDIR/tmp/keys_rotation.txt
---echo # Lines without a version are version 1
 select * from information_schema.file_key_management_keys order by key_id, key_version;
+
+--echo # Reloading needs the RELOAD privilege
+create user u@localhost;
+connect (u,localhost,u,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush file_key_management_keys;
+disconnect u;
+connection default;
+drop user u@localhost;
 
 create table t1 (a int primary key, b varchar(64)) engine=innodb;
 insert into t1 select seq, repeat('x', 64) from seq_1_to_10000;
@@ -33,6 +36,8 @@ where name like 'test/%' order by name;
 # Version 3, not 2: with innodb_encryption_rotate_key_age=1 InnoDB only
 # re-encrypts pages that are more than one version old (MDEV-31094).
 # Versions do not need to be consecutive.
+# The key file is copied to a writable place by filekeys_rotation-master.sh
+--let $keys= $MYSQLTEST_VARDIR/tmp/keys_rotation.txt
 --append_file $keys
 1;3;1396373f2269fd88769de6368fb7273b9c6abad8c929a8e72c6ab5e12d59b977
 EOF

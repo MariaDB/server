@@ -20,8 +20,12 @@ A structure and class to keep keys for encryption/decryption.
 Created 09/15/2014
 ***********************************************************************/
 
-#include <my_crypt.h>
-#include <my_sys.h>
+/*
+  Include after my_global.h: the AES modes in service_my_crypt.h depend on
+  HAVE_EncryptAes128{Ctr,Gcm} from my_config.h.
+*/
+#include <mysql/service_my_crypt.h>
+#include <mysql/service_my_print_error.h>
 #include <ctype.h>
 #include <map>
 #include <stdlib.h> /* size_t */

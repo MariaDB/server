@@ -5,6 +5,7 @@
 --eval call mtr.add_suppression("$SEARCH_PATTERN")
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
 --source include/search_pattern_in_file.inc

@@ -1,10 +1,17 @@
 call mtr.add_suppression("Duplicate key id and version at .*keys_rotation.txt");
 call mtr.add_suppression("Encryption key id 1 version 1 is loaded but is missing from or different in the key file");
-# Lines without a version are version 1
 select * from information_schema.file_key_management_keys order by key_id, key_version;
 KEY_ID	KEY_VERSION	KEY_LENGTH	IS_LATEST
 1	1	256	YES
 2	1	256	YES
+# Reloading needs the RELOAD privilege
+create user u@localhost;
+connect  u,localhost,u,,;
+flush file_key_management_keys;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect u;
+connection default;
+drop user u@localhost;
 create table t1 (a int primary key, b varchar(64)) engine=innodb;
 insert into t1 select seq, repeat('x', 64) from seq_1_to_10000;
 create table t2 (a int primary key) engine=innodb encryption_key_id=2;

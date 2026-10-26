@@ -15,18 +15,14 @@
 
 #define MYSQL_SERVER
 #include <my_global.h>
-#include <sql_class.h>
+/* only for the INFORMATION_SCHEMA table: ST_SCHEMA_TABLE, TABLE, Field */
 #include <sql_i_s.h>
-#include <sql_show.h>
-#include <typelib.h>
+#include <table.h>
+#include <field.h>
 #include "parser.h"
 #include <mysql/plugin_encryption.h>
-#include <my_sys.h>
-#include <mysys_err.h>
+#include <mysql/psi/mysql_thread.h>
 #include <string.h>
-#include <atomic>
-#include <mutex>
-#include <vector>
 
 static char* filename;
 static char* filekey;
@@ -116,16 +112,26 @@ static inline enum my_digest get_digest()
 }
 
 /*
-  The loaded keys are an immutable snapshot. Encryption threads read the
-  current snapshot without taking a lock; FLUSH FILE_KEY_MANAGEMENT_KEYS
-  builds a new one and publishes it atomically. A reader may still be using
-  an older snapshot, so snapshots are only wiped and freed when the plugin
-  is unloaded. Reloads are rare, so only a few are ever kept.
+  The loaded keys. Encryption threads look keys up under a read lock;
+  a reload parses the new file without the lock and swaps it in under
+  the write lock, so the old keys can be freed right away.
 */
-static std::atomic<const keymap*> current_keys{nullptr};
-/* every snapshot ever published; guarded by reload_mutex */
-static std::vector<keymap*> snapshots;
-static std::mutex reload_mutex;
+static keymap *keys;
+static mysql_rwlock_t LOCK_keys;
+/*
+  The encryption plugin's init ran and failed. The INFORMATION_SCHEMA
+  plugin then refuses to start too, so that a failed INSTALL SONAME does
+  not leave it installed on its own. When the encryption plugin is
+  disabled its init never runs, and the table starts empty as before.
+*/
+static bool init_failed;
+#ifdef HAVE_PSI_INTERFACE
+static PSI_rwlock_key key_LOCK_keys;
+static PSI_rwlock_info all_rwlocks[]=
+{ { &key_LOCK_keys, "LOCK_keys", PSI_FLAG_GLOBAL } };
+#else
+#define key_LOCK_keys 0
+#endif
 
 static void wipe_and_delete(keymap *keys)
 {
@@ -172,9 +178,7 @@ static bool contains_loaded(const keymap &loaded, const keymap &new_keys,
 */
 static int reload_keys()
 {
-  std::lock_guard<std::mutex> guard(reload_mutex);
-  const keymap *loaded= current_keys.load(std::memory_order_acquire);
-  if (!loaded)
+  if (!keys)
   {
     my_error(ER_ENCRYPTION_KEY_RELOAD_FAILED, MYF(0), filename ? filename : "");
     return 1;
@@ -191,15 +195,19 @@ static int reload_keys()
   }
 
   uint bad_id, bad_version;
-  if (!contains_loaded(*loaded, *new_keys, &bad_id, &bad_version))
+  mysql_rwlock_wrlock(&LOCK_keys);
+  bool ok= contains_loaded(*keys, *new_keys, &bad_id, &bad_version);
+  if (ok)
+    std::swap(keys, new_keys);
+  mysql_rwlock_unlock(&LOCK_keys);
+
+  /* the rejected new keys, or the replaced old ones */
+  wipe_and_delete(new_keys);
+  if (!ok)
   {
-    wipe_and_delete(new_keys);
     my_error(ER_ENCRYPTION_KEY_IN_USE, MYF(ME_ERROR_LOG), bad_id, bad_version);
     return 1;
   }
-
-  snapshots.push_back(new_keys);
-  current_keys.store(new_keys, std::memory_order_release);
   return 0;
 }
 
@@ -220,12 +228,13 @@ static ST_FIELD_INFO keys_fields_info[] =
 static int keys_fill(THD *thd, TABLE_LIST *tables, COND *)
 {
   TABLE *table= tables->table;
-  const keymap *keys= current_keys.load(std::memory_order_acquire);
+  int rc= 0;
   if (!keys)
     return 0;
-  for (keymap::const_iterator id= keys->begin(); id != keys->end(); ++id)
+  mysql_rwlock_rdlock(&LOCK_keys);
+  for (keymap::const_iterator id= keys->begin(); id != keys->end() && !rc; ++id)
     for (key_versions::const_iterator v= id->second.begin();
-         v != id->second.end(); ++v)
+         v != id->second.end() && !rc; ++v)
     {
       table->field[0]->store(id->first, true);
       table->field[1]->store(v->first, true);
@@ -233,14 +242,16 @@ static int keys_fill(THD *thd, TABLE_LIST *tables, COND *)
       bool latest= v->first == id->second.rbegin()->first;
       table->field[3]->store(latest ? "YES" : "NO", latest ? 3 : 2,
                              system_charset_info);
-      if (schema_table_store_record(thd, table))
-        return 1;
+      rc= schema_table_store_record(thd, table);
     }
-  return 0;
+  mysql_rwlock_unlock(&LOCK_keys);
+  return rc;
 }
 
 static int keys_is_init(void *p)
 {
+  if (init_failed)
+    return 1;
   ST_SCHEMA_TABLE *is= (ST_SCHEMA_TABLE *) p;
   is->fields_info= Show::keys_fields_info;
   is->fill_table= keys_fill;
@@ -253,40 +264,40 @@ static struct st_mysql_information_schema keys_is_descriptor=
 
 static unsigned int get_latest_version(uint key_id)
 {
-  const keymap *keys= current_keys.load(std::memory_order_acquire);
-  if (!keys)
-    return ENCRYPTION_KEY_VERSION_INVALID;
+  unsigned int version= ENCRYPTION_KEY_VERSION_INVALID;
+  mysql_rwlock_rdlock(&LOCK_keys);
   keymap::const_iterator it= keys->find(key_id);
-  return it == keys->end() ? ENCRYPTION_KEY_VERSION_INVALID
-                           : it->second.rbegin()->first;
+  if (it != keys->end())
+    version= it->second.rbegin()->first;
+  mysql_rwlock_unlock(&LOCK_keys);
+  return version;
 }
 
 static unsigned int get_key_from_key_file(unsigned int key_id,
        unsigned int key_version, unsigned char* dstbuf, unsigned *buflen)
 {
-  const keymap *keys= current_keys.load(std::memory_order_acquire);
-  if (!keys)
-    return ENCRYPTION_KEY_VERSION_INVALID;
-
+  unsigned int rc= ENCRYPTION_KEY_VERSION_INVALID;
+  mysql_rwlock_rdlock(&LOCK_keys);
   keymap::const_iterator it= keys->find(key_id);
-  if (it == keys->end())
-    return ENCRYPTION_KEY_VERSION_INVALID;
-  key_versions::const_iterator v= it->second.find(key_version);
-  if (v == it->second.end())
-    return ENCRYPTION_KEY_VERSION_INVALID;
-
-  const keyentry &entry= v->second;
-  if (*buflen < entry.length)
+  if (it != keys->end())
   {
-    *buflen= entry.length;
-    return ENCRYPTION_KEY_BUFFER_TOO_SMALL;
+    key_versions::const_iterator v= it->second.find(key_version);
+    if (v != it->second.end())
+    {
+      const keyentry &entry= v->second;
+      if (*buflen < entry.length)
+        rc= ENCRYPTION_KEY_BUFFER_TOO_SMALL;
+      else
+      {
+        if (dstbuf)
+          memcpy(dstbuf, entry.key, entry.length);
+        rc= 0;
+      }
+      *buflen= entry.length;
+    }
   }
-
-  *buflen= entry.length;
-  if (dstbuf)
-    memcpy(dstbuf, entry.key, entry.length);
-
-  return 0;
+  mysql_rwlock_unlock(&LOCK_keys);
+  return rc;
 }
 
 // let's simplify the condition below
@@ -358,26 +369,33 @@ struct st_mariadb_encryption file_key_management_plugin= {
 
 static int file_key_management_plugin_init(void *p)
 {
-  keymap *keys= new keymap;
+  init_failed= false;
+  keymap *new_keys= new keymap;
   Parser parser(filename, filekey, get_digest(), use_pbkdf2);
-  if (parser.parse(keys))
+  if (parser.parse(new_keys))
   {
-    wipe_and_delete(keys);
+    wipe_and_delete(new_keys);
+    init_failed= true;
     return 1;
   }
-  std::lock_guard<std::mutex> guard(reload_mutex);
-  snapshots.push_back(keys);
-  current_keys.store(keys, std::memory_order_release);
+#ifdef HAVE_PSI_INTERFACE
+  /* the performance schema allows at most 12 characters here */
+  mysql_rwlock_register("file_keymgmt", all_rwlocks,
+                        array_elements(all_rwlocks));
+#endif
+  mysql_rwlock_init(key_LOCK_keys, &LOCK_keys);
+  keys= new_keys;
   return 0;
 }
 
 static int file_key_management_plugin_deinit(void *p)
 {
-  std::lock_guard<std::mutex> guard(reload_mutex);
-  current_keys.store(nullptr, std::memory_order_release);
-  for (size_t i= 0; i < snapshots.size(); i++)
-    wipe_and_delete(snapshots[i]);
-  snapshots.clear();
+  if (keys)
+  {
+    mysql_rwlock_destroy(&LOCK_keys);
+    wipe_and_delete(keys);
+    keys= NULL;
+  }
   return 0;
 }
 

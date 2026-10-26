@@ -7,17 +7,10 @@
 --source include/have_sequence.inc
 --source include/have_debug.inc
 
-if (!$FILE_KEY_MANAGEMENT_SO)
-{
-  --skip Needs file_key_management plugin
-}
+--source filekeys_plugin_exists.inc
 
 --let $rpl_topology= 1->2
 --source include/rpl_init.inc
-
-# The key files are copied to a writable place by the -master.sh script
---let $keys_1= $MYSQLTEST_VARDIR/tmp/keys_rpl_1.txt
---let $keys_2= $MYSQLTEST_VARDIR/tmp/keys_rpl_2.txt
 
 --connection server_2
 set sql_log_bin= 0;
@@ -30,6 +23,10 @@ set sql_log_bin= 1;
 create table t1 (a int primary key, b varchar(64)) engine=innodb;
 insert into t1 select seq, md5(seq) from seq_1_to_10000;
 --sync_slave_with_master server_2
+
+# The key files are copied to a writable place by the -master.sh script
+--let $keys_1= $MYSQLTEST_VARDIR/tmp/keys_rpl_1.txt
+--let $keys_2= $MYSQLTEST_VARDIR/tmp/keys_rpl_2.txt
 
 --echo # 1. FLUSH on the primary is written to the binary log, so the replica
 --echo #    re-reads its own, unchanged key file
@@ -67,7 +64,7 @@ EOF
 --connection server_1
 flush file_key_management_keys;
 --connection server_2
-let $slave_sql_errno= 4275; # ER_ENCRYPTION_KEY_IN_USE
+let $slave_sql_errno= 4278; # ER_ENCRYPTION_KEY_IN_USE
 --source include/wait_for_slave_sql_error.inc
 --echo # Fixing the replica's key file lets replication continue
 --remove_file $keys_2
@@ -95,12 +92,13 @@ select count(*) from t1;
 
 --echo # 4. Switch over while the primary is re-encrypting t1
 --connection server_1
-set global debug_dbug= '+d,fil_crypt_rotate_page_slow';
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug= '+d,fil_crypt_rotate_page_wait';
 --append_file $keys_1
 1;5;859d77137ab52391849b59b42e0e8c69946fe4808ede59b3c3b85a8080891620
 EOF
 flush local file_key_management_keys;
---let $wait_condition= SELECT key_rotation_page_number > 10 FROM information_schema.innodb_tablespaces_encryption WHERE name = 'test/t1'
+--let $wait_condition= SELECT key_rotation_page_number >= 16 FROM information_schema.innodb_tablespaces_encryption WHERE name = 'test/t1'
 --source include/wait_condition.inc
 --sync_slave_with_master server_2
 --source include/stop_slave.inc
@@ -114,7 +112,7 @@ insert into t1 values (10002, 'on the new primary');
 --sync_slave_with_master server_1
 select min_key_version < 5 as still_rotating
 from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
-set global debug_dbug= '-d,fil_crypt_rotate_page_slow';
+set global debug_dbug= @save_dbug;
 --let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_tablespaces_encryption WHERE current_key_id = 1 AND (min_key_version <> 5 OR rotating_or_flushing <> 0)
 --source include/wait_condition.inc
 --echo # The old primary finished its rotation as a replica

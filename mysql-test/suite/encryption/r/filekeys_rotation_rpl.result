@@ -43,7 +43,7 @@ connection server_2;
 connection server_1;
 flush file_key_management_keys;
 connection server_2;
-include/wait_for_slave_sql_error.inc [errno=4275]
+include/wait_for_slave_sql_error.inc [errno=4278]
 # Fixing the replica's key file lets replication continue
 include/start_slave.inc
 connection server_1;
@@ -59,7 +59,8 @@ count(*)
 10001
 # 4. Switch over while the primary is re-encrypting t1
 connection server_1;
-set global debug_dbug= '+d,fil_crypt_rotate_page_slow';
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug= '+d,fil_crypt_rotate_page_wait';
 flush local file_key_management_keys;
 connection server_2;
 include/stop_slave.inc
@@ -73,7 +74,7 @@ select min_key_version < 5 as still_rotating
 from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
 still_rotating
 1
-set global debug_dbug= '-d,fil_crypt_rotate_page_slow';
+set global debug_dbug= @save_dbug;
 # The old primary finished its rotation as a replica
 select name, min_key_version from information_schema.innodb_tablespaces_encryption
 where name = 'test/t1';
