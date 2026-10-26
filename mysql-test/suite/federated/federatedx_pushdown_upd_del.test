@@ -1306,6 +1306,134 @@ DROP TABLE t1;
 connection slave;
 DROP TABLE federated.t1;
 
+--echo #
+--echo # MDEV-41749: some operator syntax error with pushdown
+--echo #
+connection slave;
+CREATE TABLE federated.t1 (a INT);
+CREATE TABLE federated.t2 (a INT);
+CREATE TABLE federated.t3 (a INT, b INT);
+INSERT INTO federated.t1 VALUES (1), (2), (3);
+INSERT INTO federated.t3 VALUES (1, 1);
+SET @old_log_output= @@global.log_output;
+SET @old_general_log= @@global.general_log;
+SET global log_output='TABLE';
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t1 (a INT) ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t2 (a INT) ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t3 (a INT, b INT) ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3';
+SET @old_pushdown= @@global.federated_pushdown;
+SET global federated_pushdown=ON;
+
+--echo # < ALL: row 1 is deleted
+DELETE OUTR1 FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR1.a < ALL (SELECT a FROM t1 WHERE a > 1);
+--echo # < SOME: the remaining row 2 is updated
+UPDATE t1 AS OUTR1, t1 AS OUTR2 SET OUTR1.a= NULL
+WHERE OUTR1.a < SOME (SELECT a FROM t1);
+--echo # < ALL over an empty subquery: all rows are deleted
+DELETE OUTR1 FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR1.a < ALL (SELECT a FROM t2);
+
+connection slave;
+SET global general_log=0;
+--echo # the statements must have been pushed down whole
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'update %' OR argument LIKE 'delete %';
+--echo # remote table contents
+SELECT * FROM federated.t1 ORDER BY a;
+TRUNCATE TABLE mysql.general_log;
+DELETE FROM federated.t1;
+INSERT INTO federated.t1 VALUES (1), (2), (3);
+SET global general_log=1;
+
+--echo # the quantified predicate as an operand of another operator
+connection master;
+--echo # 1 = (a < ANY): only row 1 matches
+UPDATE t1 AS OUTR1, t1 AS OUTR2 SET OUTR1.a= 10
+WHERE 1 = (OUTR1.a < SOME (SELECT a FROM t1 WHERE a = 2));
+--echo # 0 = (a < ALL): rows 2 and 3 match
+UPDATE t1 AS OUTR1, t1 AS OUTR2 SET OUTR1.a= OUTR1.a + 20
+WHERE 0 = (OUTR1.a < ALL (SELECT a FROM t1 WHERE a > 1)) AND OUTR1.a < 10;
+
+--echo # SELECT, NOT and a NULL-containing subquery
+SELECT a FROM t1 WHERE a < ANY (SELECT a FROM t1) ORDER BY a;
+SELECT a FROM t1 WHERE NOT (a < ALL (SELECT a FROM t1)) ORDER BY a;
+INSERT INTO t2 VALUES (NULL);
+SELECT a FROM t1 WHERE a < ALL (SELECT a FROM t2) ORDER BY a;
+SELECT a FROM t1 WHERE NOT (a < ANY (SELECT a FROM t2)) ORDER BY a;
+
+connection slave;
+SET global general_log=0;
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'update %' OR argument LIKE 'delete %';
+SELECT * FROM federated.t1 ORDER BY a;
+DELETE FROM federated.t1;
+DELETE FROM federated.t2;
+INSERT INTO federated.t1 VALUES (1), (2), (3);
+INSERT INTO federated.t2 VALUES (1), (2);
+
+--echo # multi-table SELECT
+connection master;
+SELECT t1.a FROM t1, t2 WHERE t1.a = t2.a AND t1.a < SOME (SELECT a FROM t2)
+ORDER BY t1.a;
+SELECT t1.a FROM t1, t2 WHERE t1.a = t2.a
+AND t1.a < ALL (SELECT a FROM t2 WHERE a > 1) ORDER BY t1.a;
+SELECT t1.a FROM t1 JOIN t2 ON t1.a = t2.a
+WHERE 1 = (t1.a < ANY (SELECT a FROM t2)) ORDER BY t1.a;
+SELECT t1.a FROM t1, t2 WHERE t1.a = t2.a
+AND NOT (t1.a < ALL (SELECT a FROM t2)) ORDER BY t1.a;
+
+--echo # ALL/ANY over a constant subquery is reduced to a comparison, the
+--echo # negation of ALL must still be pushed down
+SET global federated_pushdown=OFF;
+SELECT a FROM t1 WHERE a < ALL (SELECT 2);
+SELECT a FROM t1 WHERE a < SOME (SELECT 2);
+SELECT a FROM t1 WHERE NOT (a < ALL (SELECT 2));
+SELECT * FROM t3 WHERE (a XOR b) < ALL (SELECT 2);
+--echo # the left operand needs parentheses: a XOR (b < ALL ..) would be false
+SELECT * FROM t3 WHERE (a XOR b) < ALL (SELECT a FROM t2 WHERE a > 1);
+
+SET global federated_pushdown=ON;
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+connection master;
+SELECT a FROM t1 WHERE a < ALL (SELECT 2);
+SELECT a FROM t1 WHERE a < SOME (SELECT 2);
+SELECT a FROM t1 WHERE NOT (a < ALL (SELECT 2));
+SELECT * FROM t3 WHERE (a XOR b) < ALL (SELECT 2);
+SELECT * FROM t3 WHERE (a XOR b) < ALL (SELECT a FROM t2 WHERE a > 1);
+connection slave;
+SET global general_log=0;
+--echo # the pushed down conditions
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'select `federated`%' ORDER BY event_time;
+
+connection slave;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log= @old_general_log;
+SET global log_output= @old_log_output;
+
+connection master;
+SET global federated_pushdown= @old_pushdown;
+DROP TABLE t1, t2, t3;
+
+connection slave;
+DROP TABLE federated.t1, federated.t2, federated.t3;
+
 connection default;
 source include/federated_cleanup.inc;
 

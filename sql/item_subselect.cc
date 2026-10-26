@@ -3801,7 +3801,7 @@ void Item_allany_subselect::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN("<exists>"));
   else
   {
-    left_expr->print(str, query_type);
+    left_expr->print_parenthesised(str, query_type, precedence());
     str->append(' ');
     const char *name= func->symbol(all);
     str->append(name, strlen(name));
