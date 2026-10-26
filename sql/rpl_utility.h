@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2006, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -167,7 +168,7 @@ public:
     WL#3915) or needs to advance the pointer for the fields in the raw 
     data from the master to a specific column.
   */
-  uint32 calc_field_size(uint col, uchar *master_data) const;
+  uint32 calc_field_size(uint col, uchar *master_data, size_t available) const;
 
   /**
     Decide if the table definition is compatible with a table.

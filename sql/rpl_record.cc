@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB Corporation.
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -215,6 +215,9 @@ unpack_row(rpl_group_info *rgi,
   Field **field_ptr;
   Field **const end_ptr= begin_ptr + colcnt;
 
+  if (unlikely(pack_ptr > row_end))
+    DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
+
   if (bitmap_is_clear_all(cols))
   {
     /**
@@ -225,7 +228,6 @@ unpack_row(rpl_group_info *rgi,
     *master_reclength= 0;
     DBUG_RETURN(0);
   }
-  DBUG_ASSERT(null_ptr < row_data + master_null_byte_count);
 
   // Mask to mask out the correct bit among the null bits
   unsigned int null_mask= 1U;
@@ -442,7 +444,14 @@ unpack_row(rpl_group_info *rgi,
       DBUG_ASSERT(null_mask & 0xFF); // One of the 8 LSB should be set
 
       if (!((null_bits & null_mask) && tabledef->maybe_null(i))) {
-        uint32 len= tabledef->calc_field_size(i, (uchar *) pack_ptr);
+        uint32 len= tabledef->calc_field_size(i, (uchar *) pack_ptr,
+                                              (size_t) (row_end - pack_ptr));
+        if (unlikely(pack_ptr + len > row_end))
+        {
+          rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                           rgi->gtid_info(), "Corrupt field data");
+          DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
+        }
         DBUG_DUMP("field_data", pack_ptr, len);
         pack_ptr+= len;
       }
