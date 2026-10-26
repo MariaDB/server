@@ -2236,7 +2236,7 @@ class Frame_scan_cursor : public Frame_cursor
 public:
   Frame_scan_cursor(const Frame_cursor &top_bound,
                     const Frame_cursor &bottom_bound) :
-    top_bound(top_bound), bottom_bound(bottom_bound), have_result(false),
+    top_bound(top_bound), bottom_bound(bottom_bound), have_cached_result(false),
     can_append(false) {}
 
   void init(READ_RECORD *info) override
@@ -2252,7 +2252,7 @@ public:
   void pre_next_partition(ha_rows rownum) override
   {
     curr_rownum= rownum;
-    have_result= false;
+    have_cached_result= false;
   }
 
   void next_partition(ha_rows rownum) override
@@ -2276,9 +2276,10 @@ private:
   const Frame_cursor &bottom_bound;
   Table_read_cursor cursor;
   ha_rows curr_rownum;
-  /* The sum functions hold the result for rows last_top..last_bottom */
-  bool have_result;
-  ha_rows last_top, last_bottom;
+  /* The sum functions hold the result for rows
+     cached_frame_top..cached_frame_bottom */
+  bool have_cached_result;
+  ha_rows cached_frame_top, cached_frame_bottom;
   bool can_append;
 
   /* Make the sum functions hold the rows between the top bound and bottom
@@ -2290,33 +2291,39 @@ private:
         bottom_bound.is_outside_computation_bounds())
     {
       clear_sum_functions();
-      have_result= false;
+      have_cached_result= false;
       return;
     }
 
-    ha_rows start_rownum= top_bound.get_curr_rownum();
-    ha_rows bottom_rownum= bottom_bound.get_curr_rownum();
-    DBUG_PRINT("info", ("COMPUTING (%llu %llu)", start_rownum, bottom_rownum));
+    ha_rows curr_top_rownum= top_bound.get_curr_rownum();
+    ha_rows curr_bottom_rownum= bottom_bound.get_curr_rownum();
+    DBUG_PRINT("info", ("COMPUTING (%llu %llu)",
+                        curr_top_rownum, curr_bottom_rownum));
 
-    ha_rows first_rownum= start_rownum;
-    if (can_append && have_result && start_rownum == last_top)
+    ha_rows scan_from= curr_top_rownum;
+    if (can_append && have_cached_result &&
+        curr_top_rownum == cached_frame_top)
     {
-      if (bottom_rownum == last_bottom)
+      if (curr_bottom_rownum == cached_frame_bottom)
         return;
-      /* Extend only a previous frame ending at most 1 row above the top:
-         after an inverted frame ending higher, the rows in between would
-         be added */
-      if (bottom_rownum > last_bottom && last_bottom + 1 >= start_rownum)
-        first_rownum= last_bottom + 1;
+
+      /*
+        Add only the rows below the previous frame, if the frame grew.
+        An empty previous frame (bottom above top, e.g. RANGE BETWEEN
+        5 FOLLOWING AND 1 FOLLOWING) has nothing to extend.
+      */
+      if (curr_bottom_rownum > cached_frame_bottom &&
+          cached_frame_bottom >= cached_frame_top)
+        scan_from= cached_frame_bottom + 1;
     }
 
-    if (first_rownum == start_rownum)
+    if (scan_from == curr_top_rownum)
       clear_sum_functions();
-    have_result= false;
-    cursor.move_to(first_rownum);
+    have_cached_result= false;
+    cursor.move_to(scan_from);
 
-    ha_rows idx= first_rownum;
-    while (idx <= bottom_rownum
+    ha_rows idx= scan_from;
+    while (idx <= curr_bottom_rownum
            && ((idx & 0xFF) || !thd->check_killed(true)))
     {
       if (cursor.fetch()) // EOF or read error
@@ -2327,11 +2334,11 @@ private:
         break;
     }
     /* Cache the result only if the scan completed */
-    if (idx > bottom_rownum)
+    if (idx > curr_bottom_rownum)
     {
-      have_result= true;
-      last_top= start_rownum;
-      last_bottom= bottom_rownum;
+      have_cached_result= true;
+      cached_frame_top= curr_top_rownum;
+      cached_frame_bottom= curr_bottom_rownum;
     }
   }
 };
