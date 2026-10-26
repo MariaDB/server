@@ -10611,6 +10611,16 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 }
 
 
+int stored_field_cmp_to_item_no_warnings(THD *thd, Field *field, Item *item)
+{
+  Suppress_warnings_and_notes_error_handler warning_handler;
+  thd->push_internal_handler(&warning_handler);
+  int res= stored_field_cmp_to_item(thd, field, item);
+  thd->pop_internal_handler();
+  return res;
+}
+
+
 void Item_cache::store(Item *item)
 {
   example= item;

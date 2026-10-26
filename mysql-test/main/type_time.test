@@ -1654,3 +1654,17 @@ DROP TABLE t0;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-41836 Wrong result for indexed column = constant with fractional part
+--echo #
+
+CREATE TABLE t1 (t TIME, KEY(t));
+INSERT INTO t1 VALUES ('10:00:00'),('10:00:01');
+SELECT t FROM t1 WHERE t = '10:00:00.5';
+SELECT t FROM t1 WHERE t = '10:00:00';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
