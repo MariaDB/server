@@ -193,16 +193,7 @@ sync_filesystems()
 {
     local NL=$'\n'
     local data_fs candidates synced dir path target isl
-
-    # 'sync -f' (syncfs) is a GNU coreutils extension. The Darwin and
-    # FreeBSD 'sync' ignores its operands, flushes everything and still
-    # exits with zero status, so a functional probe alone cannot detect
-    # it and every call below would become a whole-host sync - worse
-    # than the single sync being replaced. Gate on the platform first.
-    if [ "$OS" != 'Linux' ]; then
-        sync
-        return
-    fi
+    local use_sync_f=1
 
     # The data directory itself may be a symlink. Resolve it to the
     # physical path.
@@ -210,8 +201,13 @@ sync_filesystems()
     [ -n "$data_fs" ] || data_fs="$DATA_DIR"
 
     if ! sync -f "$data_fs" 2>/dev/null; then
+        # 'sync -f' is rejected here (e.g. a container with restricted
+        # syscalls): one whole-host sync still covers every candidate
+        # found below, so do that instead of giving up on finding and
+        # reporting them. Do not call 'sync -f' again per candidate;
+        # it already failed once for the same filesystem.
         sync
-        return
+        use_sync_f=0
     fi
 
     # The InnoDB and Aria directories are resolved by create_dirs() and
@@ -272,7 +268,7 @@ sync_filesystems()
         case "$synced" in
         *"$NL$path$NL"*) continue ;;
         esac
-        sync -f "$path" || :
+        [ "$use_sync_f" -eq 0 ] || sync -f "$path" || :
         wsrep_log_info "Synced filesystem: $path"
         synced="$synced$path$NL"
     done <<< "$candidates"
