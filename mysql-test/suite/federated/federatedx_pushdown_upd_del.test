@@ -1244,6 +1244,68 @@ SET global general_log= @old_general_log;
 SET global log_output= @old_log_output;
 DROP TABLE federated.t1, federated.t2, federated.t3;
 
+--echo #
+--echo # MDEV-41748: between clause syntax error with pushdown
+--echo #
+connection slave;
+CREATE TABLE federated.t1 (a DATE);
+INSERT INTO federated.t1 VALUES
+  ('2000-01-01'), ('2001-01-01'), ('2002-01-01'), ('2003-01-01');
+SET @old_log_output= @@global.log_output;
+SET @old_general_log= @@global.general_log;
+SET global log_output='TABLE';
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE t1 (a DATE) ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+SET @old_pushdown= @@global.federated_pushdown;
+SET global federated_pushdown=ON;
+
+--echo # multi-table SELECT with BETWEEN
+SELECT OUTR1.a, OUTR2.a FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR1.a BETWEEN '2001-01-01' AND '2002-01-01' AND OUTR2.a = OUTR1.a
+ORDER BY OUTR1.a;
+SELECT OUTR1.a, OUTR2.a FROM t1 AS OUTR1 LEFT JOIN t1 AS OUTR2
+ON OUTR2.a = OUTR1.a + INTERVAL 1 YEAR
+WHERE OUTR1.a NOT BETWEEN '2001-01-01' AND '2002-01-01'
+ORDER BY OUTR1.a;
+SELECT OUTR1.a, OUTR2.a FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR1.a BETWEEN NULL AND NULL;
+SELECT OUTR1.a, OUTR2.a FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR2.a = OUTR1.a AND OUTR1.a BETWEEN '2000-01-01' AND OUTR2.a
+ORDER BY OUTR1.a;
+
+--echo # constant NULL bounds, no rows match
+UPDATE t1 AS OUTR1, t1 AS OUTR2 SET OUTR1.a=NULL
+WHERE OUTR1.a BETWEEN NULL AND NULL;
+--echo # string literal bounds for a DATE column are cached as dates
+UPDATE t1 AS OUTR1, t1 AS OUTR2 SET OUTR1.a= '1999-01-01'
+WHERE OUTR1.a BETWEEN '2001-01-01' AND '2002-01-01';
+DELETE OUTR1 FROM t1 AS OUTR1, t1 AS OUTR2
+WHERE OUTR1.a BETWEEN '1999-01-01' AND '2000-06-01';
+
+connection slave;
+SET global general_log=0;
+--echo # the statements must have been pushed down whole
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'update %' OR argument LIKE 'delete %';
+--echo # remote table contents
+SELECT * FROM federated.t1 ORDER BY a;
+TRUNCATE TABLE mysql.general_log;
+SET global general_log= @old_general_log;
+SET global log_output= @old_log_output;
+
+connection master;
+SET global federated_pushdown= @old_pushdown;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE federated.t1;
+
 connection default;
 source include/federated_cleanup.inc;
 
