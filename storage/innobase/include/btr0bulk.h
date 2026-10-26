@@ -93,8 +93,9 @@ public:
 
 	/** Initialize members and allocate page if needed and start mtr.
 	Note: must be called and only once right after constructor.
+	@param hint_page_no  page allocation hint, or 0
 	@return error code */
-	dberr_t init();
+	dberr_t init(uint32_t hint_page_no);
 
 	/** Insert a record in the page.
 	@param[in]	rec		record
