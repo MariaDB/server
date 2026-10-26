@@ -685,6 +685,23 @@ ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
 alter table event MODIFY definer varchar(384) collate utf8mb3_bin NOT NULL DEFAULT '';
 
+# The following modifications of the table mysql.event is for upcoming
+# support of the tasks:
+#   MDEV-30645: CREATE TRIGGER FOR { STARTUP | SHUTDOWN }
+#   on Logon/logoff triggers and on DDL events
+# Make changes in the system table mysql.event once as part of
+# the task MDEV-30645. Core implementation of the features for
+# on Logon/logoff and on DDL triggers will be done later
+ALTER TABLE event ADD kind SET ('SCHEDULE', 'STARTUP', 'SHUTDOWN',
+                                'LOGON', 'LOGOFF', 'DDL') NOT NULL DEFAULT 'SCHEDULE';
+# The column `when` is used only for triggers on DDL statements (kind = 'DDL').
+# For other kind of system triggers this column has the value NULL.
+ALTER TABLE event ADD `when` ENUM ('BEFORE', 'AFTER') DEFAULT NULL;
+# The column `ddl_type` is used only for triggers on DDL statements (kind = 'DDL').
+# For other kind of system triggers this column has the value NULL.
+ALTER TABLE event ADD ddl_type SET ('CREATE', 'ALTER', 'DROP', 'TRUNCATE',
+                                    'ANALYZE', 'RENAME', 'GRANT', 'REVOKE',
+                                    'COMMENT', 'ANY_DDL') DEFAULT NULL;
 # Enable event scheduler if the event table was not up to date before.
 set global event_scheduler=original;
 
