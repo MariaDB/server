@@ -493,3 +493,20 @@ SELECT a,b FROM t;
 a	b
 10	20
 DROP TABLE t, src;
+#
+# MDEV-41760: SIGSEGV in Field_iterator_table::set_table on
+# re-prepare of trigger SET NEW = (subquery) after DDL on referenced table
+#
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, b INT);
+CREATE TRIGGER tr BEFORE INSERT ON t2 FOR EACH ROW SET NEW= (SELECT a,b FROM t1);
+INSERT INTO t2 VALUES (1,1);
+ALTER TABLE t1 FORCE;
+INSERT INTO t2 VALUES (2,2);
+SELECT * FROM t2;
+a	b
+NULL	NULL
+NULL	NULL
+SELECT * FROM t1;
+a	b
+DROP TABLE t1,t2;

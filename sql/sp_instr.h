@@ -604,6 +604,9 @@ private:
   bool setup_table_fields_for_trigger(
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_field> *next_trig_items_list);
+  bool setup_table_row_for_trigger(
+    THD *thd, sp_head *sp,
+    SQL_I_List<Item_trigger_row> *next_trig_items_list_row);
 
   bool setup_memroot_for_reparsing(sp_head *sphead,
                                    bool *new_memroot_allocated);
