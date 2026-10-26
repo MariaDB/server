@@ -8059,6 +8059,7 @@ public:
   bool check_cols(uint c) override;
   Item* element_index(uint i) override
   { return m_fields.elem(i); }
+  Item_splocal *get_item_splocal() override { return 0; }
   void cleanup() override
   {
     List_iterator<Item_trigger_field> it(m_fields);
