@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -970,7 +970,15 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     columns. Master writes one bit for each affected column.
    */
 
-  value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  int bitmap_size= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  if (unlikely(m_rows_end - value < bitmap_size))
+  {
+    if (!no_fill_output)
+      my_b_printf(file, "***Corrupted replication event was detected."
+                  " Not printing the value***\n");
+    goto err;
+  }
+  value+= bitmap_size;
 
   if (!no_fill_output)
     if (my_b_printf(file, "%s", prefix))
@@ -991,7 +999,8 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
     if (!is_null)
     {
-      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
+      size_t fsize= td->calc_field_size((uint)i, (uchar*) value,
+                                        (size_t) (m_rows_end - value));
       if (value + fsize > m_rows_end)
       {
         if (!no_fill_output)
@@ -1339,7 +1348,10 @@ Rows_log_event::calc_row_event_length(table_def *td,
     columns. Master writes one bit for each affected column.
    */
 
-  value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  int bitmap_size= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  if (unlikely(m_rows_end - value < bitmap_size))
+    return 0;
+  value+= bitmap_size;
 
   for (uint i= 0; i < (uint)td->size(); i ++)
   {
@@ -1352,7 +1364,8 @@ Rows_log_event::calc_row_event_length(table_def *td,
     if (!is_null)
     {
       size_t size;
-      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
+      size_t fsize= td->calc_field_size((uint)i, (uchar*) value,
+                                        (size_t) (m_rows_end - value));
       if (value + fsize > m_rows_end)
       {
         /* Corrupted replication event was detected, skipping entry */
