@@ -851,6 +851,32 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
 }
 
 
+bool sp_lex_instr::setup_table_row_for_trigger(
+  THD *thd, sp_head *sp,
+  SQL_I_List<Item_trigger_row> *next_trig_items_list_row)
+{
+
+  DBUG_ASSERT(sp->m_trg);
+
+  for (Item_trigger_row *trg_row= sp->m_cur_instr_trig_row_items.first;
+       trg_row;
+       trg_row= trg_row->next_trg_row)
+  {
+    trg_row->setup_field(thd, sp->m_trg->base->get_subject_table(),
+                           &sp->m_trg->subject_table_grants);
+  }
+
+  if (sp->m_cur_instr_trig_row_items.elements)
+  {
+    sp->m_cur_instr_trig_row_items.save_and_clear(
+        &m_cur_trigger_stmt_items_row);
+    m_cur_trigger_stmt_items_row.first->next_trig_row_list= next_trig_items_list_row;
+  }
+
+  return false;
+}
+
+
 /**
   Initialize a new memory root for re-parsing a failed SP instruction's
   statement or free a memory allocated on re-parsing of the failed statement
@@ -959,10 +985,14 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     method cleanup_before_parsing().
   */
   SQL_I_List<Item_trigger_field> *saved_ptr_to_next_trg_items_list= nullptr;
+  SQL_I_List<Item_trigger_row> *saved_ptr_to_next_trg_items_list_row= nullptr;
 
   if (m_cur_trigger_stmt_items.elements)
     saved_ptr_to_next_trg_items_list=
       m_cur_trigger_stmt_items.first->next_trig_field_list;
+  if (m_cur_trigger_stmt_items_row.elements)
+    saved_ptr_to_next_trg_items_list_row=
+      m_cur_trigger_stmt_items_row.first->next_trig_row_list;
 
   /*
     Clean up items owned by this SP instruction except instances of Item_param.
@@ -1132,7 +1162,9 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
       setup_table_fields_for_trigger(thd, sp,
-                                     saved_ptr_to_next_trg_items_list);
+                                     saved_ptr_to_next_trg_items_list) ||
+      setup_table_row_for_trigger(thd, sp,
+                                     saved_ptr_to_next_trg_items_list_row);
 
     if (cursor_free_list)
       /*
