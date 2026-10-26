@@ -1965,8 +1965,8 @@ static my_time_t convert_str_to_timestamp(const char* str)
   MYSQL_TIME_STATUS status;
   MYSQL_TIME l_time;
   long dummy_my_timezone;
-  uint dummy_in_dst_time_gap;
-  
+  uint error_code;
+
   /* We require a total specification (date AND time) */
   if (str_to_datetime_or_date(str, (uint) strlen(str), &l_time, 0, &status) ||
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
@@ -1976,11 +1976,21 @@ static my_time_t convert_str_to_timestamp(const char* str)
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
-    the next existing day, like in mysqld. Maybe this could be changed when
-    mysqld is changed too (with its "strict" mode?).
+    the next existing day, like in mysqld. In the same way, a time in the
+    spring time gap (ER_WARN_INVALID_TIMESTAMP) is moved to the end of the
+    gap. Maybe this could be changed when mysqld is changed too (with its
+    "strict" mode?).
   */
-  return
-    my_system_gmt_sec(&l_time, &dummy_my_timezone, &dummy_in_dst_time_gap);
+  my_time_t timestamp=
+    my_system_gmt_sec(&l_time, &dummy_my_timezone, &error_code);
+  if (error_code == ER_WARN_DATA_OUT_OF_RANGE)
+  {
+    warning("Date and time argument out of range: %s", str);
+    /* Out of range values are returned as 0, clamp the too big ones to max */
+    if (l_time.year >= TIMESTAMP_MAX_YEAR)
+      timestamp= TIMESTAMP_MAX_VALUE;
+  }
+  return timestamp;
 }
 
 /**

@@ -725,3 +725,21 @@ SET SESSION binlog_row_image= default;
 --exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/mdev-39404-binlog.000001 2>& 1
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-40294 mariadb-binlog --start/stop-datetime incorrectly accepts
+--echo # over-max timestamps
+--echo #
+--echo # --start-datetime over max
+--exec $MYSQL_BINLOG --short-form "--start-datetime=2106-02-08 00:00:00" $MYSQL_TEST_DIR/std_data/binlog_savepoint.000001 2>&1
+--echo # --stop-datetime over max
+# TODO: drop the replace once MDEV-33239 is in 11.4. Until then, Windows
+# takes this value as no --stop-datetime and skips this warning.
+--replace_regex /WARNING: Did not reach stop datetime[^\n]*\n//
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=2106-02-08 00:00:00" $MYSQL_TEST_DIR/std_data/binlog_savepoint.000001 2>&1
+--echo # --start-datetime under min
+--exec $MYSQL_BINLOG --short-form "--start-datetime=1000-01-01 00:00:00" $MYSQL_TEST_DIR/std_data/binlog_savepoint.000001 2>&1
+--echo # --stop-datetime under min
+--exec $MYSQL_BINLOG --short-form "--stop-datetime=1000-01-01 00:00:00" $MYSQL_TEST_DIR/std_data/binlog_savepoint.000001 2>&1
+
+--echo # End of 11.4 tests
