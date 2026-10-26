@@ -11251,6 +11251,28 @@ bool Item_trigger_row::check_cols(uint n)
   return false;
 }
 
+bool Item_trigger_row::is_null()
+{
+  List_iterator_fast<Item_trigger_field> m_it(m_fields);
+  Item_trigger_field *field;
+
+  while ((field= m_it++))
+  {
+    if (!field->is_null())
+      return false;
+  }
+  return true;
+}
+
+String* Item_trigger_row::val_str(String *str)
+{
+  if (cols() == 1)
+  {
+    return m_fields.head()->val_str(str);
+  }
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return nullptr;
+}
 
 Item_result item_cmp_type(Item_result a,Item_result b)
 {

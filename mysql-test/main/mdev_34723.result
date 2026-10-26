@@ -520,3 +520,13 @@ CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW CALL p(NEW);
 INSERT INTO t VALUES (1);
 DROP TABLE t;
 DROP procedure p;
+#
+# MDEV-41765: Assertion m_sp == m_thd->spcont->m_sp failed in
+# Item_splocal::this_item / SIGSEGV in Item_splocal::get_rcontext on
+# SIGNAL ... SET MESSAGE_TEXT = NEW in trigger
+#
+CREATE TABLE t (a INT);
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = NEW;
+INSERT INTO t VALUES (1);
+ERROR 45000: 1
+DROP TABLE t;
