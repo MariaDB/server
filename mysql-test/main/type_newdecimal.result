@@ -3269,4 +3269,15 @@ t1	CREATE TABLE `t1` (
   `c5` varbinary(4) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
+#
+# MDEV-41836 Wrong result for indexed column = constant with fractional part
+#
+CREATE TABLE t1 (d DECIMAL(5,1), KEY(d));
+INSERT INTO t1 VALUES (1.2),(1.3);
+SELECT d FROM t1 WHERE d = 1.25;
+d
+SELECT d FROM t1 WHERE d = 1.3;
+d
+1.3
+DROP TABLE t1;
 # End of 10.11 tests

@@ -2224,4 +2224,14 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-41836 Wrong result for indexed column = constant with fractional part
+--echo #
+
+CREATE TABLE t1 (d DECIMAL(5,1), KEY(d));
+INSERT INTO t1 VALUES (1.2),(1.3);
+SELECT d FROM t1 WHERE d = 1.25;
+SELECT d FROM t1 WHERE d = 1.3;
+DROP TABLE t1;
+
 --echo # End of 10.11 tests
