@@ -2089,8 +2089,9 @@ public:
           std::ignore=
             os_file_punch_hole(dh, 0, log_sys.START_OFFSET +
                                ((ctx.checkpoint - lsn) & ~4095ULL));
-        if (write_checkpoint(dh, ctx.checkpoint_end_lsn - lsn +
-                             log_sys.START_OFFSET) | !CloseHandle(dh))
+        int f= write_checkpoint(dh, ctx.checkpoint_end_lsn - lsn +
+                                log_sys.START_OFFSET);
+        if (!CloseHandle(dh) | f)
           goto fail;
       }
       return 0;
