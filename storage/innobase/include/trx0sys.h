@@ -829,6 +829,10 @@ private:
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;
 };
 
+/** Metadata locks that were acquired for recovered transactions.
+@see trx_sys_t::recovery */
+class recovery_mdl;
+
 /** The transaction system central memory data structure. */
 class trx_sys_t
 {
@@ -855,7 +859,28 @@ class trx_sys_t
 
   /** False if there is no undo log to purge or rollback */
   bool undo_log_nonempty;
+
+  /** Protects recovery and the object that it points to. Any access
+  must re-read recovery while holding this, because the object may have
+  been deleted after the pointer was read.
+
+  This and recovery are declared here in order to occupy the padding
+  that aligns trx_list to a cache line. */
+  srw_mutex recovery_mutex;
 public:
+  /**
+    Metadata locks that trx_resurrect_table_locks() acquired for
+    recovered transactions, or nullptr if no recovered transaction
+    holds any.
+
+    trx_t::commit_in_memory() reads this for every transaction,
+    so that the locks will only be looked up while some
+    recovered transaction still holds them.
+    The object is deleted as soon as the last recovered
+    transaction has been completed.
+  */
+  std::atomic<recovery_mdl*> recovery{nullptr};
+
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
 
@@ -872,6 +897,80 @@ public:
 
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
+private:
+  /** Detach recovery if no recovered transaction holds metadata locks
+  any longer. The caller must hold recovery_mutex.
+
+  The metadata locks have been released already; deleting the object
+  only destroys the connection that owned them. That is not done while
+  the caller has a current_thd, because destroy_background_thd() would
+  attach and detach the connection, clearing the current_thd of the
+  caller. That is the case for a user connection that is completing a
+  transaction which was recovered in the XA PREPARED state. It is not
+  done during shutdown either. In both cases the connection will be
+  destroyed by recovery_shutdown().
+
+  @return the object, to be deleted by the caller outside recovery_mutex
+  @retval nullptr  if it must be retained */
+  ATTRIBUTE_COLD recovery_mdl *recovery_prune_low() noexcept;
+
+  /** Release the metadata locks that were acquired for a recovered
+  transaction, and delete recovery if this was the last recovered
+  transaction that held any.
+  @param trx  recovered transaction that is being completed */
+  ATTRIBUTE_COLD void recovery_release_low(const trx_t &trx) noexcept;
+
+  /** Drop the reference that a recovered transaction holds on the
+  metadata lock of a table, releasing the lock if this was the last
+  reference.
+  @param table_id  table identifier */
+  ATTRIBUTE_COLD void recovery_release_table_low(table_id_t table_id)
+    noexcept;
+
+public:
+  /** Delete recovery if no recovered transaction holds metadata locks.
+  This covers the case that no recovered transaction acquired any. */
+  ATTRIBUTE_COLD void recovery_prune() noexcept;
+
+  /** Release the metadata locks that were acquired for a transaction
+  that was recovered. Does nothing for any other transaction, or if no
+  recovered transaction holds metadata locks.
+
+  Must be invoked while trx_t::mod_tables and trx_t::is_recovered are
+  still valid, that is, before trx_t::commit_cleanup().
+  @param trx  transaction that is being completed */
+  void recovery_release(const trx_t &trx) noexcept
+  {
+    if (recovery.load(std::memory_order_relaxed))
+      recovery_release_low(trx);
+  }
+
+  /** Drop the reference that a recovered transaction holds on the
+  metadata lock of a table, because its trx_t::mod_tables entry is being
+  removed. Releases the lock if this was the last reference. Does nothing
+  for any other transaction, or if no recovered transaction holds
+  metadata locks.
+  @param trx       transaction
+  @param table_id  table identifier */
+  void recovery_release_table(const trx_t &trx, table_id_t table_id) noexcept
+  {
+    if (UNIV_UNLIKELY(trx.is_recovered) &&
+        recovery.load(std::memory_order_relaxed))
+      recovery_release_table_low(table_id);
+  }
+
+  /** Destroy recovery, releasing any metadata locks that recovered
+  transactions may still hold. Does nothing if it was destroyed already,
+  which normally happens as soon as the last recovered transaction was
+  completed. */
+  ATTRIBUTE_COLD void recovery_shutdown() noexcept;
+
+#ifndef DBUG_OFF
+  /** @return the background connection that owns the metadata locks of
+  the recovered transactions
+  @retval nullptr if no recovered transaction holds metadata locks */
+  ATTRIBUTE_COLD THD *recovery_thd() noexcept;
+#endif /* !DBUG_OFF */
 
 #ifdef WITH_WSREP
   /** Latest recovered XID during startup */

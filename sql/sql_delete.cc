@@ -828,9 +828,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     will_batch= !table->file->start_bulk_delete();
 
   /*
-    thd->get_stmt_da()->is_set() means first iteration of prepared statement
-    with array binding operation execution (non optimized so it is not
-    INSERT)
+    In non-optimized array binding execution
+    thd->get_stmt_da()->is_set() means it is not the first iteration, and
+    metadata was already sent.
   */
   if (returning && !thd->get_stmt_da()->is_set())
   {
