@@ -143,4 +143,81 @@ FROM t1, (SELECT 10 AS k UNION SELECT 100 UNION SELECT 256 UNION SELECT 1000
 WHERE n <= k GROUP BY k ORDER BY k;
 DROP TABLE t1;
 
+--echo #
+--echo # HLL_UNION_AGG over stored sketches: FILTER, NULL sketches,
+--echo # HAVING, ROLLUP, prepared statements, window frames
+--echo #
+CREATE TABLE t1 (n INT);
+INSERT INTO t1
+  WITH RECURSIVE s(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM s WHERE n < 1000)
+  SELECT n FROM s;
+CREATE TABLE t2 (id INT, g INT, h HLL);
+INSERT INTO t2
+  SELECT n % 40 + 1, n % 4, HLL_BUILD_AGG(n % 300) FROM t1
+  GROUP BY n % 40, n % 4;
+INSERT INTO t2 VALUES (41, 0, NULL), (42, 1, NULL), (43, 5, NULL);
+DROP TABLE t1;
+
+--echo # FILTER equals WHERE (byte for byte), EXPLICIT and FULL results
+SELECT MD5(HLL_UNION_AGG(h) FILTER (WHERE g = 1)) =
+       (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE g = 1) AS eq_explicit,
+       HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE g = 1)) AS i_explicit,
+       MD5(HLL_UNION_AGG(h) FILTER (WHERE id <= 18)) =
+       (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE id <= 18) AS eq_full,
+       HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= 18)) AS i_full
+FROM t2;
+--echo # FILTER rejecting all rows, or keeping only NULL sketches
+SELECT HEX(HLL_UNION_AGG(h) FILTER (WHERE g > 100)) AS no_rows,
+       HEX(HLL_UNION_AGG(h) FILTER (WHERE h IS NULL)) AS only_nulls
+FROM t2;
+--echo # FILTER per group
+SELECT g, HLL_CARDINALITY(HLL_UNION_AGG(h) FILTER (WHERE id <= 10)) AS c,
+       MD5(HLL_UNION_AGG(h) FILTER (WHERE id <= 10)) =
+       (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+        WHERE b.g = a.g AND b.id <= 10) AS eq
+FROM t2 a GROUP BY g ORDER BY g;
+
+--echo # NULL sketches are ignored
+SELECT MD5(HLL_UNION_AGG(h)) =
+       (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE h IS NOT NULL) AS same
+FROM t2;
+
+--echo # HAVING and ROLLUP (group 5 holds only a NULL sketch)
+SELECT g, HLL_CARDINALITY(HLL_UNION_AGG(h)) AS c FROM t2
+GROUP BY g HAVING HLL_CARDINALITY(HLL_UNION_AGG(h)) > 0 ORDER BY g;
+SELECT g, HLL_INFO(HLL_UNION_AGG(h)) FROM t2 GROUP BY g WITH ROLLUP;
+
+--echo # Prepared statement re-execution
+PREPARE s FROM
+  'SELECT HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= ?)) FROM t2';
+EXECUTE s USING 4;
+EXECUTE s USING 40;
+EXECUTE s USING 4;
+DEALLOCATE PREPARE s;
+
+--echo # Window functions: running, moving and partitioned frames
+SELECT COUNT(*) AS mismatches FROM (
+  SELECT id,
+    MD5(HLL_UNION_AGG(h) OVER (ORDER BY id)) AS running,
+    (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+     WHERE b.id <= a.id) AS running_expected,
+    MD5(HLL_UNION_AGG(h) OVER (ORDER BY id
+        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)) AS moving,
+    (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+     WHERE b.id BETWEEN a.id - 2 AND a.id) AS moving_expected,
+    MD5(HLL_UNION_AGG(h) OVER (ORDER BY id
+        ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)) AS centered,
+    (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+     WHERE b.id BETWEEN a.id - 1 AND a.id + 1) AS centered_expected,
+    MD5(HLL_UNION_AGG(h) OVER (PARTITION BY g ORDER BY id)) AS part,
+    (SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+     WHERE b.g = a.g AND b.id <= a.id) AS part_expected
+  FROM t2 a) d
+WHERE running <> running_expected OR moving <> moving_expected OR
+      centered <> centered_expected OR part <> part_expected;
+SELECT id, g, HLL_CARDINALITY(HLL_UNION_AGG(h) OVER (ORDER BY id
+         ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)) AS c
+FROM t2 WHERE id > 36 ORDER BY id;
+DROP TABLE t2;
+
 SET max_recursive_iterations= @save_max_recursive_iterations;
