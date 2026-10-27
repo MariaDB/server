@@ -9008,11 +9008,12 @@ ER_GRANT_PLUGIN_USER_EXISTS
         geo "ბრძანება GRANT პარამეტრით IDENTIFIED WITH დაუშვებელია, რადგან მოხმარებელი %-.*s უკვე არსებობს"
         spa "GRANT con IDENTIFIED WITH es ilegal porque el usuario %-.*s ya existe"
         sw "GRANT yenye IDENTIFIED WITH ni kinyume cha sheria kwa sababu mtumiaji %-.*s tayari yupo"
+# %.0s keeps this format string the same as ER_DDL_ILLEGAL_FK by consuming its ddl statement (always TRUNCATE).
 ER_TRUNCATE_ILLEGAL_FK 42000
-        chi "无法截断外键约束中引用的表（%.192s）"
-        eng "Cannot truncate a table referenced in a foreign key constraint (%.192s)"
-        spa "No puedo truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
-        sw "Haiwezi kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
+        chi "%.0s无法截断外键约束中引用的表（%.192s）"
+        eng "%.0sCannot truncate a table referenced in a foreign key constraint (%.192s)"
+        spa "%.0sNo puedo truncar una tabla referenciada en una restricción de clave foránea (%.192s)"
+        sw "%.0sHaiwezi kupunguza jedwali lililorejelewa katika kizuizi cha ufunguo wa kigeni (%.192s)"
 ER_PLUGIN_IS_PERMANENT
         chi "插件'%s'是force_plus_permanent，无法卸载"
         eng "Plugin '%s' is force_plus_permanent and can not be unloaded"
