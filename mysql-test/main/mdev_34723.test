@@ -653,3 +653,12 @@ CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SIGNAL SQLSTATE '45000' SET ME
 INSERT INTO t VALUES (1);
 
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-41831: SET NEW = (SELECT ...) in a BEFORE INSERT trigger
+--echo # fails with ER_OPERAND_COLUMNS (1241) on a single-column table
+
+CREATE TABLE t (a INT);                                                                                                                                                                                          
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SET NEW = (SELECT 5);                                                                                                                                          
+INSERT INTO t VALUES (1);
+DROP TABLE t;
