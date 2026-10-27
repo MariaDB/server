@@ -3530,7 +3530,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 }
 
 /*
-  prohibit using LIMIT clause
+  prohibit using LIMIT or OFFSET clause
 */
 bool st_select_lex::test_limit()
 {
@@ -3538,6 +3538,12 @@ bool st_select_lex::test_limit()
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
              "LIMIT & IN/ALL/ANY/SOME subquery");
+    return(1);
+  }
+  if (limit_params.offset_limit)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+             "OFFSET & IN/ALL/ANY/SOME subquery");
     return(1);
   }
   return(0);
@@ -3947,6 +3953,14 @@ void st_select_lex::print_limit(THD *thd,
       limit_params.select_limit->print(str, query_type);
     }
   }
+  else if (limit_params.explicit_limit &&
+           limit_params.offset_limit)
+  {
+    /* OFFSET n ROWS without FETCH, so there is no row count to print */
+    str->append(STRING_WITH_LEN(" offset "));
+    limit_params.offset_limit->print(str, query_type);
+    str->append(STRING_WITH_LEN(" rows"));
+  }
 }
 
 
@@ -4163,7 +4177,8 @@ bool st_select_lex_unit::can_be_merged()
       fs->group_list.elements || fs->having ||
       fs->with_sum_func ||
       fs->table_list.elements < 1 ||
-      fs->limit_params.select_limit)
+      fs->limit_params.select_limit ||
+      fs->limit_params.offset_limit)
     return false;
   for (SELECT_LEX_UNIT *tmp_unit= fs->first_inner_unit();
        tmp_unit;
