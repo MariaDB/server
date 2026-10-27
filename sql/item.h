@@ -2695,7 +2695,7 @@ public:
                                 const Lex_ident_routine &func_name);
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless)
   { return const_charset_converter(thd, tocs, lossless, Lex_ident_routine()); }
-  void delete_self()
+  virtual void delete_self()
   {
     cleanup();
     delete this;
@@ -8069,11 +8069,16 @@ public:
 
     while ((curr_item= it++))
     {
-      curr_item->cleanup();
+      if (curr_item)
+        curr_item->cleanup();
     }
     m_fields.empty();
 
     Item_fixed_hybrid::cleanup();
+  }
+  void delete_self() override
+  {
+    return;
   }
 
 public:
