@@ -436,14 +436,18 @@ private:
         log_sys.append_archive_name(path, lsn);
         HANDLE log=
           CreateFile(path.c_str(), GENERIC_WRITE, 0, my_win_file_secattr(),
-                     CREATE_NEW,
-                     FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, nullptr);
+                     CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (log != INVALID_HANDLE_VALUE)
           return log;
 #else
         std::string path{};
         log_sys.append_archive_name(path, lsn);
-        return backup_file_create(target.fd, path.c_str(), O_RDWR);
+        int f{openat(target.fd, path.c_str(), O_CREAT | O_EXCL | O_TRUNC | O_RDWR, 0666)};
+        if (f >= 0)
+        {
+          cache_friendly(f);
+          return f;
+        }
 #endif
         my_error(ER_CANT_CREATE_FILE, MYF(ME_ERROR_LOG),
                  path.c_str(), errno);
