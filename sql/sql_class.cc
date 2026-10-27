@@ -3028,6 +3028,9 @@ bool THD::sql_parser(LEX *old_lex, LEX *lex,
   parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
   parser_state.m_lip.multi_statements= false;
   parser_state.m_lip.m_digest= NULL;
+  /* The text is parsed again inside the outer parse */
+  if (old_parser_state)
+    parser_state.m_lip.ignore_kill= old_parser_state->m_lip.ignore_kill;
 
   lex->param_list= old_lex->param_list;
   lex->sphead= old_lex->sphead;
@@ -3038,6 +3041,13 @@ bool THD::sql_parser(LEX *old_lex, LEX *lex,
 
   parse_status= (variables.sql_mode & MODE_ORACLE) ?
                  ORAparse(this) : MYSQLparse(this) != 0;
+  if (parser_state.m_lip.fail_if_stopped_on_kill())
+  {
+    parse_status= true;
+    /* The outer parse fails on this kill too */
+    if (old_parser_state)
+      old_parser_state->m_lip.stopped_on_kill= true;
+  }
 
   m_parser_state= old_parser_state;
 
