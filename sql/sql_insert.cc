@@ -835,11 +835,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (returning)
   {
     result->prepare(returning->item_list, NULL);
-    if (thd->is_bulk_op())
+    if (thd->is_bulk_op() && !bulk_execution_per_row(thd))
     {
       /*
         It is RETURNING which needs network buffer to write result set and
-        it is array binfing which need network buffer to read parameters.
+        it is array binding which needs a network buffer to read parameters
+        (unless they are read by Prepared_statement::execute_bulk_loop()).
         So we allocate yet another network buffer.
         The old buffer will be freed at the end of operation.
       */
@@ -1035,8 +1036,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     to the client so that it knows that it has to expect an EOF or ERROR.
     At this point we have all the required information to send the result set
     metadata.
+    In non-optimized array binding execution
+    thd->get_stmt_da()->is_set() means it is not the first iteration, and
+    metadata was already sent.
   */
   if (returning &&
+      !(bulk_execution_per_row(thd) && thd->get_stmt_da()->is_set()) &&
       result->send_result_set_metadata(returning->item_list,
                                        Protocol::SEND_NUM_ROWS |
                                        Protocol::SEND_EOF))

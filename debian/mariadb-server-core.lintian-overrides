@@ -1,5 +1,5 @@
 # Bash word source used in comment
-bash-term-in-posix-shell 'source tree,' [usr/bin/mariadb-install-db:93]
+bash-term-in-posix-shell 'source tree,' [usr/bin/mariadb-install-db:*]
 
 # These are from stop word list
 spelling-error-in-binary noone no one [usr/sbin/mariadbd]

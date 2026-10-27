@@ -168,6 +168,7 @@ void trx_sys_t::create()
   m_initialised= true;
   trx_list.create();
   rw_trx_hash.init();
+  recovery_mutex.init();
   for (auto &rseg : temp_rsegs)
     rseg.init(nullptr, FIL_NULL);
   for (auto &rseg : rseg_array)
@@ -369,6 +370,8 @@ trx_sys_t::close()
 	ut_a(trx_list.empty());
 	trx_list.close();
 	m_initialised = false;
+	recovery_shutdown();
+	recovery_mutex.destroy();
 }
 
 /** @return total number of active (non-prepared) transactions */

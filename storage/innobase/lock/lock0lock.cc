@@ -5173,7 +5173,12 @@ reiterate:
 ATTRIBUTE_COLD
 void lock_release_on_rollback(trx_t *trx, dict_table_t *table)
 {
-  trx->mod_tables.erase(table);
+  /* A recovered transaction references the metadata lock of
+  each table in trx_t::mod_tables. Drop that reference
+  along with the entry, so that trx_t::commit_in_memory()
+  will not miss it. */
+  if (trx->mod_tables.erase(table))
+    trx_sys.recovery_release_table(*trx, table->id);
 
   /* This is very rarely executed code, in the rare case that an
   CREATE TABLE operation is being rolled back. Theoretically,

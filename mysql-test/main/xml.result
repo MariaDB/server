@@ -1323,10 +1323,7 @@ foo
 # End of 10.5 tests
 #
 #
-# Start of 10.6 tests
-#
-#
-# MDEV-39210 ExtractValue/UpdateXML crash
+# ExtractValue/UpdateXML crash
 #
 SELECT ExtractValue('<!a/><!b/>', '/a');
 ExtractValue('<!a/><!b/>', '/a')
@@ -1415,6 +1412,19 @@ NULL
 Warnings:
 Warning	1525	Incorrect XML value: 'parse error at line 10 pos 27: unexpected END-OF-INPUT'
 # End of 10.6 tests
+#
+# MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+#
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+# End of 10.6 test
+# Beginning of 10.11 test
+#
+# MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+#
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+# End of 10.11 test
 # Start of 11.4 tests
 #
 # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit

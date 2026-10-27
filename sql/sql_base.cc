@@ -1878,8 +1878,6 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
         }
         break;
     }
-    DBUG_ASSERT(!thd->lex->last_table() ||
-                !thd->lex->last_table()->vers_conditions.delete_history);
   }
 
   if (table_list->partition_names)
@@ -3186,6 +3184,9 @@ check_and_update_table_version(THD *thd,
   }
 
   DBUG_EXECUTE_IF("reprepare_each_statement", return inject_reprepare(thd););
+  DBUG_EXECUTE_IF("reprepare_bulk_not_first_iteration",
+                  if (thd->is_bulk_op() && thd->get_stmt_da()->is_set())
+                    return inject_reprepare(thd););
   return FALSE;
 }
 

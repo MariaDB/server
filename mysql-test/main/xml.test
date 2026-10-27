@@ -826,11 +826,7 @@ SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS
 --echo #
 
 --echo #
---echo # Start of 10.6 tests
---echo #
-
---echo #
---echo # MDEV-39210 ExtractValue/UpdateXML crash
+--echo # ExtractValue/UpdateXML crash
 --echo #
 
 #view protocol generates additional warning
@@ -900,6 +896,28 @@ set @xml= '<?xml version="1.0"?>
 SELECT ExtractValue(@xml, '/employee/dt3');
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+--echo #
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+
+--echo # End of 10.6 test
+
+--echo # Beginning of 10.11 test
+
+--echo #
+--echo # MDEV-33843: Server crashes by stack-overflow with UPDATEXML
+--echo #
+
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
+
+--echo # End of 10.11 test
 
 --echo # Start of 11.4 tests
 

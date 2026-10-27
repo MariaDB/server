@@ -2102,7 +2102,16 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
-  MYSQL_RUN_SP(this, err_status= execute(thd, TRUE));
+  {
+    /*
+      DML statements of the function must not consume the next values of
+      a bound array of the bulk operation which calls the function
+    */
+    void *save_bulk_param= thd->bulk_param;
+    thd->bulk_param= nullptr;
+    MYSQL_RUN_SP(this, err_status= execute(thd, TRUE));
+    thd->bulk_param= save_bulk_param;
+  }
 
   thd->restore_active_arena(call_arena, &backup_arena);
 
