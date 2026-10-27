@@ -258,6 +258,11 @@ execute stmt;
 deallocate prepare stmt;
 select * from t1;
 
+--echo ## Case 9: Statement event in EXECUTE IMMEDIATE (works)
+
+eval execute immediate "binlog $STMT_INSERT_T1";
+select * from t1;
+
 drop table t0, t1;
 
 --echo # End of 10.11 tests

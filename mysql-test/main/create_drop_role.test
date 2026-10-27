@@ -65,4 +65,59 @@ GRANT r TO foo;
 --error ER_PLUGIN_IS_NOT_LOADED
 CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
 DROP ROLE r;
+DROP USER foo;
 DROP USER bar;
+
+--echo #
+--echo # MDEV-37214: CREATE OR REPLACE ROLE must take the old role's privileges
+--echo # away from the roles and users that had it granted
+--echo #
+CREATE TABLE t_mdev37214 (a INT);
+INSERT INTO t_mdev37214 VALUES (1);
+CREATE ROLE r1;
+CREATE ROLE r2;
+GRANT SELECT ON test.t_mdev37214 TO r1;
+GRANT r1 TO r2;
+CREATE USER u_mdev37214@localhost;
+GRANT r2 TO u_mdev37214@localhost;
+
+connect (u_mdev37214, localhost, u_mdev37214,,);
+SET ROLE r2;
+SELECT * FROM test.t_mdev37214;
+disconnect u_mdev37214;
+connection default;
+SELECT grantee, privilege_type FROM information_schema.table_privileges
+  WHERE table_name='t_mdev37214' ORDER BY grantee;
+
+CREATE OR REPLACE ROLE r1;
+SELECT grantee, privilege_type FROM information_schema.table_privileges
+  WHERE table_name='t_mdev37214' ORDER BY grantee;
+SHOW GRANTS FOR r2;
+SHOW GRANTS FOR r1;
+
+connect (u_mdev37214, localhost, u_mdev37214,,);
+SET ROLE r2;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.t_mdev37214;
+disconnect u_mdev37214;
+connection default;
+
+# the in-memory role graph must still be consistent
+DROP ROLE r1;
+DROP ROLE r2;
+DROP USER u_mdev37214@localhost;
+DROP TABLE t_mdev37214;
+
+--echo #
+--echo # MDEV-37214: a role repeated in CREATE OR REPLACE ROLE must not leave
+--echo # duplicate backlinks in the role graph
+--echo #
+CREATE ROLE r_dup;
+CREATE ROLE r_dup_parent;
+GRANT r_dup TO r_dup_parent;
+CREATE OR REPLACE ROLE r_dup, r_dup;
+CREATE OR REPLACE ROLE r_dup, r_dup;
+SHOW GRANTS FOR r_dup_parent;
+# walks the role graph arrays, asserts on a stale or duplicate backlink
+DROP ROLE r_dup;
+DROP ROLE r_dup_parent;
