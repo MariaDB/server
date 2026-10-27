@@ -3023,6 +3023,8 @@ bool THD::sql_parser(LEX *old_lex, LEX *lex,
 
   parse_status= (variables.sql_mode & MODE_ORACLE) ?
                  ORAparse(this) : MYSQLparse(this) != 0;
+  if (parser_state.m_lip.fail_if_stopped_on_kill())
+    parse_status= true;
 
   m_parser_state= old_parser_state;
 

@@ -44,4 +44,24 @@ SET SESSION debug_dbug= @saved_dbug;
 SET DEBUG_SYNC= 'RESET';
 SET GLOBAL event_scheduler= OFF;
 DROP USER definer@localhost;
+#
+# MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+#            virtual column expressions
+#
+# Kill before the event body is parsed
+call mtr.add_suppression("Event Scheduler: \\[.*\\]\\[test.e1\\] Query execution was interrupted");
+create table t1 (a int);
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug= '+d,kill_before_event_parse';
+set global event_scheduler= on;
+create event e1 on schedule at current_timestamp on completion preserve
+do insert into t1 values (1);
+FOUND 1 /\[test\.e1\] Query execution was interrupted/ in mysqld.1.err
+NOT FOUND /error during compilation of test\.e1/ in mysqld.1.err
+set global event_scheduler= off;
+set global debug_dbug= @save_dbug;
+select * from t1;
+a
+drop event e1;
+drop table t1;
 # End of 10.11 tests
