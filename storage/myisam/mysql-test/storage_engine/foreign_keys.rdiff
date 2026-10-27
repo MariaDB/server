@@ -130,7 +130,7 @@
 +4	d
 +4	e
  TRUNCATE TABLE t1;
--ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
+-ERROR 42000: Cannot TRUNCATE a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`))
 +ERROR 42S02: Table 'test.t1' doesn't exist
 +# ERROR: Statement ended with errno 1146, errname ER_NO_SUCH_TABLE (expected results: ER_TRUNCATE_ILLEGAL_FK)
 +# ------------ UNEXPECTED RESULT ------------
