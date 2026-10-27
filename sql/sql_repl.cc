@@ -5186,6 +5186,13 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
   */
   if (pos == 4)
     pos= 0;
+  if (pos != 0 && from_gtid.length == 0 && to_gtid.length > 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), "SHOW BINLOG EVENTS",
+            "Cannot combine a byte position with a GTID");
+    err= true;
+    goto end;
+  }
   if (0 < from_gtid.length)
   {
     /*

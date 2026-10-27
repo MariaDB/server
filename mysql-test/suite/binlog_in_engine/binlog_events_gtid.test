@@ -54,7 +54,7 @@ SHOW BINLOG EVENTS FROM '0-1-2' TO 'abc';
 SHOW BINLOG EVENTS FROM '0-1-5' TO '0-1-2';
 
 # Mixed FROM value and valid TO gtid
---replace_regex /xid=[0-9]+/xid=XX/
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 SHOW BINLOG EVENTS FROM 100 TO '0-1-5';
 
 # with no FROM
