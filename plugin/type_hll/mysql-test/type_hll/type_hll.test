@@ -87,7 +87,13 @@ SET sql_mode='';
 --error ER_WRONG_VALUE
 INSERT INTO t1 VALUES (10, 0x21);
 SET sql_mode=@save_sql_mode;
-SELECT COUNT(*) FROM t1 WHERE id=10;
+--echo # INSERT IGNORE does not turn the error into a warning either
+--error ER_WRONG_VALUE
+INSERT IGNORE INTO t1 VALUES (10, 0x21);
+--error ER_WRONG_VALUE
+INSERT IGNORE INTO t1 VALUES (10, 0x11), (11, 0x21);
+SELECT COUNT(*) FROM t1 WHERE id IN (10, 11);
+DELETE FROM t1 WHERE id IN (10, 11);
 
 --echo # INSERT ... SELECT, LOAD DATA and ALTER from BLOB go through validation
 CREATE TABLE t2 (id INT, b LONGBLOB);
@@ -107,6 +113,7 @@ INSERT INTO t2 VALUES (30, 0x11), (31, 0x21);
 --disable_query_log
 eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/hll.txt' FROM t2;
 --enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error ER_WRONG_VALUE
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/hll.txt' INTO TABLE t1
 --remove_file $MYSQLTEST_VARDIR/tmp/hll.txt

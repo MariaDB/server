@@ -1,6 +1,7 @@
 #ifndef HLL_CODEC_INCLUDED
 #define HLL_CODEC_INCLUDED
-/* Copyright (c) 2026, MariaDB
+/* Copyright (c) 2026, drrtuy@gmail.com
+   Copyright (c) 2026, MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

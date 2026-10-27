@@ -1,4 +1,5 @@
-/* Copyright (c) 2026, MariaDB
+/* Copyright (c) 2026, drrtuy@gmail.com
+   Copyright (c) 2026, MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -285,12 +286,20 @@ void Field_hll::sql_type(String &res) const
 }
 
 
+int Field_hll::reset()
+{
+  static uchar empty[1]= {(HLL_FORMAT_V1 << 4) | Hll_state::EMPTY};
+  set_ptr(1, empty);
+  return 0;
+}
+
+
 int Field_hll::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
   if (Hll_codec::decode((const uchar *) from, length, NULL))
   {
     report_invalid_hll(from, length);
-    reset();
+    Field_blob::reset();
     return -1;
   }
   return Field_blob::store(from, length, &my_charset_bin);

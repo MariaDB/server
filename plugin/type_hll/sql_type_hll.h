@@ -1,6 +1,7 @@
 #ifndef SQL_TYPE_HLL_INCLUDED
 #define SQL_TYPE_HLL_INCLUDED
-/* Copyright (c) 2026, MariaDB
+/* Copyright (c) 2026, drrtuy@gmail.com
+   Copyright (c) 2026, MariaDB Foundation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -155,6 +156,13 @@ public:
 
   void sql_type(String &str) const override;
   uint size_of() const  override { return sizeof(*this); }
+  /*
+    The zero value of HLL is HLL_EMPTY, not an empty string: reset() is used
+    for implicit defaults (non-strict INSERT, temporary table records).
+  */
+  int reset() override;
+  /* The .frm default record must not contain a data pointer */
+  void make_empty_rec_reset() override { Field_blob::reset(); }
   int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
   using Field_str::store;
   const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,

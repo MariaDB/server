@@ -96,9 +96,15 @@ SET sql_mode='';
 INSERT INTO t1 VALUES (10, 0x21);
 ERROR HY000: Incorrect HLL value: '!'
 SET sql_mode=@save_sql_mode;
-SELECT COUNT(*) FROM t1 WHERE id=10;
+# INSERT IGNORE does not turn the error into a warning either
+INSERT IGNORE INTO t1 VALUES (10, 0x21);
+ERROR HY000: Incorrect HLL value: '!'
+INSERT IGNORE INTO t1 VALUES (10, 0x11), (11, 0x21);
+ERROR HY000: Incorrect HLL value: '!'
+SELECT COUNT(*) FROM t1 WHERE id IN (10, 11);
 COUNT(*)
-0
+1
+DELETE FROM t1 WHERE id IN (10, 11);
 # INSERT ... SELECT, LOAD DATA and ALTER from BLOB go through validation
 CREATE TABLE t2 (id INT, b LONGBLOB);
 INSERT INTO t2 VALUES (20, 0x11), (21, 0x21);
@@ -118,7 +124,7 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 CREATE TABLE t2 (id INT, b LONGBLOB);
 INSERT INTO t2 VALUES (30, 0x11), (31, 0x21);
-LOAD DATA INFILE '/git/BuildOf_mdb-13/mysql-test/var/tmp/hll.txt' INTO TABLE t1;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/hll.txt' INTO TABLE t1;
 ERROR HY000: Incorrect HLL value: '!'
 DROP TABLE t2;
 # MyISAM keeps rows written before the failing row; no invalid value is stored

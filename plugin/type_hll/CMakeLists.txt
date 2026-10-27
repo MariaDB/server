@@ -1,4 +1,5 @@
-# Copyright (c) 2026, MariaDB corporation.
+# Copyright (c) 2026, drrtuy@gmail.com
+# Copyright (c) 2026, MariaDB Foundation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,7 +17,7 @@
 SET(HLL_CORE_SOURCES hll.cc hll_codec.cc)
 
 MYSQL_ADD_PLUGIN(type_hll
-                 plugin.cc sql_type_hll.cc ${HLL_CORE_SOURCES}
+                 plugin.cc sql_type_hll.cc item_hllfunc.cc ${HLL_CORE_SOURCES}
                  MODULE_ONLY RECOMPILE_FOR_EMBEDDED)
 
 # The plugin compiles its own copy of the sources (MYSQL_DYNAMIC_PLUGIN);
