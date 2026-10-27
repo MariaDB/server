@@ -64,7 +64,6 @@
 #include "rpl_rli.h"
 #include "log.h"
 #include "vector_mhnsw.h"
-#include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 #include "sql_rename.h"                // do_rename()
 
 #ifdef WITH_WSREP
