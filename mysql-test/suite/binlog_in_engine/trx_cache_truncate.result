@@ -1,0 +1,19 @@
+#
+# MDEV-40930: my_seek() on invalid file handle during COM_CHANGE_USER /
+# COM_RESET_CONNECTION (connection pool reset) with
+# binlog_storage_engine=innodb.
+#
+CREATE TABLE t1 (a INT, b VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'x');
+# COM_CHANGE_USER
+change_user root,,test;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	x
+INSERT INTO t1 VALUES (2, 'y');
+# COM_RESET_CONNECTION -- dispatches to the same THD::change_user()
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	x
+2	y
+DROP TABLE t1;

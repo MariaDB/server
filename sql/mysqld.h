@@ -774,6 +774,7 @@ enum options_mysqld
   OPT_COSTS_ROWID_COPY_COST,
   OPT_EXPIRE_LOGS_DAYS,
   OPT_BINLOG_EXPIRE_LOGS_SECONDS,
+  OPT_SLAVE_CONNECTIONS_NEEDED_FOR_PURGE,
   OPT_CONSOLE,
   OPT_DEBUG_SYNC_TIMEOUT,
   OPT_REMOVED_OPTION,
@@ -816,7 +817,6 @@ enum options_mysqld
   OPT_TLS_VERSION,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_SEQURE_FILE_PRIV,
-  OPT_MASTER_HEARTBEAT_PERIOD,
   OPT_which_is_always_the_last
 };
 #endif
@@ -959,6 +959,7 @@ extern char server_uid[SERVER_UID_SIZE+1];
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+extern my_bool validate_config_has_warnings;
 
 extern int mysqld_main(int argc, char **argv);
 

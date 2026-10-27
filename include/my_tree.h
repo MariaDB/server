@@ -48,6 +48,8 @@ typedef uint32 element_count;
 typedef int (*tree_walk_action)(void *,element_count,void *);
 
 typedef enum { free_init, free_free, free_end } TREE_FREE;
+typedef enum { TREE_ERROR_NONE, TREE_ERROR_OOM, TREE_ERROR_DUP_KEY }
+TREE_ERROR;
 typedef int (*tree_element_free)(void*, TREE_FREE, void *);
 
 typedef struct st_tree_element {
@@ -70,6 +72,7 @@ typedef struct st_tree {
   tree_element_free free;
   myf my_flags;
   uint flag;
+  TREE_ERROR error;
 } TREE;
 
 	/* Functions on whole tree */

@@ -3,12 +3,17 @@ connect  slave,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK;
 SET GLOBAL gtid_slave_pos= "";
 connection slave;
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
+CALL mtr.add_suppression("Wrong data at start of master info file");
 start slave;
 Got one of the listed errors
 start slave;
-ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
+Got one of the listed errors
+show warnings;
+Level	Code	Message
+Error	1525	Wrong data at start of master info file
+Error	1201	Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
-ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
+Got one of the listed errors
 reset slave;
 change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root', master_ssl_verify_server_cert=0;
 connection master;

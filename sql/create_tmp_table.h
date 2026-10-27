@@ -31,7 +31,12 @@ protected:
   // The following members are initialized in ctor
   uint  m_alloced_field_count;
   bool  m_using_unique_constraint;
+  bool  m_heap_expected;
   uint m_temp_pool_slot;
+  /*
+    If set, create a unique index over listed columns. Used by GROUP BY's
+    TemporaryTableWithPartialSums algorithm and also by multi-table UPDATE.
+  */
   ORDER *m_group;
   bool m_distinct;
   bool m_save_sum_fields;
@@ -59,6 +64,7 @@ public:
   Create_tmp_table(ORDER *group, bool distinct, bool save_sum_fields,
                    ulonglong select_options, ha_rows rows_limit);
   virtual ~Create_tmp_table() {}
+  handlerton *pick_engine(THD *thd);
   virtual bool choose_engine(THD *thd, TABLE *table, TMP_TABLE_PARAM *param);
   void add_field(TABLE *table, Field *field, uint fieldnr,
                  bool force_not_null_cols);

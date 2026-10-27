@@ -16,6 +16,10 @@ FLUSH BINARY LOGS;  # To make sure the CREATE TABLE is on disk
 --replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --base64-output=never $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb 2>&1
 
+# Reading from stdin is not supported.
+--error 1
+--exec $MYSQL_BINLOG --short-form - < $datadir/binlog-000000.ibb 2>&1
+
 --let $gtid_start= `SELECT @@gtid_binlog_pos`
 INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
 UPDATE t1 SET b=1 WHERE a=1;

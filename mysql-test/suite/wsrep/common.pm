@@ -90,9 +90,11 @@ sub check_wsrep_support() {
     # library.
     $file_wsrep_provider=
       ::mtr_file_exists("/usr/lib64/galera-4/libgalera_smm.so",
-                      "/usr/lib64/galera/libgalera_smm.so",
-                      "/usr/lib/galera-4/libgalera_smm.so",
-                      "/usr/lib/galera/libgalera_smm.so");
+                        "/usr/lib64/galera/libgalera_smm.so",
+                        "/usr/lib/galera-4/libgalera_smm.so",
+                        "/usr/lib/galera/libgalera_smm.so",
+                        "/usr/lib64/libgalera_smm.so"
+        );
     if ($file_wsrep_provider ne "") {
       # wsrep provider library found !
       mtr_verbose("wsrep provider library found : $file_wsrep_provider");

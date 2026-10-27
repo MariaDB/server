@@ -107,6 +107,13 @@ IF(NOT GIT_EXECUTABLE)
   )
 ENDIF()
 
+# DuckDB uses these symbolic links only to test globbing behavior. They cause
+# source package extraction failures with tar on Windows.
+FILE(REMOVE
+  "${PACKAGE_DIR}/storage/duckdb/third_parties/duckdb/data/csv/glob/crawl/.symbolic_link/link_to_file"
+  "${PACKAGE_DIR}/storage/duckdb/third_parties/duckdb/data/csv/glob/crawl/.symbolic_link/mydir/link_to_upper_dir"
+)
+
 # Copy bison output
 CONFIGURE_FILE(${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
    ${PACKAGE_DIR}/sql/yy_mariadb.hh COPYONLY)

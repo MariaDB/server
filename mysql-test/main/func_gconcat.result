@@ -863,7 +863,7 @@ group_concat(distinct a, c)
 00,01,10,11,31
 select group_concat(distinct a, c order by a) from t1;
 group_concat(distinct a, c order by a)
-00,01,11,10,31
+01,00,11,10,31
 select group_concat(distinct a, c) from t1;
 group_concat(distinct a, c)
 00,01,10,11,31
@@ -1543,11 +1543,9 @@ SET NAMES latin1;
 #
 connect u,localhost,root;
 set group_concat_max_len=2*1024*1024*1024;
-Warnings:
-Warning	1292	Truncated incorrect group_concat_max_len value: '2147483648'
 select @@group_concat_max_len;
 @@group_concat_max_len
-1073741824
+2147483648
 select length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1))) from dual;
 length(group_concat(repeat('a', @@max_allowed_packet-1), repeat('a', @@max_allowed_packet-1)))
 16777216

@@ -942,7 +942,6 @@ int close_thread_tables(THD *thd) noexcept
 
   if (thd->locked_tables_mode)
   {
-
     /* Ensure we are calling ha_reset() for all used tables */
     mark_used_tables_as_free_for_reuse(thd, thd->open_tables);
 
@@ -2146,7 +2145,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
   if (table_list->open_strategy == TABLE_LIST::OPEN_IF_EXISTS)
   {
-    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
+    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name,
+                         NULL, NULL, NULL, 0))
       DBUG_RETURN(FALSE);
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
@@ -3051,21 +3051,46 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
   DBUG_RETURN(FALSE);
 }
 
-/**
-  Add back a locked table to the locked list that we just removed from it.
-  This is needed in CREATE OR REPLACE TABLE where we are dropping, creating
-  and re-opening a locked table.
 
-  @return 0  0k
-  @return 1  error
+/**
+  Re-attach a re-created table to the LOCK TABLES state.
+
+  Used by CREATE OR REPLACE TABLE under LOCK TABLES.  The original table
+  was locked when LOCK TABLES was issued; CREATE OR REPLACE then either
+  dropped it (and created a new one) or renamed it to a backup name and
+  created a new one in its place.  In both cases a fresh TABLE has been
+  opened and a temporary lock taken for it, and we now have to make that
+  TABLE part of the existing LOCK TABLES set again.
+
+  The new table's lock is merged into thd->lock, the locked-tables list
+  entry is re-pointed at the new TABLE, its recorded lock type is
+  refreshed and the MDL lock is downgraded to match.
+
+  @param thd            Thread handle
+  @param dst_table_list Locked-tables list entry to re-point at the new
+                        table (the table's original pos_in_locked_tables)
+  @param table          The newly created/re-opened table to attach
+  @param lock           Temporary lock taken for the new table; merged
+                        into thd->lock on success (the caller then clears
+                        its own reference so it is not unlocked twice)
+  @param relink_lock    Whether to re-link dst_table_list into the
+                        locked-tables list.  TRUE when the original entry
+                        was unlinked (the table was dropped); FALSE in the
+                        atomic-rename path where the entry was never
+                        removed and must not be added a second time.
+
+  @return 0  Ok
+  @return 1  Error (out of memory while merging the lock)
 */
 
 bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
-                                      TABLE *table, MYSQL_LOCK *lock)
+                                      TABLE *table, MYSQL_LOCK *lock,
+                                      bool relink_lock)
 {
   MYSQL_LOCK *merged_lock;
   DBUG_ENTER("restore_lock");
-  DBUG_ASSERT(!strcmp(dst_table_list->table_name.str, table->s->table_name.str));
+  DBUG_ASSERT(!strcmp(dst_table_list->table_name.str,
+                      table->s->table_name.str));
 
   /* Ensure we have the memory to add the table back */
   if (!(merged_lock= mysql_lock_merge(thd->lock, lock)))
@@ -3081,7 +3106,8 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
   dst_table_list->lock_type= table->reginfo.lock_type;
   table->pos_in_locked_tables= dst_table_list;
 
-  add_back_last_deleted_lock(dst_table_list);
+  if (relink_lock)
+    add_back_last_deleted_lock(dst_table_list);
 
   table->mdl_ticket->downgrade_lock(table->reginfo.lock_type >=
                                     TL_FIRST_WRITE ?
@@ -3090,6 +3116,7 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
 
   DBUG_RETURN(0);
 }
+
 
 /*
   Add back the last deleted lock structure.
@@ -3301,7 +3328,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, 0))
+                                        &share->table_name, entry, false, 0))
     return TRUE;
 
   /*
@@ -3578,8 +3605,17 @@ Open_table_context::recover_from_failed_open()
     case OT_ADD_HISTORY_PARTITION:
       DEBUG_SYNC(m_thd, "add_history_partition");
       if (!m_thd->locked_tables_mode)
+      {
+        /*
+          Change sql_command temporary to ensure that we can repair tables in
+          CREATE...SELECT.
+        */
+        enum_sql_command save_sql_command= m_thd->lex->sql_command;
+        m_thd->lex->sql_command= SQLCOM_REPAIR;
         result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
                                 NULL, get_timeout(), 0);
+        m_thd->lex->sql_command= save_sql_command;
+      }
       else
       {
         DBUG_ASSERT(!result);
@@ -3733,8 +3769,8 @@ Open_table_context::recover_from_failed_open()
       }
       /*
         Rollback to start of the current statement to release exclusive lock
-        on table which was discovered but preserve locks from previous statements
-        in current transaction.
+        on table which was discovered but preserve locks from previous
+        statements in current transaction.
       */
       if (!result)
         m_thd->mdl_context.rollback_to_savepoint(start_of_statement_svp());
@@ -4524,7 +4560,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, &create_table->db_type))
+                        NULL, &create_table->db_type, NULL, 0))
     {
       if (create_info.if_not_exists())
       {
@@ -5102,10 +5138,10 @@ restart:
   }
 
   /*
-    After successful open of all tables, including MERGE parents and
-    children, attach the children to their parents. At end of statement,
-    the children are detached. Attaching and detaching are always done,
-    even under LOCK TABLES.
+    After successfully opening the tables, including MERGE parents and
+    children, attach the children to their parents (unless they are already
+    attached).  At the end of statement, the children are detached.  Attaching
+    and detaching are always attempted, even under LOCK TABLES.
 
     We also convert all TL_WRITE_DEFAULT and TL_READ_DEFAULT locks to
     appropriate "real" lock types to be used for locking and to be passed
@@ -5121,7 +5157,8 @@ restart:
     if (!tbl)
       continue;
 
-    if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
+    if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE &&
+        !tbl->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN))
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
@@ -6278,7 +6315,14 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr= start= thd->alloc<TABLE*>(count)))
+    if (unlikely(thd->lock))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "Trying to lock tables when there is already locked tables");
+      DBUG_RETURN(TRUE);
+    }
+
+    if (unlikely(!(ptr= start= thd->alloc<TABLE*>(count))))
       DBUG_RETURN(TRUE);
 
     /*
@@ -8837,20 +8881,32 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       }
       else
       {
-        TABLE *table= table_list->table;
-        table->tablenr= table_list->tablenr_exec;
-        table->map= table_list->map_exec;
-        table->maybe_null= table_list->maybe_null_exec;
-        table->pos_in_table_list= table_list;
-
+        TABLE *tbl= table_list->table;
+        tbl->tablenr= table_list->tablenr_exec;
+        tbl->map= table_list->map_exec;
+        tbl->maybe_null= table_list->maybe_null_exec;
+        /*
+          If this is a MyISAM MERGE table then don't overwrite
+          pos_in_table_list on subsequent execution of a prepared statement
+          where that statement references a MyISAM MERGE table.  On the first
+          execution, the pos_in_table_list is set to a value from 'leaves'.
+          But on subsequent executions, that value was blindly overwritten from
+          'leaf_tables_exec'.  Most of the time that's safe, but not for the
+          MyISAM MERGE.  The MyISAM MERGE engine relies on this value being
+          stable between executions so that it can find the children spliced in
+          behind the parent (the merged children).
+        */
+        if (!(tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE) ||
+            !tbl->pos_in_table_list)
+          tbl->pos_in_table_list= table_list;
         if (!table_list->opt_hints_table ||
-            !table_list->opt_hints_table->update_index_hint_maps(thd, table))
+            !table_list->opt_hints_table->update_index_hint_maps(thd, tbl))
         {
           /*
             Old-style index hints are processed only if
             new-style hints are not specified
           */
-          if (table_list->process_index_hints(table))
+          if (table_list->process_index_hints(tbl))
             DBUG_RETURN(1);
         }
       }
@@ -9990,7 +10046,7 @@ my_bool mysql_rm_tmp_tables(void)
     {
       file=dirp->dir_entry+idx;
 
-      if (!strncmp(file->name, tmp_file_prefix, tmp_file_prefix_length))
+      if (is_tmp_table(file->name))
       {
         char *ext= fn_ext(file->name);
         size_t ext_len= strlen(ext);

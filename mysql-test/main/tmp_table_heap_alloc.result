@@ -1,0 +1,36 @@
+connect  con1,localhost,root,,test;
+connection con1;
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,REPEAT('a',100)), (2,REPEAT('b',100)),
+(3,REPEAT('c',100)), (4,REPEAT('d',100));
+#
+# Materialization with a blob distinct key under a 4GB ceiling
+#
+SET SESSION tmp_memory_table_size = 4294967296;
+SET SESSION max_heap_table_size = 4294967296;
+FLUSH STATUS;
+SELECT DISTINCT b FROM t1;
+SET SESSION tmp_memory_table_size = DEFAULT;
+SET SESSION max_heap_table_size = DEFAULT;
+SELECT CAST(VARIABLE_VALUE AS UNSIGNED) < 67108864 AS distinct_alloc_bounded
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME = 'MAX_MEMORY_USED';
+distinct_alloc_bounded
+1
+#
+# I_S materialization (SHOW FULL COLUMNS) under a 4GB ceiling
+#
+SET SESSION tmp_memory_table_size = 4294967296;
+SET SESSION max_heap_table_size = 4294967296;
+FLUSH STATUS;
+SHOW FULL COLUMNS FROM t1;
+SET SESSION tmp_memory_table_size = DEFAULT;
+SET SESSION max_heap_table_size = DEFAULT;
+SELECT CAST(VARIABLE_VALUE AS UNSIGNED) < 67108864 AS show_columns_alloc_bounded
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME = 'MAX_MEMORY_USED';
+show_columns_alloc_bounded
+1
+connection default;
+disconnect con1;
+DROP TABLE t1;

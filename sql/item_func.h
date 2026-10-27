@@ -255,7 +255,10 @@ protected:
 public:
   friend class udf_handler;
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
-  { return tmp_table_field_from_field_type(root, table); }
+  {
+    const Tmp_field_param param(false, false, false, false, false, false);
+    return tmp_table_field_from_field_type(root, table, &param);
+  }
   Item *get_tmp_table_item(THD *thd) override;
 
   void fix_char_length_ulonglong(ulonglong max_char_length_arg)
@@ -638,7 +641,9 @@ public:
     const Type_handler *
       type_handler_for_create_select(const Item_handled_func *item) const override
     {
-      return return_type_handler(item)->type_handler_for_tmp_table(item);
+      const Tmp_field_param param(false, false, false, false, false, false);
+      return return_type_handler(item)->type_handler_for_tmp_table(item,
+                                                                   &param);
     }
     double val_real(Item_handled_func *item) const override
     {

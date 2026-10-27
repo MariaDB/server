@@ -1,0 +1,49 @@
+--source ../include/have_duckdb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo # MIXED: without a non-deterministic DEFAULT (e.g. UUID()) the table
+--echo # is not marked binlog-unsafe, so DELETE stays statement-based and
+--echo # replicates correctly (see MDEV-41198 for the unsafe case)
+--connection master
+CREATE DATABASE rpl_delete_no_uuid_default CHARACTER SET utf8mb4;
+USE rpl_delete_no_uuid_default;
+SELECT @@binlog_format;
+CREATE TABLE invoice (
+  id INT PRIMARY KEY,
+  product VARCHAR(64),
+  amount DECIMAL(12,2),
+  sold_at TIMESTAMP
+) ENGINE=DuckDB DEFAULT CHARSET utf8mb4;
+INSERT INTO invoice VALUES
+  (1, 'MariaDB mug', 12.00, NOW()),
+  (2, 'DuckDB sticker', 2.50, NOW()),
+  (3, 'Sea lion plush', 25.00, NOW()),
+  (4, 'DuckDB sticker', 2.50, NOW());
+
+--sync_slave_with_master
+USE rpl_delete_no_uuid_default;
+SELECT COUNT(*) FROM invoice;
+
+--echo # DELETE with WHERE (direct delete path on master)
+--connection master
+DELETE FROM invoice WHERE product = 'DuckDB sticker';
+SELECT COUNT(*) FROM invoice;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM invoice;
+
+--echo # DELETE without WHERE (delete_all_rows path on master)
+--connection master
+DELETE FROM invoice;
+SELECT COUNT(*) FROM invoice;
+
+--sync_slave_with_master
+SELECT COUNT(*) FROM invoice;
+
+--connection master
+DROP DATABASE rpl_delete_no_uuid_default;
+
+--sync_slave_with_master
+
+--source include/rpl_end.inc

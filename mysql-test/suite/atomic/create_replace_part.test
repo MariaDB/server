@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-40765 Assertion `"unexpected references" == 0' failed upon
+--echo # failing CREATE OR REPLACE
+--echo #
+
+
+CREATE TABLE t1 (col_int_nokey INT, col_int_key INT NOT NULL, KEY(col_int_key))
+  ENGINE=InnoDB PARTITION BY LIST (col_int_key)
+  (PARTITION p0 VALUES IN (9, NULL), PARTITION p1 VALUES IN (0,6,7),
+   PARTITION p2 VALUES IN (3,2,4), PARTITION p3 VALUES IN (8,5,1), PARTITION pdef DEFAULT);
+INSERT INTO t1 (col_int_key) VALUES (2),(4),(2),(1),(2),(2),(5),(3),(4),(5),(6),(2),(6),(2),(9),(2),(6),(8),(8),(3),(1),(7),(3),(8),(2),(4),(3),(4),(1),(0);
+select count(*) from t1;
+
+# Execute a create that failes. Original table should be untouched
+--error ER_CHECK_NOT_IMPLEMENTED
+CREATE OR REPLACE TABLE t1 (col1 TIME NULL) ENGINE=CSV;
+select count(*) from t1;
+DROP TABLE t1;

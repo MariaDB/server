@@ -1,0 +1,28 @@
+--source include/have_debug_sync.inc
+--source include/have_log_bin.inc
+--source include/have_example_plugin.inc
+
+--echo #
+--echo # MDEV-40038 tp_foreach() crashes on a dying transaction participant
+--echo #
+
+INSTALL SONAME 'ha_example';
+
+--connect con1,localhost,root
+SET DEBUG_SYNC= 'ha_finalize_handlerton_before_slot_clear SIGNAL deinit_started WAIT_FOR deinit_go';
+--send UNINSTALL SONAME 'ha_example'
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR deinit_started';
+# The engine is PLUGIN_IS_DYING but hton2plugin[] still points to it.
+RESET MASTER;
+SET DEBUG_SYNC= 'now SIGNAL deinit_go';
+
+--connection con1
+--reap
+--disconnect con1
+
+--connection default
+SET DEBUG_SYNC= 'RESET';
+
+--echo # End of 11.8 tests

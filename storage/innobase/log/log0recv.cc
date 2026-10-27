@@ -26,6 +26,7 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "univ.i"
 
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <my_service_manager.h>
@@ -42,6 +43,8 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0dblwr.h"
 #include "buf0flu.h"
 #include "buf0checksum.h"
+#include "buf0lru.h"
+#include "buf0rea.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -50,7 +53,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
-#include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0pagecompress.h"
@@ -255,7 +257,7 @@ public:
     size_t size;
     const byte *page= block.page.zip.data;
     if (UNIV_LIKELY_NULL(page))
-      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize;
+      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize();
     else
     {
       page= block.page.frame;
@@ -378,7 +380,7 @@ page_corrupted:
       switch (b & 0x70) {
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
-                          block.page.zip.ssize))
+                          block.page.zip.ssize()))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatibility");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
@@ -641,6 +643,9 @@ struct file_name_t {
 
 	/** Log sequence number of a FILE_CREATE record, or 0 */
 	lsn_t		create_lsn = 0;
+
+	/** Last FSP_SIZE or FSP_SPACE_FLAGS change, or 0 */
+	lsn_t		page0_lsn = 0;
 
 	/** FSP_SIZE of tablespace */
 	uint32_t	size = 0;
@@ -1528,11 +1533,15 @@ void recv_sys_t::clear()
 
 void recv_sys_t::tmp_free() noexcept
 {
-  if (tmp_buf)
-  {
-    ut_free_dodump(tmp_buf, tmp_buf_size);
-    tmp_buf= nullptr;
-  }
+  if (!tmp_buf)
+    return;
+
+  /* GCC deletes a plain memset() that is followed by free(). */
+  static void *(*const volatile erase)(void*, int, size_t)= memset;
+  erase(tmp_buf, 0, tmp_buf_size);
+  /* The member function recv_sys_t::free() hides the one from <cstdlib>. */
+  std::free(tmp_buf);
+  tmp_buf= nullptr;
 }
 
 /** Free most recovery data structures. */
@@ -1841,8 +1850,7 @@ dberr_t recv_sys_t::find_checkpoint()
                    sizeof "/ib_0000000000000000.log");
       if (!tmp_buf)
       {
-        tmp_buf= static_cast<byte*>
-          (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+        tmp_buf= static_cast<byte*>(malloc(tmp_buf_size));
         if (!tmp_buf)
           return DB_OUT_OF_MEMORY;
       }
@@ -2120,6 +2128,8 @@ dberr_t recv_sys_t::find_checkpoint()
                         int(path.size()), path.data(), sz, size);
         first_lsn= LSN_MAX;
       }
+      // file (in recv_sys.files) closed later by recv_sys_t::close_files().
+      // @infer-ignore PULSE_RESOURCE_LEAK.
       files.emplace_back(file);
     }
 
@@ -2240,14 +2250,12 @@ dberr_t recv_sys_t::find_checkpoint()
       log_sys.archived_lsn= lsn;
     if (recv_sys_invalid_rpo(lsn))
       return DB_READ_ONLY;
-    if (!memcmp(creator, "Backup ", 7) &&
-        !recv_sys.rpo && !high_level_read_only)
+    if (!memcmp(creator, "Backup ", 7) && !rpo && !high_level_read_only)
       srv_start_after_restore= true;
 
     if (!tmp_buf)
     {
-      tmp_buf= static_cast<byte*>
-        (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+      tmp_buf= static_cast<byte*>(malloc(tmp_buf_size));
       if (!tmp_buf)
         return DB_OUT_OF_MEMORY;
     }
@@ -3098,12 +3106,19 @@ void recv_sys_t::parse_page0(const page_id_t id, const byte *b,
     f{flags ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + b)
       : file_name_t::initial_flags};
   recv_spaces_t::iterator it= recv_spaces.find(space_id);
-  if (it != recv_spaces.end() && !it->second.space)
+  if (it != recv_spaces.end())
   {
-    if (size)
-      it->second.size= s;
-    if (flags)
-      it->second.flags= f;
+    if (it->second.page0_lsn > lsn)
+      return;
+    it->second.page0_lsn= lsn;
+
+    if (!it->second.space)
+    {
+      if (size)
+        it->second.size= s;
+      if (flags)
+        it->second.flags= f;
+    }
   }
   fil_space_set_recv_size_and_flags(space_id, s, f);
 }
@@ -4768,30 +4783,6 @@ static void log_sort_flush_list() noexcept
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
-/** Invalidate all pages in the buffer pool.
-All pages must be replaceable (not modified, latched, or io-fixed). */
-ATTRIBUTE_COLD static void buf_pool_invalidate() noexcept
-{
-  mysql_mutex_lock(&buf_pool.mutex);
-  ut_ad(!os_aio_pending_reads());
-  /* os_aio_pending_writes() may hold here if some write_io_callback()
-  did not release the slot yet. However, buf_flush_sync_batch() waited
-  for the page write itself to complete, which we will check below. */
-  ut_d(buf_pool.assert_all_freed());
-
-  while (UT_LIST_GET_LEN(buf_pool.LRU))
-    buf_LRU_scan_and_free_block();
-
-  ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-
-  buf_pool.freed_page_clock= 0;
-  buf_pool.LRU_old= nullptr;
-  buf_pool.LRU_old_len= 0;
-  buf_pool.stat.init();
-  buf_refresh_io_stats();
-  mysql_mutex_unlock(&buf_pool.mutex);
-}
-
 /** Apply buffered log to persistent data pages.
 @param last_batch     whether it is possible to write more redo log */
 void recv_sys_t::apply(bool last_batch)
@@ -5765,8 +5756,7 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
       buf+= 32/*log_crypt_read_header()*/, n_checkpoint= 4/* 32/8 */;
       if (!tmp_buf)
       {
-        tmp_buf= static_cast<byte*>
-          (ut_malloc_dontdump(tmp_buf_size, PSI_INSTRUMENT_ME));
+        tmp_buf= static_cast<byte*>(malloc(tmp_buf_size));
         if (!tmp_buf)
           return DB_OUT_OF_MEMORY;
       }

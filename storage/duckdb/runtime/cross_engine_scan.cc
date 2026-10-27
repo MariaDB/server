@@ -23,6 +23,7 @@
 #include "field.h"
 #include "handler.h"
 #include "mysqld.h"
+#include "sql_time.h"
 #include "log.h"
 
 #undef UNKNOWN
@@ -33,6 +34,7 @@
 #include "duckdb_log.h"
 
 #include "duckdb/main/database.hpp"
+#include "duckdb/common/types/datetime.hpp"
 #include "duckdb/catalog/catalog.hpp"
 #include "duckdb/catalog/catalog_transaction.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -197,8 +199,6 @@ static duckdb::Value field_to_duckdb_value(Field *field)
   }
   case MYSQL_TYPE_DATE:
   case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIMESTAMP:
@@ -206,6 +206,17 @@ static duckdb::Value field_to_duckdb_value(Field *field)
     String buf;
     field->val_str(&buf);
     return duckdb::Value(std::string(buf.ptr(), buf.length()));
+  }
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2: {
+    MYSQL_TIME tm;
+    field->get_date(&tm, date_mode_t(0));
+    int64_t micros=
+        (tm.hour * 3600LL + tm.minute * 60LL + tm.second) * 1000000LL +
+        tm.second_part;
+    if (tm.neg)
+      micros= -micros;
+    return duckdb::Value::TIME(duckdb::dtime_t(micros));
   }
   case MYSQL_TYPE_BIT:
   case MYSQL_TYPE_GEOMETRY: {
@@ -292,7 +303,7 @@ mdb_scan_bind(duckdb::ClientContext &context,
                                   "external table registry",
                                   key.c_str());
 
-  for (Field **f= tbl->field; *f; f++)
+  for (Field **f= tbl->field; *f && (*f)->invisible == VISIBLE; f++)
   {
     names.push_back((*f)->field_name.str);
     return_types.push_back(field_to_logical_type(*f));

@@ -2676,7 +2676,8 @@ row_rename_table_for_mysql(
 	if (err != DB_SUCCESS) {
 		// Assume the caller guarantees destination name doesn't exist.
 		ut_ad(err != DB_DUPLICATE_KEY);
-	} else if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp) {
+	} else if (/* fk == RENAME_IGNORE_FK || */ !new_is_tmp
+		   || table_name_t::is_create_or_replace(new_name)) {
 		/* Rename all constraints. */
 		info = pars_info_create();
 

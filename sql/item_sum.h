@@ -423,7 +423,6 @@ protected:
   */
   Item **orig_args, *tmp_orig_args[2];
   
-  static size_t ram_limitation(THD *thd);
 public:
   // Methods used by ColumnStore
   Item **get_orig_args() const { return orig_args; }
@@ -558,11 +557,12 @@ public:
     aggregator_clear();
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
-  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
+  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                  const Tmp_field_param *param);
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
-    return create_tmp_field(root, param->group(), table);
+    return create_tmp_field(root, param->group(), table, param);
   }
   bool collect_outer_ref_processor(void *param) override;
   bool init_sum_func_check(THD *thd);
@@ -1034,7 +1034,8 @@ public:
     return has_with_distinct() ? name_distinct : name_normal;
   }
   Item *copy_or_same(THD* thd) override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override;
   void cleanup() override
   {
     count= 0;
@@ -1123,7 +1124,8 @@ public:
     return sample ? name_sample : name_normal;
   }
   Item *copy_or_same(THD* thd) override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override
     final;
   void cleanup() override final
   {
@@ -1245,7 +1247,8 @@ public:
   bool any_value() { return was_values; }
   void no_rows_in_result() override;
   void restore_to_before_no_rows_in_result() override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override;
+  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                          const Tmp_field_param *param) override;
   void setup_caches(THD *thd) override
   { setup_hybrid(thd, arguments()[0], NULL); }
 };
@@ -1342,7 +1345,9 @@ public:
   {
     if (as_window_function)
     {
-      remove_as_window(args[0]->val_int());
+      ulonglong value= (ulonglong) args[0]->val_int();
+      if (!args[0]->null_value)
+        remove_as_window(value);
       return;
     }
     // Unless we're counting bits, we can not remove anything.
@@ -1581,7 +1586,7 @@ public:
 
 protected:
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_sum_sp>(thd, this); }
+  { return NULL; /* not supported */ }
 };
 
 /* Items to get the value of a stored sum function */
@@ -2100,7 +2105,13 @@ class Item_func_group_concat : public Item_sum_str
   String *separator;
   TREE tree_base;
   TREE *tree;
-  size_t tree_len;
+  /*
+    Max total memory we may use for 'tree', including the second tree
+    that repack_tree() needs while it is running.
+    Note that this does not cover BLOB values, as those are stored in
+    table->blob_storage, which is not freed when the tree is repacked.
+  */
+  size_t max_tree_size;
   Item **ref_pointer_array;
 
   /**
@@ -2121,6 +2132,36 @@ class Item_func_group_concat : public Item_sum_str
   uint row_count;
   bool distinct;
   bool warning_for_row;
+  /*
+    Set if the result is not what the user would have got with unlimited
+    memory and an unlimited group_concat_max_len. val_str() gives one
+    cut value warning for it.
+  */
+  bool result_cut;
+  /*
+    Set once the note about values cut on their way into blob_storage has
+    been given for this aggregate. One note per statement is enough,
+    however many groups had a value cut. cleanup() clears it, so a
+    statement that is run again gets its own note.
+  */
+  bool cut_note_given;
+  /*
+    Set by dump_leaf_key() when a row it appends carries a value that was
+    cut on its way into blob_storage. The answer is then short by what
+    was cut, which is a warning rather than the note a cut value that
+    never reached the answer gets.
+  */
+  bool value_cut_in_result;
+  /*
+    Set by dump_leaf_key() when it is the one that stops a walk, so that
+    val_str() can tell that apart from the walk itself having failed.
+  */
+  bool walk_stopped;
+  /*
+    Set when the walk of the duplicate filter failed and said nothing
+    about it. val_str() reports the group it never delivered.
+  */
+  bool walk_failed;
   bool always_null;
   bool force_copy_fields;
   /** True if entire result of GROUP_CONCAT has been written to output buffer. */
@@ -2227,6 +2268,9 @@ public:
   qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();
+  bool insert_to_order_tree(uchar *key);
+  static int dump_leaf_key_to_tree(void *key_arg, element_count count,
+                                   void *item_arg);
 
 protected:
   Item *shallow_copy(THD *thd) const override

@@ -20,40 +20,247 @@
 
 int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
 {
-  HP_KEYDEF *keydef, *end, *p_lastinx;
+  HP_KEYDEF *keydef, *keydef_end, *p_lastinx;
   uchar *pos, *recovery_ptr;
   struct st_hp_hash_info *recovery_hash_ptr;
-  my_bool auto_key_changed= 0, key_changed= 0;
+  my_bool auto_key_changed= 0, key_changed= 0, lastinx_changed= 0;
   HP_SHARE *share= info->s;
   DBUG_ENTER("heap_update");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
+  hp_flush_pending_blob_free(info);
   pos=info->current_ptr;
 
   if (info->opt_flag & READ_CHECK_USED && hp_rectest(info,old))
     DBUG_RETURN(my_errno);				/* Record changed */
   if (--(share->records) < share->blength >> 1) share->blength>>= 1;
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   // Save the cursor position to recover if insert fails.
   recovery_ptr= info->current_ptr;
   recovery_hash_ptr= info->current_hash_ptr;
 
   p_lastinx= share->keydef + info->lastinx;
-  for (keydef= share->keydef, end= keydef + share->keys; keydef < end; keydef++)
+  /* Re-index the record on every key whose value differs between old and new */
+  for (keydef= share->keydef, keydef_end= keydef + share->keys;
+       keydef < keydef_end;
+       keydef++)
   {
-    if (hp_rec_key_cmp(keydef, old, heap_new))
+    if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
     {
+      /* Remove the old key entry, then insert the new one */
       if ((*keydef->delete_key)(info, keydef, old, pos, keydef == p_lastinx) ||
           (*keydef->write_key)(info, keydef, heap_new, pos))
         goto err;
       key_changed= 1;
+      /*
+        p_lastinx is the index the caller is currently scanning (info->lastinx),
+        the one holding the live cursor. Detect when its key moved, so we can fix
+        up the scan state below.
+      */
+      if (keydef == p_lastinx)
+        lastinx_changed= 1;
       if (share->auto_key == (uint) (keydef - share->keydef + 1))
         auto_key_changed= 1;
     }
   }
 
-  memcpy(pos,heap_new,(size_t) share->reclength);
+  /*
+    Blob update strategy: skip unchanged blobs, write-before-free for
+    changed ones.
+
+    Compare each blob column (length, then pointer, then memcmp) to
+    detect changes.  Unchanged blobs keep their existing chains.
+    Changed blobs get new chains written before old ones are freed.
+
+    The bulk memcpy of heap_new into pos overwrites blob chain pointers
+    with SQL-layer data pointers, so we save old chain pointers first
+    and restore them for unchanged blobs afterward.
+  */
+  if (share->blob_count)
+  {
+    my_bool had_cont= hp_has_cont(pos, share->visible);
+    uint alloc_size= share->blob_count * (sizeof(uchar*) + sizeof(my_bool));
+    uchar **saved_chains= (uchar**) my_safe_alloca(alloc_size);
+    my_bool *blob_changed= (my_bool*)(saved_chains + share->blob_count);
+    my_bool any_changed= FALSE;
+    my_bool has_blob_data= FALSE;
+    HP_BLOB_DESC *desc;
+    uint32 new_len;
+    uint i;
+
+    /* Save old chain pointers and detect which blobs changed */
+    for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
+    {
+      uint32 old_len, cur_len;
+
+      saved_chains[i]= NULL;
+      if (had_cont)
+        memcpy(&saved_chains[i], pos + desc->offset + desc->packlength,
+               sizeof(saved_chains[i]));
+
+      old_len= hp_blob_length(desc, old);
+      cur_len= hp_blob_length(desc, heap_new);
+
+      if (old_len != cur_len)
+        blob_changed[i]= TRUE;
+      else if (old_len == 0)
+        blob_changed[i]= FALSE;
+      else
+      {
+        const uchar *old_data, *new_data;
+        memcpy(&old_data, old + desc->offset + desc->packlength,
+               sizeof(old_data));
+        memcpy(&new_data, heap_new + desc->offset + desc->packlength,
+               sizeof(new_data));
+        blob_changed[i]= (old_data != new_data &&
+                           memcmp(old_data, new_data, old_len) != 0);
+      }
+      any_changed|= blob_changed[i];
+    }
+
+    memcpy(pos, heap_new, (size_t) share->reclength);
+
+    /* Write new chains for changed blobs, restore old pointers for unchanged */
+    for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
+    {
+      if (!blob_changed[i])
+      {
+        /*
+          Restore old chain pointer, from the old current_ptr, where the blob
+          data is in heap memory. This is not the same as the pointer in 'old'
+          as this may have been allocated from a segmented blob.
+
+          When there is no saved chain (zero-length blob with no continuation
+          data), NULL out the pointer that memcpy(pos, heap_new) left behind.
+          Without this, a stale SQL-layer pointer (e.g. from replication event
+          buffer) would be interpreted as a chain head by hp_free_blobs().
+        */
+        if (saved_chains[i])
+        {
+          memcpy(pos + desc->offset + desc->packlength,
+                 &saved_chains[i], sizeof(saved_chains[i]));
+          has_blob_data= TRUE;
+        }
+        else
+          bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+        continue;
+      }
+
+      new_len= hp_blob_length(desc, heap_new);
+      if (new_len == 0)
+        bzero(pos + desc->offset + desc->packlength, sizeof(char*));
+      else
+      {
+        const uchar *data_ptr;
+        uchar *first_run;
+
+        has_blob_data= TRUE;
+        memcpy(&data_ptr, heap_new + desc->offset + desc->packlength,
+               sizeof(data_ptr));
+
+        if (hp_write_one_blob(share, data_ptr, new_len, &first_run))
+        {
+          /* Rollback: free new chains already written, restore old record */
+          uint j;
+          for (j= 0; j < i; j++)
+          {
+            if (blob_changed[j])
+            {
+              uchar *chain;
+              memcpy(&chain, pos + share->blob_descs[j].offset +
+                     share->blob_descs[j].packlength, sizeof(chain));
+              if (chain)
+                hp_free_run_chain(share, chain);
+            }
+          }
+          hp_shrink_tail(share);
+          memcpy(pos, old, (size_t) share->reclength);
+          if (had_cont)
+          {
+            for (j= 0; j < share->blob_count; j++)
+              memcpy(pos + share->blob_descs[j].offset +
+                     share->blob_descs[j].packlength,
+                     &saved_chains[j], sizeof(saved_chains[j]));
+            pos[share->visible]|= HP_ROW_HAS_CONT;
+          }
+          my_safe_afree(saved_chains, alloc_size);
+          goto err;
+        }
+        memcpy(pos + desc->offset + desc->packlength,
+               &first_run, sizeof(first_run));
+      }
+    }
+
+    if (any_changed)
+    {
+      /* Set flags and free old chains for changed blobs */
+      pos[share->visible]= has_blob_data ?
+        (HP_ROW_ACTIVE | HP_ROW_HAS_CONT) : HP_ROW_ACTIVE;
+      if (share->internal)
+      {
+        for (i= 0; i < share->blob_count; i++)
+          if (blob_changed[i] && saved_chains[i])
+            hp_free_run_chain(share, saved_chains[i]);
+        hp_shrink_tail(share);
+      }
+      else
+      {
+        /*
+          Defer blob chain free for user-created tables.
+
+          The handler layer calls binlog_log_row() AFTER update_row()
+          returns, reading old blob data from record[1] via zero-copy
+          pointers into HP_BLOCK chain records.  Freeing chains here
+          would overwrite those records, making the pointers dangle.
+
+          A system-versioned UPDATE then writes the history row from that
+          same record[1], and an AFTER UPDATE trigger reads OLD.<blob> from
+          it, so heap_write() leaves a chain the row it writes still sources
+          data from parked and adopts it instead of reallocating; see
+          hp_flush_unaliased_blob_free().
+        */
+        for (i= 0; i < share->blob_count; i++)
+          info->pending_blob_chains[i]= (blob_changed[i] ?
+                                         saved_chains[i] : NULL);
+        info->has_pending_blob_free= TRUE;
+      }
+    }
+    else if (had_cont)
+      pos[share->visible]|= HP_ROW_HAS_CONT;
+
+    /*
+      Refresh blob pointers in the caller's record buffer.
+
+      For changed blobs, pos has new chain pointers that heap_new
+      doesn't know about yet.  Copy all chain pointers from pos into
+      heap_new and call hp_read_blobs() to re-materialize.
+
+      Only do this for internal temporary tables.  For user tables,
+      hp_read_blobs() may realloc blob_buff, invalidating Case C
+      pointers in old (record[1]) that binlog_log_row() still needs.
+      The SQL layer will re-materialize blobs on the next row fetch.
+    */
+    if (share->internal && (any_changed || info->has_zerocopy_blobs))
+    {
+      for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
+      {
+        uchar *chain;
+        memcpy(&chain, pos + desc->offset + desc->packlength, sizeof(chain));
+        memcpy((uchar*) heap_new + desc->offset + desc->packlength, &chain,
+               sizeof(chain));
+      }
+      hp_read_blobs(info, (uchar*) heap_new, pos);
+    }
+
+    my_safe_afree(saved_chains, alloc_size);
+  }
+  else
+  {
+    memcpy(pos, heap_new, (size_t) share->reclength);
+  }
   if (++(share->records) == share->blength) share->blength+= share->blength;
 
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
@@ -63,35 +270,93 @@ int heap_update(HP_INFO *info, const uchar *old, const uchar *heap_new)
     heap_update_auto_increment(info, heap_new);
   if (key_changed)
     share->key_version++;
+  if (lastinx_changed && (info->update & HA_STATE_NEXT_FOUND))
+  {
+    /*
+      The scanned-index key of the current record changed in place (e.g. a
+      versioned DELETE bumping row_end while scanning row_end), so the record
+      left its position mid-scan. Clear HA_STATE_NEXT_FOUND, otherwise the next
+      heap_rnext() hits the "!current_ptr && HA_STATE_NEXT_FOUND" guard in its
+      hash (non-BTREE) branch, reports a false end-of-file and leaves a row
+      behind. This is the same scan-state contract heap_delete() already
+      maintains for heap_rnext() (it sets info->update there too); an
+      in-place update that moves the scanned key must keep it consistent
+      for the same reason. We only get here on an index scan; rnd scans
+      (heap_scan()/heap_rrnd()) leave lastinx == -1, so despite also setting
+      HA_STATE_NEXT_FOUND they never reach this. A plain single-row UPDATE has
+      no preceding heap_rnext(), so the bit is unset and this is a no-op there.
+
+      See also: mi_extra.c/ma_extra.c HA_EXTRA_RESTORE_POS (MDEV-41050).
+    */
+    info->update&= ~HA_STATE_NEXT_FOUND;
+  }
   DBUG_RETURN(0);
 
  err:
-  if (my_errno == HA_ERR_FOUND_DUPP_KEY)
+  info->errkey= -1;                             /* If not a key error */
+  if (my_errno == HA_ERR_FOUND_DUPP_KEY || my_errno == HA_ERR_OUT_OF_MEM ||
+      my_errno == ENOMEM || my_errno == HA_ERR_RECORD_FILE_FULL)
   {
-    info->errkey = (int) (keydef - share->keydef);
-    if (keydef->algorithm == HA_KEY_ALG_BTREE)
+    int org_error= my_errno;
+    if (keydef == keydef_end)
     {
-      /* we don't need to delete non-inserted key from rb-tree */
+      /*
+        We got a failure after all key parts have been written, like
+        while writing blobs. Alternatively there are no keys.
+        Decrement keydef so that it points at the last key part or
+        before share->keydef.
+      */
+      DBUG_ASSERT(share->keydef);
+      keydef--;
+    }
+    else
+    {
+      /* keydef points to the last key that failed */
+      if (org_error == HA_ERR_FOUND_DUPP_KEY)
+        info->errkey = (int) (keydef - share->keydef);
+      /*
+        The failing key was never inserted: tree_insert() rejects
+        duplicates and fails allocation before linking the node, and
+        hash keys are probed for duplicates before insert.  Re-insert
+        the old key that was deleted just before the failed insert,
+        then roll back the previously updated keys.
+      */
       if ((*keydef->write_key)(info, keydef, old, pos))
       {
+        heap_mark_crashed(share);
         if (++(share->records) == share->blength)
-	  share->blength+= share->blength;
+          share->blength+= share->blength;
         DBUG_RETURN(my_errno);
       }
       keydef--;
     }
+    /* Restore all modified keys */
     while (keydef >= share->keydef)
     {
-      if (hp_rec_key_cmp(keydef, old, heap_new))
+      if (hp_rec_key_cmp(keydef, heap_new, old, NULL))
       {
 	if ((*keydef->delete_key)(info, keydef, heap_new, pos, 0) ||
 	    (*keydef->write_key)(info, keydef, old, pos))
+	{
+	  heap_mark_crashed(share);
 	  break;
+	}
       }
       keydef--;
     }
     info->current_ptr= recovery_ptr;
     info->current_hash_ptr= recovery_hash_ptr;
+    my_errno= org_error;
+  }
+  else
+  {
+    /*
+      An error we do not know how to recover from.  The changed keys have
+      been moved to the new values, or could not be removed from them,
+      while the record keeps the old ones, so the index no longer
+      describes the data.
+    */
+    heap_mark_crashed(share);
   }
   if (++(share->records) == share->blength)
     share->blength+= share->blength;

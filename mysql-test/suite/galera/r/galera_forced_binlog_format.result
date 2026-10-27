@@ -2,7 +2,7 @@ connection node_2;
 connection node_1;
 connection node_1;
 SET GLOBAL wsrep_on=OFF;
-RESET MASTER;
+include/reset_master.inc
 SET GLOBAL wsrep_on=ON;
 FLUSH BINARY LOGS;
 SET SESSION binlog_format = 'STATEMENT';

@@ -31,6 +31,8 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
   HP_SHARE *share=info->s;
   DBUG_ENTER("heap_rsame");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
   if (info->current_ptr[share->visible])
   {
@@ -49,6 +51,8 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
       }
     }
     memcpy(record,info->current_ptr,(size_t) share->reclength);
+    if (share->blob_count && hp_read_blobs(info, record, info->current_ptr))
+      DBUG_RETURN(my_errno);
     DBUG_RETURN(0);
   }
   info->update=0;

@@ -130,6 +130,8 @@ enum srv_shutdown_t	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
 std::unique_ptr<tpool::timer> srv_master_timer;
+/** Refreshes buf_pool.access_clock while srv_master_timer is not running */
+static std::unique_ptr<tpool::timer> buf_pool_clock_timer;
 
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
@@ -1028,6 +1030,7 @@ static void srv_shutdown_threads(bool init_abort= false)
 {
 	ut_ad(!srv_undo_sources);
 	srv_master_timer.reset();
+	buf_pool_clock_timer.reset();
 	/* In case of InnoDB start up aborted, Don't change
 	the srv_shutdown_state. Because innodb_shutdown()
 	does call innodb_preshutdown() which changes the
@@ -1380,6 +1383,9 @@ dberr_t srv_start(bool create_new_db)
 	if (buf_pool.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
+
+	srv_start_periodic_timer(buf_pool_clock_timer,
+				 buf_pool_clock_callback, 1000);
 
 	log_sys.create();
 	recv_sys.create();
@@ -1992,7 +1998,9 @@ skip_monitors:
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
-			srv_start_periodic_timer(srv_master_timer, srv_master_callback, 1000);
+			buf_pool_clock_timer.reset();
+			srv_start_periodic_timer(srv_master_timer,
+						 srv_master_callback, 1000);
 		}
 	}
 

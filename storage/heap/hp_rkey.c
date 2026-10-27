@@ -25,10 +25,13 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
   DBUG_ENTER("heap_rkey");
   DBUG_PRINT("enter",("info: %p  inx: %d", info, inx));
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   if ((uint) inx >= share->keys)
   {
     DBUG_RETURN(my_errno= HA_ERR_WRONG_INDEX);
   }
+  DBUG_ASSERT(!(keyinfo->flag & HA_NO_KEY_READ));
   info->lastinx= inx;
   info->current_record= (ulong) ~0L;		/* For heap_rrnd() */
   info->key_version= info->s->key_version;
@@ -55,7 +58,7 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
       info->update= HA_STATE_NO_KEY;
       DBUG_RETURN(my_errno= HA_ERR_KEY_NOT_FOUND);
     }
-    info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
+    info->lastkey_len= (*keyinfo->get_key_length)(keyinfo, pos);
     if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
       memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
     memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
@@ -72,6 +75,8 @@ int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
       memcpy(info->lastkey, key, (size_t) keyinfo->length);
   }
   memcpy(record, pos, (size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, pos))
+    DBUG_RETURN(my_errno);
   info->update= HA_STATE_AKTIV;
   DBUG_RETURN(0);
 }

@@ -1,0 +1,69 @@
+#
+# Writing an empty COMPRESSED blob into a HEAP table right after a
+# delete or update parked the old row's blob chain for deferred free.
+#
+# Field_blob_compressed::store() leaves a stale non-NULL data pointer
+# in the record buffer when storing a zero-length value, unlike plain
+# Field_blob::store() which zeroes the whole pack.  The engine must
+# decide everything from the stored length and never trust the pointer
+# of a zero-length blob.
+#
+#
+# REPLACE over an existing row (delete + re-insert path)
+#
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+DROP TABLE t;
+#
+# DELETE followed by INSERT of an empty compressed blob
+#
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+DELETE FROM t;
+INSERT INTO t VALUES (2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+2	0
+DROP TABLE t;
+#
+# INSERT ON DUPLICATE KEY UPDATE (update parks, next insert flushes)
+#
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT COMPRESSED) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+INSERT INTO t VALUES (1,''),(2,'')
+ON DUPLICATE KEY UPDATE b = VALUES(b);
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+DROP TABLE t;
+#
+# Two blob columns: one parked chain adopted by a non-empty value,
+# the other column written empty in the same statement
+#
+CREATE TABLE t (id INT PRIMARY KEY, b1 TEXT COMPRESSED, b2 TEXT COMPRESSED)
+ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo','bar');
+REPLACE INTO t VALUES (1,'','quux'),(2,'','');
+SELECT id, LENGTH(b1), LENGTH(b2) FROM t ORDER BY id;
+id	LENGTH(b1)	LENGTH(b2)
+1	0	4
+2	0	0
+DROP TABLE t;
+#
+# Plain TEXT control: empty value stores a NULL pointer, must keep
+# working the same way
+#
+CREATE TABLE t (id INT PRIMARY KEY, b TEXT) ENGINE=HEAP;
+INSERT INTO t VALUES (1,'foo');
+REPLACE INTO t VALUES (1,''),(2,'');
+SELECT id, LENGTH(b) FROM t ORDER BY id;
+id	LENGTH(b)
+1	0
+2	0
+DROP TABLE t;

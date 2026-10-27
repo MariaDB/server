@@ -26,7 +26,6 @@
 #define HIGHFIND 4
 #define HIGHUSED 8
 
-static uchar *next_free_record_pos(HP_SHARE *info);
 static HASH_INFO *hp_find_free_hash(HP_SHARE *info, HP_BLOCK *block,
 				     ulong records);
 
@@ -36,15 +35,26 @@ int heap_write(HP_INFO *info, const uchar *record)
   uchar *pos;
   HP_SHARE *share=info->s;
   DBUG_ENTER("heap_write");
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
 #ifndef DBUG_OFF
   if (info->mode & O_RDONLY)
   {
     DBUG_RETURN(my_errno=EACCES);
   }
 #endif
+  /*
+    Free old stored blob chains, parked by a previous heap_update() or
+    heap_delete(), that are not used by the current record.  A chain this
+    record still sources its blob data from stays parked, and
+    hp_write_blobs() adopts it below instead of allocating a copy of bytes
+    that are already in place.
+  */
+  if (info->has_pending_blob_free)
+    hp_flush_unaliased_blob_free(info, record);
   if (!(pos=next_free_record_pos(share)))
     DBUG_RETURN(my_errno);
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   for (keydef = share->keydef, end = keydef + share->keys; keydef < end;
        keydef++)
@@ -54,7 +64,26 @@ int heap_write(HP_INFO *info, const uchar *record)
   }
 
   memcpy(pos,record,(size_t) share->reclength);
-  pos[share->visible]= 1;                     /* Mark record as not deleted */
+  if (share->blob_count)
+  {
+    if (hp_write_blobs(info, record, pos))
+    {
+      /*
+        Blob write failed after all keys were written successfully.
+        Roll back all keys - unlike err: below, no key needs to be skipped.
+
+        Do NOT call hp_free_blobs() here: hp_write_blobs() is self-cleaning
+        on failure - hp_write_one_blob() frees its own partial chain, and
+        hp_write_blobs() frees all previously completed columns (0..i-1) and
+        NULLs every chain pointer in pos.
+      */
+      info->errkey= -1;
+      keydef= end - 1;
+      goto err_delete_written_keys;
+    }
+  }
+  else
+    pos[share->visible]= 1;                   /* Mark record as not deleted */
   if (++share->records == share->blength)
     share->blength+= share->blength;
   info->s->key_version++;
@@ -71,26 +100,28 @@ err:
     DBUG_PRINT("info",("Duplicate key: %d", (int) (keydef - share->keydef)));
   info->errkey= (int) (keydef - share->keydef);
   /*
-    We don't need to delete non-inserted key from rb-tree.  Also, if
-    we got ENOMEM, the key wasn't inserted, so don't try to delete it
-    either.  Otherwise for HASH index on HA_ERR_FOUND_DUPP_KEY the key
-    was inserted and we have to delete it.
+    The failing key was never inserted: tree_insert() rejects
+    duplicates and fails allocation before linking the node, hash keys
+    are probed for duplicates before insert, and on ENOMEM nothing was
+    added.  Roll back only the preceding keys.
   */
-  if (keydef->algorithm == HA_KEY_ALG_BTREE || my_errno == ENOMEM)
-  {
-    keydef--;
-  }
+  keydef--;
+
+err_delete_written_keys:
   while (keydef >= share->keydef)
   {
     if ((*keydef->delete_key)(info, keydef, record, pos, 0))
       break;
     keydef--;
-  } 
+  }
 
-  share->deleted++;
-  *((uchar**) pos)=share->del_link;
-  share->del_link=pos;
-  pos[share->visible]= 0;                                 /* Record deleted */
+  /*
+    Do NOT call hp_free_blobs here: the err: label is reached when a key
+    write fails (line 52), which is BEFORE memcpy(pos, record, reclength)
+    and hp_write_blobs(). The slot at pos still contains stale data from the
+    delete list, so hp_free_blobs would chase garbage chain pointers.
+  */
+  hp_push_free_record(share, pos);
 
   DBUG_RETURN(my_errno);
 } /* heap_write */
@@ -99,11 +130,12 @@ err:
   Write a key to rb_tree-index 
 */
 
-int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record, 
+int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record,
 		    uchar *recpos)
 {
   heap_rb_param custom_arg;
   size_t old_allocated;
+  TREE_ELEMENT *element;
 
   custom_arg.keyseg= keyinfo->seg;
   custom_arg.key_length= hp_rb_make_key(keyinfo, info->recbuf, record, recpos);
@@ -118,58 +150,189 @@ int hp_rb_write_key(HP_INFO *info, HP_KEYDEF *keyinfo, const uchar *record,
     keyinfo->rb_tree.flag= 0;
   }
   old_allocated= keyinfo->rb_tree.allocated;
-  if (!tree_insert(&keyinfo->rb_tree, (void*)info->recbuf,
-		   custom_arg.key_length, &custom_arg))
+  element= tree_insert(&keyinfo->rb_tree, (void*) info->recbuf,
+                       custom_arg.key_length, &custom_arg);
+  if (!element)
   {
-    my_errno= HA_ERR_FOUND_DUPP_KEY;
+    if (keyinfo->rb_tree.error == TREE_ERROR_OOM)
+      my_errno= HA_ERR_OUT_OF_MEM;
+    else if (keyinfo->rb_tree.error == TREE_ERROR_DUP_KEY)
+      my_errno= HA_ERR_FOUND_DUPP_KEY;
+    else
+      my_errno= HA_ERR_INTERNAL_ERROR;
     return 1;
   }
   info->s->index_length+= (keyinfo->rb_tree.allocated-old_allocated);
   return 0;
 }
 
-	/* Find where to place new record */
 
-static uchar *next_free_record_pos(HP_SHARE *info)
+/*
+  Allocate a contiguous batch of records from the HP_BLOCK tail.
+
+  *blocks is in/out: on entry, the maximum number of records to
+  allocate; on return, the actual count (capped at the remaining
+  slots in the current leaf block).  All returned records are
+  contiguous in memory (run_start + i * recbuffer).
+
+  Used by next_free_record_pos() (blocks=1) when no deleted records
+  are available, and by hp_write_one_blob() for blob continuation
+  chain allocation.
+
+  Maintains the scan-boundary invariant:
+      total_records + deleted == block.last_allocated
+  by incrementing both last_allocated and total_records by the
+  allocated count.  heap_scan() relies on this invariant.
+*/
+
+uchar *hp_alloc_from_tail(HP_SHARE *info, uint *blocks)
 {
-  int block_pos;
-  uchar *pos;
+  uint block_pos;
+  uint available, requested;
   size_t length;
+  DBUG_ENTER("hp_alloc_from_tail");
+
+  DBUG_ASSERT(*blocks > 0);
+  if (!(block_pos= (uint)(info->block.last_allocated %
+                           info->block.records_in_block)))
+  {
+    if (info->block.last_allocated > info->max_records)
+    {
+      DBUG_PRINT("error",
+                 ("record file full. last_allocated: %lu  max_records: %lu",
+                  info->block.last_allocated, info->max_records));
+      my_errno= HA_ERR_RECORD_FILE_FULL;
+      DBUG_RETURN(NULL);
+    }
+
+    if (info->block.last_allocated < info->block.high_water_allocated)
+    {
+      /* Block was freed by shrink_tail(). Reclaim block */
+      info->block.level_info[0].last_blocks=
+        (HP_PTRS*) hp_find_block(&info->block, info->block.last_allocated);
+    }
+    else
+    {
+      /*
+        The table memory ceiling gates memory the table does not hold
+        yet, so it belongs here and not beside the max_records test.
+        The reclaim branch hands back a leaf that data_length already
+        counts, and hp_shrink_tail() reaches it whenever it empties the
+        tail of a table that has been over its ceiling since its first
+        row: index leaves are allocated without consulting the ceiling.
+        Testing the ceiling there as well would make such a table refuse
+        a row it held a moment earlier.
+      */
+      if (info->data_length + info->index_length >= info->max_table_size)
+      {
+        DBUG_PRINT("error",
+                   ("record file full. data_length: %llu  index_length: %llu  "
+                    "max_table_size: %llu",
+                    info->data_length, info->index_length,
+                    info->max_table_size));
+        my_errno= HA_ERR_RECORD_FILE_FULL;
+        DBUG_RETURN(NULL);
+      }
+      /* No available blocks, allocate new ones */
+      if (hp_get_new_block(info, &info->block, &length))
+        DBUG_RETURN(NULL);
+      info->data_length+= length;
+    }
+  }
+  available= (uint)(info->block.records_in_block - block_pos);
+  requested= *blocks;
+  if (requested > available)
+    requested= available;
+  DBUG_ASSERT(block_pos + requested <= info->block.records_in_block);
+  info->block.last_allocated+= requested;
+  info->total_records+= requested;
+  *blocks= requested;
+  DBUG_PRINT("exit",("Used new position: %p  blocks: %u",
+		     ((uchar*) info->block.level_info[0].last_blocks+
+                      block_pos * info->block.recbuffer),
+                     requested));
+  DBUG_RETURN((uchar*) info->block.level_info[0].last_blocks+
+	      block_pos * info->block.recbuffer);
+}
+
+
+/*
+  Take 'count' contiguous records from the head block.
+  The head must be a block-end with at least 'count' records.
+  Returns the lowest address of the taken range.
+*/
+
+uchar *hp_take_free_block(HP_SHARE *share, uint16 count)
+{
+  uchar *pos= share->del_link;
+  uchar *first;
+  uint recbuffer= share->block.recbuffer;
+  uint16 block_count, remaining;
+  uchar *taken_start;
+
+  DBUG_ASSERT(pos && hp_is_free_block_end(pos));
+
+  first= hp_free_block_first(pos);
+  block_count= hp_free_block_start_count(first);
+
+  DBUG_ASSERT(count >= 1 && count <= block_count);
+
+  remaining= block_count - count;
+  taken_start= first + (uint32) remaining * recbuffer;
+
+  if (remaining == 0)
+  {
+    /* Block fully consumed */
+    share->del_link= *((uchar**) first);
+  }
+  else if (remaining == 1)
+  {
+    /* Collapse to single record; first's del_link already has next entry */
+    first[HP_DEL_FLAG_OFFSET]= 0;
+    share->del_link= first;
+  }
+  else
+  {
+    /* Shrink block */
+    uchar *new_last= taken_start - recbuffer;
+    *((uchar**) new_last)= first;
+    new_last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+    int2store(first + HP_DEL_COUNT_OFFSET, remaining);
+    share->del_link= new_last;
+  }
+
+  share->deleted-= count;
+  share->total_records+= count;
+  return taken_start;
+}
+
+
+/*
+  Find where to place a new record.
+
+  Allocates from the free list (del_link) first; if empty, extends the
+  HP_BLOCK tail.  Both paths maintain the scan-boundary invariant:
+      total_records + deleted == block.last_allocated
+  Free-list allocation does deleted-- + total_records++ (sum unchanged).
+  Tail allocation does last_allocated++ + total_records++ (sum grows by 1,
+  matching the new slot).  heap_scan() relies on this sum to detect EOF.
+*/
+
+uchar *next_free_record_pos(HP_SHARE *info)
+{
+  uchar *pos;
   DBUG_ENTER("next_free_record_pos");
 
   if (info->del_link)
   {
-    pos=info->del_link;
-    info->del_link= *((uchar**) pos);
-    info->deleted--;
+    pos= hp_pop_free_record(info);
     DBUG_PRINT("exit",("Used old position: %p", pos));
     DBUG_RETURN(pos);
   }
-  if (!(block_pos=(info->records % info->block.records_in_block)))
   {
-    if ((info->records > info->max_records && info->max_records) ||
-        (info->data_length + info->index_length >= info->max_table_size))
-    {
-      DBUG_PRINT("error",
-                 ("record file full. records: %lu  max_records: %lu  "
-                  "data_length: %llu  index_length: %llu  "
-                  "max_table_size: %llu",
-                  info->records, info->max_records,
-                  info->data_length, info->index_length,
-                  info->max_table_size));
-      my_errno=HA_ERR_RECORD_FILE_FULL;
-      DBUG_RETURN(NULL);
-    }
-
-    if (hp_get_new_block(info, &info->block,&length))
-      DBUG_RETURN(NULL);
-    info->data_length+=length;
+    uint blocks= 1;
+    DBUG_RETURN(hp_alloc_from_tail(info, &blocks));
   }
-  DBUG_PRINT("exit",("Used new position: %p",
-		     ((uchar*) info->block.level_info[0].last_blocks+
-                      block_pos * info->block.recbuffer)));
-  DBUG_RETURN((uchar*) info->block.level_info[0].last_blocks+
-	      block_pos*info->block.recbuffer);
 }
 
 
@@ -194,8 +357,8 @@ static uchar *next_free_record_pos(HP_SHARE *info)
   RETURN
     0  - OK
     -1 - Out of memory
-    HA_ERR_FOUND_DUPP_KEY - Duplicate record on unique key. The record was 
-    still added and the caller must call hp_delete_key for it.
+    HA_ERR_FOUND_DUPP_KEY - Duplicate record on unique key. Nothing was
+    inserted; the index is unchanged.
 */
 
 int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
@@ -203,11 +366,41 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
 {
   HP_SHARE *share = info->s;
   int flag;
-  ulong halfbuff,hashnr,first_index;
+  ulong halfbuff,hashnr,first_index,rec_hash;
   ulong UNINIT_VAR(hash_of_key), UNINIT_VAR(hash_of_key2);
   uchar *UNINIT_VAR(ptr_to_rec),*UNINIT_VAR(ptr_to_rec2);
   HASH_INFO *empty,*UNINIT_VAR(gpos),*UNINIT_VAR(gpos2),*pos;
   DBUG_ENTER("hp_write_key");
+
+  rec_hash= hp_rec_hashnr(0, keyinfo, record);
+
+  /*
+    Reject a duplicate before modifying the index, so that the caller
+    never has to undo the insert (the undo would hash the key value a
+    second time, which is expensive for blob keys).  The probe walks
+    the key's chain under the current mask comparing cached hashes;
+    the full value is compared only on a hash match.  Records with
+    equal hashes always share a bucket under any mask, so probing the
+    pre-insert chain finds any duplicate.
+  */
+  if ((keyinfo->flag & HA_NOSAME) && share->records &&
+      (!(keyinfo->flag & HA_NULL_PART_KEY) ||
+       !hp_if_null_in_key(keyinfo, record)))
+  {
+    ulong search_pos= hp_mask(rec_hash, share->blength, share->records);
+    pos= hp_find_hash(&keyinfo->block, search_pos);
+    /* Only entries whose home position is search_pos belong to the chain */
+    if (hp_mask(pos->hash_of_key, share->blength, share->records) ==
+        search_pos)
+    {
+      do
+      {
+        if (pos->hash_of_key == rec_hash &&
+            !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
+          DBUG_RETURN(my_errno=HA_ERR_FOUND_DUPP_KEY);
+      } while ((pos= pos->next_key));
+    }
+  }
 
   flag=0;
   if (!(empty= hp_find_free_hash(share,&keyinfo->block,share->records)))
@@ -347,13 +540,12 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
   }
   /* Check if we are at the empty position */
 
-  hash_of_key= hp_rec_hashnr(keyinfo, record);
   pos=hp_find_hash(&keyinfo->block,
-                   hp_mask(hash_of_key, share->blength, share->records + 1));
+                   hp_mask(rec_hash, share->blength, share->records + 1));
   if (pos == empty)
   {
     pos->ptr_to_rec=  recpos;
-    pos->hash_of_key= hash_of_key;
+    pos->hash_of_key= rec_hash;
     pos->next_key=    0;
     keyinfo->hash_buckets++;
   }
@@ -366,7 +558,7 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
 			      share->blength, share->records + 1));
 
     pos->ptr_to_rec=  recpos;
-    pos->hash_of_key= hash_of_key;
+    pos->hash_of_key= rec_hash;
     if (pos == gpos)
       pos->next_key=empty;
     else
@@ -374,22 +566,6 @@ int hp_write_key(HP_INFO *info, HP_KEYDEF *keyinfo,
       keyinfo->hash_buckets++;
       pos->next_key= 0;
       hp_movelink(pos, gpos, empty);
-    }
-
-    /* Check if duplicated keys */
-    if ((keyinfo->flag & HA_NOSAME) && pos == gpos &&
-	(!(keyinfo->flag & HA_NULL_PART_KEY) ||
-	 !hp_if_null_in_key(keyinfo, record)))
-    {
-      pos=empty;
-      do
-      {
-	if (pos->hash_of_key == hash_of_key &&
-            ! hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec))
-	{
-	  DBUG_RETURN(my_errno=HA_ERR_FOUND_DUPP_KEY);
-	}
-      } while ((pos=pos->next_key));
     }
   }
   DBUG_RETURN(0);

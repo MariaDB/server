@@ -1,0 +1,44 @@
+#
+# HEAP blob deferred free + TRUNCATE interaction.
+#
+# Validates that TRUNCATE TABLE (heap_clear) correctly invalidates
+# pending deferred blob chain pointers.  Without the fix, DELETE
+# saves chain pointers into pending_blob_chains[], then TRUNCATE
+# frees the HP_BLOCK tree.  The next INSERT triggers a flush that
+# dereferences the now-dangling chain pointers -- use-after-free.
+#
+
+--echo #
+--echo # DELETE + TRUNCATE + INSERT: deferred blob chains must not
+--echo # survive heap_clear()
+--echo #
+
+CREATE TABLE t (
+  id INT,
+  a TEXT,
+  b TEXT
+) ENGINE=HEAP;
+
+INSERT INTO t VALUES (1, REPEAT('x', 500), REPEAT('y', 500));
+INSERT INTO t VALUES (2, REPEAT('a', 1000), REPEAT('b', 1000));
+
+DELETE FROM t WHERE id = 1;
+TRUNCATE TABLE t;
+INSERT INTO t VALUES (3, REPEAT('z', 200), REPEAT('w', 200));
+
+SELECT id, LENGTH(a), LENGTH(b) FROM t;
+
+--echo #
+--echo # Multiple rounds: DELETE all + TRUNCATE + refill
+--echo #
+
+INSERT INTO t VALUES (4, REPEAT('m', 800), REPEAT('n', 800));
+DELETE FROM t WHERE id = 3;
+DELETE FROM t WHERE id = 4;
+TRUNCATE TABLE t;
+INSERT INTO t VALUES (5, REPEAT('p', 300), REPEAT('q', 300));
+INSERT INTO t VALUES (6, REPEAT('r', 1500), REPEAT('s', 1500));
+
+SELECT id, LENGTH(a), LENGTH(b) FROM t ORDER BY id;
+
+DROP TABLE t;

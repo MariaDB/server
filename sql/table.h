@@ -97,11 +97,19 @@ typedef ulonglong nested_join_map;
 #define VIEW_MD5_LEN 32
 #define MD5_BUFF_LENGTH (VIEW_MD5_LEN + 1) /* hex digest + NUL */
 
-
-#define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
+/*
+  Prefix for tmp tables, starts with #
+ */
+extern MYSQL_PLUGIN_IMPORT char tmp_file_prefix[];
 #define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 #define ROCKSDB_DIRECTORY_NAME "#rocksdb"
+
+static inline bool is_tmp_table(const char *filename)
+{
+  return (filename[0] == '#' &&
+          !strncmp(filename+1, tmp_file_prefix+1, tmp_file_prefix_length-1));
+}
 
 #define HLINDEX_TEMPLATE "#i#%02u"
 #define HLINDEX_BUF_LEN  16 /* with extension .ibd/.MYI/etc and safety margin */
@@ -390,8 +398,12 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
-  INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
+  NO_TMP_TABLE= 0,                  // Normal table
+  NON_TRANSACTIONAL_TMP_TABLE,      // CREATE TEMPORARY ... TRANSACTIONAL=0
+  TRANSACTIONAL_TMP_TABLE,	    // CREATE TEMPORARY ... TRANSACTIONAL=1
+  INTERNAL_TMP_TABLE,               // Table created for different purposes
+  RESULT_TMP_TABLE,                 // Holds intermediate SELECT results
+  SYSTEM_TMP_TABLE                  // Created by mysql_schema_table
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 
@@ -844,7 +856,7 @@ struct TABLE_SHARE
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
 
-  /** Transactional or not. */
+  /** Created transactional or not. */
   enum ha_choice transactional;
   /** Per-page checksums or not. */
   enum ha_choice page_checksum;
@@ -1196,7 +1208,7 @@ struct TABLE_SHARE
 
   bool is_optimizer_tmp_table()
   {
-    return tmp_table == INTERNAL_TMP_TABLE && !db.length && table_name.length;
+    return tmp_table == RESULT_TMP_TABLE;
   }
 
   bool visit_subgraph(Wait_for_flush *waiting_ticket,
@@ -1315,20 +1327,56 @@ public:
     free_root(&storage, MYF(MY_MARK_BLOCKS_FREE));
     truncated_value= false;
   }
+  /*
+    Every value is stored behind one byte that records whether the value
+    was cut on its way in. The byte is not part of the value and the
+    returned pointer is what the record holds, so a reader that has the
+    record can ask was_cut() about a value without knowing which row it
+    came from.
+  */
+  char *store_with_cut_mark(const char *from, size_t length, bool cut,
+                            size_t prefix)
+  {
+    char *res= (char*) alloc_root(&storage, length + prefix + 1);
+    if (res)
+    {
+      *res++= (char) cut;
+      if (prefix)
+        res[0]= 0;
+      memcpy(res + prefix, from, length);
+    }
+    return res;
+  }
   /**
      Function creates duplicate of 'from'
      string in 'storage' MEM_ROOT.
 
      @param from           string to copy
      @param length         string length
+     @param cut            'from' was cut to fit the limit
 
      @retval Pointer to the copied string.
      @retval 0 if an error occurred.
   */
-  char *store(const char *from, size_t length)
+  char *store(const char *from, size_t length, bool cut)
   {
-    return (char*) memdup_root(&storage, from, length);
+    return store_with_cut_mark(from, length, cut, 0);
   }
+  /*
+    Store string with a 0 prefix. This is used for storing
+    Field_blob_compressed fields in a not compressed format.
+  */
+  char *store_with_zero_prefix(const char *from, size_t length, bool cut)
+  {
+    return store_with_cut_mark(from, length, cut, 1);
+  }
+  /*
+    Whether the value at 'ptr' was cut on its way in. 'ptr' must be a
+    pointer this storage handed out, which is the case for every blob in
+    a table that has a Blob_mem_storage: Field_blob::store() sends all of
+    them through Field_blob::handle_group_concat().
+  */
+  static bool was_cut(const char *ptr) { return ptr[-1] != 0; }
   void set_truncated_value(bool is_truncated_value)
   {
     truncated_value= is_truncated_value;
@@ -2901,7 +2949,48 @@ struct TABLE_LIST
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
   bool          straight;		/* optimize with prev table */
-  bool          updating;               /* for replicate-do/ignore table */
+  /*
+    Set when this statement changes the table rather than merely reading it
+    (DML *or* DDL) - i.e. the table is a target the statement modifies or
+    operates on. This is a SQL-layer/semantic flag and is deliberately
+    distinct from "a write lock will be taken" (lock_type >= TL_FIRST_WRITE):
+    SELECT ... FOR UPDATE / LOCK IN SHARE MODE take a write lock (especially on
+    engines without row locks, e.g. MyISAM) yet only read, so their tables
+    have updating == false; conversely a table can be flagged for replication
+    reasons without a write lock (see below).
+
+    Set by:
+      - the parser, via the TL_OPTION_UPDATING table option, for tables a
+        statement changes:
+          * DDL targets: CREATE/ALTER/RENAME TABLE, CREATE/DROP INDEX,
+            CREATE/DROP SEQUENCE, CREATE TRIGGER;
+          * DML targets of DELETE (single and multi) and LOAD;
+          * LOCK TABLES ... WRITE;
+      - set_lock_for_tables(for_update=true) for INSERT/REPLACE/UPDATE targets
+        (these do not use the parser option);
+      - the init_one_table() / TABLE_LIST(.., lock_type) ctors, which derive it
+        as (lock_type >= TL_FIRST_WRITE) for internally built table refs
+        (system tables, row-event replication apply, etc.);
+      - multi-UPDATE, which refines it per table during prelocking once the set
+        of updated tables is known;
+      - NEXTVAL() / SETVAL(), which mark the modified sequence table (it is
+        changed even though it carries no TL_OPTION_UPDATING);
+      - replication, which forces it independently of the lock, e.g. DROP
+        TRIGGER, and the table_map_for_update filtering of multi-UPDATE.
+
+    Read by:
+      - Rpl_filter::tables_ok() - replicate-do-table / replicate-ignore-table
+        filtering on the slave (the field's original purpose). This is why DDL
+        must set it: otherwise tables_ok() would skip the table and the slave
+        would wrongly ignore the statement.
+      - some_non_temp_table_to_be_updated() - read_only enforcement and related
+        binlog decisions.
+      - extend_table_list() - prelocking; paired with lock_type >= TL_FIRST_WRITE
+        so only genuinely-written, write-locked tables pull in triggers/FKs.
+      - THD::decide_logging_format() - distinguishes a genuine write from a
+        FOR UPDATE read when setting the STMT_WRITES_* accessed-table flags.
+  */
+  bool          updating;
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
   bool          skip_locked;            /* Skip locked in view definition */

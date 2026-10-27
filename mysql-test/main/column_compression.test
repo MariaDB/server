@@ -516,6 +516,7 @@ DROP TABLE t5;
 
 create table t1 (pk int not null, b1 blob compressed, v1 varbinary(100))engine=innodb;
 insert into t1 values (1,'ufhjdtv','f'),(2,'jdt',''),(3,'d','tvs');
+select t1.v1, t1.b1 from t1 join t1 as tt on (tt.pk != t1.pk) order by t1.v1;
 select group_concat(t1.v1, t1.b1 order by 1) from (t1 join t1 as tt on (tt.pk != t1.pk));
 drop table t1;
 
@@ -532,6 +533,7 @@ DROP TABLE t1;
 create table t1 (a varchar(8) compressed) character set utf8mb4;
 create algorithm=temptable view v1 as select * from t1;
 insert into t1 values ('foo'),('bar'),('foo');
+--sorted_result
 select * from v1 where a in (select a from t1);
 # cleanup
 drop view v1;
@@ -549,6 +551,7 @@ drop table t1, t2;
 create table t1 (a text compressed) character set utf8mb4;
 create algorithm=temptable view v1 as select * from t1;
 insert into t1 values ('foo'),('bar'),('foo');
+--sorted_result
 select * from v1 where a in (select a from t1);
 # cleanup
 drop view v1;

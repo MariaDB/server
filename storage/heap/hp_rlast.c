@@ -25,6 +25,8 @@ int heap_rlast(HP_INFO *info, uchar *record, int inx)
   HP_KEYDEF *keyinfo= share->keydef + inx;
 
   DBUG_ENTER("heap_rlast");
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   info->lastinx= inx;
   info->key_version= info->s->key_version;
   if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
@@ -34,9 +36,12 @@ int heap_rlast(HP_INFO *info, uchar *record, int inx)
     if ((pos = tree_search_edge(&keyinfo->rb_tree, info->parents,
                                 &info->last_pos, offsetof(TREE_ELEMENT, right))))
     {
-      memcpy(&pos, pos + keyinfo->get_key_length(keyinfo, pos), sizeof(uchar*));
+      memcpy(&pos, pos + (*keyinfo->get_key_length)(keyinfo, pos),
+             sizeof(uchar*));
       info->current_ptr = pos;
       memcpy(record, pos, (size_t)share->reclength);
+      if (share->blob_count && hp_read_blobs(info, record, pos))
+        DBUG_RETURN(my_errno);
       info->update = HA_STATE_AKTIV;
     }
     else
@@ -48,7 +53,14 @@ int heap_rlast(HP_INFO *info, uchar *record, int inx)
   }
   else
   {
-    /* We can't scan a non existing key value with hash index */
+    /*
+      We can't scan a non existing key value with hash index.
+      lastinx was already retargeted to this key above; clear
+      current_hash_ptr so that it cannot be misread as belonging to
+      this key (hp_delete_key() reuses its cached hash when flag is
+      set and current_hash_ptr matches the record being deleted).
+    */
+    info->current_hash_ptr= 0;
     my_errno= HA_ERR_WRONG_COMMAND;
     DBUG_RETURN(my_errno);
   }

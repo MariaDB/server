@@ -33,19 +33,6 @@
 #include "item_sum.h"
 #include "sql_type_geom.h"
 
-/**
-  Calculate the affordable RAM limit for structures like TREE or Unique
-  used in Item_sum_*
-*/
-
-size_t Item_sum::ram_limitation(THD *thd)
-{
-  return MY_MAX(1024,
-           (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
-                          thd->variables.max_heap_table_size));
-}
-
-
 /*
   Force create_tmp_table() to convert BIT columns to BIGINT.
   This is needed because BIT fields store parts of their data in table's
@@ -869,11 +856,14 @@ bool Aggregator_distinct::setup(THD *thd)
     table->file->extra(HA_EXTRA_NO_ROWS);		// Don't update rows
     table->no_rows=1;
 
-    if (table->s->db_type() == heap_hton)
+    if (table->s->db_type() == heap_hton && !table->s->blob_fields)
     {
       /*
-        No blobs, otherwise it would have been MyISAM: set up a compare
-        function and its arguments to use with Unique.
+        Unique tree compares raw record bytes (simple_raw_key_cmp or
+        composite_key_cmp).  Blob fields store only a pointer in the
+        record, so raw comparison would compare pointer values, not
+        actual blob data.  Skip the Unique tree path for blob tables
+        and fall through to the ha_write_tmp_row path below.
       */
       qsort_cmp2 compare_key;
       void* cmp_arg;
@@ -930,7 +920,7 @@ bool Aggregator_distinct::setup(THD *thd)
       DBUG_ASSERT(tree == 0);
       tree= (new (thd->mem_root)
              Unique(compare_key, cmp_arg, tree_key_length,
-                    item_sum->ram_limitation(thd)));
+                    thd->ram_limitation()));
       /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
@@ -989,7 +979,7 @@ bool Aggregator_distinct::setup(THD *thd)
     */
     tree= (new (thd->mem_root)
            Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
-                  item_sum->ram_limitation(thd)));
+                  thd->ram_limitation()));
 
     DBUG_RETURN(tree == 0);
   }
@@ -1073,11 +1063,30 @@ bool Aggregator_distinct::add()
       */
       return tree->unique_add(table->record[0] + table->s->null_bytes);
     }
-    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
-        table->file->is_fatal_error(error, HA_CHECK_DUP))
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
-      table->file->print_error(error, MYF(0));
-      return TRUE;
+      bool is_duplicate;
+      if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
+        return FALSE;                           // duplicate, not an error
+      /*
+        Non-duplicate write error.  If the table is HEAP and the error
+        is HA_ERR_RECORD_FILE_FULL, create_internal_tmp_table_from_heap()
+        converts it to an on-disk engine and copies all rows plus the
+        overflow row (record[0]).  For any other error it reports a
+        fatal error and returns 1.
+
+        The overflow row has not been checked against the unique
+        constraint of the converted table yet, and it may well be a
+        duplicate of a row that was copied there before it.  That is the
+        same condition the write above returns FALSE for, so ignore it
+        here as well; the value it holds is already counted, which is
+        why *is_duplicate is not read afterwards.
+      */
+      if (create_internal_tmp_table_from_heap(table->in_use, table,
+                                              tmp_table_param->start_recinfo,
+                                              &tmp_table_param->recinfo,
+                                              error, 1, &is_duplicate, NULL))
+        return TRUE;
     }
     return FALSE;
   }
@@ -1384,21 +1393,22 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 
 
 Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
-                                          bool group, TABLE *table)
+                                          bool group, TABLE *table,
+                                          const Tmp_field_param *param)
 {
   DBUG_ENTER("Item_sum_min_max::create_tmp_field");
 
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*) args[0])->field;
-    if ((field= field->create_tmp_field(root, table, true)))
+    if ((field= field->create_tmp_field(root, table, true, 0)))
     {
       DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
     }
     DBUG_RETURN(field);
   }
-  DBUG_RETURN(tmp_table_field_from_field_type(root, table));
+  DBUG_RETURN(tmp_table_field_from_field_type(root, table, param));
 }
 
 /***********************************************************************
@@ -2125,7 +2135,8 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 }
 
 
-Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                      const Tmp_field_param *param)
 {
 
   if (group)
@@ -2143,7 +2154,7 @@ Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
       field->init(table);
     return field;
   }
-  return tmp_table_field_from_field_type(root, table);
+  return tmp_table_field_from_field_type(root, table, param);
 }
 
 
@@ -2369,7 +2380,8 @@ Item *Item_sum_variance::copy_or_same(THD* thd)
   pass around.
 */
 Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
-                                           bool group, TABLE *table)
+                                           bool group, TABLE *table,
+                                           const Tmp_field_param *param)
 {
   Field *field;
   if (group)
@@ -3841,12 +3853,6 @@ extern "C" int group_concat_key_cmp_with_order(void *arg, const void *key1,
        order_item++)
   {
     Item *item= *(*order_item)->item;
-    /* 
-      If field_item is a const item then either get_tmp_table_field returns 0
-      or it is an item over a const table. 
-    */
-    if (item->const_item())
-      continue;
     /*
       If item is a const item then either get_tmp_table_field returns 0
       or it is an item over a const table.
@@ -3957,6 +3963,48 @@ static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
 }
 
 
+/*
+  Tell the user that the walk of the duplicate filter could not deliver
+  the whole group.
+
+  The cut value warning would carry a row number here, and that number
+  means nothing in this case: nothing had been written when the walk
+  failed, and how much was lost is not known. Name the limit that held
+  the walk down instead. Unique is given thd->ram_limitation() to work
+  in, which is the smaller of the two variables below.
+*/
+
+static void report_cut_result_error(THD *thd, const char *fname)
+{
+  const char *limit= (thd->variables.tmp_memory_table_size <=
+                      thd->variables.max_heap_table_size ?
+                      "tmp_memory_table_size" : "max_heap_table_size");
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_RESULT_CUT_BY_LIMIT,
+                      ER_THD(thd, ER_RESULT_CUT_BY_LIMIT),
+                      fname, limit);
+}
+
+
+/*
+  Tell the user that a value was cut to group_concat_max_len on its way
+  into blob_storage.
+
+  This is only a note. Whether the answer would have been different with
+  a bigger limit is not known here: the result may well have been cut at
+  the same place anyway, in which case nothing was lost that the user
+  could have seen.
+*/
+
+static void report_cut_value_note(THD *thd, const char *fname)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_CUT_VALUES_WHILE_PROCESSING,
+                      ER_THD(thd, ER_CUT_VALUES_WHILE_PROCESSING),
+                      fname, "group_concat_max_len");
+}
+
+
 void Item_func_group_concat::cut_max_length(String *result,
         uint old_length, uint max_length) const
 {
@@ -3987,28 +4035,26 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   uint max_length= table->in_use->gconcat_max_len();
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
-  String tmp2;
   uchar *key= (uchar *) key_arg;
   String *result= &item->result;
   Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
   uint old_length= result->length();
 
-  ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
   if (item->limit_clause && !(*row_limit))
   {
     item->result_finalized= true;
+    item->walk_stopped= true;
     return 1;
+  }
+  if (item->copy_offset_limit)
+  {
+    item->copy_offset_limit--;
+    item->row_count++;
+    return 0;
   }
 
   tmp.length(0);
-
-  if (item->limit_clause && (*offset_limit))
-  {
-    item->row_count++;
-    (*offset_limit)--;
-    return 0;
-  }
 
   if (!item->result_finalized)
     item->result_finalized= true;
@@ -4032,11 +4078,26 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       Field *field= (*arg)->get_tmp_table_field();
       if (field)
       {
+        /* Note that field->table can be different table! */
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
         res= item->get_str_from_field(*arg, field, &tmp, key,
                                       offset + item->get_null_bytes());
+        /*
+          This row is going into the answer. If the value it carries was
+          cut on its way into blob_storage then the answer is short by
+          what was cut, which val_str() reports as a warning. A value cut
+          for a row that never gets here may have changed nothing.
+        */
+        if (table->blob_storage && (field->flags & BLOB_FLAG))
+        {
+          /* A NULL blob was never stored, so there is no mark to read. */
+          const uchar *rec= key + offset + item->get_null_bytes();
+          const uchar *val= ((Field_blob*) field)->get_ptr(rec);
+          if (val && Blob_mem_storage::was_cut((const char*) val))
+            item->value_cut_in_result= true;
+        }
       }
       else
         res= item->get_str_from_item(*arg, &tmp);
@@ -4053,16 +4114,14 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   /* stop if length of result more than max_length */
   if (result->length() > max_length)
   {
-    THD *thd= current_thd;
     item->cut_max_length(result, old_length, max_length);
     item->warning_for_row= TRUE;
-    report_cut_value_error(thd, item->row_count, item->func_name());
-
-    /**
-       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    /*
+      Only remember that the result was cut. val_str() reports it, so
+      that the user gets one warning even if several things were cut.
     */
-    if (table && table->blob_storage)
-      table->blob_storage->set_truncated_value(false);
+    item->result_cut= true;
+    item->walk_stopped= true;
     return 1;
   }
   return 0;
@@ -4085,13 +4144,16 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        String *separator_arg, bool limit_clause,
                        Item *row_limit_arg, Item *offset_limit_arg)
   :Item_sum_str(thd), tmp_table_param(0), separator(separator_arg), tree(0),
+   max_tree_size(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
    arg_count_field(select_list->elements),
    row_count(0),
    distinct(distinct_arg),
-   warning_for_row(FALSE), always_null(FALSE),
+   warning_for_row(FALSE), result_cut(FALSE), cut_note_given(FALSE),
+   value_cut_in_result(FALSE), walk_stopped(FALSE), walk_failed(FALSE),
+   always_null(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
    copy_offset_limit(0), copy_row_limit(0), original(0)
@@ -4149,7 +4211,7 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   tmp_table_param(item->tmp_table_param),
   separator(item->separator),
   tree(item->tree),
-  tree_len(item->tree_len),
+  max_tree_size(item->max_tree_size),
   unique_filter(item->unique_filter),
   table(item->table),
   context(item->context),
@@ -4158,6 +4220,11 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   row_count(item->row_count),
   distinct(item->distinct),
   warning_for_row(item->warning_for_row),
+  result_cut(item->result_cut),
+  cut_note_given(item->cut_note_given),
+  value_cut_in_result(item->value_cut_in_result),
+  walk_stopped(item->walk_stopped),
+  walk_failed(item->walk_failed),
   always_null(item->always_null),
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
@@ -4228,6 +4295,7 @@ void Item_func_group_concat::cleanup()
     row_count= 0;
     DBUG_ASSERT(tree == 0);
   }
+  cut_note_given= false;
   /*
     As the ORDER structures pointed to by the elements of the
     'order' array may be modified in find_order_in_list() called
@@ -4251,22 +4319,28 @@ Item *Item_func_group_concat::copy_or_same(THD* thd)
 }
 
 
+/*
+  Clear is called for the first element in a new group
+*/
+
 void Item_func_group_concat::clear()
 {
   result.length(0);
   result.copy();
   null_value= TRUE;
   warning_for_row= FALSE;
+  result_cut= FALSE;
+  value_cut_in_result= FALSE;
+  walk_failed= FALSE;
   result_finalized= false;
+  copy_offset_limit= 0;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
+  /* copy_row_limit does not have to be zeroed if row_limit is not set */
   if (row_limit)
     copy_row_limit= row_limit->val_int();
   if (tree)
-  {
     reset_tree(tree);
-    tree_len= 0;
-  }
   if (unique_filter)
     unique_filter->reset();
   if (table && table->blob_storage)
@@ -4274,10 +4348,44 @@ void Item_func_group_concat::clear()
   /* No need to reset the table as we never call write_row */
 }
 
+/*
+  How the memory limit of the GROUP_CONCAT sort tree is split up.
+
+  repack_tree() builds a new tree while the old one is still in memory,
+  so the peak usage is the size at which we start a repack plus the size
+  we copy to. We therefore split the limit into GCONCAT_TREE_PARTS parts,
+  start a repack when GCONCAT_TREE_REPACK_PARTS of them are used and copy
+  to the remaining ones. The parts we do not copy to are also the room
+  the tree has to grow before the next repack is needed, which is what
+  keeps the repacks amortized.
+*/
+#define GCONCAT_TREE_PARTS         3
+#define GCONCAT_TREE_REPACK_PARTS  2
+
+/*
+  The tree memory limit is never set below this many elements.
+  Repacking a tree that can not hold a few rows would drop almost every
+  row and give a result that is much shorter than group_concat_max_len.
+*/
+#define GCONCAT_MIN_TREE_ELEMENTS  16
+
 struct st_repack_tree {
   TREE tree;
   TABLE *table;
   size_t len, maxlen;
+  /* Length of the separator that is added between two rows */
+  size_t sep_len;
+  /*
+    Number of null bytes in front of a key, see
+    Item_func_group_concat::get_null_bytes()
+  */
+  size_t null_bytes;
+  /* Stop copying when the new tree has allocated this much */
+  size_t max_memory;
+  /* Set if tree_insert() failed */
+  bool oom;
+  /* Set if we stopped because of max_memory, not because of maxlen */
+  bool truncated;
 };
 
 extern "C"
@@ -4287,16 +4395,101 @@ int copy_to_tree(void* key, element_count count __attribute__((unused)),
   struct st_repack_tree *st= (struct st_repack_tree*)arg;
   TABLE *table= st->table;
   Field* field= table->field[0];
-  const uchar *ptr= field->ptr_in_record((uchar*)key - table->s->null_bytes);
-  size_t len= (size_t)field->val_int(ptr);
+  /*
+    The length of the row is stored in the first field of the record. The
+    field data starts after the optional null bytes in the key.
+  */
+  size_t len= (size_t)field->val_int((uchar*)key + st->null_bytes);
 
   DBUG_ASSERT(count == 1);
   if (!tree_insert(&st->tree, key, 0, st->tree.custom_arg))
+  {
+    st->oom= true;
     return 1;
+  }
 
-  st->len += len;
+  st->len+= len;
+  if (st->tree.elements_in_tree > 1)
+    st->len+= st->sep_len;             /* No separator before the first row */
+  if (st->tree.allocated > st->max_memory)
+  {
+    /*
+      We can not keep all rows that would fit into the result within
+      the memory we are allowed to use. The result will be shorter than
+      group_concat_max_len and the caller has to report a cut value.
+    */
+    st->truncated= true;
+    return 1;
+  }
+  /*
+    A return of 1 stops the tree_walk().
+    However, a return of 1 above and a return of 1 below do not mean
+    the same thing.
+
+    The return above means that rows that belong to the result were
+    lost, which is why it has to set st->truncated.
+
+    A return of 1 below means that we have collected a big enough
+    group_concat value (the result is limited to st->maxlen bytes) and
+    can stop adding rows to it. The rows we do not copy could never
+    have been part of the result, so nothing is lost and there is
+    nothing to report.
+  */
   return st->len > st->maxlen;
 }
+
+/*
+  Shrink 'tree' by throwing away the rows that can never be returned.
+
+  'tree' holds every row of the current group in ORDER BY order, but
+  val_str() only walks it until it has produced gconcat_max_len() bytes.
+  Every row after that point can never be part of the result and is just
+  taking up memory.
+
+  Where the last part is cut away:
+    tree_walk() with left_root_right visits the rows in ORDER BY order,
+    that is, in the order val_str() would output them, and copies each
+    visited row into a second tree, st.tree. copy_to_tree() adds up the
+    result length of the rows copied so far and ends with
+
+      return st->len > st->maxlen;
+
+    Returning non-zero from the action stops the walk:
+    tree_walk_left_root_right() only calls the action after the walk of
+    the left subtree returned 0, and only descends into the right
+    subtree after the action returned 0, so a non-zero return unwinds
+    the whole recursion. The rows after that point are therefore never
+    visited and never copied. That return is the only place where we
+    decide what to keep; there is no per row decision anywhere else.
+
+  Why the copy is smaller:
+    Nothing is removed from the old tree. The new tree is smaller
+    because it only ever received the leading rows. The old tree is
+    then thrown away as a whole by delete_tree(), which free_root()s
+    the MEM_ROOT that all of its elements were allocated from, and
+    *tree= st.tree makes the smaller copy the current tree.
+
+    Deleting single rows from the old tree is not an option: it is
+    created without MY_TREE_WITH_DELETE, so its elements come out of
+    the tree's own MEM_ROOT and tree_delete() can not be used at all.
+
+  The copying also stops if the new tree has allocated st.max_memory
+  bytes. We can then not even keep everything that would fit into the
+  result, so the result is cut short. This is remembered in
+  result_cut so that val_str() can report a cut value to the user.
+
+  This second stop is what makes the shrinking guaranteed: add() calls
+  us when the tree has grown to GCONCAT_TREE_REPACK_PARTS of the limit
+  while st.max_memory is only one part, and both trees cost the same
+  per row, so copying every row would always hit st.max_memory. A
+  repack therefore never returns a tree of the size it started with.
+
+  Note that the old and the new tree are both in memory during the walk.
+  See GCONCAT_TREE_PARTS for how the memory limit accounts for that.
+
+  @return 0  ok, 'tree' now holds only the rows we still need
+  @return 1  out of memory, 'tree' is left untouched
+*/
 
 bool Item_func_group_concat::repack_tree(THD *thd)
 {
@@ -4305,7 +4498,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   if (!tree->offset_to_key)
     size-= sizeof(void*);
 
-  init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
+  init_tree(&st.tree, (size_t) MY_MIN(thd->ram_limitation()/16,
                                       thd->variables.sortbuff_size/16), 0,
             size, get_comparator_function_for_order_by(), NULL,
             (void*) this, MYF(MY_THREAD_SPECIFIC));
@@ -4313,28 +4506,77 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   st.table= table;
   st.len= 0;
   st.maxlen= thd->gconcat_max_len();
+  st.sep_len= separator->length();
+  st.null_bytes= get_null_bytes();
+  st.max_memory= max_tree_size / GCONCAT_TREE_PARTS;
+  st.oom= st.truncated= false;
   tree_walk(tree, &copy_to_tree, &st, left_root_right);
-  if (st.len <= st.maxlen) // Copying aborted. Must be OOM
+  if (st.oom)
   {
     delete_tree(&st.tree, 0);
     return 1;
   }
   delete_tree(tree, 0);
   *tree= st.tree;
-  tree_len= st.len;
+  if (st.truncated)
+    result_cut= TRUE;
   return 0;
 }
 
 
 /*
-  Repacking the tree is expensive. But it keeps the tree small, and
-  inserting into an unnecessary large tree is also waste of time.
+  Insert one row into the ORDER BY tree, repacking it first if it has
+  grown past the memory we are allowed to use.
 
-  The following number is best-by-test. Test execution time slowly
-  decreases up to N=10 (that is, factor=1024) and then starts to increase,
-  again, very slowly.
+  'key' is a temporary table record in the format produced by
+  get_record_pointer(). table->field[0] of that record holds the length
+  the row adds to the result, which is what repack_tree() adds up to
+  decide where to cut.
+
+  @return FALSE  row inserted
+  @return TRUE   out of memory
 */
-#define GCONCAT_REPACK_FACTOR 10
+
+bool Item_func_group_concat::insert_to_order_tree(uchar *key)
+{
+  DBUG_ASSERT(tree);
+  THD *thd= table->in_use;
+  /*
+    Repack when GCONCAT_TREE_REPACK_PARTS of the memory we may use is
+    gone. The rest is needed for the new tree that repack_tree()
+    allocates while the old one is still around.
+  */
+  if (tree->allocated >
+      max_tree_size / GCONCAT_TREE_PARTS * GCONCAT_TREE_REPACK_PARTS &&
+      tree->elements_in_tree > 1)
+    if (repack_tree(thd))
+      return TRUE;
+  /* check if there was enough memory to insert the row */
+  return !tree_insert(tree, key, 0, tree->custom_arg);
+}
+
+
+/*
+  Insert one deduplicated row into the ORDER BY tree.
+
+  Callback for Unique::walk(). The walk merges what unique_filter spilled
+  to disk back with what it still holds in memory, so it is the first
+  point at which the whole set of distinct rows is known. Every row it
+  visits belongs in the result.
+
+  @return 0  row inserted
+  @return 1  out of memory, which stops the walk
+*/
+
+int Item_func_group_concat::dump_leaf_key_to_tree(void *key_arg,
+                                                  element_count count
+                                                  __attribute__((unused)),
+                                                  void *item_arg)
+{
+  Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
+  return item->insert_to_order_tree((uchar *) key_arg);
+}
+
 
 bool Item_func_group_concat::add(bool exclude_nulls)
 {
@@ -4379,7 +4621,15 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   null_value= FALSE;
   bool row_eligible= TRUE;
 
-  if (distinct) 
+  /*
+    Store how much this row adds to the result in the record itself. With
+    DISTINCT the row does not reach the ORDER BY tree until val_str(), and
+    the record kept by unique_filter is all that is left of it by then.
+  */
+  if (tree)
+    table->field[0]->store(row_str_len, FALSE);
+
+  if (distinct)
   {
     /* Filter out duplicate rows. */
     uint count= unique_filter->elements_in_tree();
@@ -4387,21 +4637,18 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     if (count == unique_filter->elements_in_tree())
       row_eligible= FALSE;
   }
-
-  TREE_ELEMENT *el= 0;                          // Only for safety
-  if (row_eligible && tree)
+  else
   {
-    THD *thd= table->in_use;
-    table->field[0]->store(row_str_len, FALSE);
-    if ((tree_len >> GCONCAT_REPACK_FACTOR) > thd->gconcat_max_len()
-        && tree->elements_in_tree > 1)
-      if (repack_tree(thd))
-        return 1;
-    el= tree_insert(tree, get_record_pointer(), 0, tree->custom_arg);
-    /* check if there was enough memory to insert the row */
-    if (!el)
+    /*
+      row_eligible only reflects the part of unique_filter that is
+      currently in memory, so as soon as unique_filter starts flushing
+      to disk it stops telling us whether a row is a
+      duplicate. val_str() fills the tree instead, from the
+      unique_filter walk that merges everything back together.
+    */
+    if (row_eligible && tree &&
+        insert_to_order_tree(get_record_pointer()))
       return 1;
-    tree_len+= row_str_len;
   }
 
   /*
@@ -4571,16 +4818,28 @@ bool Item_func_group_concat::setup(THD *thd)
   {
     tree= &tree_base;
     /*
+      Limit the memory the tree may use. This does not cover BLOB values,
+      as those are stored in table->blob_storage which is not freed when
+      the tree is repacked, but limiting the tree still gives us some
+      protection compared to no limit at all.
+      A repack only copies to one part of the limit, so the limit has to
+      be big enough to hold GCONCAT_MIN_TREE_ELEMENTS in one part.
+    */
+    max_tree_size= MY_MAX(MY_MAX(thd->ram_limitation(),
+                                 (size_t) thd->gconcat_max_len()),
+                          (sizeof(TREE_ELEMENT) + tree_key_length +
+                           get_null_bytes()) *
+                          GCONCAT_MIN_TREE_ELEMENTS * GCONCAT_TREE_PARTS);
+    /*
       Create a tree for sorting. The tree is used to sort (according to the
       syntax of this function). If there is no ORDER BY clause, we don't
       create this tree.
     */
-    init_tree(tree, (size_t)MY_MIN(thd->variables.max_heap_table_size,
+    init_tree(tree, (size_t)MY_MIN(thd->ram_limitation()/16,
                                    thd->variables.sortbuff_size/16), 0,
               tree_key_length + get_null_bytes(),
               get_comparator_function_for_order_by(), NULL, (void*) this,
               MYF(MY_THREAD_SPECIFIC));
-    tree_len= 0;
   }
 
   if (distinct)
@@ -4588,7 +4847,7 @@ bool Item_func_group_concat::setup(THD *thd)
                     Unique(get_comparator_function_for_distinct(),
                            (void*)this,
                            tree_key_length + get_null_bytes(),
-                           ram_limitation(thd)));
+                           thd->ram_limitation()));
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))
   {
@@ -4620,21 +4879,123 @@ String* Item_func_group_concat::val_str(String* str)
 
   if (!result_finalized) // Result yet to be written.
   {
-    if (tree != NULL) // order by
-      tree_walk(tree, &dump_leaf_key, this, left_root_right);
-    else if (distinct) // distinct (and no order by).
-      unique_filter->walk(table, &dump_leaf_key, this);
+    if (tree)                                   // Order by
+    {
+      if (distinct)                             // distinct and order by
+      {
+        /*
+          Sort the distinct rows now. add() could not do it, as a row is
+          only known not to be a duplicate once unique_filter has merged
+          everything it flushed to disk, which the walk below does.
+        */
+        if (unique_filter->walk(table, &dump_leaf_key_to_tree, this))
+        {
+          /*
+            Out of memory; mysys has reported it. The tree holds only part
+            of the group, so tell the user that the result was cut instead
+            of returning a short one silently.
+          */
+          result_cut= TRUE;
+        }
+        tree_walk(tree, &dump_leaf_key, this, left_root_right);
+      }
+      else                                      // Order by, no distinct
+      {
+        tree_walk(tree, &dump_leaf_key, this, left_root_right);
+      }
+    }
+    else if (distinct)                          // distinct (and no order by)
+    {
+      /*
+        walk() returns non-zero both when dump_leaf_key() stopped it and
+        when the walk itself failed. dump_leaf_key() reports what it did:
+        it sets result_cut when it cut the result, and it stops without
+        losing anything when the LIMIT is used up.
+
+        A walk that failed mostly reports itself: the merge buffer is
+        allocated with MY_WME and the spill file is opened with MY_WME,
+        so running out of memory or failing to read raises an error. Only
+        the guard at the top of merge_walk(), which refuses a merge
+        buffer too small to hold one key per chunk, returns quietly. Ask
+        for the warning in that case alone. Where an error was raised the
+        user has already been told and the statement is failing, so a
+        warning about the length of a result nobody will see would only
+        be noise.
+      */
+      walk_stopped= FALSE;
+      if (unique_filter->walk(table, &dump_leaf_key, this) && !walk_stopped &&
+          !current_thd->is_error())
+        walk_failed= TRUE;
+    }
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
+    {
+      /* No rows copied; Empty result */
       return &result;
+    }
     else
-      DBUG_ASSERT(false); // Can't happen
+      DBUG_ASSERT(false); // Can't happen. If it happens, no wrong result
+    /*
+      dump_leaf_key() sets this when it writes a row, but a group can end
+      without one: an OFFSET can eat every row, and a walk that failed
+      hands over nothing. val_str() can be called again for the same
+      group, and unique_filter must not be walked twice - Unique::walk()
+      leaves the object undefined and the second walk asserts in
+      merge_walk().
+    */
+    result_finalized= true;
   }
 
-  if (table && table->blob_storage && 
-      table->blob_storage->is_truncated_value())
+  /*
+    The answer came out short: it was cut at gconcat_max_len(), the sort
+    tree could not keep every row it was given, or a row that reached the
+    answer carried a value that was cut on its way into blob_storage.
+    Values the user asked for are missing, so this is a warning.
+  */
+  if (result_cut || value_cut_in_result)
   {
     warning_for_row= true;
     report_cut_value_error(current_thd, row_count, func_name());
+    /*
+      A cut value that reached the answer has now been reported as the
+      warning it is, so it must not be reported again as a note.
+    */
+    if (value_cut_in_result && table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
+    /*
+      Clear the marks so that we give only one warning per group, even
+      if val_str() is called more than once for this group.
+    */
+    result_cut= false;
+    value_cut_in_result= false;
+  }
+
+  /*
+    A value was cut on its way into blob_storage, but no row carrying one
+    reached the answer, so the answer may well be what it would have been
+    without the limit: one note per statement.
+  */
+  if (table && table->blob_storage &&
+      table->blob_storage->is_truncated_value())
+  {
+    if (!cut_note_given)
+    {
+      cut_note_given= true;
+      report_cut_value_note(current_thd, func_name());
+    }
+    table->blob_storage->set_truncated_value(false);
+  }
+
+  /*
+    The walk of the duplicate filter failed, so the group was never
+    delivered. This is a different loss from a result cut to the length
+    the user asked for, and it is undone by a different variable.
+  */
+  if (walk_failed)
+  {
+    warning_for_row= true;
+    report_cut_result_error(current_thd, func_name());
+    /* One warning per group, however often val_str() is called for it */
+    walk_failed= false;
   }
 
   return &result;

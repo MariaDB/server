@@ -25,8 +25,7 @@ extern const char *INNODB_BINLOG_MAGIC;
 
 extern handler_binlog_reader *get_binlog_reader_innodb();
 extern bool open_engine_binlog(handler_binlog_reader *reader,
-                               ulonglong start_position,
-                               const char *filename, IO_CACHE *opened_cache);
+                               ulonglong start_position, const char *filename);
 
 
 /* Shared functions defined in mysqlbinlog.cc */

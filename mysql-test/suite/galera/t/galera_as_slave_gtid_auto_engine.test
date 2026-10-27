@@ -18,5 +18,5 @@ DROP TABLE mysql.gtid_slave_pos_InnoDB;
 # binlog state here, that leftover (e.g. 0-2-2) survives into the next
 # test iteration and breaks the gtid_binlog_state comparison in the .inc.
 set global wsrep_on=OFF;
-reset master;
+--source include/reset_master.inc
 set global wsrep_on=ON;

@@ -1,5 +1,5 @@
---- a/mysql-test/main/vector.result
-+++ b/mysql-test/main/vector.result
+--- vector.result
++++ vector,myisam.result
 @@ -391,8 +391,30 @@
  create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
@@ -520,6 +520,22 @@
  drop table t;
  #
  # MDEV-35821 - vector index sizes are not in INDEX_LENGTH
+@@ -903,13 +891,13 @@
+ from information_schema.tables
+ where table_schema = database() and table_name = 't1';
+ index_length
+-49152
++5144
+ flush tables;
+ select index_length
+ from information_schema.tables
+ where table_schema = database() and table_name = 't1';
+ index_length
+-49152
++5144
+ drop table t1;
+ #
+ # MDEV-34805 INFORMATION_SCHEMA.VECTOR_INDEXES
 @@ -929,8 +917,8 @@
  TABLE_NAME	t_vec
  INDEX_NAME	vi

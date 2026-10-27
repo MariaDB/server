@@ -923,6 +923,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   system_thread= NON_SYSTEM_THREAD;
   killed_for_exceeding_limit_rows_warning_given= 0;
   shared_thd= 0;
+  tmp_table_binlog_handled= 0;
+  in_binlog_commit= 0;
   cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
   transaction= &default_transaction;
@@ -4350,6 +4352,11 @@ void Query_arena::free_items()
 {
   Item *next;
   DBUG_ENTER("Query_arena::free_items");
+#ifndef DBUG_OFF
+  if (THD *thd= current_thd)
+    for (Item *item= free_list; item; item= item->next)
+      item->dbug_check_shallow_copy_type(thd);
+#endif
   /* This works because items are allocated on THD::mem_root */
   for (; free_list; free_list= next)
   {
@@ -7262,12 +7269,22 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
         trans= table->file->has_transactions();
 
-        if (share->tmp_table)
-          lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
-                                               LEX::STMT_WRITES_TEMP_NON_TRANS_TABLE);
-        else
-          lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
-                                               LEX::STMT_WRITES_NON_TRANS_TABLE);
+        /*
+          For SELECT ... FOR UPDATE, tbl->updating is false because the
+          table is only locked for reading, not actually being modified.
+          MyISAM has no row-level locking so FOR UPDATE escalates to
+          TL_WRITE, but this does not mean the table is being written to.
+          Only set the write flag when the table is actually being written.
+        */
+        if (tbl->updating)
+        {
+          if (share->tmp_table)
+            lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
+                                                 LEX::STMT_WRITES_TEMP_NON_TRANS_TABLE);
+          else
+            lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TRANS_TABLE :
+                                                 LEX::STMT_WRITES_NON_TRANS_TABLE);
+        }
 
         flags_write_all_set &= flags;
         flags_write_some_set |= flags;
@@ -8470,7 +8487,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       reset_binlog_for_next_statement();
 
       /* Temp tables changes are logged as a statement */
-      tmp_table_binlog_handled= 1;
+      tmp_table_binlog_handled= !error;
 
       DBUG_RETURN(error >= 0 ? error : 1);
     }

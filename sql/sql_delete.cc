@@ -132,7 +132,9 @@ bool Update_plan::save_explain_data_intern(THD *thd,
     explain->table_tracker.set_gap_tracker(&explain->extra_time_tracker);
     table->file->set_time_tracker(&explain->table_tracker);
 
-    if (table->file->handler_stats && table->s->tmp_table != INTERNAL_TMP_TABLE)
+    if (table->file->handler_stats &&
+        table->s->tmp_table != RESULT_TMP_TABLE &&
+        table->s->tmp_table != INTERNAL_TMP_TABLE)
       explain->handler_for_stats= table->file;
   }
 
@@ -1175,6 +1177,7 @@ multi_delete::multi_delete(THD *thd_arg,
     do_delete(0),
     transactional_tables(0),
     normal_tables(0),
+    tables_initialized(false),
     error_handled(0)
 {
   tmp_tables = thd->calloc<TABLE*>(table_count);
@@ -1328,10 +1331,12 @@ multi_delete::initialize_tables(JOIN *join)
       if (temp_fields.push_back(item, thd->mem_root))
         DBUG_RETURN(1);
       /* Make an unique key over the first field to avoid duplicated updates */
-      ORDER group;
-      bzero((char*) &group, sizeof(group));
-      group.direction= ORDER::ORDER_ASC;
-      group.item= (Item**) temp_fields.head_ref();
+      ORDER *group= (ORDER*) alloc_root(thd->mem_root, sizeof(ORDER));
+      if (!group)
+        DBUG_RETURN(1);
+      bzero((char*) group, sizeof(*group));
+      group->direction= ORDER::ORDER_ASC;
+      group->item= (Item**) temp_fields.head_ref();
       TMP_TABLE_PARAM *tmp_param;
       prior->shared = index;
       tmp_param= &tmp_table_param[prior->shared];
@@ -1339,9 +1344,9 @@ multi_delete::initialize_tables(JOIN *join)
       tmp_param->tmp_name="update";
       tmp_param->field_count= temp_fields.elements;
       tmp_param->func_count= temp_fields.elements;
-      calc_group_buffer(tmp_param, &group);
+      calc_group_buffer(tmp_param, group);
       tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
-                                       (ORDER*) &group, 0, 0,
+                                       group, 0, 0,
                                        TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
       if (!tmp_tables[index])
         DBUG_RETURN(1);
@@ -1365,6 +1370,7 @@ multi_delete::initialize_tables(JOIN *join)
     DBUG_RETURN(true);
 
   join->tmp_table_keep_current_rowid= TRUE;
+  tables_initialized= true;
   DBUG_RETURN(thd->is_fatal_error);
 }
 
@@ -1396,6 +1402,9 @@ multi_delete::~multi_delete()
 
 int multi_delete::send_data(List<Item> &values)
 {
+  if (!tables_initialized)
+    return 0;
+
   int secure_counter= delete_while_scanning ? -1 : 0;
   TABLE_LIST *del_table;
   DBUG_ENTER("multi_delete::send_data");
@@ -1469,21 +1478,22 @@ int multi_delete::send_data(List<Item> &values)
       error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
       if (error)
       {
-          --found;
-          if (error != HA_ERR_FOUND_DUPP_KEY &&
-              error != HA_ERR_FOUND_DUPP_UNIQUE)
+        --found;
+        if (error != HA_ERR_FOUND_DUPP_KEY &&
+            error != HA_ERR_FOUND_DUPP_UNIQUE)
+        {
+          bool is_duplicate;
+          if (create_internal_tmp_table_from_heap(thd, tmp_table,
+                                                  tmp_table_param[offset].start_recinfo,
+                                                  &tmp_table_param[offset].recinfo,
+                                                  error, 1, &is_duplicate, NULL))
           {
-              if (create_internal_tmp_table_from_heap(thd, tmp_table,
-                                                      tmp_table_param[offset].start_recinfo,
-                                                      &tmp_table_param[offset].recinfo,
-                                                      error, 1, NULL))
-              {
-                  do_delete= 0;
-                  DBUG_RETURN(1);			// Not a table_is_full error
-              }
-              found++;
+            do_delete= 0;
+            DBUG_RETURN(1);			// Not a table_is_full error
           }
-          error= 0;
+          found++;
+        }
+        error= 0;
       }
     }
   }
@@ -1668,8 +1678,12 @@ int multi_delete::rowid_table_deletes(TABLE *table, bool ignore)
     if (unlikely((local_error= table->file->ha_rnd_pos(table->record[0],
                                                        (uchar*)rowid.ptr()))))
     {
-      // Table aliased to itself had key deleted already
-      continue;
+      // Table aliased to itself had key deleted already.
+      // HA_ERR_END_OF_FILE is returned by federated/tina in some cases.
+      if (local_error == HA_ERR_KEY_NOT_FOUND || local_error == HA_ERR_END_OF_FILE)
+        continue;
+      err_table= table;
+      goto err;
     }
 
     bool trg_skip_row= false;

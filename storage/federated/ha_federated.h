@@ -113,6 +113,8 @@ private:
                                      uint key_len,
                                      ha_rkey_function find_flag,
                                      MYSQL_RES **result);
+  int index_read_keep_result(uchar *buf, uint index, const uchar *key,
+                             uint key_len, ha_rkey_function find_flag);
   int real_query(const char *query, size_t length);
   int real_connect();
 public:
@@ -215,8 +217,9 @@ public:
   ha_rows estimate_rows_upper_bound() override;
   int index_read(uchar *buf, const uchar *key,
                  uint key_len, enum ha_rkey_function find_flag) override;
-  int index_read_idx(uchar *buf, uint idx, const uchar *key,
-                     uint key_len, enum ha_rkey_function find_flag);
+  int index_read_idx_map(uchar *buf, uint index, const uchar *key,
+                         key_part_map keypart_map,
+                         enum ha_rkey_function find_flag) override;
   int index_next(uchar *buf) override;
   int index_end() override;
   int read_range_first(const key_range *start_key,

@@ -31,6 +31,7 @@
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
+#include "backup.h"
 #include "ha_handler_stats.h"
 #include "optimizer_costs.h"
 #include "handler_binlog_reader.h"
@@ -61,6 +62,7 @@ struct slave_connection_state;
 struct rpl_binlog_state_base;
 struct handler_binlog_event_group_info;
 struct handler_binlog_purge_info;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 // the following is for checking tables
 
@@ -396,6 +398,18 @@ enum chf_create_flags {
 #define HA_NO_ONLINE_ALTER  (1ULL << 63)
 
 #define HA_LAST_TABLE_FLAG HA_NO_ONLINE_ALTER
+
+/*
+  All table flags are used, the following are a new set of flags
+  stored in table_flags_part2
+*/
+
+/*
+  Set if one cannot access rowdata, like blobs, after unlock, either because
+  the engine frees row data or the row data may be overwritten by other
+  connections. This happens with the zero-copy blobs in the heap engine.
+*/
+#define HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK (1ULL << 0)
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -2002,6 +2016,11 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   hton->notify_tabledef_changed() before commit (S3) or after (InnoDB).
 */
 #define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
+/*
+  Indicates that rename table is expensive operation.
+  When set atomic CREATE OR REPLACE TABLE is not used.
+*/
+#define HTON_EXPENSIVE_RENAME (1 << 21)
 
 class Ha_trx_info;
 
@@ -2459,13 +2478,17 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   TABLE_LIST *pos_in_locked_tables;
   TABLE_LIST *merge_list;
   MDL_ticket *mdl_ticket;
-  bool table_was_deleted;
   sequence_definition *seq_create_info;
 
   void init()
   {
     bzero(this, sizeof(*this));
   }
+  /*
+    NOTE: share->tmp_table (tmp_table_type) is superset of this
+    HA_LEX_CREATE_TMP_TABLE which means TEMPORARY keyword in
+    CREATE TEMPORARY TABLE statement.
+  */
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   void use_default_db_type(THD *thd)
   {
@@ -2516,6 +2539,7 @@ struct Table_scope_and_contents_source_st:
   It does not include the "OR REPLACE" and "IF NOT EXISTS" parts, as these
   parts are handled on the SQL level and are not needed on the handler level.
 */
+
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                        public Schema_specification_st
 {
@@ -2523,12 +2547,25 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   Alter_info *alter_info;
   bool repair;
 
+  /* Used for Atomic CREATE or REPLACE */
+  LEX_CSTRING tmp_name;
+  LEX_CSTRING backup_name;
+  DDL_LOG_STATE *ddl_log_state_create;
+  DDL_LOG_STATE *ddl_log_state_rm;
+  handlerton *org_hton;
+  backup_log_info drop_entry;
+  bool table_was_deleted, table_was_renamed, table_was_created;
+
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
     alter_info= NULL;
+    tmp_name.length= 0;
+    ddl_log_state_rm= ddl_log_state_create= 0;
+    org_hton= 0;
     repair= 0;
+    table_was_deleted= table_was_renamed= table_was_created= 0;
   }
   ulong table_options_with_row_type()
   {
@@ -2542,6 +2579,10 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
   bool check_if_valid_log_table();
+  bool is_atomic_replace() const
+  {
+    return table_was_renamed;
+  }
 };
 
 
@@ -2631,6 +2672,12 @@ struct Table_specification_st: public HA_CREATE_INFO,
                                                   convert_charset_collation,
                                                   ctx);
   }
+  bool finalize_create_table(THD *thd, TABLE_LIST *orig_table,
+                             const char *query, size_t query_length,
+                             bool is_trans);
+  void end_create_table(THD *thd, TABLE_LIST *orig_table, bool rollback);
+  bool revert_create_table(THD *thd, TABLE_LIST *orig_table);
+  bool finalize_locked_tables(THD *thd, bool operation_failed);
 };
 
 
@@ -3762,6 +3809,10 @@ public:
   {
     DBUG_ASSERT((cached_table_flags >> 1) < HA_LAST_TABLE_FLAG);
     return cached_table_flags;
+  }
+  Table_flags ha_table_flags2() const
+  {
+    return table_flags2();
   }
   /**
     These functions represent the public interface to *users* of the
@@ -5474,6 +5525,7 @@ private:
   */
   virtual int reset() { return 0; }
   virtual Table_flags table_flags(void) const= 0;
+  virtual Table_flags table_flags2() const { return 0; }
   /**
     Is not invoked for non-transactional temporary tables.
 
@@ -5850,8 +5902,8 @@ int ha_discover_table_names(THD *thd, const LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,
-                     LEX_CUSTRING *table_version= 0,
-                     handlerton **hton= 0, bool *is_sequence= 0);
+                     LEX_CUSTRING *table_version,
+                     handlerton **hton, bool *is_sequence, uint flags);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
                                      const char *op);
 #endif /* MYSQL_SERVER */
@@ -5997,6 +6049,9 @@ bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all, bool *no_rollback);
+int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
+                                           TABLE_LIST *table_list);
+
 inline void Cost_estimate::reset(handler *file)
 {
   reset();

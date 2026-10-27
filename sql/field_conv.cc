@@ -782,12 +782,14 @@ Field::Copy_func *Field_timestamp::get_copy_func(const Field *from) const
   Field::Copy_func *copy= Field_temporal::get_copy_func(from);
   if (from->type() == MYSQL_TYPE_TIMESTAMP)
   {
+    if ((flags & VERS_ROW_END) && (from->flags & VERS_ROW_END) &&
+        from->table->file->check_versioned_compatibility())
+    {
+      DBUG_ASSERT(eq_def(from));
+      return do_field_versioned_timestamp;
+    }
     if (copy == do_field_datetime)
       return do_field_timestamp;
-    if (copy == do_field_eq &&
-        from->table->file->check_versioned_compatibility() &&
-        (flags & VERS_ROW_END) && (from->flags & VERS_ROW_END))
-      return do_field_versioned_timestamp;
   }
   return copy;
 }

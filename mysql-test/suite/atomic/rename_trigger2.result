@@ -1,0 +1,35 @@
+create table t1 (a int not null);
+create trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end|
+insert into t1 values(1),(2),(3),(NULL);
+select * from t1;
+a
+1
+2
+3
+1000
+set @@debug_dbug="+d,rename_trigger_fail";
+create or replace table t1 select 1 as 'b';
+ERROR HY000: Error on rename of 't1' to 'hidden-name' (errno: 2 "No such file or directory")
+set @@debug_dbug="";;
+select * from t1;
+a
+1
+2
+3
+1000
+select count(*) from information_schema.triggers where trigger_name="t1_trg";
+count(*)
+1
+create or replace table t1 select 1 as 'c';
+select * from t1;
+c
+1
+select count(*) from information_schema.triggers where trigger_name="t1_trg";
+count(*)
+0
+drop table t1;

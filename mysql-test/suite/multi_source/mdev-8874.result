@@ -65,14 +65,8 @@ Note	1938	SLAVE 'm2' stopped
 Note	1938	SLAVE '' stopped
 Note	1938	SLAVE 'm1' stopped
 RESET SLAVE 'm1' ALL ;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 RESET SLAVE 'm2' ALL ;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 RESET SLAVE ALL ;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 drop database a;
 drop database b;
 drop database c;
@@ -131,5 +125,3 @@ include/wait_for_slave_to_stop.inc
 SET default_master_connection = "";
 include/wait_for_slave_to_stop.inc
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'

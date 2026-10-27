@@ -180,6 +180,16 @@ int DuckdbThdContext::append_row_delete(TABLE *table)
   return delta ? delta->append_row_delete(table, 0) : HA_DUCKDB_APPEND_ERROR;
 }
 
+bool thd_is_replication_applier(THD *thd)
+{
+  return thd->rgi_slave != nullptr;
+}
+
+bool thd_is_row_injection(THD *thd)
+{
+  return thd->lex->is_stmt_row_injection();
+}
+
 bool reject_xa_if_active(THD *thd)
 {
   if (!thd->transaction->xid_state.is_explicit_XA())

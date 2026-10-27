@@ -1,0 +1,67 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # HEAP hash index on a BIT column whose uneven (X & 7)
+--echo # high bits are stored in the record null-map header.
+--echo #
+--echo # hp_rec_hashnr() (used to place a row in a hash bucket on INSERT)
+--echo # must hash the same bits that hp_make_key()/hp_hashnr() use when
+--echo # searching.  The bug hashed a record-body byte instead of the
+--echo # null-map bits, so placement and lookup disagreed and rows became
+--echo # unreachable through the index.
+--echo #
+--echo # Needs ENGINE=MEMORY advertising HA_CAN_BIT_FIELD so the uneven
+--echo # bits really live in the null map (seg->bit_length > 0), a key on
+--echo # the BIT column, and enough rows to force more than one hash bucket.
+--echo #
+
+--echo # BIT(10): 2 high bits in the null map, 1 byte in the record body.
+--echo # Column a is NULLable and stores NULLs.
+CREATE TABLE t1 (a INT, b BIT(10), KEY(b)) ENGINE=MEMORY;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_400;
+INSERT INTO t1 VALUES (NULL, b'1100000000'), (NULL, NULL);
+
+--echo # Every row must be reachable through the hash index.  Under the bug
+--echo # only a handful are found (placement vs. lookup hash disagree).
+SELECT COUNT(*) AS total FROM t1;
+SELECT COUNT(*) AS found_via_index FROM t1 t
+  WHERE EXISTS (SELECT 1 FROM t1 f FORCE INDEX(b) WHERE f.b <=> t.b);
+
+--echo # Point lookups via the index must agree with a full scan.
+SELECT COUNT(*) AS via_index FROM t1 FORCE INDEX(b)
+  WHERE b = CAST(123 AS UNSIGNED);
+SELECT COUNT(*) AS via_scan  FROM t1 IGNORE INDEX(b)
+  WHERE b = CAST(123 AS UNSIGNED);
+SELECT COUNT(*) AS dup_value_via_index FROM t1 FORCE INDEX(b)
+  WHERE b = b'1100000000';
+
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # BIT(3): all 3 bits live in the null map (0 body bytes), with a
+--echo # NULLable column that also stores NULLs.
+CREATE TABLE t2 (a INT, b BIT(3), KEY(b)) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (1,b'000'),(2,b'001'),(3,b'010'),(4,b'011'),
+                      (5,b'100'),(6,b'101'),(7,b'110'),(8,b'111'),
+                      (NULL,b'101'),(NULL,NULL),(9,NULL);
+SELECT COUNT(*) AS total FROM t2;
+SELECT COUNT(*) AS found_via_index FROM t2 t
+  WHERE EXISTS (SELECT 1 FROM t2 f FORCE INDEX(b) WHERE f.b <=> t.b);
+SELECT a FROM t2 FORCE INDEX(b) WHERE b=b'101' ORDER BY a;
+CHECK TABLE t2;
+DROP TABLE t2;
+
+--echo # Multi-part key with two BIT segments (b BIT(1), c BIT(9)) and a
+--echo # NULLable BIT column that stores NULLs.  A stray key-pointer bump
+--echo # in hp_key_cmp() used to shift the second BIT segment's offset, so
+--echo # the lookup on the full key found nothing.
+CREATE TABLE t3 (a INT NOT NULL, b BIT, c BIT(9), KEY(a,b,c)) ENGINE=MEMORY;
+INSERT INTO t3 VALUES
+  (4, NULL, 1), (4, 0, 3), (2, 1, 4), (1, 1, 100), (4, 0, 23), (4, 0, 54),
+  (56, 0, 22), (4, 1, 100), (23, 0, 1), (4, 0, 34);
+SELECT a+0, b+0, c+0 FROM t3 WHERE a=4 AND b=1 AND c=100;
+SELECT COUNT(*) AS found_via_index FROM t3 t WHERE EXISTS
+  (SELECT 1 FROM t3 f FORCE INDEX(a)
+     WHERE f.a<=>t.a AND f.b<=>t.b AND f.c<=>t.c);
+CHECK TABLE t3;
+DROP TABLE t3;

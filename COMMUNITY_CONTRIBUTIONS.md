@@ -7,6 +7,14 @@ This document provides a description how community contributions are processed.
 Please make sure to familiarize yourself and follow the process
 when submitting contributions.
 
+Please also familiarize yourself with
+[GitHub's Pull requests documentation](https://docs.github.com/en/pull-requests)
+and make sure you follow the principles and procedures in it.
+
+Understanding what makes a good pull request is important too.
+[Google Engineering Practices](https://google.github.io/eng-practices/) is a
+good place to familiarize yourself with the process.
+
 All community contribution pull requests will eventually get the
 "External Contribution" label at some point.
 

@@ -24,6 +24,7 @@
 
 void heap_clear(HP_INFO *info)
 {
+  info->has_pending_blob_free= FALSE;
   hp_clear(info->s);
 }
 
@@ -35,11 +36,14 @@ void hp_clear(HP_SHARE *info)
     (void) hp_free_level(&info->block,info->block.levels,info->block.root,
 			(uchar*) 0);
   info->block.levels=0;
+  info->block.last_allocated=0;
+  info->block.high_water_allocated=0;
   hp_clear_keys(info);
-  info->records= info->deleted= 0;
+  info->records= info->deleted= info->total_records= 0;
   info->data_length= 0;
   info->blength=1;
   info->changed=0;
+  info->state_changed=0;
   info->del_link=0;
   info->key_version++;
   info->file_version++;
@@ -100,6 +104,7 @@ void hp_clear_keys(HP_SHARE *info)
         (void) hp_free_level(block,block->levels,block->root,(uchar*) 0);
       block->levels=0;
       block->last_allocated=0;
+      block->high_water_allocated=0;
       keyinfo->hash_buckets= 0;
     }
   }

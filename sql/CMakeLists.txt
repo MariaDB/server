@@ -156,7 +156,8 @@ SET (SQL_SOURCE
                events.cc ../sql-common/my_user.c
                partition_info.cc rpl_utility.cc rpl_utility_server.cc
                rpl_injector.cc sql_locale.cc
-               rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
+               rpl_rli.cc rpl_mi.cc rpl_info_file.cc rpl_master_info_file.cc
+               sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
@@ -332,6 +333,11 @@ IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
     SET_TARGET_PROPERTIES(server PROPERTIES AIX_EXPORT_ALL_SYMBOLS TRUE)
   ENDIF()
   MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
+    IF(MSVC)
+      # ARCHIVE = server.lib only, not server.dll, enough for linking plugins
+      INSTALL(TARGETS server EXPORT mariadb-plugin-targets ARCHIVE
+              DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
+    ENDIF()
 ENDIF()
 
 ADD_LIBRARY(sql_builtins STATIC ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
@@ -570,13 +576,21 @@ ENDIF(WIN32)
 
 IF(NOT WITH_WSREP)
   SET(EXCL_WSREP "wsrep_[a-np-z]*.h")
+ELSE()
+  INSTALL(DIRECTORY ../wsrep-lib/include/wsrep
+    DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
+    FILES_MATCHING PATTERN "*.hpp")
+  INSTALL(FILES ../wsrep-lib/wsrep-API/v26/wsrep_api.h
+    DESTINATION ${INSTALL_INCLUDEDIR}/server/private
+    COMPONENT Development)
 ENDIF()
 INSTALL(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
     ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
     DESTINATION ${INSTALL_INCLUDEDIR}/server/private
     COMPONENT Development)
-INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
+INSTALL(DIRECTORY .
+  DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
   FILES_MATCHING PATTERN "*.h"
   PATTERN share EXCLUDE
   PATTERN "${EXCL_WSREP}" EXCLUDE

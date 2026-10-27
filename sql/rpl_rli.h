@@ -211,7 +211,7 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char (&group_relay_log_name)[FN_REFLEN]= relay_log_file.buf;
+  char (&group_relay_log_name)[FN_REFLEN]= relay_log_file_buf;
   my_off_t &group_relay_log_pos= relay_log_pos.value;
   char event_relay_log_name[FN_REFLEN];
   ulonglong event_relay_log_pos;
@@ -233,7 +233,7 @@ public:
     !belongs_to_client(); client thread executing BINLOG statement if
     belongs_to_client()).
   */
-  char (&group_master_log_name)[FN_REFLEN]= read_master_log_file.buf;
+  char (&group_master_log_name)[FN_REFLEN]= read_master_log_file_buf;
   my_off_t &group_master_log_pos= read_master_log_pos.value;
 
   /*

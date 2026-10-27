@@ -47,6 +47,7 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
 #define GET_LOCK_ACTION_MASK    1
 #define GET_LOCK_ON_THD         (1 << 1)
 #define GET_LOCK_SKIP_SEQUENCES (1 << 2)
+#define GET_LOCK_SKIP_ZERO_COPY_ROWS (1 << 3)
 
 MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags);
 void reset_lock_data(MYSQL_LOCK *sql_lock, bool unlock);

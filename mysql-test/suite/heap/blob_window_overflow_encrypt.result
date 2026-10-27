@@ -1,0 +1,33 @@
+#
+# Window function computation spilling a HEAP tmp table to Aria with
+# encrypted temporary files
+#
+# The sorted row positions the computation runs over live in an
+# IO_CACHE temporary file, which is encrypted here: the conversion
+# must go through the cache instead of the file to translate them.
+#
+SET @save_max_heap= @@max_heap_table_size;
+SET @save_tmp= @@tmp_table_size;
+SET max_heap_table_size = 4*1024*1024;
+SET tmp_table_size = 4*1024*1024;
+CREATE TABLE t1 (a VARCHAR(3000)) CHARACTER SET latin1;
+INSERT INTO t1 SELECT CONCAT(LPAD(seq, 8, '0'), REPEAT('x', 2900))
+FROM seq_1_to_800;
+FLUSH STATUS;
+# Should overflow during computation and convert HEAP->Aria
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT p) AS distinct_p,
+MIN(LENGTH(p)) AS min_len, LEFT(MAX(p), 12) AS max_prefix
+FROM (SELECT PERCENTILE_DISC(1) WITHIN GROUP (ORDER BY a) OVER () AS p
+FROM t1) dt;
+cnt	distinct_p	min_len	max_prefix
+800	1	2908	00000800xxxx
+Warnings:
+Warning	4202	800 values were longer than max_sort_length. Sorting used only the first 1024 bytes
+# Verify HEAP->Aria conversion happened
+SELECT variable_name, variable_value FROM information_schema.session_status
+WHERE variable_name = 'Created_tmp_disk_tables';
+variable_name	variable_value
+CREATED_TMP_DISK_TABLES	1
+DROP TABLE t1;
+SET max_heap_table_size = @save_max_heap;
+SET tmp_table_size = @save_tmp;

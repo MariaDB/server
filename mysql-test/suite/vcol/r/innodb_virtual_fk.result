@@ -75,8 +75,6 @@ ERROR HY000: Function or expression 'id2' cannot be used in the CHECK clause of 
 create or replace table t2 (id int, id2 int as (id) virtual, check (id2), foreign key (id) references t1 (id) on update set null);
 ERROR HY000: Function or expression 'id2' cannot be used in the CHECK clause of `CONSTRAINT_1`
 drop table if exists t2, t1;
-Warnings:
-Note	1051	Unknown table 'test.t2'
 #
 # MDEV-31853 Assertion failure in Column_definition::check_vcol_for_key upon adding FK
 #

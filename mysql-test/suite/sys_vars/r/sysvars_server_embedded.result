@@ -942,6 +942,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	DROP_BEFORE_CREATE_OR_REPLACE
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	CREATE OR REPLACE should drop old tables before creating new ones. If not set then old table will be temporarly renamed until create table succeeeds. If create does not succeed the old table will be renamed back
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ENCRYPT_BINLOG
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -1165,9 +1175,9 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	GROUP_CONCAT_MAX_LEN
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	The maximum length of the result of function GROUP_CONCAT()
+VARIABLE_COMMENT	The maximum memory used for calculating the result for GROUP_CONCAT(). The max length in bytes for a single GROUP_CONCAT() result is limited by min(group_concat_max_len, max_allowed_packet)
 NUMERIC_MIN_VALUE	4
-NUMERIC_MAX_VALUE	1073741824
+NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -3595,7 +3605,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SLAVE_CONNECTIONS_NEEDED_FOR_PURGE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days. Default is 0 when Galera is enabled and 1 otherwise
+VARIABLE_COMMENT	Minimum number of connected slaves required for automatic binary log purge with max_binlog_total_size, binlog_expire_logs_seconds or binlog_expire_logs_days
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1

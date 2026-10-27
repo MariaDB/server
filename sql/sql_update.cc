@@ -2206,8 +2206,10 @@ multi_update::initialize_tables(JOIN *join)
     TABLE *table=table_ref->table;
     uint index= table_ref->shared;
     List<Item> temp_fields;
-    ORDER     group;
     TMP_TABLE_PARAM *tmp_param;
+    ORDER *group= (ORDER*) alloc_root(thd->mem_root, sizeof(*group));
+    if (!group)
+      DBUG_RETURN(1);
 
     table->file->prepare_for_modify(true, true);
 
@@ -2300,19 +2302,20 @@ loop_end:
     temp_fields.append(fields_for_table[index]);
 
     /* Make an unique key over the first field to avoid duplicated updates */
-    bzero((char*) &group, sizeof(group));
-    group.direction= ORDER::ORDER_ASC;
-    group.item= (Item**) temp_fields.head_ref();
+    bzero((char*) group, sizeof(*group));
+    group->direction= ORDER::ORDER_ASC;
+    group->item= (Item**) temp_fields.head_ref();
 
     tmp_param= &tmp_table_param[index];
     tmp_param->init();
     tmp_param->tmp_name="update";
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
-    calc_group_buffer(tmp_param, &group);
+    calc_group_buffer(tmp_param, group);
     tmp_tables[index]=create_tmp_table(thd, tmp_param, temp_fields,
-                                     (ORDER*) &group, 0, 0,
-                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR, &empty_clex_str);
+                                     (ORDER*) group, 0, 0,
+                                     TMP_TABLE_ALL_COLUMNS, HA_POS_ERROR,
+                                     &empty_clex_str);
     if (!tmp_tables[index])
       DBUG_RETURN(1);
     tmp_tables[index]->file->extra(HA_EXTRA_WRITE_CACHE);
@@ -2555,10 +2558,11 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (error != HA_ERR_FOUND_DUPP_KEY &&
             error != HA_ERR_FOUND_DUPP_UNIQUE)
         {
+          bool is_duplicate;
           if (create_internal_tmp_table_from_heap(thd, tmp_table,
                                                   tmp_table_param[offset].start_recinfo,
                                                   &tmp_table_param[offset].recinfo,
-                                                  error, 1, NULL))
+                                                  error, 1, &is_duplicate, NULL))
           {
             do_update= 0;
             DBUG_RETURN(1);			// Not a table_is_full error

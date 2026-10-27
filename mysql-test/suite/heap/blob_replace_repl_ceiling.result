@@ -1,0 +1,21 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+b TEXT,
+c VARCHAR(8),
+UNIQUE(c)
+) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (1,'one','foo');
+REPLACE INTO t1 SELECT * FROM t1;
+connection slave;
+# Slave applied the REPLACE
+SELECT * FROM t1;
+pk	b	c
+1	one	foo
+connection master;
+SELECT * FROM t1;
+pk	b	c
+1	one	foo
+DROP TABLE t1;
+include/rpl_end.inc

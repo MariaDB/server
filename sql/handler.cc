@@ -49,6 +49,7 @@
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
 #include "vector_mhnsw.h"
+#include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -619,6 +620,7 @@ int ha_finalize_handlerton(void *plugin_)
     /* Make sure we are not unplugging another plugin */
     DBUG_ASSERT(hton2plugin[hton->slot] == plugin);
     DBUG_ASSERT(hton->slot < MAX_HA);
+    DEBUG_SYNC(current_thd, "ha_finalize_handlerton_before_slot_clear");
     hton2plugin[hton->slot]= NULL;
   }
 
@@ -883,6 +885,17 @@ int ha_end()
 */
 typedef bool (tp_foreach_func)(THD *thd, transaction_participant *tp, void *arg);
 
+/*
+  Call func for each READY transaction participant.
+
+  LOCK_plugin is not held while func runs. func calls into the engine, and
+  the engine can take plugin locks itself or wait for its own threads, which
+  can deadlock with a thread that holds LOCK_plugin. reap_plugins() and
+  plugin_deinitialize() also run without LOCK_plugin for the same reason.
+  Instead, each plugin gets a reference count under LOCK_plugin, which keeps
+  it from being deinitialized or freed while func runs. The state check and
+  the reference count happen in one step, in plugin_lock_ready().
+*/
 static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
 {
   int j=0, err= 0;
@@ -891,7 +904,25 @@ static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
   {
     if (st_plugin_int *pi= hton2plugin[i])
     {
-      locks[j]= plugin_lock(NULL, plugin_int_to_ref(pi));
+      /*
+        Only PLUGIN_IS_READY engines are visited, as plugin_foreach() does.
+        The slot stays set in hton2plugin[] until the end of
+        ha_finalize_handlerton(), so an engine that reap_plugins() is
+        deinitializing (PLUGIN_IS_DYING) is still found here. The lock then
+        fails and the engine is skipped, as is an engine that is not yet
+        READY. A lock failure for a READY engine is out of memory (debug
+        builds only). It must not skip a live participant, so it is an error.
+      */
+      bool failed;
+      if (!(locks[j]= plugin_lock_ready(NULL, plugin_int_to_ref(pi), &failed)))
+      {
+        if (failed)
+        {
+          err= 1;
+          break;
+        }
+        continue;
+      }
       if ((err= func(thd, plugin_hton(locks[j++]), arg)))
         break;
     }
@@ -5836,6 +5867,11 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  if (DBUG_IF("ha_end_bulk_insert_fail"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }
@@ -7142,7 +7178,7 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
-                     handlerton **hton, bool *is_sequence)
+                     handlerton **hton, bool *is_sequence, uint flags)
 {
   handlerton *dummy;
   bool dummy2;
@@ -7179,7 +7215,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db->str, table_name->str, "", 0);
+                                         db->str, table_name->str, "", flags);
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
@@ -7289,6 +7325,50 @@ bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
 }
 
 
+/*
+  Check if a table can be used with create or replace.
+  The handler should support renaming the table to a temporary name
+  and later be able to drop it
+
+  @return 0 Allowed
+  @return 1 Error. Error message given
+
+*/
+
+int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
+                                           TABLE_LIST *table_list)
+{
+  int ret= 0;
+  if (hton->flags & HTON_SUPPORTS_FOREIGN_KEYS)
+  {
+    if (!table_list->table)                      // False if locked
+    {
+      Open_table_context ot_ctx{
+        thd, MYSQL_OPEN_IGNORE_FLUSH | MYSQL_OPEN_HAS_MDL_LOCK |
+        MYSQL_LOCK_IGNORE_TIMEOUT
+      };
+
+      /* Avoid reading sequence table values */
+      thd->open_options|= HA_OPEN_FOR_REPAIR;
+      ret= open_table(thd, table_list, &ot_ctx);
+      thd->open_options&= ~HA_OPEN_FOR_REPAIR;
+      if (ret)
+        return 1;
+      ret= fk_truncate_illegal_if_parent(thd, table_list->table,
+                                         "CREATE OR REPLACE");
+      /* New opened tables are always first in the open list */
+      DBUG_ASSERT(table_list->table == thd->open_tables);
+      close_thread_table(thd, &thd->open_tables);
+      table_list->table= nullptr;
+    }
+    else
+      ret= fk_truncate_illegal_if_parent(thd, table_list->table,
+                                         "CREATE OR REPLACE");
+  }
+  return ret;
+}
+
+
 /**
   Discover all table names in a given database
 */
@@ -7355,9 +7435,10 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
 
 bool Discovered_table_list::add_file(const char *fname)
 {
-  bool is_temp= strncmp(fname, STRING_WITH_LEN(tmp_file_prefix)) == 0;
+  bool is_temp= is_tmp_table(fname);
 
-  if ((is_temp && !with_temps) || !strncmp(fname,STRING_WITH_LEN(ROCKSDB_DIRECTORY_NAME)))
+  if ((is_temp && !with_temps) ||
+      !strncmp(fname,STRING_WITH_LEN(ROCKSDB_DIRECTORY_NAME)))
     return 0;
 
   char tname[SAFE_NAME_LEN + 1];
@@ -7994,7 +8075,8 @@ static int binlog_log_row_to_binlog(TABLE* table,
 {
   bool error= 0;
   THD *const thd= table->in_use;
-
+  binlog_cache_mngr *cache_mngr;
+  binlog_cache_data *cache;
   DBUG_ENTER("binlog_log_row_to_binlog");
 
   if (!thd->binlog_table_maps &&
@@ -8005,20 +8087,18 @@ static int binlog_log_row_to_binlog(TABLE* table,
   DBUG_ASSERT((WSREP_NNULL(thd) && wsrep_emulate_bin_log)
               || mysql_bin_log.is_open());
 
-  auto *cache_mngr= thd->binlog_setup_trx_data();
-  if (cache_mngr == NULL)
+  if (!(cache_mngr= thd->binlog_setup_trx_data()))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* Ensure that all events in a GTID group are in the same cache */
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
     has_trans= 1;
 
-  auto *cache= binlog_get_cache_data(cache_mngr,
-                                     use_trans_cache(thd, has_trans));
+  cache= binlog_get_cache_data(cache_mngr, use_trans_cache(thd, has_trans));
 
-    error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
-                       has_trans, thd->variables.binlog_row_image,
-                       before_record, after_record);
+  error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
+                     has_trans, thd->variables.binlog_row_image,
+                     before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
 
@@ -8162,7 +8242,11 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-static int wsrep_after_row(THD *thd)
+/*
+  If skip_streaming is true, the row is counted against wsrep_max_ws_rows
+  and validated as usual, but no streaming fragment is replicated for it.
+*/
+static int wsrep_after_row(THD *thd, bool skip_streaming= false)
 {
   DBUG_ENTER("wsrep_after_row");
 #ifdef WITH_WSREP
@@ -8185,7 +8269,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row_internal(thd))
+  else if (wsrep_after_row_internal(thd, skip_streaming))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -8617,9 +8701,20 @@ int handler::ha_write_row(const uchar *buf)
   error= binlog_log_row(0, buf,
                         Write_rows_log_event::binlog_row_logging_function);
 
+  /*
+    Sequence tables are written with SEQUENCE::mutex held (see
+    SEQUENCE::next_value() and ha_sequence::write_row()). For a streaming
+    transaction the streaming step would replicate a fragment and block
+    waiting for certification and commit order, while an applier may be
+    waiting for the same mutex in SEQUENCE::set_value(). That deadlocks
+    the node, so skip only that step here. The row has already been
+    appended to the write set and will be replicated with the following
+    fragment, or at commit. Everything else wsrep_after_row() does, in
+    particular counting the row against wsrep_max_ws_rows, still applies.
+  */
   if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
       ht->flags & HTON_WSREP_REPLICATION && !error)
-    error= wsrep_after_row(ha_thd());
+    error= wsrep_after_row(ha_thd(), table_share->sequence != NULL);
 
 err:
   DEBUG_SYNC_C("ha_write_row_end");

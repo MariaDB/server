@@ -223,7 +223,7 @@ master_ssl_key
 master_ssl_verify_server_cert	Yes
 master_ssl_crl	
 master_ssl_crlpath	
-using_gtid	Slave_Pos
+using_gtid	No
 master_retry_count	100000
 slave_heartbeat_period	60.000
 connection_name	defaulted
@@ -237,7 +237,7 @@ master_ssl_key
 master_ssl_verify_server_cert	Yes
 master_ssl_crl	
 master_ssl_crlpath	
-using_gtid	Slave_Pos
+using_gtid	No
 master_retry_count	100000
 slave_heartbeat_period	60.000
 connection_name	unset
@@ -251,7 +251,7 @@ master_ssl_key
 master_ssl_verify_server_cert	Yes
 master_ssl_crl	
 master_ssl_crlpath	
-using_gtid	Slave_Pos
+using_gtid	No
 master_retry_count	100000
 slave_heartbeat_period	60.000
 #

@@ -1,0 +1,31 @@
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='semijoin=on,firstmatch=off,loosescan=off';
+set @blob_len = 16;
+set @prefix_len = 6;
+set @suffix_len = @blob_len - @prefix_len;
+create table t1 (a1 blob(16), a2 blob(16));
+create table t2 (b1 blob(16), b2 blob(16));
+insert into t1 values
+(concat('1 - 00', repeat('x', @suffix_len)), concat('2 - 00', repeat('x', @suffix_len)));
+insert into t1 values
+(concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+insert into t1 values
+(concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+insert into t2 values
+(concat('1 - 01', repeat('x', @suffix_len)), concat('2 - 01', repeat('x', @suffix_len)));
+insert into t2 values
+(concat('1 - 02', repeat('x', @suffix_len)), concat('2 - 02', repeat('x', @suffix_len)));
+insert into t2 values
+(concat('1 - 03', repeat('x', @suffix_len)), concat('2 - 03', repeat('x', @suffix_len)));
+explain extended select left(a1,7), left(a2,7) from t1 where a1 in (select b1 from t2 where b1 > '0');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select left(`test`.`t1`.`a1`,7) AS `left(a1,7)`,left(`test`.`t1`.`a2`,7) AS `left(a2,7)` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`b1` = `test`.`t1`.`a1` and `test`.`t1`.`a1` > '0'
+select left(a1,7), left(a2,7) from t1 where a1 in (select b1 from t2 where b1 > '0');
+left(a1,7)	left(a2,7)
+1 - 01x	2 - 01x
+1 - 02x	2 - 02x
+drop table t1, t2;
+set optimizer_switch=@save_optimizer_switch;

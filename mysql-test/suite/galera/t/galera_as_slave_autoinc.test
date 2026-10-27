@@ -83,5 +83,4 @@ RESET SLAVE ALL;
 SET GLOBAL gtid_slave_pos = "";
 
 --connection node_3
---source include/kill_binlog_dump_threads.inc
-RESET MASTER;
+--source include/reset_master.inc

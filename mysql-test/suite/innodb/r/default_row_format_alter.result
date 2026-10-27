@@ -135,10 +135,6 @@ DROP TABLE t1;
 #
 set @old_sql_mode = @@sql_mode;
 SET @@sql_mode='';
-CREATE TABLE t1(pk INT,c CHAR(255),c2 CHAR(255),c3 CHAR(255),
-c4 char(255), c5 char(255), c6 char(255),
-c7 char(255), c8 char(255), primary key(pk)
-)Engine=InnoDB character set utf32 ROW_FORMAT=REDUNDANT;
 INSERT INTO t1(pk, c) VALUES (1, repeat('a', 255));
 ALTER TABLE t1 FORCE;
 CHECK TABLE t1;
@@ -150,4 +146,20 @@ LENGTH(c)
 DROP TABLE t1;
 set @@sql_mode = @old_sql_mode;
 # End of 10.4 tests
+#
+# MDEV-39792 InnoDB: ALTER TABLE FORCE triggers assertion "s"
+# in buf_page_get_gen() when converting an externally stored
+# CHAR column to ROW_FORMAT=REDUNDANT
+#
+SET @a=REPEAT(_utf8mb4 0xF09F9880,254);
+SET GLOBAL innodb_default_row_format = @row_format;
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT c1=@a FROM t1;
+c1=@a
+1
+DROP TABLE t1;
+# End of 11.4 tests
 SET GLOBAL innodb_default_row_format = @row_format;

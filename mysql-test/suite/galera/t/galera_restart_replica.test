@@ -274,8 +274,7 @@ STOP SLAVE;
 RESET SLAVE ALL;
 
 --connection primary
---source include/kill_binlog_dump_threads.inc
-RESET MASTER;
+--source include/reset_master.inc
 
 --source include/auto_increment_offset_restore.inc
 

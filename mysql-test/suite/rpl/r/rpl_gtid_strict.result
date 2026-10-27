@@ -59,7 +59,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-*** Test non-transactional GTID error (cannot be rolled back). ***
+*** Test non-transactional GTID error ***
 SET server_id= 3;
 SET gtid_seq_no= 1;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
@@ -68,9 +68,6 @@ SET gtid_seq_no= 1;
 SET SESSION debug_dbug=@old_dbug;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
-SET sql_log_bin= 0;
-DROP TABLE t2;
-SET sql_log_bin= 1;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
 SET gtid_seq_no= 1;
 ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-3-5, and gtid strict mode is enabled

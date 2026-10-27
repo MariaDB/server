@@ -544,11 +544,16 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   db_buf[db_len]= 0;
 
   size_t tbl_len= strlen(mdl_name.m_name + db_len + 1);
-  const bool is_temp= mdl_name.is_temporary();
+  const bool is_temp= mdl_name.is_temporary() &&
+    !mdl_name.is_create_or_replace();
 
-  if (is_temp);
+  if (is_temp || tbl_len == 0);
   else if (const char *is_part= static_cast<const char*>
-           (memchr(mdl_name.m_name + db_len + 1, '#', tbl_len)))
+           (memchr(mdl_name.m_name + db_len + 2, '#', tbl_len - 1)))
+    /*
+      Trim the partition name suffix to acquire MDL on the table name,
+      which may start with #sql.
+    */
     tbl_len= static_cast<size_t>(is_part - &mdl_name.m_name[db_len + 1]);
 
   memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
@@ -1520,7 +1525,18 @@ dict_table_rename_in_cache(
 					       old_name_len))
 		->remove(*table, &dict_table_t::name_hash);
 
-	bool keep_mdl_name = !table->name.is_temporary();
+	bool keep_mdl_name = !table->name.is_temporary()
+		/* CREATE OR REPLACE TABLE ... SELECT
+		will rename the original table before copying the data.
+		We must forget the old name to avoid a conflict during the
+		data-copying phase; trx_purge_table_open() will acquire MDL
+		on the #sql-create- name only.
+
+		In order to prevent the concurrent execution of purge and
+		ha_innobase::delete_table() on this table,
+		Table_specification_st::end_create_table()
+		will acquire MDL_EXCLUSIVE on the #sql-create- name. */
+		&& !table->name.is_create_or_replace();
 
 	if (!keep_mdl_name) {
 	} else if (const char* s = static_cast<const char*>
@@ -1626,16 +1642,21 @@ dict_table_rename_in_cache(
 		foreign->foreign_table_name_lookup_set();
 
 		const char* sql_id = foreign->sql_id();
-		size_t fklen = snprintf(nullptr, 0, "%s\377%s",
-					table->name.m_name, sql_id);
+		const size_t name_len = strlen(table->name.m_name);
+		const size_t sql_len = strlen(sql_id);
+		const size_t fklen = name_len + 1 + sql_len + 1;
 		char* id = foreign->id;
-		if (fklen++ > strlen(id)) {
+		if (fklen > strlen(id) + 1) {
 			id = static_cast<char*>(
 				mem_heap_alloc(foreign->heap, fklen));
 		}
 		table->foreign_set.erase(it);
 		foreign->id = id;
-		snprintf(id, fklen, "%s\377%s", table->name.m_name, sql_id);
+		/* sql_id may point into the old foreign->id, which may be
+		   reused as id: move the tail first, then write the prefix. */
+		memmove(id + name_len + 1, sql_id, sql_len + 1);
+		memcpy(id, table->name.m_name, name_len);
+		id[name_len] = '\377';
 		fk_set.insert(foreign);
 
 		if (foreign->referenced_table) {

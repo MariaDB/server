@@ -2,8 +2,8 @@
 # * Galera-related settings
 #
 # See the examples of server wsrep.cnf files in /usr/share/mariadb and read
-# more at https://mariadb.com/kb/en/galera-cluster/ and
-# https://mariadb.com/kb/en/configuring-mariadb-galera-cluster/
+# more at https://mariadb.com/docs/galera-cluster and
+# https://mariadb.com/docs/galera-cluster/galera-management/configuration/configuring-mariadb-galera-cluster
 
 [galera]
 #wsrep_cluster_name       = "MariaDB Galera Cluster"

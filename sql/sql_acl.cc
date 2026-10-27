@@ -339,6 +339,7 @@ ulong role_global_merges= 0, role_db_merges= 0, role_table_merges= 0,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool ignore_max_password_errors(const ACL_USER *acl_user);
 static void update_hostname(acl_host_and_ip *host, const char *hostname);
+static bool valid_host_mask(const char *hostname);
 static bool show_proxy_grants (THD *, const char *, const char *,
                                char *, size_t);
 static bool show_role_grants(THD *, const char *,
@@ -441,6 +442,17 @@ public:
                         proxied_user,
                         safe_str(proxied_host.hostname), user,
                         safe_str(host.hostname));
+      return TRUE;
+    }
+    if (!valid_host_mask(host.hostname) ||
+        !valid_host_mask(proxied_host.hostname))
+    {
+      char entry[2 * (USERNAME_LENGTH + HOSTNAME_LENGTH) + 4];
+      my_snprintf(entry, sizeof(entry), "%s@%s %s@%s", proxied_user,
+                  safe_str(proxied_host.hostname), user,
+                  safe_str(host.hostname));
+      sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                        "proxies_priv", entry);
       return TRUE;
     }
     return FALSE;
@@ -3434,6 +3446,15 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                          host.host.hostname, host.db);
         continue;
       }
+      if (!valid_host_mask(host.host.hostname))
+      {
+        char entry[HOSTNAME_LENGTH + NAME_LEN + 2];
+        my_snprintf(entry, sizeof(entry), "%s|%s", host.host.hostname,
+                    safe_str(host.db));
+        sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                          "host", entry);
+        continue;
+      }
 #ifndef TO_BE_REMOVED
       if (host_table.num_fields() == 8)
       {						// Without grant
@@ -3515,6 +3536,17 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
         continue;
       }
 
+      /* Skipped rows stay in the table, so DROP and RENAME USER still work */
+      if (!valid_host_mask(user.host.hostname))
+      {
+        char entry[USERNAME_LENGTH + HOSTNAME_LENGTH + 2];
+        my_snprintf(entry, sizeof(entry), "%s@%s", user.user.str,
+                    safe_str(user.host.hostname));
+        sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                          "user", entry);
+        continue;
+      }
+
       if (user_table.get_auth(thd, &acl_memroot, &user))
         continue;
       for (uint i= 0; i < user.nauth; i++)
@@ -3587,6 +3619,15 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       sql_print_warning("'db' entry '%s %s@%s' "
                         "ignored in --skip-name-resolve mode.",
 		        db.db, db.user, safe_str(db.host.hostname));
+      continue;
+    }
+    if (!valid_host_mask(db.host.hostname))
+    {
+      char entry[NAME_LEN + USERNAME_LENGTH + HOSTNAME_LENGTH + 3];
+      my_snprintf(entry, sizeof(entry), "%s %s@%s", db.db,
+                  db.user, safe_str(db.host.hostname));
+      sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                        "db", entry);
       continue;
     }
     db.access= access_t(fix_rights_for_db(db_table.get_access()));
@@ -5404,6 +5445,101 @@ static const char *calc_ip(const char *ip, long *val, char end)
   return ip;
 }
 
+/* Convert CIDR prefix length (1-32) to a 32-bit IPv4 subnet mask. */
+static const char *calc_cidr(const char *prefix_str, long *val)
+{
+  uchar prefix;
+
+  if (!(prefix_str=str2int(prefix_str, INT16_MAX, 10, &prefix)) ||
+      *prefix_str != '\0' || !prefix || prefix > 32)
+    return 0;
+
+  *val= (long) (uint32) (0xFFFFFFFFU << (32 - prefix));
+  return prefix_str;
+}
+
+/*
+  compare_hostname() tests (client_ip & ip_mask) == ip, so a zero or
+  non-contiguous mask, or an ip with host bits set, can never match.
+*/
+static bool valid_masked_ip(long ip, long mask)
+{
+  ulong inv, m= (ulong) (uint32) mask;
+
+  if (!m)
+    return false;                         /* a mask of 0.0.0.0 */
+
+  inv= (~m) & 0xFFFFFFFFUL;
+  if (inv & (inv + 1))
+    return false;                         /* not contiguous */
+
+  return !(((ulong) (uint32) ip) & inv);
+}
+
+
+/*
+  Rewrite a masked host into the canonical netmask spelling:
+
+    10.0.0.0/8            -> 10.0.0.0/255.0.0.0
+    010.0.0.0/+8          -> 10.0.0.0/255.0.0.0
+    10.0.0.0/255.0.0.0    -> unchanged, already canonical
+
+  Anything that is not a valid masked host is returned unchanged and no error
+  is raised, so DROP USER and RENAME USER can still name a malformed host
+  stored by a version that did not validate it.
+
+  The exception is a stored literal CIDR host such as 10.0.0.0/24: it is
+  converted here, so it can no longer be named and has to be removed with a
+  direct DELETE from the privilege tables.
+*/
+
+LEX_CSTRING normalize_masked_host(THD *thd, const LEX_CSTRING &host)
+{
+  long ip, mask;
+  const char *p;
+  char buf[32];                 /* 255.255.255.255/255.255.255.255 and NUL */
+  uint32 a, m;
+  size_t len;
+
+  if (!host.str || !memchr(host.str, '/', host.length))
+    return host;
+  if (!(p= calc_ip(host.str, &ip, '/')))
+    return host;
+  if (!calc_ip(p + 1, &mask, '\0') && !calc_cidr(p + 1, &mask))
+    return host;
+  if (!valid_masked_ip(ip, mask))
+    return host;
+
+  a= (uint32) ip;
+  m= (uint32) mask;
+  len= my_snprintf(buf, sizeof(buf), "%u.%u.%u.%u/%u.%u.%u.%u",
+                   a >> 24, (a >> 16) & 0xFF, (a >> 8) & 0xFF, a & 0xFF,
+                   m >> 24, (m >> 16) & 0xFF, (m >> 8) & 0xFF, m & 0xFF);
+
+  return thd->strmake_lex_cstring(buf, len);
+}
+
+
+/*
+  Check that a host given in masked form is well formed:
+    a.b.c.d/255.255.255.0
+
+  A CIDR prefix is rejected here on purpose: normalize_masked_host() has
+  already rewritten every valid one, so a prefix reaching this point means
+  the host never went through the parser.
+*/
+
+static bool valid_host_mask(const char *hostname)
+{
+  long ip, mask;
+  const char *p;
+
+  if (!hostname || !strchr(hostname, '/'))
+    return true;                          /* not a masked host */
+
+  return (p= calc_ip(hostname, &ip, '/')) &&
+         calc_ip(p + 1, &mask, '\0') && valid_masked_ip(ip, mask);
+}
 
 static void update_hostname(acl_host_and_ip *host, const char *hostname)
 {
@@ -5662,6 +5798,14 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
     if (!combo->auth)
       combo->auth= &auth_no_password;
+
+    /* Only rows about to be created, so an older bad row stays droppable */
+    if (!valid_host_mask(combo->host.str))
+    {
+      my_error(ER_INVALID_HOST_NETMASK, MYF(0), combo->host.str,
+               combo->user.str);
+      goto end;
+    }
 
     old_row_exists = 0;
     restore_record(table, s->default_values);
@@ -8767,7 +8911,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     {
       if (!(rights & CREATE_ACL))
       {
-        if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
+        if (!ha_table_exists(thd, &table_list->db, &table_list->table_name,
+                             NULL, NULL, NULL, 0))
         {
           my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str,
                    table_list->alias.str);
@@ -9676,6 +9821,17 @@ static bool grant_load(THD *thd,
 	}
       }
 
+      if (!valid_host_mask(mem_check->host.hostname))
+      {
+        char entry[NAME_LEN + USERNAME_LENGTH + HOSTNAME_LENGTH + 3];
+        my_snprintf(entry, sizeof(entry), "%s %s@%s", safe_str(mem_check->tname),
+                    mem_check->user, safe_str(mem_check->host.hostname));
+        sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                          "tables_priv", entry);
+        delete mem_check;
+        continue;
+      }
+
       if (! mem_check->ok())
 	delete mem_check;
       else if (column_priv_insert(mem_check))
@@ -9718,6 +9874,18 @@ static bool grant_load(THD *thd,
                               safe_str(mem_check->host.hostname));
             continue;
           }
+        }
+
+        if (!valid_host_mask(mem_check->host.hostname))
+        {
+          char entry[NAME_LEN + USERNAME_LENGTH + HOSTNAME_LENGTH + 3];
+          my_snprintf(entry, sizeof(entry), "%s %s@%s",
+                      safe_str(mem_check->tname), mem_check->user,
+                      safe_str(mem_check->host.hostname));
+          sql_print_warning(ER_DEFAULT(ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK),
+                            "procs_priv", entry);
+          delete mem_check;
+          continue;
         }
         enum_sp_type type= (enum_sp_type)procs_priv.routine_type()->val_int();
         const Sp_handler *sph= Sp_handler::handler(type);
@@ -13061,7 +13229,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   }
 
   if (binlog)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    result |= MY_TEST(write_bin_log(thd, FALSE, thd->query(),
+                                    thd->query_length()));
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -13266,7 +13435,8 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              wrong_users.c_ptr_safe());
 
   if (binlog)
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    result |= MY_TEST(write_bin_log(thd, FALSE, thd->query(),
+                                    thd->query_length()));
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -13326,6 +13496,18 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     DBUG_ASSERT(!user_from->is_role());
     DBUG_ASSERT(!user_to->is_role());
 
+    /* Target only, so a bad host can be repaired by renaming it */
+    if (!valid_host_mask(user_to->host.str))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_INVALID_HOST_NETMASK,
+                          ER_THD(thd, ER_INVALID_HOST_NETMASK),
+                          user_to->host.str, user_to->user.str);
+      append_user(thd, &wrong_users, user_to);
+      result= TRUE;
+      continue;
+    }
+
     /*
       Search all in-memory structures and grant tables
       for a mention of the new user name.
@@ -13360,7 +13542,8 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     my_error(ER_CANNOT_USER, MYF(0), "RENAME USER", wrong_users.c_ptr_safe());
 
   if (some_users_renamed && mysql_bin_log.is_open())
-    result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+    result |= MY_TEST(write_bin_log(thd, FALSE, thd->query(),
+                                    thd->query_length()));
 
   mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(result);
@@ -13436,8 +13619,8 @@ int mysql_alter_user(THD* thd, List<LEX_USER> &users_list)
   }
 
   if (some_users_altered)
-    result|= write_bin_log(thd, FALSE, thd->query(),
-                                     thd->query_length());
+    result|= MY_TEST(write_bin_log(thd, FALSE, thd->query(),
+                                   thd->query_length()));
   DBUG_RETURN(result);
 }
 
@@ -13702,8 +13885,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   if (result)
     my_message(ER_REVOKE_GRANTS, ER_THD(thd, ER_REVOKE_GRANTS), MYF(0));
   
-  result= result |
-    write_bin_log(thd, FALSE, thd->query(), thd->query_length());
+  result|= MY_TEST(write_bin_log(thd, FALSE, thd->query(),
+                                 thd->query_length()));
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -14227,6 +14410,8 @@ access_t get_column_grant(THD *, GRANT_INFO *, const char *, const char *,
 { return access_t(ALL_KNOWN_ACL); }
 int acl_check_setrole(THD *, const LEX_CSTRING &, access_t *) { return 0; }
 int acl_setrole(THD *, const LEX_CSTRING &, const access_t&) { return 0; }
+LEX_CSTRING normalize_masked_host(THD *, const LEX_CSTRING &host)
+{ return host; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 static int set_privs_on_login(THD *thd, const ACL_USER *acl_user)
@@ -14389,14 +14574,16 @@ wsrep_error_label:
 
 /**
   Allow REVOKE DENY ... FROM PUBLIC to bypass the privilege check when the
-  revoker holds UPDATE on mysql.global_priv (where DENYs are stored).
+  revoker holds table-level UPDATE on mysql.global_priv (where DENYs are
+  stored), with no column-level DENY.
 
   DENY ... TO PUBLIC locks out everyone including root. But the revoker who
   can modify the underlying table via UPDATE has sufficient power to undo it
   directly, so the denied privilege itself is not required.
 
   @retval true   revoker runs in REVOKE DENY FROM PUBLIC,
-                 can UPDATE mysql.global_priv and shall skip other checks
+                 has table-level UPDATE on mysql.global_priv and shall skip
+                 other checks
   @retval false  normal check applies
 */
 
@@ -14422,7 +14609,8 @@ bool Sql_cmd_grant::should_bypass_revoke_deny(THD *thd)
                     NULL, TL_WRITE);
   return !check_access(thd, UPDATE_ACL, tl.db.str, &tl.grant.privilege,
                        &tl.grant.m_internal, 0, 1) &&
-         !check_grant(thd, UPDATE_ACL, &tl, FALSE, 1, TRUE);
+         !check_grant(thd, UPDATE_ACL, &tl, FALSE, 1, TRUE) &&
+         tl.grant.want_privilege == NO_ACL;
 }
 
 

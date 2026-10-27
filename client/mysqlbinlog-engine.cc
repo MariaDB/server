@@ -1170,8 +1170,7 @@ chunk_reader_mysqlbinlog::seek(uint64_t file_no, uint64_t offset)
 
 bool
 open_engine_binlog(handler_binlog_reader *generic_reader,
-                   ulonglong start_position,
-                   const char *filename, IO_CACHE *opened_cache)
+                   ulonglong start_position, const char *filename)
 {
   binlog_reader_innodb *reader= (binlog_reader_innodb *)generic_reader;
   if (!reader->is_valid())
@@ -1185,7 +1184,15 @@ open_engine_binlog(handler_binlog_reader *generic_reader,
   dirname_part(binlog_dir, filename, &dummy);
   if (!strlen(binlog_dir))
     strncpy(binlog_dir, ".", sizeof(binlog_dir) - 1);
-  return reader->init_from_fd_pos(dup(opened_cache->file), start_position);
+  if (!filename || strcmp(filename, "-") == 0)
+  {
+    error("InnoDB binlog file cannot be dumped from stdin");
+    return true;
+  }
+  File fd= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
+  if (fd < 0)
+    return 1;
+  return reader->init_from_fd_pos(fd, start_position);
 }
 
 

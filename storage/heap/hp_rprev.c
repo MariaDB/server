@@ -26,6 +26,8 @@ int heap_rprev(HP_INFO *info, uchar *record)
   HP_KEYDEF *keyinfo;
   DBUG_ENTER("heap_rprev");
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   if (info->lastinx < 0)
     DBUG_RETURN(my_errno=HA_ERR_WRONG_INDEX);
   keyinfo = share->keydef + info->lastinx;
@@ -62,7 +64,7 @@ int heap_rprev(HP_INFO *info, uchar *record)
     }
     if (pos)
     {
-      info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
+      info->lastkey_len= (*keyinfo->get_key_length)(keyinfo, pos);
       if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
         memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
       memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
@@ -96,6 +98,8 @@ int heap_rprev(HP_INFO *info, uchar *record)
     DBUG_RETURN(my_errno);
   }
   memcpy(record,pos,(size_t) share->reclength);
+  if (share->blob_count && hp_read_blobs(info, record, pos))
+    DBUG_RETURN(my_errno);
   info->update=HA_STATE_AKTIV | HA_STATE_PREV_FOUND;
   DBUG_RETURN(0);
 }

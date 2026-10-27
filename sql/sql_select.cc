@@ -53,6 +53,7 @@
 #include "sql_window.h"
 #include "tztime.h"
 
+#include "debug.h"               // debug_crash_here
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
 #include <my_bit.h>
@@ -2896,9 +2897,15 @@ int JOIN::optimize_stage2()
       Unlock all tables, except sequences, as accessing these may still
       require table updates. It's safe to ignore result code as all
       tables where opened for read only.
+
+      A const table's row stays in record[0] and is read from there for the
+      rest of the statement, so a table that answered the read with pointers
+      into memory it shares with other connections has to stay locked too --
+      see HA2_CANNOT_ACCESS_ROWDATA_AFTER_UNLOCK.
     */
     (void) mysql_unlock_some_tables(thd, table, const_tables,
-                                    GET_LOCK_SKIP_SEQUENCES);
+                                    GET_LOCK_SKIP_SEQUENCES |
+                                    GET_LOCK_SKIP_ZERO_COPY_ROWS);
   }
   if (!conds && outer_join)
   {
@@ -8739,6 +8746,221 @@ const char* dbug_print_join_prefix(const POSITION *join_positions,
   else
     return "Couldn't fit into buffer";
 }
+
+/*
+  Debugger helper function for visualizing a JOIN_TAB and its context.
+
+  Shows the tab's identity, neighbors in the join_tab array, the
+  JOIN::return_tab pointer, the writing_null_complements flag, and
+  the logical execution call chain from do_select() down to this tab.
+
+    (gdb)  p dbug_print(join_tab)
+
+
+  NOTE: for nice formatting in gdb:
+    (gdb) printf "%s", dbug_print(join_tab-1)
+
+  NOTE: for nice formatting in lldb:
+    (lldb) p printf("%s", dbug_print(join_tab))
+*/
+
+static const char *dbug_next_select_func_name(Next_select_func func)
+{
+  if (!func)                              return "(null)";
+  if (func == sub_select)                 return "sub_select";
+  if (func == sub_select_cache)           return "sub_select_cache";
+  if (func == sub_select_postjoin_aggr)   return "sub_select_postjoin_aggr";
+  if (func == end_send)                   return "end_send";
+  if (func == end_send_group)             return "end_send_group";
+  if (func == end_write)                  return "end_write";
+  if (func == end_write_group)            return "end_write_group";
+  if (func == end_update)                 return "end_update";
+  if (func == end_unique_update)          return "end_unique_update";
+  return "(unknown)";
+}
+
+static void dbug_str_append_tab_brief(String *out, const JOIN_TAB *t)
+{
+  char tmp[64];
+  size_t len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", t);
+  out->append(tmp, len);
+  if (t && t->table)
+  {
+    out->append(" \"", 2);
+    out->append(t->table->alias);
+    out->append('"');
+  }
+}
+
+static char dbug_join_tab_print_buf[16384];
+
+const char *dbug_print_join_tab(const JOIN_TAB *tab)
+{
+  char *buf= dbug_join_tab_print_buf;
+  String str(buf, sizeof(dbug_join_tab_print_buf), &my_charset_bin);
+  str.length(0);
+  char tmp[64];
+  size_t len;
+
+  if (!tab)
+    return "(JOIN_TAB*)NULL";
+
+  JOIN *join= tab->join;
+
+  /* Compute position in the join_tab array */
+  int tab_idx= -1;
+  int total_tabs= 0;
+  if (join && join->join_tab)
+  {
+    tab_idx= (int)(tab - join->join_tab);
+    total_tabs= join->top_join_tab_count + join->aggr_tables;
+  }
+
+  /* Header */
+  str.append("JOIN_TAB ", 9);
+  dbug_str_append_tab_brief(&str, tab);
+  str.append('\n');
+
+  /* Position in array */
+  if (tab_idx >= 0)
+  {
+    str.append("  position: #", 13);
+    len= (size_t)snprintf(tmp, sizeof(tmp), "%d of %u", tab_idx+1, total_tabs);
+    str.append(tmp, len);
+    str.append(" (join_tab array ", 17);
+    len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", join->join_tab);
+    str.append(tmp, len);
+    str.append(")\n", 2);
+  }
+
+  /* Access type */
+  str.append("  type: ", 8);
+  str.append(join_type_str[tab->type], strlen(join_type_str[tab->type]));
+  str.append('\n');
+
+  /* Neighbors */
+  if (tab_idx > 0)
+  {
+    str.append("  prev: ", 8);
+    dbug_str_append_tab_brief(&str, tab - 1);
+    str.append(" (", 2);
+    str.append(join_type_str[(tab - 1)->type], strlen(join_type_str[(tab - 1)->type]));
+    str.append(")\n", 2);
+  }
+  else
+    str.append("  prev: (none)\n", 15);
+
+  if (tab_idx >= 0 && (tab_idx + 1) < total_tabs)
+  {
+    str.append("  next: ", 8);
+    dbug_str_append_tab_brief(&str, tab + 1);
+    str.append(" (", 2);
+    str.append(join_type_str[(tab + 1)->type], strlen(join_type_str[(tab + 1)->type]));
+    str.append(")\n", 2);
+  }
+  else
+    str.append("  next: (none)\n", 15);
+
+  /* return_tab */
+  str.append("  return_tab: ", 14);
+  if (join && join->return_tab)
+  {
+    dbug_str_append_tab_brief(&str, join->return_tab);
+    if (join->join_tab)
+    {
+      int ret_idx= (int)(join->return_tab - join->join_tab);
+      len= (size_t)snprintf(tmp, sizeof(tmp), " (#%d)", ret_idx+1);
+      str.append(tmp, len);
+    }
+    str.append('\n');
+  }
+  else
+    str.append("(null)\n", 7);
+
+  /* next_select function pointer */
+  str.append("  next_select: ", 15);
+  str.append(dbug_next_select_func_name(tab->next_select), strlen(dbug_next_select_func_name(tab->next_select)));
+  str.append('\n');
+
+  /* Outer join pointers */
+  if (tab->first_inner)
+  {
+    str.append("  first_inner: ", 15);
+    dbug_str_append_tab_brief(&str, tab->first_inner);
+    str.append('\n');
+  }
+  if (tab->last_inner)
+  {
+    str.append("  last_inner: ", 14);
+    dbug_str_append_tab_brief(&str, tab->last_inner);
+    str.append('\n');
+  }
+  if (tab->first_upper)
+  {
+    str.append("  first_upper: ", 15);
+    dbug_str_append_tab_brief(&str, tab->first_upper);
+    str.append('\n');
+  }
+
+  /* select_cond */
+  str.append("  select_cond: ", 15);
+  if (tab->select_cond)
+  {
+    len= (size_t)snprintf(tmp, sizeof(tmp), "[%p]", tab->select_cond);
+    str.append(tmp, len);
+    str.append("  ", 2);
+    const char* item_buf= nullptr;
+    item_buf= dbug_print_item(tab->select_cond);
+    str.append(item_buf, strlen(item_buf));
+    str.append('\n');
+  }
+  else
+  {
+    str.append("(none)", 6);
+    str.append('\n');
+  }
+
+  /*
+    Logical call chain from do_select() to this tab.
+
+    do_select() calls join->first_select(join, join_tab[const_tables], ...),
+    which is typically sub_select.  Each tab's next_select is then used to
+    advance to the next tab in the nested loop.
+  */
+  if (join && join->join_tab && tab_idx >= 0)
+  {
+    int start= (int)join->const_tables;
+
+    for (int i= start; i < total_tabs; i++)
+    {
+      const JOIN_TAB *t= &join->join_tab[i];
+      str.append("    #", 5);
+      len= (size_t)snprintf(tmp, sizeof(tmp), "%d ", i+1);
+      str.append(tmp, len);
+      dbug_str_append_tab_brief(&str, t);
+      str.append(" (", 2);
+      str.append(join_type_str[t->type], strlen(join_type_str[t->type]));
+      str.append(')');
+
+      str.append("  next_select=", 14);
+      str.append(dbug_next_select_func_name(t->next_select), strlen(dbug_next_select_func_name(t->next_select)));
+
+      if (i == tab_idx)
+        str.append("  <-- current", 13);
+
+      str.append('\n');
+    }
+  }
+
+  if (str.c_ptr_safe() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+
+const char *dbug_print(const JOIN_TAB *x)    { return dbug_print_join_tab(x); }
+
 #endif
 
 /**
@@ -11922,7 +12144,14 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
          In 11.0+, that time is already included in pos->read_time)
       */
       partial_join_cost -= pos->read_time*fraction;
-      DBUG_ASSERT(partial_join_cost >= 0.0);
+      /*
+        Handle possible rounding errors when
+        partial_join_cost==pos->read_time*fraction:
+        Catch larger negatives, proceed with non-negative cost.
+      */
+      DBUG_ASSERT(partial_join_cost >= -DBL_EPSILON);
+      if (partial_join_cost < 0.0)
+        partial_join_cost= 0.0;
 
       /* Add the cost of the new access method we've got: */
       partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
@@ -15726,11 +15955,13 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
+      bool is_duplicate;
       /* create_myisam_from_heap will generate error if needed */
       if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
           create_internal_tmp_table_from_heap(thd, table,
-                                              sjm->sjm_table_param.start_recinfo, 
-                                              &sjm->sjm_table_param.recinfo, error, 1, NULL))
+                                              sjm->sjm_table_param.start_recinfo,
+                                              &sjm->sjm_table_param.recinfo,
+                                              error, 1, &is_duplicate, NULL))
         DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
     }
   }
@@ -21661,7 +21892,7 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
   DBUG_ASSERT(!param->make_copy_field() || type() == CONST_ITEM);
   DBUG_ASSERT(!is_result_field());
   Field *result;
-  if ((result= tmp_table_field_from_field_type(root, table)))
+  if ((result= tmp_table_field_from_field_type(root, table, param)))
   {
     if (result && is_explicit_null)
       result->is_created_from_null_item= true;
@@ -21670,7 +21901,8 @@ Field *Item::tmp_table_field_from_field_type_maybe_null(MEM_ROOT *root,
 }
 
 
-Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table,
+                                  const Tmp_field_param *param)
 {
   Field *UNINIT_VAR(new_field);
 
@@ -21685,7 +21917,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
   case TIME_RESULT:
   case DECIMAL_RESULT:
   case STRING_RESULT:
-    new_field= tmp_table_field_from_field_type(root, table);
+    new_field= tmp_table_field_from_field_type(root, table, param);
     break;
   case ROW_RESULT:
     // This case should never be chosen
@@ -21738,7 +21970,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     */
     Record_addr rec(orig_item ? orig_item->maybe_null() : maybe_null());
     const Type_handler *handler= type_handler()->
-                                   type_handler_for_tmp_table(this);
+      type_handler_for_tmp_table(this, param);
     result= handler->make_and_init_table_field(root, new_name,
                                                rec, *this, new_table);
   }
@@ -21755,7 +21987,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
   {
     bool tmp_maybe_null= param->modify_item() ? maybe_null() :
                                                 field->maybe_null();
-    result= field->create_tmp_field(root, new_table, tmp_maybe_null);
+    result= field->create_tmp_field(root, new_table, tmp_maybe_null, param);
     if (result && ! param->modify_item())
       result->field_name= *new_name;
   }
@@ -21792,7 +22024,7 @@ Field *Item_default_value::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
       as the we have to calculate the default value before we can use it.
     */
      get_tmp_field_src(src, param);
-     Field *result= tmp_table_field_from_field_type(root, table);
+     Field *result= tmp_table_field_from_field_type(root, table, param);
      if (result && param->modify_item())
        result_field= result;
      return result;
@@ -21830,6 +22062,49 @@ Field *Item_ref::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 }
 
 
+
+Field *Item_type_holder::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
+                                             Tmp_field_src *src,
+                                             const Tmp_field_param *param)
+{
+  const Type_handler *type_handler= Item_type_holder::real_type_handler();
+  const Type_handler *tmp_handler=
+    type_handler->type_handler_for_tmp_table(this, param);
+  /*
+    Only enter the blob_key path when BOTH conditions hold:
+    1. type_handler_for_tmp_table() returned blob_key_type_handler()
+       (implies part_of_unique_key is true)
+    2. The original type IS a blob (dynamic_cast succeeds)
+
+    Condition 1 excludes xmltype (its override returns itself, never
+    blob_key).  Condition 2 excludes VARCHAR types that were promoted
+    to blob_key via varstring_type_handler() -> too_big_for_varchar()
+    -> blob_type_handler(). Without condition 2, wide VARCHAR columns
+    would get promoted to blob in the main table (which has
+    part_of_unique_key=true for UNION DISTINCT) but stay as VARCHAR in
+    the incremental table of a recursive CTE (which has
+    part_of_unique_key=false), causing a reclength mismatch assertion.
+  */
+  if (tmp_handler == Type_handler::blob_key_type_handler() &&
+      dynamic_cast<const Type_handler_blob_common*>(type_handler))
+  {
+    Field *field= tmp_handler->
+      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                                *this, table);
+    if (field)
+    {
+      ((Field_blob*) field)->set_pack_length(
+        static_cast<const Type_handler_blob_common*>(
+          Type_handler::blob_type_handler(max_length, NULL))->length_bytes());
+    }
+    return field;
+  }
+  return type_handler->
+    make_and_init_table_field(root, &name, Record_addr(maybe_null()),
+                              *this, table);
+}
+
+
 void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
                                           const Tmp_field_param *param)
 {
@@ -21851,7 +22126,7 @@ Item_result_field::create_tmp_field_ex_from_handler(
                                           TABLE *table,
                                           Tmp_field_src *src,
                                           const Tmp_field_param *param,
-                                          const Type_handler *h)
+                                          const Type_handler *type_handler)
 {
   /*
     Possible Item types:
@@ -21864,10 +22139,12 @@ Item_result_field::create_tmp_field_ex_from_handler(
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= h->make_and_init_table_field(root, &name,
-                                            Record_addr(maybe_null()),
-                                            *this, table)) &&
-      param->modify_item())
+
+  result= type_handler->make_and_init_table_field_ex(root, &name,
+                                                     Record_addr(maybe_null()),
+                                                     *this, param, table);
+
+  if (result && param->modify_item())
     result_field= result;
   return result;
 }
@@ -21879,7 +22156,7 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
 {
   Field *result;
   get_tmp_field_src(src, param);
-  if ((result= sp_result_field->create_tmp_field(root, table)))
+  if ((result= sp_result_field->create_tmp_field(root, table, param)))
   {
     result->field_name= name;
     if (param->modify_item())
@@ -21933,6 +22210,8 @@ static bool make_json_valid_expr(TABLE *table, Field *field)
   @param make_copy_field
                        Set when using with rollup when we want to have
                        an exact copy of the field.
+  @param part_of_unique_key
+                       Field is part of unique key
   @retval
     0                  on error
   @retval
@@ -21945,11 +22224,13 @@ Field *create_tmp_field(TABLE *table, Item *item,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field)
+                        bool make_copy_field,
+                        bool part_of_unique_key)
 {
   Tmp_field_src src;
   Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
-                      make_copy_field);
+                      make_copy_field, part_of_unique_key || group,
+                      table->group_concat);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
   if (is_json_type(item) && make_json_valid_expr(table, result))
@@ -21959,6 +22240,13 @@ Field *create_tmp_field(TABLE *table, Item *item,
   *default_field= src.default_field();
   if (src.item_result_field())
     *((*copy_func)++)= src.item_result_field();
+  if (result)
+  {
+    if (part_of_unique_key)
+      result->flags|= FIELD_PART_OF_TMP_UNIQUE | UNIQUE_KEY_FLAG;
+    if (group)
+      result->flags|= UNIQUE_KEY_FLAG;
+  }
   return result;
 }
 
@@ -22004,6 +22292,7 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
                                    ha_rows rows_limit)
    :m_alloced_field_count(0),
     m_using_unique_constraint(false),
+    m_heap_expected(false),
     m_temp_pool_slot(MY_BIT_NONE),
     m_group(group),
     m_distinct(distinct),
@@ -22130,6 +22419,19 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
+  /*
+    Early engine prediction.  Returns heap_hton unless session-level
+    overrides (tmp_memory_table_size=0, etc.) force a disk-based engine.
+    We use this to avoid the too_big_for_varchar() / group_length >=
+    MAX_BLOB_WIDTH bail-outs that would force m_using_unique_constraint
+    for HEAP tables that natively support blob keys.
+
+    Note: pick_engine() also reads m_using_unique_constraint, which is
+    false at this point.  The guards below that set it to true are gated
+    by !m_heap_expected, so there is no circular dependency in practice.
+  */
+  m_heap_expected= (pick_engine(thd) == heap_hton);
+
   if (m_group)
   {
     ORDER **prev= &m_group;
@@ -22144,19 +22446,18 @@ TABLE *Create_tmp_table::start(THD *thd,
         param->group_parts--;
         continue;
       }
-      else
-        prev= &(tmp->next);
+      prev= &(tmp->next);
       /*
-        marker == 4 means two things:
+        marker == MARKER_NULL_KEY means two things:
         - store NULLs in the key, and
         - convert BIT fields to 64-bit long, needed because MEMORY tables
           can't index BIT fields.
       */
       (*tmp->item)->marker= MARKER_NULL_KEY; // Store null in key
-      if ((*tmp->item)->too_big_for_varchar())
+      if (!m_heap_expected && (*tmp->item)->too_big_for_varchar())
         m_using_unique_constraint= true;
     }
-    if (param->group_length >= MAX_BLOB_WIDTH)
+    if (!m_heap_expected && param->group_length >= MAX_BLOB_WIDTH)
       m_using_unique_constraint= true;
     if (m_group)
       m_distinct= 0;                           // Can't use distinct
@@ -22239,6 +22540,7 @@ TABLE *Create_tmp_table::start(THD *thd,
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, "(temporary)", tmpname, true);
+  share->tmp_table= RESULT_TMP_TABLE;
   share->blob_field= blob_field;
   share->table_charset= param->table_charset;
   share->primary_key= MAX_KEY;               // Indicate no primary key
@@ -22340,9 +22642,11 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure , false);
+                             distinct_record_structure, false,
+                             (current_counter == distinct));
           if (!new_field)
             goto err;					// Should be OOM
+
           tmp_from_field++;
 
           thd->mem_root= mem_root_save;
@@ -22366,14 +22670,13 @@ bool Create_tmp_table::add_fields(THD *thd,
             */
             arg->set_maybe_null();
           }
-          if (current_counter == distinct)
-            new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
         }
       }
 
       /*
-        If the aggregate has FILTER, materialize the predicate into the tmp table
-        and rewrite it to read from the tmp row (we compute aggregates later).
+        If the aggregate has FILTER, materialize the predicate into the tmp
+        table and rewrite it to read from the tmp row (we compute aggregates
+        later).
       */
       if (sum_item->has_filter())
       {
@@ -22385,7 +22688,7 @@ bool Create_tmp_table::add_fields(THD *thd,
             create_tmp_field(table, fexpr, &copy_func,
                              tmp_from_field, &m_default_field[fieldnr],
                              m_group != 0, not_all_columns,
-                             distinct_record_structure, false);
+                             distinct_record_structure, false, false);
           if (!new_field)
             goto err;
           tmp_from_field++;
@@ -22440,13 +22743,15 @@ bool Create_tmp_table::add_fields(THD *thd,
                          */
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
-                         param->force_copy_fields);
+                         param->force_copy_fields,
+                         (current_counter == distinct));
       if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error || item->cols() == 1))
           goto err;                             // Got OOM
         continue;                               // Some kind of const item
       }
+
       if (type == Item::SUM_FUNC_ITEM)
       {
         Item_sum *agg_item= (Item_sum *) item;
@@ -22484,8 +22789,6 @@ bool Create_tmp_table::add_fields(THD *thd,
         m_group_null_items++;
         new_field->flags|= GROUP_FLAG;
       }
-      if (current_counter == distinct)
-        new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
   }
 
@@ -22510,34 +22813,44 @@ err:
 }
 
 
+/*
+  Predict which engine a temporary table will use, based on session
+  variables and the current m_using_unique_constraint / m_select_options
+  state.  Called early (before fields are added) to set m_heap_expected,
+  and again from choose_engine().
+*/
+
+handlerton *Create_tmp_table::pick_engine(THD *thd)
+{
+  if (m_using_unique_constraint ||
+      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
+      thd->variables.tmp_memory_table_size == 0)
+    return TMP_ENGINE_HTON;
+  return heap_hton;
+}
+
+
 bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
                                      TMP_TABLE_PARAM *param)
 {
   TABLE_SHARE *share= table->s;
   DBUG_ENTER("Create_tmp_table::choose_engine");
-  /*
-    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria)
-    In the future we should try making storage engine selection more dynamic
-  */
 
-  if (share->blob_fields || m_using_unique_constraint ||
-      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
-      thd->variables.tmp_memory_table_size == 0)
-  {
-    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-    if (m_group &&
-	(param->group_parts > table->file->max_key_parts() ||
-	 param->group_length > table->file->max_key_length()))
-      m_using_unique_constraint= true;
-  }
-  else
-  {
-    share->db_plugin= ha_lock_engine(0, heap_hton);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-  }
+  handlerton *engine= pick_engine(thd);
+  share->db_plugin= ha_lock_engine(0, engine);
+  table->file= get_new_handler(share, &table->mem_root, share->db_type());
+
+  /*
+    When a disk engine was chosen for reasons other than key limits
+    (e.g. TMP_TABLE_FORCE_MYISAM, tmp_memory_table_size=0),
+    the GROUP BY key may still exceed the disk engine's max_key_parts()
+    or max_key_length().  Fall back to unique constraint hash dedup.
+  */
+  if (engine == TMP_ENGINE_HTON && m_group &&
+      (param->group_parts > table->file->max_key_parts() ||
+       param->group_length > table->file->max_key_length()))
+    m_using_unique_constraint= true;
+
   DBUG_RETURN(!table->file);
 }
 
@@ -22582,9 +22895,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!m_using_unique_constraint)
     share->reclength+= m_group_null_items; // null flag is stored separately
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
-    /* We need to ensure that first byte is not 0 for the delete link */
+    /*
+      We need to ensure that first byte is not 0 for the delete link.
+      HEAP uses fixed-width rows even with blobs (blob data lives in
+      separate continuation records within the same HP_BLOCK, not
+      inline in the primary record), so it still needs this guard.
+    */
     if (m_field_count[other])
       m_null_count[other]++;
     else
@@ -22603,11 +22921,14 @@ bool Create_tmp_table::finalize(THD *thd,
   if (!share->reclength)
     share->reclength= 1;                // Dummy select
   share->stored_rec_length= share->reclength;
-  /* Use packed rows if there is blobs or a lot of space to gain */
-  if (share->blob_fields ||
-      (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
-       (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
-        string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS)))
+  /*
+    HEAP does not use recinfo->type, so packed format is harmless for HEAP.
+    It is needed for correct packing when converting to Aria.
+  */
+  if ((share->blob_fields ||
+       (string_total_length() >= STRING_TOTAL_LENGTH_TO_PACK_ROWS &&
+        (share->reclength / string_total_length() <= RATIO_TO_PACK_ROWS ||
+         string_total_length() / string_count() >= AVG_STRING_LENGTH_TO_PACK_ROWS))))
     use_packed_rows= 1;
 
   {
@@ -22638,8 +22959,13 @@ bool Create_tmp_table::finalize(THD *thd,
     share->null_bytes= share->null_bytes_for_compare= whole_null_pack_length;
   }
 
-  if (share->blob_fields == 0)
+  if (share->blob_fields == 0 || share->db_type() == heap_hton)
   {
+    /*
+      Same first-byte guard as above: HEAP with blobs still uses
+      fixed-width rows and needs a non-zero first byte for the
+      delete-link mechanism.
+    */
     null_counter[(m_field_count[other] ? other : distinct)]++;
   }
 
@@ -22739,7 +23065,7 @@ bool Create_tmp_table::finalize(THD *thd,
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
                                  MY_MIN(thd->variables.tmp_memory_table_size,
-                                     thd->variables.max_heap_table_size) :
+                                        thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_disk_table_size) /
                                 MY_ALIGN(share->reclength, sizeof(char*)));
   set_if_bigger(share->max_rows,1);		// For dummy start options
@@ -22792,12 +23118,8 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info->offset= field->offset(table->record[0]);
       m_key_part_info->length= (uint16) field->key_length();
       m_key_part_info->type=   (uint8) field->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
-      m_key_part_info->key_part_flag= 0;
+      m_key_part_info->key_type= field->binary() ? FIELDFLAG_BINARY : 0;
+      m_key_part_info->key_part_flag= field->key_part_flag();
       if (!m_using_unique_constraint)
       {
         cur_group->buff=(char*) m_group_buff;
@@ -22815,13 +23137,95 @@ bool Create_tmp_table::finalize(THD *thd,
           (*cur_group->item)->base_flags&= ~item_base_t::MAYBE_NULL;
         }
 
+        /*
+          For blob/geometry GROUP BY keys,
+          m_key_part_info->length, set from field->key_length(),
+          contains 0 (blobs) or packlength (geometry), both too
+          small to hold actual data. Use the item's max_length
+          capped to MAX_BLOB_WIDTH so new_key_field gets a
+          usable size.
+        */
+        uint32 key_field_length= m_key_part_info->length;
+        if ((field->flags & BLOB_FLAG) &&
+            key_field_length <= ((Field_blob*) field)->length_size())
+        {
+          key_field_length= MY_MIN((*cur_group->item)->max_length,
+                                   (MAX_BLOB_WIDTH - 4 - 1));
+          /*
+            Verify that the group buffer has room for this blob key
+            field.  For native blob columns calc_group_buffer() sees
+            the blob type from the start and always allocates enough
+            space.  This can only overflow when a varchar is promoted
+            to blob after calc_group_buffer() has already sized the
+            buffer (varchar-to-blob promotion path).
+          */
+          uint32 need= key_field_length + 4 /* length_bytes */ +
+                        MY_TEST(maybe_null);
+          if (m_group_buff + need >
+              param->group_buff + param->group_length)
+          {
+            m_using_unique_constraint= true;
+            DBUG_ASSERT(0);                    // Should be impossible
+            break;
+          }
+        }
+        /*
+          Set key_part_flag from the actual field type AFTER the overflow
+          check.  This ensures that if we break out due to a promoted
+          blob overflowing the group buffer, key_part_flag retains the
+          original SQL-layer value (HA_VAR_LENGTH_PART for varchar),
+          not HA_BLOB_PART.  This prevents rebuild_key_from_group_buff()
+          from being called on a key buffer that has varchar format.
+        */
+        m_key_part_info->key_part_flag= field->key_part_flag();
+
+        /* Create a new field which value is stored in the group buffer */
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      m_group_buff +
                                                      MY_TEST(maybe_null),
-                                                     m_key_part_info->length,
+                                                     key_field_length,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
+
+        /*
+          Mark that a key segment is a blob. Needed for
+          create_internal_tmp_table_from_heap to convert keys with blobs
+          to unique.
+        */
+        if (cur_group->field->flags & BLOB_FLAG)
+        {
+          /* We only come here for Field_blob_key's */
+          DBUG_ASSERT(cur_group->field[0].key_length() ==
+                      4 + portable_sizeof_char_ptr);
+          /* Tell engine to that this key includes a blob */
+          keyinfo->flags|= HA_BLOB_PART_KEY;
+        }
+
+        /*
+          Verify key_part_info consistency with the GROUP BY key field.
+          A blob key field must have VARTEXT4/VARBINARY4 type and the
+          matching key_length so heap_prepare_hp_create_info() takes the
+          direct blob path (with its own DBUG_ASSERTs) rather than the
+          VARTEXT2 promotion path that silently patches stale values.
+        */
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    (m_key_part_info->length ==
+                     4 + portable_sizeof_char_ptr));
+        DBUG_ASSERT(!(cur_group->field->flags & BLOB_FLAG) ||
+                    ((ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARBINARY4 ||
+                     (ha_base_keytype) m_key_part_info->type ==
+                     HA_KEYTYPE_VARTEXT4));
+        DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                    (cur_group->field->flags & BLOB_FLAG));
+        /*
+          Set store_length for all GROUP BY key parts so
+          rebuild_key_from_group_buff() can advance through the key buffer.
+          store_length = key field pack_length + null flag byte.
+        */
+        m_key_part_info->store_length=
+            cur_group->field->key_pack_length() + MY_TEST(maybe_null);
 
 	if (maybe_null)
 	{
@@ -22838,7 +23242,7 @@ bool Create_tmp_table::finalize(THD *thd,
           cur_group->buff++;                        // Pointer to field data
 	  m_group_buff++;                         // Skip null flag
 	}
-        m_group_buff+= cur_group->field->pack_length();
+        m_group_buff+= cur_group->field->key_pack_length();
       }
       keyinfo->key_length+=  m_key_part_info->length;
     }
@@ -22873,9 +23277,17 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       keyinfo->flags|= HA_UNIQUE_HASH;
     }
+    /*
+      HEAP-specific: skip null-bits helper key part.
+      HEAP handles NULLs per-segment in its hash index, so it does not
+      need the extra null-key-part that MyISAM/Aria use for unique blob
+      constraints.
+    */
+    bool need_null_key_part= share->have_unique_constraint() &&
+                             share->db_type() != heap_hton &&
+                             null_pack_length[distinct];
     keyinfo->user_defined_key_parts= m_field_count[distinct] +
-       ((keyinfo->flags & HA_UNIQUE_HASH) ? 
-         MY_TEST(null_pack_length[distinct]) : 0);
+       MY_TEST(need_null_key_part);
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
@@ -22922,23 +23334,31 @@ bool Create_tmp_table::finalize(THD *thd,
       blobs can distinguish NULL from 0. This extra field is not needed
       when we do not use UNIQUE indexes for blobs.
     */
-    if (null_pack_length[distinct] && (keyinfo->flags & HA_UNIQUE_HASH))
+    if (need_null_key_part)
     {
       m_key_part_info->null_bit=0;
       m_key_part_info->offset= null_pack_base[distinct];
       m_key_part_info->length= null_pack_length[distinct];
+      /*
+        Use empty_clex_str (not null_clex_str) for the field name:
+        HEAP keeps share->keys visible to EXPLAIN, which iterates
+        key parts and calls strlen() on the name.  A NULL name from
+        null_clex_str causes SIGSEGV in Explain_index_use::set().
+        Empty string keeps the implicit field invisible in output.
+      */
       m_key_part_info->field= new Field_string(table->record[0],
                                              (uint32) m_key_part_info->length,
                                              (uchar*) 0,
                                              (uint) 0,
                                              Field::NONE,
-                                             &null_clex_str, &my_charset_bin);
+                                             &empty_clex_str, &my_charset_bin);
       if (!m_key_part_info->field)
         goto err;
       m_key_part_info->field->init(table);
       m_key_part_info->key_type=FIELDFLAG_BINARY;
       m_key_part_info->type=    HA_KEYTYPE_BINARY;
       m_key_part_info->fieldnr= m_key_part_info->field->field_index + 1;
+      m_key_part_info->key_part_flag= m_key_part_info->field->key_part_flag();
       m_key_part_info++;
     }
     /* Create a distinct key over the columns we are going to return */
@@ -22946,19 +23366,21 @@ bool Create_tmp_table::finalize(THD *thd,
          i < share->fields;
          i++, reg_field++)
     {
-      if (!((*reg_field)->flags & FIELD_PART_OF_TMP_UNIQUE))
+      Field *field= *reg_field;
+      if (!(field->flags & FIELD_PART_OF_TMP_UNIQUE))
         continue;
-      m_key_part_info->field= *reg_field;
-      (*reg_field)->flags |= PART_KEY_FLAG;
+      m_key_part_info->field= field;
+      field->flags |= PART_KEY_FLAG;
       if (m_key_part_info == keyinfo->key_part)
-        (*reg_field)->key_start.set_bit(0);
-      m_key_part_info->null_bit= (*reg_field)->null_bit;
-      m_key_part_info->null_offset= (uint) ((*reg_field)->null_ptr -
+        field->key_start.set_bit(0);
+      m_key_part_info->null_bit= field->null_bit;
+      m_key_part_info->null_offset= (uint) (field->null_ptr -
                                           (uchar*) table->record[0]);
 
-      m_key_part_info->offset=   (*reg_field)->offset(table->record[0]);
-      m_key_part_info->length=   (uint16) (*reg_field)->pack_length();
-      m_key_part_info->fieldnr= (*reg_field)->field_index + 1;
+      m_key_part_info->offset=   field->offset(table->record[0]);
+      m_key_part_info->length=   (uint16) field->key_pack_length();
+      m_key_part_info->fieldnr= field->field_index + 1;
+      m_key_part_info->key_part_flag= field->key_part_flag();
       /* TODO:
         The below method of computing the key format length of the
         key part is a copy/paste from opt_range.cc, and table.cc.
@@ -22969,21 +23391,41 @@ bool Create_tmp_table::finalize(THD *thd,
       */
       m_key_part_info->store_length= m_key_part_info->length;
 
-      if ((*reg_field)->real_maybe_null())
+      if (field->real_maybe_null())
       {
         m_key_part_info->store_length+= HA_KEY_NULL_LENGTH;
         m_key_part_info->key_part_flag |= HA_NULL_PART;
       }
-      m_key_part_info->key_part_flag|= (*reg_field)->key_part_flag();
-      m_key_part_info->store_length+= (*reg_field)->key_part_length_bytes();
+
+      m_key_part_info->store_length+= field->key_part_length_bytes();
       keyinfo->key_length+= m_key_part_info->store_length;
 
-      m_key_part_info->type=     (uint8) (*reg_field)->key_type();
-      m_key_part_info->key_type =
-	((ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_TEXT ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT1 ||
-	 (ha_base_keytype) m_key_part_info->type == HA_KEYTYPE_VARTEXT2) ?
-	0 : FIELDFLAG_BINARY;
+      m_key_part_info->type=     (uint8) field->key_type();
+      m_key_part_info->key_type= field->binary() ? FIELDFLAG_BINARY : 0;
+
+      if (field->flags & BLOB_FLAG)
+      {
+        /*
+          Tell engine to that this key includes a blob
+          Heap engine will store blob key as length + pointer
+          This is safe as for unique detection we will never
+          try to read the data through a key.
+        */
+        keyinfo->flags|= HA_BLOB_PART_KEY;
+        m_key_part_info->length= 4 + portable_sizeof_char_ptr;
+        m_key_part_info->store_length= m_key_part_info->length;
+        m_key_part_info->type= (field->binary() ?
+                                HA_KEYTYPE_VARBINARY4 :
+                                HA_KEYTYPE_VARTEXT4);
+      }
+
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  m_key_part_info->length == 4 + portable_sizeof_char_ptr);
+      DBUG_ASSERT(!(m_key_part_info->key_part_flag & HA_BLOB_PART) ||
+                  ((ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARBINARY4 ||
+                   (ha_base_keytype) m_key_part_info->type ==
+                   HA_KEYTYPE_VARTEXT4));
 
       m_key_part_info++;
     }
@@ -23544,7 +23986,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
       */
       if (keyinfo->key_length > table->file->max_key_length() ||
           keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
-          (keyinfo->flags & HA_UNIQUE_HASH))
+          (keyinfo->flags & (HA_UNIQUE_HASH | HA_BLOB_PART_KEY)))
       {
         if (!(keyinfo->flags & (HA_NOSAME | HA_UNIQUE_HASH)))
         {
@@ -23793,7 +24235,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 	seg->type=
 	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
 	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() - portable_sizeof_char_ptr);
+        seg->bit_start= (uint8) ((Field_blob*) field)->pack_length_no_ptr();
 	seg->flag= HA_BLOB_PART;
 	seg->length=0;			// Whole blob in unique constraint
       }
@@ -23854,30 +24296,360 @@ bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
 
 
 /*
-  If a HEAP table gets full, create a internal table in MyISAM or Maria
-  and copy all rows to this
+  Default row copier of create_internal_tmp_table_from_heap(): copy the
+  rows in table scan order, then append the pending record[0], whose write
+  filled the in-memory table, as a new row.
 
-  In case of error, my_error() or handler::print_error() will be called.
-  Note that in case of error, table->file->ha_rnd_end() may have been called!
+  The pending row is appended from write_pending_row(), after the bulk
+  insert of the copy has ended, because the on-disk tmp engine serves a
+  bulk insert into an internal table with the indexes of that table
+  disabled (@see ha_maria::start_bulk_insert()). The pending row is the
+  only row of the conversion that can be a duplicate, so it is also the
+  only one whose write must be checked.
+*/
+
+class Tmp_table_default_copier: public Tmp_table_row_copier
+{
+public:
+  Tmp_table_default_copier(bool ignore_last_dupp_key_error_arg)
+    : ignore_last_dupp_key_error(ignore_last_dupp_key_error_arg) {}
+
+  int copy_rows(TABLE *from, TABLE *to) override;
+  int write_pending_row(TABLE *from, TABLE *to) override;
+
+private:
+  bool ignore_last_dupp_key_error;
+};
+
+
+int Tmp_table_default_copier::copy_rows(TABLE *from, TABLE *to)
+{
+  THD *thd= from->in_use;
+  int write_err;
+  DBUG_ENTER("Tmp_table_default_copier::copy_rows");
+
+  /*
+    copy all old rows from heap table to MyISAM table
+    This is the only code that uses record[1] to read/write but this
+    is safe as this is a temporary MyISAM table without timestamp/autoincrement
+    or partitioning.
+  */
+  while (!from->file->ha_rnd_next(to->record[1]))
+  {
+    write_err= to->file->ha_write_tmp_row(to->record[1]);
+    DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
+    if (write_err)
+      DBUG_RETURN(write_err);
+    if (unlikely(thd->check_killed()))
+      DBUG_RETURN(-1);                          // The error is already reported
+  }
+
+  DBUG_RETURN(0);
+}
+
+
+int Tmp_table_default_copier::write_pending_row(TABLE *from, TABLE *to)
+{
+  int write_err;
+  DBUG_ENTER("Tmp_table_default_copier::write_pending_row");
+
+  /* copy row that filled HEAP table */
+  write_err= to->file->ha_write_tmp_row(from->record[0]);
+  DBUG_EXECUTE_IF("dup_pending_tmp_table_row",
+                  write_err= HA_ERR_FOUND_DUPP_UNIQUE ;);
+  if (unlikely(write_err))
+  {
+    if (to->file->is_fatal_error(write_err, HA_CHECK_DUP) ||
+        !ignore_last_dupp_key_error)
+      DBUG_RETURN(write_err);
+    duplicate_row_error= true;
+  }
+  DBUG_RETURN(0);
+}
+
+
+/*
+  The pending row is written from record[0], whose blob values can point
+  into the HEAP handler's shared reassembly buffer. Reading the other rows
+  of the table overwrites that buffer, so copy the values into memory that
+  stays valid until the pending row has been written.
+*/
+
+int Window_rowid_remapper::materialize_pending_blobs(TABLE *from)
+{
+  size_t total= 0;
+  uchar *pos;
+  uint *bf_end= from->s->blob_field + from->s->blob_fields;
+  DBUG_ENTER("Window_rowid_remapper::materialize_pending_blobs");
+
+  for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
+  {
+    Field_blob *fb= (Field_blob*) from->field[*bf];
+    if (!fb->is_null())
+      total+= fb->get_length();
+  }
+  if (!total)
+    DBUG_RETURN(0);
+
+  if (!(pending_blob_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, total,
+                                             MYF(MY_WME))))
+    DBUG_RETURN(-1);                            // The error is reported
+
+  pos= pending_blob_buf;
+  for (uint *bf= from->s->blob_field; bf < bf_end; bf++)
+  {
+    Field_blob *fb= (Field_blob*) from->field[*bf];
+    uint32 length;
+    if (fb->is_null() || !(length= fb->get_length()))
+      continue;
+    memcpy(pos, fb->get_ptr(), length);
+    fb->set_ptr(length, pos);
+    pos+= length;
+  }
+  DBUG_RETURN(0);
+}
+
+
+int Window_rowid_remapper::copy_rows(TABLE *from, TABLE *to)
+{
+  THD *thd= from->in_use;
+  /* The rowid sequence is either an array in memory or a temporary file */
+  const bool in_file= !sort->has_filesort_result_in_memory();
+  /* A position occupies the first bytes of its possibly wider slot */
+  const uint pos_length= from->file->ref_length;
+  uchar ref_buf[TMP_TABLE_MAX_REF_LENGTH];
+  uchar new_slot[TMP_TABLE_MAX_REF_LENGTH];
+  uchar *read_slot, *next_read_slot;
+  IO_CACHE new_seq;
+  int error;
+  my_bool found_pending __attribute__((unused))= FALSE;
+  DBUG_ENTER("Window_rowid_remapper::copy_rows");
+
+  new_ref_length= to->file->ref_length;
+  rows= (in_file ?
+         (ha_rows) (sort->io_cache.end_of_file / ref_length) :
+         sort->return_rows);
+
+  DBUG_ASSERT(ref_length <= TMP_TABLE_MAX_REF_LENGTH);
+  /*
+    The sequence slots fit the position of any engine an internal tmp table
+    can use (@see Filesort::min_ref_length). Should that ever break, the
+    sequence can not be rewritten in place: give up on the conversion and
+    let the caller report that the table is full.
+  */
+  if (new_ref_length > ref_length)
+  {
+    DBUG_ASSERT(0);
+    DBUG_RETURN(HA_ERR_RECORD_FILE_FULL);
+  }
+
+  if (materialize_pending_blobs(from))
+    DBUG_RETURN(-1);                            // The error is reported
+
+  if (in_file)
+  {
+    if (open_cached_file(&new_seq, mysql_tmpdir, TEMP_PREFIX,
+                         DISK_CHUNK_SIZE, MYF(MY_WME)))
+      DBUG_RETURN(-1);                          // The error is reported
+    if (reinit_io_cache(&sort->io_cache, READ_CACHE, 0, 0, 0))
+    {
+      error= -1;                                // The error is reported
+      goto err;
+    }
+  }
+
+  /*
+    The slots keep their width: a new position, which the check above
+    guarantees to fit, replaces the old one in the very slot it was read
+    from, zero-padded to the slot by new_slot.
+  */
+  bzero(new_slot, sizeof(new_slot));
+  read_slot= ref_buf;
+  next_read_slot= sort->record_pointers;
+
+  for (ha_rows n= rows; n != 0; n--)
+  {
+    uchar *record;
+    my_bool is_pending;
+
+    if (in_file)
+    {
+      if (my_b_read(&sort->io_cache, read_slot, ref_length))
+      {
+        error= -1;                              // The error is reported
+        goto err;
+      }
+    }
+    else
+    {
+      read_slot= next_read_slot;
+      next_read_slot+= ref_length;
+    }
+
+    if ((is_pending= !memcmp(read_slot, pending_ref, pos_length)))
+      record= from->record[0];                  // Its new image, not stored yet
+    else
+    {
+      if ((error= from->file->ha_rnd_pos(from->record[1], read_slot)))
+        goto err;
+      record= from->record[1];
+    }
+
+    if ((error= to->file->ha_write_tmp_row(record)))
+      goto err;
+    to->file->position(record);
+
+    /*
+      To keep the data at the same size as before, we store all row
+      pointers at the original ref length. Because of that we need to
+      use 'new_slot' as a temporary space, as new_ref_length may be less
+      than ref_length.
+    */
+    memcpy(new_slot, to->file->ref, new_ref_length);
+    if (in_file)
+    {
+      if (my_b_write(&new_seq, new_slot, ref_length))
+      {
+        error= -1;                              // The error is reported
+        goto err;
+      }
+    }
+    else
+      memcpy(read_slot, new_slot, ref_length);
+
+    if (is_pending)
+    {
+      memcpy(new_pending_ref_buf, to->file->ref, new_ref_length);
+      found_pending= TRUE;
+    }
+  }
+  /* The row that did not fit is one of the rows of the sequence */
+  DBUG_ASSERT(found_pending);
+
+  if (unlikely(thd->check_killed()))
+  {
+    error= -1;                                  // The error is reported
+    goto err;
+  }
+
+  if (in_file)
+  {
+    /*
+      Frame cursors read the sequence through slave caches of the master
+      cache, linked to it through next_file_user. The link survives the
+      replacement of the master, on the same address, so that the slaves
+      can still be ended when the cursors are told that the rowids were
+      rewritten, which re-creates them from the new master.
+    */
+    IO_CACHE *file_users= sort->io_cache.next_file_user;
+    /*
+      Make sure the file exists behind the cache: the readers of the
+      sequence seek in it, also when everything fits in the cache buffer.
+    */
+    if (my_b_flush_io_cache(&new_seq, 1) ||
+        reinit_io_cache(&new_seq, READ_CACHE, 0, 0, 0))
+    {
+      error= -1;                                // The error is reported
+      goto err;
+    }
+    close_cached_file(&sort->io_cache);
+    sort->io_cache= new_seq;
+    /*
+      The new master lives at the same address as the old one, so the
+      circular next_file_user list of the slaves does not need adjusting.
+    */
+    sort->io_cache.next_file_user= file_users;
+  }
+  DBUG_RETURN(0);
+
+err:
+  if (in_file)
+    close_cached_file(&new_seq);
+  DBUG_RETURN(error);
+}
+
+
+/*
+  Convert a HEAP tmp table that got full to a table in the on-disk tmp engine
+
+  SYNOPSIS
+    create_internal_tmp_table_from_heap()
+
+    thd                         Thread handle
+    table                       The HEAP table that ran out of memory.
+                                On success it is converted in place to use
+                                the on-disk engine (its handler and share
+                                are swapped for the new table's).
+    start_recinfo               Pointer to the first column definition of
+                                the table (used to create the new table).
+    end_recinfo                 Pointer to the end of the column
+                                definitions; may be updated by
+                                create_internal_tmp_table().
+    error                       The handler error that triggered the call.
+                                Only HA_ERR_RECORD_FILE_FULL on a HEAP
+                                table is handled; any other error/engine
+                                is reported and treated as fatal.
+    ignore_last_dupp_key_error  If TRUE, a duplicate-key error while
+                                writing the pending row (see below) is not
+                                treated as fatal; *is_duplicate is set
+                                instead.  Used e.g. for GROUP BY / DISTINCT.
+    is_duplicate                Set to TRUE when the pending row was a
+                                duplicate and the error was ignored, to
+                                FALSE otherwise.  Must be non-NULL.
+    copier                      Copies the rows; NULL for the default
+                                copier, which appends the pending row:
+                                table->record[0] holds a new row that
+                                overflowed the HEAP table and still needs
+                                to be written to the new table.  A caller
+                                for which the overflow happened while
+                                updating an existing row passes its own
+                                copier: table->record[0] then holds the
+                                failed update's new image of a row that is
+                                already in the table and must not be
+                                appended as an extra row.
+
+  DESCRIPTION OF THE COPY
+    The rows already stored in the HEAP table are copied by
+    Tmp_table_row_copier::copy_rows() within a bulk insert into the new
+    table, which the on-disk tmp engine may serve with the indexes of
+    that table disabled.  Those rows already satisfy every unique
+    constraint of the table, so they need no checking.  The pending row
+    does not, so it is written afterwards, by
+    Tmp_table_row_copier::write_pending_row(), once the bulk insert has
+    ended and the indexes are back in place.
+
+  DESCRIPTION
+    Creates a new internal temporary table using the on-disk tmp engine
+    (MyISAM or Aria) and copies all rows of the full HEAP table into it
+    with 'copier'.  On success the HEAP table is dropped and 'table' is
+    updated in place to refer to the new on-disk table, so callers can
+    keep using the same TABLE pointer.
+
+  RETURN
+    0   Success; 'table' now uses the on-disk engine
+    1   Error.  my_error() or handler::print_error() has been called.
+        Note that in this case table->file->ha_rnd_end() may already have
+        been called.
 */
 
 
 bool
 create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                     TMP_ENGINE_COLUMNDEF *start_recinfo,
-                                    TMP_ENGINE_COLUMNDEF **recinfo, 
+                                    TMP_ENGINE_COLUMNDEF **end_recinfo,
                                     int error,
                                     bool ignore_last_dupp_key_error,
-                                    bool *is_duplicate)
+                                    bool *is_duplicate,
+                                    Tmp_table_row_copier *copier)
 {
   TABLE new_table;
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
   String tmp_alias;
+  Tmp_table_default_copier default_copier(ignore_last_dupp_key_error);
   DBUG_ENTER("create_internal_tmp_table_from_heap");
-  if (is_duplicate)
-    *is_duplicate= FALSE;
+  *is_duplicate= FALSE;
 
   if (table->s->db_type() != heap_hton || error != HA_ERR_RECORD_FILE_FULL)
   {
@@ -23907,7 +24679,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 
   new_table.no_rows= table->no_rows;
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
-                                recinfo,
+                                end_recinfo,
                                 thd->lex->first_select_lex()->options |
 			        thd->variables.option_bits))
     goto err2;
@@ -23930,37 +24702,31 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     new_table.file->ha_start_bulk_insert(table->file->stats.records);
   }
 
+  if (!copier)
+    copier= &default_copier;
+  write_err= copier->copy_rows(table, &new_table);
+
+  if (!new_table.no_rows)
+  {
+    /* Also in case of errors, to end the bulk insert mode of the handler */
+    int end_err= new_table.file->ha_end_bulk_insert();
+    if (end_err && !write_err)
+      write_err= end_err;
+  }
   /*
-    copy all old rows from heap table to MyISAM table
-    This is the only code that uses record[1] to read/write but this
-    is safe as this is a temporary MyISAM table without timestamp/autoincrement
-    or partitioning.
+    Only now, with the indexes of the new table in place, can a write be
+    checked against them, so this is where the pending row goes.
   */
-  while (!table->file->ha_rnd_next(new_table.record[1]))
+  if (!write_err)
+    write_err= copier->write_pending_row(table, &new_table);
+
+  if (write_err)
   {
-    write_err= new_table.file->ha_write_tmp_row(new_table.record[1]);
-    DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
-    if (write_err)
-      goto err;
-    if (unlikely(thd->check_killed()))
-      goto err_killed;
-  }
-  if (!new_table.no_rows && (write_err= new_table.file->ha_end_bulk_insert()))
+    if (write_err < 0)
+      goto err_killed;                          // The error is already reported
     goto err;
-  /* copy row that filled HEAP table */
-  if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))
-  {
-    if (new_table.file->is_fatal_error(write_err, HA_CHECK_DUP) ||
-	!ignore_last_dupp_key_error)
-      goto err;
-    if (is_duplicate)
-      *is_duplicate= TRUE;
   }
-  else
-  {
-    if (is_duplicate)
-      *is_duplicate= FALSE;
-  }
+  *is_duplicate= copier->duplicate_row_error;
 
   /* remove heap table and change to use myisam table */
   (void) table->file->ha_rnd_end();
@@ -24030,7 +24796,8 @@ free_tmp_table(THD *thd, TABLE *entry)
       as it will mark the transaction read/write
     */
     DBUG_ASSERT(entry->s->tmp_table == SYSTEM_TMP_TABLE ||
-                entry->s->tmp_table == INTERNAL_TMP_TABLE);
+                entry->s->tmp_table == INTERNAL_TMP_TABLE ||
+                entry->s->tmp_table == RESULT_TMP_TABLE);
     entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
@@ -24040,6 +24807,19 @@ free_tmp_table(THD *thd, TABLE *entry)
   /* free blobs */
   for (Field **ptr=entry->field ; *ptr ; ptr++)
     (*ptr)->free();
+  /*
+    Free GROUP BY key fields. group->field is created by new_key_field()
+    and points into the group buffer, not into entry->field[], so the
+    loop above doesn't cover them.
+    TABLE::group is a union with TABLE::context (for hlindexes) but is
+    NULL-initialized by bzero in create_tmp_table and only set non-NULL
+    by finalize() for GROUP BY tables.  Callers that pass a non-NULL
+    group to create_tmp_table must heap-allocate the ORDER (e.g. via
+    alloc_root) so table->group remains valid until free_tmp_table.
+  */
+  for (ORDER *group= entry->group ; group ; group= group->next)
+    if (group->field)
+      group->field->free();
 
   if (entry->temp_pool_slot != MY_BIT_NONE)
     temp_pool_clear_bit(entry->temp_pool_slot);
@@ -26150,6 +26930,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   {
     if (join->procedure && join->procedure->end_of_records())
       DBUG_RETURN(NESTED_LOOP_ERROR);
+    debug_crash_here("ddl_log_create_after_send_data");
     DBUG_RETURN(NESTED_LOOP_OK);
   }
 
@@ -26473,10 +27254,10 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         if (likely(!table->file->is_fatal_error(error, HA_CHECK_DUP)))
 	  goto end;                             // Ignore duplicate keys
         bool is_duplicate;
-	if (create_internal_tmp_table_from_heap(join->thd, table, 
+	if (create_internal_tmp_table_from_heap(join->thd, table,
                                                 join_tab->tmp_table_param->start_recinfo,
                                                 &join_tab->tmp_table_param->recinfo,
-                                                error, 1, &is_duplicate))
+                                                error, 1, &is_duplicate, NULL))
 	  DBUG_RETURN(NESTED_LOOP_ERROR);        // Not a table_is_full error
         if (is_duplicate)
           goto end;
@@ -26525,6 +27306,60 @@ end:
   @seealso end_unique_update()
 */
 
+/*
+  Convert a HEAP temp table to Aria after ha_update_tmp_row() fails with
+  HA_ERR_RECORD_FILE_FULL, then re-locate the duplicate row and retry the
+  update.
+
+  After conversion the HEAP blocks are freed, so any blob pointers in
+  record[0] that referenced HEAP memory become dangling.  We re-derive
+  record[0] by reading the pre-update row from Aria (ha_rnd_pos into
+  record[1], restore_record, update_tmptable_sum_func) before retrying.
+  update_field() is stateless (reads result_field + args[0], writes
+  result_field) so re-running it on the pre-update values is safe and
+  produces the correct post-update result.
+
+  @return 0  success (table converted, update applied, index re-opened)
+  @return -1 error (already printed)
+*/
+
+static int
+convert_heap_to_aria_update(JOIN *join, JOIN_TAB *join_tab,
+                            TABLE *table, int error)
+{
+  bool is_duplicate;
+  if (create_internal_tmp_table_from_heap(join->thd, table,
+                                     join_tab->tmp_table_param->start_recinfo,
+                                          &join_tab->tmp_table_param->recinfo,
+                                          error, 1, &is_duplicate, NULL))
+    return -1;
+  DBUG_ASSERT(is_duplicate);
+  table->file->get_dup_key(HA_ERR_FOUND_DUPP_KEY);
+  if (unlikely((error= table->file->ha_rnd_init(0))))
+  {
+    table->file->print_error(error, MYF(0));
+    return -1;
+  }
+  error= table->file->ha_rnd_pos(table->record[1],
+                                   table->file->dup_ref);
+  if (likely(!error))
+  {
+    restore_record(table, record[1]);
+    update_tmptable_sum_func(join->sum_funcs, table);
+    error= table->file->ha_update_tmp_row(table->record[1],
+                                           table->record[0]);
+  }
+  if (unlikely(error) ||
+      unlikely((error= table->file->ha_rnd_end())) ||
+      unlikely((error= table->file->ha_index_init(0, 0))))
+  {
+    table->file->print_error(error, MYF(0));
+    return -1;
+  }
+  return 0;
+}
+
+
 static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	   bool end_of_records)
@@ -26567,8 +27402,9 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
                                                         table->record[0]))))
     {
-      table->file->print_error(error,MYF(0));	/* purecov: inspected */
-      DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
+      if (convert_heap_to_aria_update(join, join_tab, table, error))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+      join_tab->aggr->set_write_func(end_unique_update);
     }
     goto end;
   }
@@ -26579,10 +27415,11 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
+    bool is_duplicate;
     if (create_internal_tmp_table_from_heap(join->thd, table,
                                        join_tab->tmp_table_param->start_recinfo,
                                             &join_tab->tmp_table_param->recinfo,
-                                            error, 0, NULL))
+                                            error, 0, &is_duplicate, NULL))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
     if (unlikely((error= table->file->ha_index_init(0, 0))))
@@ -26620,7 +27457,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     DBUG_RETURN(NESTED_LOOP_OK);
 
   init_tmptable_sum_functions(join->sum_funcs);
-  copy_fields(join_tab->tmp_table_param);		// Groups are copied twice.
+  copy_fields(join_tab->tmp_table_param);     // Groups are copied twice.
   if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
@@ -26653,8 +27490,9 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
                                                         table->record[0]))))
     {
-      table->file->print_error(error,MYF(0));	/* purecov: inspected */
-      DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
+      if (convert_heap_to_aria_update(join, join_tab, table, error))
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+      rnd_inited= true;
     }
     if (!rnd_inited &&
         ((error= table->file->ha_rnd_end()) ||
@@ -26716,11 +27554,12 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	if (!join_tab->having || join_tab->having->val_bool())
 	{
           int error= table->file->ha_write_tmp_row(table->record[0]);
+          bool is_duplicate;
           if (unlikely(error) &&
               create_internal_tmp_table_from_heap(join->thd, table,
                                           join_tab->tmp_table_param->start_recinfo,
                                           &join_tab->tmp_table_param->recinfo,
-                                                   error, 0, NULL))
+                                          error, 0, &is_duplicate, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
         if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
@@ -28558,8 +29397,15 @@ JOIN_TAB::remove_duplicates()
   table->file->info(HA_STATUS_VARIABLE);
   table->reginfo.lock_type=TL_WRITE;
 
-  if (table->s->db_type() == heap_hton ||
-      (!table->s->blob_fields &&
+  /*
+    remove_dup_with_hash_index() copies field data into a flat key buffer
+    via make_sort_key_part() and compares with memcmp.  For LONGBLOB
+    fields, sort_length() returns UINT_MAX32, making the key buffer
+    impractically large.  Fall back to the row-by-row compare path
+    for tables with blobs.
+  */
+  if (!table->s->blob_fields &&
+      (table->s->db_type() == heap_hton ||
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
     error= remove_dup_with_hash_index(join->thd, table, field_count,
@@ -29161,6 +30007,21 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 }
 
 
+/*
+  Is item one of the expressions of the GROUP BY list?  find_order_in_list()
+  has already pointed every ORDER entry at its select list expression; direct
+  comparison is sufficient.
+*/
+
+static bool item_in_group_list(ORDER *order, Item *item)
+{
+  for (ORDER *ord= order; ord; ord= ord->next)
+    if (*ord->item == item)
+      return true;
+  return false;
+}
+
+
 /**
   Intitialize the GROUP BY list.
 
@@ -29209,7 +30070,6 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
                            all_fields, true, true, from_window_spec))
       return 1;
-    (*ord->item)->marker= MARKER_UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func() && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
@@ -29259,7 +30119,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     while (field && (item=li++))
     {
       if (item->type() != Item::SUM_FUNC_ITEM &&
-          item->marker != MARKER_UNDEF_POS &&
+          !item_in_group_list(order, item) &&
           !item->const_item() &&
           !(item->real_item()->type() == Item::FIELD_ITEM &&
             item->used_tables() & OUTER_REF_TABLE_BIT))
@@ -29591,7 +30451,9 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
     if (field)
     {
       enum_field_types type;
-      if ((type= field->type()) == MYSQL_TYPE_BLOB)
+      DBUG_ASSERT((bool) (field->flags & BLOB_FLAG) ==
+                  is_any_blob_field_type(field->type()));
+      if (is_any_blob_field_type(type= field->type()))
 	key_length+=MAX_BLOB_WIDTH;		// Can't be used as a key
       else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING)
         key_length+= field->field_length + HA_KEY_BLOB_LENGTH;
@@ -29601,7 +30463,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
         key_length+= 8;                         // Big enough
       }
       else
-	key_length+= field->pack_length();
+	key_length+= field->key_pack_length();
     }
     else
     { 
@@ -29630,12 +30492,12 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       case STRING_RESULT:
       {
         enum enum_field_types type= group_item->field_type();
-        if (type == MYSQL_TYPE_BLOB)
+        if (is_any_blob_field_type(type))
           key_length+= MAX_BLOB_WIDTH;		// Can't be used as a key
         else
         {
           /*
-            Group strings are taken as varstrings and require an length field.
+            Group strings are taken as varstrings and require a length field.
             A field is not yet created by create_tmp_field_ex()
             and the sizes should match up.
           */
@@ -29888,7 +30750,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 	*/
 	field= item->field;
 	item->result_field=field->make_new_field(thd->mem_root,
-                                                 field->table, 1);
+                                                 field->table, 1, 0);
         /*
           We need to allocate one extra byte for null handling and
           another extra byte to not get warnings from purify in
@@ -31015,11 +31877,13 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
       if (unlikely((write_error=
                     table_arg->file->ha_write_tmp_row(table_arg->record[0]))))
       {
-	if (create_internal_tmp_table_from_heap(thd, table_arg, 
+        bool is_duplicate;
+	if (create_internal_tmp_table_from_heap(thd, table_arg,
                                                 tmp_table_param_arg->start_recinfo,
                                                 &tmp_table_param_arg->recinfo,
-                                                write_error, 0, NULL))
-	  return 1;		     
+                                                write_error, 0, &is_duplicate,
+                                                NULL))
+	  return 1;
       }
     }
   }
@@ -31231,7 +32095,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       be able to print the engine statistics.
     */
     if (table->file->handler_stats &&
-        table->s->tmp_table != INTERNAL_TMP_TABLE)
+        table->s->tmp_table != RESULT_TMP_TABLE)
       eta->handler_for_stats= table->file;
 
     if (likely(thd->lex->analyze_stmt))
@@ -31441,7 +32305,10 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       }
 
       if (key_name_buf.length())
-        eta->key.set_pseudo_key(thd->mem_root, key_name_buf.c_ptr_safe());
+      {
+        Lex_ident_column tmp(key_name_buf.ptr(), key_name_buf.length());
+        eta->key.set_pseudo_key(thd->mem_root, &tmp);
+      }
     }
   }
   
@@ -31569,6 +32436,8 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         eta->push_extra(ET_SCANNED_1_DATABASE);
       else
         eta->push_extra(ET_SCANNED_ALL_DATABASES);
+      if (table_list->is_table_read_plan->is_optimized_query)
+        eta->push_extra(ET_IS_FAST_PATH);
     }
 
     if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)

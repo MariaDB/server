@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "buf0rea.h"
 #include "buf0flu.h"
+#include "buf0lru.h"
 #include "buf0buddy.h"
 #include "buf0dblwr.h"
 #include "lock0lock.h"
@@ -1038,6 +1039,12 @@ ATTRIBUTE_COLD void buf_mem_pressure_shutdown() noexcept
 #if defined __linux__ || !defined DBUG_OFF
 inline void buf_pool_t::garbage_collect() noexcept
 {
+  /* The scratch buffer is not covered by innodb_buffer_pool_size, and
+  releasing its page frames is much cheaper than shrinking the buffer pool.
+  Even if the memory pressure event will be disregarded below, this could
+  help to reduce the probability of another pressure event occurring. */
+  scratch_buf.shrink(true);
+
   mysql_mutex_lock(&mutex);
   const size_t old_size{size_in_bytes}, min_size{size_in_bytes_auto_min};
   const size_t reduce_size=
@@ -1191,7 +1198,6 @@ void buf_page_print(const byte *read_buf, ulint zip_size) noexcept
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
-
 /** Ensure that some adaptive hash index fields are initialized */
 static void buf_block_init_low(buf_block_t *block) noexcept
 {
@@ -1519,10 +1525,19 @@ bool buf_pool_t::create() noexcept
 
   io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
                 OS_AIO_N_PENDING_IOS_PER_THREAD);
+  /* The scratch buffer grows on demand and releases the page frames that it
+  stops using, so this only decides how many slots are available before the
+  first growth. A slot costs 32 bytes, and its page frame is allocated when
+  the slot is first reserved, so a generous number of slots is cheap. Debug
+  builds start with a single slot, so that a second concurrent page
+  reorganization exercises the growth path. */
+  scratch_buf.create(IF_DBUG(1, 64));
 
   last_activity_count= srv_get_activity_count();
 
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
+  set_old_threshold_ms(LRU_old_time_threshold);
+  refresh_clock();
 #ifdef BTR_CUR_HASH_ADAPT
   const ahi_status ahi_enabled= btr_search.get_enabled();
   if (ahi_enabled)
@@ -1625,22 +1640,30 @@ void buf_pool_t::close() noexcept
   page_hash.free();
 
   io_buf.close();
+  scratch_buf.close();
   aligned_free(const_cast<byte*>(field_ref_zero));
   field_ref_zero= nullptr;
 }
 
 void buf_pool_t::io_buf_t::create(ulint n_slots) noexcept
 {
+  ut_ad(n_slots > 0);
   this->n_slots= n_slots;
   slots= static_cast<buf_tmp_buffer_t*>
     (ut_malloc_nokey(n_slots * sizeof *slots));
+  ut_a(slots);
+  /* This clears the slot descriptors only, not any page frame: the reserved
+  flag and the buffer pointers of a slot must start out clear. */
   memset((void*) slots, 0, n_slots * sizeof *slots);
 }
 
 void buf_pool_t::io_buf_t::close() noexcept
 {
+  ut_ad(n_slots > 0);
+  ut_ad(slots);
   for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
   {
+    ut_ad(!s->is_reserved());
     aligned_free(s->crypt_buf);
     aligned_free(s->comp_buf);
   }
@@ -1653,17 +1676,116 @@ buf_tmp_buffer_t *buf_pool_t::io_buf_t::reserve(bool wait_for_reads) noexcept
 {
   for (;;)
   {
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
+    if (buf_tmp_buffer_t *s= acquire())
+      return s;
     buf_dblwr.flush_buffered_writes();
     os_aio_wait_until_no_pending_writes(true);
     if (!wait_for_reads)
       continue;
-    for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots; s != e; s++)
-      if (s->acquire())
-        return s;
+    if (buf_tmp_buffer_t *s= acquire())
+      return s;
     os_aio_wait_until_no_pending_reads(true);
+  }
+}
+
+void buf_pool_t::scratch_buffer::create(size_t n_slots) noexcept
+{
+  mutex.init();
+  /* buf_pool is a zero-initialized global, and this runs once. */
+  ut_ad(!first.next.load(std::memory_order_relaxed));
+  ut_ad(!first.n_frames.load(std::memory_order_relaxed));
+  first.io_buf_t::create(n_slots);
+}
+
+void buf_pool_t::scratch_buffer::close() noexcept
+{
+  for (chunk *c= first.next.load(std::memory_order_relaxed); c;)
+  {
+    chunk *next= c->next.load(std::memory_order_relaxed);
+    ut_ad(c->n_frames_valid());
+    c->io_buf_t::close();
+    ut_free(c);
+    c= next;
+  }
+  first.next.store(nullptr, std::memory_order_relaxed);
+  ut_ad(first.n_frames_valid());
+  first.n_frames.store(0, std::memory_order_relaxed);
+  first.io_buf_t::close();
+  mutex.destroy();
+}
+
+ATTRIBUTE_COLD
+buf_pool_t::scratch_buffer::chunk*
+buf_pool_t::scratch_buffer::grow(chunk *c) noexcept
+{
+  /* This allocates and clears the slots of the new chunk while holding the
+  mutex, and the caller holds a page latch. At the largest chunk size that is
+  half a megabyte of memset, which is why the mutex waits instead of
+  spinning. */
+  mutex.wr_lock();
+  chunk *next= c->next.load(std::memory_order_relaxed);
+  if (!next)
+  {
+    void *mem= ut_malloc_nokey(sizeof *next);
+    ut_a(mem);
+    next= new(mem) chunk{};
+    /* Each chunk holds twice the slots of the previous one, so that few
+    growths suffice and grow() stays rare. The size of one chunk is
+    limited, because a chunk is a single contiguous allocation of 32
+    bytes per slot. Past the limit, growth continues by chunks of that
+    size, so the limit does not bound the number of slots. A thread holds
+    at most one slot, so the limit first applies when more than about
+    32000 page reorganizations are concurrent. */
+    next->io_buf_t::create(std::min<size_t>(c->n_slots * 2, 16 * 1024));
+    /* Publish the chunk only after its slots are usable. */
+    c->next.store(next, std::memory_order_release);
+  }
+  mutex.wr_unlock();
+  return next;
+}
+
+buf_tmp_buffer_t *buf_pool_t::scratch_buffer::reserve() noexcept
+{
+  for (chunk *c= &first;;)
+  {
+    if (buf_tmp_buffer_t *s= c->acquire())
+    {
+      s->mark_used();
+      if (!s->frame())
+      {
+        s->allocate();
+        c->n_frames.fetch_add(1, std::memory_order_relaxed);
+      }
+      return s;
+    }
+    chunk *next= c->next.load(std::memory_order_acquire);
+    c= next ? next : grow(c);
+  }
+}
+
+ATTRIBUTE_COLD void buf_pool_t::scratch_buffer::shrink(bool all) noexcept
+{
+  for (chunk *c= &first; c; c= c->next.load(std::memory_order_acquire))
+  {
+    if (!c->n_frames.load(std::memory_order_relaxed))
+      continue;
+    for (buf_tmp_buffer_t *s= c->slots, *e= s + c->n_slots; s != e; s++)
+      if (s->acquire())
+      {
+        const bool used= s->test_and_clear_used();
+        if (s->frame() && (all || !used))
+        {
+          s->free_frame();
+          /* Both the increment and the decrement happen while the slot is
+          reserved, so the count is exact. */
+          ut_d(const size_t n_frames=)
+          c->n_frames.fetch_sub(1, std::memory_order_relaxed);
+          ut_ad(n_frames);
+        }
+        s->release();
+        if (!c->n_frames.load(std::memory_order_relaxed))
+          break;
+      }
   }
 }
 
@@ -1810,12 +1932,9 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
       ut_ad(!reinterpret_cast<buf_block_t*>(b)->n_pointers);
 #endif
 
-      byte *const frame= block->page.frame;
-      memcpy_aligned<4096>(frame, b->frame, srv_page_size);
+      memcpy_aligned<4096>(block->page.frame, b->frame, srv_page_size);
       b->lock.free();
-      block->page.lock.free();
-      new(&block->page) buf_page_t(*b);
-      block->page.frame= frame;
+      block->page.relocate_from(*b);
 
       if (have_flush_list_mutex)
       {
@@ -1864,7 +1983,7 @@ ATTRIBUTE_COLD buf_pool_t::shrink_status buf_pool_t::shrink(size_t size)
         UT_LIST_ADD_FIRST(unzip_LRU, block);
     }
 
-    buf_block_modify_clock_inc(block);
+    block->invalidate();
 
     buf_block_init_low(block);
     hash_lock.unlock();
@@ -2220,13 +2339,10 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
   ut_ad(state >= buf_page_t::FREED);
   ut_ad(state <= buf_page_t::READ_FIX);
   ut_ad(bpage->lock.is_write_locked());
-  const auto frame= dpage->frame;
-  ut_ad(frame == reinterpret_cast<buf_block_t*>(dpage)->frame_address());
+  ut_ad(dpage->frame ==
+        reinterpret_cast<buf_block_t*>(dpage)->frame_address());
 
-  dpage->lock.free();
-  new (dpage) buf_page_t(*bpage);
-
-  dpage->frame= frame;
+  dpage->relocate_from(*bpage);
 
   /* Important that we adjust the hazard pointer before
   removing bpage from LRU list. */
@@ -2241,11 +2357,11 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage) noexcept
 #ifdef UNIV_LRU_DEBUG
     /* buf_pool.LRU_old must be the first item in the LRU list
     whose "old" flag is set. */
-    ut_a(buf_pool.LRU_old->old);
+    ut_a(buf_pool.LRU_old->old());
     ut_a(!UT_LIST_GET_PREV(LRU, buf_pool.LRU_old) ||
-         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old);
+         !UT_LIST_GET_PREV(LRU, buf_pool.LRU_old)->old());
     ut_a(!UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old) ||
-         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old);
+         UT_LIST_GET_NEXT(LRU, buf_pool.LRU_old)->old());
   }
   else
   {
@@ -2397,7 +2513,7 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id) noexcept
     bpage= nullptr;
   }
   else
-    buf_page_make_young_if_needed(bpage);
+    bpage->touch();
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
@@ -3027,14 +3143,14 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
       return nullptr;
     }
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.s_unlock();
       goto fail;
     }
 
     ut_ad(!block->page.is_read_fixed());
-    buf_page_make_young_if_needed(&block->page);
+    block->page.touch();
     mtr->memo_push(block, MTR_MEMO_PAGE_S_FIX);
   }
   else if (block->page.lock.have_u_not_x())
@@ -3042,7 +3158,7 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
     block->page.lock.u_x_upgrade();
     block->page.unfix();
     block= mtr->page_lock_upgrade(*block);
-    ut_ad(modify_clock == block->modify_clock);
+    ut_ad(modify_clock == block->modify_clock());
   }
   else if (!block->page.lock.x_lock_try())
     goto fail;
@@ -3050,13 +3166,13 @@ buf_block_t *buf_page_optimistic_get(buf_block_t *block,
   {
     ut_ad(!block->page.is_io_fixed());
 
-    if (modify_clock != block->modify_clock || block->page.is_freed())
+    if (modify_clock != block->modify_clock() || block->page.is_freed())
     {
       block->page.lock.x_unlock();
       goto fail;
     }
 
-    buf_page_make_young_if_needed(&block->page);
+    block->page.touch();
     mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
   }
 
@@ -3108,17 +3224,49 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr) noexcept
 }
 
 /** Initialize the block.
-@param page_id  page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-@param fix      initial buf_fix_count() */
-void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
-                             uint32_t fix) noexcept
+@param page_id   page identifier
+@param zip_ssize ROW_FORMAT=COMPRESSED page size shift, or 0
+@param state     initial state() */
+void buf_block_t::initialise(const page_id_t page_id, uint16_t zip_ssize,
+                             uint32_t state) noexcept
 {
   ut_ad(!page.in_file());
   buf_block_init_low(this);
-  page.init(fix, page_id);
+  page.init(state, page_id, zip_ssize);
   page.set_os_used();
-  page_zip_set_size(&page.zip, zip_size);
+}
+
+bool buf_page_t::touch() noexcept
+{
+  ut_ad(in_file());
+  /* A buffer-fix is enough: it prevents the block from being evicted
+  and reused for another page, and a lost update of access_time by a
+  concurrent first access is harmless. */
+#ifdef SAFE_MUTEX
+  ut_ad(buf_fix_count() || lock.have_any() ||
+        mysql_mutex_is_owner(&buf_pool.mutex));
+#endif /* SAFE_MUTEX */
+  const bool not_first{access_time != 0};
+  if (!not_first)
+    access_time= buf_pool.access_clock;
+  touch_no_stamp();
+  return not_first;
+}
+
+void buf_pool_t::set_old_threshold_ms(uint32_t ms) noexcept
+{
+  /* Round up, so that a non-zero sub-second value (which would floor to 0,
+  the "disabled" sentinel) still enables a 1-second probation window.
+  Cap at UINT16_MAX - 1: the 16-bit difference of access_clock values
+  cannot exceed UINT16_MAX, so a larger threshold would never let a
+  block qualify for promotion. Thus, any timeout above about 18.2 hours
+  acts as the cap. The difference wraps every 65536 seconds: a block
+  qualifies only while the time since its access_time, modulo 65536
+  seconds, exceeds the threshold. */
+  LRU_old_threshold=
+    uint16_t(std::min<uint64_t>((uint64_t{ms} + 999) / 1000,
+                                UINT16_MAX - 1));
+  LRU_old_time_threshold= ms;
 }
 
 void
@@ -3317,10 +3465,12 @@ retry:
   ut_ad(bpage->state() == buf_page_t::MEMORY);
 
   {
+    const uint16_t ssize= page_zip_des_t::calc_ssize(zip_size);
+
     page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
     hash_lock.lock();
     reinterpret_cast<buf_block_t*>(bpage)->
-      initialise(page_id, zip_size, buf_page_t::REINIT + 1);
+      initialise(page_id, ssize, buf_page_t::REINIT + 1);
     bpage->lock.x_lock();
     buf_pool.page_hash.append(chain, bpage);
     hash_lock.unlock();
@@ -3345,7 +3495,7 @@ retry:
 
   mtr->memo_push(reinterpret_cast<buf_block_t*>(bpage), MTR_MEMO_PAGE_X_FIX);
 
-  bpage->set_accessed();
+  bpage->touch();
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
   memset_aligned<8>(bpage->frame + FIL_PAGE_PREV, 0xff, 8);
@@ -3578,7 +3728,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
   ut_ad(!buf_dblwr.is_inside(id()));
   ut_ad(id().space() == node.space->id);
   ut_ad(zip_size() == node.space->zip_size());
-  ut_ad(!!zip.ssize == !!zip.data);
+  ut_ad(!!zip.ssize() == !!zip.data);
   ut_ad(recovery == recv_sys.recovery_on);
 
   const byte *read_frame= zip.data ? zip.data : frame;

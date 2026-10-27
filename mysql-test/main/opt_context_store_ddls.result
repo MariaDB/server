@@ -571,4 +571,364 @@ CREATE TABLE IF NOT EXISTS `seq_1_to_15_step_2` (
 
 
 # End of 13.1 tests
+#
+# MDEV-40598: Capture sequences used only in column DEFAULT expressions
+#
+create sequence s1;
+create table t1 (a int primary key default nextval(s1), b int);
+# The INSERT itself evaluates the DEFAULT, so s1 is already open as
+# part of this very statement; ddls should include both s1 and t1
+insert into t1 (b) values (1),(2),(3);
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1;
+
+SELECT SETVAL(db1.s1, 2);
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# s1 was opened only by the INSERT above and closed again at the
+# end of that statement; this SELECT never evaluates DEFAULT
+# NEXTVAL() itself, so it doesn't reopen s1 through normal means
+# either. It is still captured, resolved independently by name:
+# ddls should include both s1 and t1, with s1 appearing before t1
+# so that replay can recreate them
+select * from t1 where b < 10;
+a	b
+1	1
+2	2
+3	3
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# Under LOCK TABLES, s1 sits in thd->open_tables merely because it
+# is locked, not because this particular SELECT touches it - its
+# current value must not be captured just from being locked
+#
+flush tables;
+lock tables t1 read, s1 read;
+select * from t1 where b < 10;
+a	b
+1	1
+2	2
+3	3
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+unlock tables;
+#
+# A user with SELECT on t1 but no privilege on s1:
+# ddls include both s1 and t1
+#
+create user u1@localhost;
+grant select on db1.t1 to u1@localhost;
+flush tables;
+connect  con_u1,localhost,u1,,db1;
+set optimizer_record_context=ON;
+select * from t1 where b < 10;
+a	b
+1	1
+2	2
+3	3
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+disconnect con_u1;
+connection default;
+drop user u1@localhost;
+#
+# A table with two columns whose DEFAULT expressions depend on two
+# different sequences: both must be captured, before the table
+#
+create sequence s2;
+create table t2 (a int default nextval(s1), c int default nextval(s2));
+select * from t2;
+a	c
+# == Optimizer Context Tables
+name
+db1.t2
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s2`;
+
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t2` (
+  `a` int(11) DEFAULT nextval(`db1`.`s1`),
+  `c` int(11) DEFAULT nextval(`db1`.`s2`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop table t2;
+drop sequence s2;
+#
+# The sequence s3 that t3's DEFAULT depends on was dropped:
+# ddls include both s3 and t3
+#
+create sequence s3;
+create table t3 (a int default nextval(s3), d int);
+insert into t3 (d) values (1);
+drop sequence s3;
+flush tables;
+select * from t3;
+a	d
+1	1
+# == Optimizer Context Tables
+name
+db1.t3
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s3`;
+
+CREATE TABLE IF NOT EXISTS `t3` (
+  `a` int(11) DEFAULT nextval(`db1`.`s3`),
+  `d` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
+REPLACE INTO db1.t3(a, d) VALUES (1, 1);
+
+
+drop table t3;
+#
+# A query that also calls a stored function:
+# ddls include both s1 and t1
+#
+create function f1() returns int return 1;
+flush tables;
+select f1() from t1 where b < 10;
+f1()
+1
+1
+1
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop function f1;
+#
+# The sequence s1 that t1's DEFAULT depends on was dropped and a
+# view s1 created in its place:
+# ddls include both s1 and t1
+#
+drop sequence s1;
+create view s1 as select 1 as x;
+flush tables;
+select * from t1 where b < 10;
+a	b
+1	1
+2	2
+3	3
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+#
+# Same, as a prepared statement executed twice:
+# ddls include both s1 and t1
+#
+flush tables;
+prepare stmt from 'select * from t1 where b < 10';
+execute stmt;
+a	b
+1	1
+2	2
+3	3
+execute stmt;
+a	b
+1	1
+2	2
+3	3
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) NOT NULL DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+deallocate prepare stmt;
+drop view s1;
+drop table t1;
+#
+# The sequence db2.s1 that db1.t1's DEFAULT depends on is in a
+# different database: ddls include db2.s1 and t1
+#
+create database db2;
+create sequence db2.s1 start 100 increment 10;
+create table t1 (a int default nextval(db2.s1), b int);
+insert into t1 (b) values (1);
+flush tables;
+select * from t1 where b < 10;
+a	b
+100	1
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db2`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT nextval(`db2`.`s1`),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+SET STATEMENT sql_mode=REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),'STRICT_TRANS_TABLES','') FOR
+REPLACE INTO db1.t1(a, b) VALUES (100, 1);
+
+
+drop table t1;
+drop database db2;
+#
+# The sequence s1 is used in the query and t1's DEFAULT depends on it.
+# Whichever order they are listed in, ddls include s1's definition
+# with its current value, and t1
+#
+create sequence s1 start 100 increment 10 maxvalue 200 cycle;
+create table t1 (a int default nextval(s1), b int);
+insert into t1 (b) values (1),(2);
+flush tables;
+select * from s1, t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count	a	b
+201	1	200	100	10	1000	1	0	100	1
+201	1	200	100	10	1000	1	0	110	2
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE SEQUENCE IF NOT EXISTS `db1`.`s1`;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+DROP SEQUENCE IF EXISTS db1.s1;
+
+CREATE TABLE IF NOT EXISTS `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1;
+
+SELECT SETVAL(db1.s1, 100);
+
+
+flush tables;
+select * from t1, s1;
+a	b	next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+100	1	201	1	200	100	10	1000	1	0
+110	2	201	1	200	100	10	1000	1	0
+# == Optimizer Context Tables
+name
+db1.t1
+# === Optimizer Context DDLs
+@ddls
+CREATE TABLE IF NOT EXISTS `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1;
+
+SELECT SETVAL(db1.s1, 100);
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `a` int(11) DEFAULT nextval(`db1`.`s1`),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+
+drop table t1;
+drop sequence s1;
+# End of 13.2 tests
 drop database db1;

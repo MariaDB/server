@@ -217,6 +217,39 @@ connect (default, localhost, root,,);
 UPDATE mysql.global_priv SET Priv=Priv WHERE User='root' AND Host='localhost';
 
 --echo #
+--echo # MDEV-41343 REVOKE DENY ... FROM PUBLIC bypass via unrelated
+--echo # column-level UPDATE grant on mysql.global_priv
+--echo #
+CREATE USER u@localhost;
+GRANT UPDATE (Host) ON mysql.global_priv TO u@localhost;
+DENY SELECT ON test.t1 TO PUBLIC;
+
+--echo # Column-level UPDATE is not enough
+connect (con, localhost, u,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+disconnect con;
+
+--echo # Table-level UPDATE with a column-level DENY is not enough
+connection default;
+GRANT UPDATE ON mysql.global_priv TO u@localhost;
+DENY UPDATE (Priv) ON mysql.global_priv TO u@localhost;
+connect (con, localhost, u,,);
+--error ER_TABLEACCESS_DENIED_ERROR
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+disconnect con;
+
+--echo # Table-level UPDATE is enough
+connection default;
+REVOKE DENY UPDATE (Priv) ON mysql.global_priv FROM u@localhost;
+connect (con, localhost, u,,);
+REVOKE DENY SELECT ON test.t1 FROM PUBLIC;
+disconnect con;
+
+connection default;
+DROP USER u@localhost;
+
+--echo #
 --echo # Cleanup
 --echo #
 DROP PROCEDURE test.p1;

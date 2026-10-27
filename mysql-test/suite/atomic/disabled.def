@@ -9,4 +9,3 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-rename_trigger           : MDEV-29282 2022:-08-16 Igor Babaev

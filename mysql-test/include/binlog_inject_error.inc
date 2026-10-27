@@ -13,9 +13,11 @@
 # let query= 'CREATE TABLE t1 (a INT)';
 # source include/binlog_inject_error.inc;
 #
+
+--source include/have_debug.inc
+
 set @saved_dbug = @@global.debug_dbug;
-SET GLOBAL debug_dbug='d,injecting_fault_writing';
---echo $query;
+SET GLOBAL debug_dbug='+d,injecting_fault_writing';
 --replace_regex /(errno: .*)/(errno: #)/
 --error ER_ERROR_ON_WRITE
 --eval $query

@@ -950,7 +950,7 @@ bool
 db_name_is_in_ignore_db_dirs_list(const char *directory)
 {
   char buff[FN_REFLEN];
-  uint buff_len;
+  size_t buff_len;
 
   if (skip_ignored_dir_check)
     return 0;
@@ -2226,6 +2226,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   RETURN
     0       OK
+    1       Error (out of memory)
  */
 
 int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
@@ -4170,6 +4171,154 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
 /* This is only used internally, but we need it here as a forward reference */
 extern ST_SCHEMA_TABLE schema_tables[];
 
+/**
+  Detect if an I_S query can bypass temp table materialization.
+  Qualifies if: no ORDER BY, no GROUP BY, no DISTINCT, no aggregates.
+*/
+static bool is_simple_is_query(THD *thd)
+{
+  SELECT_LEX *sel= thd->lex->current_select;
+  if (!sel)
+    return false;
+  /* Reject UNION queries */
+  if (sel->master_unit()->first_select()->next_select())
+  {
+    DBUG_PRINT("info", ("has UNION, using fallback path"));
+    return false;
+  }
+  /* Reject subqueries (scalar subquery context) */
+  if (sel->master_unit()->item)
+  {
+    DBUG_PRINT("info", ("is subquery, using fallback path"));
+    return false;
+  }
+  if (sel->order_list.elements)
+  {
+    DBUG_PRINT("info", ("has ORDER BY, using fallback path"));
+    return false;
+  }
+  if (sel->group_list.elements)
+  {
+    DBUG_PRINT("info", ("has GROUP BY, using fallback path"));
+    return false;
+  }
+  if (sel->having)
+  {
+    DBUG_PRINT("info", ("has HAVING, using fallback path"));
+    return false;
+  }
+  if (sel->options & SELECT_DISTINCT)
+  {
+    DBUG_PRINT("info", ("has DISTINCT, using fallback path"));
+    return false;
+  }
+  if (sel->with_sum_func)
+  {
+    DBUG_PRINT("info", ("has aggregates, using fallback path"));
+    return false;
+  }
+  /* Reject SELECT * (wildcard expansion not yet validated) */
+  if (sel->with_wild)
+  {
+    DBUG_PRINT("info", ("has SELECT *, using fallback path"));
+    return false;
+  }
+  /*
+    Only allow plain column references in the SELECT list (no
+    constants, expressions, or function calls), since those are the
+    only shapes validated against the fast path so far.
+  */
+  {
+    List_iterator_fast<Item> it(sel->item_list);
+    Item *item;
+    while ((item= it++))
+    {
+      if (item->real_item()->type() != Item::FIELD_ITEM)
+      {
+        DBUG_PRINT("info", ("non-field item in SELECT list, "
+                             "using fallback path"));
+        return false;
+      }
+    }
+  }
+  /*
+    ANALYZE SELECT also executes the query, then sends EXPLAIN via a
+    second result set. Streaming + my_eof() here races that.
+  */
+  if (thd->lex->analyze_stmt)
+  {
+    DBUG_PRINT("info", ("ANALYZE statement, using fallback path"));
+    return false;
+  }
+  /*
+    INTO OUTFILE / DUMPFILE / @var need the interceptor result sink,
+    not the client protocol.
+  */
+  if (thd->lex->exchange ||
+      (thd->lex->result && thd->lex->result->result_interceptor()))
+  {
+    DBUG_PRINT("info", ("result interceptor, using fallback path"));
+    return false;
+  }
+  /* PROCEDURE ANALYSE() rewrites the result set. */
+  if (thd->lex->proc_list.elements)
+  {
+    DBUG_PRINT("info", ("PROCEDURE ANALYSE, using fallback path"));
+    return false;
+  }
+  /* SQL_BUFFER_RESULT materializes into a tmp table first. */
+  if (sel->options & OPTION_BUFFER_RESULT)
+  {
+    DBUG_PRINT("info", ("SQL_BUFFER_RESULT, using fallback path"));
+    return false;
+  }
+  /*
+    A subquery in WHERE is evaluated from schema_table_store_record()
+    while get_all_tables() may be using a temporary MEM_ROOT. Freeing
+    that root leaves the subquery JOIN dangling.
+  */
+  if (sel->first_inner_unit() ||
+      (sel->where && sel->where->with_subquery()))
+  {
+    DBUG_PRINT("info", ("subquery in I_S query, using fallback path"));
+    return false;
+  }
+  /*
+    A stored function can create tables or otherwise change THD open
+    table state. get_all_tables() then fails
+    restore_backup_open_tables_state().
+  */
+  if (thd->lex->uses_stored_routines())
+  {
+    DBUG_PRINT("info", ("stored routine, using fallback path"));
+    return false;
+  }
+  /*
+    Only allow no LIMIT, or LIMIT 1 exactly. Any other explicit LIMIT n
+    is rejected until a general LIMIT implementation is validated.
+    Implicit @@sql_select_limit is applied later via plan->max_rows.
+  */
+  if (sel->limit_params.explicit_limit &&
+      sel->limit_params.select_limit &&
+      (!sel->limit_params.select_limit->const_item() ||
+       sel->limit_params.select_limit->val_int() != 1))
+  {
+    DBUG_PRINT("info", ("has LIMIT != 1, using fallback path"));
+    return false;
+  }
+  if (sel->limit_params.offset_limit)
+  {
+    DBUG_PRINT("info", ("has OFFSET, using fallback path"));
+    return false;
+  }
+  if (sel->options & OPTION_FOUND_ROWS)
+  {
+    DBUG_PRINT("info", ("has SQL_CALC_FOUND_ROWS, using fallback path"));
+    return false;
+  }
+  return true;
+}
+
 /*
   Store record to I_S table, convert HEAP table
   to MyISAM if necessary
@@ -4194,13 +4343,111 @@ bool schema_table_store_record(THD *thd, TABLE *table)
     return 1;
   }
 
+  /*
+    Fast path: when the query has been identified as a simple I_S
+    lookup, skip the temp table entirely. Send metadata lazily on the
+    first row, then stream each row's fields directly to the client,
+    using the I_S table's Field objects already populated by the fill
+    function in table->record[0].
+  */
+  {
+    IS_table_read_plan *plan=
+      table->pos_in_table_list->is_table_read_plan;
+    if (plan && plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+    {
+      DBUG_PRINT("info", ("I_S fast path: skipping "
+                           "ha_write_tmp_row, streaming directly"));
+      Protocol *protocol= thd->protocol;
+      List<Item> *proj= plan->projection_fields;
+      if (plan->fp_state == IS_table_read_plan::FP_ACTIVE)
+      {
+        if (proj)
+        {
+          if (protocol->send_result_set_metadata(
+                proj,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+            return 1;
+        }
+        else
+        {
+          /* Build field list once and cache in projection_fields */
+          List<Item> *field_list=
+            new (thd->mem_root) List<Item>();
+          if (!field_list)
+            return 1;
+          for (Field **f= table->field; *f; f++)
+          {
+            Item_field *item= new (thd->mem_root) Item_field(thd, *f);
+            if (!item || field_list->push_back(item))
+              return 1;
+          }
+          plan->projection_fields= field_list;
+          proj= field_list;
+          if (protocol->send_result_set_metadata(
+                proj,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+            return 1;
+        }
+        plan->fp_state= IS_table_read_plan::FP_STREAMING;
+      }
+
+      /*
+        Skip row if it does not match the complete original condition.
+        partial_cond is a pruning-only subset (see make_cond_for_info_schema)
+        and is NOT sufficient on its own to gate correctness here, since it
+        silently drops conjuncts on fields outside the schema-table index
+        (e.g. TABLE_CATALOG) and is built before HAVING pushdown in some
+        cases. full_cond is the complete condition and must be checked.
+      */
+      if (plan->full_cond && !plan->full_cond->val_bool())
+        return 0;
+      /* Honour LIMIT / @@sql_select_limit; do not count filtered rows. */
+      if (plan->sent_rows >= plan->max_rows)
+      {
+        plan->abort_scan= true;
+        return 0;
+      }
+      if (proj)
+      {
+        protocol->prepare_for_resend();
+        if (protocol->send_result_set_row(proj))
+          return 1;
+        if (protocol->write())
+          return 1;
+      }
+      else
+      {
+        protocol->prepare_for_resend();
+        for (Field **f= table->field; *f; f++)
+        {
+          if ((*f)->is_null())
+          {
+            if (protocol->store_null())
+              return 1;
+          }
+          else if (protocol->store(*f))
+            return 1;
+        }
+        if (protocol->write())
+          return 1;
+      }
+      plan->sent_rows++;
+      thd->inc_sent_row_count(1);
+      if (plan->sent_rows >= plan->max_rows)
+        plan->abort_scan= true;
+      return 0;
+    }
+  }
+
+  DBUG_PRINT("info", ("I_S slow path: calling ha_write_tmp_row"));
   if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     TMP_TABLE_PARAM *param= table->pos_in_table_list->schema_table_param;
+    bool is_duplicate;
     if (unlikely(create_internal_tmp_table_from_heap(thd, table,
                                                      param->start_recinfo,
                                                      &param->recinfo, error, 0,
-                                                     NULL)))
+                                                     &is_duplicate, NULL)))
 
       return 1;
   }
@@ -5053,7 +5300,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     handlerton *hton;
     bool is_sequence;
 
-    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence))
+    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence, 0))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -5286,7 +5533,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     init_sql_alloc(key_memory_table_triggers_list,
                    &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
-                                           table_name, &tbl, 1))
+                                           table_name, &tbl, true, 0))
     {
       table_list.table= &tbl;
       res= schema_table->process_table(thd, &table_list, table,
@@ -5682,6 +5929,16 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
             if (schema_table_store_record(thd, table))
               goto err;      /* Out of space in temporary table */
+            /*
+              Stop only after a matching row was sent.
+              abort_scan is set in schema_table_store_record() once
+              sent_rows reaches max_rows; filtered rows do not count.
+            */
+            if (plan->abort_scan)
+            {
+              error= 0;
+              goto err;
+            }
             continue;
           }
 
@@ -6106,7 +6363,8 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
           {
               handler *hi= show_table->hlindex->file;
               if (!hi->info(HA_STATUS_VARIABLE))
-                  file->stats.index_file_length+= hi->stats.data_file_length;
+                  file->stats.index_file_length+= hi->stats.data_file_length
+                                                + hi->stats.index_file_length;
           }
       }
 
@@ -7339,6 +7597,25 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     // There can be no matching records for the condition
     DBUG_RETURN(0);
+  }
+
+  /*
+    A routine records its database in mysql.proc in lower case whenever
+    lower_case_table_names is set, see sp_name::sp_name().  The lookup value
+    is the name as the query spelled it, and get_lookup_field_values folds it
+    to lower case only for lower_case_table_names 1.  Fold it here for the
+    remaining setting so that the index read below, and the comparison in
+    check_proc_record, both see the form that was stored.  mysql.proc.db is
+    utf8mb3_bin, so neither of them can absorb the difference in case.
+    The value is a buffer allocated by get_lookup_field_values, so it can be
+    changed in place.
+  */
+  char db_buf[NAME_LEN + 1];
+  if (lower_case_table_names && lookup.db_value.length)
+  {
+    lookup.db_value.length= files_charset_info->casedn_z(lookup.db_value.str,
+                               lookup.db_value.length, db_buf, sizeof(db_buf));
+    lookup.db_value.str= db_buf;
   }
 
   start_new_trans new_trans(thd);
@@ -9677,6 +9954,27 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
     }
   }
 
+  /* Mark simple queries for fast path */
+  if (is_simple_is_query(thd) &&
+      get_schema_table_idx(schema_table) == SCH_TABLES &&
+      tables->table_open_method == SKIP_OPEN_TABLE)
+  {
+    DBUG_PRINT("info", ("simple query qualifies for I_S fast path"));
+    plan->is_optimized_query= true;
+    SELECT_LEX *sel= thd->lex->current_select;
+    if (sel && sel->limit_params.select_limit &&
+        sel->limit_params.select_limit->const_item())
+    {
+      longlong lim= sel->limit_params.select_limit->val_int();
+      if (lim < 0)
+        plan->max_rows= HA_POS_ERROR;
+      else
+        plan->max_rows= (ha_rows) lim;
+    }
+    plan->is_single_row= (plan->max_rows == 1);
+  }
+
+  plan->full_cond= cond;
   if (plan->has_db_lookup_value() && plan->has_table_lookup_value())
     plan->partial_cond= 0;
   else
@@ -9684,6 +9982,30 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
   
 end:
   DBUG_RETURN(0);
+}
+
+
+/*
+  Remove field form blob list if we replaced it with a varchar field
+*/
+
+static void remove_field_from_blob_list(TABLE *table, uint fieldnr)
+{
+  uint *blob_field= table->s->blob_field;
+  uint *end= blob_field+ table->s->blob_fields;
+
+  for (; blob_field < end ; blob_field++)
+  {
+    if (*blob_field == fieldnr)
+    {
+      if (blob_field+1 < end)
+        bmove(blob_field, blob_field+1,
+              (char*) end - (char*) blob_field - sizeof(*blob_field));
+      table->s->blob_fields--;
+      return;
+    }
+  }
+  DBUG_ASSERT(0);                               // Field not found
 }
 
 
@@ -9728,6 +10050,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
         }
         else
         {
+          bool was_blob= field->flags & BLOB_FLAG;
           field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
                                 field->null_bit, Field::NONE,
                                 &field->field_name, field->dtcollation());
@@ -9735,6 +10058,8 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
           field->field_index= i;
           DBUG_ASSERT(field->pack_length_in_rec() == 0);
           table->field[i]= field;
+          if (was_blob)
+            remove_field_from_blob_list(table, i);
         }
       }
       if ((table->s->reclength= (ulong)(cur - table->record[0])) == 0)
@@ -9892,7 +10217,16 @@ bool get_schema_tables_result(JOIN *join,
       */
       if (table_list->schema_table_state &&
           (!is_subselect || table_list->schema_table_state != executed_place))
+      {
+        IS_table_read_plan *skip_plan= table_list->is_table_read_plan;
+        if (skip_plan &&
+            skip_plan->fp_state != IS_table_read_plan::FP_INACTIVE)
+        {
+          result= 1;
+          break;
+        }
         continue;
+      }
 
       /*
         if table is used in a subselect and
@@ -9905,10 +10239,25 @@ bool get_schema_tables_result(JOIN *join,
         table_list->table->file->extra(HA_EXTRA_RESET_STATE);
         table_list->table->file->ha_delete_all_rows();
         table_list->table->null_row= 0;
+        /* Reset fast-path state for re-execution */
+        if (IS_table_read_plan *p= table_list->is_table_read_plan)
+        {
+          p->fp_state= IS_table_read_plan::FP_INACTIVE;
+          p->sent_rows= 0;
+          p->abort_scan= false;
+        }
       }
       else
+      {
         table_list->table->file->stats.records= 0;
-  
+        if (IS_table_read_plan *p= table_list->is_table_read_plan)
+        {
+          p->fp_state= IS_table_read_plan::FP_INACTIVE;
+          p->sent_rows= 0;
+          p->abort_scan= false;
+        }
+      }
+
       Item *cond= tab->select_cond;
       if (tab->cache_select && tab->cache_select->cond)
       {
@@ -9925,6 +10274,41 @@ bool get_schema_tables_result(JOIN *join,
 
       Switch_to_definer_security_ctx backup_ctx(thd, table_list);
       Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+
+      IS_table_read_plan *plan= table_list->is_table_read_plan;
+      /*
+        Structural eligibility (SCH_TABLES, SKIP_OPEN_TABLE, simple query
+        shape) was already verified in optimize_for_get_all_tables() and
+        encoded in plan->is_optimized_query. Here we check only runtime
+        conditions that cannot be determined at optimization time.
+      */
+      bool use_fast_path= (plan && plan->is_optimized_query &&
+                           !thd->bootstrap && !thd->spcont &&
+                           !is_show_command(thd) &&
+                           join->result &&
+                           !join->result->result_interceptor() &&
+                           !thd->lex->analyze_stmt &&
+                           !thd->lex->exchange &&
+                           !thd->lex->proc_list.elements &&
+                           !thd->is_cursor_execution() &&
+                           thd->lex->sql_command == SQLCOM_SELECT &&
+                           !(join->select_options &
+                             (SELECT_DESCRIBE | OPTION_BUFFER_RESULT)) &&
+                           thd->protocol->type() != Protocol::PROTOCOL_DISCARD &&
+                           join->table_count == 1 &&
+                           thd->lex->query_tables == table_list &&
+                           !table_list->next_global &&
+                           !table_list->schema_table_state &&
+                           plan->has_db_lookup_value() &&
+                           plan->fp_state ==
+                             IS_table_read_plan::FP_INACTIVE);
+
+      if (use_fast_path)
+      {
+        plan->fp_state= IS_table_read_plan::FP_ACTIVE;
+        plan->projection_fields= join->fields;
+      }
+
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
@@ -9933,8 +10317,48 @@ bool get_schema_tables_result(JOIN *join,
         table_list->schema_table_state= executed_place;
         break;
       }
+
       tab->read_record.table->file= table_list->table->file;
       table_list->schema_table_state= executed_place;
+      if (use_fast_path)
+      {
+        /*
+          fill_table() completed using the fast path. If at least one
+          row matched, schema_table_store_record() already streamed
+          metadata + rows directly to the client. If zero rows
+          matched, metadata was never sent, so send it now (empty
+          result set still needs a column definition packet).
+          Either way, finish with EOF and signal exec_inner to skip
+          its own send_result_set_metadata + do_select.
+        */
+        if (plan->fp_state == IS_table_read_plan::FP_ACTIVE)
+        {
+          List<Item> *meta= plan->projection_fields;
+          List<Item> field_list;
+          if (!meta)
+          {
+            TABLE *fb_table= table_list->table;
+            for (Field **f= fb_table->field; *f; f++)
+            {
+              Item_field *item= new (thd->mem_root) Item_field(thd, *f);
+              field_list.push_back(item);
+            }
+            meta= &field_list;
+          }
+          if (thd->protocol->send_result_set_metadata(
+                meta,
+                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+          {
+            result= 1;
+            break;
+          }
+          plan->fp_state= IS_table_read_plan::FP_STREAMING;
+        }
+        /* FOUND_ROWS() without SQL_CALC_FOUND_ROWS is rows sent. */
+        thd->limit_found_rows= plan->sent_rows;
+        my_eof(thd);
+        result= 1;
+      }
     }
   }
   thd->pop_internal_handler();
@@ -9956,7 +10380,7 @@ bool get_schema_tables_result(JOIN *join,
                                      Sql_condition::WARN_LEVEL_ERROR,
                                      thd->get_stmt_da()->message());
   }
-  else if (result)
+  else if (result && !thd->get_stmt_da()->is_eof())
     my_error(ER_UNKNOWN_ERROR, MYF(0));
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(result);

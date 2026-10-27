@@ -17,6 +17,127 @@
 
 #include "heapdef.h"
 
+/*
+  Push a contiguous block of deleted records onto the free list.
+  'first' is the lowest address; the block spans count records
+  at stride share->block.recbuffer.
+*/
+
+void hp_push_free_block(HP_SHARE *share, uchar *first, uint16 count)
+{
+  uint recbuffer= share->block.recbuffer;
+  uint visible= share->visible;
+  uchar *last= first + (uint32)(count - 1) * recbuffer;
+
+  DBUG_ASSERT(count >= 2);
+
+  /* First record: block-start with chain to next free-list entry */
+  *((uchar**) first)= share->del_link;
+  first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+  int2store(first + HP_DEL_COUNT_OFFSET, count);
+  first[visible]= 0;
+
+  /* Dark records: clear metadata bytes at stride recbuffer */
+  hp_clear_dark_records(first + recbuffer, last, recbuffer, visible);
+
+  /* Last record: block-end with back-pointer to first */
+  *((uchar**) last)= first;
+  last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+  last[visible]= 0;
+
+  share->del_link= last;
+  share->deleted+= count;
+  share->total_records-= count;
+}
+
+
+/*
+  Push a contiguous block (count >= 2) or single record (count == 1)
+  onto the free list, coalescing with the head entry if adjacent.
+  Normalizes the head by treating a single record as a block of count 1,
+  then checks adjacency in two directions (above/below).
+  Falls back to hp_push_free_block/hp_push_free_record when no adjacency.
+*/
+
+void hp_push_free_block_coalesce(HP_SHARE *share, uchar *first,
+                                 uint16 count)
+{
+  uchar *head= share->del_link;
+  uint recbuffer= share->block.recbuffer;
+  uchar *last= first + (uint32)(count - 1) * recbuffer;
+
+  DBUG_ASSERT(count >= 1);
+
+  if (head)
+  {
+    /* Normalize head: treat single record as a block of count 1 */
+    uchar *head_first;
+    uint16 head_count;
+    uint32 combined;
+
+    if (hp_is_free_block_end(head))
+    {
+      head_first= hp_free_block_first(head);
+      head_count= hp_free_block_start_count(head_first);
+    }
+    else
+    {
+      head_first= head;
+      head_count= 1;
+    }
+    combined= (uint32) head_count + count;
+
+    if (combined <= UINT_MAX16)
+    {
+      if (head == first - recbuffer)
+      {
+        /* Head immediately below new block: extend upward */
+        hp_clear_dark_records((head_count > 1 ? head : first), last,
+                              recbuffer, share->visible);
+
+        *((uchar**) last)= head_first;
+        last[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+        last[share->visible]= 0;
+
+        head_first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+        int2store(head_first + HP_DEL_COUNT_OFFSET, (uint16) combined);
+
+        share->del_link= last;
+        share->deleted+= count;
+        share->total_records-= count;
+        return;
+      }
+
+      if (head_first == last + recbuffer)
+      {
+        /* Head immediately above new block: extend downward */
+        uchar *next_entry= *((uchar**) head_first);
+
+        hp_clear_dark_records(first + recbuffer, head_first + recbuffer,
+                              recbuffer, share->visible);
+
+        *((uchar**) first)= next_entry;
+        first[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_START;
+        int2store(first + HP_DEL_COUNT_OFFSET, (uint16) combined);
+        first[share->visible]= 0;
+
+        *((uchar**) head)= first;
+        head[HP_DEL_FLAG_OFFSET]= HP_DEL_BLOCK_END;
+
+        share->deleted+= count;
+        share->total_records-= count;
+        return;
+      }
+    }
+  }
+
+  if (count == 1)
+    hp_push_free_record(share, first);
+  else
+    hp_push_free_block(share, first, count);
+}
+
+
 int heap_delete(HP_INFO *info, const uchar *record)
 {
   uchar *pos;
@@ -25,11 +146,14 @@ int heap_delete(HP_INFO *info, const uchar *record)
   DBUG_ENTER("heap_delete");
   DBUG_PRINT("enter",("info: %p  record: %p", info, record));
 
+  if (heap_is_crashed(share))
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED);
   test_active(info);
+  hp_flush_pending_blob_free(info);
 
   if (info->opt_flag & READ_CHECK_USED && hp_rectest(info,record))
     DBUG_RETURN(my_errno);			/* Record changed */
-  share->changed=1;
+  info->changed= share->changed= 1;
 
   if ( --(share->records) < share->blength >> 1) share->blength>>=1;
   pos=info->current_ptr;
@@ -42,11 +166,50 @@ int heap_delete(HP_INFO *info, const uchar *record)
       goto err;
   }
 
+  if (share->blob_count && hp_has_cont(pos, share->visible))
+  {
+    if (share->internal)
+    {
+      /*
+        Internal temporary tables are never binlogged, so blob chains
+        can be freed immediately.
+      */
+      hp_free_blobs(share, pos);
+    }
+    else
+    {
+      /*
+        Defer blob chain free: save chain pointers for later cleanup.
+
+        The handler layer calls binlog_log_row() AFTER delete_row()
+        returns, reading blob data from the record buffer via zero-copy
+        pointers into HP_BLOCK chain records.  Freeing chains here would
+        overwrite those records with del_link pointers, making the
+        zero-copy pointers dangle.
+
+        Save the chain head pointers and free them on the next mutating
+        operation (write/update/delete) or on reset/close.  heap_write()
+        leaves a chain the row it writes still sources data from parked and
+        adopts it instead of reallocating; see
+        hp_flush_unaliased_blob_free().
+      */
+      HP_BLOB_DESC *desc;
+      uint i;
+      for (i= 0, desc= share->blob_descs; i < share->blob_count; i++, desc++)
+      {
+        if (hp_blob_length(desc, pos) == 0)
+        {
+          info->pending_blob_chains[i]= NULL;
+          continue;
+        }
+        memcpy(&info->pending_blob_chains[i],
+               pos + desc->offset + desc->packlength, sizeof(uchar*));
+      }
+      info->has_pending_blob_free= TRUE;
+    }
+  }
   info->update=HA_STATE_DELETED;
-  *((uchar**) pos)=share->del_link;
-  share->del_link=pos;
-  pos[share->visible]=0;		/* Record deleted */
-  share->deleted++;
+  hp_push_free_record_coalesce(share, pos);
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
   DBUG_EXECUTE("check_heap",heap_check_heap(info, 0););
@@ -104,7 +267,7 @@ int hp_rb_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 		  const uchar *record, uchar *recpos, int flag)
 {
-  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos;
+  ulong blength, pos2, pos_hashnr, lastpos_hashnr, key_pos, rec_hash;
   HASH_INFO *lastpos,*gpos,*pos,*pos3,*empty,*last_ptr;
   HP_SHARE *share=info->s;
   DBUG_ENTER("hp_delete_key");
@@ -116,14 +279,36 @@ int hp_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
   last_ptr=0;
 
   /* Search after record with key */
-  key_pos= hp_mask(hp_rec_hashnr(keyinfo, record), blength, share->records + 1);
+  if (flag && info->current_hash_ptr &&
+      info->current_hash_ptr->ptr_to_rec == recpos)
+  {
+    /*
+      The row was positioned via this key: flag means keyinfo is the
+      last used index, and current_hash_ptr is only ever set by
+      hp_search()/hp_search_next() on that index (scan and rnd-pos
+      paths clear it).  Every HASH_INFO entry stores the hash of its
+      own record's key, so the entry for recpos gives the hash of
+      'record' without re-scanning the key value (expensive for blob
+      keys).
+    */
+    rec_hash= info->current_hash_ptr->hash_of_key;
+    DBUG_ASSERT(rec_hash == hp_rec_hashnr(0, keyinfo, record));
+  }
+  else
+    rec_hash= hp_rec_hashnr(0, keyinfo, record);
+  key_pos= hp_mask(rec_hash, blength, share->records + 1);
   pos= hp_find_hash(&keyinfo->block, key_pos);
 
   gpos = pos3 = 0;
 
   while (pos->ptr_to_rec != recpos)
   {
-    if (flag && !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec))
+    /*
+      Hash pre-check avoids expensive blob materialization
+      for non-matching entries.
+    */
+    if (flag && pos->hash_of_key == rec_hash &&
+        !hp_rec_key_cmp(keyinfo, record, pos->ptr_to_rec, info))
       last_ptr=pos;				/* Previous same key */
     gpos=pos;
     if (!(pos=pos->next_key))

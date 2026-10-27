@@ -1,0 +1,289 @@
+--echo #
+--echo # MDEV-31527: Add --validate-config option to check configuration
+--echo #             without starting the server
+--echo #
+
+--source include/not_embedded.inc
+# mysqld refuses to start as root
+--source include/not_as_root.inc
+
+--let $vc_dir= $MYSQLTEST_VARDIR/tmp/validate_config
+--mkdir $vc_dir
+--mkdir $vc_dir/data
+
+# Private datadir, no network. The fixed limits and lower-case-table-names
+# keep clean runs free of environment-dependent warnings.
+--let $vc_opts= --datadir=$vc_dir/data --skip-networking --max-connections=10 --table-open-cache=10 --table-open-cache-instances=1 --open-files-limit=512 --lower-case-table-names=1
+# Must not be found in the brief output
+--let $vc_absent= Configuration is valid|\[ERROR\]
+--let $vc_help= Starts the MariaDB database server
+--let $vc_ver= Ver [0-9]
+--let $vc_warn= option 'max_connections': unsigned value 0 adjusted to 10
+
+--let $vc_base= --no-defaults $vc_opts --validate-config
+
+--let $vc_rc= 0
+--let $vc_cmd= $MYSQLD
+--let $vc_brief= 0
+
+--echo #
+--echo # 1. Valid configuration: only "Configuration is valid." is printed
+--echo #
+--let $vc_args= $vc_base
+--source validate_config.inc
+
+--echo # MTR bootstrap command: only "Configuration is valid."
+--let $vc_cmd= $MYSQLD_BOOTSTRAP_CMD
+--let $vc_args= $vc_opts --validate-config
+--source validate_config.inc
+
+--echo # --verbose, --silent-startup: only "Configuration is valid."
+--let $vc_args= $vc_base --verbose
+--source validate_config.inc
+--let $vc_args= $vc_base --silent-startup
+--source validate_config.inc
+
+--echo # "Configuration is valid." goes to stdout, stderr is empty
+--echo # stdout:
+--exec $MYSQLD $vc_base 2>$vc_dir/err
+--echo # stderr:
+--cat_file $vc_dir/err
+--remove_file $vc_dir/err
+
+--echo # valid value in a config file: only "Configuration is valid."
+--write_file $vc_dir/good.cnf
+[mysqld]
+key_buffer_size=16M
+EOF
+--let $vc_args= --defaults-file=$vc_dir/good.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo #
+--echo # 2. Valid configuration with warnings: the warnings, then
+--echo # "Configuration is valid, but warnings were reported; see above."
+--echo #
+--echo # values adjusted in a config file, [mysqld] and [server] groups:
+--echo # two warnings, then "warnings were reported"
+--write_file $vc_dir/adjusted.cnf
+[mysqld]
+max_connections=0
+[server]
+sort_buffer_size=1
+EOF
+--let $vc_args= --defaults-file=$vc_dir/adjusted.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo # value adjusted on the command line before --validate-config:
+--echo # warning, then "warnings were reported"
+--let $vc_args= --no-defaults $vc_opts --sort-buffer-size=1 --validate-config
+--source validate_config.inc
+
+--echo # plugin option value adjusted: warning, then "warnings were reported"
+--let $vc_args= $vc_base --aria-sort-buffer-size=1
+--source validate_config.inc
+
+--echo # unknown --loose- option: warning, then "warnings were reported"
+--let $vc_args= $vc_base --loose-zzz-bogus=1
+--source validate_config.inc
+
+--echo # checks made after option parsing:
+--echo # warning, then "warnings were reported"
+--let $vc_args= $vc_base --tls-version=TLSv1.0
+--source validate_config.inc
+--let $vc_args= $vc_base --general-log --general-log-file=$vc_dir/general.log --log-output=table
+--source validate_config.inc
+
+--echo # malformed Index.xml, error printed outside the error log:
+--echo # the error, then "warnings were reported"
+--mkdir $vc_dir/charsets
+--write_file $vc_dir/charsets/Index.xml
+<charsets></charsets><
+EOF
+--let $vc_args= $vc_base --character-sets-dir=$vc_dir/charsets
+--source validate_config.inc
+--remove_file $vc_dir/charsets/Index.xml
+--rmdir $vc_dir/charsets
+
+--echo #
+--echo # 3. Invalid configuration: the error and the exit code,
+--echo # no "Configuration is valid."
+--echo #
+--echo # unknown option, exit code 2: error, no "Configuration is valid"
+--let $vc_rc= 2
+--let $vc_args= $vc_base --nonexistentoption
+--source validate_config.inc
+
+--echo # unknown plugin variable, exit code 7:
+--echo # error, no "Configuration is valid"
+--let $vc_rc= 7
+--let $vc_args= $vc_base --aria-bogus=1
+--source validate_config.inc
+
+--echo # unknown variable in a config file, exit code 7:
+--echo # error, no "Configuration is valid"
+--write_file $vc_dir/bad_var.cnf
+[mariadb]
+zzz_bogus_option=123
+EOF
+--let $vc_rc= 7
+--let $vc_args= --defaults-file=$vc_dir/bad_var.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo # unknown variable in a file pulled in by !include, exit code 7:
+--echo # error, no "Configuration is valid"
+--perl
+  my $d= "$ENV{MYSQLTEST_VARDIR}/tmp/validate_config";
+  open(F, ">$d/main.cnf") or die "$d/main.cnf: $!";
+  print F "!include $d/bad_var.cnf\n";
+  close(F);
+EOF
+--let $vc_rc= 7
+--let $vc_args= --defaults-file=$vc_dir/main.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo # max_connections=abc, exit code 9: error, no "Configuration is valid"
+--let $vc_rc= 9
+--let $vc_args= $vc_base --max-connections=abc
+--source validate_config.inc
+
+--echo # max_connections=abc in a config file, exit code 9:
+--echo # error, no "Configuration is valid"
+--write_file $vc_dir/bad_num.cnf
+[mysqld]
+max_connections=abc
+EOF
+--let $vc_rc= 9
+--let $vc_args= --defaults-file=$vc_dir/bad_num.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo # --thread-handling=bogus, exit code 13:
+--echo # error, then max_connections warning, no "Configuration is valid"
+--let $vc_rc= 13
+--let $vc_args= $vc_base --max-connections=0 --thread-handling=bogus
+--source validate_config.inc
+
+--echo # unknown character set, exit code 1:
+--echo # error, then max_connections warning
+--let $vc_rc= 1
+--let $vc_args= $vc_base --max-connections=0 --character-set-server=bogus
+--source validate_config.inc
+
+--echo # unknown collation, exit code 1: max_connections warning, then error
+--let $vc_rc= 1
+--let $vc_args= $vc_base --max-connections=0 --collation-server=bogus
+--source validate_config.inc
+
+--echo # collation does not match the character set, exit code 1:
+--echo # max_connections warning, then error
+--let $vc_rc= 1
+--let $vc_args= $vc_base --max-connections=0 --character-set-server=latin1 --collation-server=utf8mb4_bin
+--source validate_config.inc
+
+--echo # invalid --ft-boolean-syntax, exit code 1:
+--echo # error, then max_connections warning
+--let $vc_rc= 1
+--let $vc_args= $vc_base --max-connections=0 --ft-boolean-syntax=x
+--source validate_config.inc
+
+--echo # extra argument, exit code 1: max_connections warning, then error
+--let $vc_rc= 1
+--let $vc_args= $vc_base --max-connections=0 extra_argument
+--source validate_config.inc
+
+--echo # --defaults-file does not exist, exit code 1: error
+--let $vc_rc= 1
+--let $vc_args= --defaults-file=$vc_dir/missing.cnf $vc_opts --validate-config
+--source validate_config.inc
+--echo # --defaults-extra-file (without --defaults-file) names a missing file, exit code 1: error
+--let $vc_rc= 1
+--let $vc_args= --defaults-extra-file=$vc_dir/missing.cnf $vc_opts --validate-config
+--source validate_config.inc
+
+--echo #
+--echo # 4. --help and --version win over --validate-config:
+--echo # "Configuration is valid." and option errors are not printed
+--echo #
+--echo # --help: help text, no "Configuration is valid"
+--let $vc_brief= 1
+--let $vc_expect= $vc_help
+--let $vc_args= $vc_base --help
+--source validate_config.inc
+
+--echo # --help --verbose: help text, no "Configuration is valid"
+--let $vc_brief= 1
+--let $vc_expect= $vc_help
+--let $vc_args= $vc_base --help --verbose
+--source validate_config.inc
+
+--echo # --help with an unknown option: help text, no error
+--let $vc_brief= 1
+--let $vc_expect= $vc_help
+--let $vc_args= --no-defaults $vc_opts --help --validate-config --invalid-config
+--source validate_config.inc
+
+--echo # --help with an unknown variable in a config file: help text, no error
+--let $vc_brief= 1
+--let $vc_expect= $vc_help
+--let $vc_args= --defaults-file=$vc_dir/bad_var.cnf $vc_opts --help --validate-config
+--source validate_config.inc
+
+--echo # --version: version, no "Configuration is valid"
+--let $vc_brief= 1
+--let $vc_expect= $vc_ver
+--let $vc_args= $vc_base --version
+--source validate_config.inc
+
+--echo # --version --verbose: version, no "Configuration is valid"
+--let $vc_brief= 1
+--let $vc_expect= $vc_ver
+--let $vc_args= $vc_base --version --verbose
+--source validate_config.inc
+
+--echo # --version with an unknown option: version, no error
+--let $vc_brief= 1
+--let $vc_expect= $vc_ver
+--let $vc_args= --no-defaults $vc_opts --version --validate-config --invalid-config
+--source validate_config.inc
+
+--echo # --version with an unknown variable in a config file: version, no error
+--let $vc_brief= 1
+--let $vc_expect= $vc_ver
+--let $vc_args= --defaults-file=$vc_dir/bad_var.cnf $vc_opts --version --validate-config
+--source validate_config.inc
+
+--echo # --help --verbose lists --validate-config
+--let $vc_brief= 1
+--let $vc_expect= Validate the server configuration
+--let $vc_args= --no-defaults $vc_opts --help --verbose
+--source validate_config.inc
+
+--echo # --max-connections=0 with --help, --help --verbose, --version:
+--echo # the warning is printed
+--let $vc_brief= 1
+--let $vc_expect= $vc_warn
+--let $vc_args= --no-defaults $vc_opts --max-connections=0 --help
+--source validate_config.inc
+--let $vc_brief= 1
+--let $vc_expect= $vc_warn
+--let $vc_args= --no-defaults $vc_opts --max-connections=0 --help --verbose
+--source validate_config.inc
+--let $vc_brief= 1
+--let $vc_expect= $vc_warn
+--let $vc_args= --no-defaults $vc_opts --max-connections=0 --version
+--source validate_config.inc
+
+--echo #
+--echo # 5. --validate-config creates no files and does not start the server
+--echo #
+--remove_files_wildcard $vc_dir *.cnf
+--let $vc_args= $vc_base --pid-file=$vc_dir/mysqld.pid --log-error=$vc_dir/error.log --log-bin=$vc_dir/binlog --general-log --general-log-file=$vc_dir/general.log --slow-query-log --slow-query-log-file=$vc_dir/slow.log --socket=$vc_dir/mysqld.sock
+--source validate_config.inc
+--echo # files in the test directory: only the datadir
+--list_files $vc_dir
+--echo # files in the datadir: none
+--list_files $vc_dir/data
+
+--rmdir $vc_dir/data
+--rmdir $vc_dir
+
+--echo # End of 13.2 tests

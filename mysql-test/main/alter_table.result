@@ -1277,6 +1277,8 @@ ALTER TABLE t1
 DROP i,
 ADD i INT UNSIGNED NOT NULL AUTO_INCREMENT,
 AUTO_INCREMENT = 1;
+Warnings:
+Note	4190	ALTER TABLE is implicitly changing the value of 'AUTO_INCREMENT' from '1' to '4'
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(1), PRIMARY KEY (a(255)));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
@@ -3214,6 +3216,29 @@ Tp4	CREATE TABLE `Tp4`-ok (
 drop table Another.Tp4;
 drop database Another;
 #
+# MDEV-35732: Failed ALTER TABLE causes inconsistency, changes behavior of the next statement
+#
+# It should be impossible for a failed rename index to affect
+# a subsequent duplicate name check for a foreign key.
+#
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+foreign key fk1 (b) references t1 (f1)) engine=innodb;
+alter table t2 rename index fk1 to fk, algorithm=instant, order by a;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=COPY
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+ERROR 42000: Duplicate key name 'ind1'
+drop table t2, t1;
+#
+# It should be impossible to add a foreign key with a duplicate name.
+#
+create table t1 (f1 int, f2 int, key(f1), key(f2)) engine=innodb;
+create table t2 (pk int primary key, a int, b int, key ind1(a),
+foreign key fk1 (b) references t1 (f1)) engine=innodb;
+alter table t2 add foreign key ind1 (b) references t1 (f2);
+ERROR 42000: Duplicate key name 'ind1'
+drop table t2, t1;
+#
 # End of 11.4 tests
 #
 #
@@ -3252,6 +3277,14 @@ CONSTRAINT fk_utilisateur_cluster FOREIGN KEY (owner_id) REFERENCES utilisateur 
 ERROR HY000: Can't create table `test`.`cluster_t` (errno: 150 "Foreign key constraint is incorrectly formed")
 # Clean up
 DROP TABLE utilisateur;
+#
+# MDEV-41221 memcpy() source and target overlap in dict_table_rename_in_cache
+# (only fails without the fix on a libc that checks memcpy overlap, e.g. OpenBSD)
+#
+CREATE TABLE loader_test7(id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE loader_test6(id INT PRIMARY KEY, loader_test7_id INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE loader_test6 ADD CONSTRAINT loader_test6_to_7_fk FOREIGN KEY(loader_test7_id) REFERENCES loader_test7(id);
+DROP TABLE loader_test6, loader_test7;
 #
 # End of 12.3 tests
 #

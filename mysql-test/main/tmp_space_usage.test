@@ -247,7 +247,8 @@ CREATE TABLE t1 (a varchar(1024)) engine=aria CHARSET=latin1;
 INSERT INTO t1 VALUES ('this'),('is'),('just'),('a'),('filling'),('for'),(REPEAT('a',500));
 set @@global.max_tmp_total_space_usage=2*1024*1024;
 SET max_tmp_session_space_usage= 1024*1024, max_heap_table_size= 4*1024*1024;
---error ER_NOT_KEYFILE
+SET tmp_memory_table_size= 0;
+--error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT DISTINCT a, seq FROM t1 JOIN seq_1_to_600;
 DROP TABLE t1;
 connection default;
@@ -277,6 +278,7 @@ BEGIN;
 INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
 
 SET max_tmp_session_space_usage = 64*1024;
+SET tmp_memory_table_size= 0;
 --error HA_ERR_LOCAL_TMP_SPACE_FULL
 SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
 ROLLBACK;

@@ -4443,7 +4443,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
             We are using only a prefix of the column as a key:
             Create a new field for the key part that matches the index
           */
-          field= key_part->field=field->make_new_field(root, outparam, 0);
+          field= key_part->field=field->make_new_field(root, outparam, 0, 0);
           field->field_length= key_part->length;
         }
       }
@@ -8730,7 +8730,8 @@ bool TABLE::alloc_keys(uint key_count)
 {
   KEY *new_key_info;
   key_part_map *new_const_key_parts;
-  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
+  DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE ||
+              s->tmp_table == RESULT_TMP_TABLE);
 
   if (!multi_alloc_root(&mem_root,
                         &new_key_info, sizeof(*key_info)*(s->total_keys+key_count),
@@ -8869,6 +8870,12 @@ bool TABLE::check_tmp_key(uint key, uint key_parts,
     key_len+= fld_store_len;
   }
 
+  /*
+    Reject zero-length keys (e.g. all parts are CHAR(0) NOT NULL):
+    such a key cannot distinguish rows and would be useless for lookup.
+  */
+  if (!key_len)
+    return FALSE;
   //  We use the on-disk storage engine's limit
   return key_len <= tmp_table_max_key_length() &&
          key_parts <= tmp_table_max_key_parts();
@@ -10135,7 +10142,8 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
           create_internal_tmp_table_from_heap(thd, tmp_table,
                                               tmp_table_param->start_recinfo, 
                                               &tmp_table_param->recinfo,
-                                              write_err, 1, &is_duplicate))
+                                              write_err, 1, &is_duplicate,
+                                              NULL))
 	DBUG_RETURN(1);
        
     }  

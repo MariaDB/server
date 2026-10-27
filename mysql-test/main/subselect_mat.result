@@ -2752,6 +2752,46 @@ c
 0
 DROP TABLE t1;
 # end of 10.11 tests
+#
+# MDEV-41303 rand() in a semi-join subquery is checked on outer rows
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(100);
+create table t2 (c int, d int);
+insert into t2 select 1, 1 from seq_1_to_80;
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+# The subquery must check rand(1) < 0.09 on the 80 rows of t2.
+# Must produce count(*)=1, not 0.
+select count(*) from t1
+where t1.a in (select c from t2 where rand(1) < 0.09);
+count(*)
+1
+# Warning must have "<materialize>(...) JOIN..." and not
+# "`test`.`t1` semi join (`test`.`t2`)"
+explain extended
+select count(*) from t1
+where t1.a in (select c from t2 where rand(1) < 0.09);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	80	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select count(0) AS `count(*)` from  <materialize> (/* select#2 */ select `test`.`t2`.`c` from `test`.`t2` where rand(1) < 0.09) join `test`.`t1` where `<subquery2>`.`c` = `test`.`t1`.`a`
+# rand() in the outer WHERE does not prevent the conversion to a
+# semi-join.
+explain extended
+select count(*) from t1
+where rand(1) < 2 and t1.a in (select c from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	80	100.00	
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` semi join (`test`.`t2`) where rand(1) < 2
+set optimizer_switch=@save_optimizer_switch;
+drop table t1, t2;
+# end of 11.4 tests
 set @subselect_mat_test_optimizer_switch_value=null;
 set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';

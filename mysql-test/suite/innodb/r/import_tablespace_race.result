@@ -16,7 +16,7 @@ END REPEAT;
 END
 $
 connection default;
-ALTER TABLE t NOWAIT ADD INDEX (c);
+ALTER TABLE t NOWAIT ADD INDEX (c(20));
 connection con1;
 connection default;
 FLUSH TABLE t FOR EXPORT;

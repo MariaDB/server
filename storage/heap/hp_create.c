@@ -20,7 +20,7 @@
 
 static int keys_compare(void *heap_rb, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
-		       ulong max_records);
+		       const ulong max_records);
 
 
 /*
@@ -30,6 +30,23 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
 */
 static const int heap_allocation_parts= 16;
 
+/*
+  Upper bound for a block allocation derived from max_records.
+  max_records is usually computed from the table memory ceiling
+  (max_heap_table_size or tmp_memory_table_size), not from an estimate of
+  the expected number of rows, so with a large ceiling max_records /
+  heap_allocation_parts can yield allocations of hundreds of MB even for
+  tables that will only ever hold a few rows.  Blocks above a few MB are
+  served by mmap() and unmapped on free by common malloc implementations
+  (never recycled), so short-lived tables (per-statement internal
+  temporary tables) would pay mmap/munmap, page fault-in/zeroing and
+  process-wide mmap_lock serialization on every statement.  4MB is
+  recycled from the allocator's free lists by all mainstream mallocs
+  (glibc, jemalloc, tcmalloc, mimalloc) and is large enough to keep
+  typical blob values in a single continuation run (zero-copy reads).
+*/
+static const ulong heap_max_allocation_block= 4*1024*1024;
+
 /* min block allocation */
 static const ulong heap_min_allocation_block= 16384;
 
@@ -38,7 +55,7 @@ static const ulong heap_min_allocation_block= 16384;
 int heap_create(const char *name, HP_CREATE_INFO *create_info,
                 HP_SHARE **res, my_bool *created_new_share)
 {
-  uint i, j, key_segs, max_length, length;
+  uint i, key_segs, max_length, length;
   HP_SHARE *share= 0;
   HA_KEYSEG *keyseg;
   HP_KEYDEF *keydef= create_info->keydef;
@@ -47,6 +64,16 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   ulong min_records= create_info->min_records;
   ulong max_records= create_info->max_records;
   uint visible_offset;
+  /*
+    max_records is this function's row limit and 0 means "no limit".
+    The share stores an explicit ceiling instead, writing "no limit" as
+    NO_LIMIT_RECORDS, so hp_alloc_from_tail() tests one value with no
+    special case.  That leaves 0 free to mean what it says on the
+    share, a table that accepts no rows.  Block sizing needs a concrete
+    row count rather than the ceiling, so derive one here.
+  */
+  ulong block_max_records= (max_records ? max_records :
+                            MY_MAX(min_records, 1000));
   DBUG_ENTER("heap_create");
 
   if (!create_info->internal_table)
@@ -71,19 +98,26 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     DBUG_PRINT("info",("Initializing new table"));
     
     /*
-      We have to store sometimes uchar* del_link in records,
-      so the visible_offset must be least at sizeof(uchar*)
+      Deleted records store del_link (sizeof(uchar*) bytes), a block
+      flags byte, and a uint16 block count.  visible_offset must be
+      at least HP_DEL_METADATA_SIZE so that these fields never overlap
+      the flags byte at offset 'visible'.  This also satisfies the
+      blob continuation header requirement (HP_CONT_HEADER_SIZE + 1).
     */
-    visible_offset= MY_MAX(reclength, sizeof (char*));
-    
+    visible_offset= MY_MAX(reclength, HP_DEL_METADATA_SIZE);
+
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
+      HA_KEYSEG *keyseg, *keyseg_end;
+
       bzero((char*) &keyinfo->block,sizeof(keyinfo->block));
       bzero((char*) &keyinfo->rb_tree ,sizeof(keyinfo->rb_tree));
-      for (j= length= 0; j < keyinfo->keysegs; j++)
+      for (keyseg= keyinfo->seg, keyseg_end= keyseg+ keyinfo->keysegs, length=0;
+           keyseg < keyseg_end ;
+           keyseg++)
       {
-	length+= keyinfo->seg[j].length;
-	if (keyinfo->seg[j].null_bit)
+	length+= keyseg->length;
+	if (keyseg->null_bit)
 	{
 	  length++;
 	  if (!(keyinfo->flag & HA_NULL_ARE_EQUAL))
@@ -91,7 +125,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	  if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
 	    keyinfo->rb_tree.size_of_element++;
 	}
-	switch (keyinfo->seg[j].type) {
+	switch (keyseg->type) {
 	case HA_KEYTYPE_SHORT_INT:
 	case HA_KEYTYPE_LONG_INT:
 	case HA_KEYTYPE_FLOAT:
@@ -103,45 +137,72 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	case HA_KEYTYPE_INT24:
 	case HA_KEYTYPE_UINT24:
 	case HA_KEYTYPE_INT8:
-	  keyinfo->seg[j].flag|= HA_SWAP_KEY;
+	  keyseg->flag|= HA_SWAP_KEY;
           break;
         case HA_KEYTYPE_VARBINARY1:
           /* Case-insensitiveness is handled in hash_sort */
-          keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
+          keyseg->type= HA_KEYTYPE_VARTEXT1;
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
           /*
-            For BTREE algorithm, key length, greater than or equal
-            to 255, is packed on 3 bytes.
+            Real blob fields always enter as VARTEXT4/VARBINARY4, never
+            as VARTEXT1/VARBINARY1. Strip any spurious HA_BLOB_PART
+            (e.g. from uninitialized key_part_flag in SJ weedout tables).
           */
-          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
-            length+= size_to_store_key_length(keyinfo->seg[j].length);
-          else
-            length+= 2;
-          /* Save number of bytes used to store length */
-          keyinfo->seg[j].bit_start= 1;
-          break;
-        case HA_KEYTYPE_VARBINARY2:
-          /* Case-insensitiveness is handled in hash_sort */
-          /* fall_through */
-        case HA_KEYTYPE_VARTEXT2:
-          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          DBUG_ASSERT(!(keyseg->flag & HA_BLOB_PART));
+          keyseg->flag&= ~HA_BLOB_PART;
           /*
             For BTREE algorithm, key length, greater than or equal
             to 255, is packed on 3 bytes.
           */
           if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
-            length+= size_to_store_key_length(keyinfo->seg[j].length);
+            length+= size_to_store_key_length(keyseg->length);
           else
             length+= 2;
-          /* Save number of bytes used to store length */
-          keyinfo->seg[j].bit_start= 2;
+          keyseg->bit_start= 1;         /* Packlength for records */
+          keyseg->bit_length= 2;        /* Packlength for key */
+          break;
+        case HA_KEYTYPE_VARBINARY4:
+          /* fall through */
+        case HA_KEYTYPE_VARTEXT4:
+          /* Key is stored as 4 byte length + pointer to data */
+          DBUG_ASSERT(keyseg->flag & HA_BLOB_PART);
+          DBUG_ASSERT(keyinfo->algorithm != HA_KEY_ALG_BTREE);
+          DBUG_ASSERT(keyseg->length == 4+portable_sizeof_char_ptr);
+          DBUG_ASSERT(keyseg->bit_start >= 1 && keyseg->bit_start <= 4);
+          DBUG_ASSERT(keyseg->bit_length == 0);
+
+          /*
+            bit_start holds the actual blob packlength (1-4), set by
+            heap_prepare_hp_create_info().
+          */
+          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          keyseg->type= HA_KEYTYPE_VARTEXT4;
+          break;
+
+        case HA_KEYTYPE_VARBINARY2:
+          /* Case-insensitiveness is handled in hash_sort */
+          /* fall through */
+        case HA_KEYTYPE_VARTEXT2:
+          keyinfo->flag|= HA_VAR_LENGTH_KEY;
+          /* key is stored as [length] + data */
+          keyseg->bit_start= 2;
+          keyseg->bit_length= 2;
           /*
             Make future comparison simpler by only having to check for
             one type
           */
-          keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
+          keyseg->type= HA_KEYTYPE_VARTEXT1;
+
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyseg->length);
+          else
+            length+= keyseg->bit_start;
           break;
         case HA_KEYTYPE_BIT:
           /*
@@ -175,7 +236,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     if (!(share= (HP_SHARE*) my_malloc(hp_key_memory_HP_SHARE,
                                        sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
-				       key_segs*sizeof(HA_KEYSEG),
+				       key_segs*sizeof(HA_KEYSEG)+
+				       create_info->blob_count*
+                                       sizeof(HP_BLOB_DESC),
 				       MYF(MY_ZEROFILL |
                                            (create_info->internal_table ?
                                             MY_THREAD_SPECIFIC : 0)))))
@@ -183,8 +246,15 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
+    if (create_info->blob_count)
+    {
+      share->blob_descs= (HP_BLOB_DESC*) (keyseg + key_segs);
+      memcpy(share->blob_descs, create_info->blob_descs,
+             create_info->blob_count * sizeof(HP_BLOB_DESC));
+      share->blob_count= create_info->blob_count;
+    }
     init_block(&share->block, hp_memory_needed_per_row(reclength),
-               min_records, max_records);
+               min_records, block_max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
     for (i= 0, keyinfo= share->keydef; i < keys; i++, keyinfo++)
@@ -213,7 +283,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       else
       {
 	init_block(&keyinfo->block, sizeof(HASH_INFO), min_records,
-		   max_records);
+		   block_max_records);
 	keyinfo->delete_key= hp_delete_key;
 	keyinfo->write_key= hp_write_key;
         keyinfo->hash_buckets= 0;
@@ -222,7 +292,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
         share->auto_key= i + 1;
     }
     share->min_records= min_records;
-    share->max_records= max_records;
+    share->max_records= max_records ? max_records : NO_LIMIT_RECORDS;
     share->max_table_size= create_info->max_table_size;
     share->data_length= share->index_length= 0;
     share->reclength= reclength;
@@ -287,10 +357,16 @@ static int keys_compare(void *heap_rb_, const void *key1_,
 
 size_t hp_memory_needed_per_row(size_t reclength)
 {
-  /* Data needed for storing record + pointer to records */
-  reclength= MY_MAX(reclength, sizeof(char*));
-  /* The + 1 below is for the delete marker at the end of record*/
-  reclength= MY_ALIGN(reclength+1, sizeof(char*));
+  /*
+    Must accommodate del_link + del_flag + block count.
+    The + 1 below is for the required visibility byte at the end of each record.
+  */
+  reclength= MY_MAX(reclength + 1, HP_DEL_METADATA_SIZE);
+  /*
+    Record has to be aligned for faster memcpy and also for allowing
+    direct access to delete link/chain at start of record.
+  */
+  reclength= MY_ALIGN(reclength, sizeof(char*));
   return reclength;
 }
 
@@ -310,22 +386,32 @@ ha_rows hp_rows_in_memory(size_t reclength, size_t index_size,
 
 
 static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
-		       ulong max_records)
+		       const ulong max_records)
 {
-  ulong i,records_in_block;
+  ulong i,records_in_block,cap_records;
   ulong recbuffer= (ulong) MY_ALIGN(reclength, sizeof(uchar*));
   ulong extra;
+  ulong requested_min_records= min_records;
   ulonglong memory_needed;
   size_t alloc_size;
 
   /*
-    If not min_records and max_records are given, optimize for 1000 rows
+    If no min_records is given, optimize for 1000 rows.  max_records is
+    the caller's sizing ceiling and is never changed here.
   */
   if (!min_records)
     min_records= MY_MIN(1000, max_records / heap_allocation_parts);
-  if (!max_records)
-    max_records= MY_MAX(min_records, 1000);
   min_records= MY_MIN(min_records, max_records);
+  /*
+    An explicit min_records may override the cap below, but only as far
+    as the ceiling reaches: max_records is the most rows the table's
+    memory ceiling (max_heap_table_size / tmp_memory_table_size) can
+    ever hold, so a larger MIN_ROWS is unreachable and pre-sizing for it
+    would reserve memory the table can never use.  MY_MIN keeps 0 at 0,
+    so "no min_records requested" stays distinguishable from an explicit
+    one.
+  */
+  requested_min_records= MY_MIN(requested_min_records, max_records);
 
  /*
     We don't want too few records_in_block as otherwise the overhead of
@@ -346,6 +432,20 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   */
   extra= sizeof(HP_PTRS) + MALLOC_OVERHEAD;
 
+  /*
+    Cap block allocations derived from max_records at
+    heap_max_allocation_block.  Only an explicit min_records from the
+    caller (CREATE TABLE ... MIN_ROWS) is a real row count expectation
+    and may pre-size beyond the cap; the 1000-row default min_records
+    is a heuristic and must not override the cap.  That override is
+    bounded by max_records (clamped above), so an unreachable MIN_ROWS
+    degrades to plain ceiling-derived sizing instead of reserving a
+    block the ceiling can never fill.
+  */
+  cap_records= (heap_max_allocation_block - extra) / recbuffer;
+  if (records_in_block > cap_records)
+    records_in_block= MY_MAX(requested_min_records, cap_records);
+
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
     records_in_block= MY_MIN(10, max_records);
@@ -362,6 +462,7 @@ static void init_block(HP_BLOCK *block, size_t reclength, ulong min_records,
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
+  block->high_water_allocated= 0L;
   /* All allocations are done with this size, if possible */
   block->alloc_size= alloc_size - MALLOC_OVERHEAD;
 

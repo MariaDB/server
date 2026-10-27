@@ -61,8 +61,9 @@ public:
          Type_handler_hybrid_field_type *handler, Type_all_attributes *func,
          Item **items, uint nitems) const override;
 
-  const Type_handler *type_handler_for_tmp_table(const Item *item) const
-    override;
+  const Type_handler *type_handler_for_tmp_table(const Item *item,
+                                                   const Tmp_field_param *param)
+    const override;
 
   bool Item_append_extended_type_info(Send_field_extended_metadata *to,
                                       const Item *item) const override

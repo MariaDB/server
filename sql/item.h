@@ -171,8 +171,6 @@ bool mark_unsupported_function(const char *w1, const char *w2,
   Note that for Item_fields, the marker contains
   'select->cur_pos_in_select_list
 */
-/* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
-#define MARKER_UNDEF_POS      -1
 #define MARKER_UNUSED         0
 #define MARKER_CHANGE_COND    1
 #define MARKER_PROCESSED      2
@@ -670,21 +668,29 @@ class Tmp_field_param
   bool m_modify_item;
   bool m_table_cant_handle_bit_fields;
   bool m_make_copy_field;
+  bool m_part_of_unique_key;
+  bool m_group_concat;
 public:
   Tmp_field_param(bool group,
                   bool modify_item,
                   bool table_cant_handle_bit_fields,
-                  bool make_copy_field)
+                  bool make_copy_field,
+                  bool part_of_unique_key,
+                  bool group_concat)
    :m_group(group),
     m_modify_item(modify_item),
     m_table_cant_handle_bit_fields(table_cant_handle_bit_fields),
-    m_make_copy_field(make_copy_field)
+    m_make_copy_field(make_copy_field),
+    m_part_of_unique_key(part_of_unique_key),
+    m_group_concat(group_concat)
   { }
   bool group() const { return m_group; }
   bool modify_item() const { return m_modify_item; }
   bool table_cant_handle_bit_fields() const
   { return m_table_cant_handle_bit_fields; }
   bool make_copy_field() const { return m_make_copy_field; }
+  bool part_of_unique_key() const { return m_part_of_unique_key; }
+  bool group_concat() const { return m_group_concat; }
   void set_modify_item(bool to) { m_modify_item= to; }
 };
 
@@ -884,10 +890,13 @@ protected:
     @retval  NULL  error
     @retval  !NULL on success
   */
-  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table)
+  Field *tmp_table_field_from_field_type(MEM_ROOT *root, TABLE *table,
+                                         const Tmp_field_param *param)
   {
     DBUG_ASSERT(fixed());
-    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this,
+                                                                      param);
     return h->make_and_init_table_field(root, &name,
                                         Record_addr(maybe_null()),
                                         *this, table);
@@ -909,7 +918,7 @@ protected:
     DBUG_ASSERT(!param->make_copy_field());
     DBUG_ASSERT(!is_result_field());
     DBUG_ASSERT(type() != NULL_ITEM);
-    return tmp_table_field_from_field_type(root, table);
+    return tmp_table_field_from_field_type(root, table, param);
   }
   Field *create_tmp_field_int(MEM_ROOT *root, TABLE *table,
                               uint convert_int_length);
@@ -1962,6 +1971,15 @@ public:
     return clone;
   }
 
+#ifndef DBUG_OFF
+  /*
+    Check, once per dynamic type, that shallow_copy() creates an object of
+    the same class as this item, i.e. that the class did not inherit
+    shallow_copy() from a concrete parent.
+  */
+  void dbug_check_shallow_copy_type(THD *thd) const;
+#endif
+
   /*
     Clones the constant item (not necessary returning the same item type)
 
@@ -2903,6 +2921,15 @@ inline T* get_item_copy (THD *thd, const T* item)
   return copy;
 }
 
+/*
+  Every instantiable Item class must declare its own shallow_copy(): one
+  inherited from a concrete parent creates an object of the parent class.
+  Item::dbug_check_shallow_copy_type() asserts that in debug builds.
+*/
+#define ITEM_SHALLOW_COPY(CLASS)                                  \
+  Item *shallow_copy(THD *thd) const override                     \
+  { return get_item_copy<CLASS>(thd, this); }
+
 
 #ifndef DBUG_OFF
 /**
@@ -3719,7 +3746,8 @@ public:
                              const Tmp_field_param *param) override
   {
     DBUG_ASSERT(fixed());
-    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this,
+                                                                      param);
     return create_tmp_field_ex_from_handler(root, table, src, param, h);
   }
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
@@ -4204,6 +4232,8 @@ public:
 
 private:
   uchar *saved_row_ref;
+protected:
+  ITEM_SHALLOW_COPY(Item_old_field)
 };
 
 /**
@@ -4320,6 +4350,8 @@ public:
     str->append("(+)"_LEX_CSTRING);
   }
   static List<Item> *make_as_item_list(THD *thd);
+protected:
+  ITEM_SHALLOW_COPY(Item_join_operator_plus)
 };
 
 
@@ -4350,6 +4382,8 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_null_result)
 };
 
 /*
@@ -4909,7 +4943,10 @@ public:
   const Type_handler *type_handler() const override
   { return type_handler_long_or_longlong(); }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
-  { return tmp_table_field_from_field_type(root, table); }
+  {
+    const Tmp_field_param param(false, false, false, false, false, false);
+    return tmp_table_field_from_field_type(root, table, &param);
+  }
   const longlong *const_ptr_longlong() const override { return &value; }
   bool val_bool() override { return value != 0; }
   longlong val_int() override
@@ -5035,6 +5072,8 @@ public:
     return false;
   }
   void print(String *str, enum_query_type query_type) override;
+protected:
+  ITEM_SHALLOW_COPY(Item_datetime)
 };
 
 
@@ -5446,6 +5485,8 @@ public:
                                     length * cs->mbmaxlen, cs)
   { }
   void make_send_field(THD *thd, Send_field *field) override;
+protected:
+  ITEM_SHALLOW_COPY(Item_empty_string)
 };
 
 
@@ -5465,6 +5506,8 @@ public:
       Type_handler::get_handler_by_field_type(int_field_type);
     return unsigned_flag ? h->type_handler_unsigned() : h;
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_return_int)
 };
 
 
@@ -6750,7 +6793,7 @@ public:
   }
 protected:
   Item *shallow_copy(THD *thd) const override
-  { return get_item_copy<Item_cache_wrapper>(thd, this); }
+  { return NULL; /* Not supported */ }
   Item *deep_copy(THD *) const override { return nullptr; }
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   {
@@ -7970,6 +8013,8 @@ public:
 private:
   THD *m_thd;
   active_dml_stmt m_trigger_stmt_type;
+protected:
+  ITEM_SHALLOW_COPY(Item_trigger_type_of_statement)
 };
 
 
@@ -8228,6 +8273,9 @@ public:
   }
   Item *deep_copy(THD *thd) const override
   { return shallow_copy_with_checks(thd); }
+protected:
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_cache_year>(thd, this); }
 };
 
 
@@ -8702,12 +8750,7 @@ public:
   String *val_str(String*) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param) override
-  {
-    return Item_type_holder::real_type_handler()->
-      make_and_init_table_field(root, &name, Record_addr(maybe_null()),
-                                *this, table);
-  }
+                             const Tmp_field_param *param) override;
 protected:
   Item *shallow_copy(THD *) const override { return nullptr; }
   Item *deep_copy(THD *) const override { return nullptr; }

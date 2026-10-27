@@ -131,10 +131,10 @@ if (!$mysql_errname)
     --sorted_result
     SELECT a,b FROM t2;
 
-    --let $error_codes = ER_TRUNCATE_ILLEGAL_FK
+    --let $error_codes = ER_DDL_ILLEGAL_FK
     TRUNCATE TABLE t1;
     --source check_errors.inc
-    if ($mysql_errname != ER_TRUNCATE_ILLEGAL_FK)
+    if ($mysql_errname != ER_DDL_ILLEGAL_FK)
     {
       --let $functionality = Foreign keys
       --source unexpected_result.inc

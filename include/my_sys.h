@@ -500,6 +500,20 @@ typedef struct st_io_cache		/* Used when caching files */
   char prefix[3];
   File file; /* file descriptor */
 
+  /*
+    Circular, singly-linked list of IO_CACHEs that share the same
+    underlying file (the same 'file' descriptor and file position).
+    It links a master READ_CACHE to the slave caches created from it by
+    init_slave_io_cache(): each slave gets a private copy of the buffer
+    but reads from the master's file. NULL, the default, when
+    init_slave_io_cache() is not used.
+
+    Because all members of the list share one file position, a seek done
+    through one cache affects the others: whenever a cache in the list
+    performs a real seek it walks the list and sets seek_not_done on
+    every other member so that they re-seek before their next I/O.
+    end_slave_io_cache() unlinks a cache from the list.
+  */
   struct st_io_cache *next_file_user;
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
@@ -546,7 +560,7 @@ static inline int my_b_inited(IO_CACHE *info) { return MY_TEST(info->buffer); }
 
 static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
-  if (info->read_pos + Count <= info->read_end)
+  if (likely(info->read_pos + Count <= info->read_end))
   {
     memcpy(Buffer, info->read_pos, Count);
     info->read_pos+= Count;
@@ -558,7 +572,7 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
   MEM_CHECK_DEFINED(Buffer, Count);
-  if (info->write_pos + Count <= info->write_end)
+  if (likely(info->write_pos + Count <= info->write_end))
   {
     if (Count)
     {
@@ -572,7 +586,7 @@ static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
 static inline int my_b_get(IO_CACHE *info)
 {
-  if (info->read_pos != info->read_end)
+  if (likely(info->read_pos != info->read_end))
   {
     info->read_pos++;
     return info->read_pos[-1];
@@ -583,7 +597,7 @@ static inline int my_b_get(IO_CACHE *info)
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
   MEM_CHECK_DEFINED(&chr, 1);
-  if (info->write_pos >= info->write_end)
+  if (unlikely(info->write_pos >= info->write_end))
     if (my_b_flush_io_cache(info, 1))
       return 1;
   *info->write_pos++= chr;

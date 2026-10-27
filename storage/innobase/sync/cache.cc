@@ -99,6 +99,17 @@ static decltype(pmem_control::persist) pmem_persist_init()
   return (getauxval(AT_HWCAP) & HWCAP_DCPOP) ? pmem_cvap : pmem_cvac;
 }
 # elif defined __powerpc64__
+
+# if defined(__clang__)
+#   define HAVE_TARGET_POWER10 1
+__attribute__((target("arch=pwr10")))
+# elif defined(__GNUC__)
+    // GCC: Power10 support starts with GCC 10.
+#   if (__GNUC__ == 10 && __GNUC_MINOR__ >= 1)
+#       define HAVE_TARGET_POWER10 1
+__attribute__((target("cpu=power10")))
+#   endif
+# endif
 static void pmem_phwsync(const void* buf, size_t size)
 {
   for (uintptr_t u= uintptr_t(buf) & ~(CPU_LEVEL1_DCACHE_LINESIZE),
@@ -111,14 +122,14 @@ static void pmem_phwsync(const void* buf, size_t size)
 
     Let us hope that having a recent enough GCC is an adequate proxy
     for having a recent enough assembler. */
-#  if __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 12)
+#  ifdef HAVE_TARGET_POWER10
     __asm__ __volatile__("dcbstps 0,%0" :: "r"(u) : "memory");
 #  else
     __asm__ __volatile__(".long (0x7cc000AC | %0 << 11)" :: "r"(u) : "memory");
 #  endif
   }
 
-#  if __GNUC__ >= 11 || (defined __clang_major__ && __clang_major__ >= 18)
+#  ifdef HAVE_TARGET_POWER10
   __asm__ __volatile__("phwsync" ::: "memory");
 #  else
   __asm__ __volatile__(".long 0x7c80040a" ::: "memory");

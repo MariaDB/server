@@ -144,3 +144,23 @@ set session authorization root@localhost;
 disable_session_track_info;
 
 --echo # End of 12.0 tests
+
+--echo #
+--echo # MDEV-40336 SET AUTHORIZATION un-expired passwords
+--echo #
+
+create user u1@localhost;
+alter user u1@localhost password expire;
+connect con1,localhost,u1;
+--error ER_MUST_CHANGE_PASSWORD
+select 1;
+--error ER_MUST_CHANGE_PASSWORD
+set session authorization u1@localhost;
+set password=password('');
+select 2;
+disconnect con1;
+connection default;
+drop user u1@localhost;
+
+--echo # End of 12.3 tests
+

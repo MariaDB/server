@@ -77,6 +77,8 @@ create temporary table t9 (a int);
 --error ER_DUP_ENTRY
 create or replace temporary table t9 (a int primary key) select a from t2;
 
+drop table t1;
+
 --echo binlog from server 1
 --source include/show_binlog_events.inc
 save_master_pos;

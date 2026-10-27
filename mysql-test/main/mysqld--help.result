@@ -317,6 +317,11 @@ The following specify which files/extra groups are read (specified before remain
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
+ --drop-before-create-or-replace 
+ CREATE OR REPLACE should drop old tables before creating
+ new ones. If not set then old table will be temporarly
+ renamed until create table succeeeds. If create does not
+ succeed the old table will be renamed back
  --encrypt-binlog    Encrypt binary logs (including relay logs)
  --encrypt-tmp-disk-tables 
  Encrypt temporary on-disk tables (created as part of
@@ -390,8 +395,10 @@ The following specify which files/extra groups are read (specified before remain
  prefixes
  (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
- The maximum length of the result of function
- GROUP_CONCAT()
+ The maximum memory used for calculating the result for
+ GROUP_CONCAT(). The max length in bytes for a single
+ GROUP_CONCAT() result is limited by
+ min(group_concat_max_len, max_allowed_packet)
  --gtid-cleanup-batch-size=# 
  Normally does not need tuning. How many old rows must
  accumulate in the mysql.gtid_slave_pos table before a
@@ -651,12 +658,12 @@ The following specify which files/extra groups are read (specified before remain
  The DEFAULT value for the CHANGE MASTER option
  MASTER_CONNECT_RETRY, the interval in integer seconds
  between each try to connect to the master
- --master-heartbeat-period=name 
+ --master-heartbeat-period=# 
  The DEFAULT value for the CHANGE MASTER option
- MASTER_HEARTBEAT_PERIOD, the interval in DECIMAL(10, 3)
- seconds between replication heartbeats; the autoset value
- is @@slave_net_timeout/2 calculated on use (Automatically
- configured unless set explicitly)
+ MASTER_HEARTBEAT_PERIOD, the interval in seconds between
+ replication heartbeats; the auto value is
+ slave_net_timeout/2 (Automatically configured unless set
+ explicitly)
  --master-info-file=name 
  The location and name of the file that remembers the
  master and where the I/O replication thread is in the
@@ -677,7 +684,7 @@ The following specify which files/extra groups are read (specified before remain
  The DEFAULT value for the CHANGE MASTER option
  MASTER_SSL_CAPATH, an optional path to a directory of
  Certificate Authority's certificate files for TLS
- replication, 
+ replication
  --master-ssl-cert=name 
  The DEFAULT value for the CHANGE MASTER option
  MASTER_SSL_CERT, an optional path to the master's
@@ -705,10 +712,9 @@ The following specify which files/extra groups are read (specified before remain
  (Defaults to on; use --skip-master-ssl-verify-server-cert to disable.)
  --master-use-gtid=name 
  The DEFAULT value for the CHANGE MASTER option
- MASTER_USE_GTID, which specifies which GTID record (or
- neither) to start replicating from; the autoset value is
- Slave_Pos, or No if that master does not support GTIDs
- (Automatically configured unless set explicitly)
+ MASTER_USE_GTID, which specifies if GTID should be used
+ or not (Automatically configured unless set explicitly).
+ One of: No, Current_Pos, Slave_Pos
  --master-verify-checksum 
  Force checksum verification of logged events in the
  binary log before sending them to slaves or printing them
@@ -1449,8 +1455,7 @@ The following specify which files/extra groups are read (specified before remain
  --slave-connections-needed-for-purge=# 
  Minimum number of connected slaves required for automatic
  binary log purge with max_binlog_total_size,
- binlog_expire_logs_seconds or binlog_expire_logs_days.
- Default is 0 when Galera is enabled and 1 otherwise
+ binlog_expire_logs_seconds or binlog_expire_logs_days
  --slave-ddl-exec-mode=name 
  How replication events should be executed. Legal values
  are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
@@ -1735,6 +1740,9 @@ The following specify which files/extra groups are read (specified before remain
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
  tables in the INFORMATION_SCHEMA
+ --validate-config   Validate the server configuration specified by the user
+ and exit with an exit code of 0 for success or non-zero
+ for failure, without starting the server
  -v, --verbose       Used with --help option for detailed help
  -V, --version[=name] 
  Output version information and exit
@@ -1808,6 +1816,7 @@ delayed-insert-timeout 300
 delayed-queue-size 1000
 disconnect-on-expired-password FALSE
 div-precision-increment 4
+drop-before-create-or-replace FALSE
 encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
@@ -1899,7 +1908,7 @@ long-query-time 10
 low-priority-updates FALSE
 lower-case-table-names 1
 master-connect-retry 60
-master-heartbeat-period auto
+master-heartbeat-period 0
 master-info-file master.info
 master-retry-count 100000
 master-ssl TRUE
@@ -1911,7 +1920,7 @@ master-ssl-crl
 master-ssl-crlpath 
 master-ssl-key 
 master-ssl-verify-server-cert TRUE
-master-use-gtid ?
+master-use-gtid Slave_Pos
 master-verify-checksum FALSE
 max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520
@@ -2117,7 +2126,7 @@ skip-show-database FALSE
 skip-slave-start FALSE
 slave-abort-blocking-timeout 31536000
 slave-compressed-protocol FALSE
-slave-connections-needed-for-purge 1
+slave-connections-needed-for-purge 0
 slave-ddl-exec-mode IDEMPOTENT
 slave-domain-parallel-threads 0
 slave-exec-mode STRICT
@@ -2177,6 +2186,7 @@ transaction-read-only FALSE
 updatable-views-with-limit YES
 use-stat-tables PREFERABLY_FOR_QUERIES
 userstat FALSE
+validate-config FALSE
 verbose TRUE
 wait-timeout 28800
 

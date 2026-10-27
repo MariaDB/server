@@ -737,7 +737,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
-        13. Subquery does not have ROWNUM
+        13. Subquery does not set UNCACHEABLE_RAND.  RAND() and ROWNUM
+            set it.
 
       There are also other requirements which cannot be checked at this phase,
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
@@ -757,7 +758,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
         select_lex->first_cond_optimization &&                        // 11
-        !select_lex->with_rownum)                                     // 13
+        !(select_lex->uncacheable & UNCACHEABLE_RAND))                // 13
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -2767,13 +2768,18 @@ TMPTABLE_COSTS
 get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
                     bool add_copy_cost)
 {
+  /*
+    We should not use ram_limitation hear as we are calculating memory used
+    internally by temporary tables
+  */
+  size_t tmp_buffer_size= MY_MIN(thd->variables.tmp_memory_table_size,
+                                 thd->variables.max_heap_table_size);
   TMPTABLE_COSTS cost;
   /* From heap_prepare_hp_create_info(), assuming one hash key used */
   row_size+= sizeof(char*)*2;
   row_size= MY_ALIGN(MY_MAX(row_size, sizeof(char*)) + 1, sizeof(char*));
 
-  if (row_count > thd->variables.max_heap_table_size / (double) row_size ||
-      blobs_used)
+  if (row_count > tmp_buffer_size / (double) row_size || blobs_used)
   {
     double row_copy_cost= (add_copy_cost ?
                            tmp_table_optimizer_costs.row_copy_cost :
@@ -3622,7 +3628,7 @@ bool Firstmatch_picker::check_qep(JOIN *join,
 
 /*
   Duplicate_weedout strategy is described at
-  https://mariadb.com/kb/en/duplicateweedout-strategy/
+  https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/optimization-strategies/duplicateweedout-strategy
 
   The idea is that if one has a subquery of type:
 
@@ -5032,7 +5038,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
       key_part_info->offset= field->offset(table->record[0]);
       key_part_info->length= (uint16) field->key_length();
       key_part_info->type=   (uint8) field->key_type();
-      key_part_info->key_type = FIELDFLAG_BINARY;
+      key_part_info->key_type= FIELDFLAG_BINARY;
+      key_part_info->key_part_flag=  field->key_part_flag();
       if (!using_unique_constraint)
       {
 	if (!(key_field= field->new_key_field(thd->mem_root, table,
@@ -5179,7 +5186,8 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
 
     bool is_duplicate;
     if (create_internal_tmp_table_from_heap(thd, tmp_table, start_recinfo,
-                                            &recinfo, error, 1, &is_duplicate))
+                                            &recinfo, error, 1, &is_duplicate,
+                                            NULL))
       DBUG_RETURN(-1);
     if (is_duplicate)
       DBUG_RETURN(1);

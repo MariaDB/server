@@ -1071,7 +1071,6 @@ struct ha_table_option_struct
 /* Some defines used by maria-functions */
 
 #define USE_WHOLE_KEY	65535         /* Use whole key in _search() */
-#define F_EXTRA_LCK	-1
 
 /* bits in opt_flag */
 #define MEMMAP_USED	32U
@@ -1276,7 +1275,7 @@ extern my_bool maria_recovery_verbose, maria_checkpoint_disabled;
 extern my_bool maria_assert_if_crashed_table, aria_readonly;
 extern uint maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
-extern int (*maria_create_trn_hook)(MARIA_HA *);
+extern int (*maria_create_trn_hook)(MARIA_HA *, my_bool all);
 extern my_bool (*ma_killed)(MARIA_HA *);
 extern void (*ma_debug_crash_here)(const char *keyword);
 

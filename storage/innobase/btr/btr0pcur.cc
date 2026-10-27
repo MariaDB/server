@@ -174,7 +174,7 @@ before_first:
 						 &cursor->old_rec_buf,
 						 &cursor->buf_size);
 	cursor->old_page_id = block->page.id();
-	cursor->modify_clock = block->modify_clock;
+	cursor->modify_clock = block->modify_clock();
 }
 
 /**************************************************************//**
@@ -233,7 +233,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   const page_t *const page= block->page.frame;
   {
     transactional_shared_lock_guard<block_lock> g{block->page.lock};
-    modify_clock= block->modify_clock;
+    modify_clock= block->modify_clock();
     left_page_no= btr_page_get_prev(page);
   }
 
@@ -267,7 +267,7 @@ static bool btr_pcur_optimistic_latch_leaves(btr_pcur_t *pcur,
   mtr->upgrade_buffer_fix(savepoint, RW_S_LATCH);
   btr_search_drop_page_hash_index(block, pcur->index());
 
-  if (UNIV_UNLIKELY(block->modify_clock != modify_clock) ||
+  if (UNIV_UNLIKELY(block->modify_clock() != modify_clock) ||
       UNIV_UNLIKELY(block->page.is_freed()) ||
       (prev &&
        memcmp_aligned<4>(FIL_PAGE_NEXT + prev->page.frame,
@@ -448,7 +448,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 			But we can retain the value of old_rec */
 
 			old_page_id = btr_cur.page_cur.block->page.id();
-			modify_clock = btr_cur.page_cur.block->modify_clock;
+			modify_clock = btr_cur.page_cur.block->modify_clock();
 
 			mem_heap_free(heap);
 
@@ -476,17 +476,11 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	return ret_val;
 }
 
-/*********************************************************//**
-Moves the persistent cursor to the first record on the next page. Releases the
-latch on the current page, and bufferunfixes it. Note that there must not be
-modifications on the current page, as then the x-latch can be released only in
-mtr_commit. */
 dberr_t
 btr_pcur_move_to_next_page(
-/*=======================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
-				last record of the current page */
-	mtr_t*		mtr)	/*!< in: mtr */
+	btr_pcur_t*	cursor,
+	mtr_t*		mtr,
+	bool		retain_latch)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -531,8 +525,11 @@ btr_pcur_move_to_next_page(
 
 	ut_d(page_check_dir(next_page));
 
-	const auto s = mtr->get_savepoint();
-	mtr->rollback_to_savepoint(s - 2, s - 1);
+	if (!retain_latch) {
+		const auto s = mtr->get_savepoint();
+		mtr->rollback_to_savepoint(s - 2, s - 1);
+	}
+
 	if (first_access) {
 		buf_read_ahead_linear(next_block->page.id());
 	}

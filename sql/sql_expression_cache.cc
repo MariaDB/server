@@ -138,6 +138,23 @@ void Expression_cache_tmptable::init()
     goto error;
   }
 
+  /*
+    HEAP hash indexes on blob columns use a pointer-based key format
+    (4-byte length + data pointer). This is incompatible with the SQL
+    layer's key format (2-byte length + inline data) because
+    Field_blob::new_key_field() returns a Field_varstring.
+
+    This check is slightly conservative: a blob only in the result
+    value would not affect the key. However, it matches the pre-blob
+    behavior where blobs forced Aria, which failed the heap_hton check
+    above and disabled the cache anyway.
+  */
+  if (cache_table->s->blob_fields)
+  {
+    DBUG_PRINT("error", ("blob fields not supported in heap expression cache"));
+    goto error;
+  }
+
   field_counter= 1;
 
   if (cache_table->alloc_keys(1) ||
@@ -303,10 +320,11 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
       }
       else
       {
+        bool is_duplicate;
         if (create_internal_tmp_table_from_heap(table_thd, cache_table,
                                                 cache_table_param.start_recinfo,
                                                 &cache_table_param.recinfo,
-                                                error, 1, NULL))
+                                                error, 1, &is_duplicate, NULL))
           goto err2;
       }
     }
