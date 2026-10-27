@@ -1,0 +1,98 @@
+#
+# Scalar HLL functions
+#
+SELECT HEX(HLL_EMPTY()), HLL_CARDINALITY(HLL_EMPTY()),
+HLL_CARDINALITY_ROUND(HLL_EMPTY()), HLL_FORMAT_VERSION(HLL_EMPTY()),
+HLL_INFO(HLL_EMPTY());
+HEX(HLL_EMPTY())	HLL_CARDINALITY(HLL_EMPTY())	HLL_CARDINALITY_ROUND(HLL_EMPTY())	HLL_FORMAT_VERSION(HLL_EMPTY())	HLL_INFO(HLL_EMPTY())
+11	0	0	1	version=1 representation=EMPTY
+SET @e= CAST(0x1200000000000000010000000000000002 AS HLL);
+SET @f= CAST(CONCAT(0x13, 0x732000, REPEAT(0x00, 12284), 0xcc) AS HLL);
+SELECT HLL_CARDINALITY(@e), HLL_INFO(@e), HLL_INFO(@f), HLL_FORMAT_VERSION(@f);
+HLL_CARDINALITY(@e)	HLL_INFO(@e)	HLL_INFO(@f)	HLL_FORMAT_VERSION(@f)
+2	version=1 representation=EXPLICIT elements=2	version=1 representation=FULL zero_registers=16380	1
+# HLL_UNION
+SELECT HEX(HLL_UNION(@e, CAST(0x120000000000000003 AS HLL))) AS u;
+u
+12000000000000000100000000000000020000000000000003
+SELECT HEX(HLL_UNION(@e, @e)) = HEX(@e) AS idempotent;
+idempotent
+1
+SELECT HEX(HLL_UNION(@e, HLL_EMPTY())) = HEX(@e) AS identity;
+identity
+1
+SELECT HLL_INFO(HLL_UNION(@e, @f)) AS explicit_into_full;
+explicit_into_full
+version=1 representation=FULL zero_registers=16380
+# NULL semantics
+SELECT HLL_CARDINALITY(NULL), HLL_CARDINALITY_ROUND(NULL), HLL_UNION(NULL, @e),
+HLL_UNION(@e, NULL), HLL_FORMAT_VERSION(NULL), HLL_INFO(NULL);
+HLL_CARDINALITY(NULL)	HLL_CARDINALITY_ROUND(NULL)	HLL_UNION(NULL, @e)	HLL_UNION(@e, NULL)	HLL_FORMAT_VERSION(NULL)	HLL_INFO(NULL)
+NULL	NULL	NULL	NULL	NULL	NULL
+# HLL_CARDINALITY_ROUND: floor(estimate + 0.5), error when out of range
+SELECT HLL_CARDINALITY(@f), HLL_CARDINALITY_ROUND(@f);
+HLL_CARDINALITY(@f)	HLL_CARDINALITY_ROUND(@f)
+4.000488360737401	4
+# FULL with every register 51 estimates ~2.66e19 > 2^64-1
+SET @max= CAST(CONCAT(0x13, REPEAT(0xF33CCF, 4096)) AS HLL);
+SELECT HLL_INFO(@max), HLL_CARDINALITY(@max) > 18446744073709551615 AS above;
+HLL_INFO(@max)	above
+version=1 representation=FULL zero_registers=0	1
+SELECT HLL_CARDINALITY_ROUND(@max);
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'hll_cardinality_round'
+# Result data types
+CREATE TABLE t1 AS SELECT HLL_EMPTY() AS e, HLL_UNION(@e, @e) AS u,
+HLL_CARDINALITY(@e) AS c, HLL_CARDINALITY_ROUND(@e) AS cr,
+HLL_FORMAT_VERSION(@e) AS v, HLL_INFO(@e) AS i;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `e` hll DEFAULT NULL,
+  `u` hll DEFAULT NULL,
+  `c` double DEFAULT NULL,
+  `cr` bigint(20) unsigned DEFAULT NULL,
+  `v` int(11) DEFAULT NULL,
+  `i` varchar(64) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT HEX(e), HEX(u), c, cr, v, i FROM t1;
+HEX(e)	HEX(u)	c	cr	v	i
+11	1200000000000000010000000000000002	2	2	1	version=1 representation=EXPLICIT elements=2
+DROP TABLE t1;
+# Arguments: HLL or binary bytes (validated); not numbers or text
+SELECT HLL_CARDINALITY(0x11), HLL_CARDINALITY(CAST(0x11 AS HLL));
+HLL_CARDINALITY(0x11)	HLL_CARDINALITY(CAST(0x11 AS HLL))
+0	0
+SELECT HLL_INFO(CAST(1 AS BINARY));
+ERROR HY000: Incorrect HLL value: '1'
+SELECT HLL_CARDINALITY(1);
+ERROR HY000: Illegal parameter data type int for operation 'hll_cardinality'
+SELECT HLL_UNION(@e, 'abc');
+ERROR HY000: Illegal parameter data type varchar for operation 'hll_union'
+SELECT HLL_CARDINALITY(DATE'2020-01-01');
+ERROR HY000: Illegal parameter data type date for operation 'hll_cardinality'
+# User variables hold HLL values as LONGBLOB
+SELECT HLL_CARDINALITY(HLL_UNION(@e, @f)) > 2 AS from_variables;
+from_variables
+1
+# Wrong argument count
+SELECT HLL_EMPTY(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'HLL_EMPTY'
+SELECT HLL_CARDINALITY();
+ERROR 42000: Incorrect parameter count in the call to native function 'HLL_CARDINALITY'
+SELECT HLL_UNION(@e);
+ERROR 42000: Incorrect parameter count in the call to native function 'HLL_UNION'
+# Malformed and unknown-version values are rejected
+SELECT HLL_CARDINALITY(CAST(0x21 AS HLL));
+ERROR HY000: Incorrect HLL value: '!'
+SELECT HLL_FORMAT_VERSION(CAST(0x1100 AS HLL));
+ERROR HY000: Incorrect HLL value: '\x11\x00'
+# Prepared statements
+PREPARE s FROM 'SELECT HLL_CARDINALITY(HLL_UNION(?, ?))';
+SET @a= CAST(0x120000000000000001 AS HLL), @b= CAST(0x120000000000000002 AS HLL);
+EXECUTE s USING @a, @b;
+HLL_CARDINALITY(HLL_UNION(?, ?))
+2
+EXECUTE s USING @a, @a;
+HLL_CARDINALITY(HLL_UNION(?, ?))
+1
+DEALLOCATE PREPARE s;

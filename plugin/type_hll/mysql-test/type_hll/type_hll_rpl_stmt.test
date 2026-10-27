@@ -1,0 +1,26 @@
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Statement-based replication: HLL functions and aggregates are
+--echo # deterministic, so the replica rebuilds identical sketches
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, g INT, x INT, d DATE, b VARBINARY(10));
+INSERT INTO t1 VALUES (1, 1, 10, '2020-01-01', 0x01), (2, 1, 20, '2020-01-02', 0x02),
+  (3, 2, 10, '0000-00-00', 0x03), (4, 2, NULL, NULL, NULL);
+CREATE TABLE t2 (g INT, h HLL);
+INSERT INTO t2 SELECT g, HLL_BUILD_AGG(x) FROM t1 GROUP BY g ORDER BY g;
+INSERT INTO t2 SELECT 10, HLL_BUILD_AGG(d) FROM t1;
+INSERT INTO t2 SELECT 11, HLL_UNION(HLL_BUILD_AGG(b), HLL_EMPTY()) FROM t1;
+INSERT INTO t2 SELECT 12, HLL_UNION_AGG(h) FROM t2 WHERE g < 10;
+INSERT INTO t2 VALUES (13, 0x120000000000000001);
+SELECT g, MD5(h), HLL_CARDINALITY(h) FROM t2 ORDER BY g;
+
+--sync_slave_with_master
+SELECT g, MD5(h), HLL_CARDINALITY(h) FROM t2 ORDER BY g;
+
+--connection master
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

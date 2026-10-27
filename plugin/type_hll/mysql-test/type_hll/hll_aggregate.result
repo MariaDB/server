@@ -1,0 +1,336 @@
+#
+# HLL_BUILD_AGG and HLL_UNION_AGG
+#
+SET @save_max_recursive_iterations= @@max_recursive_iterations;
+SET max_recursive_iterations= 1000000;
+CREATE TABLE t1 (id INT, g INT, x INT, b VARBINARY(10));
+INSERT INTO t1
+WITH RECURSIVE s(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM s WHERE n < 1000)
+SELECT n, n % 4, n % 300, CAST(n % 7 AS BINARY) FROM s;
+INSERT INTO t1 VALUES (1001, 0, NULL, NULL);
+# Empty and all-NULL input return HLL_EMPTY(), not NULL
+SELECT HEX(HLL_BUILD_AGG(x)), HEX(HLL_UNION_AGG(CAST(NULL AS HLL)))
+FROM t1 WHERE id < 0;
+HEX(HLL_BUILD_AGG(x))	HEX(HLL_UNION_AGG(CAST(NULL AS HLL)))
+11	11
+SELECT HEX(HLL_BUILD_AGG(x)) FROM t1 WHERE x IS NULL;
+HEX(HLL_BUILD_AGG(x))
+11
+# Exact EXPLICIT results up to 256, FULL above
+SELECT g, HLL_CARDINALITY(HLL_BUILD_AGG(b)) AS c, HLL_INFO(HLL_BUILD_AGG(b))
+FROM t1 GROUP BY g;
+g	c	HLL_INFO(HLL_BUILD_AGG(b))
+0	7	version=1 representation=EXPLICIT elements=7
+1	7	version=1 representation=EXPLICIT elements=7
+2	7	version=1 representation=EXPLICIT elements=7
+3	7	version=1 representation=EXPLICIT elements=7
+SELECT HLL_CARDINALITY(HLL_BUILD_AGG(x)) AS c300,
+HLL_INFO(HLL_BUILD_AGG(x)) AS i300,
+HLL_CARDINALITY(HLL_BUILD_AGG(IF(x < 256, x, NULL))) AS c256,
+HLL_INFO(HLL_BUILD_AGG(IF(x < 256, x, NULL))) AS i256,
+HLL_INFO(HLL_BUILD_AGG(IF(x < 257, x, NULL))) AS i257
+FROM t1;
+c300	i300	c256	i256	i257
+301.761956513506	version=1 representation=FULL zero_registers=16085	256	version=1 representation=EXPLICIT elements=256	version=1 representation=FULL zero_registers=16128
+# Full build equals the union of the parts (byte for byte)
+SELECT MD5(HLL_BUILD_AGG(x)) = (SELECT MD5(HLL_UNION_AGG(h)) FROM
+(SELECT g, HLL_BUILD_AGG(x) AS h FROM t1 GROUP BY g) parts) AS eq_full,
+MD5(HLL_BUILD_AGG(IF(x < 100, x, NULL))) =
+(SELECT MD5(HLL_UNION_AGG(h)) FROM
+(SELECT g, HLL_BUILD_AGG(IF(x < 100, x, NULL)) AS h FROM t1
+GROUP BY g) parts) AS eq_explicit
+FROM t1;
+eq_full	eq_explicit
+1	1
+# DISTINCT replay gives the same sketch
+SELECT MD5(HLL_BUILD_AGG(DISTINCT x)) = MD5(HLL_BUILD_AGG(x)) AS same,
+MD5(HLL_BUILD_AGG(DISTINCT b)) = MD5(HLL_BUILD_AGG(b)) AS same_bin
+FROM t1;
+same	same_bin
+1	1
+SELECT HLL_UNION_AGG(DISTINCT HLL_EMPTY()) FROM t1;
+ERROR 42000: This version of MariaDB doesn't yet support 'DISTINCT for plugin aggregate hll_union_agg()'
+# FILTER
+SELECT HLL_CARDINALITY(HLL_BUILD_AGG(x) FILTER (WHERE g = 1)) AS c FROM t1;
+c
+75
+# GROUP BY, HAVING, ROLLUP, CTE, derived tables
+SELECT g, HLL_CARDINALITY(HLL_BUILD_AGG(x)) AS c FROM t1
+GROUP BY g HAVING HLL_CARDINALITY(HLL_BUILD_AGG(x)) > 70 ORDER BY g;
+g	c
+0	75
+1	75
+2	75
+3	75
+SELECT g, HLL_INFO(HLL_BUILD_AGG(b)) FROM t1 GROUP BY g WITH ROLLUP;
+g	HLL_INFO(HLL_BUILD_AGG(b))
+0	version=1 representation=EXPLICIT elements=7
+1	version=1 representation=EXPLICIT elements=7
+2	version=1 representation=EXPLICIT elements=7
+3	version=1 representation=EXPLICIT elements=7
+NULL	version=1 representation=EXPLICIT elements=7
+WITH c AS (SELECT g, HLL_BUILD_AGG(b) AS h FROM t1 GROUP BY g)
+SELECT HLL_CARDINALITY(HLL_UNION_AGG(h)) FROM c;
+HLL_CARDINALITY(HLL_UNION_AGG(h))
+7
+SELECT HLL_CARDINALITY(HLL_UNION_AGG(h)) FROM
+(SELECT g, HLL_BUILD_AGG(b) AS h FROM t1 GROUP BY g) d;
+HLL_CARDINALITY(HLL_UNION_AGG(h))
+7
+# CTAS / INSERT ... SELECT store real HLL values
+CREATE TABLE t2 AS SELECT g, HLL_BUILD_AGG(x) AS h FROM t1 GROUP BY g;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `g` int(11) DEFAULT NULL,
+  `h` hll NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+INSERT INTO t2 SELECT 10, HLL_BUILD_AGG(b) FROM t1;
+SELECT g, HLL_INFO(h) FROM t2 ORDER BY g;
+g	HLL_INFO(h)
+0	version=1 representation=EXPLICIT elements=75
+1	version=1 representation=EXPLICIT elements=75
+2	version=1 representation=EXPLICIT elements=75
+3	version=1 representation=EXPLICIT elements=75
+10	version=1 representation=EXPLICIT elements=7
+SELECT HLL_CARDINALITY(HLL_UNION_AGG(h)) FROM t2 WHERE g < 10;
+HLL_CARDINALITY(HLL_UNION_AGG(h))
+301.761956513506
+DROP TABLE t2;
+# Prepared statement re-execution
+PREPARE s FROM 'SELECT HLL_CARDINALITY(HLL_BUILD_AGG(x)) FROM t1 WHERE g = ?';
+EXECUTE s USING 1;
+HLL_CARDINALITY(HLL_BUILD_AGG(x))
+75
+EXECUTE s USING 2;
+HLL_CARDINALITY(HLL_BUILD_AGG(x))
+75
+EXECUTE s USING 2;
+HLL_CARDINALITY(HLL_BUILD_AGG(x))
+75
+DEALLOCATE PREPARE s;
+# Window functions: running frames and moving frames via rescan
+CREATE TABLE t2 (id INT, x INT);
+INSERT INTO t2 SELECT id, x FROM t1 WHERE id <= 20;
+INSERT INTO t2 VALUES (21, 1), (22, 1), (23, NULL);
+SELECT id, x,
+HLL_CARDINALITY(HLL_BUILD_AGG(x) OVER (ORDER BY id)) AS running,
+(SELECT COUNT(DISTINCT x) FROM t2 b WHERE b.id <= a.id) AS running_expected,
+HLL_CARDINALITY(HLL_BUILD_AGG(x) OVER (ORDER BY id
+ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)) AS moving,
+(SELECT COUNT(DISTINCT x) FROM t2 b
+WHERE b.id BETWEEN a.id - 2 AND a.id) AS moving_expected
+FROM t2 a ORDER BY id;
+id	x	running	running_expected	moving	moving_expected
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	3	3	3	3
+4	4	4	4	3	3
+5	5	5	5	3	3
+6	6	6	6	3	3
+7	7	7	7	3	3
+8	8	8	8	3	3
+9	9	9	9	3	3
+10	10	10	10	3	3
+11	11	11	11	3	3
+12	12	12	12	3	3
+13	13	13	13	3	3
+14	14	14	14	3	3
+15	15	15	15	3	3
+16	16	16	16	3	3
+17	17	17	17	3	3
+18	18	18	18	3	3
+19	19	19	19	3	3
+20	20	20	20	3	3
+21	1	20	20	3	3
+22	1	20	20	2	2
+23	NULL	20	20	1	1
+SELECT COUNT(*) AS mismatches FROM (
+SELECT id,
+MD5(HLL_BUILD_AGG(x) OVER (ORDER BY id
+ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)) AS w,
+(SELECT MD5(HLL_BUILD_AGG(x)) FROM t2 b
+WHERE b.id BETWEEN a.id - 1 AND a.id + 1) AS e
+FROM t2 a) d WHERE w <> e;
+mismatches
+0
+# Window over a grouped derived table (temporary table default record)
+SELECT k, HLL_CARDINALITY(HLL_UNION_AGG(h) OVER ()) AS c FROM
+(SELECT id % 3 AS k, HLL_BUILD_AGG(x) AS h FROM t2 GROUP BY k) d ORDER BY k;
+k	c
+0	20
+1	20
+2	20
+SELECT HLL_BUILD_AGG(DISTINCT x) OVER (ORDER BY id) FROM t2;
+ERROR 42000: This version of MariaDB doesn't yet support 'plugin aggregate with DISTINCT as window function'
+DROP TABLE t2;
+# Unsupported input types
+SELECT HLL_BUILD_AGG(1.5) FROM t1;
+ERROR HY000: Illegal parameter data type decimal for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG('text') FROM t1;
+ERROR HY000: Illegal parameter data type varchar for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(CONCAT(x)) FROM t1;
+ERROR HY000: Illegal parameter data type varchar for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(HLL_EMPTY()) FROM t1;
+ERROR HY000: Illegal parameter data type hll for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(POINT(1,1)) FROM t1;
+ERROR HY000: Illegal parameter data type point for operation 'hll_build_agg'
+CREATE TABLE t2 (e ENUM('a','b'), s SET('a'), j JSON, d DECIMAL(10,2), bt BIT(3));
+SELECT HLL_BUILD_AGG(e) FROM t2;
+ERROR HY000: Illegal parameter data type varchar for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(s) FROM t2;
+ERROR HY000: Illegal parameter data type varchar for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(j) FROM t2;
+ERROR HY000: Illegal parameter data type longblob/json for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(d) FROM t2;
+ERROR HY000: Illegal parameter data type decimal for operation 'hll_build_agg'
+SELECT HLL_BUILD_AGG(bt) FROM t2;
+ERROR HY000: Illegal parameter data type bit for operation 'hll_build_agg'
+DROP TABLE t2;
+SELECT HLL_UNION_AGG(x) FROM t1;
+ERROR HY000: Illegal parameter data type int for operation 'hll_union_agg'
+# Binary bytes are accepted but validated
+SELECT HLL_UNION_AGG(b) FROM t1;
+ERROR HY000: Incorrect HLL value: '1'
+# Text must be cast to a byte representation explicitly
+SELECT HLL_CARDINALITY(HLL_BUILD_AGG(CAST(CONCAT('k', x) AS BINARY))) FROM t1;
+HLL_CARDINALITY(HLL_BUILD_AGG(CAST(CONCAT('k', x) AS BINARY)))
+301.761956513506
+DROP TABLE t1;
+#
+# Statistical accuracy (plan 13.5): fixed deterministic inputs,
+# relative error below 4 standard errors (4 * 0.8125%)
+#
+CREATE TABLE t1 (n INT);
+INSERT INTO t1
+WITH RECURSIVE s(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM s WHERE n < 100000)
+SELECT n FROM s;
+SELECT k, IF(k <= 256, HLL_CARDINALITY(HLL_BUILD_AGG(n)) = k, NULL) AS exact,
+ABS(HLL_CARDINALITY(HLL_BUILD_AGG(n)) - k) / k < 4 * 0.008125 AS within
+FROM t1, (SELECT 10 AS k UNION SELECT 100 UNION SELECT 256 UNION SELECT 1000
+UNION SELECT 10000 UNION SELECT 30000 UNION SELECT 50000
+UNION SELECT 80000 UNION SELECT 100000) ks
+WHERE n <= k GROUP BY k ORDER BY k;
+k	exact	within
+10	1	1
+100	1	1
+256	1	1
+1000	NULL	1
+10000	NULL	1
+30000	NULL	1
+50000	NULL	1
+80000	NULL	1
+100000	NULL	1
+DROP TABLE t1;
+#
+# HLL_UNION_AGG over stored sketches: FILTER, NULL sketches,
+# HAVING, ROLLUP, prepared statements, window frames
+#
+CREATE TABLE t1 (n INT);
+INSERT INTO t1
+WITH RECURSIVE s(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM s WHERE n < 1000)
+SELECT n FROM s;
+CREATE TABLE t2 (id INT, g INT, h HLL);
+INSERT INTO t2
+SELECT n % 40 + 1, n % 4, HLL_BUILD_AGG(n % 300) FROM t1
+GROUP BY n % 40, n % 4;
+INSERT INTO t2 VALUES (41, 0, NULL), (42, 1, NULL), (43, 5, NULL);
+DROP TABLE t1;
+# FILTER equals WHERE (byte for byte), EXPLICIT and FULL results
+SELECT MD5(HLL_UNION_AGG(h) FILTER (WHERE g = 1)) =
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE g = 1) AS eq_explicit,
+HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE g = 1)) AS i_explicit,
+MD5(HLL_UNION_AGG(h) FILTER (WHERE id <= 18)) =
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE id <= 18) AS eq_full,
+HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= 18)) AS i_full
+FROM t2;
+eq_explicit	i_explicit	eq_full	i_full
+1	version=1 representation=EXPLICIT elements=75	1	version=1 representation=FULL zero_registers=16115
+# FILTER rejecting all rows, or keeping only NULL sketches
+SELECT HEX(HLL_UNION_AGG(h) FILTER (WHERE g > 100)) AS no_rows,
+HEX(HLL_UNION_AGG(h) FILTER (WHERE h IS NULL)) AS only_nulls
+FROM t2;
+no_rows	only_nulls
+11	11
+# FILTER per group
+SELECT g, HLL_CARDINALITY(HLL_UNION_AGG(h) FILTER (WHERE id <= 10)) AS c,
+MD5(HLL_UNION_AGG(h) FILTER (WHERE id <= 10)) =
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+WHERE b.g = a.g AND b.id <= 10) AS eq
+FROM t2 a GROUP BY g ORDER BY g;
+g	c	eq
+0	45	1
+1	45	1
+2	30	1
+3	30	1
+5	0	1
+# NULL sketches are ignored
+SELECT MD5(HLL_UNION_AGG(h)) =
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 WHERE h IS NOT NULL) AS same
+FROM t2;
+same
+1
+# HAVING and ROLLUP (group 5 holds only a NULL sketch)
+SELECT g, HLL_CARDINALITY(HLL_UNION_AGG(h)) AS c FROM t2
+GROUP BY g HAVING HLL_CARDINALITY(HLL_UNION_AGG(h)) > 0 ORDER BY g;
+g	c
+0	75
+1	75
+2	75
+3	75
+SELECT g, HLL_INFO(HLL_UNION_AGG(h)) FROM t2 GROUP BY g WITH ROLLUP;
+g	HLL_INFO(HLL_UNION_AGG(h))
+0	version=1 representation=EXPLICIT elements=75
+1	version=1 representation=EXPLICIT elements=75
+2	version=1 representation=EXPLICIT elements=75
+3	version=1 representation=EXPLICIT elements=75
+5	version=1 representation=EMPTY
+NULL	version=1 representation=FULL zero_registers=16085
+# Prepared statement re-execution
+PREPARE s FROM
+'SELECT HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= ?)) FROM t2';
+EXECUTE s USING 4;
+HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= ?))
+version=1 representation=EXPLICIT elements=60
+EXECUTE s USING 40;
+HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= ?))
+version=1 representation=FULL zero_registers=16085
+EXECUTE s USING 4;
+HLL_INFO(HLL_UNION_AGG(h) FILTER (WHERE id <= ?))
+version=1 representation=EXPLICIT elements=60
+DEALLOCATE PREPARE s;
+# Window functions: running, moving and partitioned frames
+SELECT COUNT(*) AS mismatches FROM (
+SELECT id,
+MD5(HLL_UNION_AGG(h) OVER (ORDER BY id)) AS running,
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+WHERE b.id <= a.id) AS running_expected,
+MD5(HLL_UNION_AGG(h) OVER (ORDER BY id
+ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)) AS moving,
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+WHERE b.id BETWEEN a.id - 2 AND a.id) AS moving_expected,
+MD5(HLL_UNION_AGG(h) OVER (ORDER BY id
+ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)) AS centered,
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+WHERE b.id BETWEEN a.id - 1 AND a.id + 1) AS centered_expected,
+MD5(HLL_UNION_AGG(h) OVER (PARTITION BY g ORDER BY id)) AS part,
+(SELECT MD5(HLL_UNION_AGG(h)) FROM t2 b
+WHERE b.g = a.g AND b.id <= a.id) AS part_expected
+FROM t2 a) d
+WHERE running <> running_expected OR moving <> moving_expected OR
+centered <> centered_expected OR part <> part_expected;
+mismatches
+0
+SELECT id, g, HLL_CARDINALITY(HLL_UNION_AGG(h) OVER (ORDER BY id
+ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)) AS c
+FROM t2 WHERE id > 36 ORDER BY id;
+id	g	c
+37	0	15
+38	1	30
+39	2	30
+40	3	30
+41	0	15
+42	1	0
+43	5	0
+DROP TABLE t2;
+SET max_recursive_iterations= @save_max_recursive_iterations;

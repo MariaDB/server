@@ -1,0 +1,32 @@
+include/master-slave.inc
+[connection master]
+#
+# Row-based replication round trip of HLL values
+#
+CREATE TABLE t1 (id INT, h HLL);
+INSERT INTO t1 VALUES (1, 0x11);
+INSERT INTO t1 VALUES (2, 0x1200000000000000010000000000000002);
+INSERT INTO t1 VALUES (3, CONCAT(0x13, 0x732000, REPEAT(0x00, 12284), 0xcc));
+INSERT INTO t1 VALUES (4, NULL);
+SELECT id, MD5(h) FROM t1 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	25e5db9ccc990f008c702023ff28bdad
+4	NULL
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `h` hll DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT id, MD5(h) FROM t1 ORDER BY id;
+id	MD5(h)
+1	47ed733b8d10be225eceba344d533586
+2	c33b59881f89f256cc4ed6f25fd39c4f
+3	25e5db9ccc990f008c702023ff28bdad
+4	NULL
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc
