@@ -1,4 +1,6 @@
 --source include/have_log_bin.inc
+let $saved_purge_connections=
+  `SELECT @@global.slave_connections_needed_for_purge`;
 select @@global.max_binlog_total_size;
 select @@global.max_binlog_size;
 
@@ -90,5 +92,5 @@ show status like "binlog_disk_use";
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
-set @@global.slave_connections_needed_for_purge= default;
+--evalp set @@global.slave_connections_needed_for_purge= $saved_purge_connections
 # End of 11.4 tests
