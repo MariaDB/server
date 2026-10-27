@@ -1395,7 +1395,7 @@ update_end:
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
-    if (thd->get_stmt_da()->is_bulk_op())
+    if (thd->get_stmt_da()->is_bulk_op() && !thd->in_bulk_sub_stmt())
     {
       /*
         Update the diagnostics message sent to a client with number of actual
@@ -3047,8 +3047,13 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-        if (has_vers_fields && table->versioned())
-          table->vers_update_fields();
+        /*
+          Virtual fields are computed again because they may depend on the
+          system fields, which are set only after compare_record().
+        */
+        if (has_vers_fields && table->versioned() &&
+            table->vers_update_fields_vcols())
+          goto err2;
 
         if (unlikely((local_error=
                       table->file->ha_update_row(table->record[1],

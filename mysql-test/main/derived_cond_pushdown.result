@@ -21808,3 +21808,13 @@ id	id	id
 0	3	3
 drop table t1,t2,t3;
 # End of 10.11 tests
+#
+# MDEV-36295 INTERVAL() pushed into a derived table
+#
+create table t1 (a int, b int);
+insert into t1 values (1,10),(5,20),(9,30);
+select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 1;
+a	b
+5	20
+drop table t1;
+# End of 13.2 tests

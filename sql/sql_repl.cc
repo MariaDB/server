@@ -1551,8 +1551,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       if (unlikely(get_checksum_alg((uchar*) packet.ptr(), packet.length(),
                                     &current_checksum_alg) ||
                    !(tmp= new Format_description_log_event((uchar*)packet.ptr(),
-                                                           packet.length(),
-                                                           fdev))))
+                                                           packet.length()))))
       {
         errormsg= "Corrupt Format_description event found or out-of-memory "
           "while searching for old-style position in binlog";
@@ -1568,7 +1567,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       {
         sele_len -= BINLOG_CHECKSUM_LEN;
       }
-      Start_encryption_log_event sele((uchar*) packet.ptr(), sele_len, fdev);
+      Start_encryption_log_event sele((uchar*) packet.ptr(), sele_len);
       if (fdev->start_decryption(&sele))
       {
         errormsg= "Could not start decryption of binlog.";
@@ -1599,7 +1598,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       status= Gtid_list_log_event::peek(packet.ptr(), packet.length(),
                                         current_checksum_alg,
-                                        &gtid_list, &list_len, fdev);
+                                        &gtid_list, &list_len);
       if (unlikely(status))
       {
         errormsg= "Error reading Gtid_list_log_event while searching "
@@ -1627,8 +1626,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       uchar flags2;
       if (unlikely(Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                         current_checksum_alg, &gtid.domain_id,
-                                        &gtid.server_id, &gtid.seq_no, &flags2,
-                                        fdev)))
+                                        &gtid.server_id, &gtid.seq_no, &flags2)))
       {
         errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
           "initial slave position";
@@ -1765,7 +1763,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     if (ev_offset > len ||
         Gtid_list_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                   current_checksum_alg,
-                                  &gtid_list, &list_len, info->fdev))
+                                  &gtid_list, &list_len))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to read Gtid_list_log_event: corrupt binlog";
@@ -1794,7 +1792,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
           Gtid_log_event::peek((uchar*) packet->ptr()+ev_offset, len - ev_offset,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
-                               &event_gtid.seq_no, &flags2, info->fdev))
+                               &event_gtid.seq_no, &flags2))
       {
         info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to read Gtid_log_event: corrupt binlog";
@@ -2539,7 +2537,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
 
   Format_description_log_event *tmp;
   if (!(tmp= new Format_description_log_event((uchar*) packet->ptr() + ev_offset,
-                                              ev_len, info->fdev)))
+                                              ev_len)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     info->errmsg= CORRUPT_FDE;

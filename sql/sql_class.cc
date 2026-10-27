@@ -2397,14 +2397,12 @@ void THD::cleanup_after_query()
     making this reset necessary.
   */
   reset_binlog_local_stmt_filter();
-  if (first_successful_insert_id_in_cur_stmt > 0)
-  {
-    /* set what LAST_INSERT_ID() will return */
-    first_successful_insert_id_in_prev_stmt= 
-      first_successful_insert_id_in_cur_stmt;
-    first_successful_insert_id_in_cur_stmt= 0;
-    substitute_null_with_insert_id= TRUE;
-  }
+  /*
+    Bulk operation sets LAST_INSERT_ID() once, to the first id generated
+    by all its executions, see Prepared_statement::execute_bulk_loop()
+  */
+  if (!is_bulk_op() || in_sub_stmt)
+    set_last_insert_id_from_cur_stmt();
   arg_of_last_insert_id_function= 0;
   /* Free Items that were created during this execution */
   free_items();
@@ -5054,8 +5052,11 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ENTER("open_purge_table");
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  /* Purge already hold the MDL for the table */
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
+  /* Purge already hold the MDL for the table. A kill flag on a purge THD
+  (for example from a Galera BF abort) is never reset, and purge has no
+  statement to abort; it must not make every subsequent open_table() fail. */
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK |
+                                 MYSQL_OPEN_IGNORE_KILLED);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
