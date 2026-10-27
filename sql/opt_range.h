@@ -891,7 +891,12 @@ public:
 
   /* Array of parts of all keys for which range analysis is performed */
   KEY_PART *key_parts;
+  /*
+    End of non-cloned key parts, followed by cloned key parts (see
+    get_claimed_key_part())
+  */
   KEY_PART *key_parts_end;
+  KEY_PART *key_part_clones_end;
   MEM_ROOT *mem_root; /* Memory that will be freed when range analysis completes */
   MEM_ROOT *old_root; /* Memory that will last until the query end */
   /*
