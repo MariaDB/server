@@ -107,6 +107,9 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
   if (!b)
     return -1;
   ssize_t ret;
+#ifdef __linux__
+  bool first{true};
+#endif
   for (;;)
   {
     if (count < size)
@@ -134,6 +137,19 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
             ret= int(wrote);
             break;
           }
+#ifdef __linux__
+          sync_file_range(out_fd, wo, wrote, SYNC_FILE_RANGE_WRITE);
+          if (first)
+            first= false;
+          else
+          {
+            sync_file_range(out_fd, 0, wo,
+                            SYNC_FILE_RANGE_WAIT_BEFORE |
+                            SYNC_FILE_RANGE_WRITE |
+                            SYNC_FILE_RANGE_WAIT_AFTER);
+            posix_fadvise(out_fd, 0, wo, POSIX_FADV_DONTNEED);
+          }
+#endif
           buf+= wrote;
           wo+= wrote;
           size-= size_t(wrote);
@@ -161,6 +177,13 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
     }
   }
   aligned_free(b);
+#ifdef __linux__
+  sync_file_range(out_fd, 0, o,
+                  SYNC_FILE_RANGE_WAIT_BEFORE |
+                  SYNC_FILE_RANGE_WRITE |
+                  SYNC_FILE_RANGE_WAIT_AFTER);
+  posix_fadvise(out_fd, 0, o, POSIX_FADV_DONTNEED);
+#endif
   return ret;
 }
 
